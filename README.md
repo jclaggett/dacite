@@ -39,4 +39,4 @@ Dacite is a system for **distributed immutable data structures** with content-ad
 
 ## License
 
-TBD
+Apache 2.0 — see [LICENSE](LICENSE)
