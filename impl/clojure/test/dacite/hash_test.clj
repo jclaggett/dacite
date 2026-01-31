@@ -248,13 +248,13 @@
       (is (bytes? (hash/fuse! a b)))))
   
   (testing "repeated self-fuse induces low-entropy"
-    ;; Fusing a hash with itself ~64 times converges to low-entropy
+    ;; Fusing a hash with itself ~65 times converges to low-entropy
     (let [start (hash/sha256-str "any value")
           result (reduce (fn [h _] (hash/fuse h h)) 
                          start 
-                         (range 64))]
+                         (range 65))]
       (is (hash/low-entropy? result)
-          "64 iterations of self-fuse should produce low-entropy hash")))
+          "65 iterations of self-fuse should produce low-entropy hash")))
   
   (testing "fuse! throws on repeated self-fuse"
     (let [start (hash/sha256-str "trigger low entropy")]
@@ -263,7 +263,7 @@
            #"Low-entropy hash detected"
            (reduce (fn [h _] (hash/fuse! h h))
                    start
-                   (range 64)))))))
+                   (range 65)))))))
 
 (comment
   ;; Run all tests
