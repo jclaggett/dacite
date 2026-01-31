@@ -242,11 +242,28 @@
       (is (hash/low-entropy? bad-hash))))
   
   (testing "fuse! throws on low-entropy result"
-    ;; This is hard to trigger naturally, but the function should work
+    ;; Normal fuse should not throw
     (let [a (hash/sha256-str "test1")
           b (hash/sha256-str "test2")]
-      ;; Normal fuse should not throw
-      (is (bytes? (hash/fuse! a b))))))
+      (is (bytes? (hash/fuse! a b)))))
+  
+  (testing "repeated self-fuse induces low-entropy"
+    ;; Fusing a hash with itself ~64 times converges to low-entropy
+    (let [start (hash/sha256-str "any value")
+          result (reduce (fn [h _] (hash/fuse h h)) 
+                         start 
+                         (range 64))]
+      (is (hash/low-entropy? result)
+          "64 iterations of self-fuse should produce low-entropy hash")))
+  
+  (testing "fuse! throws on repeated self-fuse"
+    (let [start (hash/sha256-str "trigger low entropy")]
+      (is (thrown-with-msg? 
+           clojure.lang.ExceptionInfo 
+           #"Low-entropy hash detected"
+           (reduce (fn [h _] (hash/fuse! h h))
+                   start
+                   (range 64)))))))
 
 (comment
   ;; Run all tests
