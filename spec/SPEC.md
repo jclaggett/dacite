@@ -4,7 +4,7 @@
 
 **Version:** 0.1.0-draft  
 **Status:** Early design  
-**Last updated:** 2026-01-30
+**Last updated:** 2026-01-31
 
 ---
 
@@ -40,38 +40,92 @@ This allows open extension — anyone can define a type without coordination.
 
 ### Value Hashes
 
-Every value (leaf or collection) has a hash computed as:
+Every value has a hash computed as:
 
 ```
 value_hash = fuse(type_hash, data_hash)
 ```
 
-Where:
-- `type_hash` = SHA-256 of type name
-- `data_hash` = SHA-256 of serialized value bytes
+Where `type_hash` is the SHA-256 of the type name, and `data_hash` differs by value kind:
+
+#### Leaf Values
+
+For leaf values (bounded-size primitives):
+
+```
+data_hash = sha256(to_bytes(value))
+```
+
+#### Serial Collections (Vectors, Strings, Blobs)
+
+For ordered collections, `data_hash` is the sequential fuse of all child value hashes:
+
+```
+data_hash = fuse(child₀_hash, fuse(child₁_hash, fuse(child₂_hash, ...)))
+```
+
+Or equivalently, left-folded:
+
+```
+data_hash = reduce(fuse, child_hashes)
+```
+
+This ensures that collection identity depends on order and contents, but is independent of internal tree structure (critical for Finger Trees).
+
+#### Hash Collections (Maps)
+
+For unordered-by-insertion collections like maps, `data_hash` is the fuse of all entry hashes **sorted by hash value**:
+
+```
+entry_hash = fuse(key_hash, value_hash)
+sorted_entries = sort_by_hash(entries)
+data_hash = reduce(fuse, map(entry_hash, sorted_entries))
+```
+
+Sorting by hash provides deterministic ordering without requiring key comparability.
 
 ### Fuse Function
 
-Fuse combines two 256-bit hashes using a 4×4 upper triangular matrix over 64-bit cells:
+Fuse combines two 256-bit hashes using a 4×4 upper triangular matrix over 64-bit cells.
+
+The output is ordered so that the **most mixed bits appear first** (most significant), optimizing for HAMT navigation which uses leading bits:
 
 ```
-Input:  a = [a0, a1, a2, a3]  (256 bits as 4 × 64-bit words)
+Input:  a = [a0, a1, a2, a3]  (256 bits as 4 × 64-bit words, MSB first)
         b = [b0, b1, b2, b3]
 
 Output: c = [c0, c1, c2, c3]
 
-c0 = a0 + b0
+c0 = a0 + a3*b2 + b0    ← most bit mixing (MSB, used for HAMT)
 c1 = a1 + b1
 c2 = a2 + b2
-c3 = a3 + a0*b1 + b3
+c3 = a3 + b3            ← least bit mixing (LSB)
 ```
 
-All arithmetic is mod 2^64. Total: 6 additions, 1 multiplication.
+All arithmetic is mod 2^64 (unsigned wraparound). Total: 6 additions, 1 multiplication.
 
 Properties:
-- Deterministic
-- Non-commutative (fuse(a,b) ≠ fuse(b,a))
-- Fast (no hash function calls)
+- **Deterministic** — same inputs always produce same output
+- **Associative** — fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)
+- **Non-commutative** — fuse(a, b) ≠ fuse(b, a) for a ≠ b
+- **Fast** — no hash function calls, just integer arithmetic
+
+### Low-Entropy Hash Rejection
+
+Hashes with **128 bits of zeros in the lower 32 bits of all four words** must be rejected. Specifically, reject any hash where:
+
+```
+(c0 & 0xFFFFFFFF) == 0 AND
+(c1 & 0xFFFFFFFF) == 0 AND
+(c2 & 0xFFFFFFFF) == 0 AND
+(c3 & 0xFFFFFFFF) == 0
+```
+
+This detects low-entropy failures that can occur when fusing repeated or degenerate values. See: [Hash Fusing — Detecting Low Entropy Failures](https://clojurecivitas.github.io/math/hashing/hashfusing.html#detecting-low-entropy-failures)
+
+When a low-entropy hash is detected, implementations should:
+1. Reject the operation, OR
+2. Inject entropy (e.g., by including position indices in the fuse)
 
 ---
 
@@ -88,11 +142,11 @@ Leaf values have bounded size. Built-in leaf types:
 | `f32`, `f64` | IEEE 754 floats | |
 | `char` | 1-4 bytes | UTF-8 codepoint |
 
-### Leaf Hashing
+### Leaf Hashing Example
 
 ```
-type_hash = sha256("dacite.core/i64")  // example
-data_hash = sha256(to_bytes(value))
+type_hash = sha256("dacite.core/i64")
+data_hash = sha256(to_bytes(42))
 leaf_hash = fuse(type_hash, data_hash)
 ```
 
@@ -106,6 +160,7 @@ A string is a **Finger Tree of UTF-8 chars**.
 
 ```
 type_hash = sha256("dacite.core/string")
+data_hash = reduce(fuse, char_hashes)
 ```
 
 ### Blobs
@@ -114,6 +169,7 @@ A blob is a **Finger Tree of bytes**.
 
 ```
 type_hash = sha256("dacite.core/blob")
+data_hash = reduce(fuse, byte_hashes)
 ```
 
 ### Vectors
@@ -122,6 +178,7 @@ A vector is a **Finger Tree of arbitrary values**.
 
 ```
 type_hash = sha256("dacite.core/vector")
+data_hash = reduce(fuse, element_hashes)
 ```
 
 ### Maps
@@ -131,9 +188,11 @@ A map is a **HAMT (Hash Array Mapped Trie)** with 32-way branching.
 - Keys and values can be any Dacite value
 - Key position determined by key's value_hash
 - 5-bit chunks of hash → 32-way branching per level
+- Uses **most significant bits first** (c0's upper bits), which have the most entropy from fuse
 
 ```
 type_hash = sha256("dacite.core/map")
+data_hash = reduce(fuse, sorted_entry_hashes)
 ```
 
 ---
@@ -205,6 +264,7 @@ Immutable content-addressed data is ideal for caching:
 
 ## References
 
+- [Hash Fusing](https://clojurecivitas.github.io/math/hashing/hashfusing.html) — associative non-commutative hash combination
 - [Hash Array Mapped Tries](https://en.wikipedia.org/wiki/Hash_array_mapped_trie)
 - [Finger Trees](https://en.wikipedia.org/wiki/Finger_tree)
 - [Content-addressable storage](https://en.wikipedia.org/wiki/Content-addressable_storage)

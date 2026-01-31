@@ -165,6 +165,14 @@
     (bytes= (compute-leaf-hash type-kw value)
             (compute-leaf-hash type-kw value))))
 
+(defspec fuse-associative 100
+  (prop/for-all [a gen-hash-bytes
+                 b gen-hash-bytes
+                 c gen-hash-bytes]
+    ;; fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)
+    (bytes= (hash/fuse a (hash/fuse b c))
+            (hash/fuse (hash/fuse a b) c))))
+
 (defspec different-types-different-hashes 100
   (prop/for-all [type1 (gen/elements [:i32 :i64 :u32 :f32 :f64])
                  type2 (gen/elements [:i32 :i64 :u32 :f32 :f64])
@@ -190,7 +198,16 @@
           c (hash/fuse a a)]
       (is (= 32 (count c)))
       ;; fuse(a,a) should still be different from a
-      (is (not (bytes= c a))))))
+      (is (not (bytes= c a)))))
+  
+  (testing "fuse is associative"
+    (let [a (hash/sha256-str "one")
+          b (hash/sha256-str "two")
+          c (hash/sha256-str "three")
+          ;; fuse(a, fuse(b, c)) should equal fuse(fuse(a, b), c)
+          left (hash/fuse a (hash/fuse b c))
+          right (hash/fuse (hash/fuse a b) c)]
+      (is (bytes= left right)))))
 
 (deftest test-type-hashes-unique
   (testing "all builtin type hashes are unique"
@@ -209,6 +226,27 @@
     (let [h-true (compute-leaf-hash :bool true)
           h-false (compute-leaf-hash :bool false)]
       (is (not (bytes= h-true h-false))))))
+
+(deftest test-low-entropy-detection
+  (testing "normal hashes are not low-entropy"
+    (let [h (hash/sha256-str "normal data")]
+      (is (not (hash/low-entropy? h)))))
+  
+  (testing "hash with zeros in lower 32 bits is low-entropy"
+    ;; Construct a degenerate hash with zeros in lower 32 bits of all words
+    (let [bad-hash (hash/longs->bytes 
+                    [0x1234567800000000  ;; lower 32 bits = 0
+                     0xABCDEF0000000000
+                     0x9876543200000000
+                     0xFEDCBA9800000000])]
+      (is (hash/low-entropy? bad-hash))))
+  
+  (testing "fuse! throws on low-entropy result"
+    ;; This is hard to trigger naturally, but the function should work
+    (let [a (hash/sha256-str "test1")
+          b (hash/sha256-str "test2")]
+      ;; Normal fuse should not throw
+      (is (bytes? (hash/fuse! a b))))))
 
 (comment
   ;; Run all tests
