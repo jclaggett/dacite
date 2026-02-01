@@ -68,9 +68,30 @@
 ;; Node (internal node with 2-32 children)
 ;; =============================================================================
 
+(declare empty-tree make-deep make-digit)
+
 (defrecord Node [children cached-measure]
   Measured
-  (measure [_] cached-measure))
+  (measure [_] cached-measure)
+  
+  ;; Node can act as a single-element tree (for spine)
+  FingerTree
+  (ft-empty? [_] false)
+  (ft-first [this] this)
+  (ft-last [this] this)
+  (ft-rest [_] empty-tree)
+  (ft-butlast [_] empty-tree)
+  (ft-conj-left [this v]
+    (make-deep (make-digit [v])
+               empty-tree
+               (make-digit [this])))
+  (ft-conj-right [this v]
+    (make-deep (make-digit [this])
+               empty-tree
+               (make-digit [v])))
+  (ft-concat [this other]
+    (ft-conj-left other this))
+  (ft-to-vec [this] [this]))
 
 (defn make-node
   "Create an internal node with 2-32 children."
@@ -130,7 +151,7 @@
 ;; MUST be defined before EmptyTree and Leaf extensions that reference it
 ;; =============================================================================
 
-(declare deep-conj-left deep-conj-right make-deep)
+(declare deep-conj-left deep-conj-right)
 
 (defrecord Deep [left spine right cached-measure]
   Measured
@@ -147,8 +168,6 @@
 ;; =============================================================================
 ;; Empty Tree
 ;; =============================================================================
-
-(declare empty-tree)
 
 (defrecord EmptyTree []
   Measured
@@ -188,7 +207,7 @@
                (make-digit [v])))
   (ft-concat [this other]
     (ft-conj-left other this))
-  (ft-to-vec [this] [(:value this)]))
+  (ft-to-vec [this] [this]))
 
 ;; =============================================================================
 ;; Deep Tree FingerTree implementation
@@ -247,11 +266,10 @@
     (reduce ft-conj-right this (ft-to-vec other)))
   
   (ft-to-vec [this]
-    (let [left-vals (map :value (digit-elements (:left this)))
-          spine-vals (mapcat #(map :value (node-children %)) 
-                             (ft-to-vec (:spine this)))
-          right-vals (map :value (digit-elements (:right this)))]
-      (vec (concat left-vals spine-vals right-vals)))))
+    ;; Return all elements in order (Leaves or Nodes depending on level)
+    (vec (concat (digit-elements (:left this))
+                 (mapcat node-children (ft-to-vec (:spine this)))
+                 (digit-elements (:right this))))))
 
 ;; =============================================================================
 ;; Deep tree helpers
@@ -352,10 +370,17 @@
   [leaves]
   (reduce conj-right (finger-tree) leaves))
 
+(defn- extract-values
+  "Recursively extract all leaf values from an element (Leaf or nested Nodes)."
+  [elem]
+  (if (instance? Leaf elem)
+    [(:value elem)]
+    (mapcat extract-values (:children elem))))
+
 (defn to-vec
   "Convert tree to vector of values."
   [tree]
-  (ft-to-vec tree))
+  (mapcat extract-values (ft-to-vec tree)))
 
 ;; =============================================================================
 ;; Hashing support

@@ -175,7 +175,8 @@
     (let [leaves (make-test-leaves values)
           tree (ft/from-seq leaves)
           butlast-tree (ft/tree-butlast tree)]
-      (= (butlast values) (ft/to-vec butlast-tree)))))
+      ;; Use vec to normalize both sides (butlast returns nil for single element)
+      (= (vec (butlast values)) (vec (ft/to-vec butlast-tree))))))
 
 (comment
   (clojure.test/run-tests))

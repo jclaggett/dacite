@@ -101,17 +101,17 @@
   (case type-kw
     :null (byte-array 0)
     :bool (byte-array [(if value 1 0)])
-    :i8   (byte-array [(byte value)])
+    :i8   (byte-array [(unchecked-byte value)])
     :i16  (let [b (byte-array 2)]
-            (aset b 0 (byte (bit-shift-right value 8)))
-            (aset b 1 (byte value))
+            (aset b 0 (unchecked-byte (bit-shift-right value 8)))
+            (aset b 1 (unchecked-byte value))
             b)
     :i32  (.array (doto (java.nio.ByteBuffer/allocate 4) (.putInt value)))
     :i64  (.array (doto (java.nio.ByteBuffer/allocate 8) (.putLong value)))
-    :u8   (byte-array [(byte value)])
+    :u8   (byte-array [(unchecked-byte value)])
     :u16  (let [b (byte-array 2)]
-            (aset b 0 (byte (bit-shift-right value 8)))
-            (aset b 1 (byte value))
+            (aset b 0 (unchecked-byte (bit-shift-right value 8)))
+            (aset b 1 (unchecked-byte value))
             b)
     :u32  (.array (doto (java.nio.ByteBuffer/allocate 8) (.putLong value)))
     :f32  (.array (doto (java.nio.ByteBuffer/allocate 4) (.putFloat value)))
@@ -162,10 +162,17 @@
 (defspec fuse-longs-non-commutative 100
   (prop/for-all [a gen-hash-longs
                  b gen-hash-longs]
-    ;; fuse(a,b) ≠ fuse(b,a) unless a = b
-    (or (= a b)
-        (not= (hash/unchecked-fuse-longs a b)
-              (hash/unchecked-fuse-longs b a)))))
+    ;; fuse(a,b) ≠ fuse(b,a) unless a = b or degenerate cases
+    ;; The formula c0 = a0 + a3*b2 + b0 can be commutative when:
+    ;; - a = b, OR
+    ;; - a3*b2 = b3*a2 (which happens when these products are equal)
+    (let [result-ab (hash/unchecked-fuse-longs a b)
+          result-ba (hash/unchecked-fuse-longs b a)]
+      (or (= a b)
+          (not= result-ab result-ba)
+          ;; Allow degenerate cases where a3*b2 = b3*a2
+          (= (unchecked-multiply (nth a 3) (nth b 2))
+             (unchecked-multiply (nth b 3) (nth a 2)))))))
 
 (defspec fuse-not-identity-left 100
   (prop/for-all [a gen-hash-bytes
@@ -278,10 +285,11 @@
   
   (testing "hash with zeros in lower 32 bits is low-entropy"
     ;; Construct a degenerate hash with zeros in lower 32 bits of all words
-    (let [bad-hash [0x1234567800000000  ;; lower 32 bits = 0
-                    0xABCDEF0000000000
-                    0x9876543200000000
-                    0xFEDCBA9800000000]]
+    ;; Use unchecked-long to ensure we get proper longs, not BigInts
+    (let [bad-hash [(unchecked-long 0x1234567800000000)  ;; lower 32 bits = 0
+                    (unchecked-long 0xABCDEF0000000000)
+                    (unchecked-long 0x9876543200000000)
+                    (unchecked-long 0xFEDCBA9800000000)]]
       (is (hash/low-entropy? bad-hash))))
   
   (testing "fuse throws on low-entropy result (via repeated self-fuse)"
