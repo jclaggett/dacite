@@ -126,8 +126,29 @@
   (count (:elements digit)))
 
 ;; =============================================================================
+;; Deep Tree (left finger, spine, right finger)
+;; MUST be defined before EmptyTree and Leaf extensions that reference it
+;; =============================================================================
+
+(declare deep-conj-left deep-conj-right make-deep)
+
+(defrecord Deep [left spine right cached-measure]
+  Measured
+  (measure [_] cached-measure))
+
+(defn make-deep
+  "Create a deep tree with proper measure calculation."
+  [left spine right]
+  (->Deep left spine right
+          (measure-combine
+           (measure-combine (measure left) (measure spine))
+           (measure right))))
+
+;; =============================================================================
 ;; Empty Tree
 ;; =============================================================================
+
+(declare empty-tree)
 
 (defrecord EmptyTree []
   Measured
@@ -137,17 +158,17 @@
   (ft-empty? [_] true)
   (ft-first [_] nil)
   (ft-last [_] nil)
-  (ft-rest [_] (->EmptyTree))
-  (ft-butlast [_] (->EmptyTree))
-  (ft-conj-left [_ v] (->Leaf (:value v) (:size-bytes v) (:hash-longs v)))
-  (ft-conj-right [_ v] (->Leaf (:value v) (:size-bytes v) (:hash-longs v)))
-  (ft-concat [this other] other)
+  (ft-rest [_] empty-tree)
+  (ft-butlast [_] empty-tree)
+  (ft-conj-left [_ v] v)  ;; Return the leaf directly
+  (ft-conj-right [_ v] v) ;; Return the leaf directly
+  (ft-concat [_ other] other)
   (ft-to-vec [_] []))
 
 (def empty-tree (->EmptyTree))
 
 ;; =============================================================================
-;; Single Element Tree (special case)
+;; Single Element Tree (Leaf as FingerTree)
 ;; =============================================================================
 
 (extend-type Leaf
@@ -158,75 +179,62 @@
   (ft-rest [_] empty-tree)
   (ft-butlast [_] empty-tree)
   (ft-conj-left [this v]
-    (->Deep (make-digit [v])
-            empty-tree
-            (make-digit [this])
-            (measure-combine (measure v) (measure this))))
+    (make-deep (make-digit [v])
+               empty-tree
+               (make-digit [this])))
   (ft-conj-right [this v]
-    (->Deep (make-digit [this])
-            empty-tree
-            (make-digit [v])
-            (measure-combine (measure this) (measure v))))
+    (make-deep (make-digit [this])
+               empty-tree
+               (make-digit [v])))
   (ft-concat [this other]
     (ft-conj-left other this))
   (ft-to-vec [this] [(:value this)]))
 
 ;; =============================================================================
-;; Deep Tree (left finger, spine, right finger)
+;; Deep Tree FingerTree implementation
 ;; =============================================================================
 
-(declare deep-conj-left deep-conj-right)
-
-(defrecord Deep [left spine right cached-measure]
-  Measured
-  (measure [_] cached-measure)
-  
+(extend-type Deep
   FingerTree
   (ft-empty? [_] false)
   
-  (ft-first [_]
-    (digit-first left))
+  (ft-first [this]
+    (digit-first (:left this)))
   
-  (ft-last [_]
-    (digit-last right))
+  (ft-last [this]
+    (digit-last (:right this)))
   
   (ft-rest [this]
-    (if-let [new-left (digit-rest left)]
-      (->Deep new-left spine right
-              (measure-combine 
-               (measure-combine (measure new-left) (measure spine))
-               (measure right)))
-      ;; Left digit exhausted, pull from spine
-      (if (ft-empty? spine)
-        ;; Spine empty, convert right to tree
-        (reduce ft-conj-right empty-tree (digit-elements right))
-        ;; Pull node from spine
-        (let [node (ft-first spine)
-              new-spine (ft-rest spine)
-              new-left (make-digit (node-children node))]
-          (->Deep new-left new-spine right
-                  (measure-combine
-                   (measure-combine (measure new-left) (measure new-spine))
-                   (measure right)))))))
+    (let [left (:left this)
+          spine (:spine this)
+          right (:right this)]
+      (if-let [new-left (digit-rest left)]
+        (make-deep new-left spine right)
+        ;; Left digit exhausted, pull from spine
+        (if (ft-empty? spine)
+          ;; Spine empty, convert right to tree
+          (reduce ft-conj-right empty-tree (digit-elements right))
+          ;; Pull node from spine
+          (let [node (ft-first spine)
+                new-spine (ft-rest spine)
+                new-left (make-digit (node-children node))]
+            (make-deep new-left new-spine right))))))
   
   (ft-butlast [this]
-    (if-let [new-right (digit-butlast right)]
-      (->Deep left spine new-right
-              (measure-combine
-               (measure-combine (measure left) (measure spine))
-               (measure new-right)))
-      ;; Right digit exhausted, pull from spine
-      (if (ft-empty? spine)
-        ;; Spine empty, convert left to tree
-        (reduce ft-conj-right empty-tree (digit-elements left))
-        ;; Pull node from spine
-        (let [node (ft-last spine)
-              new-spine (ft-butlast spine)
-              new-right (make-digit (node-children node))]
-          (->Deep left new-spine new-right
-                  (measure-combine
-                   (measure-combine (measure left) (measure new-spine))
-                   (measure new-right)))))))
+    (let [left (:left this)
+          spine (:spine this)
+          right (:right this)]
+      (if-let [new-right (digit-butlast right)]
+        (make-deep left spine new-right)
+        ;; Right digit exhausted, pull from spine
+        (if (ft-empty? spine)
+          ;; Spine empty, convert left to tree
+          (reduce ft-conj-right empty-tree (digit-elements left))
+          ;; Pull node from spine
+          (let [node (ft-last spine)
+                new-spine (ft-butlast spine)
+                new-right (make-digit (node-children node))]
+            (make-deep left new-spine new-right))))))
   
   (ft-conj-left [this v]
     (deep-conj-left this v))
@@ -239,9 +247,15 @@
     (reduce ft-conj-right this (ft-to-vec other)))
   
   (ft-to-vec [this]
-    (vec (concat (map :value (digit-elements left))
-                 (mapcat #(map :value (node-children %)) (ft-to-vec spine))
-                 (map :value (digit-elements right))))))
+    (let [left-vals (map :value (digit-elements (:left this)))
+          spine-vals (mapcat #(map :value (node-children %)) 
+                             (ft-to-vec (:spine this)))
+          right-vals (map :value (digit-elements (:right this)))]
+      (vec (concat left-vals spine-vals right-vals)))))
+
+;; =============================================================================
+;; Deep tree helpers
+;; =============================================================================
 
 (defn deep-conj-left
   "Add element to left of deep tree, handling overflow."
@@ -251,11 +265,7 @@
         right (:right tree)]
     (if (< (digit-count left) 32)
       ;; Room in left digit
-      (let [new-left (digit-conj-left left v)]
-        (->Deep new-left spine right
-                (measure-combine
-                 (measure-combine (measure new-left) (measure spine))
-                 (measure right))))
+      (make-deep (digit-conj-left left v) spine right)
       ;; Left digit full (32 elements), push node to spine
       (let [elems (digit-elements left)
             ;; Keep first 8 elements in new left, push rest as node
@@ -263,10 +273,7 @@
             node-elems (subvec elems 7 32)
             new-node (make-node node-elems)
             new-spine (ft-conj-left spine new-node)]
-        (->Deep new-left new-spine right
-                (measure-combine
-                 (measure-combine (measure new-left) (measure new-spine))
-                 (measure right)))))))
+        (make-deep new-left new-spine right)))))
 
 (defn deep-conj-right
   "Add element to right of deep tree, handling overflow."
@@ -276,11 +283,7 @@
         right (:right tree)]
     (if (< (digit-count right) 32)
       ;; Room in right digit
-      (let [new-right (digit-conj-right right v)]
-        (->Deep left spine new-right
-                (measure-combine
-                 (measure-combine (measure left) (measure spine))
-                 (measure new-right))))
+      (make-deep left spine (digit-conj-right right v))
       ;; Right digit full (32 elements), push node to spine
       (let [elems (digit-elements right)
             ;; Push first 24 elements as node, keep last 8 + new element
@@ -288,10 +291,7 @@
             new-node (make-node node-elems)
             new-spine (ft-conj-right spine new-node)
             new-right (make-digit (conj (subvec elems 24 32) v))]
-        (->Deep left new-spine new-right
-                (measure-combine
-                 (measure-combine (measure left) (measure new-spine))
-                 (measure new-right)))))))
+        (make-deep left new-spine new-right)))))
 
 ;; =============================================================================
 ;; Public API
@@ -361,25 +361,30 @@
 ;; Hashing support
 ;; =============================================================================
 
+(defn- collect-leaves
+  "Collect all leaves from the tree in order."
+  [tree]
+  (cond
+    (ft-empty? tree) []
+    (instance? Leaf tree) [tree]
+    (instance? Deep tree)
+    (concat (digit-elements (:left tree))
+            (mapcat node-children (collect-leaves (:spine tree)))
+            (digit-elements (:right tree)))
+    (instance? Node tree)
+    [tree]  ;; Nodes in spine
+    :else []))
+
 (defn tree-hash-longs
   "Compute the fused hash of the tree as longs.
    Uses unchecked-fuse-longs to avoid byte conversion overhead."
   [tree]
-  (cond
-    (ft-empty? tree)
-    ;; Empty collection hash - identity for fuse
-    [0 0 0 0]
-    
-    (instance? Leaf tree)
-    (:hash-longs tree)
-    
-    :else
-    ;; Reduce over all leaf hashes
-    (reduce hash/fuse-longs
-            (map :hash-longs (mapcat identity 
-                                     [(digit-elements (:left tree))
-                                      (mapcat node-children (ft-to-vec (:spine tree)))
-                                      (digit-elements (:right tree))])))))
+  (let [leaves (collect-leaves tree)]
+    (if (empty? leaves)
+      ;; Empty collection hash - identity for fuse
+      [0 0 0 0]
+      (reduce hash/fuse-longs
+              (map :hash-longs leaves)))))
 
 (comment
   ;; Example usage
