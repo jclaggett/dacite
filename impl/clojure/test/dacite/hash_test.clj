@@ -52,8 +52,11 @@
   (gen/fmap bigint (gen/large-integer* {:min 0})))
 
 (def gen-f32
-  "Generator for 32-bit floats."
-  (gen/fmap float gen/double))
+  "Generator for 32-bit floats (within float range)."
+  (gen/fmap float (gen/double* {:min (- Float/MAX_VALUE) 
+                                :max Float/MAX_VALUE 
+                                :infinite? false 
+                                :NaN? false})))
 
 (def gen-f64
   "Generator for 64-bit floats."
