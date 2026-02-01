@@ -197,6 +197,50 @@ data_hash = reduce(fuse, sorted_entry_hashes)
 
 ---
 
+## Finger Tree Structure
+
+Vectors, strings, and blobs are implemented as **Finger Trees** with the following parameters:
+
+### Branching Factor
+
+- **Internal nodes:** 32-way branching (nodes have 2-32 children)
+- **Fingers (digits):** 8-32 elements per finger
+
+This high branching factor keeps trees shallow, minimizing network round trips. A tree of 1M elements is only ~4 levels deep.
+
+### Accumulated Measure
+
+Every node caches a **measure** of its subtree:
+
+```
+Measure = {
+  count: u64,       // number of leaf elements
+  size_bytes: u64   // total size in bytes
+}
+```
+
+Measures combine via addition (a monoid):
+
+```
+combine(m1, m2) = {
+  count: m1.count + m2.count,
+  size_bytes: m1.size_bytes + m2.size_bytes
+}
+
+identity = { count: 0, size_bytes: 0 }
+```
+
+The root's measure gives O(1) access to collection length and total size.
+
+### Node Size Constraint
+
+Internal nodes target ~1KB maximum size:
+- 32 child hashes × 32 bytes = 1024 bytes
+- Plus measure metadata (~16 bytes)
+- Fits within typical TCP packet (~1400 bytes MTU)
+
+---
+
 ## Serialization
 
 *TODO: Define canonical byte serialization for each type.*
@@ -210,7 +254,57 @@ data_hash = reduce(fuse, sorted_entry_hashes)
 Every node is stored and retrieved by its hash:
 
 ```
-GET /blob/{hash} → bytes
+GET /node/{hash} → NodeResponse
+```
+
+### Adaptive Fetch (Inline Threshold)
+
+To minimize round trips, the server uses the node's accumulated `size_bytes` to decide the response format:
+
+**Request:**
+```
+GET /node/{hash}?inline_under={bytes}
+```
+
+- `inline_under`: Size threshold in bytes (client-specified, server default: 1024)
+
+**Response modes:**
+
+If `node.measure.size_bytes > inline_under`:
+```
+StructureResponse {
+  kind: "structure",
+  type_hash: Hash,
+  children: [Hash],       // hashes only, client fetches lazily
+  measure: Measure
+}
+```
+
+If `node.measure.size_bytes <= inline_under`:
+```
+InlineResponse {
+  kind: "inline",
+  type_hash: Hash,
+  leaves: [Value],        // all leaf values, fully materialized
+  measure: Measure
+}
+```
+
+**Rationale:**
+- Large subtrees: return structure, let client fetch what it needs
+- Small subtrees: inline everything, avoid multiple round trips
+- Client controls threshold based on network conditions (mobile vs. datacenter)
+- Default 1KB threshold fits ~1 TCP packet
+
+**Example:**
+```
+# Large vector (1MB) - returns structure
+GET /node/abc123
+→ { kind: "structure", children: [hash1, hash2, ...], measure: {count: 50000, size_bytes: 1048576} }
+
+# Small vector (500 bytes) - returns inline
+GET /node/def456?inline_under=1024
+→ { kind: "inline", leaves: [1, 2, 3, ...], measure: {count: 100, size_bytes: 500} }
 ```
 
 ### Sync Protocol
@@ -245,10 +339,11 @@ Immutable content-addressed data is ideal for caching:
 ## Open Questions
 
 - [ ] Canonical serialization format (CBOR? Custom?)
-- [ ] Finger Tree branching factor / node size
+- [x] Finger Tree branching factor / node size — 32-way, 8-32 fingers
 - [ ] Network protocol details (HTTP? Custom?)
 - [ ] Garbage collection / retention policies
 - [ ] Set type? Sorted map?
+- [ ] Leaf type sizes (bool = 1 byte for simplicity)
 
 ---
 
