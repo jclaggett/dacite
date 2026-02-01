@@ -85,6 +85,11 @@
   "Generator for 32-byte hash values."
   (gen/fmap byte-array (gen/vector (gen/choose -128 127) 32)))
 
+;; Generator for 256-bit hashes (as vectors of 4 longs)
+(def gen-hash-longs
+  "Generator for hash as vector of 4 longs."
+  (gen/vector gen/large-integer 4))
+
 ;; =============================================================================
 ;; Helper functions for tests
 ;; =============================================================================
@@ -134,6 +139,12 @@
     (bytes= (hash/sha256 data)
             (hash/sha256 data))))
 
+(defspec fuse-longs-determinism 100
+  (prop/for-all [a gen-hash-longs
+                 b gen-hash-longs]
+    (= (hash/unchecked-fuse-longs a b)
+       (hash/unchecked-fuse-longs a b))))
+
 (defspec fuse-determinism 100
   (prop/for-all [a gen-hash-bytes
                  b gen-hash-bytes]
@@ -147,6 +158,14 @@
     (or (bytes= a b)
         (not (bytes= (hash/fuse a b)
                      (hash/fuse b a))))))
+
+(defspec fuse-longs-non-commutative 100
+  (prop/for-all [a gen-hash-longs
+                 b gen-hash-longs]
+    ;; fuse(a,b) ≠ fuse(b,a) unless a = b
+    (or (= a b)
+        (not= (hash/unchecked-fuse-longs a b)
+              (hash/unchecked-fuse-longs b a)))))
 
 (defspec fuse-not-identity-left 100
   (prop/for-all [a gen-hash-bytes
@@ -172,6 +191,14 @@
     ;; fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)
     (bytes= (hash/fuse a (hash/fuse b c))
             (hash/fuse (hash/fuse a b) c))))
+
+(defspec fuse-longs-associative 100
+  (prop/for-all [a gen-hash-longs
+                 b gen-hash-longs
+                 c gen-hash-longs]
+    ;; fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)
+    (= (hash/unchecked-fuse-longs a (hash/unchecked-fuse-longs b c))
+       (hash/unchecked-fuse-longs (hash/unchecked-fuse-longs a b) c))))
 
 (defspec different-types-different-hashes 100
   (prop/for-all [type1 (gen/elements [:i32 :i64 :u32 :f32 :f64])
@@ -209,6 +236,23 @@
           right (hash/fuse (hash/fuse a b) c)]
       (is (bytes= left right)))))
 
+(deftest test-fuse-longs-basic
+  (testing "fuse-longs produces vector of 4 longs"
+    (let [a (hash/bytes->longs (hash/sha256-str "hello"))
+          b (hash/bytes->longs (hash/sha256-str "world"))
+          c (hash/unchecked-fuse-longs a b)]
+      (is (vector? c))
+      (is (= 4 (count c)))))
+  
+  (testing "fuse-longs matches fuse via conversion"
+    (let [a-bytes (hash/sha256-str "hello")
+          b-bytes (hash/sha256-str "world")
+          a-longs (hash/bytes->longs a-bytes)
+          b-longs (hash/bytes->longs b-bytes)
+          via-bytes (hash/fuse a-bytes b-bytes)
+          via-longs (hash/longs->bytes (hash/unchecked-fuse-longs a-longs b-longs))]
+      (is (bytes= via-bytes via-longs)))))
+
 (deftest test-type-hashes-unique
   (testing "all builtin type hashes are unique"
     (let [hashes (vals hash/builtin-type-hashes)
@@ -229,41 +273,35 @@
 
 (deftest test-low-entropy-detection
   (testing "normal hashes are not low-entropy"
-    (let [h (hash/sha256-str "normal data")]
+    (let [h (hash/bytes->longs (hash/sha256-str "normal data"))]
       (is (not (hash/low-entropy? h)))))
   
   (testing "hash with zeros in lower 32 bits is low-entropy"
     ;; Construct a degenerate hash with zeros in lower 32 bits of all words
-    (let [bad-hash (hash/longs->bytes 
-                    [0x1234567800000000  ;; lower 32 bits = 0
-                     0xABCDEF0000000000
-                     0x9876543200000000
-                     0xFEDCBA9800000000])]
+    (let [bad-hash [0x1234567800000000  ;; lower 32 bits = 0
+                    0xABCDEF0000000000
+                    0x9876543200000000
+                    0xFEDCBA9800000000]]
       (is (hash/low-entropy? bad-hash))))
   
-  (testing "fuse! throws on low-entropy result"
-    ;; Normal fuse should not throw
-    (let [a (hash/sha256-str "test1")
-          b (hash/sha256-str "test2")]
-      (is (bytes? (hash/fuse! a b)))))
-  
-  (testing "repeated self-fuse induces low-entropy"
+  (testing "fuse throws on low-entropy result (via repeated self-fuse)"
     ;; Fusing a hash with itself ~65 times converges to low-entropy
-    (let [start (hash/sha256-str "any value")
-          result (reduce (fn [h _] (hash/fuse h h)) 
-                         start 
-                         (range 65))]
-      (is (hash/low-entropy? result)
-          "65 iterations of self-fuse should produce low-entropy hash")))
-  
-  (testing "fuse! throws on repeated self-fuse"
     (let [start (hash/sha256-str "trigger low entropy")]
       (is (thrown-with-msg? 
            clojure.lang.ExceptionInfo 
            #"Low-entropy hash detected"
-           (reduce (fn [h _] (hash/fuse! h h))
+           (reduce (fn [h _] (hash/fuse h h))
                    start
-                   (range 65)))))))
+                   (range 65))))))
+  
+  (testing "unchecked-fuse-longs allows low-entropy (no exception)"
+    ;; Use unchecked version to verify low-entropy actually occurs
+    (let [start (hash/bytes->longs (hash/sha256-str "any value"))
+          result (reduce (fn [h _] (hash/unchecked-fuse-longs h h)) 
+                         start 
+                         (range 65))]
+      (is (hash/low-entropy? result)
+          "65 iterations of self-fuse should produce low-entropy hash"))))
 
 (comment
   ;; Run all tests

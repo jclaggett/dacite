@@ -37,10 +37,46 @@
     (.putLong buf d)
     (.array buf)))
 
-(defn fuse
-  "Fuse two 256-bit hashes using 4×4 upper triangular matrix.
+(defn low-entropy?
+  "Check if a hash has 128 bits of zeros in the lower 32 bits of all four words.
+   Such hashes indicate low-entropy input and should be rejected.
+   See: https://clojurecivitas.github.io/math/hashing/hashfusing.html#detecting-low-entropy-failures
    
-   Input: two 32-byte arrays (or vectors of 4 longs)
+   Input: vector of 4 longs"
+  [[c0 c1 c2 c3]]
+  (let [mask 0xFFFFFFFF]
+    (and (zero? (bit-and c0 mask))
+         (zero? (bit-and c1 mask))
+         (zero? (bit-and c2 mask))
+         (zero? (bit-and c3 mask)))))
+
+(defn unchecked-fuse-longs
+  "Fuse two vectors of longs without checking for low-entropy result.
+   
+   Input: two vectors of 4 longs
+   Output: vector of 4 longs"
+  [[a0 a1 a2 a3] [b0 b1 b2 b3]]
+  [(unchecked-add a0 (unchecked-add (unchecked-multiply a3 b2) b0))
+   (unchecked-add a1 b1)
+   (unchecked-add a2 b2)
+   (unchecked-add a3 b3)])
+
+(defn fuse-longs
+  "Fuse two vectors of longs with low-entropy check.
+   
+   Input: two vectors of 4 longs
+   Output: vector of 4 longs
+   Throws: ExceptionInfo if result is low-entropy"
+  [a b]
+  (let [result (unchecked-fuse-longs a b)]
+    (when (low-entropy? result)
+      (throw (ex-info "Low-entropy hash detected" {:a a :b b :result result})))
+    result))
+
+(defn fuse
+  "Fuse two hashes using 4×4 upper triangular matrix.
+   
+   Input: two 32-byte arrays
    Output: 32-byte array
    
    Output ordered so most mixed bits are first (MSB), optimizing for HAMT:
@@ -49,35 +85,10 @@
    c2 = a2 + b2
    c3 = a3 + b3           ← least bit mixing
    
-   All arithmetic is mod 2^64 (unchecked)."
+   All arithmetic is mod 2^64 (unchecked).
+   Throws on low-entropy result."
   [a b]
-  (let [[a0 a1 a2 a3] (if (bytes? a) (bytes->longs a) a)
-        [b0 b1 b2 b3] (if (bytes? b) (bytes->longs b) b)]
-    (longs->bytes
-     [(unchecked-add a0 (unchecked-add (unchecked-multiply a3 b2) b0))
-      (unchecked-add a1 b1)
-      (unchecked-add a2 b2)
-      (unchecked-add a3 b3)])))
-
-(defn low-entropy?
-  "Check if a hash has 128 bits of zeros in the lower 32 bits of all four words.
-   Such hashes indicate low-entropy input and should be rejected.
-   See: https://clojurecivitas.github.io/math/hashing/hashfusing.html#detecting-low-entropy-failures"
-  [h]
-  (let [[c0 c1 c2 c3] (if (bytes? h) (bytes->longs h) h)
-        mask 0xFFFFFFFF]
-    (and (zero? (bit-and c0 mask))
-         (zero? (bit-and c1 mask))
-         (zero? (bit-and c2 mask))
-         (zero? (bit-and c3 mask)))))
-
-(defn fuse!
-  "Like fuse, but throws if the result is a low-entropy hash."
-  [a b]
-  (let [result (fuse a b)]
-    (when (low-entropy? result)
-      (throw (ex-info "Low-entropy hash detected" {:a a :b b :result result})))
-    result))
+  (longs->bytes (fuse-longs (bytes->longs a) (bytes->longs b))))
 
 (defn type-hash
   "Compute hash for a type name."
@@ -124,6 +135,11 @@
   (def a (sha256-str "hello"))
   (def b (sha256-str "world"))
   (vec (fuse a b))
+  
+  ;; Test fuse-longs (no byte conversion)
+  (def al (bytes->longs a))
+  (def bl (bytes->longs b))
+  (fuse-longs al bl)
   
   ;; Test type hash
   (vec (type-hash "dacite.core/i64")))
