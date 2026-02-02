@@ -12,4 +12,12 @@
          :exec-fn cognitect.test-runner.api/test}
   
   :build {:deps {io.github.clojure/tools.build {:mvn/version "0.9.6"}}
-          :ns-default build}}}
+          :ns-default build}
+  
+  ;; Code formatting: clojure -M:fmt check (or fix)
+  :fmt {:extra-deps {dev.weavejester/cljfmt {:mvn/version "0.13.0"}}
+        :main-opts ["-m" "cljfmt.main"]}
+  
+  ;; Check for outdated dependencies: clojure -M:outdated
+  :outdated {:extra-deps {com.github.liquidz/antq {:mvn/version "2.11.1267"}}
+             :main-opts ["-m" "antq.core"]}}}

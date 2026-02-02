@@ -1,9 +1,32 @@
 #!/bin/bash
 # Dacite pre-commit hook
-# Runs clj-kondo linter on Clojure source files
+# Runs clj-kondo linter and cljfmt formatter check on Clojure source files
 
 set -e
 
+CLJ_DIR="impl/clojure"
+
+echo "Running cljfmt check..."
+cd "$(git rev-parse --show-toplevel)/$CLJ_DIR"
+
+# Get staged Clojure files relative to impl/clojure
+STAGED_CLJ=$(git diff --cached --name-only --diff-filter=ACM -- "*.clj" "*.cljc" "*.cljs" 2>/dev/null | grep -E '\.(clj|cljc|cljs)$' || true)
+
+if [ -n "$STAGED_CLJ" ]; then
+    if ! clojure -M:fmt check $STAGED_CLJ 2>/dev/null; then
+        echo ""
+        echo "❌ cljfmt check failed!"
+        echo "Run 'cd $CLJ_DIR && clojure -M:fmt fix' to auto-format, then re-stage."
+        exit 1
+    fi
+    echo "✅ cljfmt check passed."
+else
+    echo "No staged Clojure files to format-check."
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo ""
 echo "Running clj-kondo linter..."
 
 # Check if clj-kondo is available
