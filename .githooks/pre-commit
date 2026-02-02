@@ -10,7 +10,7 @@ CLJ_DIR="$REPO_ROOT/impl/clojure"
 run_fmt_check() {
     echo "Running cljfmt check..."
     
-    # Get staged Clojure files
+    # Get staged Clojure files (paths relative to repo root)
     local staged_files
     staged_files=$(git diff --cached --name-only --diff-filter=ACM -- "*.clj" "*.cljc" "*.cljs" 2>/dev/null | grep -E '\.(clj|cljc|cljs)$' || true)
     
@@ -19,7 +19,11 @@ run_fmt_check() {
         return 0
     fi
     
-    if ! (cd "$CLJ_DIR" && clojure -M:fmt check $staged_files 2>/dev/null); then
+    # Strip impl/clojure/ prefix for cljfmt (which runs from CLJ_DIR)
+    local relative_files
+    relative_files=$(echo "$staged_files" | sed 's|^impl/clojure/||')
+    
+    if ! (cd "$CLJ_DIR" && clojure -M:fmt check $relative_files 2>/dev/null); then
         echo ""
         echo "❌ cljfmt check failed!"
         echo "Run 'cd impl/clojure && clojure -M:fmt fix' to auto-format, then re-stage."
