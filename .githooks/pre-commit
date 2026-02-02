@@ -21,9 +21,9 @@ run_fmt_check() {
 
     # Strip impl/clojure/ prefix for cljfmt (which runs from CLJ_DIR)
     local relative_files
-    relative_files=$(echo "$staged_files" | sed 's|^impl/clojure/||')
+    relative_files="${staged_files//impl\/clojure/.}"
 
-    if ! (cd "$CLJ_DIR" && clojure -M:fmt check "$relative_files" 2>/dev/null); then
+    if ! (cd "$CLJ_DIR" && clojure -M:fmt check $relative_files 2>/dev/null); then
         echo ""
         echo "❌ cljfmt check failed!"
         echo "Run 'cd impl/clojure && clojure -M:fmt fix' to auto-format, then re-stage."
@@ -46,6 +46,20 @@ run_lint_check() {
     echo "✅ Linting passed."
 }
 
+fun_test_check() {
+    echo ""
+    echo "Running unit tests..."
+
+    if ! (cd "$CLJ_DIR" && clojure -A:dev -M:test 2>&1); then
+        echo ""
+        echo "❌ Unit tests failed. Please fix the errors above before committing."
+        return 1
+    fi
+
+    echo "✅ All unit tests passed."
+}
+
 # Run checks
 run_fmt_check &&
-    run_lint_check
+    run_lint_check &&
+    fun_test_check
