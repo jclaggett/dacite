@@ -1,0 +1,2 @@
+{:linters {:unresolved-symbol {:exclude [(clojure.test.check.clojure-test/defspec)]}}
+ :lint-as {clojure.test.check.clojure-test/defspec clj-kondo.lint-as/def-catch-all}}
