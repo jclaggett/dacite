@@ -47,7 +47,5 @@ run_lint_check() {
 }
 
 # Run checks
-run_fmt_check
-run_lint_check
-
-exit 0
+run_fmt_check &&
+    run_lint_check
