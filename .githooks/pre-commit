@@ -1,60 +1,49 @@
 #!/bin/bash
 # Dacite pre-commit hook
-# Runs clj-kondo linter and cljfmt formatter check on Clojure source files
+# Runs cljfmt formatter check and clj-kondo linter on Clojure source files
 
 set -e
 
-CLJ_DIR="impl/clojure"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+CLJ_DIR="$REPO_ROOT/impl/clojure"
 
-echo "Running cljfmt check..."
-cd "$(git rev-parse --show-toplevel)/$CLJ_DIR"
-
-# Get staged Clojure files relative to impl/clojure
-STAGED_CLJ=$(git diff --cached --name-only --diff-filter=ACM -- "*.clj" "*.cljc" "*.cljs" 2>/dev/null | grep -E '\.(clj|cljc|cljs)$' || true)
-
-if [ -n "$STAGED_CLJ" ]; then
-    if ! clojure -M:fmt check $STAGED_CLJ 2>/dev/null; then
+run_fmt_check() {
+    echo "Running cljfmt check..."
+    
+    # Get staged Clojure files
+    local staged_files
+    staged_files=$(git diff --cached --name-only --diff-filter=ACM -- "*.clj" "*.cljc" "*.cljs" 2>/dev/null | grep -E '\.(clj|cljc|cljs)$' || true)
+    
+    if [ -z "$staged_files" ]; then
+        echo "No staged Clojure files to format-check."
+        return 0
+    fi
+    
+    if ! (cd "$CLJ_DIR" && clojure -M:fmt check $staged_files 2>/dev/null); then
         echo ""
         echo "❌ cljfmt check failed!"
-        echo "Run 'cd $CLJ_DIR && clojure -M:fmt fix' to auto-format, then re-stage."
-        exit 1
+        echo "Run 'cd impl/clojure && clojure -M:fmt fix' to auto-format, then re-stage."
+        return 1
     fi
+    
     echo "✅ cljfmt check passed."
-else
-    echo "No staged Clojure files to format-check."
-fi
+}
 
-cd "$(git rev-parse --show-toplevel)"
-
-echo ""
-echo "Running clj-kondo linter..."
-
-# Check if clj-kondo is available
-if ! command -v clj-kondo &> /dev/null; then
-    echo "Warning: clj-kondo not installed. Skipping lint check."
-    echo "Install with: curl -sLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo"
-    exit 0
-fi
-
-# Run linter on source and test directories
-cd "$(git rev-parse --show-toplevel)"
-
-LINT_RESULT=0
-if [ -d "impl/clojure/src" ]; then
-    echo "Linting src..."
-    clj-kondo --lint impl/clojure/src || LINT_RESULT=$?
-fi
-
-if [ -d "impl/clojure/test" ]; then
-    echo "Linting test..."
-    clj-kondo --lint impl/clojure/test || LINT_RESULT=$?
-fi
-
-if [ $LINT_RESULT -ne 0 ]; then
+run_lint_check() {
     echo ""
-    echo "❌ Linting failed. Please fix the errors above before committing."
-    exit 1
-fi
+    echo "Running clj-kondo linter..."
+    
+    if ! (cd "$CLJ_DIR" && clojure -M:lint 2>&1); then
+        echo ""
+        echo "❌ Linting failed. Please fix the errors above before committing."
+        return 1
+    fi
+    
+    echo "✅ Linting passed."
+}
 
-echo "✅ Linting passed."
+# Run checks
+run_fmt_check
+run_lint_check
+
 exit 0
