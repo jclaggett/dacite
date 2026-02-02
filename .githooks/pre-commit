@@ -46,7 +46,7 @@ run_lint_check() {
     echo "✅ Linting passed."
 }
 
-fun_test_check() {
+run_test_check() {
     echo ""
     echo "Running unit tests..."
 
@@ -62,4 +62,4 @@ fun_test_check() {
 # Run checks
 run_fmt_check &&
     run_lint_check &&
-    fun_test_check
+    run_test_check
