@@ -1,4 +1,9 @@
 .cpcache/
 *.jar
 target/
+
+# clojure build files
 .clj-kondo/.cache/
+
+# clojure lsp files
+.lsp
