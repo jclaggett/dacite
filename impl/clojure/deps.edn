@@ -19,5 +19,5 @@
         :main-opts ["-m" "cljfmt.main"]}
   
   ;; Check for outdated dependencies: clojure -M:outdated
-  :outdated {:extra-deps {com.github.liquidz/antq {:mvn/version "2.11.1267"}}
+  :outdated {:extra-deps {antq/antq {:mvn/version "2.11.1276"}}
              :main-opts ["-m" "antq.core"]}}}
