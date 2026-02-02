@@ -3,7 +3,7 @@
 target/
 
 # clojure build files
-.clj-kondo/.cache/
+.cache/
 
 # clojure lsp files
 .lsp
