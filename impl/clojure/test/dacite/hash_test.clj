@@ -29,7 +29,7 @@
 
 (def gen-i32
   "Generator for signed 32-bit integers."
-  gen/int)
+  gen/small-integer)
 
 (def gen-i64
   "Generator for signed 64-bit integers."
@@ -213,7 +213,7 @@
 (defspec different-types-different-hashes 100
   (prop/for-all [type1 (gen/elements [:i32 :i64 :u32 :f32 :f64])
                  type2 (gen/elements [:i32 :i64 :u32 :f32 :f64])
-                 value gen/int]
+                 value gen/small-integer]
     ;; Same numeric value with different types should hash differently
                 (or (= type1 type2)
                     (not (bytes= (compute-leaf-hash type1 value)
