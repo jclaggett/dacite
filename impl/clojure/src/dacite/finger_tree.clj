@@ -73,7 +73,7 @@
 (defrecord Node [children cached-measure]
   Measured
   (measure [_] cached-measure)
-  
+
   ;; Node can act as a single-element tree (for spine)
   FingerTree
   (ft-empty? [_] false)
@@ -172,7 +172,7 @@
 (defrecord EmptyTree []
   Measured
   (measure [_] measure-identity)
-  
+
   FingerTree
   (ft-empty? [_] true)
   (ft-first [_] nil)
@@ -216,13 +216,13 @@
 (extend-type Deep
   FingerTree
   (ft-empty? [_] false)
-  
+
   (ft-first [this]
     (digit-first (:left this)))
-  
+
   (ft-last [this]
     (digit-last (:right this)))
-  
+
   (ft-rest [this]
     (let [left (:left this)
           spine (:spine this)
@@ -238,7 +238,7 @@
                 new-spine (ft-rest spine)
                 new-left (make-digit (node-children node))]
             (make-deep new-left new-spine right))))))
-  
+
   (ft-butlast [this]
     (let [left (:left this)
           spine (:spine this)
@@ -254,17 +254,17 @@
                 new-spine (ft-butlast spine)
                 new-right (make-digit (node-children node))]
             (make-deep left new-spine new-right))))))
-  
+
   (ft-conj-left [this v]
     (deep-conj-left this v))
-  
+
   (ft-conj-right [this v]
     (deep-conj-right this v))
-  
+
   (ft-concat [this other]
     ;; Simplified concat - can be optimized
     (reduce ft-conj-right this (ft-to-vec other)))
-  
+
   (ft-to-vec [this]
     ;; Return all elements in order (Leaves or Nodes depending on level)
     (vec (concat (digit-elements (:left this))
@@ -415,14 +415,14 @@
   ;; Example usage
   (def leaves (map #(make-leaf % 8 (hash/bytes->longs (hash/sha256-str (str %))))
                    (range 100)))
-  
+
   (def tree (from-seq leaves))
-  
+
   (tree-count tree)    ;; => 100
   (tree-size-bytes tree) ;; => 800
-  
+
   (-> tree tree-first :value) ;; => 0
   (-> tree tree-last :value)  ;; => 99
-  
+
   (to-vec tree) ;; => [0 1 2 ... 99]
   )

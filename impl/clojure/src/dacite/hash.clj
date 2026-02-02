@@ -135,11 +135,11 @@
   (def a (sha256-str "hello"))
   (def b (sha256-str "world"))
   (vec (fuse a b))
-  
+
   ;; Test fuse-longs (no byte conversion)
   (def al (bytes->longs a))
   (def bl (bytes->longs b))
   (fuse-longs al bl)
-  
+
   ;; Test type hash
   (vec (type-hash "dacite.core/i64")))

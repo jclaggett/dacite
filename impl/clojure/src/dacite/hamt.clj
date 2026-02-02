@@ -68,7 +68,7 @@
       ;; Need to span two longs
       (let [bits-from-current (+ shift 5)  ;; bits we can get from current long
             bits-from-next (- bits-from-current) ;; bits we need from next long
-            current-part (bit-and (bit-shift-left 
+            current-part (bit-and (bit-shift-left
                                    (bit-and long-val (dec (bit-shift-left 1 bits-from-current)))
                                    bits-from-next)
                                   MASK)
@@ -102,12 +102,12 @@
   ;; key-hash: [4 longs] - the hash of the key
   ;; key-val: {:key _ :value _ :key-size _ :val-size _}
   ;; cached-measure: {:count 1 :size-bytes (+ key-size val-size)}
-  
+
   HAMTNode
   (hamt-lookup [_this lookup-hash _level]
     (when (= key-hash lookup-hash)
       (:value key-val)))
-  
+
   (hamt-assoc [this new-hash new-kv level]
     (if (= key-hash new-hash)
       ;; Same key - replace value
@@ -129,14 +129,14 @@
             (->BitmapNode bitmap
                           (vec children)
                           (measure-combine cached-measure (:cached-measure new-kv))))))))
-  
+
   (hamt-dissoc [this lookup-hash _level]
     (when-not (= key-hash lookup-hash)
       this))
-  
+
   (hamt-entries [_this]
     [[(:key key-val) (:value key-val)]])
-  
+
   (hamt-measure [_this]
     cached-measure))
 
@@ -157,7 +157,7 @@
   ;; bitmap: 32-bit int, bit i set means child at index i exists
   ;; children: vector of child nodes (compressed - only present children)
   ;; cached-measure: accumulated measure of all children
-  
+
   HAMTNode
   (hamt-lookup [_this key-hash level]
     (let [chunk (hash-chunk key-hash level)
@@ -166,7 +166,7 @@
         (let [idx (Long/bitCount (bit-and bitmap (dec bit)))
               child (nth children idx)]
           (hamt-lookup child key-hash (inc level))))))
-  
+
   (hamt-assoc [_this key-hash key-val level]
     (let [chunk (hash-chunk key-hash level)
           bit (bit-set 0 chunk)
@@ -176,7 +176,7 @@
         (let [child (nth children idx)
               new-child (hamt-assoc child key-hash key-val (inc level))
               new-children (assoc children idx new-child)
-              measure-diff (measure-combine 
+              measure-diff (measure-combine
                             (hamt-measure new-child)
                             {:count (- (:count (hamt-measure child)))
                              :size-bytes (- (:size-bytes (hamt-measure child)))})]
@@ -192,7 +192,7 @@
           (->BitmapNode new-bitmap
                         new-children
                         (measure-combine cached-measure (hamt-measure new-entry)))))))
-  
+
   (hamt-dissoc [this key-hash level]
     (let [chunk (hash-chunk key-hash level)
           bit (bit-set 0 chunk)]
@@ -223,14 +223,14 @@
               (->BitmapNode bitmap
                             new-children
                             (measure-combine cached-measure
-                                             (measure-combine 
+                                             (measure-combine
                                               (hamt-measure new-child)
                                               {:count (- (:count (hamt-measure child)))
                                                :size-bytes (- (:size-bytes (hamt-measure child)))})))))))))
-  
+
   (hamt-entries [_this]
     (mapcat hamt-entries children))
-  
+
   (hamt-measure [_this]
     cached-measure))
 
@@ -241,14 +241,14 @@
 (defrecord EmptyHAMT []
   HAMTNode
   (hamt-lookup [_ _ _] nil)
-  
+
   (hamt-assoc [_ key-hash key-val _level]
     (->Entry key-hash key-val (:cached-measure key-val)))
-  
+
   (hamt-dissoc [this _ _] this)
-  
+
   (hamt-entries [_] [])
-  
+
   (hamt-measure [_] measure-identity))
 
 (def empty-hamt (->EmptyHAMT))
@@ -340,14 +340,14 @@
              (assoc-val "name" "Alice")
              (assoc-val "age" 30)
              (assoc-val "city" "Boston")))
-  
+
   (get-val m "name")     ;; => "Alice"
   (get-val m "age")      ;; => 30
   (hamt-count m)         ;; => 3
-  
+
   (entries m)
   ;; => [["name" "Alice"] ["age" 30] ["city" "Boston"]]
-  
+
   (def m2 (dissoc-val m "age"))
   (hamt-count m2)        ;; => 2
   (get-val m2 "age")     ;; => nil

@@ -15,7 +15,7 @@
 ;; Server state
 ;; =============================================================================
 
-(defonce ^:private server-state 
+(defonce ^:private server-state
   (atom {:store nil
          :root-hash nil}))
 
@@ -99,9 +99,9 @@
 
 (defn handle-get-root [^HttpExchange exchange]
   (if-let [root (get-root)]
-    (send-json-response exchange 200 
+    (send-json-response exchange 200
                         {:root (store/hash->hex root)})
-    (send-json-response exchange 404 
+    (send-json-response exchange 404
                         {:error "No root configured"})))
 
 (defn handle-get-node [^HttpExchange exchange hash-hex]
@@ -144,14 +144,14 @@
       (cond
         (and (= method "GET") (= path "/root"))
         (handle-get-root exchange)
-        
+
         (and (= method "GET") (str/starts-with? path "/node/"))
         (let [hash-hex (subs path 6)]  ;; Remove "/node/"
           (handle-get-node exchange hash-hex))
-        
+
         (and (= method "POST") (= path "/root"))
         (handle-post-root exchange)
-        
+
         (= method "OPTIONS")
         (do
           (let [headers (.getResponseHeaders exchange)]
@@ -159,12 +159,12 @@
             (.add headers "Access-Control-Allow-Methods" "GET, POST, OPTIONS")
             (.add headers "Access-Control-Allow-Headers" "Content-Type"))
           (.sendResponseHeaders exchange 204 -1))
-        
+
         :else
         (send-json-response exchange 404 {:error "Not found"}))
-      
+
       (catch Exception e
-        (send-json-response exchange 500 
+        (send-json-response exchange 500
                             {:error (.getMessage e)})))))
 
 ;; =============================================================================
@@ -178,11 +178,11 @@
   [port store initial-root]
   (when @server-instance
     (throw (ex-info "Server already running" {})))
-  
+
   (set-store! store)
   (when initial-root
     (set-root! initial-root))
-  
+
   (let [server (HttpServer/create (InetSocketAddress. port) 0)
         handler (reify HttpHandler
                   (handle [_ exchange]
@@ -233,12 +233,11 @@
 (comment
   ;; Start demo server
   (def demo (setup-demo 8080))
-  
+
   ;; Test endpoints
   ;; curl http://localhost:8080/root
   ;; curl http://localhost:8080/node/<hash>
   ;; curl http://localhost:8080/node/<hash>?inline_under=2048
-  
+
   ;; Stop server
-  (stop-server)
-  )
+  (stop-server))

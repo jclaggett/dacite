@@ -24,10 +24,10 @@
       (.setRequestMethod conn "GET")
       (.setConnectTimeout conn 5000)
       (.setReadTimeout conn 5000)
-      
+
       (let [status (.getResponseCode conn)]
         (if (= 200 status)
-          (with-open [reader (BufferedReader. 
+          (with-open [reader (BufferedReader.
                               (InputStreamReader. (.getInputStream conn)))]
             (edn/read-string (slurp reader)))
           (do
@@ -76,7 +76,7 @@
       ;; Fetch from server
       (let [hash-hex (store/hash->hex hash-longs)
             threshold (:inline-threshold client)
-            url (str (:server-url client) "/node/" hash-hex 
+            url (str (:server-url client) "/node/" hash-hex
                      "?inline_under=" threshold)]
         (when-let [response (http-get url)]
           (let [node (:node response)]
@@ -134,7 +134,7 @@
             (when (and new-root (not= new-root @current-root))
               (let [old @current-root]
                 (reset! current-root new-root)
-                (callback {:old-root old 
+                (callback {:old-root old
                            :new-root new-root
                            :config (fetch-node client new-root)}))))
           (catch Exception e
@@ -150,26 +150,25 @@
 (comment
   ;; Create client
   (def client (make-client "http://localhost:8080"))
-  
+
   ;; Fetch root hash
   (fetch-root client)
-  
+
   ;; Fetch full config
   (get-config client)
-  
+
   ;; Fetch specific path
   (get-config-path client [:database :host])
   ;; => "localhost"
-  
+
   ;; Watch for changes
-  (def stop-watch 
-    (watch-config client 
+  (def stop-watch
+    (watch-config client
                   (fn [{:keys [old-root new-root config]}]
                     (println "Config changed!")
                     (println "Old root:" old-root)
                     (println "New root:" new-root)
                     (println "New config:" config))))
-  
+
   ;; Stop watching
-  (stop-watch)
-  )
+  (stop-watch))

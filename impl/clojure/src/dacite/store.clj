@@ -70,21 +70,21 @@
     (let [f (hash->path base-dir h)]
       (when (.exists f)
         (edn/read-string (slurp f)))))
-  
+
   (store-put [_ h value]
     (let [f (hash->path base-dir h)]
       (ensure-parent-dirs f)
       (spit f (pr-str value))
       h))
-  
+
   (store-has? [_ h]
     (.exists (hash->path base-dir h)))
-  
+
   (store-delete [_ h]
     (let [f (hash->path base-dir h)]
       (when (.exists f)
         (.delete f))))
-  
+
   (store-list [_]
     (let [files (file-seq base-dir)]
       (->> files
@@ -110,17 +110,17 @@
   Store
   (store-get [_ h]
     (get @data (vec h)))
-  
+
   (store-put [_ h value]
     (swap! data assoc (vec h) value)
     h)
-  
+
   (store-has? [_ h]
     (contains? @data (vec h)))
-  
+
   (store-delete [_ h]
     (swap! data dissoc (vec h)))
-  
+
   (store-list [_]
     (keys @data)))
 
@@ -169,12 +169,12 @@
                     child  ;; Already a hash
                     (store-tree! store child)))  ;; Store subtree, get hash
                 (:children tree)))
-        
+
         ;; Create the storable version with children as hashes
         storable (if children-with-hashes
                    (assoc tree :children children-with-hashes)
                    tree)]
-    
+
     ;; Store and return hash
     (put-value store storable)))
 
@@ -191,11 +191,11 @@
        (let [expanded-children
              (mapv (fn [child-hash]
                      (let [child-node (get-value store child-hash)]
-                       (if (and child-node 
+                       (if (and child-node
                                 (:children child-node)
                                 (or (neg? depth) (> depth 1)))
                          ;; Recurse into this child's children
-                         (fetch-tree store child-hash 
+                         (fetch-tree store child-hash
                                      (if (neg? depth) -1 (dec depth)))
                          ;; Just return the child node (or nil if not found)
                          child-node)))
@@ -205,28 +205,27 @@
 (comment
   ;; Example usage
   (def store (mem-store))
-  
+
   ;; Store some values
   (def h1 (put-value store {:type "dacite.core/i64" :data 42}))
   (def h2 (put-value store {:type "dacite.core/string" :data "hello"}))
-  
+
   ;; Retrieve
   (get-value store h1)  ;; => {:type "dacite.core/i64", :data 42}
-  
+
   ;; Store a tree
   (def tree {:type "dacite.core/vector"
              :measure {:count 2 :size-bytes 16}
              :children [{:type "dacite.core/i64" :data 1}
                         {:type "dacite.core/i64" :data 2}]})
-  
+
   (def root (store-tree! store tree))
-  
+
   ;; Fetch with different depths
   (fetch-tree store root 0)   ;; Just the root
   (fetch-tree store root 1)   ;; Root + immediate children
   (fetch-tree store root)     ;; Everything
-  
+
   ;; File store
   (def fs (file-store "/tmp/dacite-store"))
-  (put-value fs {:type "test" :data "persistent"})
-  )
+  (put-value fs {:type "test" :data "persistent"}))

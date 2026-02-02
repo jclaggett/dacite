@@ -1,8 +1,7 @@
 (ns dacite.core
   "Dacite: Data citing with fused hashing.
    
-   Core API for working with content-addressed immutable values."
-)
+   Core API for working with content-addressed immutable values.")
 
 ;; TODO: Core API
 ;; - value->hash: compute hash of any Dacite value

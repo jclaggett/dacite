@@ -13,37 +13,37 @@
   (println "Dacite Configuration Management Demo")
   (println "=" (apply str (repeat 60 "=")))
   (println)
-  
+
   ;; 1. Set up server with initial config
   (println "1. Starting server with initial config...")
   (let [{:keys [store root]} (server/setup-demo 8080)]
     (println "   Server running on http://localhost:8080")
     (println "   Initial root:" (store/hash->hex root))
     (println)
-    
+
     ;; 2. Create client
     (println "2. Creating client...")
     (let [c (client/make-client "http://localhost:8080")]
       (println "   Client connected")
       (println)
-      
+
       ;; 3. Fetch config
       (println "3. Fetching config from server...")
       (let [config (client/get-config c)]
         (println "   Config type:" (:type config))
         (println "   Config data:" (:data config))
         (println))
-      
+
       ;; 4. Fetch specific paths
       (println "4. Fetching specific config paths...")
-      (println "   [:database :host] =" 
+      (println "   [:database :host] ="
                (client/get-config-path c [:database :host]))
-      (println "   [:cache :ttl-seconds] =" 
+      (println "   [:cache :ttl-seconds] ="
                (client/get-config-path c [:cache :ttl-seconds]))
-      (println "   [:features :new-ui] =" 
+      (println "   [:features :new-ui] ="
                (client/get-config-path c [:features :new-ui]))
       (println)
-      
+
       ;; 5. Update config on server
       (println "5. Updating config on server...")
       (let [old-root root
@@ -62,7 +62,7 @@
         (server/set-root! new-root)
         (println "   New root:" (store/hash->hex new-root))
         (println)
-        
+
         ;; 6. Sync and see changes
         (println "6. Client syncing with server...")
         (let [sync-result (client/sync-config c old-root)]
@@ -71,7 +71,7 @@
             (println "   New config:"
                      (client/get-config c))))
         (println)))
-    
+
     ;; 7. Clean up
     (println "7. Stopping server...")
     (server/stop-server)
@@ -89,5 +89,4 @@
 
 (comment
   ;; Run interactively
-  (demo-server-client)
-  )
+  (demo-server-client))

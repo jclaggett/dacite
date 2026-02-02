@@ -133,12 +133,12 @@
                                        {:type "grandchild2" :data 2}]}
                            {:type "child2" :data 3}]}
           root (store/store-tree! s tree)]
-      
+
       ;; Depth 0: just root, children are hashes
       (let [fetched (store/fetch-tree s root 0)]
         (is (= "root" (:type fetched)))
         (is (every? #(and (vector? %) (= 4 (count %))) (:children fetched))))
-      
+
       ;; Depth 1: root + immediate children expanded
       (let [fetched (store/fetch-tree s root 1)]
         (is (= "root" (:type fetched)))
@@ -147,7 +147,7 @@
         ;; Grandchildren of child1 still hashes
         (is (every? #(and (vector? %) (= 4 (count %)))
                     (:children (first (:children fetched))))))
-      
+
       ;; Full depth: everything expanded
       (let [fetched (store/fetch-tree s root)]
         (is (= "grandchild1" (:type (first (:children (first (:children fetched)))))))))))

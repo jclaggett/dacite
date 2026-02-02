@@ -53,9 +53,9 @@
 
 (def gen-f32
   "Generator for 32-bit floats (within float range)."
-  (gen/fmap float (gen/double* {:min (- Float/MAX_VALUE) 
-                                :max Float/MAX_VALUE 
-                                :infinite? false 
+  (gen/fmap float (gen/double* {:min (- Float/MAX_VALUE)
+                                :max Float/MAX_VALUE
+                                :infinite? false
                                 :NaN? false})))
 
 (def gen-f64
@@ -139,28 +139,28 @@
 
 (defspec sha256-determinism 100
   (prop/for-all [data (gen/not-empty gen/bytes)]
-    (bytes= (hash/sha256 data)
-            (hash/sha256 data))))
+                (bytes= (hash/sha256 data)
+                        (hash/sha256 data))))
 
 (defspec fuse-longs-determinism 100
   (prop/for-all [a gen-hash-longs
                  b gen-hash-longs]
-    (= (hash/unchecked-fuse-longs a b)
-       (hash/unchecked-fuse-longs a b))))
+                (= (hash/unchecked-fuse-longs a b)
+                   (hash/unchecked-fuse-longs a b))))
 
 (defspec fuse-determinism 100
   (prop/for-all [a gen-hash-bytes
                  b gen-hash-bytes]
-    (bytes= (hash/fuse a b)
-            (hash/fuse a b))))
+                (bytes= (hash/fuse a b)
+                        (hash/fuse a b))))
 
 (defspec fuse-non-commutative 100
   (prop/for-all [a gen-hash-bytes
                  b gen-hash-bytes]
     ;; fuse(a,b) ≠ fuse(b,a) unless a = b
-    (or (bytes= a b)
-        (not (bytes= (hash/fuse a b)
-                     (hash/fuse b a))))))
+                (or (bytes= a b)
+                    (not (bytes= (hash/fuse a b)
+                                 (hash/fuse b a))))))
 
 (defspec fuse-longs-non-commutative 100
   (prop/for-all [a gen-hash-longs
@@ -169,55 +169,55 @@
     ;; The formula c0 = a0 + a3*b2 + b0 can be commutative when:
     ;; - a = b, OR
     ;; - a3*b2 = b3*a2 (which happens when these products are equal)
-    (let [result-ab (hash/unchecked-fuse-longs a b)
-          result-ba (hash/unchecked-fuse-longs b a)]
-      (or (= a b)
-          (not= result-ab result-ba)
+                (let [result-ab (hash/unchecked-fuse-longs a b)
+                      result-ba (hash/unchecked-fuse-longs b a)]
+                  (or (= a b)
+                      (not= result-ab result-ba)
           ;; Allow degenerate cases where a3*b2 = b3*a2
-          (= (unchecked-multiply (nth a 3) (nth b 2))
-             (unchecked-multiply (nth b 3) (nth a 2)))))))
+                      (= (unchecked-multiply (nth a 3) (nth b 2))
+                         (unchecked-multiply (nth b 3) (nth a 2)))))))
 
 (defspec fuse-not-identity-left 100
   (prop/for-all [a gen-hash-bytes
                  b gen-hash-bytes]
     ;; fuse(a,b) ≠ a (fuse shouldn't return just the left input)
-    (not (bytes= (hash/fuse a b) a))))
+                (not (bytes= (hash/fuse a b) a))))
 
 (defspec fuse-not-identity-right 100
   (prop/for-all [a gen-hash-bytes
                  b gen-hash-bytes]
     ;; fuse(a,b) ≠ b (fuse shouldn't return just the right input)
-    (not (bytes= (hash/fuse a b) b))))
+                (not (bytes= (hash/fuse a b) b))))
 
 (defspec leaf-hash-determinism 100
   (prop/for-all [[type-kw value] gen-tagged-leaf]
-    (bytes= (compute-leaf-hash type-kw value)
-            (compute-leaf-hash type-kw value))))
+                (bytes= (compute-leaf-hash type-kw value)
+                        (compute-leaf-hash type-kw value))))
 
 (defspec fuse-associative 100
   (prop/for-all [a gen-hash-bytes
                  b gen-hash-bytes
                  c gen-hash-bytes]
     ;; fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)
-    (bytes= (hash/fuse a (hash/fuse b c))
-            (hash/fuse (hash/fuse a b) c))))
+                (bytes= (hash/fuse a (hash/fuse b c))
+                        (hash/fuse (hash/fuse a b) c))))
 
 (defspec fuse-longs-associative 100
   (prop/for-all [a gen-hash-longs
                  b gen-hash-longs
                  c gen-hash-longs]
     ;; fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)
-    (= (hash/unchecked-fuse-longs a (hash/unchecked-fuse-longs b c))
-       (hash/unchecked-fuse-longs (hash/unchecked-fuse-longs a b) c))))
+                (= (hash/unchecked-fuse-longs a (hash/unchecked-fuse-longs b c))
+                   (hash/unchecked-fuse-longs (hash/unchecked-fuse-longs a b) c))))
 
 (defspec different-types-different-hashes 100
   (prop/for-all [type1 (gen/elements [:i32 :i64 :u32 :f32 :f64])
                  type2 (gen/elements [:i32 :i64 :u32 :f32 :f64])
                  value gen/int]
     ;; Same numeric value with different types should hash differently
-    (or (= type1 type2)
-        (not (bytes= (compute-leaf-hash type1 value)
-                     (compute-leaf-hash type2 value))))))
+                (or (= type1 type2)
+                    (not (bytes= (compute-leaf-hash type1 value)
+                                 (compute-leaf-hash type2 value))))))
 
 ;; =============================================================================
 ;; Unit tests for edge cases  
@@ -229,14 +229,14 @@
           b (hash/sha256-str "world")
           c (hash/fuse a b)]
       (is (= 32 (count c)))))
-  
+
   (testing "fuse with same input twice"
     (let [a (hash/sha256-str "test")
           c (hash/fuse a a)]
       (is (= 32 (count c)))
       ;; fuse(a,a) should still be different from a
       (is (not (bytes= c a)))))
-  
+
   (testing "fuse is associative"
     (let [a (hash/sha256-str "one")
           b (hash/sha256-str "two")
@@ -253,7 +253,7 @@
           c (hash/unchecked-fuse-longs a b)]
       (is (vector? c))
       (is (= 4 (count c)))))
-  
+
   (testing "fuse-longs matches fuse via conversion"
     (let [a-bytes (hash/sha256-str "hello")
           b-bytes (hash/sha256-str "world")
@@ -285,7 +285,7 @@
   (testing "normal hashes are not low-entropy"
     (let [h (hash/bytes->longs (hash/sha256-str "normal data"))]
       (is (not (hash/low-entropy? h)))))
-  
+
   (testing "hash with zeros in lower 32 bits is low-entropy"
     ;; Construct a degenerate hash with zeros in lower 32 bits of all words
     ;; Use unchecked-long to ensure we get proper longs, not BigInts
@@ -294,22 +294,22 @@
                     (unchecked-long 0x9876543200000000)
                     (unchecked-long 0xFEDCBA9800000000)]]
       (is (hash/low-entropy? bad-hash))))
-  
+
   (testing "fuse throws on low-entropy result (via repeated self-fuse)"
     ;; Fusing a hash with itself ~65 times converges to low-entropy
     (let [start (hash/sha256-str "trigger low entropy")]
-      (is (thrown-with-msg? 
-           clojure.lang.ExceptionInfo 
+      (is (thrown-with-msg?
+           clojure.lang.ExceptionInfo
            #"Low-entropy hash detected"
            (reduce (fn [h _] (hash/fuse h h))
                    start
                    (range 65))))))
-  
+
   (testing "unchecked-fuse-longs allows low-entropy (no exception)"
     ;; Use unchecked version to verify low-entropy actually occurs
     (let [start (hash/bytes->longs (hash/sha256-str "any value"))
-          result (reduce (fn [h _] (hash/unchecked-fuse-longs h h)) 
-                         start 
+          result (reduce (fn [h _] (hash/unchecked-fuse-longs h h))
+                         start
                          (range 65))]
       (is (hash/low-entropy? result)
           "65 iterations of self-fuse should produce low-entropy hash"))))
@@ -317,9 +317,9 @@
 (comment
   ;; Run all tests
   (clojure.test/run-tests)
-  
+
   ;; Run specific property test
   (tc/quick-check 100 fuse-determinism)
-  
+
   ;; Run with more iterations
   (tc/quick-check 1000 fuse-non-commutative))

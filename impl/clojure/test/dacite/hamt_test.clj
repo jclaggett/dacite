@@ -147,8 +147,8 @@
 (defspec lookup-after-insert 100
   (prop/for-all [k gen-key
                  v gen-val]
-    (let [m (hamt/assoc-val (hamt/hamt) k v)]
-      (= v (hamt/get-val m k)))))
+                (let [m (hamt/assoc-val (hamt/hamt) k v)]
+                  (= v (hamt/get-val m k)))))
 
 (defspec count-increases-on-new-key 100
   (prop/for-all [k1 gen-key
@@ -156,35 +156,35 @@
                  v1 gen-val
                  v2 gen-val]
     ;; Only test when keys are different
-    (if (= k1 k2)
-      true  ;; skip this case
-      (let [m1 (hamt/assoc-val (hamt/hamt) k1 v1)
-            m2 (hamt/assoc-val m1 k2 v2)]
-        (= (inc (hamt/hamt-count m1)) (hamt/hamt-count m2))))))
+                (if (= k1 k2)
+                  true  ;; skip this case
+                  (let [m1 (hamt/assoc-val (hamt/hamt) k1 v1)
+                        m2 (hamt/assoc-val m1 k2 v2)]
+                    (= (inc (hamt/hamt-count m1)) (hamt/hamt-count m2))))))
 
 (defspec count-unchanged-on-same-key 100
   (prop/for-all [k gen-key
                  v1 gen-val
                  v2 gen-val]
-    (let [m1 (hamt/assoc-val (hamt/hamt) k v1)
-          m2 (hamt/assoc-val m1 k v2)]
-      (= (hamt/hamt-count m1) (hamt/hamt-count m2)))))
+                (let [m1 (hamt/assoc-val (hamt/hamt) k v1)
+                      m2 (hamt/assoc-val m1 k v2)]
+                  (= (hamt/hamt-count m1) (hamt/hamt-count m2)))))
 
 (defspec delete-removes-key 100
   (prop/for-all [k gen-key
                  v gen-val]
-    (let [m1 (hamt/assoc-val (hamt/hamt) k v)
-          m2 (hamt/dissoc-val m1 k)]
-      (nil? (hamt/get-val m2 k)))))
+                (let [m1 (hamt/assoc-val (hamt/hamt) k v)
+                      m2 (hamt/dissoc-val m1 k)]
+                  (nil? (hamt/get-val m2 k)))))
 
 (defspec insert-multiple-all-present 50
   (prop/for-all [kvs (gen/vector gen-kv 1 50)]
-    (let [m (reduce (fn [m [k v]] (hamt/assoc-val m k v))
-                    (hamt/hamt)
-                    kvs)
+                (let [m (reduce (fn [m [k v]] (hamt/assoc-val m k v))
+                                (hamt/hamt)
+                                kvs)
           ;; Last value for each key wins
-          expected (into {} kvs)]
-      (every? (fn [[k v]] (= v (hamt/get-val m k))) expected))))
+                      expected (into {} kvs)]
+                  (every? (fn [[k v]] (= v (hamt/get-val m k))) expected))))
 
 (comment
   (clojure.test/run-tests))

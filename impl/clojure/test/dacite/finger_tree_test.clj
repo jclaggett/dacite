@@ -92,7 +92,7 @@
     (let [leaves (make-test-leaves (range 100))
           tree (ft/from-seq leaves)]
       (is (= 100 (ft/tree-count tree)))))
-  
+
   (testing "size-bytes accumulates correctly"
     (let [leaves (make-test-leaves ["a" "bb" "ccc"])
           tree (ft/from-seq leaves)
@@ -113,7 +113,7 @@
       (is (= 0 (:value (ft/tree-first tree))))
       (is (= 999 (:value (ft/tree-last tree))))
       (is (= (range 1000) (ft/to-vec tree)))))
-  
+
   (testing "tree with 10000 elements"
     (let [leaves (make-test-leaves (range 10000))
           tree (ft/from-seq leaves)]
@@ -134,7 +134,7 @@
       (is (= 3 (:value (ft/tree-first tree))))
       (is (= 2 (:value (ft/tree-first (ft/tree-rest tree)))))
       (is (= 1 (:value (ft/tree-first (ft/tree-rest (ft/tree-rest tree))))))))
-  
+
   (testing "FIFO (queue) - add right, take left"
     (let [tree (-> (ft/finger-tree)
                    (ft/conj-right (make-test-leaf 1))
@@ -152,30 +152,30 @@
 
 (defspec conj-right-preserves-count 50
   (prop/for-all [values (gen/vector gen-small-int)]
-    (let [leaves (make-test-leaves values)
-          tree (ft/from-seq leaves)]
-      (= (count values) (ft/tree-count tree)))))
+                (let [leaves (make-test-leaves values)
+                      tree (ft/from-seq leaves)]
+                  (= (count values) (ft/tree-count tree)))))
 
 (defspec conj-right-preserves-order 50
   (prop/for-all [values (gen/vector gen-small-int)]
-    (let [leaves (make-test-leaves values)
-          tree (ft/from-seq leaves)]
-      (= values (ft/to-vec tree)))))
+                (let [leaves (make-test-leaves values)
+                      tree (ft/from-seq leaves)]
+                  (= values (ft/to-vec tree)))))
 
 (defspec rest-removes-first 50
   (prop/for-all [values (gen/not-empty (gen/vector gen-small-int))]
-    (let [leaves (make-test-leaves values)
-          tree (ft/from-seq leaves)
-          rest-tree (ft/tree-rest tree)]
-      (= (rest values) (ft/to-vec rest-tree)))))
+                (let [leaves (make-test-leaves values)
+                      tree (ft/from-seq leaves)
+                      rest-tree (ft/tree-rest tree)]
+                  (= (rest values) (ft/to-vec rest-tree)))))
 
 (defspec butlast-removes-last 50
   (prop/for-all [values (gen/not-empty (gen/vector gen-small-int))]
-    (let [leaves (make-test-leaves values)
-          tree (ft/from-seq leaves)
-          butlast-tree (ft/tree-butlast tree)]
+                (let [leaves (make-test-leaves values)
+                      tree (ft/from-seq leaves)
+                      butlast-tree (ft/tree-butlast tree)]
       ;; Use vec to normalize both sides (butlast returns nil for single element)
-      (= (vec (butlast values)) (vec (ft/to-vec butlast-tree))))))
+                  (= (vec (butlast values)) (vec (ft/to-vec butlast-tree))))))
 
 (comment
   (clojure.test/run-tests))
