@@ -88,13 +88,13 @@
 (deftest test-file-store-persistence
   (testing "file store persists across instances"
     (let [path (str *temp-dir*)
-          v {:type "test" :data "persistent"}]
-      ;; Write with one instance
-      (let [s1 (store/file-store path)
-            h (store/put-value s1 v)]
-        ;; Read with new instance
-        (let [s2 (store/file-store path)]
-          (is (= v (store/get-value s2 h))))))))
+          v {:type "test" :data "persistent"}
+          ;; Write with one instance
+          s1 (store/file-store path)
+          h (store/put-value s1 v)
+          ;; Read with new instance
+          s2 (store/file-store path)]
+      (is (= v (store/get-value s2 h))))))
 
 (deftest test-file-store-sharding
   (testing "file store creates sharded directories"

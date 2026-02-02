@@ -11,8 +11,7 @@
    - Uses MSB (most mixed bits from fuse) for navigation
    - Accumulated measure (count, size_bytes) per node
    - Any Dacite value can be a key or value"
-  (:require [dacite.hash :as hash])
-  (:import [java.util Arrays]))
+  (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
 ;; Constants
@@ -59,23 +58,23 @@
   (let [bit-offset (* level BITS)           ;; 0, 5, 10, 15, ...
         long-idx (quot bit-offset 64)       ;; which long (0-3)
         bit-in-long (mod bit-offset 64)     ;; bit position within that long
-        long-val (nth hash-longs long-idx 0)]
+        long-val (nth hash-longs long-idx 0)
+        shift (- 59 bit-in-long)]
     ;; Extract 5 bits starting from MSB
     ;; For bit-in-long=0, we want bits 63-59
     ;; Shift right by (64 - 5 - bit-in-long) = (59 - bit-in-long)
-    (let [shift (- 59 bit-in-long)]
-      (if (>= shift 0)
-        (bit-and MASK (unsigned-bit-shift-right long-val shift))
-        ;; Need to span two longs
-        (let [bits-from-current (+ shift 5)  ;; bits we can get from current long
-              bits-from-next (- bits-from-current) ;; bits we need from next long
-              current-part (bit-and (bit-shift-left 
-                                     (bit-and long-val (dec (bit-shift-left 1 bits-from-current)))
-                                     bits-from-next)
-                                    MASK)
-              next-long (nth hash-longs (inc long-idx) 0)
-              next-part (unsigned-bit-shift-right next-long (- 64 bits-from-next))]
-          (bit-or current-part next-part))))))
+    (if (>= shift 0)
+      (bit-and MASK (unsigned-bit-shift-right long-val shift))
+      ;; Need to span two longs
+      (let [bits-from-current (+ shift 5)  ;; bits we can get from current long
+            bits-from-next (- bits-from-current) ;; bits we need from next long
+            current-part (bit-and (bit-shift-left 
+                                   (bit-and long-val (dec (bit-shift-left 1 bits-from-current)))
+                                   bits-from-next)
+                                  MASK)
+            next-long (nth hash-longs (inc long-idx) 0)
+            next-part (unsigned-bit-shift-right next-long (- 64 bits-from-next))]
+        (bit-or current-part next-part)))))
 
 ;; =============================================================================
 ;; Protocols
@@ -105,7 +104,7 @@
   ;; cached-measure: {:count 1 :size-bytes (+ key-size val-size)}
   
   HAMTNode
-  (hamt-lookup [this lookup-hash _level]
+  (hamt-lookup [_this lookup-hash _level]
     (when (= key-hash lookup-hash)
       (:value key-val)))
   
@@ -135,15 +134,15 @@
     (when-not (= key-hash lookup-hash)
       this))
   
-  (hamt-entries [this]
+  (hamt-entries [_this]
     [[(:key key-val) (:value key-val)]])
   
-  (hamt-measure [this]
+  (hamt-measure [_this]
     cached-measure))
 
 (defn make-entry
   "Create an entry from key and value with their hashes and sizes."
-  [key key-hash key-size value value-hash value-size]
+  [key key-hash key-size value _value-hash value-size]
   (let [kv {:key key :value value :key-size key-size :val-size value-size}
         measure {:count 1 :size-bytes (+ key-size value-size)}]
     (->Entry key-hash kv measure)))
@@ -160,7 +159,7 @@
   ;; cached-measure: accumulated measure of all children
   
   HAMTNode
-  (hamt-lookup [this key-hash level]
+  (hamt-lookup [_this key-hash level]
     (let [chunk (hash-chunk key-hash level)
           bit (bit-set 0 chunk)]
       (when (not= 0 (bit-and bitmap bit))
@@ -168,7 +167,7 @@
               child (nth children idx)]
           (hamt-lookup child key-hash (inc level))))))
   
-  (hamt-assoc [this key-hash key-val level]
+  (hamt-assoc [_this key-hash key-val level]
     (let [chunk (hash-chunk key-hash level)
           bit (bit-set 0 chunk)
           idx (Long/bitCount (bit-and bitmap (dec bit)))]
@@ -229,10 +228,10 @@
                                               {:count (- (:count (hamt-measure child)))
                                                :size-bytes (- (:size-bytes (hamt-measure child)))})))))))))
   
-  (hamt-entries [this]
+  (hamt-entries [_this]
     (mapcat hamt-entries children))
   
-  (hamt-measure [this]
+  (hamt-measure [_this]
     cached-measure))
 
 ;; =============================================================================
@@ -265,12 +264,12 @@
 
 (defn lookup
   "Look up a value by key. Returns nil if not found."
-  [m key key-hash]
+  [m _key key-hash]
   (hamt-lookup m key-hash 0))
 
 (defn insert
   "Insert a key-value pair. Returns new HAMT."
-  [m key key-hash key-size value value-hash value-size]
+  [m key key-hash key-size value _value-hash value-size]
   (let [kv {:key key :value value :key-size key-size :val-size value-size
             :cached-measure {:count 1 :size-bytes (+ key-size value-size)}}]
     (hamt-assoc m key-hash kv 0)))

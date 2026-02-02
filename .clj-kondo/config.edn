@@ -1,0 +1,9 @@
+{:linters {:unused-binding {:level :warning}
+           :unused-namespace {:level :warning}
+           :unused-import {:level :warning}
+           :redundant-let {:level :warning}
+           ;; defspec creates test functions that clj-kondo doesn't see
+           :unresolved-symbol {:exclude [(clojure.test.check.clojure-test/defspec)]}}
+ 
+ ;; Tell clj-kondo that defspec defines a symbol
+ :lint-as {clojure.test.check.clojure-test/defspec clojure.test/deftest}}

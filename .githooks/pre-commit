@@ -1,0 +1,37 @@
+#!/bin/bash
+# Dacite pre-commit hook
+# Runs clj-kondo linter on Clojure source files
+
+set -e
+
+echo "Running clj-kondo linter..."
+
+# Check if clj-kondo is available
+if ! command -v clj-kondo &> /dev/null; then
+    echo "Warning: clj-kondo not installed. Skipping lint check."
+    echo "Install with: curl -sLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo"
+    exit 0
+fi
+
+# Run linter on source and test directories
+cd "$(git rev-parse --show-toplevel)"
+
+LINT_RESULT=0
+if [ -d "impl/clojure/src" ]; then
+    echo "Linting src..."
+    clj-kondo --lint impl/clojure/src || LINT_RESULT=$?
+fi
+
+if [ -d "impl/clojure/test" ]; then
+    echo "Linting test..."
+    clj-kondo --lint impl/clojure/test || LINT_RESULT=$?
+fi
+
+if [ $LINT_RESULT -ne 0 ]; then
+    echo ""
+    echo "❌ Linting failed. Please fix the errors above before committing."
+    exit 1
+fi
+
+echo "✅ Linting passed."
+exit 0

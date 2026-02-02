@@ -13,9 +13,7 @@
   (:require [dacite.hash :as hash]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
-  (:import [java.io File]
-           [java.nio.file Files Paths]
-           [java.nio.file.attribute FileAttribute]))
+  (:import [java.io File]))
 
 ;; =============================================================================
 ;; Hash utilities

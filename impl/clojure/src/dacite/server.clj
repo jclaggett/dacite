@@ -6,12 +6,10 @@
    - GET /node/:hash     - Get node by hash (with inline_under support)
    - POST /root          - Update root hash (for demo)"
   (:require [dacite.store :as store]
-            [dacite.hash :as hash]
             [clojure.string :as str]
             [clojure.edn :as edn])
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange]
-           [java.net InetSocketAddress]
-           [java.io InputStream OutputStream]))
+           [java.net InetSocketAddress]))
 
 ;; =============================================================================
 ;; Server state
