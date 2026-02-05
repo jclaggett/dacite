@@ -22,21 +22,16 @@
   (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
-;; Hash utilities
+;; Re-export hash utilities for convenience
 ;; =============================================================================
 
-(defn hash->hex
+(def hash->hex
   "Convert hash (4 longs or 32 bytes) to 64-char hex string."
-  [h]
-  (let [bytes (if (bytes? h) h (hash/longs->bytes h))]
-    (apply str (map #(format "%02x" (bit-and % 0xFF)) bytes))))
+  hash/hash->hex)
 
-(defn hex->hash
+(def hex->hash
   "Convert 64-char hex string to hash (vector of 4 longs)."
-  [hex]
-  (let [bytes (byte-array (map #(unchecked-byte (Integer/parseInt (apply str %) 16))
-                               (partition 2 hex)))]
-    (hash/bytes->longs bytes)))
+  hash/hex->hash)
 
 ;; =============================================================================
 ;; Value encoding
@@ -133,10 +128,11 @@
        :hashes (keys cache)})))
 
 (defn clear!
-  "Clear all values from a cache manager (use with caution)."
+  "Clear all values from a cache manager (use with caution).
+   Uses empty to preserve any metadata on the underlying collection."
   [manager]
   (when (instance? MemoryCacheManager manager)
-    (reset! (:cache manager) {})))
+    (swap! (:cache manager) empty)))
 
 ;; =============================================================================
 ;; Global cache (optional convenience)

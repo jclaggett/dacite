@@ -16,21 +16,16 @@
   (:import [java.io File]))
 
 ;; =============================================================================
-;; Hash utilities
+;; Hash utilities (re-exported from dacite.hash)
 ;; =============================================================================
 
-(defn hash->hex
+(def hash->hex
   "Convert hash (4 longs or 32 bytes) to 64-char hex string."
-  [h]
-  (let [bytes (if (bytes? h) h (hash/longs->bytes h))]
-    (apply str (map #(format "%02x" (bit-and % 0xFF)) bytes))))
+  hash/hash->hex)
 
-(defn hex->hash
+(def hex->hash
   "Convert 64-char hex string to hash (vector of 4 longs)."
-  [hex]
-  (let [bytes (byte-array (map #(unchecked-byte (Integer/parseInt (apply str %) 16))
-                               (partition 2 hex)))]
-    (hash/bytes->longs bytes)))
+  hash/hex->hash)
 
 ;; =============================================================================
 ;; Store protocol
