@@ -135,61 +135,78 @@
     (swap! (:cache manager) empty)))
 
 ;; =============================================================================
-;; Value size computation
+;; Dacite Value accessors
+;; =============================================================================
+
+(defn dacite-type
+  "Get the type keyword from a Dacite value [type, data]."
+  [[type-kw _]]
+  type-kw)
+
+(defn dacite-data
+  "Get the data from a Dacite value [type, data]."
+  [[_ data]]
+  data)
+
+;; =============================================================================
+;; Dacite Value size (multimethod)
+;; =============================================================================
+
+(defmulti dacite-size
+  "Get the size in bytes of a Dacite value [type, data].
+   
+   Dispatches on type keyword. To add a new type:
+   (defmethod dacite-size :my-type [[_ data]] ...)
+   
+   Collections with :measure in data use that automatically.
+   Primitives should define explicit methods."
+  dacite-type)
+
+;; Default: check for :measure, otherwise serialize and measure
+(defmethod dacite-size :default [[_ data]]
+  (if-let [measure (:measure data)]
+    (:size-bytes measure)
+    (count (encode-value data))))
+
+;; Null
+(defmethod dacite-size :null [_] 0)
+
+;; Boolean
+(defmethod dacite-size :bool [_] 1)
+
+;; Signed integers
+(defmethod dacite-size :i8 [_] 1)
+(defmethod dacite-size :i16 [_] 2)
+(defmethod dacite-size :i32 [_] 4)
+(defmethod dacite-size :i64 [_] 8)
+(defmethod dacite-size :i128 [_] 16)
+(defmethod dacite-size :i256 [_] 32)
+
+;; Unsigned integers
+(defmethod dacite-size :u8 [_] 1)
+(defmethod dacite-size :u16 [_] 2)
+(defmethod dacite-size :u32 [_] 4)
+(defmethod dacite-size :u64 [_] 8)
+(defmethod dacite-size :u128 [_] 16)
+(defmethod dacite-size :u256 [_] 32)
+
+;; Floating point
+(defmethod dacite-size :f32 [_] 4)
+(defmethod dacite-size :f64 [_] 8)
+
+;; Character (Unicode code point)
+(defmethod dacite-size :char [_] 4)
+
+;; =============================================================================
+;; Convenience: value-size from cache
 ;; =============================================================================
 
 (defn value-size
-  "Get the size in bytes of a committed value.
-   
-   For collections with :measure, returns (:size-bytes measure).
-   For primitives, computes based on type.
-   
-   This is a simple case-based implementation; will evolve to multimethod
-   for open type system.
-   
-   Builtin types from dacite.hash:
-   null, bool, i8-i256, u8-u256, f32, f64, char, string, blob, vector, map"
+  "Get the size in bytes of a committed value by its hash.
+   Looks up the value and delegates to dacite-size multimethod."
   [cache hash]
-  (when-let [[type-kw data] (lookup cache hash)]
-    (cond
-      ;; Collections with measure (finger trees, string, blob, vector, map, etc.)
-      (:measure data)
-      (:size-bytes (:measure data))
-
-      ;; Primitive types
-      :else
-      (case type-kw
-        ;; Null
-        :null 0
-
-        ;; Boolean
-        :bool 1
-
-        ;; Signed integers
-        :i8 1
-        :i16 2
-        :i32 4
-        :i64 8
-        :i128 16
-        :i256 32
-
-        ;; Unsigned integers
-        :u8 1
-        :u16 2
-        :u32 4
-        :u64 8
-        :u128 16
-        :u256 32
-
-        ;; Floating point
-        :f32 4
-        :f64 8
-
-        ;; Character (Unicode code point)
-        :char 4
-
-        ;; Default: serialize and measure
-        (count (encode-value data))))))
+  (when-let [value (lookup cache hash)]
+    (dacite-size value)))
 
 ;; =============================================================================
 ;; Global cache (optional convenience)
