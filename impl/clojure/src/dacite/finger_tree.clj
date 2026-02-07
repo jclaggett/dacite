@@ -1,19 +1,21 @@
 (ns dacite.finger-tree
-  "Cached Finger Tree implementation for Dacite.
+  "Pure Finger Tree implementation for Dacite.
    
    A persistent sequence data structure with:
    - O(1) access to both ends
    - O(log n) concatenation
    - O(1) count/size via cached measures
    
-   Every node is stored in a CacheManager:
-   - Content-addressed by hash
-   - Eager commit on creation
-   - Lookup on traversal
+   Trees are represented as [dacite-map, root-hash] tuples:
+   - dacite-map: {hash -> value} containing all nodes
+   - root-hash: hash of the root node
+   
+   Operations are pure functions that return new [map, hash] tuples.
+   The map only grows (no GC). Persist by iterating over the map.
    
    Node types stored as [type, data]:
    - [:ft/empty {:measure m}]
-   - [:ft/leaf {:value-hash h :measure m}]  ; points to separately committed value
+   - [:ft/leaf {:value-hash h :measure m}]
    - [:ft/digit {:children [h...] :measure m}]
    - [:ft/node {:children [h...] :measure m}]
    - [:ft/deep {:left h :spine h :right h :measure m}]"
@@ -34,11 +36,19 @@
   (reduce measure-combine measure-identity measures))
 
 ;; =============================================================================
-;; Node accessors (lookup from cache)
+;; Node helpers
 ;; =============================================================================
 
-(defn- lookup-node [cache hash]
-  (cache/lookup cache hash))
+(defn- add-node
+  "Add a node to the dacite-map, return [updated-map, hash]."
+  [dacite-map node]
+  (let [h (cache/compute-hash node)]
+    [(assoc dacite-map h node) h]))
+
+(defn- lookup-node
+  "Look up a node by hash in the dacite-map."
+  [dacite-map hash]
+  (get dacite-map hash))
 
 (defn- node-type [node]
   (first node))
@@ -46,37 +56,37 @@
 (defn- node-data [node]
   (second node))
 
-(defn- get-measure [cache hash]
-  (:measure (node-data (lookup-node cache hash))))
+(defn- get-measure [dacite-map hash]
+  (:measure (node-data (lookup-node dacite-map hash))))
 
-(defn- get-children [cache hash]
-  (:children (node-data (lookup-node cache hash))))
+(defn- get-children [dacite-map hash]
+  (:children (node-data (lookup-node dacite-map hash))))
 
-(defn- get-value-hash [cache hash]
-  (:value-hash (node-data (lookup-node cache hash))))
+(defn- get-value-hash [dacite-map hash]
+  (:value-hash (node-data (lookup-node dacite-map hash))))
 
 ;; =============================================================================
-;; Node constructors (commit to cache, return hash)
+;; Node constructors (add to map, return [map, hash])
 ;; =============================================================================
 
-(defn- commit-empty [cache]
-  (cache/commit! cache [:ft/empty {:measure measure-identity}]))
+(defn- make-empty [dacite-map]
+  (add-node dacite-map [:ft/empty {:measure measure-identity}]))
 
-(defn- commit-leaf [cache value-hash size-bytes]
-  (cache/commit! cache [:ft/leaf {:value-hash value-hash
+(defn- make-leaf [dacite-map value-hash size-bytes]
+  (add-node dacite-map [:ft/leaf {:value-hash value-hash
                                   :measure {:count 1 :size-bytes size-bytes}}]))
 
-(defn- commit-digit [cache child-hashes child-measures]
-  (cache/commit! cache [:ft/digit {:children (vec child-hashes)
+(defn- make-digit [dacite-map child-hashes child-measures]
+  (add-node dacite-map [:ft/digit {:children (vec child-hashes)
                                    :measure (measure-seq child-measures)}]))
 
-(defn- commit-node [cache child-hashes child-measures]
+(defn- make-node [dacite-map child-hashes child-measures]
   {:pre [(<= 2 (count child-hashes) 32)]}
-  (cache/commit! cache [:ft/node {:children (vec child-hashes)
+  (add-node dacite-map [:ft/node {:children (vec child-hashes)
                                   :measure (measure-seq child-measures)}]))
 
-(defn- commit-deep [cache left-h spine-h right-h left-m spine-m right-m]
-  (cache/commit! cache [:ft/deep {:left left-h
+(defn- make-deep [dacite-map left-h spine-h right-h left-m spine-m right-m]
+  (add-node dacite-map [:ft/deep {:left left-h
                                   :spine spine-h
                                   :right right-h
                                   :measure (measure-combine
@@ -87,260 +97,258 @@
 ;; Type predicates
 ;; =============================================================================
 
-(defn- empty-node? [cache hash]
-  (= :ft/empty (node-type (lookup-node cache hash))))
+(defn- empty-node? [dacite-map hash]
+  (= :ft/empty (node-type (lookup-node dacite-map hash))))
 
 ;; =============================================================================
 ;; Digit operations
 ;; =============================================================================
 
-(defn- digit-first [cache digit-hash]
-  (first (get-children cache digit-hash)))
+(defn- digit-first [dacite-map digit-hash]
+  (first (get-children dacite-map digit-hash)))
 
-(defn- digit-last [cache digit-hash]
-  (peek (get-children cache digit-hash)))
+(defn- digit-last [dacite-map digit-hash]
+  (peek (get-children dacite-map digit-hash)))
 
-(defn- digit-count [cache digit-hash]
-  (count (get-children cache digit-hash)))
+(defn- digit-count [dacite-map digit-hash]
+  (count (get-children dacite-map digit-hash)))
 
 (defn- digit-rest
-  "Remove first element from digit. Returns new digit hash or nil if empty."
-  [cache digit-hash]
-  (let [children (get-children cache digit-hash)]
-    (when (> (count children) 1)
+  "Remove first element from digit. Returns [map, new-digit-hash] or [map, nil] if empty."
+  [dacite-map digit-hash]
+  (let [children (get-children dacite-map digit-hash)]
+    (if (> (count children) 1)
       (let [new-children (subvec children 1)
-            new-measures (mapv #(get-measure cache %) new-children)]
-        (commit-digit cache new-children new-measures)))))
+            new-measures (mapv #(get-measure dacite-map %) new-children)]
+        (make-digit dacite-map new-children new-measures))
+      [dacite-map nil])))
 
 (defn- digit-butlast
-  "Remove last element from digit. Returns new digit hash or nil if empty."
-  [cache digit-hash]
-  (let [children (get-children cache digit-hash)]
-    (when (> (count children) 1)
+  "Remove last element from digit. Returns [map, new-digit-hash] or [map, nil] if empty."
+  [dacite-map digit-hash]
+  (let [children (get-children dacite-map digit-hash)]
+    (if (> (count children) 1)
       (let [new-children (pop children)
-            new-measures (mapv #(get-measure cache %) new-children)]
-        (commit-digit cache new-children new-measures)))))
+            new-measures (mapv #(get-measure dacite-map %) new-children)]
+        (make-digit dacite-map new-children new-measures))
+      [dacite-map nil])))
 
-(defn- digit-conj-left [cache digit-hash elem-hash]
-  (let [children (get-children cache digit-hash)
+(defn- digit-conj-left [dacite-map digit-hash elem-hash]
+  (let [children (get-children dacite-map digit-hash)
         new-children (into [elem-hash] children)
-        new-measures (mapv #(get-measure cache %) new-children)]
-    (commit-digit cache new-children new-measures)))
+        new-measures (mapv #(get-measure dacite-map %) new-children)]
+    (make-digit dacite-map new-children new-measures)))
 
-(defn- digit-conj-right [cache digit-hash elem-hash]
-  (let [children (get-children cache digit-hash)
+(defn- digit-conj-right [dacite-map digit-hash elem-hash]
+  (let [children (get-children dacite-map digit-hash)
         new-children (conj children elem-hash)
-        new-measures (mapv #(get-measure cache %) new-children)]
-    (commit-digit cache new-children new-measures)))
+        new-measures (mapv #(get-measure dacite-map %) new-children)]
+    (make-digit dacite-map new-children new-measures)))
 
 ;; =============================================================================
-;; Tree operations (internal, work on hashes)
+;; Tree operations (internal, work on [map, hash])
 ;; =============================================================================
 
 (declare tree-conj-left tree-conj-right)
 
 (defn- tree-first*
-  "Get first element hash from tree."
-  [cache root-hash]
-  (let [node (lookup-node cache root-hash)]
+  "Get first element hash from tree. Returns hash or nil."
+  [dacite-map root-hash]
+  (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
       :ft/empty nil
       :ft/leaf root-hash
       :ft/deep (let [left-hash (:left (node-data node))]
-                 (digit-first cache left-hash))
-      ;; Node acts as single-element in spine
+                 (digit-first dacite-map left-hash))
       :ft/node root-hash)))
 
 (defn- tree-last*
-  "Get last element hash from tree."
-  [cache root-hash]
-  (let [node (lookup-node cache root-hash)]
+  "Get last element hash from tree. Returns hash or nil."
+  [dacite-map root-hash]
+  (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
       :ft/empty nil
       :ft/leaf root-hash
       :ft/deep (let [right-hash (:right (node-data node))]
-                 (digit-last cache right-hash))
+                 (digit-last dacite-map right-hash))
       :ft/node root-hash)))
 
 (defn- to-tree-from-digit
-  "Convert a digit to a tree (for when spine is empty and we need to restructure)."
-  [cache digit-hash]
-  (let [children (get-children cache digit-hash)]
-    (reduce #(tree-conj-right cache %1 %2)
-            (commit-empty cache)
+  "Convert a digit to a tree. Returns [map, root-hash]."
+  [dacite-map digit-hash]
+  (let [children (get-children dacite-map digit-hash)
+        [m empty-h] (make-empty dacite-map)]
+    (reduce (fn [[m h] child-h]
+              (tree-conj-right m h child-h))
+            [m empty-h]
             children)))
 
 (defn- tree-rest*
-  "Remove first element, return new tree hash."
-  [cache root-hash]
-  (let [node (lookup-node cache root-hash)]
+  "Remove first element, return [map, new-root-hash]."
+  [dacite-map root-hash]
+  (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty root-hash
-      :ft/leaf (commit-empty cache)
-      :ft/node (commit-empty cache)
+      :ft/empty [dacite-map root-hash]
+      :ft/leaf (make-empty dacite-map)
+      :ft/node (make-empty dacite-map)
       :ft/deep
-      (let [{:keys [left spine right]} (node-data node)]
-        (if-let [new-left (digit-rest cache left)]
+      (let [{:keys [left spine right]} (node-data node)
+            [m1 new-left] (digit-rest dacite-map left)]
+        (if new-left
           ;; Left digit still has elements
-          (commit-deep cache new-left spine right
-                       (get-measure cache new-left)
-                       (get-measure cache spine)
-                       (get-measure cache right))
+          (make-deep m1 new-left spine right
+                     (get-measure m1 new-left)
+                     (get-measure m1 spine)
+                     (get-measure m1 right))
           ;; Left digit exhausted
-          (if (empty-node? cache spine)
+          (if (empty-node? m1 spine)
             ;; Spine empty, convert right to tree
-            (to-tree-from-digit cache right)
+            (to-tree-from-digit m1 right)
             ;; Pull node from spine
-            (let [spine-first (tree-first* cache spine)
-                  new-spine (tree-rest* cache spine)
-                  ;; spine-first is a :ft/node, its children become the new left digit
-                  node-children (get-children cache spine-first)
-                  node-measures (mapv #(get-measure cache %) node-children)
-                  new-left (commit-digit cache node-children node-measures)]
-              (commit-deep cache new-left new-spine right
-                           (get-measure cache new-left)
-                           (get-measure cache new-spine)
-                           (get-measure cache right)))))))))
+            (let [spine-first (tree-first* m1 spine)
+                  [m2 new-spine] (tree-rest* m1 spine)
+                  node-children (get-children m2 spine-first)
+                  node-measures (mapv #(get-measure m2 %) node-children)
+                  [m3 new-left'] (make-digit m2 node-children node-measures)]
+              (make-deep m3 new-left' new-spine right
+                         (get-measure m3 new-left')
+                         (get-measure m3 new-spine)
+                         (get-measure m3 right)))))))))
 
 (defn- tree-butlast*
-  "Remove last element, return new tree hash."
-  [cache root-hash]
-  (let [node (lookup-node cache root-hash)]
+  "Remove last element, return [map, new-root-hash]."
+  [dacite-map root-hash]
+  (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty root-hash
-      :ft/leaf (commit-empty cache)
-      :ft/node (commit-empty cache)
+      :ft/empty [dacite-map root-hash]
+      :ft/leaf (make-empty dacite-map)
+      :ft/node (make-empty dacite-map)
       :ft/deep
-      (let [{:keys [left spine right]} (node-data node)]
-        (if-let [new-right (digit-butlast cache right)]
+      (let [{:keys [left spine right]} (node-data node)
+            [m1 new-right] (digit-butlast dacite-map right)]
+        (if new-right
           ;; Right digit still has elements
-          (commit-deep cache left spine new-right
-                       (get-measure cache left)
-                       (get-measure cache spine)
-                       (get-measure cache new-right))
+          (make-deep m1 left spine new-right
+                     (get-measure m1 left)
+                     (get-measure m1 spine)
+                     (get-measure m1 new-right))
           ;; Right digit exhausted
-          (if (empty-node? cache spine)
+          (if (empty-node? m1 spine)
             ;; Spine empty, convert left to tree
-            (to-tree-from-digit cache left)
+            (to-tree-from-digit m1 left)
             ;; Pull node from spine
-            (let [spine-last (tree-last* cache spine)
-                  new-spine (tree-butlast* cache spine)
-                  node-children (get-children cache spine-last)
-                  node-measures (mapv #(get-measure cache %) node-children)
-                  new-right (commit-digit cache node-children node-measures)]
-              (commit-deep cache left new-spine new-right
-                           (get-measure cache left)
-                           (get-measure cache new-spine)
-                           (get-measure cache new-right)))))))))
+            (let [spine-last (tree-last* m1 spine)
+                  [m2 new-spine] (tree-butlast* m1 spine)
+                  node-children (get-children m2 spine-last)
+                  node-measures (mapv #(get-measure m2 %) node-children)
+                  [m3 new-right'] (make-digit m2 node-children node-measures)]
+              (make-deep m3 left new-spine new-right'
+                         (get-measure m3 left)
+                         (get-measure m3 new-spine)
+                         (get-measure m3 new-right')))))))))
 
 (defn- tree-conj-left
-  "Add element to left of tree, return new tree hash."
-  [cache root-hash elem-hash]
-  (let [node (lookup-node cache root-hash)]
+  "Add element to left of tree, return [map, new-root-hash]."
+  [dacite-map root-hash elem-hash]
+  (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty elem-hash
+      :ft/empty [dacite-map elem-hash]
 
       :ft/leaf
-      ;; Single element -> Deep with one element on each side
-      (let [left (commit-digit cache [elem-hash] [(get-measure cache elem-hash)])
-            spine (commit-empty cache)
-            right (commit-digit cache [root-hash] [(get-measure cache root-hash)])]
-        (commit-deep cache left spine right
-                     (get-measure cache left)
-                     (get-measure cache spine)
-                     (get-measure cache right)))
+      (let [[m1 left] (make-digit dacite-map [elem-hash] [(get-measure dacite-map elem-hash)])
+            [m2 spine] (make-empty m1)
+            [m3 right] (make-digit m2 [root-hash] [(get-measure m2 root-hash)])]
+        (make-deep m3 left spine right
+                   (get-measure m3 left)
+                   (get-measure m3 spine)
+                   (get-measure m3 right)))
 
       :ft/node
-      ;; Node acts like a leaf in spine context
-      (let [left (commit-digit cache [elem-hash] [(get-measure cache elem-hash)])
-            spine (commit-empty cache)
-            right (commit-digit cache [root-hash] [(get-measure cache root-hash)])]
-        (commit-deep cache left spine right
-                     (get-measure cache left)
-                     (get-measure cache spine)
-                     (get-measure cache right)))
+      (let [[m1 left] (make-digit dacite-map [elem-hash] [(get-measure dacite-map elem-hash)])
+            [m2 spine] (make-empty m1)
+            [m3 right] (make-digit m2 [root-hash] [(get-measure m2 root-hash)])]
+        (make-deep m3 left spine right
+                   (get-measure m3 left)
+                   (get-measure m3 spine)
+                   (get-measure m3 right)))
 
       :ft/deep
       (let [{:keys [left spine right]} (node-data node)
-            left-count (digit-count cache left)]
+            left-count (digit-count dacite-map left)]
         (if (< left-count 32)
           ;; Room in left digit
-          (let [new-left (digit-conj-left cache left elem-hash)]
-            (commit-deep cache new-left spine right
-                         (get-measure cache new-left)
-                         (get-measure cache spine)
-                         (get-measure cache right)))
+          (let [[m1 new-left] (digit-conj-left dacite-map left elem-hash)]
+            (make-deep m1 new-left spine right
+                       (get-measure m1 new-left)
+                       (get-measure m1 spine)
+                       (get-measure m1 right)))
           ;; Left digit full, push to spine
-          (let [left-children (get-children cache left)
-                ;; Keep first 8 in new left (including new elem)
+          (let [left-children (get-children dacite-map left)
                 new-left-children (into [elem-hash] (subvec left-children 0 7))
-                new-left-measures (mapv #(get-measure cache %) new-left-children)
-                new-left (commit-digit cache new-left-children new-left-measures)
-                ;; Push remaining 25 as a node to spine
+                new-left-measures (mapv #(get-measure dacite-map %) new-left-children)
+                [m1 new-left] (make-digit dacite-map new-left-children new-left-measures)
                 node-children (subvec left-children 7 32)
-                node-measures (mapv #(get-measure cache %) node-children)
-                new-node (commit-node cache node-children node-measures)
-                new-spine (tree-conj-left cache spine new-node)]
-            (commit-deep cache new-left new-spine right
-                         (get-measure cache new-left)
-                         (get-measure cache new-spine)
-                         (get-measure cache right))))))))
+                node-measures (mapv #(get-measure m1 %) node-children)
+                [m2 new-node] (make-node m1 node-children node-measures)
+                [m3 new-spine] (tree-conj-left m2 spine new-node)]
+            (make-deep m3 new-left new-spine right
+                       (get-measure m3 new-left)
+                       (get-measure m3 new-spine)
+                       (get-measure m3 right))))))))
 
 (defn- tree-conj-right
-  "Add element to right of tree, return new tree hash."
-  [cache root-hash elem-hash]
-  (let [node (lookup-node cache root-hash)]
+  "Add element to right of tree, return [map, new-root-hash]."
+  [dacite-map root-hash elem-hash]
+  (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty elem-hash
+      :ft/empty [dacite-map elem-hash]
 
       :ft/leaf
-      (let [left (commit-digit cache [root-hash] [(get-measure cache root-hash)])
-            spine (commit-empty cache)
-            right (commit-digit cache [elem-hash] [(get-measure cache elem-hash)])]
-        (commit-deep cache left spine right
-                     (get-measure cache left)
-                     (get-measure cache spine)
-                     (get-measure cache right)))
+      (let [[m1 left] (make-digit dacite-map [root-hash] [(get-measure dacite-map root-hash)])
+            [m2 spine] (make-empty m1)
+            [m3 right] (make-digit m2 [elem-hash] [(get-measure m2 elem-hash)])]
+        (make-deep m3 left spine right
+                   (get-measure m3 left)
+                   (get-measure m3 spine)
+                   (get-measure m3 right)))
 
       :ft/node
-      (let [left (commit-digit cache [root-hash] [(get-measure cache root-hash)])
-            spine (commit-empty cache)
-            right (commit-digit cache [elem-hash] [(get-measure cache elem-hash)])]
-        (commit-deep cache left spine right
-                     (get-measure cache left)
-                     (get-measure cache spine)
-                     (get-measure cache right)))
+      (let [[m1 left] (make-digit dacite-map [root-hash] [(get-measure dacite-map root-hash)])
+            [m2 spine] (make-empty m1)
+            [m3 right] (make-digit m2 [elem-hash] [(get-measure m2 elem-hash)])]
+        (make-deep m3 left spine right
+                   (get-measure m3 left)
+                   (get-measure m3 spine)
+                   (get-measure m3 right)))
 
       :ft/deep
       (let [{:keys [left spine right]} (node-data node)
-            right-count (digit-count cache right)]
+            right-count (digit-count dacite-map right)]
         (if (< right-count 32)
           ;; Room in right digit
-          (let [new-right (digit-conj-right cache right elem-hash)]
-            (commit-deep cache left spine new-right
-                         (get-measure cache left)
-                         (get-measure cache spine)
-                         (get-measure cache new-right)))
+          (let [[m1 new-right] (digit-conj-right dacite-map right elem-hash)]
+            (make-deep m1 left spine new-right
+                       (get-measure m1 left)
+                       (get-measure m1 spine)
+                       (get-measure m1 new-right)))
           ;; Right digit full, push to spine
-          (let [right-children (get-children cache right)
-                ;; Push first 24 as a node to spine
+          (let [right-children (get-children dacite-map right)
                 node-children (subvec right-children 0 24)
-                node-measures (mapv #(get-measure cache %) node-children)
-                new-node (commit-node cache node-children node-measures)
-                new-spine (tree-conj-right cache spine new-node)
-                ;; Keep last 8 + new elem in right
+                node-measures (mapv #(get-measure dacite-map %) node-children)
+                [m1 new-node] (make-node dacite-map node-children node-measures)
+                [m2 new-spine] (tree-conj-right m1 spine new-node)
                 new-right-children (conj (subvec right-children 24 32) elem-hash)
-                new-right-measures (mapv #(get-measure cache %) new-right-children)
-                new-right (commit-digit cache new-right-children new-right-measures)]
-            (commit-deep cache left new-spine new-right
-                         (get-measure cache left)
-                         (get-measure cache new-spine)
-                         (get-measure cache new-right))))))))
+                new-right-measures (mapv #(get-measure m2 %) new-right-children)
+                [m3 new-right] (make-digit m2 new-right-children new-right-measures)]
+            (make-deep m3 left new-spine new-right
+                       (get-measure m3 left)
+                       (get-measure m3 new-spine)
+                       (get-measure m3 new-right))))))))
 
 (defn- tree-to-seq*
-  "Convert tree to lazy seq of element hashes."
-  [cache root-hash]
-  (let [node (lookup-node cache root-hash)]
+  "Convert tree to seq of leaf hashes."
+  [dacite-map root-hash]
+  (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
       :ft/empty []
       :ft/leaf [root-hash]
@@ -348,161 +356,146 @@
       :ft/deep
       (let [{:keys [left spine right]} (node-data node)]
         (concat
-         ;; Left digit elements
-         (get-children cache left)
-         ;; Spine nodes (each node's children)
-         (mapcat #(get-children cache %) (tree-to-seq* cache spine))
-         ;; Right digit elements
-         (get-children cache right))))))
+         (get-children dacite-map left)
+         (mapcat #(get-children dacite-map %) (tree-to-seq* dacite-map spine))
+         (get-children dacite-map right))))))
 
 ;; =============================================================================
-;; Public API - CachedFingerTree record
+;; Public API
 ;; =============================================================================
-
-(defrecord CachedFingerTree [cache root-hash])
 
 (defn finger-tree
-  "Create an empty finger tree backed by the given cache manager."
-  [cache]
-  (->CachedFingerTree cache (commit-empty cache)))
+  "Create an empty finger tree. Returns [dacite-map, root-hash]."
+  []
+  (make-empty {}))
+
+(defn add-value
+  "Add a value to the dacite-map. Returns [updated-map, hash].
+   Use this to add element values before conj-ing them to a tree."
+  [dacite-map value]
+  (add-node dacite-map value))
 
 (defn conj-left
   "Add element to the left of the tree.
-   value-hash is the hash of a previously committed value."
-  [tree value-hash]
-  (let [{:keys [cache root-hash]} tree
-        size-bytes (cache/value-size cache value-hash)
-        leaf-hash (commit-leaf cache value-hash size-bytes)]
-    (->CachedFingerTree cache (tree-conj-left cache root-hash leaf-hash))))
+   Takes [dacite-map, root-hash] and a value-hash.
+   The value should already be in the dacite-map.
+   Returns [new-map, new-root-hash]."
+  [[dacite-map root-hash] value-hash]
+  (let [size-bytes (cache/dacite-size (lookup-node dacite-map value-hash))
+        [m1 leaf-hash] (make-leaf dacite-map value-hash size-bytes)]
+    (tree-conj-left m1 root-hash leaf-hash)))
 
 (defn conj-right
   "Add element to the right of the tree.
-   value-hash is the hash of a previously committed value."
-  [tree value-hash]
-  (let [{:keys [cache root-hash]} tree
-        size-bytes (cache/value-size cache value-hash)
-        leaf-hash (commit-leaf cache value-hash size-bytes)]
-    (->CachedFingerTree cache (tree-conj-right cache root-hash leaf-hash))))
+   Takes [dacite-map, root-hash] and a value-hash.
+   The value should already be in the dacite-map.
+   Returns [new-map, new-root-hash]."
+  [[dacite-map root-hash] value-hash]
+  (let [size-bytes (cache/dacite-size (lookup-node dacite-map value-hash))
+        [m1 leaf-hash] (make-leaf dacite-map value-hash size-bytes)]
+    (tree-conj-right m1 root-hash leaf-hash)))
 
 (defn tree-first
-  "Get the first element's value-hash, or nil if empty.
-   Use cache/lookup on the returned hash to get the actual value."
-  [tree]
-  (let [{:keys [cache root-hash]} tree]
-    (when-let [leaf-hash (tree-first* cache root-hash)]
-      (get-value-hash cache leaf-hash))))
+  "Get the first element's value-hash, or nil if empty."
+  [[dacite-map root-hash]]
+  (when-let [leaf-hash (tree-first* dacite-map root-hash)]
+    (get-value-hash dacite-map leaf-hash)))
 
 (defn tree-last
-  "Get the last element's value-hash, or nil if empty.
-   Use cache/lookup on the returned hash to get the actual value."
-  [tree]
-  (let [{:keys [cache root-hash]} tree]
-    (when-let [leaf-hash (tree-last* cache root-hash)]
-      (get-value-hash cache leaf-hash))))
+  "Get the last element's value-hash, or nil if empty."
+  [[dacite-map root-hash]]
+  (when-let [leaf-hash (tree-last* dacite-map root-hash)]
+    (get-value-hash dacite-map leaf-hash)))
 
 (defn tree-rest
-  "Remove the first element from the tree."
-  [tree]
-  (let [{:keys [cache root-hash]} tree]
-    (->CachedFingerTree cache (tree-rest* cache root-hash))))
+  "Remove the first element from the tree.
+   Returns [new-map, new-root-hash]."
+  [[dacite-map root-hash]]
+  (tree-rest* dacite-map root-hash))
 
 (defn tree-butlast
-  "Remove the last element from the tree."
-  [tree]
-  (let [{:keys [cache root-hash]} tree]
-    (->CachedFingerTree cache (tree-butlast* cache root-hash))))
+  "Remove the last element from the tree.
+   Returns [new-map, new-root-hash]."
+  [[dacite-map root-hash]]
+  (tree-butlast* dacite-map root-hash))
 
 (defn tree-empty?
   "Is the tree empty?"
-  [tree]
-  (let [{:keys [cache root-hash]} tree]
-    (empty-node? cache root-hash)))
+  [[dacite-map root-hash]]
+  (empty-node? dacite-map root-hash))
 
 (defn tree-count
   "Get the count of elements (O(1) via cached measure)."
-  [tree]
-  (let [{:keys [cache root-hash]} tree]
-    (:count (get-measure cache root-hash))))
+  [[dacite-map root-hash]]
+  (:count (get-measure dacite-map root-hash)))
 
 (defn tree-size-bytes
   "Get the total size in bytes (O(1) via cached measure)."
-  [tree]
-  (let [{:keys [cache root-hash]} tree]
-    (:size-bytes (get-measure cache root-hash))))
+  [[dacite-map root-hash]]
+  (:size-bytes (get-measure dacite-map root-hash)))
 
 (defn tree-concat
-  "Concatenate two trees."
-  [tree1 tree2]
-  ;; Simple implementation: add all elements of tree2 to tree1
-  (let [{:keys [cache]} tree1
-        leaf-hashes (tree-to-seq* cache (:root-hash tree2))]
-    (reduce (fn [t leaf-hash]
-              (let [node (lookup-node cache leaf-hash)
-                    {:keys [value-hash]} (node-data node)]
-                (conj-right t value-hash)))
-            tree1
+  "Concatenate two trees. Returns [merged-map, new-root-hash]."
+  [[m1 h1] [m2 h2]]
+  (let [;; Merge the maps
+        merged (merge m1 m2)
+        ;; Add all elements from tree2 to tree1
+        leaf-hashes (tree-to-seq* merged h2)]
+    (reduce (fn [[m h] leaf-hash]
+              (let [{:keys [value-hash]} (node-data (lookup-node m leaf-hash))]
+                (conj-right [m h] value-hash)))
+            [merged h1]
             leaf-hashes)))
 
 (defn from-seq
-  "Build a finger tree from a sequence of value-hashes.
-   Each value-hash should be a previously committed value."
-  [cache value-hashes]
-  (reduce conj-right
-          (finger-tree cache)
-          value-hashes))
+  "Build a finger tree from a sequence of values.
+   Returns [dacite-map, root-hash]."
+  [values]
+  (reduce (fn [[m h] value]
+            (let [[m' vh] (add-value m value)]
+              (conj-right [m' h] vh)))
+          (finger-tree)
+          values))
 
 (defn to-vec
-  "Convert tree to vector of value-hashes.
-   Use cache/lookup on each hash to get actual values."
-  [tree]
-  (let [{:keys [cache root-hash]} tree]
-    (mapv #(get-value-hash cache %) (tree-to-seq* cache root-hash))))
+  "Convert tree to vector of value-hashes."
+  [[dacite-map root-hash]]
+  (mapv #(get-value-hash dacite-map %) (tree-to-seq* dacite-map root-hash)))
+
+(defn persist!
+  "Persist all values in the dacite-map to a cache manager.
+   Returns the root-hash."
+  [cache [dacite-map root-hash]]
+  (doseq [[_ v] dacite-map]
+    (cache/commit! cache v))
+  root-hash)
 
 ;; =============================================================================
 ;; REPL examples
 ;; =============================================================================
 
 (comment
-  ;; Create a cache manager
-  (def mgr (cache/memory-cache-manager))
-
-  ;; Commit some values first
-  (def h1 (cache/commit! mgr [:string "hello"]))
-  (def h2 (cache/commit! mgr [:string "world"]))
-  (def h3 (cache/commit! mgr [:string "start"]))
-
   ;; Create an empty tree
-  (def t0 (finger-tree mgr))
+  (def ft0 (finger-tree))
+  ;; => [{hash [:ft/empty ...]} hash]
 
-  (tree-empty? t0)  ;; => true
-  (tree-count t0)   ;; => 0
+  (tree-empty? ft0)  ;; => true
+  (tree-count ft0)   ;; => 0
 
-  ;; Add elements using their hashes (size computed automatically)
-  (def t1 (conj-right t0 h1))
-  (def t2 (conj-right t1 h2))
-  (def t3 (conj-left t2 h3))
+  ;; Add values - first add to map, then conj
+  (let [[m0 h0] (finger-tree)
+        [m1 v1] (add-value m0 [:i64 42])
+        [m2 v2] (add-value m1 [:i64 43])
+        ft1 (conj-right [m2 h0] v1)  ;; use m2 which has both values
+        ft2 (conj-right ft1 v2)]
+    (tree-count ft2)     ;; => 2
+    (to-vec ft2))        ;; => [v1 v2]
 
-  (tree-count t3)      ;; => 3
-  (tree-size-bytes t3) ;; => 15
-  (tree-first t3)      ;; => h3 (hash of "start")
-  (tree-last t3)       ;; => h2 (hash of "world")
-  (to-vec t3)          ;; => [h3 h1 h2] (vector of hashes)
+  ;; Simpler: use from-seq
+  (def ft (from-seq [[:i64 1] [:i64 2] [:i64 3]]))
+  (tree-count ft)        ;; => 3
+  (tree-first ft)        ;; => hash of [:i64 1]
 
-  ;; Lookup actual values
-  (cache/lookup mgr (tree-first t3))  ;; => [:string "start"]
-
-  ;; Remove elements
-  (def t4 (tree-rest t3))
-  (tree-count t4)      ;; => 2
-
-  (def t5 (tree-butlast t3))
-  (tree-count t5)      ;; => 2
-
-  ;; Build from sequence of hashes
-  (def hashes (mapv #(cache/commit! mgr [:i64 %]) (range 10)))
-  (def t6 (from-seq mgr hashes))
-  (tree-count t6)      ;; => 10
-
-  ;; Check cache stats
-  (cache/stats mgr)    ;; Shows all committed nodes
-  )
+  ;; Persist to cache when ready
+  (def mgr (cache/memory-cache-manager))
+  (def root (persist! mgr ft)))
