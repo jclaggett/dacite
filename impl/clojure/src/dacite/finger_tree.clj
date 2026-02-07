@@ -368,19 +368,19 @@
 
 (defn conj-left
   "Add element to the left of the tree.
-   value-hash is the hash of a previously committed value.
-   size-bytes is the size of that value for measure accumulation."
-  [tree value-hash size-bytes]
+   value-hash is the hash of a previously committed value."
+  [tree value-hash]
   (let [{:keys [cache root-hash]} tree
+        size-bytes (cache/value-size cache value-hash)
         leaf-hash (commit-leaf cache value-hash size-bytes)]
     (->CachedFingerTree cache (tree-conj-left cache root-hash leaf-hash))))
 
 (defn conj-right
   "Add element to the right of the tree.
-   value-hash is the hash of a previously committed value.
-   size-bytes is the size of that value for measure accumulation."
-  [tree value-hash size-bytes]
+   value-hash is the hash of a previously committed value."
+  [tree value-hash]
   (let [{:keys [cache root-hash]} tree
+        size-bytes (cache/value-size cache value-hash)
         leaf-hash (commit-leaf cache value-hash size-bytes)]
     (->CachedFingerTree cache (tree-conj-right cache root-hash leaf-hash))))
 
@@ -438,19 +438,18 @@
         leaf-hashes (tree-to-seq* cache (:root-hash tree2))]
     (reduce (fn [t leaf-hash]
               (let [node (lookup-node cache leaf-hash)
-                    {:keys [value-hash measure]} (node-data node)]
-                (conj-right t value-hash (:size-bytes measure))))
+                    {:keys [value-hash]} (node-data node)]
+                (conj-right t value-hash)))
             tree1
             leaf-hashes)))
 
 (defn from-seq
-  "Build a finger tree from a sequence of [value-hash size-bytes] pairs.
+  "Build a finger tree from a sequence of value-hashes.
    Each value-hash should be a previously committed value."
-  [cache pairs]
-  (reduce (fn [t [value-hash size-bytes]]
-            (conj-right t value-hash size-bytes))
+  [cache value-hashes]
+  (reduce conj-right
           (finger-tree cache)
-          pairs))
+          value-hashes))
 
 (defn to-vec
   "Convert tree to vector of value-hashes.
@@ -478,10 +477,10 @@
   (tree-empty? t0)  ;; => true
   (tree-count t0)   ;; => 0
 
-  ;; Add elements using their hashes
-  (def t1 (conj-right t0 h1 5))
-  (def t2 (conj-right t1 h2 5))
-  (def t3 (conj-left t2 h3 5))
+  ;; Add elements using their hashes (size computed automatically)
+  (def t1 (conj-right t0 h1))
+  (def t2 (conj-right t1 h2))
+  (def t3 (conj-left t2 h3))
 
   (tree-count t3)      ;; => 3
   (tree-size-bytes t3) ;; => 15
@@ -499,9 +498,9 @@
   (def t5 (tree-butlast t3))
   (tree-count t5)      ;; => 2
 
-  ;; Build from sequence of [hash size] pairs
+  ;; Build from sequence of hashes
   (def hashes (mapv #(cache/commit! mgr [:i64 %]) (range 10)))
-  (def t6 (from-seq mgr (map #(vector % 8) hashes)))
+  (def t6 (from-seq mgr hashes))
   (tree-count t6)      ;; => 10
 
   ;; Check cache stats

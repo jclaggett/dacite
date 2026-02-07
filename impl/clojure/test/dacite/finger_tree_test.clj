@@ -24,16 +24,19 @@
 ;; =============================================================================
 
 (defn commit-value
-  "Commit a value to the cache and return [hash size-bytes]."
+  "Commit a value to the cache and return its hash."
   [value]
-  (let [size (count (pr-str value))
-        hash (cache/commit! *cache* [:test value])]
-    [hash size]))
+  (cache/commit! *cache* [:test value]))
+
+(defn commit-values
+  "Commit multiple values, return vector of hashes."
+  [values]
+  (mapv commit-value values))
 
 (defn make-tree
   "Create a tree from a sequence of values (commits each value first)."
   [values]
-  (ft/from-seq *cache* (map commit-value values)))
+  (ft/from-seq *cache* (commit-values values)))
 
 (defn lookup-value
   "Look up a value-hash and return the actual value."
@@ -62,8 +65,8 @@
 
 (deftest test-single-element
   (testing "single element tree"
-    (let [[h size] (commit-value 42)
-          tree (ft/conj-right (ft/finger-tree *cache*) h size)]
+    (let [h (commit-value 42)
+          tree (ft/conj-right (ft/finger-tree *cache*) h)]
       (is (not (ft/tree-empty? tree)))
       (is (= 1 (ft/tree-count tree)))
       (is (= 42 (lookup-value (ft/tree-first tree))))
@@ -81,8 +84,7 @@
 (deftest test-conj-left
   (testing "adding elements to the left"
     (let [tree (reduce (fn [t v]
-                         (let [[h size] (commit-value v)]
-                           (ft/conj-left t h size)))
+                         (ft/conj-left t (commit-value v)))
                        (ft/finger-tree *cache*)
                        (range 10))]
       (is (= 10 (ft/tree-count tree)))
@@ -114,14 +116,15 @@
     (let [tree (make-tree (range 100))]
       (is (= 100 (ft/tree-count tree)))))
 
-  (testing "size-bytes accumulates correctly"
-    (let [[h1 _] (commit-value "a")
-          [h2 _] (commit-value "bb")
-          [h3 _] (commit-value "ccc")
+  (testing "size-bytes accumulates correctly via value-size"
+    ;; Using :string type which has known size computation
+    (let [h1 (cache/commit! *cache* [:string "a"])      ;; 1 byte
+          h2 (cache/commit! *cache* [:string "bb"])     ;; 2 bytes
+          h3 (cache/commit! *cache* [:string "ccc"])    ;; 3 bytes
           tree (-> (ft/finger-tree *cache*)
-                   (ft/conj-right h1 1)
-                   (ft/conj-right h2 2)
-                   (ft/conj-right h3 3))]
+                   (ft/conj-right h1)
+                   (ft/conj-right h2)
+                   (ft/conj-right h3))]
       (is (= 3 (ft/tree-count tree)))
       (is (= 6 (ft/tree-size-bytes tree))))))
 
@@ -149,25 +152,25 @@
 
 (deftest test-deque-operations
   (testing "LIFO (stack) from left"
-    (let [[h1 s1] (commit-value 1)
-          [h2 s2] (commit-value 2)
-          [h3 s3] (commit-value 3)
+    (let [h1 (commit-value 1)
+          h2 (commit-value 2)
+          h3 (commit-value 3)
           tree (-> (ft/finger-tree *cache*)
-                   (ft/conj-left h1 s1)
-                   (ft/conj-left h2 s2)
-                   (ft/conj-left h3 s3))]
+                   (ft/conj-left h1)
+                   (ft/conj-left h2)
+                   (ft/conj-left h3))]
       (is (= 3 (lookup-value (ft/tree-first tree))))
       (is (= 2 (lookup-value (ft/tree-first (ft/tree-rest tree)))))
       (is (= 1 (lookup-value (ft/tree-first (ft/tree-rest (ft/tree-rest tree))))))))
 
   (testing "FIFO (queue) - add right, take left"
-    (let [[h1 s1] (commit-value 1)
-          [h2 s2] (commit-value 2)
-          [h3 s3] (commit-value 3)
+    (let [h1 (commit-value 1)
+          h2 (commit-value 2)
+          h3 (commit-value 3)
           tree (-> (ft/finger-tree *cache*)
-                   (ft/conj-right h1 s1)
-                   (ft/conj-right h2 s2)
-                   (ft/conj-right h3 s3))]
+                   (ft/conj-right h1)
+                   (ft/conj-right h2)
+                   (ft/conj-right h3))]
       (is (= 1 (lookup-value (ft/tree-first tree))))
       (is (= 2 (lookup-value (ft/tree-first (ft/tree-rest tree)))))
       (is (= 3 (lookup-value (ft/tree-first (ft/tree-rest (ft/tree-rest tree)))))))))
@@ -199,10 +202,10 @@
     (let [cache1 (cache/memory-cache-manager)
           cache2 (cache/memory-cache-manager)
           ;; Commit same value to both caches
-          h1 (cache/commit! cache1 [:test 42])
-          h2 (cache/commit! cache2 [:test 42])
-          t1 (ft/from-seq cache1 [[h1 8]])
-          t2 (ft/from-seq cache2 [[h2 8]])]
+          h1 (cache/commit! cache1 [:i64 42])
+          h2 (cache/commit! cache2 [:i64 42])
+          t1 (ft/from-seq cache1 [h1])
+          t2 (ft/from-seq cache2 [h2])]
       ;; Same value-hash should produce same tree structure
       (is (= h1 h2))
       (is (= (:root-hash t1) (:root-hash t2))))))
@@ -214,26 +217,22 @@
 (def gen-small-int (gen/choose 0 100))
 
 (defn commit-values-to-cache
-  "Commit values to a cache and return [hash size] pairs."
+  "Commit values to a cache and return vector of hashes."
   [cache values]
-  (mapv (fn [v]
-          (let [size (count (pr-str v))
-                hash (cache/commit! cache [:test v])]
-            [hash size]))
-        values))
+  (mapv #(cache/commit! cache [:test %]) values))
 
 (defspec conj-right-preserves-count 50
   (prop/for-all [values (gen/vector gen-small-int)]
                 (let [cache (cache/memory-cache-manager)
-                      pairs (commit-values-to-cache cache values)
-                      tree (ft/from-seq cache pairs)]
+                      hashes (commit-values-to-cache cache values)
+                      tree (ft/from-seq cache hashes)]
                   (= (count values) (ft/tree-count tree)))))
 
 (defspec conj-right-preserves-order 50
   (prop/for-all [values (gen/vector gen-small-int)]
                 (let [cache (cache/memory-cache-manager)
-                      pairs (commit-values-to-cache cache values)
-                      tree (ft/from-seq cache pairs)
+                      hashes (commit-values-to-cache cache values)
+                      tree (ft/from-seq cache hashes)
                       result-hashes (ft/to-vec tree)
                       result-values (mapv #(second (cache/lookup cache %)) result-hashes)]
                   (= values result-values))))
@@ -241,8 +240,8 @@
 (defspec rest-removes-first 50
   (prop/for-all [values (gen/not-empty (gen/vector gen-small-int))]
                 (let [cache (cache/memory-cache-manager)
-                      pairs (commit-values-to-cache cache values)
-                      tree (ft/from-seq cache pairs)
+                      hashes (commit-values-to-cache cache values)
+                      tree (ft/from-seq cache hashes)
                       rest-tree (ft/tree-rest tree)
                       result-hashes (ft/to-vec rest-tree)
                       result-values (mapv #(second (cache/lookup cache %)) result-hashes)]
@@ -251,8 +250,8 @@
 (defspec butlast-removes-last 50
   (prop/for-all [values (gen/not-empty (gen/vector gen-small-int))]
                 (let [cache (cache/memory-cache-manager)
-                      pairs (commit-values-to-cache cache values)
-                      tree (ft/from-seq cache pairs)
+                      hashes (commit-values-to-cache cache values)
+                      tree (ft/from-seq cache hashes)
                       butlast-tree (ft/tree-butlast tree)
                       result-hashes (ft/to-vec butlast-tree)
                       result-values (mapv #(second (cache/lookup cache %)) result-hashes)]

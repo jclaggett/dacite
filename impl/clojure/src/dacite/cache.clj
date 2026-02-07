@@ -135,6 +135,50 @@
     (swap! (:cache manager) empty)))
 
 ;; =============================================================================
+;; Value size computation
+;; =============================================================================
+
+(defn value-size
+  "Get the size in bytes of a committed value.
+   
+   For collections with :measure, returns (:size-bytes measure).
+   For primitives, computes based on type.
+   
+   This is a simple case-based implementation; will evolve to multimethod
+   for open type system."
+  [cache hash]
+  (when-let [[type-kw data] (lookup cache hash)]
+    (cond
+      ;; Collections with measure (finger tree nodes, etc.)
+      (:measure data)
+      (:size-bytes (:measure data))
+
+      ;; Primitive types
+      :else
+      (case type-kw
+        ;; Fixed-size numerics
+        :i8 1
+        :u8 1
+        :i16 2
+        :u16 2
+        :i32 4
+        :u32 4
+        :i64 8
+        :u64 8
+        :f32 4
+        :f64 8
+
+        ;; Boolean
+        :bool 1
+
+        ;; Variable-size types
+        :string (count (.getBytes ^String data "UTF-8"))
+        :bytes (count data)
+
+        ;; Default: serialize and measure
+        (count (encode-value data))))))
+
+;; =============================================================================
 ;; Global cache (optional convenience)
 ;; =============================================================================
 
