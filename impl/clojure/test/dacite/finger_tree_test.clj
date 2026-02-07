@@ -117,16 +117,16 @@
       (is (= 100 (ft/tree-count tree)))))
 
   (testing "size-bytes accumulates correctly via value-size"
-    ;; Using :string type which has known size computation
-    (let [h1 (cache/commit! *cache* [:string "a"])      ;; 1 byte
-          h2 (cache/commit! *cache* [:string "bb"])     ;; 2 bytes
-          h3 (cache/commit! *cache* [:string "ccc"])    ;; 3 bytes
+    ;; Using fixed-size primitive types
+    (let [h1 (cache/commit! *cache* [:i8 1])    ;; 1 byte
+          h2 (cache/commit! *cache* [:i16 2])   ;; 2 bytes
+          h3 (cache/commit! *cache* [:i32 3])   ;; 4 bytes
           tree (-> (ft/finger-tree *cache*)
                    (ft/conj-right h1)
                    (ft/conj-right h2)
                    (ft/conj-right h3))]
       (is (= 3 (ft/tree-count tree)))
-      (is (= 6 (ft/tree-size-bytes tree))))))
+      (is (= 7 (ft/tree-size-bytes tree))))))
 
 ;; =============================================================================
 ;; Large trees (trigger spine usage)

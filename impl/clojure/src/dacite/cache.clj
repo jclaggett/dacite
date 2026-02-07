@@ -145,35 +145,48 @@
    For primitives, computes based on type.
    
    This is a simple case-based implementation; will evolve to multimethod
-   for open type system."
+   for open type system.
+   
+   Builtin types from dacite.hash:
+   null, bool, i8-i256, u8-u256, f32, f64, char, string, blob, vector, map"
   [cache hash]
   (when-let [[type-kw data] (lookup cache hash)]
     (cond
-      ;; Collections with measure (finger tree nodes, etc.)
+      ;; Collections with measure (finger trees, string, blob, vector, map, etc.)
       (:measure data)
       (:size-bytes (:measure data))
 
       ;; Primitive types
       :else
       (case type-kw
-        ;; Fixed-size numerics
-        :i8 1
-        :u8 1
-        :i16 2
-        :u16 2
-        :i32 4
-        :u32 4
-        :i64 8
-        :u64 8
-        :f32 4
-        :f64 8
+        ;; Null
+        :null 0
 
         ;; Boolean
         :bool 1
 
-        ;; Variable-size types
-        :string (count (.getBytes ^String data "UTF-8"))
-        :bytes (count data)
+        ;; Signed integers
+        :i8 1
+        :i16 2
+        :i32 4
+        :i64 8
+        :i128 16
+        :i256 32
+
+        ;; Unsigned integers
+        :u8 1
+        :u16 2
+        :u32 4
+        :u64 8
+        :u128 16
+        :u256 32
+
+        ;; Floating point
+        :f32 4
+        :f64 8
+
+        ;; Character (Unicode code point)
+        :char 4
 
         ;; Default: serialize and measure
         (count (encode-value data))))))
