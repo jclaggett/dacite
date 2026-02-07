@@ -13,9 +13,9 @@
    
    Node types stored as [type, data]:
    - [:ft/empty {:measure m}]
-   - [:ft/leaf {:value v :measure m}]
+   - [:ft/leaf {:value-hash h :measure m}]  ; points to separately committed value
    - [:ft/digit {:children [h...] :measure m}]
-   - [:ft/node {:children [h...] :measure m}]  
+   - [:ft/node {:children [h...] :measure m}]
    - [:ft/deep {:left h :spine h :right h :measure m}]"
   (:require [dacite.cache :as cache]))
 
@@ -52,8 +52,8 @@
 (defn- get-children [cache hash]
   (:children (node-data (lookup-node cache hash))))
 
-(defn- get-value [cache hash]
-  (:value (node-data (lookup-node cache hash))))
+(defn- get-value-hash [cache hash]
+  (:value-hash (node-data (lookup-node cache hash))))
 
 ;; =============================================================================
 ;; Node constructors (commit to cache, return hash)
@@ -62,8 +62,8 @@
 (defn- commit-empty [cache]
   (cache/commit! cache [:ft/empty {:measure measure-identity}]))
 
-(defn- commit-leaf [cache value size-bytes]
-  (cache/commit! cache [:ft/leaf {:value value
+(defn- commit-leaf [cache value-hash size-bytes]
+  (cache/commit! cache [:ft/leaf {:value-hash value-hash
                                   :measure {:count 1 :size-bytes size-bytes}}]))
 
 (defn- commit-digit [cache child-hashes child-measures]
@@ -367,32 +367,38 @@
   (->CachedFingerTree cache (commit-empty cache)))
 
 (defn conj-left
-  "Add element to the left of the tree."
-  [tree value size-bytes]
+  "Add element to the left of the tree.
+   value-hash is the hash of a previously committed value.
+   size-bytes is the size of that value for measure accumulation."
+  [tree value-hash size-bytes]
   (let [{:keys [cache root-hash]} tree
-        elem-hash (commit-leaf cache value size-bytes)]
-    (->CachedFingerTree cache (tree-conj-left cache root-hash elem-hash))))
+        leaf-hash (commit-leaf cache value-hash size-bytes)]
+    (->CachedFingerTree cache (tree-conj-left cache root-hash leaf-hash))))
 
 (defn conj-right
-  "Add element to the right of the tree."
-  [tree value size-bytes]
+  "Add element to the right of the tree.
+   value-hash is the hash of a previously committed value.
+   size-bytes is the size of that value for measure accumulation."
+  [tree value-hash size-bytes]
   (let [{:keys [cache root-hash]} tree
-        elem-hash (commit-leaf cache value size-bytes)]
-    (->CachedFingerTree cache (tree-conj-right cache root-hash elem-hash))))
+        leaf-hash (commit-leaf cache value-hash size-bytes)]
+    (->CachedFingerTree cache (tree-conj-right cache root-hash leaf-hash))))
 
 (defn tree-first
-  "Get the first element's value, or nil if empty."
+  "Get the first element's value-hash, or nil if empty.
+   Use cache/lookup on the returned hash to get the actual value."
   [tree]
   (let [{:keys [cache root-hash]} tree]
-    (when-let [elem-hash (tree-first* cache root-hash)]
-      (get-value cache elem-hash))))
+    (when-let [leaf-hash (tree-first* cache root-hash)]
+      (get-value-hash cache leaf-hash))))
 
 (defn tree-last
-  "Get the last element's value, or nil if empty."
+  "Get the last element's value-hash, or nil if empty.
+   Use cache/lookup on the returned hash to get the actual value."
   [tree]
   (let [{:keys [cache root-hash]} tree]
-    (when-let [elem-hash (tree-last* cache root-hash)]
-      (get-value cache elem-hash))))
+    (when-let [leaf-hash (tree-last* cache root-hash)]
+      (get-value-hash cache leaf-hash))))
 
 (defn tree-rest
   "Remove the first element from the tree."
@@ -429,27 +435,29 @@
   [tree1 tree2]
   ;; Simple implementation: add all elements of tree2 to tree1
   (let [{:keys [cache]} tree1
-        elems (tree-to-seq* cache (:root-hash tree2))]
-    (reduce (fn [t elem-hash]
-              (let [node (lookup-node cache elem-hash)
-                    {:keys [value measure]} (node-data node)]
-                (conj-right t value (:size-bytes measure))))
+        leaf-hashes (tree-to-seq* cache (:root-hash tree2))]
+    (reduce (fn [t leaf-hash]
+              (let [node (lookup-node cache leaf-hash)
+                    {:keys [value-hash measure]} (node-data node)]
+                (conj-right t value-hash (:size-bytes measure))))
             tree1
-            elems)))
+            leaf-hashes)))
 
 (defn from-seq
-  "Build a finger tree from a sequence of [value size-bytes] pairs."
+  "Build a finger tree from a sequence of [value-hash size-bytes] pairs.
+   Each value-hash should be a previously committed value."
   [cache pairs]
-  (reduce (fn [t [value size-bytes]]
-            (conj-right t value size-bytes))
+  (reduce (fn [t [value-hash size-bytes]]
+            (conj-right t value-hash size-bytes))
           (finger-tree cache)
           pairs))
 
 (defn to-vec
-  "Convert tree to vector of values."
+  "Convert tree to vector of value-hashes.
+   Use cache/lookup on each hash to get actual values."
   [tree]
   (let [{:keys [cache root-hash]} tree]
-    (mapv #(get-value cache %) (tree-to-seq* cache root-hash))))
+    (mapv #(get-value-hash cache %) (tree-to-seq* cache root-hash))))
 
 ;; =============================================================================
 ;; REPL examples
@@ -459,35 +467,42 @@
   ;; Create a cache manager
   (def mgr (cache/memory-cache-manager))
 
+  ;; Commit some values first
+  (def h1 (cache/commit! mgr [:string "hello"]))
+  (def h2 (cache/commit! mgr [:string "world"]))
+  (def h3 (cache/commit! mgr [:string "start"]))
+
   ;; Create an empty tree
   (def t0 (finger-tree mgr))
 
   (tree-empty? t0)  ;; => true
   (tree-count t0)   ;; => 0
 
-  ;; Add some elements
-  (def t1 (conj-right t0 "hello" 5))
-  (def t2 (conj-right t1 "world" 5))
-  (def t3 (conj-left t2 "start" 5))
+  ;; Add elements using their hashes
+  (def t1 (conj-right t0 h1 5))
+  (def t2 (conj-right t1 h2 5))
+  (def t3 (conj-left t2 h3 5))
 
   (tree-count t3)      ;; => 3
   (tree-size-bytes t3) ;; => 15
-  (tree-first t3)      ;; => "start"
-  (tree-last t3)       ;; => "world"
-  (to-vec t3)          ;; => ["start" "hello" "world"]
+  (tree-first t3)      ;; => h3 (hash of "start")
+  (tree-last t3)       ;; => h2 (hash of "world")
+  (to-vec t3)          ;; => [h3 h1 h2] (vector of hashes)
+
+  ;; Lookup actual values
+  (cache/lookup mgr (tree-first t3))  ;; => [:string "start"]
 
   ;; Remove elements
   (def t4 (tree-rest t3))
-  (to-vec t4)          ;; => ["hello" "world"]
+  (tree-count t4)      ;; => 2
 
   (def t5 (tree-butlast t3))
-  (to-vec t5)          ;; => ["start" "hello"]
+  (tree-count t5)      ;; => 2
 
-  ;; Build from sequence
-  (def t6 (from-seq mgr (map #(vector % 8) (range 100))))
-  (tree-count t6)      ;; => 100
-  (tree-first t6)      ;; => 0
-  (tree-last t6)       ;; => 99
+  ;; Build from sequence of [hash size] pairs
+  (def hashes (mapv #(cache/commit! mgr [:i64 %]) (range 10)))
+  (def t6 (from-seq mgr (map #(vector % 8) hashes)))
+  (tree-count t6)      ;; => 10
 
   ;; Check cache stats
   (cache/stats mgr)    ;; Shows all committed nodes
