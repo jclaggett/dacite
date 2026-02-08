@@ -21,8 +21,7 @@
    - forget operation for cache eviction
    
    Type definitions live in dacite.types"
-  (:require [dacite.hash :as hash]
-            [dacite.types :as types]))
+  (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
 ;; Cache Manager Protocol
@@ -98,34 +97,6 @@
   [manager]
   (when (instance? MemoryCacheManager manager)
     (swap! (:cache manager) empty)))
-
-;; =============================================================================
-;; Re-export type utilities for convenience
-;; =============================================================================
-
-(def dacite-type
-  "Get the type keyword from a Dacite value [type, data]."
-  types/dacite-type)
-
-(def dacite-data
-  "Get the data from a Dacite value [type, data]."
-  types/dacite-data)
-
-(def dacite-size
-  "Get the size in bytes of a Dacite value [type, data].
-   See dacite.types for type implementations."
-  types/dacite-size)
-
-;; =============================================================================
-;; Convenience: value-size from cache
-;; =============================================================================
-
-(defn value-size
-  "Get the size in bytes of a committed value by its hash.
-   Looks up the value and delegates to types/dacite-size."
-  [cache hash]
-  (when-let [value (lookup cache hash)]
-    (types/dacite-size value)))
 
 ;; =============================================================================
 ;; Global cache (optional convenience)
