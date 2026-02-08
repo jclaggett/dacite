@@ -137,8 +137,7 @@
         type-name (or (:type value) "dacite.core/unknown")
         type-hash (hash/sha256-str type-name)
         data-hash (hash/sha256 data-bytes)
-        value-hash (hash/fuse type-hash data-hash)
-        hash-longs (hash/bytes->longs value-hash)]
+        hash-longs (hash/fuse type-hash data-hash)]
     (store-put store hash-longs value)
     hash-longs))
 

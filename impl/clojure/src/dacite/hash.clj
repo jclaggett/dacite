@@ -1,22 +1,27 @@
 (ns dacite.hash
   "Hashing primitives for Dacite.
    
+   Hash representation: [long, long, long, long] (256 bits as 4 × 64-bit longs)
+   
    Implements:
    - SHA-256 for type and data hashing
    - Fuse function for combining hashes"
   (:import [java.security MessageDigest]
            [java.nio ByteBuffer]))
 
-(defn sha256
+;; =============================================================================
+;; Low-level SHA-256 (returns bytes)
+;; =============================================================================
+
+(defn sha256-bytes
   "Compute SHA-256 hash of byte array. Returns 32-byte array."
   ^bytes [^bytes data]
   (let [md (MessageDigest/getInstance "SHA-256")]
     (.digest md data)))
 
-(defn sha256-str
-  "Compute SHA-256 hash of UTF-8 string. Returns 32-byte array."
-  ^bytes [^String s]
-  (sha256 (.getBytes s "UTF-8")))
+;; =============================================================================
+;; Byte/Long conversion
+;; =============================================================================
 
 (defn bytes->longs
   "Convert 32-byte array to 4 longs (256 bits → 4 × 64 bits)."
@@ -37,6 +42,24 @@
     (.putLong buf d)
     (.array buf)))
 
+;; =============================================================================
+;; SHA-256 (returns longs - standard hash form)
+;; =============================================================================
+
+(defn sha256
+  "Compute SHA-256 hash of byte array. Returns [long, long, long, long]."
+  [^bytes data]
+  (bytes->longs (sha256-bytes data)))
+
+(defn sha256-str
+  "Compute SHA-256 hash of UTF-8 string. Returns [long, long, long, long]."
+  [^String s]
+  (sha256 (.getBytes s "UTF-8")))
+
+;; =============================================================================
+;; Fuse (combines two hashes)
+;; =============================================================================
+
 (defn low-entropy?
   "Check if a hash has 128 bits of zeros in the lower 32 bits of all four words.
    Such hashes indicate low-entropy input and should be rejected.
@@ -50,8 +73,8 @@
          (zero? (bit-and c2 mask))
          (zero? (bit-and c3 mask)))))
 
-(defn unchecked-fuse-longs
-  "Fuse two vectors of longs without checking for low-entropy result.
+(defn unchecked-fuse
+  "Fuse two hashes without checking for low-entropy result.
    
    Input: two vectors of 4 longs
    Output: vector of 4 longs"
@@ -61,23 +84,11 @@
    (unchecked-add a2 b2)
    (unchecked-add a3 b3)])
 
-(defn fuse-longs
-  "Fuse two vectors of longs with low-entropy check.
-   
-   Input: two vectors of 4 longs
-   Output: vector of 4 longs
-   Throws: ExceptionInfo if result is low-entropy"
-  [a b]
-  (let [result (unchecked-fuse-longs a b)]
-    (when (low-entropy? result)
-      (throw (ex-info "Low-entropy hash detected" {:a a :b b :result result})))
-    result))
-
 (defn fuse
   "Fuse two hashes using 4×4 upper triangular matrix.
    
-   Input: two 32-byte arrays
-   Output: 32-byte array
+   Input: two vectors of 4 longs
+   Output: vector of 4 longs
    
    Output ordered so most mixed bits are first (MSB), optimizing for HAMT:
    c0 = a0 + a3*b2 + b0   ← most bit mixing (used for HAMT navigation)
@@ -88,26 +99,19 @@
    All arithmetic is mod 2^64 (unchecked).
    Throws on low-entropy result."
   [a b]
-  (longs->bytes (fuse-longs (bytes->longs a) (bytes->longs b))))
-
-(defn type-hash
-  "Compute hash for a type name."
-  ^bytes [^String type-name]
-  (sha256-str type-name))
-
-(defn value-hash
-  "Compute hash for a value given its type-hash and data bytes."
-  ^bytes [^bytes type-hash ^bytes data-bytes]
-  (fuse type-hash (sha256 data-bytes)))
+  (let [result (unchecked-fuse a b)]
+    (when (low-entropy? result)
+      (throw (ex-info "Low-entropy hash detected" {:a a :b b :result result})))
+    result))
 
 ;; =============================================================================
 ;; Hash/hex conversion
 ;; =============================================================================
 
 (defn hash->hex
-  "Convert hash (4 longs or 32 bytes) to 64-char hex string."
+  "Convert hash (4 longs) to 64-char hex string."
   [h]
-  (let [bytes (if (bytes? h) h (longs->bytes h))]
+  (let [bytes (longs->bytes h)]
     (apply str (map #(format "%02x" (bit-and % 0xFF)) bytes))))
 
 (defn hex->hash
@@ -138,25 +142,25 @@
                     (str "dacite.core/" (name type-kw))
                     (str type-kw))
         type-hash (sha256-str type-name)
-        data-bytes (encode-value data)
-        data-hash (sha256 data-bytes)
-        val-hash (fuse type-hash data-hash)]
-    (bytes->longs val-hash)))
+        data-hash (sha256 (encode-value data))]
+    (fuse type-hash data-hash)))
+
+;; =============================================================================
+;; REPL examples
+;; =============================================================================
 
 (comment
-  ;; Test fuse
+  ;; SHA-256 returns longs
+  (sha256-str "hello")  ;; => [long long long long]
+
+  ;; Fuse two hashes
   (def a (sha256-str "hello"))
   (def b (sha256-str "world"))
-  (vec (fuse a b))
+  (fuse a b)  ;; => [long long long long]
 
-  ;; Test fuse-longs (no byte conversion)
-  (def al (bytes->longs a))
-  (def bl (bytes->longs b))
-  (fuse-longs al bl)
-
-  ;; Test type hash
-  (vec (type-hash "dacite.core/i64"))
-
-  ;; Test hex conversion
+  ;; Hex conversion
   (hash->hex (sha256-str "test"))
-  (= (bytes->longs a) (hex->hash (hash->hex a))))
+  (= a (hex->hash (hash->hex a)))
+
+  ;; Compute hash for a value
+  (compute-hash [:i64 42]))

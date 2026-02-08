@@ -305,7 +305,7 @@
                 (string? value) (.getBytes ^String value "UTF-8")
                 (number? value) (.getBytes (str value) "UTF-8")
                 :else (.getBytes (pr-str value) "UTF-8"))]
-    (hash/bytes->longs (hash/sha256 bytes))))
+    (hash/sha256 bytes)))
 
 (defn- compute-size
   "Compute size in bytes for a value."
