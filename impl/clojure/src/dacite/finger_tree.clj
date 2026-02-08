@@ -19,7 +19,8 @@
    - [:ft/digit {:children [h...] :measure m}]
    - [:ft/node {:children [h...] :measure m}]
    - [:ft/deep {:left h :spine h :right h :measure m}]"
-  (:require [dacite.cache :as cache]))
+  (:require [dacite.cache :as cache]
+            [dacite.types :as types]))
 
 ;; =============================================================================
 ;; Measure (Monoid)
@@ -381,7 +382,7 @@
    The value should already be in the dacite-map.
    Returns [new-map, new-root-hash]."
   [[dacite-map root-hash] value-hash]
-  (let [size-bytes (cache/dacite-size (lookup-node dacite-map value-hash))
+  (let [size-bytes (types/dacite-size (lookup-node dacite-map value-hash))
         [m1 leaf-hash] (make-leaf dacite-map value-hash size-bytes)]
     (tree-conj-left m1 root-hash leaf-hash)))
 
@@ -391,7 +392,7 @@
    The value should already be in the dacite-map.
    Returns [new-map, new-root-hash]."
   [[dacite-map root-hash] value-hash]
-  (let [size-bytes (cache/dacite-size (lookup-node dacite-map value-hash))
+  (let [size-bytes (types/dacite-size (lookup-node dacite-map value-hash))
         [m1 leaf-hash] (make-leaf dacite-map value-hash size-bytes)]
     (tree-conj-right m1 root-hash leaf-hash)))
 

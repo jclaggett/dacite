@@ -124,7 +124,8 @@
 (defn compute-leaf-hash
   "Compute the full hash for a tagged leaf value."
   [type-kw value]
-  (let [type-hash (get hash/builtin-type-hashes type-kw)
+  (let [type-name (str "dacite.core/" (name type-kw))
+        type-hash (hash/type-hash type-name)
         data-bytes (value->bytes type-kw value)]
     (hash/value-hash type-hash data-bytes)))
 
@@ -264,8 +265,10 @@
       (is (bytes= via-bytes via-longs)))))
 
 (deftest test-type-hashes-unique
-  (testing "all builtin type hashes are unique"
-    (let [hashes (vals hash/builtin-type-hashes)
+  (testing "different type names produce unique hashes"
+    (let [type-names ["dacite.core/i64" "dacite.core/i32" "dacite.core/bool"
+                      "dacite.core/null" "dacite.core/string"]
+          hashes (map hash/type-hash type-names)
           hash-set (set (map vec hashes))]
       (is (= (count hashes) (count hash-set))))))
 

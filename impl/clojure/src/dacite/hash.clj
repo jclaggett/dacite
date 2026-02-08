@@ -100,35 +100,8 @@
   ^bytes [^bytes type-hash ^bytes data-bytes]
   (fuse type-hash (sha256 data-bytes)))
 
-;; Pre-computed type hashes for built-in types
-(def ^:private builtin-types
-  {"null"   "dacite.core/null"
-   "bool"   "dacite.core/bool"
-   "i8"     "dacite.core/i8"
-   "i16"    "dacite.core/i16"
-   "i32"    "dacite.core/i32"
-   "i64"    "dacite.core/i64"
-   "i128"   "dacite.core/i128"
-   "i256"   "dacite.core/i256"
-   "u8"     "dacite.core/u8"
-   "u16"    "dacite.core/u16"
-   "u32"    "dacite.core/u32"
-   "u64"    "dacite.core/u64"
-   "u128"   "dacite.core/u128"
-   "u256"   "dacite.core/u256"
-   "f32"    "dacite.core/f32"
-   "f64"    "dacite.core/f64"
-   "char"   "dacite.core/char"
-   "string" "dacite.core/string"
-   "blob"   "dacite.core/blob"
-   "vector" "dacite.core/vector"
-   "map"    "dacite.core/map"})
-
-(def builtin-type-hashes
-  "Map of type keyword to pre-computed type hash bytes."
-  (into {}
-        (map (fn [[k v]] [(keyword k) (type-hash v)]))
-        builtin-types))
+;; Note: Type definitions live in dacite.types
+;; This namespace is type-agnostic - it just hashes [type, data] values
 
 ;; =============================================================================
 ;; Hash/hex conversion

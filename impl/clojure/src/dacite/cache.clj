@@ -18,8 +18,11 @@
    Future extensions will add:
    - Multiple storage backends (disk, remote KV, etc.)
    - Policy-driven persistence (write-through, lazy sync, etc.)
-   - forget operation for cache eviction"
-  (:require [dacite.hash :as hash]))
+   - forget operation for cache eviction
+   
+   Type definitions live in dacite.types"
+  (:require [dacite.hash :as hash]
+            [dacite.types :as types]))
 
 ;; =============================================================================
 ;; Re-export hash utilities for convenience
@@ -135,67 +138,21 @@
     (swap! (:cache manager) empty)))
 
 ;; =============================================================================
-;; Dacite Value accessors
+;; Re-export type utilities for convenience
 ;; =============================================================================
 
-(defn dacite-type
+(def dacite-type
   "Get the type keyword from a Dacite value [type, data]."
-  [[type-kw _]]
-  type-kw)
+  types/dacite-type)
 
-(defn dacite-data
+(def dacite-data
   "Get the data from a Dacite value [type, data]."
-  [[_ data]]
-  data)
+  types/dacite-data)
 
-;; =============================================================================
-;; Dacite Value size (multimethod)
-;; =============================================================================
-
-(defmulti dacite-size
+(def dacite-size
   "Get the size in bytes of a Dacite value [type, data].
-   
-   Dispatches on type keyword. To add a new type:
-   (defmethod dacite-size :my-type [[_ data]] ...)
-   
-   Collections with :measure in data use that automatically.
-   Primitives should define explicit methods."
-  dacite-type)
-
-;; Default: check for :measure, otherwise serialize and measure
-(defmethod dacite-size :default [[_ data]]
-  (if-let [measure (:measure data)]
-    (:size-bytes measure)
-    (count (encode-value data))))
-
-;; Null
-(defmethod dacite-size :null [_] 0)
-
-;; Boolean
-(defmethod dacite-size :bool [_] 1)
-
-;; Signed integers
-(defmethod dacite-size :i8 [_] 1)
-(defmethod dacite-size :i16 [_] 2)
-(defmethod dacite-size :i32 [_] 4)
-(defmethod dacite-size :i64 [_] 8)
-(defmethod dacite-size :i128 [_] 16)
-(defmethod dacite-size :i256 [_] 32)
-
-;; Unsigned integers
-(defmethod dacite-size :u8 [_] 1)
-(defmethod dacite-size :u16 [_] 2)
-(defmethod dacite-size :u32 [_] 4)
-(defmethod dacite-size :u64 [_] 8)
-(defmethod dacite-size :u128 [_] 16)
-(defmethod dacite-size :u256 [_] 32)
-
-;; Floating point
-(defmethod dacite-size :f32 [_] 4)
-(defmethod dacite-size :f64 [_] 8)
-
-;; Character (Unicode code point)
-(defmethod dacite-size :char [_] 4)
+   See dacite.types for type implementations."
+  types/dacite-size)
 
 ;; =============================================================================
 ;; Convenience: value-size from cache
@@ -203,10 +160,10 @@
 
 (defn value-size
   "Get the size in bytes of a committed value by its hash.
-   Looks up the value and delegates to dacite-size multimethod."
+   Looks up the value and delegates to types/dacite-size."
   [cache hash]
   (when-let [value (lookup cache hash)]
-    (dacite-size value)))
+    (types/dacite-size value)))
 
 ;; =============================================================================
 ;; Global cache (optional convenience)
