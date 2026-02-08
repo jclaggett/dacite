@@ -25,44 +25,6 @@
             [dacite.types :as types]))
 
 ;; =============================================================================
-;; Re-export hash utilities for convenience
-;; =============================================================================
-
-(def hash->hex
-  "Convert hash (4 longs or 32 bytes) to 64-char hex string."
-  hash/hash->hex)
-
-(def hex->hash
-  "Convert 64-char hex string to hash (vector of 4 longs)."
-  hash/hex->hash)
-
-;; =============================================================================
-;; Value encoding
-;; =============================================================================
-
-(defn encode-value
-  "Encode a Clojure value to bytes for hashing.
-   Currently uses pr-str + UTF-8, but could be made more efficient."
-  ^bytes [value]
-  (.getBytes (pr-str value) "UTF-8"))
-
-(defn compute-hash
-  "Compute the hash for a Dacite value [type, data].
-   
-   The hash is: fuse(sha256(type-name), sha256(data-bytes))
-   
-   Returns a vector of 4 longs (256 bits)."
-  [[type-kw data]]
-  (let [type-name (if (keyword? type-kw)
-                    (str "dacite.core/" (name type-kw))
-                    (str type-kw))
-        type-hash (hash/sha256-str type-name)
-        data-bytes (encode-value data)
-        data-hash (hash/sha256 data-bytes)
-        value-hash (hash/fuse type-hash data-hash)]
-    (hash/bytes->longs value-hash)))
-
-;; =============================================================================
 ;; Cache Manager Protocol
 ;; =============================================================================
 
@@ -103,7 +65,7 @@
 
   CacheManager
   (commit! [_ value]
-    (let [h (compute-hash value)]
+    (let [h (hash/compute-hash value)]
       (swap! cache assoc h value)
       h))
 
@@ -213,7 +175,7 @@
   (= h1 (commit! mgr [:i64 43]))  ;; => false
 
   ;; Hash is printable
-  (hash->hex h1)  ;; => "abcd1234..."
+  (hash/hash->hex h1)  ;; => "abcd1234..."
 
   ;; Stats
   (stats mgr)  ;; => {:count 3, :hashes [...]}

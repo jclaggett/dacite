@@ -3,7 +3,8 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [dacite.cache :as cache]))
+            [dacite.cache :as cache]
+            [dacite.hash :as hash]))
 
 ;; =============================================================================
 ;; Unit tests
@@ -57,7 +58,7 @@
   (testing "hash->hex produces 64-char string"
     (let [mgr (cache/memory-cache-manager)
           hash (cache/commit! mgr [:i64 42])
-          hex (cache/hash->hex hash)]
+          hex (hash/hash->hex hash)]
       (is (string? hex))
       (is (= 64 (count hex)))
       (is (re-matches #"[0-9a-f]+" hex) "should be lowercase hex")))
@@ -65,8 +66,8 @@
   (testing "hex->hash round-trips"
     (let [mgr (cache/memory-cache-manager)
           hash (cache/commit! mgr [:string "test"])
-          hex (cache/hash->hex hash)
-          hash2 (cache/hex->hash hex)]
+          hex (hash/hash->hex hash)
+          hash2 (hash/hex->hash hex)]
       (is (= hash hash2) "round-trip should preserve hash"))))
 
 (deftest stats-and-clear
@@ -136,6 +137,6 @@
   (prop/for-all [value gen-dacite-value]
                 (let [mgr (cache/memory-cache-manager)
                       hash (cache/commit! mgr value)
-                      hex (cache/hash->hex hash)
-                      hash2 (cache/hex->hash hex)]
+                      hex (hash/hash->hex hash)
+                      hash2 (hash/hex->hash hex)]
                   (= hash hash2))))

@@ -20,6 +20,7 @@
    - [:ft/node {:children [h...] :measure m}]
    - [:ft/deep {:left h :spine h :right h :measure m}]"
   (:require [dacite.cache :as cache]
+            [dacite.hash :as hash]
             [dacite.types :as types]))
 
 ;; =============================================================================
@@ -43,7 +44,7 @@
 (defn- add-node
   "Add a node to the dacite-map, return [updated-map, hash]."
   [dacite-map node]
-  (let [h (cache/compute-hash node)]
+  (let [h (hash/compute-hash node)]
     [(assoc dacite-map h node) h]))
 
 (defn- lookup-node

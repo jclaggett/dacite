@@ -100,9 +100,6 @@
   ^bytes [^bytes type-hash ^bytes data-bytes]
   (fuse type-hash (sha256 data-bytes)))
 
-;; Note: Type definitions live in dacite.types
-;; This namespace is type-agnostic - it just hashes [type, data] values
-
 ;; =============================================================================
 ;; Hash/hex conversion
 ;; =============================================================================
@@ -119,6 +116,32 @@
   (let [bytes (byte-array (map #(unchecked-byte (Integer/parseInt (apply str %) 16))
                                (partition 2 hex)))]
     (bytes->longs bytes)))
+
+;; =============================================================================
+;; Dacite value hashing
+;; =============================================================================
+
+(defn encode-value
+  "Encode a Clojure value to bytes for hashing.
+   Currently uses pr-str + UTF-8, but could be made more efficient."
+  ^bytes [value]
+  (.getBytes (pr-str value) "UTF-8"))
+
+(defn compute-hash
+  "Compute the hash for a Dacite value [type, data].
+   
+   The hash is: fuse(sha256(type-name), sha256(data-bytes))
+   
+   Returns a vector of 4 longs (256 bits)."
+  [[type-kw data]]
+  (let [type-name (if (keyword? type-kw)
+                    (str "dacite.core/" (name type-kw))
+                    (str type-kw))
+        type-hash (sha256-str type-name)
+        data-bytes (encode-value data)
+        data-hash (sha256 data-bytes)
+        val-hash (fuse type-hash data-hash)]
+    (bytes->longs val-hash)))
 
 (comment
   ;; Test fuse
