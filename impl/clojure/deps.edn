@@ -15,7 +15,7 @@
           :ns-default build}
   
   ;; Linting: clojure -M:lint
-  :lint {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2024.11.14"}}
+  :lint {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.01.19"}}
          :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"]}
   
   ;; Code formatting: clojure -M:fmt check (or fix)
