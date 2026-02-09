@@ -97,11 +97,15 @@
    c3 = a3 + b3           ← least bit mixing
    
    All arithmetic is mod 2^64 (unchecked).
-   Throws on low-entropy result."
+   Throws on low-entropy inputs or result."
   [a b]
+  (when (low-entropy? a)
+    (throw (ex-info "Low-entropy input hash (a)" {:a a :b b})))
+  (when (low-entropy? b)
+    (throw (ex-info "Low-entropy input hash (b)" {:a a :b b})))
   (let [result (unchecked-fuse a b)]
     (when (low-entropy? result)
-      (throw (ex-info "Low-entropy hash detected" {:a a :b b :result result})))
+      (throw (ex-info "Low-entropy result hash" {:a a :b b :result result})))
     result))
 
 ;; =============================================================================

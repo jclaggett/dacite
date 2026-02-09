@@ -219,15 +219,31 @@
                     (unchecked-long 0xFEDCBA9800000000)]]
       (is (hash/low-entropy? bad-hash))))
 
-  (testing "fuse throws on low-entropy result (via repeated self-fuse)"
+  (testing "fuse throws on low-entropy input (via repeated self-fuse)"
     ;; Fusing a hash with itself ~65 times converges to low-entropy
+    ;; After ~64 iterations, the hash becomes low-entropy and next fuse rejects it
     (let [start (hash/sha256-str "trigger low entropy")]
       (is (thrown-with-msg?
            clojure.lang.ExceptionInfo
-           #"Low-entropy hash detected"
+           #"Low-entropy"
            (reduce (fn [h _] (hash/fuse h h))
                    start
                    (range 65))))))
+
+  (testing "fuse throws on explicitly low-entropy input"
+    (let [good-hash (hash/sha256-str "normal")
+          bad-hash [(unchecked-long 0x1234567800000000)
+                    (unchecked-long 0xABCDEF0000000000)
+                    (unchecked-long 0x9876543200000000)
+                    (unchecked-long 0xFEDCBA9800000000)]]
+      (is (thrown-with-msg?
+           clojure.lang.ExceptionInfo
+           #"Low-entropy input hash \(a\)"
+           (hash/fuse bad-hash good-hash)))
+      (is (thrown-with-msg?
+           clojure.lang.ExceptionInfo
+           #"Low-entropy input hash \(b\)"
+           (hash/fuse good-hash bad-hash)))))
 
   (testing "unchecked-fuse allows low-entropy (no exception)"
     ;; Use unchecked version to verify low-entropy actually occurs
