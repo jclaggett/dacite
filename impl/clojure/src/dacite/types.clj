@@ -90,10 +90,11 @@
 (defmethod dacite-size :f64 [_] 8)
 
 ;; =============================================================================
-;; Character (Unicode code point)
+;; Character (Unicode code point, UTF-8 encoded)
 ;; =============================================================================
 
-(defmethod dacite-size :char [_] 4)
+(defmethod dacite-size :char [[_ ch]]
+  (count (.getBytes (str ch) "UTF-8")))
 
 ;; =============================================================================
 ;; REPL examples
