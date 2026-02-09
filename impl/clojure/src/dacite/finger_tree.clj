@@ -159,10 +159,9 @@
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
       :ft/empty nil
-      :ft/leaf root-hash
+      (:ft/leaf :ft/node) root-hash
       :ft/deep (let [left-hash (:left (node-data node))]
-                 (digit-first dacite-map left-hash))
-      :ft/node root-hash)))
+                 (digit-first dacite-map left-hash)))))
 
 (defn- tree-last*
   "Get last element hash from tree. Returns hash or nil."
@@ -170,10 +169,9 @@
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
       :ft/empty nil
-      :ft/leaf root-hash
+      (:ft/leaf :ft/node) root-hash
       :ft/deep (let [right-hash (:right (node-data node))]
-                 (digit-last dacite-map right-hash))
-      :ft/node root-hash)))
+                 (digit-last dacite-map right-hash)))))
 
 (defn- to-tree-from-digit
   "Convert a digit to a tree. Returns [map, root-hash]."
@@ -191,8 +189,7 @@
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
       :ft/empty [dacite-map root-hash]
-      :ft/leaf (make-empty dacite-map)
-      :ft/node (make-empty dacite-map)
+      (:ft/leaf :ft/node) (make-empty dacite-map)
       :ft/deep
       (let [{:keys [left spine right]} (node-data node)
             [m1 new-left] (digit-rest dacite-map left)]
@@ -223,8 +220,7 @@
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
       :ft/empty [dacite-map root-hash]
-      :ft/leaf (make-empty dacite-map)
-      :ft/node (make-empty dacite-map)
+      (:ft/leaf :ft/node) (make-empty dacite-map)
       :ft/deep
       (let [{:keys [left spine right]} (node-data node)
             [m1 new-right] (digit-butlast dacite-map right)]
@@ -256,16 +252,7 @@
     (case (node-type node)
       :ft/empty [dacite-map elem-hash]
 
-      :ft/leaf
-      (let [[m1 left] (make-digit dacite-map [elem-hash] [(get-measure dacite-map elem-hash)])
-            [m2 spine] (make-empty m1)
-            [m3 right] (make-digit m2 [root-hash] [(get-measure m2 root-hash)])]
-        (make-deep m3 left spine right
-                   (get-measure m3 left)
-                   (get-measure m3 spine)
-                   (get-measure m3 right)))
-
-      :ft/node
+      (:ft/leaf :ft/node)
       (let [[m1 left] (make-digit dacite-map [elem-hash] [(get-measure dacite-map elem-hash)])
             [m2 spine] (make-empty m1)
             [m3 right] (make-digit m2 [root-hash] [(get-measure m2 root-hash)])]
@@ -305,16 +292,7 @@
     (case (node-type node)
       :ft/empty [dacite-map elem-hash]
 
-      :ft/leaf
-      (let [[m1 left] (make-digit dacite-map [root-hash] [(get-measure dacite-map root-hash)])
-            [m2 spine] (make-empty m1)
-            [m3 right] (make-digit m2 [elem-hash] [(get-measure m2 elem-hash)])]
-        (make-deep m3 left spine right
-                   (get-measure m3 left)
-                   (get-measure m3 spine)
-                   (get-measure m3 right)))
-
-      :ft/node
+      (:ft/leaf :ft/node)
       (let [[m1 left] (make-digit dacite-map [root-hash] [(get-measure dacite-map root-hash)])
             [m2 spine] (make-empty m1)
             [m3 right] (make-digit m2 [elem-hash] [(get-measure m2 elem-hash)])]

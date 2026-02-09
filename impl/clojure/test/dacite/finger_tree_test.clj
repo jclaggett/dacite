@@ -244,5 +244,57 @@
                                    (ft/to-vec butlast-tree))]
                   (= (vec (butlast values)) result))))
 
+;; =============================================================================
+;; Edge cases for coverage
+;; =============================================================================
+
+(deftest test-rest-on-empty
+  (testing "tree-rest on empty tree returns empty tree"
+    (let [empty-tree (ft/finger-tree)
+          rest-tree (ft/tree-rest empty-tree)]
+      (is (ft/tree-empty? rest-tree))
+      (is (= 0 (ft/tree-count rest-tree))))))
+
+(deftest test-butlast-on-empty
+  (testing "tree-butlast on empty tree returns empty tree"
+    (let [empty-tree (ft/finger-tree)
+          butlast-tree (ft/tree-butlast empty-tree)]
+      (is (ft/tree-empty? butlast-tree))
+      (is (= 0 (ft/tree-count butlast-tree))))))
+
+(deftest test-butlast-spine-pulling
+  (testing "tree-butlast that exhausts right digit and pulls from spine"
+    ;; Create tree with enough elements to have spine nodes
+    ;; Digit max = 32, so ~65 elements means: left(32) + spine(1 node) + right(32)
+    ;; Then butlast repeatedly to exhaust right digit and trigger spine pull
+    (let [tree (ft/from-seq (map #(vector :i64 %) (range 65)))
+          ;; Remove 33 elements from right (exhausts right digit, pulls from spine)
+          tree-after (nth (iterate ft/tree-butlast tree) 33)]
+      (is (= 32 (ft/tree-count tree-after)))
+      ;; Values should be the first 32
+      (is (= (mapv #(vector :i64 %) (range 32)) (tree-values tree-after))))))
+
+(deftest test-rest-spine-pulling
+  (testing "tree-rest that exhausts left digit and pulls from spine"
+    ;; Similar setup for tree-rest
+    (let [tree (ft/from-seq (map #(vector :i64 %) (range 65)))
+          ;; Remove 33 elements from left (exhausts left digit, pulls from spine)
+          tree-after (nth (iterate ft/tree-rest tree) 33)]
+      (is (= 32 (ft/tree-count tree-after)))
+      ;; Values should be the last 32 (indices 33-64)
+      (is (= (mapv #(vector :i64 %) (range 33 65)) (tree-values tree-after))))))
+
+(deftest test-conj-left-overflow
+  (testing "conj-left with >32 elements triggers left digit overflow"
+    ;; Add 40 elements via conj-left to trigger left digit overflow
+    (let [tree (reduce (fn [[m h] v]
+                         (let [[m' vh] (ft/add-value m [:i64 v])]
+                           (ft/conj-left [m' h] vh)))
+                       (ft/finger-tree)
+                       (range 40))]
+      (is (= 40 (ft/tree-count tree)))
+      ;; Elements added left end up reversed
+      (is (= (mapv #(vector :i64 %) (reverse (range 40))) (tree-values tree))))))
+
 (comment
   (clojure.test/run-tests))

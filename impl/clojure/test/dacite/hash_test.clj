@@ -259,6 +259,55 @@
     (let [h (hash/sha256-str "test")]
       (is (= h (hash/hex->hash (hash/hash->hex h)))))))
 
+(deftest test-sha256-bytes
+  (testing "sha256-bytes returns 32-byte array"
+    (let [result (hash/sha256-bytes (.getBytes "hello" "UTF-8"))]
+      (is (bytes? result))
+      (is (= 32 (count result)))))
+  (testing "sha256-bytes is deterministic"
+    (let [data (.getBytes "test" "UTF-8")]
+      (is (java.util.Arrays/equals
+           (hash/sha256-bytes data)
+           (hash/sha256-bytes data))))))
+
+(deftest test-bytes-longs-conversion
+  (testing "bytes->longs converts 32 bytes to 4 longs"
+    (let [bytes (byte-array 32)
+          longs (hash/bytes->longs bytes)]
+      (is (vector? longs))
+      (is (= 4 (count longs)))))
+  (testing "longs->bytes converts 4 longs to 32 bytes"
+    (let [longs [1 2 3 4]
+          bytes (hash/longs->bytes longs)]
+      (is (bytes? bytes))
+      (is (= 32 (count bytes)))))
+  (testing "round-trip preserves data"
+    (let [original [12345 -67890 111111 -222222]
+          round-tripped (hash/bytes->longs (hash/longs->bytes original))]
+      (is (= original round-tripped)))))
+
+(deftest test-encode-value
+  (testing "encode-value returns UTF-8 bytes of pr-str"
+    (let [result (hash/encode-value 42)]
+      (is (bytes? result))
+      (is (= "42" (String. result "UTF-8"))))
+    (let [result (hash/encode-value "hello")]
+      (is (= "\"hello\"" (String. result "UTF-8"))))
+    (let [result (hash/encode-value nil)]
+      (is (= "nil" (String. result "UTF-8"))))))
+
+(deftest test-compute-hash-non-keyword-type
+  (testing "compute-hash handles non-keyword type (string)"
+    (let [h1 (hash/compute-hash ["my.custom/type" 42])
+          h2 (hash/compute-hash ["my.custom/type" 42])]
+      (is (= h1 h2))
+      (is (vector? h1))
+      (is (= 4 (count h1)))))
+  (testing "non-keyword type produces different hash than keyword"
+    (let [h1 (hash/compute-hash [:i64 42])
+          h2 (hash/compute-hash ["i64" 42])]
+      (is (not= h1 h2)))))
+
 (comment
   ;; Run all tests
   (clojure.test/run-tests)
