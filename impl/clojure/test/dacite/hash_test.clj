@@ -118,17 +118,24 @@
                       (= (unchecked-multiply (nth a 3) (nth b 2))
                          (unchecked-multiply (nth b 3) (nth a 2)))))))
 
+;; Note: [0,0,0,0] is an identity element for fuse:
+;;   fuse(a, [0,0,0,0]) = a  (right identity)
+;;   fuse([0,0,0,0], b) = b  (left identity)
+;; These properties don't apply to real SHA-256 hashes (vanishingly unlikely to be zero)
+
 (defspec fuse-not-identity-left 100
   (prop/for-all [a gen-hash
                  b gen-hash]
-    ;; fuse(a,b) ≠ a (fuse shouldn't return just the left input)
-                (not= (hash/unchecked-fuse a b) a)))
+    ;; fuse(a,b) ≠ a unless b is zero (right identity)
+                (or (= b [0 0 0 0])
+                    (not= (hash/unchecked-fuse a b) a))))
 
 (defspec fuse-not-identity-right 100
   (prop/for-all [a gen-hash
                  b gen-hash]
-    ;; fuse(a,b) ≠ b (fuse shouldn't return just the right input)
-                (not= (hash/unchecked-fuse a b) b)))
+    ;; fuse(a,b) ≠ b unless a is zero (left identity)
+                (or (= a [0 0 0 0])
+                    (not= (hash/unchecked-fuse a b) b))))
 
 (defspec leaf-hash-determinism 100
   (prop/for-all [[type-kw value] gen-tagged-leaf]
