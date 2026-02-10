@@ -50,7 +50,7 @@ run_test_check() {
     echo ""
     echo "Running unit tests..."
 
-    if ! (cd "$CLJ_DIR" && clojure -A:dev -M:test 2>&1); then
+    if ! (cd "$CLJ_DIR" && clojure -M:dev:cov 2>&1); then
         echo ""
         echo "❌ Unit tests failed. Please fix the errors above before committing."
         return 1
