@@ -66,12 +66,10 @@
    See: https://clojurecivitas.github.io/math/hashing/hashfusing.html#detecting-low-entropy-failures
    
    Input: vector of 4 longs"
-  [[c0 c1 c2 c3]]
-  (let [mask 0xFFFFFFFF]
-    (and (zero? (bit-and c0 mask))
-         (zero? (bit-and c1 mask))
-         (zero? (bit-and c2 mask))
-         (zero? (bit-and c3 mask)))))
+  [hash]
+  (->> hash
+       (map #(bit-and 0xFFFFFFFF %))
+       (every? zero?)))
 
 (defn unchecked-fuse
   "Fuse two hashes without checking for low-entropy result.
