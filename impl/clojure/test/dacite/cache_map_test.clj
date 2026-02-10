@@ -95,6 +95,83 @@
       (commit! m [:i64 1])
       (is (nil? (seq m))))))
 
+(deftest test-entry-at
+  (testing "entryAt returns MapEntry for existing key"
+    (let [m (make-cm)
+          h (commit! m [:i64 42])
+          entry (.entryAt ^clojure.lang.Associative m h)]
+      (is (some? entry))
+      (is (= h (key entry)))
+      (is (= [:i64 42] (val entry)))))
+  (testing "entryAt returns nil for missing key"
+    (let [m (make-cm)]
+      (is (nil? (.entryAt ^clojure.lang.Associative m [0 0 0 0]))))))
+
+(deftest test-unsupported-ops
+  (testing "assocEx throws"
+    (let [m (make-cm)]
+      (is (thrown? UnsupportedOperationException
+                   (.assocEx ^clojure.lang.IPersistentMap m [0 0 0 0] :x)))))
+  (testing "without throws"
+    (let [m (make-cm)]
+      (is (thrown? UnsupportedOperationException
+                   (.without ^clojure.lang.IPersistentMap m [0 0 0 0]))))))
+
+(deftest test-cons-vector
+  (testing "cons with [k v] vector"
+    (let [m (make-cm)
+          value [:i64 99]
+          h (hash/compute-hash value)
+          m' (conj m [h value])]
+      (is (identical? m m'))
+      (is (= value (get m h))))))
+
+(deftest test-cons-map-entry
+  (testing "cons with MapEntry"
+    (let [m (make-cm)
+          value [:i64 77]
+          h (hash/compute-hash value)
+          entry (clojure.lang.MapEntry/create h value)
+          m' (conj m entry)]
+      (is (identical? m m'))
+      (is (= value (get m h))))))
+
+(deftest test-merge-with-regular-map
+  (testing "merge with a regular Clojure map"
+    (let [m (make-cm)
+          value [:i64 55]
+          h (hash/compute-hash value)
+          m' (merge m {h value})]
+      (is (= value (get m' h))))))
+
+(deftest test-empty
+  (testing "empty returns a new CacheMap with same backing store"
+    (let [m (make-cm)
+          _ (commit! m [:i64 1])
+          e (.empty ^clojure.lang.IPersistentCollection m)]
+      (is (cm/cache-map? e))
+      ;; Still backed by same cache, so values still accessible
+      (is (= [:i64 1] (get e (hash/compute-hash [:i64 1])))))))
+
+(deftest test-equiv
+  (testing "equiv is identity-based"
+    (let [m (make-cm)]
+      (is (.equiv ^clojure.lang.IPersistentCollection m m))
+      (is (not (.equiv ^clojure.lang.IPersistentCollection m (make-cm)))))))
+
+(deftest test-meta
+  (testing "meta and withMeta"
+    (let [m (make-cm)]
+      (is (nil? (meta m)))
+      (let [m' (with-meta m {:foo :bar})]
+        (is (= {:foo :bar} (meta m')))))))
+
+(deftest test-iterator
+  (testing "iterator returns empty iterator"
+    (let [m (make-cm)
+          it (.iterator ^Iterable m)]
+      (is (not (.hasNext it))))))
+
 (deftest test-string-representation
   (testing "toString returns useful description"
     (let [m (make-cm)]
