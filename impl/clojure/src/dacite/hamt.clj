@@ -4,41 +4,39 @@
    A persistent map data structure with:
    - O(log32 n) lookup, insert, delete
    - Structural sharing for efficient updates
-   - Content-addressed nodes
+   - Content-addressed nodes via [dacite-map, root-hash] tuples
    
    Dacite-specific features:
    - 32-way branching (5-bit chunks of 256-bit hash)
    - Uses MSB (most mixed bits from fuse) for navigation
-   - Accumulated measure (count, size_bytes) per node
-   - Any Dacite value can be a key or value"
-  (:require [dacite.hash :as hash]))
+   - Accumulated measure (count, size-bytes) per node
+   - All nodes bounded in size using hashes as references
+   
+   Node types stored as [type, data]:
+   - [:hamt/empty {:measure m}]
+   - [:hamt/entry {:key-hash h :key-ref h :val-ref h :measure m}]
+   - [:hamt/bitmap {:bitmap n :children [h...] :measure m}]"
+  (:require [dacite.hash :as hash]
+            [dacite.types :as types]))
 
 ;; =============================================================================
 ;; Constants
 ;; =============================================================================
 
 (def ^:const BITS 5)           ;; bits per level
-(def ^:const WIDTH 32)         ;; 2^5 = 32 children per node
 (def ^:const MASK 0x1F)        ;; 5-bit mask (0b11111)
 
 ;; =============================================================================
-;; Measure (Monoid) - same as finger tree
+;; Measure (Monoid)
 ;; =============================================================================
 
 (def measure-identity
   "Identity element for measure monoid."
   {:count 0 :size-bytes 0})
 
-(defn measure-combine
-  "Combine two measures."
-  [m1 m2]
+(defn- measure-combine [m1 m2]
   {:count (+ (:count m1) (:count m2))
    :size-bytes (+ (:size-bytes m1) (:size-bytes m2))})
-
-(defn measure-concat
-  "Combine multiple measures."
-  [measures]
-  (reduce measure-combine measure-identity measures))
 
 ;; =============================================================================
 ;; Hash navigation
@@ -51,304 +49,311 @@
    Level 0: bits 63-59 of c0
    Level 1: bits 58-54 of c0
    ...
-   Level 12: bits 3-0 of c0 + bit 63 of c1
-   ...
    Level 51: bits 4-0 of c3 (last 5 bits)"
   [hash-longs level]
-  (let [bit-offset (* level BITS)           ;; 0, 5, 10, 15, ...
-        long-idx (quot bit-offset 64)       ;; which long (0-3)
-        bit-in-long (mod bit-offset 64)     ;; bit position within that long
+  (let [bit-offset (* level BITS)
+        long-idx (quot bit-offset 64)
+        bit-in-long (mod bit-offset 64)
         long-val (nth hash-longs long-idx 0)
         shift (- 59 bit-in-long)]
-    ;; Extract 5 bits starting from MSB
-    ;; For bit-in-long=0, we want bits 63-59
-    ;; Shift right by (64 - 5 - bit-in-long) = (59 - bit-in-long)
     (if (>= shift 0)
       (bit-and MASK (unsigned-bit-shift-right long-val shift))
-      ;; Need to span two longs
-      (let [bits-from-current (+ shift 5)  ;; bits we can get from current long
-            bits-from-next (- bits-from-current) ;; bits we need from next long
-            current-part (bit-and (bit-shift-left
-                                   (bit-and long-val (dec (bit-shift-left 1 bits-from-current)))
-                                   bits-from-next)
-                                  MASK)
+      ;; Span two longs
+      (let [bits-from-current (+ shift 5)           ;; bits we can get from current long
+            bits-from-next (- 5 bits-from-current)   ;; bits we need from next long
+            current-part (bit-shift-left
+                          (bit-and long-val (dec (bit-shift-left 1 bits-from-current)))
+                          bits-from-next)
             next-long (nth hash-longs (inc long-idx) 0)
             next-part (unsigned-bit-shift-right next-long (- 64 bits-from-next))]
-        (bit-or current-part next-part)))))
+        (bit-and MASK (bit-or current-part next-part))))))
 
 ;; =============================================================================
-;; Protocols
+;; Node helpers
 ;; =============================================================================
 
-(defprotocol HAMTNode
-  "Protocol for HAMT nodes."
-  (hamt-lookup [this key-hash level] "Look up value by key hash.")
-  (hamt-assoc [this key-hash key-val level] "Associate key with value.")
-  (hamt-dissoc [this key-hash level] "Remove key.")
-  (hamt-entries [this] "Return all [key value] entries.")
-  (hamt-measure [this] "Return the node's measure."))
+(defn- add-node
+  "Add a node to the dacite-map, return [updated-map, hash]."
+  [dacite-map node]
+  (let [h (hash/compute-hash node)]
+    [(assoc dacite-map h node) h]))
+
+(defn- lookup-node
+  "Look up a node by hash in the dacite-map."
+  [dacite-map h]
+  (get dacite-map h))
+
+(defn- node-type [node]
+  (first node))
+
+(defn- node-data [node]
+  (second node))
+
+(defn- get-measure [dacite-map h]
+  (:measure (node-data (lookup-node dacite-map h))))
 
 ;; =============================================================================
-;; Forward declarations
+;; Node constructors
 ;; =============================================================================
 
-(declare ->BitmapNode ->Entry)
+(defn- make-empty [dacite-map]
+  (add-node dacite-map [:hamt/empty {:measure measure-identity}]))
+
+(defn- make-entry [dacite-map key-hash key-ref val-ref measure]
+  (add-node dacite-map [:hamt/entry {:key-hash key-hash
+                                     :key-ref key-ref
+                                     :val-ref val-ref
+                                     :measure measure}]))
+
+(defn- make-bitmap [dacite-map bitmap children measure]
+  (add-node dacite-map [:hamt/bitmap {:bitmap bitmap
+                                      :children (vec children)
+                                      :measure measure}]))
 
 ;; =============================================================================
-;; Entry (leaf node - single key/value pair)
+;; Internal HAMT operations
 ;; =============================================================================
 
-(defrecord Entry [key-hash key-val cached-measure]
-  ;; key-hash: [4 longs] - the hash of the key
-  ;; key-val: {:key _ :value _ :key-size _ :val-size _}
-  ;; cached-measure: {:count 1 :size-bytes (+ key-size val-size)}
+(declare hamt-assoc* hamt-dissoc*)
 
-  HAMTNode
-  (hamt-lookup [_this lookup-hash _level]
-    (when (= key-hash lookup-hash)
-      (:value key-val)))
+(defn- hamt-lookup*
+  "Look up value-ref by key-hash. Returns val-ref or nil."
+  [dacite-map node-hash key-hash level]
+  (let [node (lookup-node dacite-map node-hash)]
+    (case (node-type node)
+      :hamt/empty nil
 
-  (hamt-assoc [this new-hash new-kv level]
-    (if (= key-hash new-hash)
-      ;; Same key - replace value
-      (->Entry new-hash new-kv (:cached-measure new-kv))
-      ;; Hash collision at this level - need to go deeper or create collision node
-      (let [my-chunk (hash-chunk key-hash level)
-            new-chunk (hash-chunk new-hash level)]
-        (if (= my-chunk new-chunk)
-          ;; Same chunk - recurse deeper
-          (let [deeper (hamt-assoc this new-hash new-kv (inc level))]
-            (->BitmapNode (bit-set 0 my-chunk)
-                          [deeper]
-                          (hamt-measure deeper)))
-          ;; Different chunks - create bitmap node with both
-          (let [bitmap (bit-or (bit-set 0 my-chunk) (bit-set 0 new-chunk))
-                children (if (< my-chunk new-chunk)
-                           [this (->Entry new-hash new-kv (:cached-measure new-kv))]
-                           [(->Entry new-hash new-kv (:cached-measure new-kv)) this])]
-            (->BitmapNode bitmap
-                          (vec children)
-                          (measure-combine cached-measure (:cached-measure new-kv))))))))
+      :hamt/entry
+      (let [{entry-key-hash :key-hash entry-val-ref :val-ref} (node-data node)]
+        (when (= entry-key-hash key-hash)
+          entry-val-ref))
 
-  (hamt-dissoc [this lookup-hash _level]
-    (when-not (= key-hash lookup-hash)
-      this))
+      :hamt/bitmap
+      (let [{:keys [bitmap children]} (node-data node)
+            chunk (hash-chunk key-hash level)
+            bit (bit-set 0 chunk)]
+        (when (not= 0 (bit-and bitmap bit))
+          (let [idx (Long/bitCount (bit-and bitmap (dec bit)))
+                child-hash (nth children idx)]
+            (hamt-lookup* dacite-map child-hash key-hash (inc level))))))))
 
-  (hamt-entries [_this]
-    [[(:key key-val) (:value key-val)]])
+(defn- hamt-assoc*
+  "Associate key with value. Returns [new-map, new-node-hash]."
+  [dacite-map node-hash key-hash key-ref val-ref measure level]
+  (let [node (lookup-node dacite-map node-hash)]
+    (case (node-type node)
+      :hamt/empty
+      (make-entry dacite-map key-hash key-ref val-ref measure)
 
-  (hamt-measure [_this]
-    cached-measure))
+      :hamt/entry
+      (let [existing-key-hash (:key-hash (node-data node))]
+        (if (= existing-key-hash key-hash)
+          ;; Same key - replace
+          (make-entry dacite-map key-hash key-ref val-ref measure)
+          ;; Different key - split into bitmap node
+          (let [my-chunk (hash-chunk existing-key-hash level)
+                new-chunk (hash-chunk key-hash level)]
+            (if (= my-chunk new-chunk)
+              ;; Same chunk - recurse deeper with a single-child bitmap
+              (let [[m1 deeper] (hamt-assoc* dacite-map node-hash key-hash
+                                             key-ref val-ref measure (inc level))
+                    deeper-measure (get-measure m1 deeper)]
+                (make-bitmap m1 (bit-set 0 my-chunk) [deeper] deeper-measure))
+              ;; Different chunks - two-child bitmap
+              (let [[m1 new-entry-h] (make-entry dacite-map key-hash key-ref val-ref measure)
+                    bitmap (bit-or (bit-set 0 my-chunk) (bit-set 0 new-chunk))
+                    children (if (< my-chunk new-chunk)
+                               [node-hash new-entry-h]
+                               [new-entry-h node-hash])
+                    combined-measure (measure-combine
+                                      (:measure (node-data node))
+                                      measure)]
+                (make-bitmap m1 bitmap children combined-measure))))))
 
-(defn make-entry
-  "Create an entry from key and value with their hashes and sizes."
-  [key key-hash key-size value _value-hash value-size]
-  (let [kv {:key key :value value :key-size key-size :val-size value-size}
-        measure {:count 1 :size-bytes (+ key-size value-size)}]
-    (->Entry key-hash kv measure)))
+      :hamt/bitmap
+      (let [{:keys [bitmap children]} (node-data node)
+            chunk (hash-chunk key-hash level)
+            bit (bit-set 0 chunk)
+            idx (Long/bitCount (bit-and bitmap (dec bit)))]
+        (if (not= 0 (bit-and bitmap bit))
+          ;; Child exists - recurse
+          (let [child-hash (nth children idx)
+                child-measure (get-measure dacite-map child-hash)
+                [m1 new-child] (hamt-assoc* dacite-map child-hash key-hash
+                                            key-ref val-ref measure (inc level))
+                new-child-measure (get-measure m1 new-child)
+                new-children (assoc children idx new-child)
+                new-measure (measure-combine
+                             (:measure (node-data node))
+                             (measure-combine
+                              new-child-measure
+                              {:count (- (:count child-measure))
+                               :size-bytes (- (:size-bytes child-measure))}))]
+            (make-bitmap m1 bitmap new-children new-measure))
+          ;; No child - insert new entry
+          (let [[m1 new-entry-h] (make-entry dacite-map key-hash key-ref val-ref measure)
+                new-children (vec (concat (subvec children 0 idx)
+                                          [new-entry-h]
+                                          (subvec children idx)))
+                new-bitmap (bit-or bitmap bit)
+                new-measure (measure-combine (:measure (node-data node)) measure)]
+            (make-bitmap m1 new-bitmap new-children new-measure)))))))
 
-;; =============================================================================
-;; BitmapNode (internal node with sparse children)
-;; =============================================================================
+(defn- hamt-dissoc*
+  "Remove key. Returns [new-map, new-node-hash] or [map, nil] if node becomes empty."
+  [dacite-map node-hash key-hash level]
+  (let [node (lookup-node dacite-map node-hash)]
+    (case (node-type node)
+      :hamt/empty [dacite-map nil]
 
-(declare empty-hamt)
+      :hamt/entry
+      (if (= key-hash (:key-hash (node-data node)))
+        [dacite-map nil]
+        [dacite-map node-hash])
 
-(defrecord BitmapNode [bitmap children cached-measure]
-  ;; bitmap: 32-bit int, bit i set means child at index i exists
-  ;; children: vector of child nodes (compressed - only present children)
-  ;; cached-measure: accumulated measure of all children
+      :hamt/bitmap
+      (let [{:keys [bitmap children]} (node-data node)
+            chunk (hash-chunk key-hash level)
+            bit (bit-set 0 chunk)]
+        (if (= 0 (bit-and bitmap bit))
+          ;; Not present
+          [dacite-map node-hash]
+          (let [idx (Long/bitCount (bit-and bitmap (dec bit)))
+                child-hash (nth children idx)
+                [m1 new-child] (hamt-dissoc* dacite-map child-hash key-hash (inc level))]
+            (if (nil? new-child)
+              ;; Child removed entirely
+              (let [new-bitmap (bit-and-not bitmap bit)
+                    new-children (vec (concat (subvec children 0 idx)
+                                              (subvec children (inc idx))))]
+                (cond
+                  ;; Node now empty
+                  (= 0 new-bitmap)
+                  [m1 nil]
 
-  HAMTNode
-  (hamt-lookup [_this key-hash level]
-    (let [chunk (hash-chunk key-hash level)
-          bit (bit-set 0 chunk)]
-      (when (not= 0 (bit-and bitmap bit))
-        (let [idx (Long/bitCount (bit-and bitmap (dec bit)))
-              child (nth children idx)]
-          (hamt-lookup child key-hash (inc level))))))
+                  ;; Single entry child remaining - collapse
+                  (and (= 1 (Long/bitCount new-bitmap))
+                       (= :hamt/entry (node-type (lookup-node m1 (first new-children)))))
+                  [m1 (first new-children)]
 
-  (hamt-assoc [_this key-hash key-val level]
-    (let [chunk (hash-chunk key-hash level)
-          bit (bit-set 0 chunk)
-          idx (Long/bitCount (bit-and bitmap (dec bit)))]
-      (if (not= 0 (bit-and bitmap bit))
-        ;; Child exists at this position - recurse
-        (let [child (nth children idx)
-              new-child (hamt-assoc child key-hash key-val (inc level))
-              new-children (assoc children idx new-child)
-              measure-diff (measure-combine
-                            (hamt-measure new-child)
-                            {:count (- (:count (hamt-measure child)))
-                             :size-bytes (- (:size-bytes (hamt-measure child)))})]
-          (->BitmapNode bitmap
-                        new-children
-                        (measure-combine cached-measure measure-diff)))
-        ;; No child at this position - insert new entry
-        (let [new-entry (->Entry key-hash key-val (:cached-measure key-val))
-              new-children (vec (concat (subvec children 0 idx)
-                                        [new-entry]
-                                        (subvec children idx)))
-              new-bitmap (bit-or bitmap bit)]
-          (->BitmapNode new-bitmap
-                        new-children
-                        (measure-combine cached-measure (hamt-measure new-entry)))))))
+                  ;; Multiple children remain
+                  :else
+                  (let [child-measure (get-measure dacite-map child-hash)
+                        new-measure (measure-combine
+                                     (:measure (node-data node))
+                                     {:count (- (:count child-measure))
+                                      :size-bytes (- (:size-bytes child-measure))})]
+                    (make-bitmap m1 new-bitmap new-children new-measure))))
+              ;; Child still exists but changed
+              (let [new-children (assoc children idx new-child)
+                    old-child-measure (get-measure dacite-map child-hash)
+                    new-child-measure (get-measure m1 new-child)
+                    new-measure (measure-combine
+                                 (:measure (node-data node))
+                                 (measure-combine
+                                  new-child-measure
+                                  {:count (- (:count old-child-measure))
+                                   :size-bytes (- (:size-bytes old-child-measure))}))]
+                (make-bitmap m1 bitmap new-children new-measure)))))))))
 
-  (hamt-dissoc [this key-hash level]
-    (let [chunk (hash-chunk key-hash level)
-          bit (bit-set 0 chunk)]
-      (if (= 0 (bit-and bitmap bit))
-        ;; Not present
-        this
-        (let [idx (Long/bitCount (bit-and bitmap (dec bit)))
-              child (nth children idx)
-              new-child (hamt-dissoc child key-hash (inc level))]
-          (if (nil? new-child)
-            ;; Child removed entirely
-            (let [new-bitmap (bit-and-not bitmap bit)
-                  new-children (vec (concat (subvec children 0 idx)
-                                            (subvec children (inc idx))))]
-              (cond
-                (= 0 new-bitmap) nil  ;; Node now empty
-                (and (= 1 (Long/bitCount new-bitmap))
-                     (instance? Entry (first new-children)))
-                (first new-children)  ;; Collapse to single entry
-                :else
-                (->BitmapNode new-bitmap
-                              new-children
-                              (measure-combine cached-measure
-                                               {:count (- (:count (hamt-measure child)))
-                                                :size-bytes (- (:size-bytes (hamt-measure child)))}))))
-            ;; Child still exists but may have changed
-            (let [new-children (assoc children idx new-child)]
-              (->BitmapNode bitmap
-                            new-children
-                            (measure-combine cached-measure
-                                             (measure-combine
-                                              (hamt-measure new-child)
-                                              {:count (- (:count (hamt-measure child)))
-                                               :size-bytes (- (:size-bytes (hamt-measure child)))})))))))))
-
-  (hamt-entries [_this]
-    (mapcat hamt-entries children))
-
-  (hamt-measure [_this]
-    cached-measure))
-
-;; =============================================================================
-;; Empty HAMT
-;; =============================================================================
-
-(defrecord EmptyHAMT []
-  HAMTNode
-  (hamt-lookup [_ _ _] nil)
-
-  (hamt-assoc [_ key-hash key-val _level]
-    (->Entry key-hash key-val (:cached-measure key-val)))
-
-  (hamt-dissoc [this _ _] this)
-
-  (hamt-entries [_] [])
-
-  (hamt-measure [_] measure-identity))
-
-(def empty-hamt (->EmptyHAMT))
+(defn- hamt-entries*
+  "Collect all [key-ref val-ref] pairs from a node."
+  [dacite-map node-hash]
+  (let [node (lookup-node dacite-map node-hash)]
+    (case (node-type node)
+      :hamt/empty []
+      :hamt/entry (let [{:keys [key-ref val-ref]} (node-data node)]
+                    [[key-ref val-ref]])
+      :hamt/bitmap (let [{:keys [children]} (node-data node)]
+                     (mapcat #(hamt-entries* dacite-map %) children)))))
 
 ;; =============================================================================
 ;; Public API
 ;; =============================================================================
 
 (defn hamt
-  "Create an empty HAMT."
+  "Create an empty HAMT. Returns [dacite-map, root-hash]."
   []
-  empty-hamt)
+  (make-empty {}))
 
-(defn lookup
-  "Look up a value by key. Returns nil if not found."
-  [m _key key-hash]
-  (hamt-lookup m key-hash 0))
+(defn add-value
+  "Add a value to the dacite-map. Returns [updated-map, value-hash].
+   Use this to add keys and values before inserting into the HAMT."
+  [dacite-map value]
+  (let [h (hash/compute-hash value)]
+    [(assoc dacite-map h value) h]))
 
-(defn insert
-  "Insert a key-value pair. Returns new HAMT."
-  [m key key-hash key-size value _value-hash value-size]
-  (let [kv {:key key :value value :key-size key-size :val-size value-size
-            :cached-measure {:count 1 :size-bytes (+ key-size value-size)}}]
-    (hamt-assoc m key-hash kv 0)))
+(defn assoc-val
+  "Associate a key-ref with a val-ref in the HAMT.
+   Both key and value should already be in the dacite-map via add-value.
+   key-hash is the hash used for HAMT navigation (typically the key's content hash).
+   Returns [new-map, new-root-hash]."
+  [[dacite-map root-hash] key-hash key-ref val-ref]
+  (let [key-value (lookup-node dacite-map key-ref)
+        val-value (lookup-node dacite-map val-ref)
+        key-size (types/dacite-size key-value)
+        val-size (types/dacite-size val-value)
+        measure {:count 1 :size-bytes (+ key-size val-size)}]
+    (hamt-assoc* dacite-map root-hash key-hash key-ref val-ref measure 0)))
 
-(defn delete
-  "Remove a key. Returns new HAMT (or nil if empty)."
-  [m key-hash]
-  (or (hamt-dissoc m key-hash 0) empty-hamt))
+(defn get-val
+  "Look up value-ref by key-hash. Returns the val-ref hash, or nil if not found."
+  [[dacite-map root-hash] key-hash]
+  (let [node (lookup-node dacite-map root-hash)]
+    (case (node-type node)
+      :hamt/empty nil
+
+      :hamt/entry
+      (let [{entry-key-hash :key-hash entry-val-ref :val-ref} (node-data node)]
+        (when (= entry-key-hash key-hash)
+          entry-val-ref))
+
+      :hamt/bitmap
+      (let [{:keys [bitmap children]} (node-data node)
+            chunk (hash-chunk key-hash 0)
+            bit (bit-set 0 chunk)]
+        (when (not= 0 (bit-and bitmap bit))
+          (let [idx (Long/bitCount (bit-and bitmap (dec bit)))
+                child-hash (nth children idx)]
+            (hamt-lookup* dacite-map child-hash key-hash 1)))))))
+
+(defn dissoc-val
+  "Remove key by key-hash. Returns [new-map, new-root-hash]."
+  [[dacite-map root-hash] key-hash]
+  (let [[m new-root] (hamt-dissoc* dacite-map root-hash key-hash 0)]
+    (if (nil? new-root)
+      (make-empty m)
+      [m new-root])))
 
 (defn entries
-  "Return all [key value] pairs."
-  [m]
-  (hamt-entries m))
+  "Return all [key-ref val-ref] pairs as a sequence."
+  [[dacite-map root-hash]]
+  (hamt-entries* dacite-map root-hash))
 
 (defn hamt-count
   "Return the number of entries (O(1) via measure)."
-  [m]
-  (:count (hamt-measure m)))
+  [[dacite-map root-hash]]
+  (:count (get-measure dacite-map root-hash)))
 
 (defn hamt-size-bytes
-  "Return total size in bytes (O(1) via measure)."
-  [m]
-  (:size-bytes (hamt-measure m)))
+  "Return total size in bytes of keys + values (O(1) via measure)."
+  [[dacite-map root-hash]]
+  (:size-bytes (get-measure dacite-map root-hash)))
 
 ;; =============================================================================
-;; Convenience functions with automatic hashing
+;; REPL examples
 ;; =============================================================================
-
-(defn- compute-hash
-  "Compute hash for a value (placeholder - needs proper type dispatch)."
-  [value]
-  (let [bytes (cond
-                (string? value) (.getBytes ^String value "UTF-8")
-                (number? value) (.getBytes (str value) "UTF-8")
-                :else (.getBytes (pr-str value) "UTF-8"))]
-    (hash/sha256 bytes)))
-
-(defn- compute-size
-  "Compute size in bytes for a value."
-  [value]
-  (cond
-    (string? value) (count (.getBytes ^String value "UTF-8"))
-    (number? value) 8
-    :else (count (.getBytes (pr-str value) "UTF-8"))))
-
-(defn assoc-val
-  "Associate key with value, computing hashes automatically."
-  [m key value]
-  (let [key-hash (compute-hash key)
-        key-size (compute-size key)
-        value-hash (compute-hash value)
-        value-size (compute-size value)]
-    (insert m key key-hash key-size value value-hash value-size)))
-
-(defn get-val
-  "Get value for key, computing hash automatically."
-  [m key]
-  (lookup m key (compute-hash key)))
-
-(defn dissoc-val
-  "Remove key, computing hash automatically."
-  [m key]
-  (delete m (compute-hash key)))
 
 (comment
-  ;; Example usage
-  (def m (-> (hamt)
-             (assoc-val "name" "Alice")
-             (assoc-val "age" 30)
-             (assoc-val "city" "Boston")))
+  ;; Create empty HAMT
+  (def h (hamt))
 
-  (get-val m "name")     ;; => "Alice"
-  (get-val m "age")      ;; => 30
-  (hamt-count m)         ;; => 3
-
-  (entries m)
-  ;; => [["name" "Alice"] ["age" 30] ["city" "Boston"]]
-
-  (def m2 (dissoc-val m "age"))
-  (hamt-count m2)        ;; => 2
-  (get-val m2 "age")     ;; => nil
-  )
+  ;; Add values to map first
+  (let [[m0 root] (hamt)
+        [m1 k-ref] (add-value m0 [:string "name"])
+        [m2 v-ref] (add-value m1 [:string "Alice"])
+        key-hash (hash/sha256-str "name")
+        h1 (assoc-val [m2 root] key-hash k-ref v-ref)]
+    (get-val h1 key-hash)      ;; => v-ref
+    (hamt-count h1)             ;; => 1
+    (entries h1)))
