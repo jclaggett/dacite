@@ -32,11 +32,17 @@
 
 (def measure-identity
   "Identity element for measure monoid."
-  {:count 0 :size-bytes 0})
+  {:count 0 :size-bytes 0 :elements-fuse [0 0 0 0]})
 
 (defn- measure-combine [m1 m2]
   {:count (+ (:count m1) (:count m2))
-   :size-bytes (+ (:size-bytes m1) (:size-bytes m2))})
+   :size-bytes (+ (:size-bytes m1) (:size-bytes m2))
+   :elements-fuse (hash/unchecked-fuse (:elements-fuse m1) (:elements-fuse m2))})
+
+(defn- measure-seq
+  "Combine a sequence of measures using the monoid."
+  [measures]
+  (reduce measure-combine measure-identity measures))
 
 ;; =============================================================================
 ;; Hash navigation
@@ -165,9 +171,7 @@
                     children (if (< my-chunk new-chunk)
                                [node-hash new-entry-h]
                                [new-entry-h node-hash])
-                    combined-measure (measure-combine
-                                      (:measure (node-data node))
-                                      measure)]
+                    combined-measure (measure-seq (mapv #(get-measure m1 %) children))]
                 (make-bitmap m1 bitmap children combined-measure))))))
 
       :hamt/bitmap
@@ -178,17 +182,10 @@
         (if (not= 0 (bit-and bitmap bit))
           ;; Child exists - recurse
           (let [child-hash (nth children idx)
-                child-measure (get-measure dacite-map child-hash)
                 [m1 new-child] (hamt-assoc* dacite-map child-hash key-hash
                                             key-ref val-ref measure (inc level))
-                new-child-measure (get-measure m1 new-child)
                 new-children (assoc children idx new-child)
-                new-measure (measure-combine
-                             (:measure (node-data node))
-                             (measure-combine
-                              new-child-measure
-                              {:count (- (:count child-measure))
-                               :size-bytes (- (:size-bytes child-measure))}))]
+                new-measure (measure-seq (mapv #(get-measure m1 %) new-children))]
             (make-bitmap m1 bitmap new-children new-measure))
           ;; No child - insert new entry
           (let [[m1 new-entry-h] (make-entry dacite-map key-hash key-ref val-ref measure)
@@ -196,7 +193,7 @@
                                           [new-entry-h]
                                           (subvec children idx)))
                 new-bitmap (bit-or bitmap bit)
-                new-measure (measure-combine (:measure (node-data node)) measure)]
+                new-measure (measure-seq (mapv #(get-measure m1 %) new-children))]
             (make-bitmap m1 new-bitmap new-children new-measure)))))))
 
 (defn- hamt-dissoc*
@@ -238,22 +235,11 @@
 
                   ;; Multiple children remain
                   :else
-                  (let [child-measure (get-measure dacite-map child-hash)
-                        new-measure (measure-combine
-                                     (:measure (node-data node))
-                                     {:count (- (:count child-measure))
-                                      :size-bytes (- (:size-bytes child-measure))})]
+                  (let [new-measure (measure-seq (mapv #(get-measure m1 %) new-children))]
                     (make-bitmap m1 new-bitmap new-children new-measure))))
               ;; Child still exists but changed
               (let [new-children (assoc children idx new-child)
-                    old-child-measure (get-measure dacite-map child-hash)
-                    new-child-measure (get-measure m1 new-child)
-                    new-measure (measure-combine
-                                 (:measure (node-data node))
-                                 (measure-combine
-                                  new-child-measure
-                                  {:count (- (:count old-child-measure))
-                                   :size-bytes (- (:size-bytes old-child-measure))}))]
+                    new-measure (measure-seq (mapv #(get-measure m1 %) new-children))]
                 (make-bitmap m1 bitmap new-children new-measure)))))))))
 
 (defn- hamt-entries*
@@ -293,7 +279,10 @@
         val-value (lookup-node dacite-map val-ref)
         key-size (types/dacite-size key-value)
         val-size (types/dacite-size val-value)
-        measure {:count 1 :size-bytes (+ key-size val-size)}]
+        entry-fuse (hash/fuse key-ref val-ref)
+        measure {:count 1
+                 :size-bytes (+ key-size val-size)
+                 :elements-fuse entry-fuse}]
     (hamt-assoc* dacite-map root-hash key-hash key-ref val-ref measure 0)))
 
 (defn get-val
@@ -339,6 +328,15 @@
   "Return total size in bytes of keys + values (O(1) via measure)."
   [[dacite-map root-hash]]
   (:size-bytes (get-measure dacite-map root-hash)))
+
+(defn hamt-elements-fuse
+  "Get the fused hash of all entries (O(1) via cached measure).
+   Each entry contributes fuse(key-ref, val-ref), combined left-to-right
+   in HAMT traversal order (ascending key-hash, i.e., sorted by hash).
+   Use with a collection type hash to compute the semantic hash:
+   (fuse collection-type-hash (hamt-elements-fuse h))"
+  [[dacite-map root-hash]]
+  (:elements-fuse (get-measure dacite-map root-hash)))
 
 ;; =============================================================================
 ;; REPL examples

@@ -28,11 +28,12 @@
 ;; =============================================================================
 
 (def measure-identity
-  {:count 0 :size-bytes 0})
+  {:count 0 :size-bytes 0 :elements-fuse [0 0 0 0]})
 
 (defn- measure-combine [m1 m2]
   {:count (+ (:count m1) (:count m2))
-   :size-bytes (+ (:size-bytes m1) (:size-bytes m2))})
+   :size-bytes (+ (:size-bytes m1) (:size-bytes m2))
+   :elements-fuse (hash/unchecked-fuse (:elements-fuse m1) (:elements-fuse m2))})
 
 (defn- measure-seq [measures]
   (reduce measure-combine measure-identity measures))
@@ -76,7 +77,9 @@
 
 (defn- make-leaf [dacite-map value-hash size-bytes]
   (add-node dacite-map [:ft/leaf {:value-hash value-hash
-                                  :measure {:count 1 :size-bytes size-bytes}}]))
+                                  :measure {:count 1
+                                            :size-bytes size-bytes
+                                            :elements-fuse value-hash}}]))
 
 (defn- make-digit [dacite-map child-hashes child-measures]
   (add-node dacite-map [:ft/digit {:children (vec child-hashes)
@@ -408,6 +411,14 @@
   "Get the total size in bytes (O(1) via cached measure)."
   [[dacite-map root-hash]]
   (:size-bytes (get-measure dacite-map root-hash)))
+
+(defn tree-elements-fuse
+  "Get the fused hash of all elements (O(1) via cached measure).
+   This is the running fuse of all leaf value hashes in order.
+   Use with a collection type hash to compute the semantic hash:
+   (fuse collection-type-hash (tree-elements-fuse tree))"
+  [[dacite-map root-hash]]
+  (:elements-fuse (get-measure dacite-map root-hash)))
 
 (defn tree-concat
   "Concatenate two trees. Returns [merged-map, new-root-hash]."

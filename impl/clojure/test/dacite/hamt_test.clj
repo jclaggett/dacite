@@ -276,7 +276,7 @@
 ;; Property tests
 ;; =============================================================================
 
-(def gen-key-str (gen/such-that #(< (count %) 50) gen/string-alphanumeric))
+(def gen-key-str (gen/fmap #(apply str %) (gen/vector gen/char-alphanumeric 0 50)))
 (def gen-val gen/small-integer)
 
 (defspec lookup-after-insert 100
@@ -318,6 +318,52 @@
                                 kvs)
                       expected (into {} kvs)]
                   (every? (fn [[k v]] (= [:i64 v] (get-string-val h k))) expected))))
+
+;; =============================================================================
+;; Semantic hash (elements-fuse)
+;; =============================================================================
+
+(deftest test-elements-fuse-empty
+  (testing "empty HAMT has identity elements-fuse"
+    (is (= [0 0 0 0] (hamt/hamt-elements-fuse (hamt/hamt))))))
+
+(deftest test-elements-fuse-single
+  (testing "single entry's elements-fuse equals fuse(key-ref, val-ref)"
+    (let [[m0 root] (hamt/hamt)
+          [m1 k-ref] (hamt/add-value m0 [:string "name"])
+          [m2 v-ref] (hamt/add-value m1 [:i64 42])
+          key-hash (hash/sha256-str "name")
+          h (hamt/assoc-val [m2 root] key-hash k-ref v-ref)
+          expected (hash/fuse k-ref v-ref)]
+      (is (= expected (hamt/hamt-elements-fuse h))))))
+
+(deftest test-elements-fuse-insertion-order-independent
+  (testing "same key-value pairs → same elements-fuse regardless of insertion order"
+    (let [h1 (-> (hamt/hamt)
+                 (insert-string-kv "a" 1)
+                 (insert-string-kv "b" 2)
+                 (insert-string-kv "c" 3))
+          h2 (-> (hamt/hamt)
+                 (insert-string-kv "c" 3)
+                 (insert-string-kv "a" 1)
+                 (insert-string-kv "b" 2))]
+      (is (= (hamt/hamt-elements-fuse h1) (hamt/hamt-elements-fuse h2))))))
+
+(deftest test-elements-fuse-changes-on-update
+  (testing "updating a value changes elements-fuse"
+    (let [h1 (-> (hamt/hamt)
+                 (insert-string-kv "key" 1))
+          h2 (insert-string-kv h1 "key" 2)]
+      (is (not= (hamt/hamt-elements-fuse h1) (hamt/hamt-elements-fuse h2))))))
+
+(deftest test-elements-fuse-after-delete
+  (testing "delete then re-insert restores elements-fuse"
+    (let [h1 (-> (hamt/hamt)
+                 (insert-string-kv "a" 1)
+                 (insert-string-kv "b" 2))
+          h2 (dissoc-string h1 "b")
+          h3 (insert-string-kv h2 "b" 2)]
+      (is (= (hamt/hamt-elements-fuse h1) (hamt/hamt-elements-fuse h3))))))
 
 (comment
   (clojure.test/run-tests))

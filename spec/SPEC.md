@@ -97,6 +97,33 @@ Properties:
 - **Identity element** — `[0, 0, 0, 0]` is a two-sided identity: fuse(a, 0) = fuse(0, a) = a
 - **Fast** — no hash function calls, just integer arithmetic
 
+### Group Structure (Fuse Inverse)
+
+The fuse operation forms a **group** over `(Z/2^64)^4`. Every hash has a unique two-sided inverse:
+
+```
+inv([a0, a1, a2, a3]) = [a3*a2 - a0, -a1, -a2, -a3]
+```
+
+Such that:
+
+```
+fuse(inv(a), a) = fuse(a, inv(a)) = [0, 0, 0, 0]
+```
+
+All arithmetic is mod 2^64. The inverse costs 1 multiply + 4 negations.
+
+This enables **hash recovery**: given `fused = fuse(a, b)` and knowing `a`, you can recover `b`:
+
+```
+b = fuse(inv(a), fused)
+```
+
+The group structure is useful for:
+- Recovering data hashes from structural hashes (unfusing the type hash)
+- Theoretical analysis of the hash space
+- Potential future optimizations (incremental re-hashing)
+
 ### Low-Entropy Hash Rejection
 
 Fuse **must reject low-entropy inputs and outputs**. A hash is low-entropy when its lower 32 bits are zero in all four words:
@@ -270,23 +297,33 @@ Every node caches a **measure** of its subtree:
 
 ```
 Measure = {
-  count: u64,       // number of leaf elements
-  size_bytes: u64   // total size in bytes of leaf data
+  count: u64,           // number of leaf elements
+  size_bytes: u64,      // total size in bytes of leaf data
+  elements_fuse: Hash   // running fuse of all element hashes
 }
 ```
 
-Measures combine via addition (a monoid):
+Measures combine as a monoid:
 
 ```
 combine(m1, m2) = {
   count: m1.count + m2.count,
-  size_bytes: m1.size_bytes + m2.size_bytes
+  size_bytes: m1.size_bytes + m2.size_bytes,
+  elements_fuse: unchecked_fuse(m1.elements_fuse, m2.elements_fuse)
 }
 
-identity = { count: 0, size_bytes: 0 }
+identity = { count: 0, size_bytes: 0, elements_fuse: [0, 0, 0, 0] }
 ```
 
-The root's measure gives O(1) access to collection length and total size.
+The `elements_fuse` field uses `unchecked_fuse` because the identity element `[0, 0, 0, 0]` is technically low-entropy; this is safe since measures are internal bookkeeping, not security-critical hashes.
+
+For **Finger Tree** leaves, `elements_fuse` equals the value hash of the element. For **HAMT** entries, `elements_fuse` equals `fuse(key_ref, val_ref)`.
+
+The root's measure gives O(1) access to collection length, total size, and **semantic hash**:
+
+```
+semantic_hash = fuse(collection_type_hash, root.measure.elements_fuse)
+```
 
 ### Node Size Constraint
 
@@ -325,7 +362,7 @@ idx = popcount(bitmap & ((1 << chunk) - 1))
 
 ### Accumulated Measure
 
-Same as Finger Tree — every node caches `{count, size_bytes}` covering all entries in its subtree.
+Same as Finger Tree — every node caches `{count, size_bytes, elements_fuse}` covering all entries in its subtree. For HAMT nodes, `elements_fuse` is the running fuse of `fuse(key_ref, val_ref)` for each entry, combined in HAMT traversal order (ascending key hash). This traversal order is deterministic regardless of insertion order, ensuring the semantic hash is insertion-order-independent.
 
 ---
 
@@ -431,7 +468,7 @@ Immutable content-addressed data is ideal for caching:
 - [x] Hash representation — 4 × i64, MSB first
 - [x] Low-entropy check — inputs AND result
 - [x] Storage abstraction — CacheMap wrapping content-addressed store
-- [ ] Semantic hash computation — when/where to compute and store
+- [x] Semantic hash computation — cached in measure monoid via `elements_fuse`
 
 ---
 

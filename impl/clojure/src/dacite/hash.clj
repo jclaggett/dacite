@@ -107,6 +107,27 @@
     result))
 
 ;; =============================================================================
+;; Fuse inverse (group structure)
+;; =============================================================================
+
+(defn fuse-inverse
+  "Compute the inverse of a hash under fuse.
+   
+   fuse(inv(a), a) = fuse(a, inv(a)) = [0, 0, 0, 0]
+   
+   The fuse operation forms a group over (Z/2^64)^4, so every
+   element has a unique two-sided inverse. The formula is:
+   
+   inv([a0, a1, a2, a3]) = [a3*a2 - a0, -a1, -a2, -a3]
+   
+   All arithmetic is mod 2^64 (unchecked)."
+  [[a0 a1 a2 a3]]
+  [(unchecked-subtract (unchecked-multiply a3 a2) a0)
+   (unchecked-negate a1)
+   (unchecked-negate a2)
+   (unchecked-negate a3)])
+
+;; =============================================================================
 ;; Hash/hex conversion
 ;; =============================================================================
 

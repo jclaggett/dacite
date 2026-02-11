@@ -296,5 +296,47 @@
       ;; Elements added left end up reversed
       (is (= (mapv #(vector :i64 %) (reverse (range 40))) (tree-values tree))))))
 
+;; =============================================================================
+;; Semantic hash (elements-fuse)
+;; =============================================================================
+
+(deftest test-elements-fuse-empty
+  (testing "empty tree has identity elements-fuse"
+    (is (= [0 0 0 0] (ft/tree-elements-fuse (ft/finger-tree))))))
+
+(deftest test-elements-fuse-single
+  (testing "single element tree has that element's hash as elements-fuse"
+    (let [[m0 h0] (ft/finger-tree)
+          value [:i64 42]
+          [m1 vh] (ft/add-value m0 value)
+          tree (ft/conj-right [m1 h0] vh)]
+      (is (= vh (ft/tree-elements-fuse tree))))))
+
+(deftest test-elements-fuse-order-matters
+  (testing "different element orders produce different elements-fuse"
+    (let [t1 (ft/from-seq [[:i64 1] [:i64 2] [:i64 3]])
+          t2 (ft/from-seq [[:i64 3] [:i64 2] [:i64 1]])]
+      (is (not= (ft/tree-elements-fuse t1) (ft/tree-elements-fuse t2))))))
+
+(deftest test-elements-fuse-structure-independent
+  (testing "same logical sequence → same elements-fuse regardless of construction"
+    ;; Build same sequence two ways: conj-right vs from-seq
+    (let [values [[:i64 10] [:i64 20] [:i64 30]]
+          t1 (ft/from-seq values)
+          t2 (reduce (fn [[m h] v]
+                       (let [[m' vh] (ft/add-value m v)]
+                         (ft/conj-right [m' h] vh)))
+                     (ft/finger-tree)
+                     values)]
+      (is (= (ft/tree-elements-fuse t1) (ft/tree-elements-fuse t2))))))
+
+(deftest test-elements-fuse-concat
+  (testing "concat produces same fuse as building from full sequence"
+    (let [vs1 (map #(vector :i64 %) (range 5))
+          vs2 (map #(vector :i64 %) (range 5 10))
+          t-full (ft/from-seq (concat vs1 vs2))
+          t-concat (ft/tree-concat (ft/from-seq vs1) (ft/from-seq vs2))]
+      (is (= (ft/tree-elements-fuse t-full) (ft/tree-elements-fuse t-concat))))))
+
 (comment
   (clojure.test/run-tests))

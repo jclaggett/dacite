@@ -308,6 +308,41 @@
           h2 (hash/compute-hash ["i64" 42])]
       (is (not= h1 h2)))))
 
+;; =============================================================================
+;; Fuse inverse (group structure)
+;; =============================================================================
+
+(deftest test-fuse-inverse-basic
+  (testing "fuse(inv(a), a) = identity"
+    (let [a (hash/sha256-str "test")]
+      (is (= [0 0 0 0] (hash/unchecked-fuse (hash/fuse-inverse a) a)))))
+  (testing "fuse(a, inv(a)) = identity"
+    (let [a (hash/sha256-str "test")]
+      (is (= [0 0 0 0] (hash/unchecked-fuse a (hash/fuse-inverse a)))))))
+
+(defspec fuse-inverse-left-identity 100
+  (prop/for-all [s gen/string-alphanumeric]
+                (let [a (hash/sha256-str s)]
+                  (= [0 0 0 0] (hash/unchecked-fuse (hash/fuse-inverse a) a)))))
+
+(defspec fuse-inverse-right-identity 100
+  (prop/for-all [s gen/string-alphanumeric]
+                (let [a (hash/sha256-str s)]
+                  (= [0 0 0 0] (hash/unchecked-fuse a (hash/fuse-inverse a))))))
+
+(defspec fuse-inverse-recovers-b 100
+  (prop/for-all [s1 gen/string-alphanumeric
+                 s2 gen/string-alphanumeric]
+                (let [a (hash/sha256-str s1)
+                      b (hash/sha256-str s2)
+                      fused (hash/unchecked-fuse a b)
+                      recovered (hash/unchecked-fuse (hash/fuse-inverse a) fused)]
+                  (= b recovered))))
+
+(deftest test-fuse-inverse-of-identity
+  (testing "inv([0,0,0,0]) = [0,0,0,0]"
+    (is (= [0 0 0 0] (hash/fuse-inverse [0 0 0 0])))))
+
 (comment
   ;; Run all tests
   (clojure.test/run-tests)
