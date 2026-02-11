@@ -479,6 +479,6 @@ Immutable content-addressed data is ideal for caching:
 ## References
 
 - [Hash Fusing](https://clojurecivitas.github.io/math/hashing/hashfusing.html) — associative non-commutative hash combination
-- [Hash Array Mapped Tries](https://grokipedia.com/wiki/Hash_array_mapped_trie)
-- [Finger Trees](https://grokipedia.com/wiki/Finger_tree)
-- [Content-addressable storage](https://grokipedia.com/wiki/Content-addressable_storage)
+- [Hash Array Mapped Tries](https://grokipedia.com/page/hash_tree_persistent_data_structure)
+- [Finger Trees](https://grokipedia.com/page/Finger_tree)
+- [Content-addressable storage](https://grokipedia.com/page/Content-addressable_storage)
