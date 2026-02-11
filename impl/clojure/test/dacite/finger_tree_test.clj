@@ -4,8 +4,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [dacite.finger-tree :as ft]
-            [dacite.cache :as cache]))
+            [dacite.finger-tree :as ft]))
 
 ;; =============================================================================
 ;; Helpers
@@ -193,22 +192,6 @@
     (let [[_ h1] (ft/from-seq [[:i64 42]])
           [_ h2] (ft/from-seq [[:i64 42]])]
       (is (= h1 h2)))))
-
-;; =============================================================================
-;; Persistence
-;; =============================================================================
-
-(deftest test-persistence
-  (testing "persist! commits all values to cache"
-    (let [cache (cache/memory-cache-manager)
-          tree (ft/from-seq [[:i64 1] [:i64 2] [:i64 3]])
-          [dacite-map _] tree
-          root-hash (ft/persist! cache tree)]
-      ;; All values should now be in the cache
-      (is (= (count dacite-map) (:count (cache/stats cache))))
-      ;; Root hash should be returned
-      (is (vector? root-hash))
-      (is (= 4 (count root-hash))))))
 
 ;; =============================================================================
 ;; Property tests

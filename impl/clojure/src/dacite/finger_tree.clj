@@ -19,8 +19,7 @@
    - [:ft/digit {:children [h...] :measure m}]
    - [:ft/node {:children [h...] :measure m}]
    - [:ft/deep {:left h :spine h :right h :measure m}]"
-  (:require [dacite.cache :as cache]
-            [dacite.hash :as hash]
+  (:require [dacite.hash :as hash]
             [dacite.types :as types]))
 
 ;; =============================================================================
@@ -448,14 +447,6 @@
   [[dacite-map root-hash]]
   (mapv #(get-value-hash dacite-map %) (tree-to-seq* dacite-map root-hash)))
 
-(defn persist!
-  "Persist all values in the dacite-map to a cache manager.
-   Returns the root-hash."
-  [cache [dacite-map root-hash]]
-  (doseq [[_ v] dacite-map]
-    (cache/commit! cache v))
-  root-hash)
-
 ;; =============================================================================
 ;; REPL examples
 ;; =============================================================================
@@ -480,8 +471,4 @@
   ;; Simpler: use from-seq
   (def ft (from-seq [[:i64 1] [:i64 2] [:i64 3]]))
   (tree-count ft)        ;; => 3
-  (tree-first ft)        ;; => hash of [:i64 1]
-
-  ;; Persist to cache when ready
-  (def mgr (cache/memory-cache-manager))
-  (def root (persist! mgr ft)))
+  (tree-first ft))        ;; => hash of [:i64 1]
