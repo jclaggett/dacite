@@ -2,9 +2,9 @@
 
 > Data citing with fused hashing.
 
-**Version:** 0.1.0-draft  
+**Version:** 0.2.0-draft  
 **Status:** Early design  
-**Last updated:** 2026-01-31
+**Last updated:** 2026-02-10
 
 ---
 
@@ -26,7 +26,29 @@ Dacite is a system for **distributed immutable data structures** with content-ad
 
 ---
 
+## Hash Representation
+
+All hashes are 256-bit values represented as **4 × 64-bit words** (most significant first):
+
+```
+hash = [c0, c1, c2, c3]    (4 × i64, big-endian word order)
+```
+
+Word `c0` contains the most mixed bits (from fuse) and is used first for HAMT navigation.
+
+---
+
 ## Hashing Scheme
+
+### Two Kinds of Hash
+
+Dacite uses two related but distinct hashes:
+
+1. **Structural hash** — the content-address of a specific node in a tree. Computed from the node's type and serialized data (which includes child hashes). Used for storage, caching, and lazy fetching.
+
+2. **Semantic hash** — the identity of a collection's logical contents, independent of tree structure. Two collections with the same elements in the same order have the same semantic hash, even if their internal tree shapes differ.
+
+Structural hashes are computed automatically via `compute-hash([type, data])`. Semantic hashes are defined per collection type (see Collection Types).
 
 ### Type Hashes
 
@@ -36,53 +58,17 @@ Types are identified by the SHA-256 hash of their canonical name:
 type_hash = sha256(type_name)
 ```
 
-This allows open extension — anyone can define a type without coordination.
+Type names follow the convention `"dacite.core/<name>"` for built-in types. This allows open extension — anyone can define a type without coordination.
 
 ### Value Hashes
 
-Every value has a hash computed as:
+Every value has a structural hash computed as:
 
 ```
 value_hash = fuse(type_hash, data_hash)
 ```
 
-Where `type_hash` is the SHA-256 of the type name, and `data_hash` differs by value kind:
-
-#### Leaf Values
-
-For leaf values (bounded-size primitives):
-
-```
-data_hash = sha256(to_bytes(value))
-```
-
-#### Serial Collections (Vectors, Strings, Blobs)
-
-For ordered collections, `data_hash` is the sequential fuse of all child value hashes:
-
-```
-data_hash = fuse(child₀_hash, fuse(child₁_hash, fuse(child₂_hash, ...)))
-```
-
-Or equivalently, left-folded:
-
-```
-data_hash = reduce(fuse, child_hashes)
-```
-
-This ensures that collection identity depends on order and contents, but is independent of internal tree structure (critical for Finger Trees).
-
-#### Hash Collections (Maps)
-
-For unordered-by-insertion collections like maps, `data_hash` is the fuse of all entry hashes **sorted by hash value**:
-
-```
-entry_hash = fuse(key_hash, value_hash)
-sorted_entries = sort_by_hash(entries)
-data_hash = reduce(fuse, map(entry_hash, sorted_entries))
-```
-
-Sorting by hash provides deterministic ordering without requiring key comparability.
+Where `type_hash` is `sha256(type_name)` and `data_hash` is `sha256(canonical_bytes(data))`.
 
 ### Fuse Function
 
@@ -108,24 +94,35 @@ Properties:
 - **Deterministic** — same inputs always produce same output
 - **Associative** — fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)
 - **Non-commutative** — fuse(a, b) ≠ fuse(b, a) for a ≠ b
+- **Identity element** — `[0, 0, 0, 0]` is a two-sided identity: fuse(a, 0) = fuse(0, a) = a
 - **Fast** — no hash function calls, just integer arithmetic
 
 ### Low-Entropy Hash Rejection
 
-Hashes with **128 bits of zeros in the lower 32 bits of all four words** must be rejected. Specifically, reject any hash where:
+Fuse **must reject low-entropy inputs and outputs**. A hash is low-entropy when its lower 32 bits are zero in all four words:
 
 ```
-(c0 & 0xFFFFFFFF) == 0 AND
-(c1 & 0xFFFFFFFF) == 0 AND
-(c2 & 0xFFFFFFFF) == 0 AND
-(c3 & 0xFFFFFFFF) == 0
+low_entropy?(h) =
+  (h[0] & 0xFFFFFFFF) == 0 AND
+  (h[1] & 0xFFFFFFFF) == 0 AND
+  (h[2] & 0xFFFFFFFF) == 0 AND
+  (h[3] & 0xFFFFFFFF) == 0
 ```
 
-This detects low-entropy failures that can occur when fusing repeated or degenerate values. See: [Hash Fusing — Detecting Low Entropy Failures](https://clojurecivitas.github.io/math/hashing/hashfusing.html#detecting-low-entropy-failures)
+The checked fuse operation:
 
-When a low-entropy hash is detected, implementations should:
-1. Reject the operation, OR
-2. Inject entropy (e.g., by including position indices in the fuse)
+```
+fuse(a, b):
+  REJECT if low_entropy?(a)     // fail fast on bad input
+  REJECT if low_entropy?(b)     // fail fast on bad input
+  result = unchecked_fuse(a, b)
+  REJECT if low_entropy?(result)
+  return result
+```
+
+An unchecked variant (`unchecked_fuse`) is available for internal use where inputs are known to be valid (e.g., aggregating pre-validated hashes).
+
+See: [Hash Fusing — Detecting Low Entropy Failures](https://clojurecivitas.github.io/math/hashing/hashfusing.html#detecting-low-entropy-failures)
 
 ---
 
@@ -133,14 +130,25 @@ When a low-entropy hash is detected, implementations should:
 
 Leaf values have bounded size. Built-in leaf types:
 
-| Type | Size | Notes |
-|------|------|-------|
-| `null` | 0 bits | Unit type |
-| `bool` | 1 bit | |
-| `i8`, `i16`, `i32`, `i64`, `i128`, `i256` | signed integers | |
-| `u8`, `u16`, `u32`, `u64`, `u128`, `u256` | unsigned integers | |
-| `f32`, `f64` | IEEE 754 floats | |
-| `char` | 1-4 bytes | UTF-8 codepoint |
+| Type | Size (bytes) | Canonical Name | Notes |
+|------|-------------|----------------|-------|
+| `null` | 0 | `dacite.core/null` | Unit type |
+| `bool` | 1 | `dacite.core/bool` | |
+| `i8` | 1 | `dacite.core/i8` | Signed integer |
+| `i16` | 2 | `dacite.core/i16` | |
+| `i32` | 4 | `dacite.core/i32` | |
+| `i64` | 8 | `dacite.core/i64` | |
+| `i128` | 16 | `dacite.core/i128` | |
+| `i256` | 32 | `dacite.core/i256` | |
+| `u8` | 1 | `dacite.core/u8` | Unsigned integer |
+| `u16` | 2 | `dacite.core/u16` | |
+| `u32` | 4 | `dacite.core/u32` | |
+| `u64` | 8 | `dacite.core/u64` | |
+| `u128` | 16 | `dacite.core/u128` | |
+| `u256` | 32 | `dacite.core/u256` | |
+| `f32` | 4 | `dacite.core/f32` | IEEE 754 float |
+| `f64` | 8 | `dacite.core/f64` | |
+| `char` | 1–4 | `dacite.core/char` | UTF-8 encoded codepoint |
 
 ### Leaf Hashing Example
 
@@ -152,15 +160,63 @@ leaf_hash = fuse(type_hash, data_hash)
 
 ---
 
+## Node Types
+
+All values in Dacite are represented as `[type, data]` tuples. Internal tree nodes use the following types:
+
+### Finger Tree Nodes
+
+| Type | Description | Data Fields |
+|------|-------------|-------------|
+| `:ft/empty` | Empty tree | `{:measure m}` |
+| `:ft/leaf` | Single element wrapper | `{:value-hash h, :measure m}` |
+| `:ft/digit` | Finger (1–32 children) | `{:children [h...], :measure m}` |
+| `:ft/node` | Internal node (2–32 children) | `{:children [h...], :measure m}` |
+| `:ft/deep` | Deep tree | `{:left h, :spine h, :right h, :measure m}` |
+
+### HAMT Nodes
+
+| Type | Description | Data Fields |
+|------|-------------|-------------|
+| `:hamt/empty` | Empty map | `{:measure m}` |
+| `:hamt/entry` | Single key-value pair | `{:key-hash h, :key-ref h, :val-ref h, :measure m}` |
+| `:hamt/bitmap` | Sparse internal node | `{:bitmap n, :children [h...], :measure m}` |
+
+All child references (`h`) are hashes pointing to other nodes in the content-addressed store. This ensures every node has bounded size regardless of collection size.
+
+---
+
 ## Collection Types
+
+### Semantic Hashing
+
+Each collection type defines a **semantic hash** that identifies the collection's logical contents independent of tree structure:
+
+#### Serial Collections (Vectors, Strings, Blobs)
+
+```
+semantic_hash = fuse(type_hash, reduce(fuse, element_hashes))
+```
+
+Two vectors with the same elements in the same order have the same semantic hash, regardless of how the internal finger tree is structured.
+
+#### Hash Collections (Maps)
+
+```
+entry_hash = fuse(key_hash, value_hash)
+sorted_entries = sort_by_hash(entries)
+semantic_hash = fuse(type_hash, reduce(fuse, sorted_entry_hashes))
+```
+
+Sorting by hash provides deterministic ordering without requiring key comparability.
 
 ### Strings
 
 A string is a **Finger Tree of UTF-8 chars**.
 
 ```
-type_hash = sha256("dacite.core/string")
-data_hash = reduce(fuse, char_hashes)
+type_name = "dacite.core/string"
+semantic_hash = fuse(sha256(type_name), reduce(fuse, char_hashes))
 ```
 
 ### Blobs
@@ -168,8 +224,8 @@ data_hash = reduce(fuse, char_hashes)
 A blob is a **Finger Tree of bytes**.
 
 ```
-type_hash = sha256("dacite.core/blob")
-data_hash = reduce(fuse, byte_hashes)
+type_name = "dacite.core/blob"
+semantic_hash = fuse(sha256(type_name), reduce(fuse, byte_hashes))
 ```
 
 ### Vectors
@@ -177,8 +233,8 @@ data_hash = reduce(fuse, byte_hashes)
 A vector is a **Finger Tree of arbitrary values**.
 
 ```
-type_hash = sha256("dacite.core/vector")
-data_hash = reduce(fuse, element_hashes)
+type_name = "dacite.core/vector"
+semantic_hash = fuse(sha256(type_name), reduce(fuse, element_hashes))
 ```
 
 ### Maps
@@ -186,13 +242,13 @@ data_hash = reduce(fuse, element_hashes)
 A map is a **HAMT (Hash Array Mapped Trie)** with 32-way branching.
 
 - Keys and values can be any Dacite value
-- Key position determined by key's value_hash
+- Key position determined by key's value hash
 - 5-bit chunks of hash → 32-way branching per level
 - Uses **most significant bits first** (c0's upper bits), which have the most entropy from fuse
 
 ```
-type_hash = sha256("dacite.core/map")
-data_hash = reduce(fuse, sorted_entry_hashes)
+type_name = "dacite.core/map"
+semantic_hash = fuse(sha256(type_name), reduce(fuse, sorted_entry_hashes))
 ```
 
 ---
@@ -203,8 +259,8 @@ Vectors, strings, and blobs are implemented as **Finger Trees** with the followi
 
 ### Branching Factor
 
-- **Internal nodes:** 32-way branching (nodes have 2-32 children)
-- **Fingers (digits):** 8-32 elements per finger
+- **Internal nodes:** 2–32 children
+- **Digits (fingers):** 1–32 elements
 
 This high branching factor keeps trees shallow, minimizing network round trips. A tree of 1M elements is only ~4 levels deep.
 
@@ -215,7 +271,7 @@ Every node caches a **measure** of its subtree:
 ```
 Measure = {
   count: u64,       // number of leaf elements
-  size_bytes: u64   // total size in bytes
+  size_bytes: u64   // total size in bytes of leaf data
 }
 ```
 
@@ -234,28 +290,75 @@ The root's measure gives O(1) access to collection length and total size.
 
 ### Node Size Constraint
 
-Internal nodes target ~1KB maximum size:
-- 32 child hashes × 32 bytes = 1024 bytes
+All nodes have bounded size because children are stored as hashes (32 bytes each), not inline:
+
+- Maximum node payload: 32 children × 32 bytes = 1024 bytes
 - Plus measure metadata (~16 bytes)
 - Fits within typical TCP packet (~1400 bytes MTU)
 
 ---
 
-## Serialization
+## HAMT Structure
 
-*TODO: Define canonical byte serialization for each type.*
+Maps are implemented as **Hash Array Mapped Tries** with the following parameters:
+
+### Hash Navigation
+
+The key's value hash is consumed 5 bits at a time, from most significant to least:
+
+```
+Level 0: bits 255–251 of key_hash (upper 5 bits of c0)
+Level 1: bits 250–246
+...
+Level 51: bits 4–0 of key_hash (lower 5 bits of c3)
+```
+
+Each 5-bit chunk selects one of 32 possible child positions.
+
+### Bitmap Indexing
+
+Internal nodes use a 32-bit bitmap to represent which child positions are occupied. The actual children array is compressed — only occupied positions have entries. The child's index in the array is computed as:
+
+```
+idx = popcount(bitmap & ((1 << chunk) - 1))
+```
+
+### Accumulated Measure
+
+Same as Finger Tree — every node caches `{count, size_bytes}` covering all entries in its subtree.
+
+---
+
+## Storage Layer
+
+### Content-Addressed Store
+
+All nodes are stored and retrieved by their structural hash. The store interface requires only two operations:
+
+```
+commit!(value) → hash    // store a value, return its hash
+lookup(hash) → value     // retrieve a value by hash
+```
+
+Since values are immutable and content-addressed, `commit!` is idempotent — storing the same value twice is equivalent to storing it once. This makes write-through caching safe and semantically pure.
+
+### CacheMap
+
+A CacheMap wraps a content-addressed store as a standard associative map interface:
+
+- `get(hash)` → fetches from store on demand (lazy loading)
+- `assoc(hash, value)` → commits to store immediately (write-through)
+- `merge(cm1, cm2)` → no-op when sharing the same backing store
+
+Data structures (Finger Trees, HAMTs) operate on `[dacite-map, root-hash]` tuples where `dacite-map` can be either a plain in-memory map or a CacheMap. This abstraction enables:
+
+- **Lazy loading** — only nodes actually traversed are fetched
+- **Transparent persistence** — writes flow through to the store
+- **Bounded memory** — not all nodes need to be in memory simultaneously
 
 ---
 
 ## Distribution Model
-
-### Content-Addressed Storage
-
-Every node is stored and retrieved by its hash:
-
-```
-GET /node/{hash} → NodeResponse
-```
 
 ### Adaptive Fetch (Inline Threshold)
 
@@ -296,17 +399,6 @@ InlineResponse {
 - Client controls threshold based on network conditions (mobile vs. datacenter)
 - Default 1KB threshold fits ~1 TCP packet
 
-**Example:**
-```
-# Large vector (1MB) - returns structure
-GET /node/abc123
-→ { kind: "structure", children: [hash1, hash2, ...], measure: {count: 50000, size_bytes: 1048576} }
-
-# Small vector (500 bytes) - returns inline
-GET /node/def456?inline_under=1024
-→ { kind: "inline", leaves: [1, 2, 3, ...], measure: {count: 100, size_bytes: 500} }
-```
-
 ### Sync Protocol
 
 1. Server announces new root hash
@@ -323,27 +415,23 @@ Immutable content-addressed data is ideal for caching:
 
 ---
 
-## Use Cases
+## Serialization
 
-### Configuration Management
-
-- Server maintains configuration as Dacite map
-- Clients lazily fetch only the config paths they use
-- Updates: server announces new root, clients sync diffs
-- Version pinning: client can stick to a known root hash
-
-### (More use cases TBD)
+*TODO: Define canonical byte serialization for each type.*
 
 ---
 
 ## Open Questions
 
 - [ ] Canonical serialization format (CBOR? Custom?)
-- [x] Finger Tree branching factor / node size — 32-way, 8-32 fingers
+- [x] Finger Tree branching factor / node size — 2–32 children, 1–32 digits
 - [ ] Network protocol details (HTTP? Custom?)
 - [ ] Garbage collection / retention policies
 - [ ] Set type? Sorted map?
-- [ ] Leaf type sizes (bool = 1 byte for simplicity)
+- [x] Hash representation — 4 × i64, MSB first
+- [x] Low-entropy check — inputs AND result
+- [x] Storage abstraction — CacheMap wrapping content-addressed store
+- [ ] Semantic hash computation — when/where to compute and store
 
 ---
 
