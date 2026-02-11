@@ -150,26 +150,22 @@ Examples of leaf data:
 
 A **seq** is an ordered collection of references, implemented as a Finger Tree. It is the universal building block for ordered data.
 
-A seq has two hashes:
-- **Structural hash** — content-address of a specific tree node (used for storage/caching)
-- **Semantic hash** — identity of the seq's logical contents, independent of tree shape
-
-The semantic hash is derived from the **accumulated measure** (see Measure Monoid):
+A seq's hash is its **semantic hash**, derived from the accumulated measure:
 
 ```
-semantic_hash = root.measure.elements_fuse
+seq_hash = root.measure.elements_fuse
 ```
 
-Two seqs with the same elements in the same order have the same semantic hash, regardless of internal tree structure.
+Two seqs with the same elements in the same order have the same hash, regardless of internal tree structure. Different tree shapes for the same logical sequence normalize to the same hash in the content-addressed store.
 
 ### Map
 
 A **map** is an unordered collection of key-value pairs, implemented as a HAMT.
 
-Like seq, a map has both structural and semantic hashes. The semantic hash is insertion-order independent because the HAMT traversal order is determined by key hashes (ascending), not insertion order:
+A map's hash is its semantic hash, which is insertion-order independent because the HAMT traversal order is determined by key hashes (ascending):
 
 ```
-semantic_hash = root.measure.elements_fuse
+map_hash = root.measure.elements_fuse
 ```
 
 Where each entry contributes `fuse(key_hash, value_hash)` to the measure.
@@ -258,15 +254,17 @@ All built-in types follow the `seq(type_name, data)` convention:
 
 Seqs and maps are implemented using tree structures. The internal nodes of these trees are **not** user-facing values — they are implementation machinery stored in the content-addressed store.
 
-### Structural Hashing (Internal Nodes)
+### Node Hashing
 
-Internal nodes use `[node_type, data]` tuples with structural hashes:
+Internal nodes are hashed using their type and semantic content:
 
 ```
-structural_hash = fuse(sha256(node_type_name), sha256(canonical_bytes(data)))
+node_hash = fuse(sha256(node_type_name), node.measure.elements_fuse)
 ```
 
-This is distinct from the semantic hash. Structural hashes identify specific tree shapes for storage and caching. Two trees with the same logical contents but different shapes have different structural hashes but the same semantic hash.
+This means nodes with the same type and the same logical elements produce the same hash, regardless of internal tree shape. Different structural arrangements of the same sequence normalize to a single hash in the store. This is correct because nodes with the same elements are functionally interchangeable.
+
+**Collision resistance:** Since leaf hashes are SHA-256 based, the `elements_fuse` chain has ~2^96 birthday-bound collision resistance (from the additive structure of fuse components c1–c3). This is weaker than SHA-256's ~2^128 but astronomically beyond practical attack.
 
 ### Finger Tree Nodes (Seq)
 
