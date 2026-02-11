@@ -43,6 +43,23 @@
     (.array buf)))
 
 ;; =============================================================================
+;; Hash/hex conversion
+;; =============================================================================
+
+(defn hash->hex
+  "Convert hash (4 longs) to 64-char hex string."
+  [h]
+  (let [bytes (longs->bytes h)]
+    (apply str (map #(format "%02x" (bit-and % 0xFF)) bytes))))
+
+(defn hex->hash
+  "Convert 64-char hex string to hash (vector of 4 longs)."
+  [hex]
+  (let [bytes (byte-array (map #(unchecked-byte (Integer/parseInt (apply str %) 16))
+                               (partition 2 hex)))]
+    (bytes->longs bytes)))
+
+;; =============================================================================
 ;; SHA-256 (returns longs - standard hash form)
 ;; =============================================================================
 
@@ -60,6 +77,25 @@
 ;; Fuse (combines two hashes)
 ;; =============================================================================
 
+(defn unchecked-fuse
+  "Fuse two hashes using 4×4 upper triangular matrix.
+   
+   Input: two vectors of 4 longs
+   Output: vector of 4 longs
+   
+   Output ordered so most mixed bits are first (MSB), optimizing for HAMT:
+   c0 = a0 + a3*b2 + b0   ← most bit mixing (used for HAMT navigation)
+   c1 = a1 + b1
+   c2 = a2 + b2
+   c3 = a3 + b3           ← least bit mixing
+   
+   All arithmetic is mod 2^64 (unchecked)."
+  [[a0 a1 a2 a3] [b0 b1 b2 b3]]
+  [(unchecked-add a0 (unchecked-add (unchecked-multiply a3 b2) b0))
+   (unchecked-add a1 b1)
+   (unchecked-add a2 b2)
+   (unchecked-add a3 b3)])
+
 (defn low-entropy?
   "Check if a hash has 128 bits of zeros in the lower 32 bits of all four words.
    Such hashes indicate low-entropy input and should be rejected.
@@ -71,17 +107,6 @@
        (map #(bit-and 0xFFFFFFFF %))
        (every? zero?)))
 
-(defn unchecked-fuse
-  "Fuse two hashes without checking for low-entropy result.
-   
-   Input: two vectors of 4 longs
-   Output: vector of 4 longs"
-  [[a0 a1 a2 a3] [b0 b1 b2 b3]]
-  [(unchecked-add a0 (unchecked-add (unchecked-multiply a3 b2) b0))
-   (unchecked-add a1 b1)
-   (unchecked-add a2 b2)
-   (unchecked-add a3 b3)])
-
 (defn fuse
   "Fuse two hashes using 4×4 upper triangular matrix.
    
@@ -90,7 +115,7 @@
    
    Output ordered so most mixed bits are first (MSB), optimizing for HAMT:
    c0 = a0 + a3*b2 + b0   ← most bit mixing (used for HAMT navigation)
-   c1 = a1 + b1  
+   c1 = a1 + b1
    c2 = a2 + b2
    c3 = a3 + b3           ← least bit mixing
    
@@ -126,23 +151,6 @@
    (unchecked-negate a1)
    (unchecked-negate a2)
    (unchecked-negate a3)])
-
-;; =============================================================================
-;; Hash/hex conversion
-;; =============================================================================
-
-(defn hash->hex
-  "Convert hash (4 longs) to 64-char hex string."
-  [h]
-  (let [bytes (longs->bytes h)]
-    (apply str (map #(format "%02x" (bit-and % 0xFF)) bytes))))
-
-(defn hex->hash
-  "Convert 64-char hex string to hash (vector of 4 longs)."
-  [hex]
-  (let [bytes (byte-array (map #(unchecked-byte (Integer/parseInt (apply str %) 16))
-                               (partition 2 hex)))]
-    (bytes->longs bytes)))
 
 ;; =============================================================================
 ;; Dacite value hashing
