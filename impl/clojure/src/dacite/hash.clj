@@ -152,6 +152,16 @@
    (unchecked-negate a2)
    (unchecked-negate a3)])
 
+(defn unfuse
+  "Remove b's contribution from a fused hash.
+   
+   unfuse(fuse(a, b), b) = a
+   
+   Equivalent to fuse(a, inv(b)). Useful for recovering one
+   component when you know the fused result and the other input."
+  [a b]
+  (unchecked-fuse a (fuse-inverse b)))
+
 ;; =============================================================================
 ;; Dacite value hashing
 ;; =============================================================================

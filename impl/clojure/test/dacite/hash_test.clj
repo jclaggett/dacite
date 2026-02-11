@@ -343,6 +343,30 @@
   (testing "inv([0,0,0,0]) = [0,0,0,0]"
     (is (= [0 0 0 0] (hash/fuse-inverse [0 0 0 0])))))
 
+;; =============================================================================
+;; Unfuse
+;; =============================================================================
+
+(deftest test-unfuse-basic
+  (testing "unfuse(fuse(a, b), b) = a"
+    (let [a (hash/sha256-str "hello")
+          b (hash/sha256-str "world")
+          fused (hash/unchecked-fuse a b)]
+      (is (= a (hash/unfuse fused b)))))
+  (testing "unfuse from the left: fuse(inv(a), fuse(a, b)) = b"
+    (let [a (hash/sha256-str "hello")
+          b (hash/sha256-str "world")
+          fused (hash/unchecked-fuse a b)]
+      (is (= b (hash/unchecked-fuse (hash/fuse-inverse a) fused))))))
+
+(defspec unfuse-recovers-a 100
+  (prop/for-all [s1 gen/string-alphanumeric
+                 s2 gen/string-alphanumeric]
+                (let [a (hash/sha256-str s1)
+                      b (hash/sha256-str s2)
+                      fused (hash/unchecked-fuse a b)]
+                  (= a (hash/unfuse fused b)))))
+
 (comment
   ;; Run all tests
   (clojure.test/run-tests)
