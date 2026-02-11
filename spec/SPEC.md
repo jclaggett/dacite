@@ -2,9 +2,9 @@
 
 > Data citing with fused hashing.
 
-**Version:** 0.2.0-draft  
+**Version:** 0.3.0-draft  
 **Status:** Early design  
-**Last updated:** 2026-02-10
+**Last updated:** 2026-02-11
 
 ---
 
@@ -19,10 +19,11 @@ Dacite is a system for **distributed immutable data structures** with content-ad
 
 ## Design Principles
 
-1. **Any value can be a key or value** (Clojure philosophy)
-2. **Open type system** — new types can be added without a central registry
+1. **Types are data** — types are not a separate concept; they are values in the data model
+2. **Three primitives** — leaf, seq, map; everything else is built from these
 3. **Content-addressed** — every value has a 256-bit hash identity
 4. **Language-agnostic** — spec defines the format, not the implementation
+5. **Open type system** — new types require no central registry; a type name is just a seq of chars
 
 ---
 
@@ -38,39 +39,7 @@ Word `c0` contains the most mixed bits (from fuse) and is used first for HAMT na
 
 ---
 
-## Hashing Scheme
-
-### Two Kinds of Hash
-
-Dacite uses two related but distinct hashes:
-
-1. **Structural hash** — the content-address of a specific node in a tree. Computed from the node's type and serialized data (which includes child hashes). Used for storage, caching, and lazy fetching.
-
-2. **Semantic hash** — the identity of a collection's logical contents, independent of tree structure. Two collections with the same elements in the same order have the same semantic hash, even if their internal tree shapes differ.
-
-Structural hashes are computed automatically via `compute-hash([type, data])`. Semantic hashes are defined per collection type (see Collection Types).
-
-### Type Hashes
-
-Types are identified by the SHA-256 hash of their canonical name:
-
-```
-type_hash = sha256(type_name)
-```
-
-Type names follow the convention `"dacite.core/<name>"` for built-in types. This allows open extension — anyone can define a type without coordination.
-
-### Value Hashes
-
-Every value has a structural hash computed as:
-
-```
-value_hash = fuse(type_hash, data_hash)
-```
-
-Where `type_hash` is `sha256(type_name)` and `data_hash` is `sha256(canonical_bytes(data))`.
-
-### Fuse Function
+## Fuse Function
 
 Fuse combines two 256-bit hashes using a 4×4 upper triangular matrix over 64-bit cells.
 
@@ -97,7 +66,7 @@ Properties:
 - **Identity element** — `[0, 0, 0, 0]` is a two-sided identity: fuse(a, 0) = fuse(0, a) = a
 - **Fast** — no hash function calls, just integer arithmetic
 
-### Group Structure (Fuse Inverse)
+### Group Structure (Inverse and Unfuse)
 
 The fuse operation forms a **group** over `(Z/2^64)^4`. Every hash has a unique two-sided inverse:
 
@@ -113,16 +82,18 @@ fuse(inv(a), a) = fuse(a, inv(a)) = [0, 0, 0, 0]
 
 All arithmetic is mod 2^64. The inverse costs 1 multiply + 4 negations.
 
-This enables **hash recovery**: given `fused = fuse(a, b)` and knowing `a`, you can recover `b`:
+**Unfuse** removes a known component from a fused hash:
 
 ```
-b = fuse(inv(a), fused)
+unfuse(fused, b) = fuse(fused, inv(b))
 ```
 
-The group structure is useful for:
-- Recovering data hashes from structural hashes (unfusing the type hash)
-- Theoretical analysis of the hash space
-- Potential future optimizations (incremental re-hashing)
+Given `fused = fuse(a, b)`, then `unfuse(fused, b) = a`. To strip from the left instead: `fuse(inv(a), fused) = b`.
+
+The group structure enables:
+- **Cross-type equality** — strip type hashes to compare raw content (see Typed Values)
+- **Hash recovery** — recover one component of a fused pair when the other is known
+- **Incremental re-hashing** — update a fused chain without recomputing from scratch
 
 ### Low-Entropy Hash Rejection
 
@@ -140,160 +111,186 @@ The checked fuse operation:
 
 ```
 fuse(a, b):
-  REJECT if low_entropy?(a)     // fail fast on bad input
-  REJECT if low_entropy?(b)     // fail fast on bad input
+  REJECT if low_entropy?(a)
+  REJECT if low_entropy?(b)
   result = unchecked_fuse(a, b)
   REJECT if low_entropy?(result)
   return result
 ```
 
-An unchecked variant (`unchecked_fuse`) is available for internal use where inputs are known to be valid (e.g., aggregating pre-validated hashes).
+An unchecked variant (`unchecked_fuse`) is available for internal use where inputs are known to be valid (e.g., combining measures).
 
 See: [Hash Fusing — Detecting Low Entropy Failures](https://clojurecivitas.github.io/math/hashing/hashfusing.html#detecting-low-entropy-failures)
 
 ---
 
-## Leaf Types
+## Primitives
 
-Leaf values have bounded size. Built-in leaf types:
+Dacite has exactly **three primitive kinds**. Everything in the system is built from these:
 
-| Type | Size (bytes) | Canonical Name | Notes |
-|------|-------------|----------------|-------|
-| `null` | 0 | `dacite.core/null` | Unit type |
-| `bool` | 1 | `dacite.core/bool` | |
-| `i8` | 1 | `dacite.core/i8` | Signed integer |
-| `i16` | 2 | `dacite.core/i16` | |
-| `i32` | 4 | `dacite.core/i32` | |
-| `i64` | 8 | `dacite.core/i64` | |
-| `i128` | 16 | `dacite.core/i128` | |
-| `i256` | 32 | `dacite.core/i256` | |
-| `u8` | 1 | `dacite.core/u8` | Unsigned integer |
-| `u16` | 2 | `dacite.core/u16` | |
-| `u32` | 4 | `dacite.core/u32` | |
-| `u64` | 8 | `dacite.core/u64` | |
-| `u128` | 16 | `dacite.core/u128` | |
-| `u256` | 32 | `dacite.core/u256` | |
-| `f32` | 4 | `dacite.core/f32` | IEEE 754 float |
-| `f64` | 8 | `dacite.core/f64` | |
-| `char` | 1–4 | `dacite.core/char` | UTF-8 encoded codepoint |
+### Leaf
 
-### Leaf Hashing Example
+A **leaf** is an atomic, bounded-size value. It is the only primitive that contains raw data (bytes) rather than references to other values.
 
 ```
-type_hash = sha256("dacite.core/i64")
-data_hash = sha256(to_bytes(42))
-leaf_hash = fuse(type_hash, data_hash)
+leaf_hash = sha256(canonical_bytes)
 ```
+
+Leaves are **untyped** at the primitive level. A byte with value 97 and a char 'a' may be the same leaf (same bytes, same hash). Types give meaning to leaves (see Typed Values).
+
+Examples of leaf data:
+- A single byte (0–255)
+- A UTF-8 encoded character (1–4 bytes)
+- A big-endian integer (1–32 bytes depending on width)
+- An IEEE 754 float (4 or 8 bytes)
+- A boolean (1 byte: 0x00 or 0x01)
+- Null (0 bytes)
+
+### Seq
+
+A **seq** is an ordered collection of references, implemented as a Finger Tree. It is the universal building block for ordered data.
+
+A seq has two hashes:
+- **Structural hash** — content-address of a specific tree node (used for storage/caching)
+- **Semantic hash** — identity of the seq's logical contents, independent of tree shape
+
+The semantic hash is derived from the **accumulated measure** (see Measure Monoid):
+
+```
+semantic_hash = root.measure.elements_fuse
+```
+
+Two seqs with the same elements in the same order have the same semantic hash, regardless of internal tree structure.
+
+### Map
+
+A **map** is an unordered collection of key-value pairs, implemented as a HAMT.
+
+Like seq, a map has both structural and semantic hashes. The semantic hash is insertion-order independent because the HAMT traversal order is determined by key hashes (ascending), not insertion order:
+
+```
+semantic_hash = root.measure.elements_fuse
+```
+
+Where each entry contributes `fuse(key_hash, value_hash)` to the measure.
 
 ---
 
-## Node Types
+## Typed Values
 
-All values in Dacite are represented as `[type, data]` tuples. Internal tree nodes use the following types:
+### Convention
 
-### Finger Tree Nodes
+A **typed value** is a 2-element seq:
 
-| Type | Description | Data Fields |
-|------|-------------|-------------|
-| `:ft/empty` | Empty tree | `{:measure m}` |
-| `:ft/leaf` | Single element wrapper | `{:value-hash h, :measure m}` |
-| `:ft/digit` | Finger (1–32 children) | `{:children [h...], :measure m}` |
-| `:ft/node` | Internal node (2–32 children) | `{:children [h...], :measure m}` |
-| `:ft/deep` | Deep tree | `{:left h, :spine h, :right h, :measure m}` |
+```
+typed_value = seq(type_name, data)
+```
 
-### HAMT Nodes
+Where:
+- **Position 0** — the type name (a seq of char leaves)
+- **Position 1** — the data (any primitive: leaf, seq, or map)
 
-| Type | Description | Data Fields |
-|------|-------------|-------------|
-| `:hamt/empty` | Empty map | `{:measure m}` |
-| `:hamt/entry` | Single key-value pair | `{:key-hash h, :key-ref h, :val-ref h, :measure m}` |
-| `:hamt/bitmap` | Sparse internal node | `{:bitmap n, :children [h...], :measure m}` |
+This is a structural convention, not enforced by the storage layer. The system treats typed values as ordinary seqs; the "typed" interpretation is applied by consumers.
 
-All child references (`h`) are hashes pointing to other nodes in the content-addressed store. This ensures every node has bounded size regardless of collection size.
+### Type Names
+
+A type name is an **untyped seq of char leaves**:
+
+```
+type_name("string") = seq('s', 't', 'r', 'i', 'n', 'g')
+```
+
+Each character is a raw leaf (UTF-8 bytes). The type name's hash is the seq's semantic hash (elements-fuse of its char leaf hashes).
+
+Type names are self-documenting: given a typed value, read position 0 to discover its type. No external registry needed.
+
+Convention for built-in types: bare names (e.g., `"string"`, `"i64"`, `"vector"`). User-defined types should use namespaced names (e.g., `"myapp/user"`) to avoid collisions.
+
+### Semantic Hash of Typed Values
+
+The semantic hash of a typed value is its seq's elements-fuse:
+
+```
+typed_hash = fuse(h(type_name), h(data))
+```
+
+This is just the normal seq semantic hash — the type name and data are the two elements.
+
+### Cross-Type Equality
+
+Two typed values with different types but the same underlying data can be compared in **O(1)** by stripping the type name hash from the left:
+
+```
+content_hash(typed_value) = fuse(inv(h(type_name)), typed_hash)
+```
+
+Example: a string `"abc"` and a vector of chars `['a', 'b', 'c']`:
+
+```
+string_content = fuse(inv(h("string")), string_hash)
+vector_content = fuse(inv(h("vector")), vector_hash)
+
+string_content == vector_content   // true — same underlying data
+```
+
+This works because both have the same data seq (a seq of char leaves), and the group structure of fuse allows cleanly removing the type prefix.
+
+### Built-in Types
+
+All built-in types follow the `seq(type_name, data)` convention:
+
+| Type Name | Data | Description |
+|-----------|------|-------------|
+| `"null"` | null leaf (0 bytes) | Unit type |
+| `"bool"` | 1-byte leaf | Boolean |
+| `"i8"` … `"i256"` | 1–32 byte leaf (big-endian signed) | Signed integers |
+| `"u8"` … `"u256"` | 1–32 byte leaf (big-endian unsigned) | Unsigned integers |
+| `"f32"`, `"f64"` | 4 or 8 byte leaf (IEEE 754) | Floating point |
+| `"char"` | 1–4 byte leaf (UTF-8) | Unicode character |
+| `"string"` | seq of char leaves | UTF-8 string |
+| `"blob"` | seq of byte leaves | Binary data |
+| `"vector"` | seq of arbitrary values | Ordered collection |
+| `"map"` | map (HAMT) | Key-value collection |
 
 ---
 
-## Collection Types
+## Internal Structures
 
-### Semantic Hashing
+Seqs and maps are implemented using tree structures. The internal nodes of these trees are **not** user-facing values — they are implementation machinery stored in the content-addressed store.
 
-Each collection type defines a **semantic hash** that identifies the collection's logical contents independent of tree structure:
+### Structural Hashing (Internal Nodes)
 
-#### Serial Collections (Vectors, Strings, Blobs)
-
-```
-semantic_hash = fuse(type_hash, reduce(fuse, element_hashes))
-```
-
-Two vectors with the same elements in the same order have the same semantic hash, regardless of how the internal finger tree is structured.
-
-#### Hash Collections (Maps)
+Internal nodes use `[node_type, data]` tuples with structural hashes:
 
 ```
-entry_hash = fuse(key_hash, value_hash)
-sorted_entries = sort_by_hash(entries)
-semantic_hash = fuse(type_hash, reduce(fuse, sorted_entry_hashes))
+structural_hash = fuse(sha256(node_type_name), sha256(canonical_bytes(data)))
 ```
 
-Sorting by hash provides deterministic ordering without requiring key comparability.
+This is distinct from the semantic hash. Structural hashes identify specific tree shapes for storage and caching. Two trees with the same logical contents but different shapes have different structural hashes but the same semantic hash.
 
-### Strings
+### Finger Tree Nodes (Seq)
 
-A string is a **Finger Tree of UTF-8 chars**.
+| Node Type | Description | Data Fields |
+|-----------|-------------|-------------|
+| `:ft/empty` | Empty seq | `{measure}` |
+| `:ft/leaf` | Single element wrapper | `{value_hash, measure}` |
+| `:ft/digit` | Finger (1–32 children) | `{children: [hash...], measure}` |
+| `:ft/node` | Internal node (2–32 children) | `{children: [hash...], measure}` |
+| `:ft/deep` | Deep tree | `{left, spine, right, measure}` |
 
-```
-type_name = "dacite.core/string"
-semantic_hash = fuse(sha256(type_name), reduce(fuse, char_hashes))
-```
+### HAMT Nodes (Map)
 
-### Blobs
+| Node Type | Description | Data Fields |
+|-----------|-------------|-------------|
+| `:hamt/empty` | Empty map | `{measure}` |
+| `:hamt/entry` | Single key-value pair | `{key_hash, key_ref, val_ref, measure}` |
+| `:hamt/bitmap` | Sparse internal node | `{bitmap, children: [hash...], measure}` |
 
-A blob is a **Finger Tree of bytes**.
+All child references are hashes pointing to other nodes in the content-addressed store. This ensures every node has bounded size regardless of collection size.
 
-```
-type_name = "dacite.core/blob"
-semantic_hash = fuse(sha256(type_name), reduce(fuse, byte_hashes))
-```
+### Measure Monoid
 
-### Vectors
-
-A vector is a **Finger Tree of arbitrary values**.
-
-```
-type_name = "dacite.core/vector"
-semantic_hash = fuse(sha256(type_name), reduce(fuse, element_hashes))
-```
-
-### Maps
-
-A map is a **HAMT (Hash Array Mapped Trie)** with 32-way branching.
-
-- Keys and values can be any Dacite value
-- Key position determined by key's value hash
-- 5-bit chunks of hash → 32-way branching per level
-- Uses **most significant bits first** (c0's upper bits), which have the most entropy from fuse
-
-```
-type_name = "dacite.core/map"
-semantic_hash = fuse(sha256(type_name), reduce(fuse, sorted_entry_hashes))
-```
-
----
-
-## Finger Tree Structure
-
-Vectors, strings, and blobs are implemented as **Finger Trees** with the following parameters:
-
-### Branching Factor
-
-- **Internal nodes:** 2–32 children
-- **Digits (fingers):** 1–32 elements
-
-This high branching factor keeps trees shallow, minimizing network round trips. A tree of 1M elements is only ~4 levels deep.
-
-### Accumulated Measure
-
-Every node caches a **measure** of its subtree:
+Every internal node caches a **measure** of its subtree:
 
 ```
 Measure = {
@@ -315,33 +312,38 @@ combine(m1, m2) = {
 identity = { count: 0, size_bytes: 0, elements_fuse: [0, 0, 0, 0] }
 ```
 
-The `elements_fuse` field uses `unchecked_fuse` because the identity element `[0, 0, 0, 0]` is technically low-entropy; this is safe since measures are internal bookkeeping, not security-critical hashes.
+The `elements_fuse` field uses `unchecked_fuse` because the identity element `[0, 0, 0, 0]` is technically low-entropy; this is safe since measures are internal bookkeeping.
 
-For **Finger Tree** leaves, `elements_fuse` equals the value hash of the element. For **HAMT** entries, `elements_fuse` equals `fuse(key_ref, val_ref)`.
+For **seq leaves**, `elements_fuse` equals the element's hash. For **map entries**, `elements_fuse` equals `fuse(key_ref, val_ref)`.
 
-The root's measure gives O(1) access to collection length, total size, and **semantic hash**:
+The root's measure gives **O(1)** access to count, total size, and semantic hash.
 
-```
-semantic_hash = fuse(collection_type_hash, root.measure.elements_fuse)
-```
+---
+
+## Finger Tree Parameters
+
+### Branching Factor
+
+- **Internal nodes:** 2–32 children
+- **Digits (fingers):** 1–32 elements
+
+This high branching factor keeps trees shallow, minimizing network round trips. A tree of 1M elements is only ~4 levels deep.
 
 ### Node Size Constraint
 
 All nodes have bounded size because children are stored as hashes (32 bytes each), not inline:
 
 - Maximum node payload: 32 children × 32 bytes = 1024 bytes
-- Plus measure metadata (~16 bytes)
+- Plus measure metadata (~48 bytes with elements_fuse)
 - Fits within typical TCP packet (~1400 bytes MTU)
 
 ---
 
-## HAMT Structure
-
-Maps are implemented as **Hash Array Mapped Tries** with the following parameters:
+## HAMT Parameters
 
 ### Hash Navigation
 
-The key's value hash is consumed 5 bits at a time, from most significant to least:
+The key's hash is consumed 5 bits at a time, from most significant to least:
 
 ```
 Level 0: bits 255–251 of key_hash (upper 5 bits of c0)
@@ -354,15 +356,15 @@ Each 5-bit chunk selects one of 32 possible child positions.
 
 ### Bitmap Indexing
 
-Internal nodes use a 32-bit bitmap to represent which child positions are occupied. The actual children array is compressed — only occupied positions have entries. The child's index in the array is computed as:
+Internal nodes use a 32-bit bitmap to represent which child positions are occupied. The actual children array is compressed — only occupied positions have entries:
 
 ```
 idx = popcount(bitmap & ((1 << chunk) - 1))
 ```
 
-### Accumulated Measure
+### Traversal Order
 
-Same as Finger Tree — every node caches `{count, size_bytes, elements_fuse}` covering all entries in its subtree. For HAMT nodes, `elements_fuse` is the running fuse of `fuse(key_ref, val_ref)` for each entry, combined in HAMT traversal order (ascending key hash). This traversal order is deterministic regardless of insertion order, ensuring the semantic hash is insertion-order-independent.
+HAMT traversal visits children in bitmap order (ascending chunk index), which corresponds to ascending key hash order. This makes `elements_fuse` deterministic regardless of insertion order.
 
 ---
 
@@ -370,14 +372,14 @@ Same as Finger Tree — every node caches `{count, size_bytes, elements_fuse}` c
 
 ### Content-Addressed Store
 
-All nodes are stored and retrieved by their structural hash. The store interface requires only two operations:
+All nodes are stored and retrieved by their structural hash:
 
 ```
 commit!(value) → hash    // store a value, return its hash
 lookup(hash) → value     // retrieve a value by hash
 ```
 
-Since values are immutable and content-addressed, `commit!` is idempotent — storing the same value twice is equivalent to storing it once. This makes write-through caching safe and semantically pure.
+Since values are immutable and content-addressed, `commit!` is idempotent.
 
 ### CacheMap
 
@@ -387,7 +389,7 @@ A CacheMap wraps a content-addressed store as a standard associative map interfa
 - `assoc(hash, value)` → commits to store immediately (write-through)
 - `merge(cm1, cm2)` → no-op when sharing the same backing store
 
-Data structures (Finger Trees, HAMTs) operate on `[dacite-map, root-hash]` tuples where `dacite-map` can be either a plain in-memory map or a CacheMap. This abstraction enables:
+Data structures operate on `[dacite-map, root-hash]` tuples where `dacite-map` can be either a plain in-memory map or a CacheMap. This abstraction enables:
 
 - **Lazy loading** — only nodes actually traversed are fetched
 - **Transparent persistence** — writes flow through to the store
@@ -399,14 +401,12 @@ Data structures (Finger Trees, HAMTs) operate on `[dacite-map, root-hash]` tuple
 
 ### Adaptive Fetch (Inline Threshold)
 
-To minimize round trips, the server uses the node's accumulated `size_bytes` to decide the response format:
+The server uses the node's accumulated `size_bytes` to decide the response format:
 
 **Request:**
 ```
 GET /node/{hash}?inline_under={bytes}
 ```
-
-- `inline_under`: Size threshold in bytes (client-specified, server default: 1024)
 
 **Response modes:**
 
@@ -414,7 +414,6 @@ If `node.measure.size_bytes > inline_under`:
 ```
 StructureResponse {
   kind: "structure",
-  type_hash: Hash,
   children: [Hash],       // hashes only, client fetches lazily
   measure: Measure
 }
@@ -424,17 +423,12 @@ If `node.measure.size_bytes <= inline_under`:
 ```
 InlineResponse {
   kind: "inline",
-  type_hash: Hash,
   leaves: [Value],        // all leaf values, fully materialized
   measure: Measure
 }
 ```
 
-**Rationale:**
-- Large subtrees: return structure, let client fetch what it needs
-- Small subtrees: inline everything, avoid multiple round trips
-- Client controls threshold based on network conditions (mobile vs. datacenter)
-- Default 1KB threshold fits ~1 TCP packet
+Default threshold: 1024 bytes (~1 TCP packet). Client controls threshold based on network conditions.
 
 ### Sync Protocol
 
@@ -454,21 +448,23 @@ Immutable content-addressed data is ideal for caching:
 
 ## Serialization
 
-*TODO: Define canonical byte serialization for each type.*
+*TODO: Define canonical byte serialization for each primitive kind.*
 
 ---
 
 ## Open Questions
 
 - [ ] Canonical serialization format (CBOR? Custom?)
-- [x] Finger Tree branching factor / node size — 2–32 children, 1–32 digits
 - [ ] Network protocol details (HTTP? Custom?)
 - [ ] Garbage collection / retention policies
 - [ ] Set type? Sorted map?
+- [ ] Leaf size limits — maximum bytes for a single leaf?
+- [x] Finger Tree branching factor / node size — 2–32 children, 1–32 digits
 - [x] Hash representation — 4 × i64, MSB first
 - [x] Low-entropy check — inputs AND result
 - [x] Storage abstraction — CacheMap wrapping content-addressed store
 - [x] Semantic hash computation — cached in measure monoid via `elements_fuse`
+- [x] Type system — types are data; typed values are `seq(type_name, data)`
 
 ---
 
