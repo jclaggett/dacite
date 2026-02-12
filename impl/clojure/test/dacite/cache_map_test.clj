@@ -17,7 +17,7 @@
 (defn commit!
   "Commit a value to a CacheMap. Returns hash."
   [m value]
-  (let [h (hash/compute-hash value)]
+  (let [h (hash/typed-value-hash value)]
     (.assoc ^dacite.cache_map.CacheMap m h value)
     h))
 
@@ -36,7 +36,7 @@
   (testing "assoc commits to cache, get retrieves"
     (let [m (make-cm)
           value [:i64 42]
-          h (hash/compute-hash value)
+          h (hash/typed-value-hash value)
           m' (assoc m h value)]
       ;; assoc returns the same CacheMap (write-through)
       (is (identical? m m'))
@@ -55,7 +55,7 @@
   (testing "containsKey works"
     (let [m (make-cm)
           value [:i64 42]
-          h (hash/compute-hash value)]
+          h (hash/typed-value-hash value)]
       (is (not (contains? m h)))
       (commit! m value)
       (is (contains? m h)))))
@@ -77,7 +77,7 @@
       (is (= 100 (count m)))
       (doseq [i (range 100)]
         (let [v [:i64 i]
-              h (hash/compute-hash v)]
+              h (hash/typed-value-hash v)]
           (is (= v (get m h))))))))
 
 (deftest test-merge
@@ -121,7 +121,7 @@
   (testing "cons with [k v] vector"
     (let [m (make-cm)
           value [:i64 99]
-          h (hash/compute-hash value)
+          h (hash/typed-value-hash value)
           m' (conj m [h value])]
       (is (identical? m m'))
       (is (= value (get m h))))))
@@ -130,7 +130,7 @@
   (testing "cons with MapEntry"
     (let [m (make-cm)
           value [:i64 77]
-          h (hash/compute-hash value)
+          h (hash/typed-value-hash value)
           entry (clojure.lang.MapEntry/create h value)
           m' (conj m entry)]
       (is (identical? m m'))
@@ -140,7 +140,7 @@
   (testing "merge with a regular Clojure map"
     (let [m (make-cm)
           value [:i64 55]
-          h (hash/compute-hash value)
+          h (hash/typed-value-hash value)
           m' (merge m {h value})]
       (is (= value (get m' h))))))
 
@@ -151,7 +151,7 @@
           e (.empty ^clojure.lang.IPersistentCollection m)]
       (is (cm/cache-map? e))
       ;; Still backed by same cache, so values still accessible
-      (is (= [:i64 1] (get e (hash/compute-hash [:i64 1])))))))
+      (is (= [:i64 1] (get e (hash/typed-value-hash [:i64 1])))))))
 
 (deftest test-equiv
   (testing "equiv is identity-based"
@@ -185,9 +185,9 @@
 (deftest test-finger-tree-with-cache-map
   (testing "finger tree operations work with CacheMap"
     (let [m (make-cm)
-          ;; Create empty tree node
-          empty-node [:ft/empty {:measure {:count 0 :size-bytes 0}}]
-          empty-hash (commit! m empty-node)
+          ;; Create empty tree and seed the CacheMap with it
+          [plain-map empty-hash] (ft/finger-tree)
+          _ (run! (fn [[h v]] (cache/store! (cm/manager m) h v)) plain-map)
           ;; Build tree by adding values
           tree (reduce (fn [[dm rh] val]
                          (let [[dm' vh] (ft/add-value dm val)]
@@ -205,9 +205,9 @@
 (deftest test-hamt-with-cache-map
   (testing "HAMT operations work with CacheMap"
     (let [m (make-cm)
-          ;; Create empty HAMT node in cache
-          empty-node [:hamt/empty {:measure {:count 0 :size-bytes 0}}]
-          empty-hash (commit! m empty-node)
+          ;; Create empty HAMT and seed the CacheMap
+          [plain-map empty-hash] (hamt/hamt)
+          _ (run! (fn [[h v]] (cache/store! (cm/manager m) h v)) plain-map)
           ;; Add key and value
           [_ k-ref] (hamt/add-value m [:string "hello"])
           [_ v-ref] (hamt/add-value m [:i64 42])

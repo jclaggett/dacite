@@ -264,6 +264,14 @@ node_hash = fuse(sha256(node_type_name), node.measure.elements_fuse)
 
 This means nodes with the same type and the same logical elements produce the same hash, regardless of internal tree shape. Different structural arrangements of the same sequence normalize to a single hash in the store. This is correct because nodes with the same elements are functionally interchangeable.
 
+**Exception — HAMT bitmap nodes:** Bitmap nodes include the bitmap value in their hash because it determines routing structure. Two bitmaps with the same elements but different bitmaps route lookups differently and are NOT interchangeable:
+
+```
+hamt_bitmap_hash = fuse(node_hash, sha256(bitmap_bytes))
+```
+
+Without this, single-child bitmap nodes at different HAMT levels would collide (same elements-fuse, same type), creating self-referential loops in the store.
+
 **Collision resistance:** Since leaf hashes are SHA-256 based, the `elements_fuse` chain has ~2^96 birthday-bound collision resistance (from the additive structure of fuse components c1–c3). This is weaker than SHA-256's ~2^128 but astronomically beyond practical attack.
 
 ### Finger Tree Nodes (Seq)

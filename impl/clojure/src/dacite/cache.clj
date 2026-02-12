@@ -31,20 +31,25 @@
   "Protocol for managing cached Dacite values."
 
   (commit! [this value]
-    "Commit a value to the cache.
+    "Commit a typed value to the cache.
      
      Arguments:
-       value - a Dacite value as [type, data]
-               type is a keyword (e.g., :i64, :string)
-               data is the value's data
+       value - a typed Dacite value as [type-kw, data]
      
      Returns:
        The value's hash (vector of 4 longs).
      
-     Guarantees:
-       - The value will be cached at least in memory.
-       - The same value always produces the same hash.
-       - After commit!, (lookup hash) will return the value.")
+     Computes the hash using typed-value-hash and stores the value.")
+
+  (store! [this hash value]
+    "Store a value at a specific hash.
+     
+     Arguments:
+       hash  - vector of 4 longs (256 bits), pre-computed by caller
+       value - the value to store
+     
+     Used by data structures that compute their own hashes
+     (e.g., internal tree nodes using node-hash).")
 
   (lookup [this hash]
     "Look up a value by its hash.
@@ -53,7 +58,7 @@
        hash - vector of 4 longs (256 bits)
      
      Returns:
-       The value [type, data] if found, nil otherwise."))
+       The value if found, nil otherwise."))
 
 ;; =============================================================================
 ;; In-Memory Cache Manager
@@ -64,9 +69,13 @@
 
   CacheManager
   (commit! [_ value]
-    (let [h (hash/compute-hash value)]
+    (let [h (hash/typed-value-hash value)]
       (swap! cache assoc h value)
       h))
+
+  (store! [_ hash value]
+    (swap! cache assoc hash value)
+    hash)
 
   (lookup [_ hash]
     (get @cache hash)))

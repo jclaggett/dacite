@@ -42,9 +42,12 @@
 ;; =============================================================================
 
 (defn- add-node
-  "Add a node to the dacite-map, return [updated-map, hash]."
+  "Add an internal tree node to the dacite-map, return [updated-map, hash].
+   Hash is computed from node type and elements-fuse (semantic)."
   [dacite-map node]
-  (let [h (hash/compute-hash node)]
+  (let [type-kw (first node)
+        ef (:elements-fuse (:measure (second node)))
+        h (hash/node-hash type-kw ef)]
     [(assoc dacite-map h node) h]))
 
 (defn- lookup-node
@@ -347,10 +350,12 @@
   (make-empty {}))
 
 (defn add-value
-  "Add a value to the dacite-map. Returns [updated-map, hash].
-   Use this to add element values before conj-ing them to a tree."
+  "Add a typed value to the dacite-map. Returns [updated-map, hash].
+   Value is a [type-kw, data] tuple (e.g., [:i64 42]).
+   Hash is computed as fuse(type-name-hash, leaf-hash) per spec."
   [dacite-map value]
-  (add-node dacite-map value))
+  (let [h (hash/typed-value-hash value)]
+    [(assoc dacite-map h value) h]))
 
 (defn conj-left
   "Add element to the left of the tree.

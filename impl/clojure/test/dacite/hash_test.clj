@@ -137,10 +137,10 @@
                 (or (= a [0 0 0 0])
                     (not= (hash/unchecked-fuse a b) b))))
 
-(defspec leaf-hash-determinism 100
+(defspec typed-value-hash-determinism 100
   (prop/for-all [[type-kw value] gen-tagged-leaf]
-                (= (hash/compute-hash [type-kw value])
-                   (hash/compute-hash [type-kw value]))))
+                (= (hash/typed-value-hash [type-kw value])
+                   (hash/typed-value-hash [type-kw value]))))
 
 (defspec fuse-associative 100
   (prop/for-all [a gen-hash
@@ -156,8 +156,8 @@
                  value gen/small-integer]
     ;; Same numeric value with different types should hash differently
                 (or (= type1 type2)
-                    (not= (hash/compute-hash [type1 value])
-                          (hash/compute-hash [type2 value])))))
+                    (not= (hash/typed-value-hash [type1 value])
+                          (hash/typed-value-hash [type2 value])))))
 
 ;; =============================================================================
 ;; Unit tests for edge cases  
@@ -196,14 +196,14 @@
 
 (deftest test-null-hashing
   (testing "null has consistent hash"
-    (let [h1 (hash/compute-hash [:null nil])
-          h2 (hash/compute-hash [:null nil])]
+    (let [h1 (hash/typed-value-hash [:null nil])
+          h2 (hash/typed-value-hash [:null nil])]
       (is (= h1 h2)))))
 
 (deftest test-bool-hashing
   (testing "true and false have different hashes"
-    (let [h-true (hash/compute-hash [:bool true])
-          h-false (hash/compute-hash [:bool false])]
+    (let [h-true (hash/typed-value-hash [:bool true])
+          h-false (hash/typed-value-hash [:bool false])]
       (is (not= h-true h-false)))))
 
 (deftest test-low-entropy-detection
@@ -296,17 +296,50 @@
     (let [result (hash/encode-value nil)]
       (is (= "nil" (String. result "UTF-8"))))))
 
-(deftest test-compute-hash-non-keyword-type
-  (testing "compute-hash handles non-keyword type (string)"
-    (let [h1 (hash/compute-hash ["my.custom/type" 42])
-          h2 (hash/compute-hash ["my.custom/type" 42])]
+(deftest test-typed-value-hash-string-type
+  (testing "typed-value-hash handles string type name"
+    (let [h1 (hash/typed-value-hash ["my.custom/type" 42])
+          h2 (hash/typed-value-hash ["my.custom/type" 42])]
       (is (= h1 h2))
       (is (vector? h1))
       (is (= 4 (count h1)))))
-  (testing "non-keyword type produces different hash than keyword"
-    (let [h1 (hash/compute-hash [:i64 42])
-          h2 (hash/compute-hash ["i64" 42])]
-      (is (not= h1 h2)))))
+  (testing "keyword and string type names produce same hash when name matches"
+    ;; :i64 → (name :i64) = "i64", string "i64" → str = "i64"
+    (let [h1 (hash/typed-value-hash [:i64 42])
+          h2 (hash/typed-value-hash ["i64" 42])]
+      (is (= h1 h2)))))
+
+(deftest test-leaf-hash
+  (testing "leaf-hash returns sha256 of encoded bytes"
+    (let [h (hash/leaf-hash 42)]
+      (is (vector? h))
+      (is (= 4 (count h)))))
+  (testing "leaf-hash is deterministic"
+    (is (= (hash/leaf-hash 42) (hash/leaf-hash 42))))
+  (testing "different values produce different leaf hashes"
+    (is (not= (hash/leaf-hash 42) (hash/leaf-hash 43)))))
+
+(deftest test-type-name-hash
+  (testing "type-name-hash is deterministic"
+    (is (= (hash/type-name-hash "i64") (hash/type-name-hash "i64"))))
+  (testing "different type names produce different hashes"
+    (is (not= (hash/type-name-hash "i64") (hash/type-name-hash "i32"))))
+  (testing "empty type name returns identity"
+    (is (= [0 0 0 0] (hash/type-name-hash "")))))
+
+(deftest test-node-hash
+  (testing "node-hash with zero elements-fuse"
+    (let [h (hash/node-hash :ft/empty [0 0 0 0])]
+      (is (vector? h))
+      (is (= 4 (count h)))))
+  (testing "different node types produce different hashes"
+    (let [ef (hash/sha256-str "some-content")]
+      (is (not= (hash/node-hash :ft/deep ef)
+                (hash/node-hash :ft/digit ef)))))
+  (testing "same type + same elements-fuse = same hash"
+    (let [ef (hash/sha256-str "content")]
+      (is (= (hash/node-hash :ft/deep ef)
+             (hash/node-hash :ft/deep ef))))))
 
 ;; =============================================================================
 ;; Fuse inverse (group structure)

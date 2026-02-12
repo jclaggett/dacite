@@ -32,8 +32,8 @@
   (entryAt [_ k]
     (when-let [v (cache/lookup manager k)]
       (MapEntry/create k v)))
-  (assoc [this _k v]
-    (cache/commit! manager v)
+  (assoc [this k v]
+    (cache/store! manager k v)
     this)
 
   IPersistentMap

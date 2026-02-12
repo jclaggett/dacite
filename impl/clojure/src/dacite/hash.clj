@@ -163,28 +163,84 @@
   (unchecked-fuse a (fuse-inverse b)))
 
 ;; =============================================================================
-;; Dacite value hashing
+;; Leaf hashing
 ;; =============================================================================
 
 (defn encode-value
   "Encode a Clojure value to bytes for hashing.
-   Currently uses pr-str + UTF-8, but could be made more efficient."
+   Currently uses pr-str + UTF-8. TODO: canonical serialization per spec."
   ^bytes [value]
   (.getBytes (pr-str value) "UTF-8"))
 
-(defn compute-hash
-  "Compute the hash for a Dacite value [type, data].
+(defn leaf-hash
+  "Compute the hash of a raw leaf value (untyped).
    
-   The hash is: fuse(sha256(type-name), sha256(data-bytes))
+   leaf_hash = sha256(canonical_bytes)
    
-   Returns a vector of 4 longs (256 bits)."
+   Returns a vector of 4 longs."
+  [data]
+  (sha256 (encode-value data)))
+
+;; =============================================================================
+;; Type name hashing
+;; =============================================================================
+
+(defn char-leaf-hash
+  "Compute the leaf hash of a single character (UTF-8 bytes)."
+  [ch]
+  (sha256 (.getBytes (str ch) "UTF-8")))
+
+(defn type-name-hash
+  "Compute the semantic hash of a type name string.
+   
+   A type name is conceptually a seq of char leaves.
+   The hash is the elements-fuse of the char leaf hashes:
+   fuse(h('c'), fuse(h('h'), fuse(h('a'), h('r'))))
+   
+   Uses unchecked-fuse since the identity [0,0,0,0] may appear
+   as the initial accumulator."
+  [^String type-name]
+  (reduce (fn [acc ch]
+            (unchecked-fuse acc (char-leaf-hash ch)))
+          [0 0 0 0]
+          type-name))
+
+;; =============================================================================
+;; Typed value hashing
+;; =============================================================================
+
+(defn typed-value-hash
+  "Compute the hash of a typed value [type-kw, data].
+   
+   A typed value is conceptually seq(type-name, data).
+   The hash is: fuse(type-name-hash, leaf-hash)
+   
+   Uses unchecked-fuse since type-name-hash may theoretically
+   be low-entropy for very short names (safe in practice)."
   [[type-kw data]]
   (let [type-name (if (keyword? type-kw)
-                    (str "dacite.core/" (name type-kw))
+                    (name type-kw)
                     (str type-kw))
-        type-hash (sha256-str type-name)
-        data-hash (sha256 (encode-value data))]
-    (fuse type-hash data-hash)))
+        tnh (type-name-hash type-name)
+        lh (leaf-hash data)]
+    (unchecked-fuse tnh lh)))
+
+;; =============================================================================
+;; Internal node hashing
+;; =============================================================================
+
+(defn node-hash
+  "Compute the hash of an internal tree node.
+   
+   node_hash = fuse(sha256(node-type-name), elements-fuse)
+   
+   Uses unchecked-fuse since elements-fuse may be [0,0,0,0]
+   for empty nodes."
+  [type-kw elements-fuse]
+  (let [type-str (if (keyword? type-kw)
+                   (str (namespace type-kw) "/" (name type-kw))
+                   (str type-kw))]
+    (unchecked-fuse (sha256-str type-str) elements-fuse)))
 
 ;; =============================================================================
 ;; REPL examples
@@ -203,5 +259,14 @@
   (hash->hex (sha256-str "test"))
   (= a (hex->hash (hash->hex a)))
 
-  ;; Compute hash for a value
-  (compute-hash [:i64 42]))
+  ;; Leaf hash (untyped)
+  (leaf-hash 42)  ;; => sha256 of bytes
+
+  ;; Type name hash
+  (type-name-hash "i64")  ;; => fuse chain of char hashes
+
+  ;; Typed value hash
+  (typed-value-hash [:i64 42])  ;; => fuse(type-name-hash("i64"), leaf-hash(42))
+
+  ;; Internal node hash
+  (node-hash :ft/empty [0 0 0 0]))

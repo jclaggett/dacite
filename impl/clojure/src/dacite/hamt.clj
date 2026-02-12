@@ -79,9 +79,22 @@
 ;; =============================================================================
 
 (defn- add-node
-  "Add a node to the dacite-map, return [updated-map, hash]."
+  "Add an internal tree node to the dacite-map, return [updated-map, hash].
+   Hash is computed from node type and semantic content.
+   
+   For bitmap nodes, the bitmap value is included in the hash because
+   it determines routing structure — two bitmaps with the same elements
+   but different bitmaps are NOT interchangeable."
   [dacite-map node]
-  (let [h (hash/compute-hash node)]
+  (let [type-kw (first node)
+        data (second node)
+        ef (:elements-fuse (:measure data))
+        h (if (= :hamt/bitmap type-kw)
+            ;; Include bitmap in hash: different routing = different identity
+            (let [bitmap-hash (hash/sha256 (.array (doto (java.nio.ByteBuffer/allocate 8)
+                                                     (.putLong (long (:bitmap data))))))]
+              (hash/unchecked-fuse (hash/node-hash type-kw ef) bitmap-hash))
+            (hash/node-hash type-kw ef))]
     [(assoc dacite-map h node) h]))
 
 (defn- lookup-node
@@ -263,10 +276,11 @@
   (make-empty {}))
 
 (defn add-value
-  "Add a value to the dacite-map. Returns [updated-map, value-hash].
-   Use this to add keys and values before inserting into the HAMT."
+  "Add a typed value to the dacite-map. Returns [updated-map, value-hash].
+   Value is a [type-kw, data] tuple (e.g., [:string \"name\"]).
+   Hash is computed as fuse(type-name-hash, leaf-hash) per spec."
   [dacite-map value]
-  (let [h (hash/compute-hash value)]
+  (let [h (hash/typed-value-hash value)]
     [(assoc dacite-map h value) h]))
 
 (defn assoc-val
