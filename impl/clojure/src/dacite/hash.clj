@@ -163,7 +163,18 @@
   (unchecked-fuse a (fuse-inverse b)))
 
 ;; =============================================================================
-;; Leaf hashing
+;; Fuse sequences
+;; =============================================================================
+
+(defn fuse-seq
+  "Fuse a sequence of hashes left-to-right.
+   Returns identity [0,0,0,0] for empty sequence.
+   Uses unchecked-fuse since identity is low-entropy."
+  [hashes]
+  (reduce unchecked-fuse [0 0 0 0] hashes))
+
+;; =============================================================================
+;; Value encoding
 ;; =============================================================================
 
 (defn encode-value
@@ -172,39 +183,6 @@
   ^bytes [value]
   (.getBytes (pr-str value) "UTF-8"))
 
-(defn leaf-hash
-  "Compute the hash of a raw leaf value (untyped).
-   
-   leaf_hash = sha256(canonical_bytes)
-   
-   Returns a vector of 4 longs."
-  [data]
-  (sha256 (encode-value data)))
-
-;; =============================================================================
-;; Type name hashing
-;; =============================================================================
-
-(defn char-leaf-hash
-  "Compute the leaf hash of a single character (UTF-8 bytes)."
-  [ch]
-  (sha256 (.getBytes (str ch) "UTF-8")))
-
-(defn type-name-hash
-  "Compute the semantic hash of a type name string.
-   
-   A type name is conceptually a seq of char leaves.
-   The hash is the elements-fuse of the char leaf hashes:
-   fuse(h('c'), fuse(h('h'), fuse(h('a'), h('r'))))
-   
-   Uses unchecked-fuse since the identity [0,0,0,0] may appear
-   as the initial accumulator."
-  [^String type-name]
-  (reduce (fn [acc ch]
-            (unchecked-fuse acc (char-leaf-hash ch)))
-          [0 0 0 0]
-          type-name))
-
 ;; =============================================================================
 ;; Typed value hashing
 ;; =============================================================================
@@ -212,17 +190,19 @@
 (defn typed-value-hash
   "Compute the hash of a typed value [type-kw, data].
    
-   A typed value is conceptually seq(type-name, data).
-   The hash is: fuse(type-name-hash, leaf-hash)
+   A typed value is conceptually seq(type-name, data), where
+   type-name is a seq of char leaves. The hash is:
    
-   Uses unchecked-fuse since type-name-hash may theoretically
-   be low-entropy for very short names (safe in practice)."
+     fuse(fuse-seq(map sha256 type-name-chars), sha256(encode(data)))
+   
+   Uses unchecked-fuse since type-name fuse-seq may be low-entropy
+   for very short names (safe in practice)."
   [[type-kw data]]
   (let [type-name (if (keyword? type-kw)
                     (name type-kw)
                     (str type-kw))
-        tnh (type-name-hash type-name)
-        lh (leaf-hash data)]
+        tnh (fuse-seq (map #(sha256 (.getBytes (str %) "UTF-8")) type-name))
+        lh  (sha256 (encode-value data))]
     (unchecked-fuse tnh lh)))
 
 ;; =============================================================================
@@ -259,14 +239,11 @@
   (hash->hex (sha256-str "test"))
   (= a (hex->hash (hash->hex a)))
 
-  ;; Leaf hash (untyped)
-  (leaf-hash 42)  ;; => sha256 of bytes
-
-  ;; Type name hash
-  (type-name-hash "i64")  ;; => fuse chain of char hashes
+  ;; Fuse a sequence of hashes
+  (fuse-seq [(sha256-str "a") (sha256-str "b")])
 
   ;; Typed value hash
-  (typed-value-hash [:i64 42])  ;; => fuse(type-name-hash("i64"), leaf-hash(42))
+  (typed-value-hash [:i64 42])  ;; => fuse(fuse-seq(char-hashes), sha256(encode(42)))
 
   ;; Internal node hash
   (node-hash :ft/empty [0 0 0 0]))

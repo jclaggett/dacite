@@ -309,23 +309,21 @@
           h2 (hash/typed-value-hash ["i64" 42])]
       (is (= h1 h2)))))
 
-(deftest test-leaf-hash
-  (testing "leaf-hash returns sha256 of encoded bytes"
-    (let [h (hash/leaf-hash 42)]
-      (is (vector? h))
-      (is (= 4 (count h)))))
-  (testing "leaf-hash is deterministic"
-    (is (= (hash/leaf-hash 42) (hash/leaf-hash 42))))
-  (testing "different values produce different leaf hashes"
-    (is (not= (hash/leaf-hash 42) (hash/leaf-hash 43)))))
-
-(deftest test-type-name-hash
-  (testing "type-name-hash is deterministic"
-    (is (= (hash/type-name-hash "i64") (hash/type-name-hash "i64"))))
-  (testing "different type names produce different hashes"
-    (is (not= (hash/type-name-hash "i64") (hash/type-name-hash "i32"))))
-  (testing "empty type name returns identity"
-    (is (= [0 0 0 0] (hash/type-name-hash "")))))
+(deftest test-fuse-seq
+  (testing "fuse-seq of empty sequence is identity"
+    (is (= [0 0 0 0] (hash/fuse-seq []))))
+  (testing "fuse-seq of single hash returns that hash"
+    (let [h (hash/sha256-str "hello")]
+      (is (= h (hash/fuse-seq [h])))))
+  (testing "fuse-seq is equivalent to chained unchecked-fuse"
+    (let [a (hash/sha256-str "a")
+          b (hash/sha256-str "b")
+          c (hash/sha256-str "c")]
+      (is (= (hash/unchecked-fuse (hash/unchecked-fuse a b) c)
+             (hash/fuse-seq [a b c])))))
+  (testing "fuse-seq is deterministic"
+    (let [hashes (map hash/sha256-str ["x" "y" "z"])]
+      (is (= (hash/fuse-seq hashes) (hash/fuse-seq hashes))))))
 
 (deftest test-node-hash
   (testing "node-hash with zero elements-fuse"
