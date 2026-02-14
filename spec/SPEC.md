@@ -20,7 +20,7 @@ Dacite is a system for **distributed immutable data structures** with content-ad
 ## Design Principles
 
 1. **Types are data** — types are not a separate concept; they are values in the data model
-2. **Three primitives** — leaf, seq, map; everything else is built from these
+2. **Three primitives** — scalar, seq, map; everything else is built from these
 3. **Content-addressed** — every value has a 256-bit hash identity
 4. **Language-agnostic** — spec defines the format, not the implementation
 5. **Open type system** — new types require no central registry; a type name is just a seq of chars
@@ -155,17 +155,17 @@ See: [Hash Fusing — Detecting Low Entropy Failures](https://clojurecivitas.git
 
 Dacite has exactly **three primitive kinds**. Everything in the system is built from these:
 
-### Leaf
+### Scalar
 
-A **leaf** is an atomic, bounded-size value. It is the only primitive that contains raw data (bytes) rather than references to other values.
+A **scalar** is an atomic, bounded-size value. It is the only primitive that contains raw data (bytes) rather than references to other values. Maximum size: 65,535 bytes (u16 length).
 
 ```
-leaf_hash = fuse_bytes(canonical_bytes)
+scalar_hash = fuse_bytes(canonical_bytes)
 ```
 
-Leaves are **untyped** at the primitive level. A byte with value 97 and a char 'a' may be the same leaf (same bytes, same hash). Types give meaning to leaves (see Typed Values).
+Scalars are **untyped** at the primitive level. A byte with value 97 and a char 'a' may be the same scalar (same bytes, same hash). Types give meaning to scalars (see Typed Values).
 
-Examples of leaf data:
+Examples of scalar data:
 - A single byte (0–255)
 - A UTF-8 encoded character (1–4 bytes)
 - A big-endian integer (1–32 bytes depending on width)
@@ -210,20 +210,20 @@ typed_value = seq(type_name, data)
 ```
 
 Where:
-- **Position 0** — the type name (a seq of char leaves)
-- **Position 1** — the data (any primitive: leaf, seq, or map)
+- **Position 0** — the type name (a seq of char scalars)
+- **Position 1** — the data (any primitive: scalar, seq, or map)
 
 This is a structural convention, not enforced by the storage layer. The system treats typed values as ordinary seqs; the "typed" interpretation is applied by consumers.
 
 ### Type Names
 
-A type name is an **untyped seq of char leaves**:
+A type name is an **untyped seq of char scalars**:
 
 ```
 type_name("string") = seq('s', 't', 'r', 'i', 'n', 'g')
 ```
 
-Each character is a raw leaf (UTF-8 bytes). The type name's hash is the seq's semantic hash (elements-fuse of its char leaf hashes).
+Each character is a raw scalar (UTF-8 bytes). The type name's hash is the seq's semantic hash (elements-fuse of its char scalar hashes).
 
 Type names are self-documenting: given a typed value, read position 0 to discover its type. No external registry needed.
 
@@ -262,7 +262,7 @@ vector_content = fuse(inv(h("vector")), vector_hash)
 string_content == vector_content   // true — same underlying data
 ```
 
-This works because both have the same data seq (a seq of char leaves), and the group structure of fuse allows cleanly removing the type prefix.
+This works because both have the same data seq (a seq of char scalars), and the group structure of fuse allows cleanly removing the type prefix.
 
 ### Built-in Types
 
@@ -270,14 +270,14 @@ All built-in types follow the `seq(type_name, data)` convention:
 
 | Type Name | Data | Description |
 |-----------|------|-------------|
-| `"null"` | null leaf (0 bytes) | Unit type |
-| `"bool"` | 1-byte leaf | Boolean |
-| `"i8"` … `"i256"` | 1–32 byte leaf (big-endian signed) | Signed integers |
-| `"u8"` … `"u256"` | 1–32 byte leaf (big-endian unsigned) | Unsigned integers |
-| `"f32"`, `"f64"` | 4 or 8 byte leaf (IEEE 754) | Floating point |
-| `"char"` | 1–4 byte leaf (UTF-8) | Unicode character |
-| `"string"` | seq of char leaves | UTF-8 string |
-| `"blob"` | seq of byte leaves | Binary data |
+| `"null"` | null scalar (0 bytes) | Unit type |
+| `"bool"` | 1-byte scalar | Boolean |
+| `"i8"` … `"i256"` | 1–32 byte scalar (big-endian signed) | Signed integers |
+| `"u8"` … `"u256"` | 1–32 byte scalar (big-endian unsigned) | Unsigned integers |
+| `"f32"`, `"f64"` | 4 or 8 byte scalar (IEEE 754) | Floating point |
+| `"char"` | 1–4 byte scalar (UTF-8) | Unicode character |
+| `"string"` | seq of char scalars | UTF-8 string |
+| `"blob"` | seq of byte scalars | Binary data |
 | `"vector"` | seq of arbitrary values | Ordered collection |
 | `"map"` | map (HAMT) | Key-value collection |
 
@@ -312,7 +312,7 @@ Without this, single-child bitmap nodes at different HAMT levels would collide (
 | Node Type | Description | Data Fields |
 |-----------|-------------|-------------|
 | `:ft/empty` | Empty seq | `{measure}` |
-| `:ft/leaf` | Single element wrapper | `{value_hash, measure}` |
+| `:ft/single` | Single element wrapper | `{value_hash, measure}` |
 | `:ft/digit` | Finger (1–32 children) | `{children: [hash...], measure}` |
 | `:ft/node` | Internal node (2–32 children) | `{children: [hash...], measure}` |
 | `:ft/deep` | Deep tree | `{left, spine, right, measure}` |
@@ -333,8 +333,8 @@ Every internal node caches a **measure** of its subtree:
 
 ```
 Measure = {
-  count: u64,           // number of leaf elements
-  size_bytes: u64,      // total size in bytes of leaf data
+  count: u64,           // number of scalar elements
+  size_bytes: u64,      // total size in bytes of scalar data
   elements_fuse: Hash   // running fuse of all element hashes
 }
 ```
@@ -353,7 +353,7 @@ identity = { count: 0, size_bytes: 0, elements_fuse: [0, 0, 0, 0] }
 
 The `elements_fuse` field uses `unchecked_fuse` because the identity element `[0, 0, 0, 0]` is technically low-entropy; this is safe since measures are internal bookkeeping.
 
-For **seq leaves**, `elements_fuse` equals the element's hash. For **map entries**, `elements_fuse` equals `fuse(key_ref, val_ref)`.
+For **seq scalars**, `elements_fuse` equals the element's hash. For **map entries**, `elements_fuse` equals `fuse(key_ref, val_ref)`.
 
 The root's measure gives **O(1)** access to count, total size, and semantic hash.
 
@@ -462,7 +462,7 @@ If `node.measure.size_bytes <= inline_under`:
 ```
 InlineResponse {
   kind: "inline",
-  leaves: [Value],        // all leaf values, fully materialized
+  values: [Value],        // all scalar values, fully materialized
   measure: Measure
 }
 ```
@@ -487,84 +487,108 @@ Immutable content-addressed data is ideal for caching:
 
 ## Serialization
 
-Dacite defines a canonical byte serialization for storage and wire transfer. The format is designed for:
+Dacite defines two serialization formats:
+
+- **Binary** — canonical byte format for storage and wire transfer
+- **JSON** — human-readable format for debugging, inspection, and interop with web clients
+
+Both formats represent the same logical data. The binary format is authoritative for hashing and storage; the JSON format is a convenience layer.
+
+---
+
+### Binary Format
+
+The binary format is designed for:
 
 - **Determinism** — the same logical value always serializes to the same bytes
 - **Self-description** — each node carries its kind tag; no external schema needed
 - **Simplicity** — fixed-width fields where possible, minimal framing
 - **Streaming** — nodes can be read sequentially without backtracking
 
-### Encoding Conventions
+#### Encoding Conventions
 
 - **Integers** are big-endian (network byte order)
 - **Hashes** are 32 bytes (4 × i64, big-endian)
-- **Lengths** are encoded as unsigned 32-bit integers (u32), giving a maximum of ~4 GB per field
-- **Strings** are UTF-8 bytes prefixed with a u32 length
+- **Child counts** are unsigned 8-bit (u8), max 32 children per node
+- **Bitmaps** are unsigned 32-bit (u32)
 
-### Node Kinds
+#### Node Kinds
 
 Every serialized node begins with a 1-byte **kind tag**:
 
 | Tag | Kind | Description |
 |-----|------|-------------|
-| `0x00` | Leaf | Raw bytes |
+| `0x00` | Scalar | Raw bytes (atomic value) |
 | `0x01` | Seq node | Finger tree internal node |
 | `0x02` | Map node | HAMT internal node |
 
-### Leaf Serialization
+#### Scalar Serialization
 
-A leaf is the simplest node: a kind tag followed by its raw bytes.
+A scalar is the simplest node: a kind tag, a u16 length, and raw bytes.
 
 ```
-leaf = 0x00 ++ u32(len) ++ bytes[len]
+scalar = 0x00 ++ u16(len) ++ bytes[len]
 ```
 
-The leaf's hash is `fuse_bytes(bytes)` — computed over the raw data bytes only, not the framing.
+Maximum scalar size: 65,535 bytes. The scalar's hash is `fuse_bytes(bytes)` — computed over the raw data bytes only, not the framing.
 
-### Seq Node Serialization
+**Size examples:**
+
+| Scalar | Serialized size |
+|--------|----------------|
+| Null (0 bytes) | 3 bytes (tag + u16 zero) |
+| Boolean | 4 bytes |
+| i64 | 11 bytes |
+| UTF-8 char | 4–7 bytes |
+
+#### Seq Node Serialization
 
 Seq nodes represent finger tree internals. Each node carries its structural type, measure, and child references:
 
 ```
 seq_node = 0x01
         ++ u8(node_type)         // structural subtype
-        ++ measure               // cached measure
-        ++ u32(n_children)       // number of child references
+        ++ measure               // cached measure (48 bytes)
+        ++ u8(n_children)        // number of child references (0–32)
         ++ hash[n_children]      // child hashes (32 bytes each)
 ```
 
-Seq node types:
+Seq node subtypes:
 
 | Subtype | Value | Children |
 |---------|-------|----------|
 | Empty | `0x00` | 0 |
-| Leaf wrapper | `0x01` | 1 (the value hash) |
+| Single | `0x01` | 1 (the element hash) |
 | Digit | `0x02` | 1–32 |
 | Internal node | `0x03` | 2–32 |
 | Deep | `0x04` | 3 (left, spine, right) |
 
-### Map Node Serialization
+**Size range:** 50 bytes (empty) to 1,074 bytes (32 children).
+
+#### Map Node Serialization
 
 Map nodes represent HAMT internals:
 
 ```
 map_node = 0x02
         ++ u8(node_type)         // structural subtype
-        ++ measure               // cached measure
+        ++ measure               // cached measure (48 bytes)
         ++ <type-specific fields>
 ```
 
-Map node types:
+Map node subtypes:
 
 | Subtype | Value | Fields after measure |
 |---------|-------|---------------------|
 | Empty | `0x00` | (none) |
 | Entry | `0x01` | `hash(key_hash) ++ hash(key_ref) ++ hash(val_ref)` |
-| Bitmap | `0x02` | `u32(bitmap) ++ u32(n_children) ++ hash[n_children]` |
+| Bitmap | `0x02` | `u32(bitmap) ++ u8(n_children) ++ hash[n_children]` |
 
 For entries, `key_hash` is the routing hash (used for HAMT navigation), while `key_ref` and `val_ref` point to the stored key and value nodes.
 
-### Measure Serialization
+**Size range:** 50 bytes (empty) to 1,079 bytes (32-child bitmap).
+
+#### Measure Serialization
 
 Measures appear inline in seq and map nodes:
 
@@ -572,25 +596,25 @@ Measures appear inline in seq and map nodes:
 measure = u64(count) ++ u64(size_bytes) ++ hash(elements_fuse)
 ```
 
-Fixed size: 8 + 8 + 32 = 48 bytes.
+Fixed size: 8 + 8 + 32 = **48 bytes**.
 
-### Typed Value Serialization
+#### Typed Value Serialization
 
-Typed values are not a separate serialization kind — they are ordinary 2-element seqs. The type name (position 0) is itself a seq of char leaves, and the data (position 1) is any primitive.
+Typed values are not a separate serialization kind — they are ordinary 2-element seqs. The type name (position 0) is itself a seq of char scalars, and the data (position 1) is any primitive.
 
 To serialize a typed value, serialize it as a seq with two children: the type name reference and the data reference.
 
-### Hash Computation from Serialized Form
+#### Hash Computation from Serialized Form
 
 A node's hash is **not** computed from its serialized bytes. Hashes are computed from the logical content:
 
-- **Leaf:** `fuse_bytes(data_bytes)`
+- **Scalar:** `fuse_bytes(data_bytes)`
 - **Seq/Map nodes:** `fuse(fuse_str(node_type_name ++ 0x00), elements_fuse)` (with the HAMT bitmap exception)
 - **Typed values:** `fuse_bytes(type_name_bytes ++ 0x00 ++ encode(data))`
 
 This means two different serialization formats (or versions) can interoperate as long as they compute the same logical hashes. The serialization is a transport/storage concern; the hash is a semantic concern.
 
-### Canonical Ordering
+#### Canonical Ordering
 
 For deterministic serialization:
 - Seq children are serialized in order (left to right)
@@ -600,12 +624,162 @@ For deterministic serialization:
 
 ---
 
+### JSON Format
+
+The JSON format provides a human-readable representation of dacite values. It is intended for:
+
+- **Debugging** — inspect tree structure and content
+- **Web clients** — receive and render dacite data without a binary parser
+- **Interop** — exchange dacite values with JSON-native systems (REST APIs, browsers)
+
+#### Design Principles
+
+- Each JSON object has a `"kind"` field: `"scalar"`, `"seq"`, or `"map"`
+- Hashes are hex-encoded strings (64 characters)
+- Two modes: **structural** (references as hashes) and **materialized** (values inlined)
+
+#### Structural Mode
+
+Structural JSON mirrors the content-addressed store. Each node is a self-contained object with hash references to children:
+
+**Scalar:**
+```json
+{
+  "kind": "scalar",
+  "hash": "a1b2c3d4...",
+  "bytes": "base64-encoded-data",
+  "size": 8
+}
+```
+
+**Seq node:**
+```json
+{
+  "kind": "seq",
+  "subtype": "deep",
+  "hash": "e5f6a7b8...",
+  "measure": {
+    "count": 1000,
+    "size_bytes": 8000,
+    "elements_fuse": "1234abcd..."
+  },
+  "children": ["hash1...", "hash2...", "hash3..."]
+}
+```
+
+**Map node:**
+```json
+{
+  "kind": "map",
+  "subtype": "bitmap",
+  "hash": "c9d0e1f2...",
+  "measure": {
+    "count": 5,
+    "size_bytes": 40,
+    "elements_fuse": "5678efab..."
+  },
+  "bitmap": 671088640,
+  "children": ["hash1...", "hash2..."]
+}
+```
+
+**Map entry:**
+```json
+{
+  "kind": "map",
+  "subtype": "entry",
+  "hash": "f3a4b5c6...",
+  "measure": { "count": 1, "size_bytes": 16, "elements_fuse": "..." },
+  "key_hash": "routing-hash...",
+  "key_ref": "stored-key-hash...",
+  "val_ref": "stored-val-hash..."
+}
+```
+
+#### Materialized Mode
+
+Materialized JSON inlines values recursively, producing familiar nested structures. This is the format web clients and JSON consumers will typically use:
+
+**Typed scalar:**
+```json
+{
+  "kind": "typed",
+  "type": "i64",
+  "value": 42
+}
+```
+
+**String (typed seq of char scalars):**
+```json
+{
+  "kind": "typed",
+  "type": "string",
+  "value": "hello world"
+}
+```
+
+**Vector:**
+```json
+{
+  "kind": "typed",
+  "type": "vector",
+  "value": [
+    {"kind": "typed", "type": "i64", "value": 1},
+    {"kind": "typed", "type": "string", "value": "two"},
+    {"kind": "typed", "type": "bool", "value": true}
+  ]
+}
+```
+
+**Map:**
+```json
+{
+  "kind": "typed",
+  "type": "map",
+  "value": {
+    "name": {"kind": "typed", "type": "string", "value": "Alice"},
+    "age": {"kind": "typed", "type": "u8", "value": 30}
+  }
+}
+```
+
+Note: In materialized map JSON, keys are rendered as strings for JSON compatibility. The actual dacite key is a typed value; the string rendering is lossy but practical.
+
+#### Hybrid Mode
+
+For large trees, a hybrid approach inlines small subtrees and uses hash references for large ones. The `inline_under` parameter from the Distribution Model controls the threshold:
+
+```json
+{
+  "kind": "seq",
+  "subtype": "deep",
+  "hash": "e5f6a7b8...",
+  "measure": {"count": 1000000, "size_bytes": 8000000, "elements_fuse": "..."},
+  "children": [
+    {"kind": "typed", "type": "string", "value": "small inline value"},
+    {"kind": "ref", "hash": "large-subtree-hash...", "measure": {"count": 500000, "...": "..."}}
+  ]
+}
+```
+
+The `"ref"` kind signals an un-fetched subtree. Clients can request materialization by following the hash.
+
+#### JSON ↔ Binary Equivalence
+
+A value round-tripped through JSON and binary must produce the same hash. The JSON format is purely a presentation concern; the authoritative hash is always computed from the logical content per the binary format rules.
+
+Implementations should provide:
+- `to_json(hash, store, mode)` → JSON string
+- `from_json(json_string)` → store entries + root hash
+
+---
+
 ## Open Questions
 
 - [ ] Network protocol details (HTTP? Custom?)
 - [ ] Garbage collection / retention policies
 - [ ] Set type? Sorted map?
-- [ ] Leaf size limits — maximum bytes for a single leaf?
+- [x] Scalar size limits — u16 length, max 65,535 bytes
 - [ ] Byte hash table distribution — how do implementations agree on the table? Hardcoded? Negotiated?
 - [x] Canonical serialization format — custom binary format (see Serialization)
 - [x] Hashing decoupled from SHA-256 — byte hash table + fuse (SHA-256 is only the default seed)
