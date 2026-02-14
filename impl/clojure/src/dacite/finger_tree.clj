@@ -15,7 +15,7 @@
    
    Node types stored as [type, data]:
    - [:ft/empty {:measure m}]
-   - [:ft/leaf {:value-hash h :measure m}]
+   - [:ft/single {:value-hash h :measure m}]  ; single element wrapper
    - [:ft/digit {:children [h...] :measure m}]
    - [:ft/node {:children [h...] :measure m}]
    - [:ft/deep {:left h :spine h :right h :measure m}]"
@@ -77,11 +77,11 @@
 (defn- make-empty [dacite-map]
   (add-node dacite-map [:ft/empty {:measure measure-identity}]))
 
-(defn- make-leaf [dacite-map value-hash size-bytes]
-  (add-node dacite-map [:ft/leaf {:value-hash value-hash
-                                  :measure {:count 1
-                                            :size-bytes size-bytes
-                                            :elements-fuse value-hash}}]))
+(defn- make-single [dacite-map value-hash size-bytes]
+  (add-node dacite-map [:ft/single {:value-hash value-hash
+                                    :measure {:count 1
+                                              :size-bytes size-bytes
+                                              :elements-fuse value-hash}}]))
 
 (defn- make-digit [dacite-map child-hashes child-measures]
   (add-node dacite-map [:ft/digit {:children (vec child-hashes)
@@ -327,7 +327,7 @@
                    (get-measure m3 right))))))
 
 (defn- tree-to-seq*
-  "Convert tree to seq of leaf hashes."
+  "Convert tree to seq of single-node hashes."
   [dacite-map root-hash]
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
@@ -352,7 +352,7 @@
 (defn add-value
   "Add a typed value to the dacite-map. Returns [updated-map, hash].
    Value is a [type-kw, data] tuple (e.g., [:i64 42]).
-   Hash is computed as fuse(type-name-hash, leaf-hash) per spec."
+   Hash is computed as fuse(type-name-hash, scalar-hash) per spec."
   [dacite-map value]
   (let [h (hash/typed-value-hash value)]
     [(assoc dacite-map h value) h]))
@@ -364,8 +364,8 @@
    Returns [new-map, new-root-hash]."
   [[dacite-map root-hash] value-hash]
   (let [size-bytes (types/dacite-size (lookup-node dacite-map value-hash))
-        [m1 leaf-hash] (make-leaf dacite-map value-hash size-bytes)]
-    (tree-conj-left m1 root-hash leaf-hash)))
+        [m1 single-hash] (make-single dacite-map value-hash size-bytes)]
+    (tree-conj-left m1 root-hash single-hash)))
 
 (defn conj-right
   "Add element to the right of the tree.
@@ -374,20 +374,20 @@
    Returns [new-map, new-root-hash]."
   [[dacite-map root-hash] value-hash]
   (let [size-bytes (types/dacite-size (lookup-node dacite-map value-hash))
-        [m1 leaf-hash] (make-leaf dacite-map value-hash size-bytes)]
-    (tree-conj-right m1 root-hash leaf-hash)))
+        [m1 single-hash] (make-single dacite-map value-hash size-bytes)]
+    (tree-conj-right m1 root-hash single-hash)))
 
 (defn tree-first
   "Get the first element's value-hash, or nil if empty."
   [[dacite-map root-hash]]
-  (when-let [leaf-hash (tree-first* dacite-map root-hash)]
-    (get-value-hash dacite-map leaf-hash)))
+  (when-let [single-hash (tree-first* dacite-map root-hash)]
+    (get-value-hash dacite-map single-hash)))
 
 (defn tree-last
   "Get the last element's value-hash, or nil if empty."
   [[dacite-map root-hash]]
-  (when-let [leaf-hash (tree-last* dacite-map root-hash)]
-    (get-value-hash dacite-map leaf-hash)))
+  (when-let [single-hash (tree-last* dacite-map root-hash)]
+    (get-value-hash dacite-map single-hash)))
 
 (defn tree-rest
   "Remove the first element from the tree.
@@ -418,7 +418,7 @@
 
 (defn tree-elements-fuse
   "Get the fused hash of all elements (O(1) via cached measure).
-   This is the running fuse of all leaf value hashes in order.
+   This is the running fuse of all element value hashes in order.
    Use with a collection type hash to compute the semantic hash:
    (fuse collection-type-hash (tree-elements-fuse tree))"
   [[dacite-map root-hash]]
@@ -430,12 +430,12 @@
   (let [;; Merge the maps
         merged (merge m1 m2)
         ;; Add all elements from tree2 to tree1
-        leaf-hashes (tree-to-seq* merged h2)]
-    (reduce (fn [[m h] leaf-hash]
-              (let [{:keys [value-hash]} (node-data (lookup-node m leaf-hash))]
+        single-hashes (tree-to-seq* merged h2)]
+    (reduce (fn [[m h] single-hash]
+              (let [{:keys [value-hash]} (node-data (lookup-node m single-hash))]
                 (conj-right [m h] value-hash)))
             [merged h1]
-            leaf-hashes)))
+            single-hashes)))
 
 (defn from-seq
   "Build a finger tree from a sequence of values.

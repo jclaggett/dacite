@@ -139,7 +139,7 @@
   ;; Create a cache manager
   (def mgr (memory-cache-manager))
 
-  ;; Commit some leaf values
+  ;; Commit some scalar values
   (def h1 (commit! mgr [:i64 42]))
   (def h2 (commit! mgr [:string "hello"]))
   (def h3 (commit! mgr [:bool true]))

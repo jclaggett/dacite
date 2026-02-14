@@ -279,7 +279,7 @@
 (defn add-value
   "Add a typed value to the dacite-map. Returns [updated-map, value-hash].
    Value is a [type-kw, data] tuple (e.g., [:string \"name\"]).
-   Hash is computed as fuse(type-name-hash, leaf-hash) per spec."
+   Hash is computed as fuse(type-name-hash, scalar-hash) per spec."
   [dacite-map value]
   (let [h (hash/typed-value-hash value)]
     [(assoc dacite-map h value) h]))

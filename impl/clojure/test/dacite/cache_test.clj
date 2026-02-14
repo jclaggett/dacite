@@ -101,8 +101,8 @@
   "Generator for Dacite type keywords."
   (gen/elements [:i64 :i32 :string :bool :f64 :f32]))
 
-(def gen-leaf-data
-  "Generator for leaf value data."
+(def gen-scalar-data
+  "Generator for scalar value data."
   (gen/one-of [gen/small-integer
                gen/string-alphanumeric
                gen/boolean
@@ -110,7 +110,7 @@
 
 (def gen-dacite-value
   "Generator for Dacite values [type, data]."
-  (gen/tuple gen-type gen-leaf-data))
+  (gen/tuple gen-type gen-scalar-data))
 
 (defspec commit-then-lookup-returns-value 100
   (prop/for-all [value gen-dacite-value]

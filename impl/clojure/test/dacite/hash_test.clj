@@ -8,7 +8,7 @@
             [dacite.hash :as hash]))
 
 ;; =============================================================================
-;; Generators for leaf types
+;; Generators for scalar types
 ;; =============================================================================
 
 (def gen-null
@@ -66,8 +66,8 @@
   "Generator for UTF-8 characters."
   gen/char)
 
-;; Composite generator for any leaf value with its type tag
-(def gen-tagged-leaf
+;; Composite generator for any scalar value with its type tag
+(def gen-tagged-scalar
   "Generator for [type-keyword value] pairs."
   (gen/one-of
    [(gen/tuple (gen/return :null) gen-null)
@@ -138,7 +138,7 @@
                     (not= (hash/unchecked-fuse a b) b))))
 
 (defspec typed-value-hash-determinism 100
-  (prop/for-all [[type-kw value] gen-tagged-leaf]
+  (prop/for-all [[type-kw value] gen-tagged-scalar]
                 (= (hash/typed-value-hash [type-kw value])
                    (hash/typed-value-hash [type-kw value]))))
 
