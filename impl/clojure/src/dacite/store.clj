@@ -135,8 +135,8 @@
   (let [;; Compute hash of value
         data-bytes (.getBytes (pr-str value) "UTF-8")
         type-name (or (:type value) "dacite.core/unknown")
-        type-hash (hash/sha256-str type-name)
-        data-hash (hash/sha256 data-bytes)
+        type-hash (hash/fuse-str type-name)
+        data-hash (hash/fuse-bytes data-bytes)
         hash-longs (hash/fuse type-hash data-hash)]
     (store-put store hash-longs value)
     hash-longs))

@@ -25,14 +25,14 @@
   "Helper: insert a string key -> integer value pair.
    Uses sha256 of the key string for HAMT navigation."
   [h key-str value]
-  (let [key-hash (hash/sha256-str key-str)]
+  (let [key-hash (hash/fuse-str key-str)]
     (insert-kv h [:string key-str] [:i64 value] key-hash)))
 
 (defn get-string-val
   "Helper: look up by string key, return the actual value from dacite-map."
   [h key-str]
   (let [[dacite-map _] h
-        key-hash (hash/sha256-str key-str)
+        key-hash (hash/fuse-str key-str)
         val-ref (hamt/get-val h key-hash)]
     (when val-ref
       (get dacite-map val-ref))))
@@ -40,7 +40,7 @@
 (defn dissoc-string
   "Helper: remove by string key."
   [h key-str]
-  (hamt/dissoc-val h (hash/sha256-str key-str)))
+  (hamt/dissoc-val h (hash/fuse-str key-str)))
 
 ;; =============================================================================
 ;; Basic operations
@@ -51,7 +51,7 @@
     (let [h (hamt/hamt)]
       (is (= 0 (hamt/hamt-count h)))
       (is (= 0 (hamt/hamt-size-bytes h)))
-      (is (nil? (hamt/get-val h (hash/sha256-str "anything"))))
+      (is (nil? (hamt/get-val h (hash/fuse-str "anything"))))
       (is (= [] (hamt/entries h))))))
 
 (deftest test-single-entry
@@ -192,7 +192,7 @@
 
   (testing "hash chunk at various levels"
     ;; Ensure all levels 0-51 return values in [0, 31]
-    (let [h (hash/sha256-str "test hash chunks")]
+    (let [h (hash/fuse-str "test hash chunks")]
       (doseq [level (range 52)]
         (let [chunk (hamt/hash-chunk h level)]
           (is (<= 0 chunk 31) (str "Level " level " chunk out of range: " chunk)))))))
@@ -332,7 +332,7 @@
     (let [[m0 root] (hamt/hamt)
           [m1 k-ref] (hamt/add-value m0 [:string "name"])
           [m2 v-ref] (hamt/add-value m1 [:i64 42])
-          key-hash (hash/sha256-str "name")
+          key-hash (hash/fuse-str "name")
           h (hamt/assoc-val [m2 root] key-hash k-ref v-ref)
           expected (hash/fuse k-ref v-ref)]
       (is (= expected (hamt/hamt-elements-fuse h))))))

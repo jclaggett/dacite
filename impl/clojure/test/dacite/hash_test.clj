@@ -309,21 +309,73 @@
           h2 (hash/typed-value-hash ["i64" 42])]
       (is (= h1 h2)))))
 
+(deftest test-typed-value-hash-domain-separator
+  (testing "different type/data boundaries produce different hashes"
+    ;; Without a domain separator, type="i64" data="2" and type="i6" data="42"
+    ;; would collide because fuse(fuse-str(a), fuse-str(b)) = fuse-str(a++b)
+    (let [h1 (hash/typed-value-hash ["ab" "cd"])
+          h2 (hash/typed-value-hash ["abc" "d"])]
+      (is (not= h1 h2) "domain separator prevents boundary collision"))))
+
 (deftest test-fuse-seq
   (testing "fuse-seq of empty sequence is identity"
     (is (= [0 0 0 0] (hash/fuse-seq []))))
   (testing "fuse-seq of single hash returns that hash"
-    (let [h (hash/sha256-str "hello")]
+    (let [h (hash/fuse-str "hello")]
       (is (= h (hash/fuse-seq [h])))))
   (testing "fuse-seq is equivalent to chained unchecked-fuse"
-    (let [a (hash/sha256-str "a")
-          b (hash/sha256-str "b")
-          c (hash/sha256-str "c")]
+    (let [a (hash/fuse-str "a")
+          b (hash/fuse-str "b")
+          c (hash/fuse-str "c")]
       (is (= (hash/unchecked-fuse (hash/unchecked-fuse a b) c)
              (hash/fuse-seq [a b c])))))
   (testing "fuse-seq is deterministic"
-    (let [hashes (map hash/sha256-str ["x" "y" "z"])]
+    (let [hashes (map hash/fuse-str ["x" "y" "z"])]
       (is (= (hash/fuse-seq hashes) (hash/fuse-seq hashes))))))
+
+;; =============================================================================
+;; Byte hash table & fuse-str
+;; =============================================================================
+
+(deftest test-byte-hash-table
+  (testing "byte->hash has 256 entries"
+    (is (= 256 (count hash/byte->hash))))
+  (testing "all byte values produce distinct hashes"
+    (let [hashes (vals hash/byte->hash)]
+      (is (= 256 (count (set hashes))))))
+  (testing "each hash is a vector of 4 longs"
+    (doseq [[_ h] hash/byte->hash]
+      (is (vector? h))
+      (is (= 4 (count h))))))
+
+(deftest test-fuse-bytes
+  (testing "fuse-bytes of empty array is identity"
+    (is (= [0 0 0 0] (hash/fuse-bytes (byte-array 0)))))
+  (testing "fuse-bytes of single byte matches byte->hash"
+    (let [b (byte 65)]
+      (is (= (hash/byte->hash b) (hash/fuse-bytes (byte-array [b]))))))
+  (testing "fuse-bytes is deterministic"
+    (let [bs (.getBytes "hello" "UTF-8")]
+      (is (= (hash/fuse-bytes bs) (hash/fuse-bytes bs))))))
+
+(deftest test-fuse-str
+  (testing "fuse-str returns vector of 4 longs"
+    (let [h (hash/fuse-str "hello")]
+      (is (vector? h))
+      (is (= 4 (count h)))))
+  (testing "fuse-str is deterministic"
+    (is (= (hash/fuse-str "test") (hash/fuse-str "test"))))
+  (testing "different strings produce different hashes"
+    (is (not= (hash/fuse-str "hello") (hash/fuse-str "world"))))
+  (testing "fuse-str equals fuse-bytes of UTF-8"
+    (let [s "hello"
+          bs (.getBytes s "UTF-8")]
+      (is (= (hash/fuse-str s) (hash/fuse-bytes bs)))))
+  (testing "fuse(fuse-str(a), fuse-str(b)) = fuse-str(a ++ b) — associativity"
+    (let [a "hello"
+          b "world"
+          combined (hash/unchecked-fuse (hash/fuse-str a) (hash/fuse-str b))]
+      (is (= combined (hash/fuse-str (str a b)))))))
 
 (deftest test-node-hash
   (testing "node-hash with zero elements-fuse"

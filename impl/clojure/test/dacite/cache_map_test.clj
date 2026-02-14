@@ -47,7 +47,7 @@
 (deftest test-get-missing
   (testing "get returns nil for missing keys"
     (let [m (make-cm)
-          h (hash/sha256-str "nonexistent")]
+          h (hash/fuse-str "nonexistent")]
       (is (nil? (get m h)))
       (is (= :default (get m h :default))))))
 
@@ -211,7 +211,7 @@
           ;; Add key and value
           [_ k-ref] (hamt/add-value m [:string "hello"])
           [_ v-ref] (hamt/add-value m [:i64 42])
-          key-hash (hash/sha256-str "hello")
+          key-hash (hash/fuse-str "hello")
           ;; Insert into HAMT
           h (hamt/assoc-val [m empty-hash] key-hash k-ref v-ref)]
       (is (= 1 (hamt/hamt-count h)))

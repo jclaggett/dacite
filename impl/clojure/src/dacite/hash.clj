@@ -3,9 +3,12 @@
    
    Hash representation: [long, long, long, long] (256 bits as 4 × 64-bit longs)
    
-   Implements:
-   - SHA-256 for type and data hashing
-   - Fuse function for combining hashes"
+   Core operations:
+   - byte->hash: precomputed table mapping each byte (0-255) to a hash
+   - fuse: combining two hashes (group operation)
+   - fuse-str: hash any byte sequence via table lookup + fuse
+   
+   SHA-256 is used only to seed the byte->hash table."
   (:import [java.security MessageDigest]
            [java.nio ByteBuffer]))
 
@@ -174,6 +177,38 @@
   (reduce unchecked-fuse [0 0 0 0] hashes))
 
 ;; =============================================================================
+;; Byte hash table & fuse-str
+;; =============================================================================
+
+(def byte->hash
+  "Precomputed hash for each byte value (0-255).
+   Maps byte value to [long, long, long, long].
+   SHA-256 is used as the seed function; any set of 256 distinct
+   high-quality 32-byte values would work."
+  (into {} (for [i (range 256)
+                 :let [b (unchecked-byte i)
+                       h (sha256 (byte-array [b]))]]
+             [b h])))
+
+(defn fuse-bytes
+  "Fuse hashes of each byte in a byte array.
+   Returns [long, long, long, long]."
+  [^bytes bs]
+  (let [len (alength bs)]
+    (loop [i 0
+           acc [0 0 0 0]]
+      (if (< i len)
+        (recur (unchecked-inc i)
+               (unchecked-fuse acc (byte->hash (aget bs i))))
+        acc))))
+
+(defn fuse-str
+  "Fuse hashes of each UTF-8 byte in string s.
+   Returns [long, long, long, long]."
+  [^String s]
+  (fuse-bytes (.getBytes s "UTF-8")))
+
+;; =============================================================================
 ;; Value encoding
 ;; =============================================================================
 
@@ -187,23 +222,30 @@
 ;; Typed value hashing
 ;; =============================================================================
 
+(def ^:private ^bytes null-separator
+  "Domain separator byte (0x00) between type name and data.
+   Prevents boundary collisions: since type names cannot contain
+   null bytes, type ++ 0x00 ++ data is an unambiguous encoding."
+  (byte-array [0]))
+
 (defn typed-value-hash
   "Compute the hash of a typed value [type-kw, data].
    
-   A typed value is conceptually seq(type-name, data), where
-   type-name is a seq of char leaves. The hash is:
+   A typed value is conceptually seq(type-name, data).
+   The hash is: fuse-bytes(type-name-bytes ++ 0x00 ++ encode(data))
    
-     fuse(fuse-seq(map sha256 type-name-chars), sha256(encode(data)))
-   
-   Uses unchecked-fuse since type-name fuse-seq may be low-entropy
-   for very short names (safe in practice)."
+   The null byte acts as a domain separator — since type names
+   cannot contain null bytes, this prevents boundary collisions."
   [[type-kw data]]
   (let [type-name (if (keyword? type-kw)
                     (name type-kw)
                     (str type-kw))
-        tnh (fuse-seq (map #(sha256 (.getBytes (str %) "UTF-8")) type-name))
-        lh  (sha256 (encode-value data))]
-    (unchecked-fuse tnh lh)))
+        type-bytes (.getBytes ^String type-name "UTF-8")
+        data-bytes (encode-value data)]
+    (-> [0 0 0 0]
+        (unchecked-fuse (fuse-bytes type-bytes))
+        (unchecked-fuse (fuse-bytes null-separator))
+        (unchecked-fuse (fuse-bytes data-bytes)))))
 
 ;; =============================================================================
 ;; Internal node hashing
@@ -212,38 +254,44 @@
 (defn node-hash
   "Compute the hash of an internal tree node.
    
-   node_hash = fuse(sha256(node-type-name), elements-fuse)
+   node_hash = fuse(fuse-str(node-type-name ++ 0x00), elements-fuse)
    
-   Uses unchecked-fuse since elements-fuse may be [0,0,0,0]
-   for empty nodes."
+   The null byte terminates the type name, preventing collisions
+   with longer type names. Uses unchecked-fuse since elements-fuse
+   may be [0,0,0,0] for empty nodes."
   [type-kw elements-fuse]
   (let [type-str (if (keyword? type-kw)
                    (str (namespace type-kw) "/" (name type-kw))
-                   (str type-kw))]
-    (unchecked-fuse (sha256-str type-str) elements-fuse)))
+                   (str type-kw))
+        type-bytes (.getBytes ^String type-str "UTF-8")
+        type-hash (-> [0 0 0 0]
+                      (unchecked-fuse (fuse-bytes type-bytes))
+                      (unchecked-fuse (fuse-bytes null-separator)))]
+    (unchecked-fuse type-hash elements-fuse)))
 
 ;; =============================================================================
 ;; REPL examples
 ;; =============================================================================
 
 (comment
-  ;; SHA-256 returns longs
-  (sha256-str "hello")  ;; => [long long long long]
+  ;; Byte hash table (256 entries, SHA-256 seeded)
+  (byte->hash (byte 0))   ;; => [long long long long]
+  (byte->hash (byte 65))  ;; => hash for 'A'
+
+  ;; Fuse-str: hash any string via byte table + fuse
+  (fuse-str "hello")  ;; => [long long long long]
 
   ;; Fuse two hashes
-  (def a (sha256-str "hello"))
-  (def b (sha256-str "world"))
+  (def a (fuse-str "hello"))
+  (def b (fuse-str "world"))
   (fuse a b)  ;; => [long long long long]
 
   ;; Hex conversion
-  (hash->hex (sha256-str "test"))
+  (hash->hex (fuse-str "test"))
   (= a (hex->hash (hash->hex a)))
 
-  ;; Fuse a sequence of hashes
-  (fuse-seq [(sha256-str "a") (sha256-str "b")])
-
-  ;; Typed value hash
-  (typed-value-hash [:i64 42])  ;; => fuse(fuse-seq(char-hashes), sha256(encode(42)))
+  ;; Typed value hash (with null separator)
+  (typed-value-hash [:i64 42])  ;; => fuse-bytes("i64" ++ 0x00 ++ encode(42))
 
   ;; Internal node hash
   (node-hash :ft/empty [0 0 0 0]))

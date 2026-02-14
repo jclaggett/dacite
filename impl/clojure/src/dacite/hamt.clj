@@ -91,8 +91,9 @@
         ef (:elements-fuse (:measure data))
         h (if (= :hamt/bitmap type-kw)
             ;; Include bitmap in hash: different routing = different identity
-            (let [bitmap-hash (hash/sha256 (.array (doto (java.nio.ByteBuffer/allocate 8)
-                                                     (.putLong (long (:bitmap data))))))]
+            (let [bitmap-bytes (.array (doto (java.nio.ByteBuffer/allocate 8)
+                                         (.putLong (long (:bitmap data)))))
+                  bitmap-hash (hash/fuse-bytes bitmap-bytes)]
               (hash/unchecked-fuse (hash/node-hash type-kw ef) bitmap-hash))
             (hash/node-hash type-kw ef))]
     [(assoc dacite-map h node) h]))
@@ -364,7 +365,7 @@
   (let [[m0 root] (hamt)
         [m1 k-ref] (add-value m0 [:string "name"])
         [m2 v-ref] (add-value m1 [:string "Alice"])
-        key-hash (hash/sha256-str "name")
+        key-hash (hash/fuse-str "name")
         h1 (assoc-val [m2 root] key-hash k-ref v-ref)]
     (get-val h1 key-hash)      ;; => v-ref
     (hamt-count h1)             ;; => 1
