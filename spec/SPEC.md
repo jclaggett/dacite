@@ -2,9 +2,9 @@
 
 > Data citing with fused hashing.
 
-**Version:** 0.3.0-draft  
+**Version:** 0.4.0-draft  
 **Status:** Early design  
-**Last updated:** 2026-02-11
+**Last updated:** 2026-02-14
 
 ---
 
@@ -95,6 +95,33 @@ The group structure enables:
 - **Hash recovery** — recover one component of a fused pair when the other is known
 - **Incremental re-hashing** — update a fused chain without recomputing from scratch
 
+### Byte Hash Table
+
+Dacite hashing is built on a precomputed table mapping each byte value (0–255) to a 256-bit hash:
+
+```
+byte_hash: byte → Hash    (256 entries)
+```
+
+The default table is seeded using SHA-256: `byte_hash[i] = sha256(byte_array([i]))`. However, any set of 256 distinct, high-quality 32-byte values may be used. This decouples dacite references from any specific hash function at runtime.
+
+### fuse_bytes / fuse_str
+
+All data hashing is performed by mapping bytes through the table and fusing:
+
+```
+fuse_bytes(bs) = reduce(unchecked_fuse, [0,0,0,0], map(byte_hash, bs))
+fuse_str(s)    = fuse_bytes(utf8_bytes(s))
+```
+
+Properties inherited from fuse:
+- **Deterministic** — same bytes always produce the same hash
+- **Order-sensitive** — different byte orderings produce different hashes
+- **Associative** — `fuse(fuse_str(a), fuse_str(b)) = fuse_str(a ++ b)`
+- **No hash function at runtime** — only table lookups and integer arithmetic
+
+The associativity property means composing fuse results is equivalent to fusing the concatenated bytes. This is both a feature (composability) and a constraint (domain separators are needed between fields — see Typed Values).
+
 ### Low-Entropy Hash Rejection
 
 Fuse **must reject low-entropy inputs and outputs**. A hash is low-entropy when its lower 32 bits are zero in all four words:
@@ -133,7 +160,7 @@ Dacite has exactly **three primitive kinds**. Everything in the system is built 
 A **leaf** is an atomic, bounded-size value. It is the only primitive that contains raw data (bytes) rather than references to other values.
 
 ```
-leaf_hash = sha256(canonical_bytes)
+leaf_hash = fuse_bytes(canonical_bytes)
 ```
 
 Leaves are **untyped** at the primitive level. A byte with value 97 and a char 'a' may be the same leaf (same bytes, same hash). Types give meaning to leaves (see Typed Values).
@@ -204,13 +231,19 @@ Convention for built-in types: bare names (e.g., `"string"`, `"i64"`, `"vector"`
 
 ### Semantic Hash of Typed Values
 
-The semantic hash of a typed value is its seq's elements-fuse:
+The semantic hash of a typed value uses a **null domain separator** between the type name and data:
 
 ```
-typed_hash = fuse(h(type_name), h(data))
+typed_hash = fuse_bytes(type_name_bytes ++ 0x00 ++ encode(data))
 ```
 
-This is just the normal seq semantic hash — the type name and data are the two elements.
+Equivalently (by fuse associativity):
+
+```
+typed_hash = fuse(fuse(fuse_str(type_name), fuse_bytes([0x00])), fuse_bytes(encode(data)))
+```
+
+The null separator is essential: without it, `fuse(fuse_str(a), fuse_str(b)) = fuse_str(a ++ b)` would cause boundary collisions (e.g., type `"i64"` with data `"2"` would collide with type `"i6"` with data `"42"`). Since type names cannot contain null bytes, the separator makes the encoding unambiguous.
 
 ### Cross-Type Equality
 
@@ -256,23 +289,23 @@ Seqs and maps are implemented using tree structures. The internal nodes of these
 
 ### Node Hashing
 
-Internal nodes are hashed using their type and semantic content:
+Internal nodes are hashed using their type name (with a null domain separator) and semantic content:
 
 ```
-node_hash = fuse(sha256(node_type_name), node.measure.elements_fuse)
+node_hash = fuse(fuse_str(node_type_name ++ 0x00), node.measure.elements_fuse)
 ```
 
-This means nodes with the same type and the same logical elements produce the same hash, regardless of internal tree shape. Different structural arrangements of the same sequence normalize to a single hash in the store. This is correct because nodes with the same elements are functionally interchangeable.
+The null byte terminates the type name, preventing collisions with longer type names. This means nodes with the same type and the same logical elements produce the same hash, regardless of internal tree shape. Different structural arrangements of the same sequence normalize to a single hash in the store. This is correct because nodes with the same elements are functionally interchangeable.
 
 **Exception — HAMT bitmap nodes:** Bitmap nodes include the bitmap value in their hash because it determines routing structure. Two bitmaps with the same elements but different bitmaps route lookups differently and are NOT interchangeable:
 
 ```
-hamt_bitmap_hash = fuse(node_hash, sha256(bitmap_bytes))
+hamt_bitmap_hash = fuse(node_hash, fuse_bytes(bitmap_as_8_bytes))
 ```
 
 Without this, single-child bitmap nodes at different HAMT levels would collide (same elements-fuse, same type), creating self-referential loops in the store.
 
-**Collision resistance:** Since leaf hashes are SHA-256 based, the `elements_fuse` chain has ~2^96 birthday-bound collision resistance (from the additive structure of fuse components c1–c3). This is weaker than SHA-256's ~2^128 but astronomically beyond practical attack.
+**Collision resistance:** The fuse-based hash chain has ~2^96 birthday-bound collision resistance (from the additive structure of fuse components c1–c3). This is weaker than SHA-256's ~2^128 but astronomically beyond practical attack. The security bound is independent of how the byte hash table is seeded.
 
 ### Finger Tree Nodes (Seq)
 
@@ -454,17 +487,129 @@ Immutable content-addressed data is ideal for caching:
 
 ## Serialization
 
-*TODO: Define canonical byte serialization for each primitive kind.*
+Dacite defines a canonical byte serialization for storage and wire transfer. The format is designed for:
+
+- **Determinism** — the same logical value always serializes to the same bytes
+- **Self-description** — each node carries its kind tag; no external schema needed
+- **Simplicity** — fixed-width fields where possible, minimal framing
+- **Streaming** — nodes can be read sequentially without backtracking
+
+### Encoding Conventions
+
+- **Integers** are big-endian (network byte order)
+- **Hashes** are 32 bytes (4 × i64, big-endian)
+- **Lengths** are encoded as unsigned 32-bit integers (u32), giving a maximum of ~4 GB per field
+- **Strings** are UTF-8 bytes prefixed with a u32 length
+
+### Node Kinds
+
+Every serialized node begins with a 1-byte **kind tag**:
+
+| Tag | Kind | Description |
+|-----|------|-------------|
+| `0x00` | Leaf | Raw bytes |
+| `0x01` | Seq node | Finger tree internal node |
+| `0x02` | Map node | HAMT internal node |
+
+### Leaf Serialization
+
+A leaf is the simplest node: a kind tag followed by its raw bytes.
+
+```
+leaf = 0x00 ++ u32(len) ++ bytes[len]
+```
+
+The leaf's hash is `fuse_bytes(bytes)` — computed over the raw data bytes only, not the framing.
+
+### Seq Node Serialization
+
+Seq nodes represent finger tree internals. Each node carries its structural type, measure, and child references:
+
+```
+seq_node = 0x01
+        ++ u8(node_type)         // structural subtype
+        ++ measure               // cached measure
+        ++ u32(n_children)       // number of child references
+        ++ hash[n_children]      // child hashes (32 bytes each)
+```
+
+Seq node types:
+
+| Subtype | Value | Children |
+|---------|-------|----------|
+| Empty | `0x00` | 0 |
+| Leaf wrapper | `0x01` | 1 (the value hash) |
+| Digit | `0x02` | 1–32 |
+| Internal node | `0x03` | 2–32 |
+| Deep | `0x04` | 3 (left, spine, right) |
+
+### Map Node Serialization
+
+Map nodes represent HAMT internals:
+
+```
+map_node = 0x02
+        ++ u8(node_type)         // structural subtype
+        ++ measure               // cached measure
+        ++ <type-specific fields>
+```
+
+Map node types:
+
+| Subtype | Value | Fields after measure |
+|---------|-------|---------------------|
+| Empty | `0x00` | (none) |
+| Entry | `0x01` | `hash(key_hash) ++ hash(key_ref) ++ hash(val_ref)` |
+| Bitmap | `0x02` | `u32(bitmap) ++ u32(n_children) ++ hash[n_children]` |
+
+For entries, `key_hash` is the routing hash (used for HAMT navigation), while `key_ref` and `val_ref` point to the stored key and value nodes.
+
+### Measure Serialization
+
+Measures appear inline in seq and map nodes:
+
+```
+measure = u64(count) ++ u64(size_bytes) ++ hash(elements_fuse)
+```
+
+Fixed size: 8 + 8 + 32 = 48 bytes.
+
+### Typed Value Serialization
+
+Typed values are not a separate serialization kind — they are ordinary 2-element seqs. The type name (position 0) is itself a seq of char leaves, and the data (position 1) is any primitive.
+
+To serialize a typed value, serialize it as a seq with two children: the type name reference and the data reference.
+
+### Hash Computation from Serialized Form
+
+A node's hash is **not** computed from its serialized bytes. Hashes are computed from the logical content:
+
+- **Leaf:** `fuse_bytes(data_bytes)`
+- **Seq/Map nodes:** `fuse(fuse_str(node_type_name ++ 0x00), elements_fuse)` (with the HAMT bitmap exception)
+- **Typed values:** `fuse_bytes(type_name_bytes ++ 0x00 ++ encode(data))`
+
+This means two different serialization formats (or versions) can interoperate as long as they compute the same logical hashes. The serialization is a transport/storage concern; the hash is a semantic concern.
+
+### Canonical Ordering
+
+For deterministic serialization:
+- Seq children are serialized in order (left to right)
+- Map children are serialized in bitmap order (ascending bit index)
+- No optional fields — every field is always present
+- No padding or alignment bytes
 
 ---
 
 ## Open Questions
 
-- [ ] Canonical serialization format (CBOR? Custom?)
 - [ ] Network protocol details (HTTP? Custom?)
 - [ ] Garbage collection / retention policies
 - [ ] Set type? Sorted map?
 - [ ] Leaf size limits — maximum bytes for a single leaf?
+- [ ] Byte hash table distribution — how do implementations agree on the table? Hardcoded? Negotiated?
+- [x] Canonical serialization format — custom binary format (see Serialization)
+- [x] Hashing decoupled from SHA-256 — byte hash table + fuse (SHA-256 is only the default seed)
+- [x] Domain separation — null byte (0x00) separator between type name and data
 - [x] Finger Tree branching factor / node size — 2–32 children, 1–32 digits
 - [x] Hash representation — 4 × i64, MSB first
 - [x] Low-entropy check — inputs AND result
