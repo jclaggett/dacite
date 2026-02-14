@@ -157,7 +157,7 @@ Dacite has exactly **three primitive kinds**. Everything in the system is built 
 
 ### Scalar
 
-A **scalar** is an atomic, bounded-size value. It is the only primitive that contains raw data (bytes) rather than references to other values. Maximum size: 65,535 bytes (u16 length).
+A **scalar** is an atomic, bounded-size value. It is the only primitive that contains raw data (bytes) rather than references to other values. Maximum size: 255 bytes (u8 length).
 
 ```
 scalar_hash = fuse_bytes(canonical_bytes)
@@ -524,22 +524,23 @@ Every serialized node begins with a 1-byte **kind tag**:
 
 #### Scalar Serialization
 
-A scalar is the simplest node: a kind tag, a u16 length, and raw bytes.
+A scalar is the simplest node: a kind tag, a u8 length, and raw bytes.
 
 ```
-scalar = 0x00 ++ u16(len) ++ bytes[len]
+scalar = 0x00 ++ u8(len) ++ bytes[len]
 ```
 
-Maximum scalar size: 65,535 bytes. The scalar's hash is `fuse_bytes(bytes)` — computed over the raw data bytes only, not the framing.
+Maximum scalar size: 255 bytes. The scalar's hash is `fuse_bytes(bytes)` — computed over the raw data bytes only, not the framing.
 
 **Size examples:**
 
 | Scalar | Serialized size |
 |--------|----------------|
-| Null (0 bytes) | 3 bytes (tag + u16 zero) |
-| Boolean | 4 bytes |
-| i64 | 11 bytes |
-| UTF-8 char | 4–7 bytes |
+| Null (0 bytes) | 2 bytes (tag + u8 zero) |
+| Boolean | 3 bytes |
+| i64 | 10 bytes |
+| i256 | 34 bytes |
+| UTF-8 char | 3–6 bytes |
 
 #### Seq Node Serialization
 
@@ -779,7 +780,7 @@ Implementations should provide:
 - [ ] Network protocol details (HTTP? Custom?)
 - [ ] Garbage collection / retention policies
 - [ ] Set type? Sorted map?
-- [x] Scalar size limits — u16 length, max 65,535 bytes
+- [x] Scalar size limits — u8 length, max 255 bytes
 - [ ] Byte hash table distribution — how do implementations agree on the table? Hardcoded? Negotiated?
 - [x] Canonical serialization format — custom binary format (see Serialization)
 - [x] Hashing decoupled from SHA-256 — byte hash table + fuse (SHA-256 is only the default seed)
