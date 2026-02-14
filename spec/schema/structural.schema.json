@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dacite.dev/schema/structural.schema.json",
+  "title": "Dacite Structural JSON Schema",
+  "description": "Schema for dacite nodes in structural mode — mirrors the content-addressed store with hash references.",
+
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "256-bit hash as 64-character lowercase hex string."
+    },
+
+    "measure": {
+      "type": "object",
+      "description": "Cached subtree measure (monoid).",
+      "properties": {
+        "count":         { "type": "integer", "minimum": 0, "description": "Number of scalar elements." },
+        "size_bytes":    { "type": "integer", "minimum": 0, "description": "Total size in bytes of scalar data." },
+        "elements_fuse": { "$ref": "#/$defs/hash", "description": "Running fuse of all element hashes." }
+      },
+      "required": ["count", "size_bytes", "elements_fuse"],
+      "additionalProperties": false
+    },
+
+    "scalar": {
+      "type": "object",
+      "description": "Atomic, bounded-size value (max 255 bytes).",
+      "properties": {
+        "kind":  { "const": "scalar" },
+        "hash":  { "$ref": "#/$defs/hash" },
+        "bytes": { "type": "string", "contentEncoding": "base64", "description": "Raw data bytes, base64-encoded." },
+        "size":  { "type": "integer", "minimum": 0, "maximum": 255, "description": "Length of raw data in bytes." }
+      },
+      "required": ["kind", "hash", "bytes", "size"],
+      "additionalProperties": false
+    },
+
+    "seq_node": {
+      "type": "object",
+      "description": "Finger tree internal node (seq).",
+      "properties": {
+        "kind":     { "const": "seq" },
+        "subtype":  { "enum": ["empty", "single", "digit", "node", "deep"] },
+        "hash":     { "$ref": "#/$defs/hash" },
+        "measure":  { "$ref": "#/$defs/measure" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hash" },
+          "minItems": 0,
+          "maxItems": 32,
+          "description": "Child node hashes."
+        }
+      },
+      "required": ["kind", "subtype", "hash", "measure", "children"],
+      "additionalProperties": false
+    },
+
+    "map_empty": {
+      "type": "object",
+      "description": "Empty HAMT node.",
+      "properties": {
+        "kind":    { "const": "map" },
+        "subtype": { "const": "empty" },
+        "hash":    { "$ref": "#/$defs/hash" },
+        "measure": { "$ref": "#/$defs/measure" }
+      },
+      "required": ["kind", "subtype", "hash", "measure"],
+      "additionalProperties": false
+    },
+
+    "map_entry": {
+      "type": "object",
+      "description": "HAMT single key-value entry.",
+      "properties": {
+        "kind":     { "const": "map" },
+        "subtype":  { "const": "entry" },
+        "hash":     { "$ref": "#/$defs/hash" },
+        "measure":  { "$ref": "#/$defs/measure" },
+        "key_hash": { "$ref": "#/$defs/hash", "description": "Routing hash (for HAMT navigation)." },
+        "key_ref":  { "$ref": "#/$defs/hash", "description": "Hash of the stored key node." },
+        "val_ref":  { "$ref": "#/$defs/hash", "description": "Hash of the stored value node." }
+      },
+      "required": ["kind", "subtype", "hash", "measure", "key_hash", "key_ref", "val_ref"],
+      "additionalProperties": false
+    },
+
+    "map_bitmap": {
+      "type": "object",
+      "description": "HAMT sparse internal node with bitmap.",
+      "properties": {
+        "kind":     { "const": "map" },
+        "subtype":  { "const": "bitmap" },
+        "hash":     { "$ref": "#/$defs/hash" },
+        "measure":  { "$ref": "#/$defs/measure" },
+        "bitmap":   { "type": "integer", "minimum": 0, "maximum": 4294967295, "description": "32-bit bitmap of occupied child positions." },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hash" },
+          "minItems": 1,
+          "maxItems": 32,
+          "description": "Child node hashes (compressed — only occupied positions)."
+        }
+      },
+      "required": ["kind", "subtype", "hash", "measure", "bitmap", "children"],
+      "additionalProperties": false
+    },
+
+    "node": {
+      "description": "Any dacite node in structural mode.",
+      "oneOf": [
+        { "$ref": "#/$defs/scalar" },
+        { "$ref": "#/$defs/seq_node" },
+        { "$ref": "#/$defs/map_empty" },
+        { "$ref": "#/$defs/map_entry" },
+        { "$ref": "#/$defs/map_bitmap" }
+      ]
+    }
+  },
+
+  "$ref": "#/$defs/node"
+}

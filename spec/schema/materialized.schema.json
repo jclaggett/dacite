@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dacite.dev/schema/materialized.schema.json",
+  "title": "Dacite Materialized JSON Schema",
+  "description": "Schema for dacite values in materialized mode — inlined, human-readable values. Used by web clients and JSON-native consumers.",
+
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "256-bit hash as 64-character lowercase hex string."
+    },
+
+    "measure": {
+      "type": "object",
+      "description": "Cached subtree measure (monoid). Optional in materialized mode.",
+      "properties": {
+        "count":         { "type": "integer", "minimum": 0 },
+        "size_bytes":    { "type": "integer", "minimum": 0 },
+        "elements_fuse": { "$ref": "#/$defs/hash" }
+      },
+      "required": ["count", "size_bytes", "elements_fuse"],
+      "additionalProperties": false
+    },
+
+    "typed_null": {
+      "type": "object",
+      "description": "Null value.",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  { "const": "null" },
+        "value": { "const": null },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "typed_bool": {
+      "type": "object",
+      "description": "Boolean value.",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  { "const": "bool" },
+        "value": { "type": "boolean" },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "typed_integer": {
+      "type": "object",
+      "description": "Integer value (i8–i256, u8–u256).",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  {
+          "type": "string",
+          "pattern": "^[iu](8|16|32|64|128|256)$"
+        },
+        "value": { "type": "integer" },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "typed_float": {
+      "type": "object",
+      "description": "Floating-point value (f32, f64).",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  { "enum": ["f32", "f64"] },
+        "value": { "type": "number" },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "typed_char": {
+      "type": "object",
+      "description": "Single Unicode character.",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  { "const": "char" },
+        "value": { "type": "string", "minLength": 1, "maxLength": 1 },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "typed_string": {
+      "type": "object",
+      "description": "UTF-8 string (seq of char scalars, rendered as a JSON string).",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  { "const": "string" },
+        "value": { "type": "string" },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "typed_blob": {
+      "type": "object",
+      "description": "Binary data (seq of byte scalars, rendered as base64).",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  { "const": "blob" },
+        "value": { "type": "string", "contentEncoding": "base64" },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "typed_vector": {
+      "type": "object",
+      "description": "Ordered collection of arbitrary typed values.",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  { "const": "vector" },
+        "value": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/typed_value" }
+        },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "typed_map": {
+      "type": "object",
+      "description": "Key-value collection. Keys are rendered as strings for JSON compatibility.",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  { "const": "map" },
+        "value": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/typed_value" }
+        },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "typed_custom": {
+      "type": "object",
+      "description": "User-defined typed value. Type name should be namespaced (e.g., 'myapp/user').",
+      "properties": {
+        "kind":  { "const": "typed" },
+        "type":  { "type": "string", "minLength": 1 },
+        "value": { "$ref": "#/$defs/typed_value" },
+        "hash":  { "$ref": "#/$defs/hash" }
+      },
+      "required": ["kind", "type", "value"],
+      "additionalProperties": false
+    },
+
+    "ref": {
+      "type": "object",
+      "description": "Un-fetched subtree reference (hybrid mode). Clients follow the hash to request materialization.",
+      "properties": {
+        "kind":    { "const": "ref" },
+        "hash":    { "$ref": "#/$defs/hash" },
+        "measure": { "$ref": "#/$defs/measure" }
+      },
+      "required": ["kind", "hash"],
+      "additionalProperties": false
+    },
+
+    "typed_value": {
+      "description": "Any materialized dacite value, or a ref to an un-fetched subtree.",
+      "oneOf": [
+        { "$ref": "#/$defs/typed_null" },
+        { "$ref": "#/$defs/typed_bool" },
+        { "$ref": "#/$defs/typed_integer" },
+        { "$ref": "#/$defs/typed_float" },
+        { "$ref": "#/$defs/typed_char" },
+        { "$ref": "#/$defs/typed_string" },
+        { "$ref": "#/$defs/typed_blob" },
+        { "$ref": "#/$defs/typed_vector" },
+        { "$ref": "#/$defs/typed_map" },
+        { "$ref": "#/$defs/typed_custom" },
+        { "$ref": "#/$defs/ref" }
+      ]
+    }
+  },
+
+  "$ref": "#/$defs/typed_value"
+}

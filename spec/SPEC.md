@@ -765,6 +765,18 @@ For large trees, a hybrid approach inlines small subtrees and uses hash referenc
 
 The `"ref"` kind signals an un-fetched subtree. Clients can request materialization by following the hash.
 
+#### JSON Schema
+
+Formal JSON Schema definitions are provided alongside this spec:
+
+- **[`schema/structural.schema.json`](schema/structural.schema.json)** — validates structural mode nodes (scalars, seq nodes, map nodes with hash references)
+- **[`schema/materialized.schema.json`](schema/materialized.schema.json)** — validates materialized mode values (typed values with inlined data, including hybrid `ref` nodes)
+
+Notes:
+- The `hash` field is optional in materialized mode (clients may not need it)
+- The `ref` kind in materialized schema supports hybrid mode (partially materialized trees)
+- Custom typed values use `typed_custom` with a freeform `type` string
+
 #### JSON ↔ Binary Equivalence
 
 A value round-tripped through JSON and binary must produce the same hash. The JSON format is purely a presentation concern; the authoritative hash is always computed from the logical content per the binary format rules.
