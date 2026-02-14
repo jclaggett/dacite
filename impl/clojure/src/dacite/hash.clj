@@ -219,7 +219,7 @@
   (.getBytes (pr-str value) "UTF-8"))
 
 ;; =============================================================================
-;; Typed value hashing
+;; Typed value and node hashing
 ;; =============================================================================
 
 (def ^:private ^bytes null-separator
@@ -227,6 +227,9 @@
    Prevents boundary collisions: since type names cannot contain
    null bytes, type ++ 0x00 ++ data is an unambiguous encoding."
   (byte-array [0]))
+
+(def ^:private null-separator-hash
+  (fuse-bytes null-separator))
 
 (defn typed-value-hash
   "Compute the hash of a typed value [type-kw, data].
@@ -242,14 +245,9 @@
                     (str type-kw))
         type-bytes (.getBytes ^String type-name "UTF-8")
         data-bytes (encode-value data)]
-    (-> [0 0 0 0]
-        (unchecked-fuse (fuse-bytes type-bytes))
-        (unchecked-fuse (fuse-bytes null-separator))
+    (-> (fuse-bytes type-bytes)
+        (unchecked-fuse null-separator-hash)
         (unchecked-fuse (fuse-bytes data-bytes)))))
-
-;; =============================================================================
-;; Internal node hashing
-;; =============================================================================
 
 (defn node-hash
   "Compute the hash of an internal tree node.
@@ -263,11 +261,10 @@
   (let [type-str (if (keyword? type-kw)
                    (str (namespace type-kw) "/" (name type-kw))
                    (str type-kw))
-        type-bytes (.getBytes ^String type-str "UTF-8")
-        type-hash (-> [0 0 0 0]
-                      (unchecked-fuse (fuse-bytes type-bytes))
-                      (unchecked-fuse (fuse-bytes null-separator)))]
-    (unchecked-fuse type-hash elements-fuse)))
+        type-bytes (.getBytes ^String type-str "UTF-8")]
+    (-> (fuse-bytes type-bytes)
+        (unchecked-fuse null-separator-hash)
+        (unchecked-fuse elements-fuse))))
 
 ;; =============================================================================
 ;; REPL examples
