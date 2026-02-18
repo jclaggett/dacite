@@ -67,17 +67,11 @@
 ;; =============================================================================
 
 (defn protocols-of
-  "Detect which common Clojure protocols a class satisfies."
+  "Detect which common Clojure protocols/interfaces a class satisfies.
+   Uses isa? on the class directly, which covers all core protocols
+   that have backing Java interfaces."
   [^Class cls]
-  (let [instance (try
-                   (cond
-                     (= cls clojure.lang.PersistentVector) []
-                     (= cls clojure.lang.PersistentHashMap) {}
-                     (= cls clojure.lang.PersistentHashSet) #{}
-                     (= cls clojure.lang.PersistentList) '()
-                     :else nil)
-                   (catch Exception _ nil))
-        checks (cond-> []
+  (let [checks (cond-> []
                  (isa? cls clojure.lang.Seqable)     (conj 'Seqable)
                  (isa? cls clojure.lang.Counted)      (conj 'Counted)
                  (isa? cls clojure.lang.Indexed)       (conj 'Indexed)
