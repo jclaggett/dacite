@@ -49,6 +49,11 @@
 ;; Hash/hex conversion
 ;; =============================================================================
 
+(defn hash->int
+  "Convert hash to a 32-bit int (for Java hashCode / Clojure hasheq)."
+  [h]
+  (unchecked-int (bit-xor (nth h 0) (nth h 1) (nth h 2) (nth h 3))))
+
 (defn hash->hex
   "Convert hash (4 longs) to 64-char hex string."
   [h]

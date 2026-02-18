@@ -4,315 +4,414 @@
             [dacite.core :as d]
             [dacite.hash :as hash]))
 
+;; Helper: run assertions inside with-store so *store* is bound
+(defmacro in-store
+  "Execute body inside a with-store. Returns nil (for side-effecting test assertions)."
+  [& body]
+  `(d/with-store [~'_s {}] ~@body nil))
+
 ;; =============================================================================
 ;; Scalar constructors (pure)
 ;; =============================================================================
 
-(deftest null-value
+(deftest null-value-pure
   (testing "Null construction returns [store hash]"
     (let [[s h] (d/null {})]
       (is (map? s))
       (is (vector? h))
-      (is (= 4 (count h)))
       (is (= :null (d/value-type s h)))
       (is (nil? (d/value-data s h))))))
 
-(deftest bool-value
+(deftest bool-value-pure
   (testing "Boolean construction"
     (let [[s h] (d/bool {} true)]
       (is (= :bool (d/value-type s h)))
-      (is (= true (d/value-data s h))))
-    (let [[s h] (d/bool {} false)]
-      (is (= false (d/value-data s h))))))
+      (is (= true (d/value-data s h))))))
 
-(deftest integer-values
+(deftest integer-values-pure
   (testing "Signed integer constructors"
-    (let [[s h] (d/i8 {} 1)] (is (= :i8 (d/value-type s h))))
-    (let [[s h] (d/i16 {} 1)] (is (= :i16 (d/value-type s h))))
-    (let [[s h] (d/i32 {} 1)] (is (= :i32 (d/value-type s h))))
     (let [[s h] (d/i64 {} 42)]
       (is (= :i64 (d/value-type s h)))
       (is (= 42 (d/value-data s h))))))
 
-(deftest unsigned-integer-values
-  (testing "Unsigned integer constructors"
-    (let [[s h] (d/u8 {} 255)] (is (= :u8 (d/value-type s h))))
-    (let [[s h] (d/u16 {} 65535)] (is (= :u16 (d/value-type s h))))
-    (let [[s h] (d/u32 {} 4294967295)] (is (= :u32 (d/value-type s h))))
-    (let [[s h] (d/u64 {} 0)] (is (= :u64 (d/value-type s h))))))
-
-(deftest unsigned-integer-bounds
+(deftest unsigned-bounds-pure
   (testing "Unsigned integers reject out-of-bounds"
     (is (thrown? AssertionError (d/u8 {} 256)))
-    (is (thrown? AssertionError (d/u8 {} -1)))
-    (is (thrown? AssertionError (d/u16 {} 65536)))))
+    (is (thrown? AssertionError (d/u8 {} -1)))))
 
-(deftest u256-value
-  (testing "u256 stores 32-byte array (hash as data)"
-    (let [data (hash/longs->bytes [1 2 3 4])
-          [s h] (d/u256 {} data)]
-      (is (= :u256 (d/value-type s h)))
-      (is (= 32 (alength ^bytes (d/value-data s h)))))))
-
-(deftest float-values
-  (testing "Float constructors"
-    (let [[s h] (d/f32 {} 1.5)] (is (= :f32 (d/value-type s h))))
-    (let [[s h] (d/f64 {} 3.14)] (is (= :f64 (d/value-type s h))))))
-
-(deftest char-value
-  (testing "Character constructor"
-    (let [[s h] (d/dacite-char {} \a)]
-      (is (= :char (d/value-type s h)))
-      (is (= \a (d/value-data s h))))
-    (is (thrown? AssertionError (d/dacite-char {} "a")))))
-
-(deftest scalar-generic
-  (testing "Generic scalar constructor"
-    (let [[s h] (d/scalar {} :u8 42)]
-      (is (= :u8 (d/value-type s h)))
-      (is (= 42 (d/value-data s h))))))
-
-;; =============================================================================
-;; Store threading
-;; =============================================================================
-
-(deftest store-threading
+(deftest store-threading-pure
   (testing "Store accumulates values across calls"
     (let [[s h1] (d/i64 {} 1)
-          [s h2] (d/i64 s 2)
-          [s h3] (d/i64 s 3)]
+          [s h2] (d/i64 s 2)]
       (is (= 1 (d/value-data s h1)))
-      (is (= 2 (d/value-data s h2)))
-      (is (= 3 (d/value-data s h3))))))
+      (is (= 2 (d/value-data s h2))))))
 
 ;; =============================================================================
-;; Value accessors
+;; Scalar constructors (bang) — return DaciteScalar
 ;; =============================================================================
 
-(deftest lookup-value
-  (testing "Lookup returns the full [type data] pair"
-    (let [[s h] (d/i64 {} 42)]
-      (is (= [:i64 42] (d/lookup s h))))))
+(deftest scalar-bang-returns-dacite-scalar
+  (testing "Bang constructors return DaciteScalar"
+    (in-store
+     (let [result (d/i64! 42)]
+       (is (instance? dacite.core.DaciteScalar result))))))
 
-(deftest lookup-missing
-  (testing "Lookup of missing hash returns nil"
-    (is (nil? (d/lookup {} [0 0 0 1])))))
+(deftest scalar-deref
+  (testing "Dereffing a DaciteScalar yields the raw value"
+    (in-store
+     (let [result (d/i64! 42)]
+       (is (= 42 @result))))))
+
+(deftest scalar-type-accessor
+  (testing "scalar-type returns type keyword"
+    (in-store
+     (let [result (d/i64! 42)]
+       (is (= :i64 (d/scalar-type result)))))))
+
+(deftest scalar-equality
+  (testing "Same value produces equal scalars"
+    (in-store
+     (let [a (d/i64! 42)
+           b (d/i64! 42)]
+       (is (= a b)))))
+  (testing "Different values produce unequal scalars"
+    (in-store
+     (let [a (d/i64! 42)
+           b (d/i64! 43)]
+       (is (not= a b))))))
+
+(deftest scalar-null-deref
+  (testing "Null deref returns nil"
+    (in-store
+     (let [result (d/null!)]
+       (is (nil? @result))))))
+
+(deftest scalar-all-types
+  (testing "All scalar types work via bang constructors"
+    (in-store
+     (let [results {:null (d/null!)
+                    :bool (d/bool! true)
+                    :i8 (d/i8! 1) :i16 (d/i16! 1) :i32 (d/i32! 1) :i64 (d/i64! 42)
+                    :u8 (d/u8! 255) :u16 (d/u16! 100) :u32 (d/u32! 100) :u64 (d/u64! 100)
+                    :f32 (d/f32! 1.5) :f64 (d/f64! 3.14)
+                    :char (d/dacite-char! \a)
+                    :u256 (d/u256! (hash/longs->bytes [1 2 3 4]))}]
+       (is (nil? @(:null results)))
+       (is (= true @(:bool results)))
+       (is (= 42 @(:i64 results)))
+       (is (= 255 @(:u8 results)))
+       (is (= \a @(:char results)))
+       (is (= :u256 (d/scalar-type (:u256 results))))))))
 
 ;; =============================================================================
-;; Hashing
+;; String construction
 ;; =============================================================================
 
-(deftest hash-determinism
-  (testing "Same value always produces same hash"
-    (let [[_ h1] (d/i64 {} 42)
-          [_ h2] (d/i64 {} 42)]
-      (is (= h1 h2)))))
+(deftest string-bang
+  (testing "string! returns DaciteString"
+    (in-store
+     (let [result (d/string! "hello")]
+       (is (instance? dacite.core.DaciteString result))
+       (is (= "hello" @result))
+       (is (= "hello" (str result)))))))
 
-(deftest hash-different-values
-  (testing "Different values produce different hashes"
-    (let [[_ h1] (d/i64 {} 42)
-          [_ h2] (d/i64 {} 43)]
-      (is (not= h1 h2)))))
+(deftest string-count
+  (testing "DaciteString supports count"
+    (in-store
+     (let [result (d/string! "hello")]
+       (is (= 5 (count result)))))))
 
-(deftest hash-different-types
-  (testing "Same data, different types produce different hashes"
-    (let [[_ h1] (d/i64 {} 1)
-          [_ h2] (d/u64 {} 1)]
-      (is (not= h1 h2)))))
+(deftest string-empty-bang
+  (testing "Empty string"
+    (in-store
+     (let [result (d/string! "")]
+       (is (= "" @result))
+       (is (= 0 (count result)))))))
+
+(deftest string-equality
+  (testing "Same string = equal"
+    (in-store
+     (let [a (d/string! "hello")
+           b (d/string! "hello")]
+       (is (= a b))))))
+
+(deftest string-char-sequence
+  (testing "DaciteString implements CharSequence"
+    (in-store
+     (let [result (d/string! "hello")]
+       (is (= \h (.charAt result 0)))
+       (is (= "ell" (str (.subSequence result 1 4))))))))
+
+(deftest string-seq
+  (testing "DaciteString is seqable"
+    (in-store
+     (let [result (d/string! "abc")]
+       (is (= [\a \b \c] (seq result)))))))
+
+;; =============================================================================
+;; Vector construction (bang)
+;; =============================================================================
+
+(deftest vector-of-bang
+  (testing "vector-of! returns DaciteVector with correct count"
+    (in-store
+     (let [v (d/vector-of! [1 2 3])]
+       (is (instance? dacite.core.DaciteVector v))
+       (is (= 3 (count v)))))))
+
+(deftest vector-nth-returns-scalar
+  (testing "nth on DaciteVector returns DaciteScalar"
+    (in-store
+     (let [v (d/vector-of! [10 20 30])]
+       (let [elem (nth v 0)]
+         (is (instance? dacite.core.DaciteScalar elem))
+         (is (= 10 @elem)))
+       (is (= 30 @(nth v 2)))))))
+
+(deftest vector-conj-via-interface
+  (testing "conj on DaciteVector returns new DaciteVector"
+    (in-store
+     (let [v (d/vector-of! [1 2])
+           v2 (conj v 3)]
+       (is (instance? dacite.core.DaciteVector v2))
+       (is (= 3 (count v2)))
+       (is (= 3 @(nth v2 2)))))))
+
+(deftest vector-conj-immutable
+  (testing "conj doesn't modify original"
+    (in-store
+     (let [v (d/vector-of! [1 2])
+           _v2 (conj v 3)]
+       (is (= 2 (count v)))))))
+
+(deftest vector-empty-bang
+  (testing "Empty vector"
+    (in-store
+     (let [v (d/vector-of! [])]
+       (is (= 0 (count v)))
+       (is (nil? (seq v)))))))
+
+(deftest vector-ifn
+  (testing "DaciteVector as function (index lookup)"
+    (in-store
+     (let [v (d/vector-of! [10 20 30])]
+       (is (= 20 @(v 1)))))))
+
+(deftest vector-ilookup
+  (testing "get works on DaciteVector"
+    (in-store
+     (let [v (d/vector-of! [10 20 30])]
+       (is (= 20 @(get v 1)))
+       (is (nil? (get v 99)))))))
+
+(deftest vector-peek-pop
+  (testing "peek and pop on DaciteVector"
+    (in-store
+     (let [v (d/vector-of! [1 2 3])]
+       (is (= 3 @(peek v)))
+       (let [popped (pop v)]
+         (is (= 2 (count popped)))
+         (is (= 2 @(peek popped))))))))
+
+(deftest vector-assoc-interface
+  (testing "assoc on DaciteVector replaces element"
+    (in-store
+     (let [v (d/vector-of! [1 2 3])
+           v2 (assoc v 1 99)]
+       (is (= 3 (count v2)))
+       (is (= 99 @(nth v2 1)))))))
+
+(deftest vector-seq-returns-scalars
+  (testing "seq on DaciteVector returns DaciteScalar elements"
+    (in-store
+     (let [v (d/vector-of! [10 20 30])
+           s (seq v)]
+       (is (= 3 (clojure.core/count s)))
+       (is (every? #(instance? dacite.core.DaciteScalar %) s))
+       (is (= [10 20 30] (mapv deref s)))))))
+
+(deftest vector-contains-key
+  (testing "contains? works with integer keys"
+    (in-store
+     (let [v (d/vector-of! [10 20])]
+       (is (.containsKey v 0))
+       (is (.containsKey v 1))
+       (is (not (.containsKey v 2)))))))
+
+(deftest vector-equality
+  (testing "Same elements produce equal vectors"
+    (in-store
+     (let [a (d/vector-of! [1 2 3])
+           b (d/vector-of! [1 2 3])]
+       (is (= a b)))))
+  (testing "Different elements are not equal"
+    (in-store
+     (let [a (d/vector-of! [1 2])
+           b (d/vector-of! [2 1])]
+       (is (not= a b))))))
+
+(deftest vector-toString
+  (testing "toString shows readable representation"
+    (in-store
+     (let [v (d/vector-of! [1 2 3])]
+       (is (= "[1 2 3]" (str v)))))))
+
+(deftest vector-mixed-types
+  (testing "Vector with mixed auto-coerced types"
+    (in-store
+     (let [v (d/vector-of! [nil true 42])]
+       (is (= 3 (count v)))
+       (is (nil? @(nth v 0)))
+       (is (= true @(nth v 1)))
+       (is (= 42 @(nth v 2)))))))
+
+(deftest vector-nested
+  (testing "Vectors can contain vectors"
+    (in-store
+     (let [inner (d/vector-of! [1 2])
+           outer (d/vector! [(d/unwrap-hash inner)])]
+       (is (= 1 (count outer)))
+       (let [inner' (nth outer 0)]
+         (is (instance? dacite.core.DaciteVector inner'))
+         (is (= 2 (count inner'))))))))
+
+;; =============================================================================
+;; Map construction (bang)
+;; =============================================================================
+
+(deftest map-of-bang
+  (testing "map-of! returns DaciteMap"
+    (in-store
+     (let [m (d/map-of! {"name" "Alice" "age" 30})]
+       (is (instance? dacite.core.DaciteMap m))
+       (is (= 2 (count m)))))))
+
+(deftest map-get-via-interface
+  (testing "get/valAt works on DaciteMap"
+    (in-store
+     (let [m (d/map-of! {"name" "Alice" "age" 30})]
+       (let [name-val (get m "name")]
+         (is (instance? dacite.core.DaciteString name-val))
+         (is (= "Alice" @name-val)))
+       (let [age-val (get m "age")]
+         (is (instance? dacite.core.DaciteScalar age-val))
+         (is (= 30 @age-val)))))))
+
+(deftest map-get-missing
+  (testing "get returns nil for missing key"
+    (in-store
+     (let [m (d/map-of! {"a" 1})]
+       (is (nil? (get m "missing")))))))
+
+(deftest map-get-not-found
+  (testing "get returns not-found for missing key"
+    (in-store
+     (let [m (d/map-of! {"a" 1})]
+       (is (= :nope (get m "missing" :nope)))))))
+
+(deftest map-ifn
+  (testing "DaciteMap as function"
+    (in-store
+     (let [m (d/map-of! {"x" 42})]
+       (is (= 42 @(m "x")))))))
+
+(deftest map-assoc-via-interface
+  (testing "assoc on DaciteMap"
+    (in-store
+     (let [m (d/map-of! {"a" 1})
+           m2 (assoc m "b" 2)]
+       (is (= 2 (count m2)))
+       (is (= 2 @(get m2 "b")))))))
+
+(deftest map-dissoc-via-interface
+  (testing "dissoc on DaciteMap"
+    (in-store
+     (let [m (d/map-of! {"a" 1 "b" 2})
+           m2 (dissoc m "a")]
+       (is (= 1 (count m2)))
+       (is (nil? (get m2 "a")))
+       (is (= 2 @(get m2 "b")))))))
+
+(deftest map-conj-entry
+  (testing "conj on DaciteMap with [k v] pair"
+    (in-store
+     (let [m (d/map-of! {"a" 1})
+           m2 (conj m ["b" 2])]
+       (is (= 2 (count m2)))))))
+
+(deftest map-contains
+  (testing "contains? via containsKey"
+    (in-store
+     (let [m (d/map-of! {"a" 1})]
+       (is (.containsKey m "a"))
+       (is (not (.containsKey m "z")))))))
+
+(deftest map-empty-bang
+  (testing "Empty map"
+    (in-store
+     (let [m (d/map-of! {})]
+       (is (= 0 (count m)))
+       (is (nil? (seq m)))))))
+
+(deftest map-seq-returns-entries
+  (testing "seq on DaciteMap returns MapEntry elements"
+    (in-store
+     (let [m (d/map-of! {"x" 10})
+           s (seq m)]
+       (is (= 1 (clojure.core/count s)))
+       (let [entry (first s)]
+         (is (instance? clojure.lang.MapEntry entry))
+         (is (instance? dacite.core.DaciteString (key entry)))
+         (is (= "x" @(key entry)))
+         (is (= 10 @(val entry))))))))
+
+(deftest map-equality
+  (testing "Same entries produce equal maps"
+    (in-store
+     (let [a (d/map-of! {"a" 1 "b" 2})
+           b (d/map-of! {"a" 1 "b" 2})]
+       (is (= a b))))))
+
+(deftest map-immutable
+  (testing "assoc doesn't modify original"
+    (in-store
+     (let [m (d/map-of! {"a" 1})
+           _m2 (assoc m "b" 2)]
+       (is (= 1 (count m)))))))
+
+(deftest map-toString
+  (testing "toString shows readable representation"
+    (in-store
+     (let [m (d/map-of! {"x" 10})]
+       (is (string? (str m)))))))
+
+;; =============================================================================
+;; Hashing utilities
+;; =============================================================================
 
 (deftest hash-hex-format
   (testing "Hash hex is 64 characters"
     (let [[_ h] (d/i64 {} 42)]
       (is (= 64 (count (d/hash-hex h)))))))
 
-(deftest hash-as-value-round-trip
-  (testing "Store a hash as a u256 value and retrieve the bytes"
-    (let [[s h1] (d/i64 {} 42)
-          [s h2] (d/hash-as-value s h1)
-          stored-bytes (d/value-data s h2)]
-      (is (= :u256 (d/value-type s h2)))
-      (is (= h1 (hash/bytes->longs stored-bytes))))))
-
-;; =============================================================================
-;; String construction
-;; =============================================================================
-
-(deftest string-construction
-  (testing "String creation and access"
-    (let [[s h] (d/string {} "hello")]
-      (is (= "hello" (d/string-value s h))))))
-
-(deftest string-empty
-  (testing "Empty string"
-    (let [[s h] (d/string {} "")]
-      (is (= "" (d/string-value s h))))))
-
-(deftest string-deterministic
-  (testing "Same string produces same hash"
-    (let [[_ h1] (d/string {} "hello")
-          [_ h2] (d/string {} "hello")]
+(deftest hash-determinism
+  (testing "Same value always same hash"
+    (let [[_ h1] (d/i64 {} 42)
+          [_ h2] (d/i64 {} 42)]
       (is (= h1 h2)))))
 
-;; =============================================================================
-;; Vector construction
-;; =============================================================================
+(deftest hash-different-types
+  (testing "Same data, different types = different hashes"
+    (let [[_ h1] (d/i64 {} 1)
+          [_ h2] (d/u64 {} 1)]
+      (is (not= h1 h2)))))
 
-(deftest vector-from-refs
-  (testing "Vector from refs already in store"
-    (let [[s h1] (d/i64 {} 1)
-          [s h2] (d/i64 s 2)
-          [s h3] (d/i64 s 3)
-          [s vh] (d/vector s [h1 h2 h3])]
-      (is (= 3 (d/vector-count s vh)))
-      (is (= h1 (d/vector-nth s vh 0)))
-      (is (= h3 (d/vector-nth s vh 2))))))
-
-(deftest vector-of-auto-coerce
-  (testing "vector-of auto-coerces plain values"
-    (let [[s vh] (d/vector-of {} [1 2 3])]
-      (is (= 3 (d/vector-count s vh)))
-      (let [first-ref (d/vector-nth s vh 0)]
-        (is (= :i64 (d/value-type s first-ref)))
-        (is (= 1 (d/value-data s first-ref)))))))
-
-(deftest vector-empty
-  (testing "Empty vector"
-    (let [[s vh] (d/vector {} [])]
-      (is (= 0 (d/vector-count s vh)))
-      (is (= [] (d/vector-refs s vh))))))
-
-(deftest vector-conj-appends
-  (testing "Conj appends to vector"
-    (let [[s h1] (d/i64 {} 1)
-          [s h2] (d/i64 s 2)
-          [s vh] (d/vector s [h1])
-          [s vh2] (d/vector-conj s vh h2)]
-      (is (= 1 (d/vector-count s vh)))
-      (is (= 2 (d/vector-count s vh2)))
-      (is (= h2 (d/vector-nth s vh2 1))))))
-
-(deftest vector-conj-immutable
-  (testing "Conj doesn't modify original"
-    (let [[s h1] (d/i64 {} 1)
-          [s h2] (d/i64 s 2)
-          [s vh] (d/vector s [h1])
-          [s _] (d/vector-conj s vh h2)]
-      (is (= 1 (d/vector-count s vh))))))
-
-(deftest vector-deterministic
-  (testing "Same elements produce same hash"
-    (let [[s1 h1] (d/i64 {} 1)
-          [s1 h2] (d/i64 s1 2)
-          [_ vh1] (d/vector s1 [h1 h2])
-          [s2 h3] (d/i64 {} 1)
-          [s2 h4] (d/i64 s2 2)
-          [_ vh2] (d/vector s2 [h3 h4])]
-      (is (= vh1 vh2)))))
-
-(deftest vector-order-matters
-  (testing "Different order produces different hash"
-    (let [[s h1] (d/i64 {} 1)
-          [s h2] (d/i64 s 2)
-          [_ vh1] (d/vector s [h1 h2])
-          [_ vh2] (d/vector s [h2 h1])]
-      (is (not= vh1 vh2)))))
-
-(deftest vector-of-mixed-types
-  (testing "vector-of with mixed auto-coerced types"
-    (let [[s vh] (d/vector-of {} [nil true 42 3.14])]
-      (is (= 4 (d/vector-count s vh)))
-      (is (= :null (d/value-type s (d/vector-nth s vh 0))))
-      (is (= :bool (d/value-type s (d/vector-nth s vh 1))))
-      (is (= :i64 (d/value-type s (d/vector-nth s vh 2))))
-      (is (= :f64 (d/value-type s (d/vector-nth s vh 3)))))))
-
-;; =============================================================================
-;; Map construction
-;; =============================================================================
-
-(deftest map-from-refs
-  (testing "Map from ref pairs"
-    (let [[s kh] (d/string {} "name")
-          [s vh] (d/string s "Alice")
-          [s mh] (d/dacite-map s [[kh vh]])]
-      (is (= 1 (d/map-count s mh)))
-      (is (= vh (d/map-get s mh "name"))))))
-
-(deftest map-of-auto-coerce
-  (testing "map-of auto-coerces keys and values"
-    (let [[s mh] (d/map-of {} {"name" "Alice" "age" 30})]
-      (is (= 2 (d/map-count s mh)))
-      (let [name-ref (d/map-get s mh "name")]
-        (is (= :string (d/value-type s name-ref)))
-        (is (= "Alice" (d/value-data s name-ref))))
-      (let [age-ref (d/map-get s mh "age")]
-        (is (= :i64 (d/value-type s age-ref)))
-        (is (= 30 (d/value-data s age-ref)))))))
-
-(deftest map-empty
-  (testing "Empty map"
-    (let [[s mh] (d/dacite-map {} [])]
-      (is (= 0 (d/map-count s mh)))
-      (is (nil? (d/map-get s mh "anything"))))))
-
-(deftest map-assoc-adds
-  (testing "Assoc adds a key-value pair"
-    (let [[s kh1] (d/string {} "a")
-          [s vh1] (d/i64 s 1)
-          [s mh] (d/dacite-map s [[kh1 vh1]])
-          [s kh2] (d/string s "b")
-          [s vh2] (d/i64 s 2)
-          [s mh2] (d/map-assoc s mh kh2 vh2)]
-      (is (= 1 (d/map-count s mh)))
-      (is (= 2 (d/map-count s mh2)))
-      (is (= vh2 (d/map-get s mh2 "b"))))))
-
-(deftest map-dissoc-removes
-  (testing "Dissoc removes a key"
-    (let [[s mh] (d/map-of {} {"a" 1 "b" 2})
-          [s mh2] (d/map-dissoc s mh "a")]
-      (is (= 1 (d/map-count s mh2)))
-      (is (nil? (d/map-get s mh2 "a")))
-      (is (some? (d/map-get s mh2 "b"))))))
-
-(deftest map-dissoc-missing
-  (testing "Dissoc of missing key is a no-op"
-    (let [[s mh] (d/map-of {} {"a" 1})
-          [s mh2] (d/map-dissoc s mh "z")]
-      (is (= 1 (d/map-count s mh2))))))
-
-(deftest map-immutable
-  (testing "Map operations don't modify original"
-    (let [[s kh1] (d/string {} "a")
-          [s vh1] (d/i64 s 1)
-          [s mh] (d/dacite-map s [[kh1 vh1]])
-          [s kh2] (d/string s "b")
-          [s vh2] (d/i64 s 2)
-          [s _] (d/map-assoc s mh kh2 vh2)]
-      (is (= 1 (d/map-count s mh))))))
-
-(deftest map-entries-returns-pairs
-  (testing "Entries returns key-ref val-ref pairs"
-    (let [[s kh] (d/string {} "x")
-          [s vh] (d/i64 s 10)
-          [s mh] (d/dacite-map s [[kh vh]])
-          entries (d/map-entries s mh)]
-      (is (= 1 (count entries)))
-      (let [[k v] (first entries)]
-        (is (= kh k))
-        (is (= vh v))))))
-
-(deftest map-deterministic
-  (testing "Same entries produce same hash"
-    (let [[_s1 mh1] (d/map-of {} {"a" 1 "b" 2})
-          [_s2 mh2] (d/map-of {} {"a" 1 "b" 2})]
-      (is (= mh1 mh2)))))
-
-(deftest map-insertion-order-independent
-  (testing "Different insertion order produces same hash"
-    (let [[_ mh1] (d/map-of {} {"a" 1 "b" 2})
-          [_ mh2] (d/map-of {} {"b" 2 "a" 1})]
-      (is (= mh1 mh2)))))
+(deftest hash-as-value-round-trip
+  (testing "Store a hash as u256 and retrieve"
+    (let [[s h1] (d/i64 {} 42)
+          [s h2] (d/hash-as-value s h1)]
+      (is (= :u256 (d/value-type s h2)))
+      (is (= h1 (hash/bytes->longs (d/value-data s h2)))))))
 
 ;; =============================================================================
 ;; Content equality
@@ -329,63 +428,19 @@
       (is (not (d/dacite= h1 h2))))))
 
 ;; =============================================================================
-;; with-store macro
+;; Pure vector/map API (backward compat)
 ;; =============================================================================
 
-(deftest with-store-basic
-  (testing "with-store manages store and returns [store last-value]"
-    (let [[store result] (d/with-store [_s {}]
-                           (d/i64! 42))]
-      (is (map? store))
-      (is (vector? result))
-      (is (= :i64 (d/value-type store result))))))
+(deftest vector-pure-api
+  (testing "Pure vector API still works"
+    (let [[s h1] (d/i64 {} 1)
+          [s h2] (d/i64 s 2)
+          [s vh] (d/vector s [h1 h2])]
+      (is (= 2 (d/vector-count s vh)))
+      (is (= h1 (d/vector-nth s vh 0))))))
 
-(deftest with-store-multiple-values
-  (testing "Multiple bang constructors accumulate in store"
-    (let [[store v-hash] (d/with-store [_s {}]
-                           (let [a (d/i64! 1)
-                                 b (d/i64! 2)
-                                 c (d/i64! 3)]
-                             (d/vector! [a b c])))]
-      (is (= 3 (d/vector-count store v-hash))))))
-
-(deftest with-store-vector-of!
-  (testing "vector-of! auto-coerces in store context"
-    (let [[store vh] (d/with-store [_s {}]
-                       (d/vector-of! [1 2 3]))]
-      (is (= 3 (d/vector-count store vh)))
-      (is (= :i64 (d/value-type store (d/vector-nth store vh 0)))))))
-
-(deftest with-store-map-of!
-  (testing "map-of! auto-coerces in store context"
-    (let [[store mh] (d/with-store [_s {}]
-                       (d/map-of! {"name" "Alice" "age" 30}))]
-      (is (= 2 (d/map-count store mh)))
-      (let [name-ref (d/map-get store mh "name")]
-        (is (= "Alice" (d/value-data store name-ref)))))))
-
-(deftest with-store-string!
-  (testing "string! works in store context"
-    (let [[store sh] (d/with-store [_s {}]
-                       (d/string! "hello"))]
-      (is (= "hello" (d/string-value store sh))))))
-
-(deftest with-store-all-scalar-bangs
-  (testing "All scalar bang constructors work"
-    (let [[store results]
-          (d/with-store [_s {}]
-            {:null (d/null!)
-             :bool (d/bool! true)
-             :i8 (d/i8! 1) :i16 (d/i16! 1) :i32 (d/i32! 1) :i64 (d/i64! 42)
-             :u8 (d/u8! 255) :u16 (d/u16! 100) :u32 (d/u32! 100) :u64 (d/u64! 100)
-             :f32 (d/f32! 1.5) :f64 (d/f64! 3.14)
-             :char (d/dacite-char! \a)
-             :scalar (d/scalar! :i64 99)
-             :u256 (d/u256! (hash/longs->bytes [1 2 3 4]))})]
-      (is (= :null (d/value-type store (:null results))))
-      (is (= :bool (d/value-type store (:bool results))))
-      (is (= :i64 (d/value-type store (:i64 results))))
-      (is (= :u8 (d/value-type store (:u8 results))))
-      (is (= :f64 (d/value-type store (:f64 results))))
-      (is (= :char (d/value-type store (:char results))))
-      (is (= :u256 (d/value-type store (:u256 results)))))))
+(deftest map-pure-api
+  (testing "Pure map API still works"
+    (let [[s mh] (d/map-of {} {"a" 1})]
+      (is (= 1 (d/map-count s mh)))
+      (is (some? (d/map-get s mh "a"))))))

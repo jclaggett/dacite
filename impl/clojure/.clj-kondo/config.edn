@@ -1,4 +1,6 @@
 {:linters {:unresolved-symbol {:exclude [(clojure.test.check.clojure-test/defspec)]}
-           :unused-public-var {:level :warning}}
+           :unused-public-var {:level :warning}
+           :unused-binding {:level :off}}
  :lint-as {clojure.test.check.clojure-test/defspec clj-kondo.lint-as/def-catch-all
-           dacite.core/with-store clojure.core/let}}
+           dacite.core/with-store clojure.core/let
+           dacite.core-test/in-store clj-kondo.lint-as/def-catch-all}}
