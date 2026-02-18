@@ -1,4 +1,4 @@
-# Dacite
+# 🪨 Dacite
 
 > Data citing with fused hashing.
 
@@ -13,19 +13,20 @@ Dacite is a system for **distributed immutable data structures** with content-ad
 
 ## Status
 
-🚧 **Early design phase** — spec in progress, no working code yet.
+🚧 **Early design phase** — spec in progress, reference implementation underway.
 
 ## Documentation
 
-- [Specification](spec/SPEC.md) — the core protocol and data model
+- [Specification](docs/spec/SPEC.md) — the core protocol and data model
+- [Development Dialogue](docs/development-dialogue.md) — journal of the design and development process
 
 ## Implementations
 
-| Language | Status |
-|----------|--------|
-| Clojure | 🔨 Reference implementation (planned) |
-| Node.js | 📋 Planned |
-| C++ | 📋 Planned |
+| Language | Status | Location |
+|----------|--------|----------|
+| Clojure | 🔨 Reference implementation | [impl/clojure](https://github.com/jclaggett/dacite/tree/main/impl/clojure) |
+| Node.js | 📋 Planned | — |
+| C++ | 📋 Planned | — |
 
 ## Use Cases
 

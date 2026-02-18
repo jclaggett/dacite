@@ -769,8 +769,8 @@ The `"ref"` kind signals an un-fetched subtree. Clients can request materializat
 
 Formal JSON Schema definitions are provided alongside this spec:
 
-- **[`schema/structural.schema.json`](schema/structural.schema.json)** — validates structural mode nodes (scalars, seq nodes, map nodes with hash references)
-- **[`schema/materialized.schema.json`](schema/materialized.schema.json)** — validates materialized mode values (typed values with inlined data, including hybrid `ref` nodes)
+- **[`structural.schema.json`](schema/structural.schema.json)** — validates structural mode nodes (scalars, seq nodes, map nodes with hash references)
+- **[`materialized.schema.json`](schema/materialized.schema.json)** — validates materialized mode values (typed values with inlined data, including hybrid `ref` nodes)
 
 Notes:
 - The `hash` field is optional in materialized mode (clients may not need it)
