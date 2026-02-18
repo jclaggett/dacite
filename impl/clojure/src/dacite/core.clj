@@ -66,92 +66,76 @@
 ;; Scalar constructors (pure)
 ;; =============================================================================
 
+(defn scalar "Create a scalar of any type. Returns [store' hash]."
+  [store type-kw data]
+  (let [v [type-kw data] h (hash/typed-value-hash v)]
+    [(assoc store h v) h]))
+
 (defn null
   "Create a null value. Returns [store' hash]."
   [store]
-  (let [v [:null nil]
-        h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :null nil))
 
 (defn bool
   "Create a boolean value. Returns [store' hash]."
   [store b]
   {:pre [(instance? Boolean b)]}
-  (let [v [:bool b]
-        h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :bool b))
 
 (defn i8 "Create a signed 8-bit integer. Returns [store' hash]."
   [store n]
-  (let [v [:i8 (byte n)] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :i8 n))
 
 (defn i16 "Create a signed 16-bit integer. Returns [store' hash]."
   [store n]
-  (let [v [:i16 (short n)] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :i16 n))
 
 (defn i32 "Create a signed 32-bit integer. Returns [store' hash]."
   [store n]
-  (let [v [:i32 (int n)] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :i32 n))
 
 (defn i64 "Create a signed 64-bit integer. Returns [store' hash]."
   [store n]
-  (let [v [:i64 (long n)] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :i64 n))
 
 (defn u8 "Create an unsigned 8-bit integer. Returns [store' hash]."
   [store n]
   {:pre [(<= 0 n 255)]}
-  (let [v [:u8 n] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :u8 n))
 
 (defn u16 "Create an unsigned 16-bit integer. Returns [store' hash]."
   [store n]
   {:pre [(<= 0 n 65535)]}
-  (let [v [:u16 n] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :u16 n))
 
 (defn u32 "Create an unsigned 32-bit integer. Returns [store' hash]."
   [store n]
   {:pre [(<= 0 n 4294967295)]}
-  (let [v [:u32 n] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :u32 n))
 
 (defn u64 "Create an unsigned 64-bit integer. Returns [store' hash]."
   [store n]
   {:pre [(<= 0 n)]}
-  (let [v [:u64 n] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :u64 n))
 
 (defn u256 "Create an unsigned 256-bit integer (e.g. a hash as data). Returns [store' hash].
   Data should be a 32-byte array."
   [store ^bytes data]
   {:pre [(= 32 (alength data))]}
-  (let [v [:u256 data] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :u256 data))
 
 (defn f32 "Create a 32-bit float. Returns [store' hash]."
   [store n]
-  (let [v [:f32 (float n)] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :f32 (float n)))
 
 (defn f64 "Create a 64-bit float. Returns [store' hash]."
   [store n]
-  (let [v [:f64 (double n)] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :f64 (double n)))
 
 (defn dacite-char "Create a character value. Returns [store' hash]."
   [store c]
   {:pre [(char? c)]}
-  (let [v [:char c] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
-
-(defn scalar "Create a scalar of any type. Returns [store' hash]."
-  [store type-kw data]
-  (let [v [type-kw data] h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
+  (scalar store :char c))
 
 ;; =============================================================================
 ;; Scalar constructors (bang — use with with-store)
