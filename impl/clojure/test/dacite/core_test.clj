@@ -370,6 +370,21 @@
     (is (= 42 (d/dac->clj 42)))
     (is (= "hi" (d/dac->clj "hi")))))
 
+(deftest dac->clj-max-nodes-test
+  (testing "Exceeding max-nodes throws"
+    (let [v (d/vec (range 100))]
+      ;; 100 elements + 1 vector = 101 nodes
+      (is (thrown? clojure.lang.ExceptionInfo (d/dac->clj v 5)))
+      ;; With enough budget it works
+      (is (= (clojure.core/vec (range 100)) (d/dac->clj v 200)))))
+  (testing "Default limit allows reasonable sizes"
+    (is (= [1 2 3] (d/dac->clj (d/vec [1 2 3])))))
+  (testing "Nested structures count all nodes"
+    (let [m (d/hash-map "a" (d/vec [1 2 3]))]
+      ;; map(1) + key-string(1) + vector(1) + 3 scalars(3) = 6 nodes
+      (is (thrown? clojure.lang.ExceptionInfo (d/dac->clj m 3)))
+      (is (= {"a" [1 2 3]} (d/dac->clj m 10))))))
+
 ;; =============================================================================
 ;; clj->dac
 ;; =============================================================================

@@ -556,17 +556,36 @@
 ;; Boundary crossing: dac->clj and clj->dac
 ;; =============================================================================
 
-(defn dac->clj
-  "Recursively convert a Dacite value to plain Clojure data.
-   Scalars unwrap to their raw value, strings to String,
-   vectors to persistent vectors, maps to persistent hash maps."
-  [x]
+(def ^:const default-max-nodes
+  "Default maximum number of nodes dac->clj will materialize."
+  10000)
+
+(defn- dac->clj*
+  "Internal recursive converter with node budget tracking."
+  [x counter max-nodes]
+  (when (> (vswap! counter inc) max-nodes)
+    (throw (ex-info (clojure.core/str "dac->clj exceeded max-nodes limit of " max-nodes)
+                    {:max-nodes max-nodes})))
   (cond
     (instance? DaciteScalar x) @x
     (instance? DaciteString x) @x
-    (instance? DaciteVector x) (mapv dac->clj (seq x))
-    (instance? DaciteMap x)    (into {} (map (fn [[k v]] [(dac->clj k) (dac->clj v)])) (seq x))
+    (instance? DaciteVector x) (mapv #(dac->clj* % counter max-nodes) (seq x))
+    (instance? DaciteMap x)    (into {} (map (fn [[k v]]
+                                               [(dac->clj* k counter max-nodes)
+                                                (dac->clj* v counter max-nodes)]))
+                                     (seq x))
     :else x))
+
+(defn dac->clj
+  "Recursively convert a Dacite value to plain Clojure data.
+   Scalars unwrap to their raw value, strings to String,
+   vectors to persistent vectors, maps to persistent hash maps.
+
+   Optional max-nodes parameter (default 10000) limits the number of
+   nodes materialized. Throws ex-info if the limit is exceeded."
+  ([x] (dac->clj x default-max-nodes))
+  ([x max-nodes]
+   (dac->clj* x (volatile! 0) max-nodes)))
 
 (defn clj->dac
   "Recursively convert plain Clojure data to Dacite values.
