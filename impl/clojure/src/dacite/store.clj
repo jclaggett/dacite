@@ -1,15 +1,15 @@
 (ns dacite.store
   "Content-addressed storage for Dacite values.
-   
-   Stores nodes by their 256-bit hash on the filesystem.
-   Uses a two-level directory structure to avoid too many files per directory:
-   
-   store-path/
-     ab/
-       cd/
-         abcd1234...5678.dat
-   
-   Where ab and cd are the first two bytes of the hash in hex."
+
+   The Store protocol defines the minimal interface for value storage.
+   All Dacite operations go through this protocol, allowing stores to
+   be swapped, layered, or backed by different media (memory, disk,
+   network) without changing application code.
+
+   Built-in implementations:
+   - mem-store: In-memory atom-backed store (default)
+   - file-store: Filesystem persistence with directory sharding
+   - layered-store: Compose stores with read-through / write-through"
   (:require [dacite.hash :as hash]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
@@ -19,25 +19,39 @@
 ;; Hash utilities (re-exported from dacite.hash)
 ;; =============================================================================
 
-(def hash->hex
-  "Convert hash (4 longs or 32 bytes) to 64-char hex string."
-  hash/hash->hex)
-
-(def hex->hash
-  "Convert 64-char hex string to hash (vector of 4 longs)."
-  hash/hex->hash)
+(def hash->hex hash/hash->hex)
+(def hex->hash hash/hex->hash)
 
 ;; =============================================================================
 ;; Store protocol
 ;; =============================================================================
 
-(defprotocol Store
+(defprotocol IStore
   "Protocol for content-addressed storage."
-  (store-get [this hash] "Retrieve value by hash. Returns nil if not found.")
-  (store-put [this hash value] "Store value at hash. Returns hash.")
-  (store-has? [this hash] "Check if hash exists.")
-  (store-delete [this hash] "Delete value at hash.")
-  (store-list [this] "List all hashes in store."))
+  (s-get [this h] "Retrieve value by hash. Returns nil if not found.")
+  (s-put [this h value] "Store value at hash. Returns the store (or this for mutable stores).")
+  (s-has? [this h] "Check if hash exists.")
+  (s-snapshot [this] "Return the current contents as a plain map. Used for bulk reads during construction.")
+  (s-merge [this m] "Merge a map of {hash value} pairs into the store.")
+  (s-reset [this] "Clear all entries. Returns the store."))
+
+;; =============================================================================
+;; In-memory store
+;; =============================================================================
+
+(defrecord MemStore [data]
+  IStore
+  (s-get [_ h] (get @data h))
+  (s-put [this h value] (swap! data assoc h value) this)
+  (s-has? [_ h] (contains? @data h))
+  (s-snapshot [_] @data)
+  (s-merge [this m] (swap! data merge m) this)
+  (s-reset [this] (reset! data {}) this))
+
+(defn mem-store
+  "Create an in-memory content-addressed store."
+  ([] (->MemStore (atom {})))
+  ([init] (->MemStore (atom init))))
 
 ;; =============================================================================
 ;; Filesystem store
@@ -52,41 +66,52 @@
         filename (str hex ".edn")]
     (io/file base-dir dir1 dir2 filename)))
 
-(defn- ensure-parent-dirs
-  "Create parent directories if they don't exist."
-  [^File f]
+(defn- ensure-parent-dirs [^File f]
   (let [parent (.getParentFile f)]
     (when-not (.exists parent)
       (.mkdirs parent))))
 
 (defrecord FileStore [base-dir]
-  Store
-  (store-get [_ h]
+  IStore
+  (s-get [_ h]
     (let [f (hash->path base-dir h)]
       (when (.exists f)
         (edn/read-string (slurp f)))))
 
-  (store-put [_ h value]
+  (s-put [this h value]
     (let [f (hash->path base-dir h)]
       (ensure-parent-dirs f)
       (spit f (pr-str value))
-      h))
+      this))
 
-  (store-has? [_ h]
+  (s-has? [_ h]
     (.exists (hash->path base-dir h)))
 
-  (store-delete [_ h]
-    (let [f (hash->path base-dir h)]
-      (when (.exists f)
-        (.delete f))))
-
-  (store-list [_]
+  (s-snapshot [this]
+    ;; Expensive: reads all files into memory. Use sparingly.
     (let [files (file-seq base-dir)]
-      (->> files
-           (filter #(.isFile ^File %))
-           (filter #(.endsWith (.getName ^File %) ".edn"))
-           (map #(let [name (.getName ^File %)]
-                   (hex->hash (subs name 0 64))))))))
+      (into {}
+            (comp
+             (filter #(.isFile ^File %))
+             (filter #(.endsWith (.getName ^File %) ".edn"))
+             (map (fn [^File f]
+                    (let [hex (subs (.getName f) 0 64)
+                          h (hex->hash hex)
+                          v (edn/read-string (slurp f))]
+                      [h v]))))
+            files)))
+
+  (s-merge [this m]
+    (doseq [[h v] m]
+      (s-put this h v))
+    this)
+
+  (s-reset [this]
+    ;; Delete all .edn files
+    (doseq [^File f (file-seq base-dir)
+            :when (and (.isFile f) (.endsWith (.getName f) ".edn"))]
+      (.delete f))
+    this))
 
 (defn file-store
   "Create a file-based content-addressed store."
@@ -97,129 +122,50 @@
     (->FileStore dir)))
 
 ;; =============================================================================
-;; In-memory store (for testing)
+;; Layered store
 ;; =============================================================================
 
-(defrecord MemStore [data]
-  ;; data is an atom containing {hash-vec -> value}
-  Store
-  (store-get [_ h]
-    (get @data (vec h)))
+(defrecord LayeredStore [layers]
+  ;; layers is a vector of stores, first = fastest (e.g. mem), last = most durable
+  IStore
+  (s-get [_ h]
+    (loop [[layer & rest] layers]
+      (when layer
+        (if-let [v (s-get layer h)]
+          ;; TODO: populate faster layers on read-through
+          v
+          (recur rest)))))
 
-  (store-put [_ h value]
-    (swap! data assoc (vec h) value)
-    h)
+  (s-put [this h value]
+    ;; Write to all layers
+    (doseq [layer layers]
+      (s-put layer h value))
+    this)
 
-  (store-has? [_ h]
-    (contains? @data (vec h)))
+  (s-has? [_ h]
+    (some #(s-has? % h) layers))
 
-  (store-delete [_ h]
-    (swap! data dissoc (vec h)))
+  (s-snapshot [_]
+    ;; Merge all layers, first layer wins on conflicts
+    (reduce (fn [acc layer]
+              (merge acc (s-snapshot layer)))
+            {}
+            (reverse layers)))
 
-  (store-list [_]
-    (keys @data)))
+  (s-merge [this m]
+    (doseq [layer layers]
+      (s-merge layer m))
+    this)
 
-(defn mem-store
-  "Create an in-memory content-addressed store."
-  []
-  (->MemStore (atom {})))
+  (s-reset [this]
+    (doseq [layer layers]
+      (s-reset layer))
+    this))
 
-;; =============================================================================
-;; Store operations for Dacite values
-;; =============================================================================
+(defn layered-store
+  "Create a layered store. Reads fall through from first to last.
+   Writes go to all layers.
 
-(defn put-value
-  "Store a Dacite value and return its hash.
-   The value should be a map with :type and :data keys."
-  [store value]
-  (let [;; Compute hash of value
-        data-bytes (.getBytes (pr-str value) "UTF-8")
-        type-name (or (:type value) "dacite.core/unknown")
-        type-hash (hash/fuse-str type-name)
-        data-hash (hash/fuse-bytes data-bytes)
-        hash-longs (hash/fuse type-hash data-hash)]
-    (store-put store hash-longs value)
-    hash-longs))
-
-(defn get-value
-  "Retrieve a Dacite value by its hash."
-  [store hash-longs]
-  (store-get store hash-longs))
-
-;; =============================================================================
-;; Recursive storage for trees
-;; =============================================================================
-
-(defn store-tree!
-  "Recursively store a tree structure.
-   The tree should have :children (hashes or subtrees) and :data.
-   Returns the root hash."
-  [store tree]
-  (let [;; First store all children that are subtrees (not already hashes)
-        children-with-hashes
-        (when (:children tree)
-          (mapv (fn [child]
-                  (if (and (vector? child) (= 4 (count child)) (every? number? child))
-                    child  ;; Already a hash
-                    (store-tree! store child)))  ;; Store subtree, get hash
-                (:children tree)))
-
-        ;; Create the storable version with children as hashes
-        storable (if children-with-hashes
-                   (assoc tree :children children-with-hashes)
-                   tree)]
-
-    ;; Store and return hash
-    (put-value store storable)))
-
-(defn fetch-tree
-  "Fetch a tree, optionally expanding children up to a depth.
-   With depth=0, returns just the node (children stay as hashes).
-   With depth=1, fetches one level of children (their children stay as hashes).
-   With depth=-1 (or nil), fetches everything recursively."
-  ([store root-hash] (fetch-tree store root-hash -1))
-  ([store root-hash depth]
-   (when-let [node (get-value store root-hash)]
-     (if (or (= depth 0) (nil? (:children node)))
-       node
-       (let [expanded-children
-             (mapv (fn [child-hash]
-                     (let [child-node (get-value store child-hash)]
-                       (if (and child-node
-                                (:children child-node)
-                                (or (neg? depth) (> depth 1)))
-                         ;; Recurse into this child's children
-                         (fetch-tree store child-hash
-                                     (if (neg? depth) -1 (dec depth)))
-                         ;; Just return the child node (or nil if not found)
-                         child-node)))
-                   (:children node))]
-         (assoc node :children expanded-children))))))
-
-(comment
-  ;; Example usage
-  (def store (mem-store))
-
-  ;; Store some values
-  (def h1 (put-value store {:type "dacite.core/i64" :data 42}))
-  (def h2 (put-value store {:type "dacite.core/string" :data "hello"}))
-
-  ;; Retrieve
-  (get-value store h1)  ;; => {:type "dacite.core/i64", :data 42}
-
-  ;; Store a tree
-  (def tree {:type "dacite.core/vector"
-             :measure {:count 2 :size-bytes 16}
-             :children [{:type "dacite.core/i64" :data 1}
-                        {:type "dacite.core/i64" :data 2}]})
-
-  (def root (store-tree! store tree))
-
-  ;; Fetch with different depths
-  (fetch-tree store root 0)   ;; Just the root
-  (fetch-tree store root 1)   ;; Root + immediate children
-  (fetch-tree store root)     ;; Everything
-
-  ;; File store
-  (def fs (file-store "/tmp/dacite-store"))
-  (put-value fs {:type "test" :data "persistent"}))
+   Example: (layered-store (mem-store) (file-store \"/tmp/dacite\"))"
+  [& layers]
+  (->LayeredStore (clojure.core/vec layers)))

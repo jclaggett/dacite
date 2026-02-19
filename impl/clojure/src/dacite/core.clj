@@ -21,6 +21,7 @@
   (:refer-clojure :exclude [str vec hash-map])
   (:require [dacite.hash :as hash]
             [dacite.types :as types]
+            [dacite.store :as store]
             [dacite.finger-tree :as ft]
             [dacite.hamt :as hamt])
   (:import [clojure.lang IDeref IHashEq Counted Seqable ILookup
@@ -33,35 +34,53 @@
 ;; =============================================================================
 
 (def ^:dynamic *store*
-  "Dynamic var holding the current store atom. Initialized with a global
-   atom so constructors work without with-store."
-  (atom {}))
+  "Dynamic var holding the current IStore. Initialized with a global
+   in-memory store so constructors work without with-store."
+  (store/mem-store))
 
 (defmacro with-store
-  "Execute body with an isolated store. Binds the symbol to the atom
-   and sets *store*. Returns [final-store last-value]."
+  "Execute body with an isolated store. init can be an IStore or a map
+   (which will be wrapped in a mem-store). Returns [snapshot last-value]."
   [[sym init] & body]
-  `(let [~sym (atom ~init)]
+  `(let [~sym (let [i# ~init]
+                (if (satisfies? store/IStore i#)
+                  i#
+                  (store/mem-store i#)))]
      (binding [*store* ~sym]
        (let [result# (do ~@body)]
-         [@~sym result#]))))
+         [(store/s-snapshot *store*) result#]))))
 
 (defn reset-store!
   "Reset the global store to empty. Useful for REPL/testing."
   []
-  (reset! *store* {}))
+  (store/s-reset *store*))
 
-(defn- store-put!
-  "Add a typed value to *store*. Returns its hash."
+(defn set-store!
+  "Replace the global store with a new IStore implementation."
+  [new-store]
+  (alter-var-root #'*store* (constantly new-store)))
+
+(defn- s-get
+  "Get a value from *store* by hash."
+  [h]
+  (store/s-get *store* h))
+
+(defn- s-put!
+  "Store a typed value in *store*. Returns its hash."
   [value]
   (let [h (hash/typed-value-hash value)]
-    (swap! *store* assoc h value)
+    (store/s-put *store* h value)
     h))
 
-(defn- store-merge!
-  "Merge a map into *store*."
+(defn- s-merge!
+  "Merge a map of {hash value} pairs into *store*."
   [m]
-  (swap! *store* merge m))
+  (store/s-merge *store* m))
+
+(defn- s-snapshot
+  "Get a plain map snapshot of *store* for bulk operations."
+  []
+  (store/s-snapshot *store*))
 
 ;; =============================================================================
 ;; Forward declarations & protocol
@@ -94,7 +113,7 @@
 
   IDeref
   (deref [_]
-    (let [[_type-kw data] (get @*store* _hash)]
+    (let [[_type-kw data] (s-get _hash)]
       data))
 
   IHashEq
@@ -106,7 +125,7 @@
     (and (instance? DaciteScalar other)
          (= _hash (.-_hash ^DaciteScalar other))))
   (toString [_]
-    (let [[type-kw data] (get @*store* _hash)]
+    (let [[type-kw data] (s-get _hash)]
       (pr-str [type-kw data])))
 
   IFn
@@ -115,7 +134,7 @@
 (defn scalar-type
   "Get the type keyword of a Dacite value."
   [x]
-  (let [[type-kw _data] (get @*store* (dacite-hash x))]
+  (let [[type-kw _data] (s-get (dacite-hash x))]
     type-kw))
 
 (defn scalar-hash
@@ -126,7 +145,7 @@
 (defn size-bytes
   "Get the total size in bytes of a Dacite value (O(1) for collections)."
   [x]
-  (let [v (get @*store* (dacite-hash x))]
+  (let [v (s-get (dacite-hash x))]
     (types/dacite-size v)))
 
 ;; =============================================================================
@@ -139,34 +158,34 @@
 
   IDeref
   (deref [_]
-    (let [{:keys [refs]} (second (get @*store* _hash))]
+    (let [{:keys [refs]} (second (s-get _hash))]
       (apply clojure.core/str
-             (map (fn [ref] (second (get @*store* ref))) refs))))
+             (map (fn [ref] (second (s-get ref))) refs))))
 
   IHashEq
   (hasheq [_] (hash/hash->int _hash))
 
   Counted
   (count [_]
-    (let [{:keys [refs]} (second (get @*store* _hash))]
+    (let [{:keys [refs]} (second (s-get _hash))]
       (clojure.core/count refs)))
 
   Seqable
   (seq [this]
     (when (pos? (.count this))
-      (let [{:keys [refs]} (second (get @*store* _hash))]
+      (let [{:keys [refs]} (second (s-get _hash))]
         (map (fn [ref] (wrap-hash ref)) refs))))
 
   CharSequence
   (length [this] (.count this))
   (charAt [_ i]
-    (let [{:keys [refs]} (second (get @*store* _hash))
+    (let [{:keys [refs]} (second (s-get _hash))
           ref (nth refs i)]
-      (second (get @*store* ref))))
+      (second (s-get ref))))
   (subSequence [_ start end]
-    (let [{:keys [refs]} (second (get @*store* _hash))]
+    (let [{:keys [refs]} (second (s-get _hash))]
       (apply clojure.core/str
-             (map (fn [ref] (second (get @*store* ref)))
+             (map (fn [ref] (second (s-get ref)))
                   (subvec refs start end)))))
 
   Object
@@ -186,21 +205,21 @@
 
   IDeref
   (deref [_]
-    (let [{:keys [refs]} (second (get @*store* _hash))]
-      (byte-array (map (fn [ref] (second (get @*store* ref))) refs))))
+    (let [{:keys [refs]} (second (s-get _hash))]
+      (byte-array (map (fn [ref] (second (s-get ref))) refs))))
 
   IHashEq
   (hasheq [_] (hash/hash->int _hash))
 
   Counted
   (count [_]
-    (let [{:keys [refs]} (second (get @*store* _hash))]
+    (let [{:keys [refs]} (second (s-get _hash))]
       (clojure.core/count refs)))
 
   Seqable
   (seq [this]
     (when (pos? (.count this))
-      (let [{:keys [refs]} (second (get @*store* _hash))]
+      (let [{:keys [refs]} (second (s-get _hash))]
         (map (fn [ref] (wrap-hash ref)) refs))))
 
   Object
@@ -209,7 +228,7 @@
     (and (instance? DaciteBlob other)
          (= _hash (.-_hash ^DaciteBlob other))))
   (toString [this]
-    (let [{:keys [refs]} (second (get @*store* _hash))]
+    (let [{:keys [refs]} (second (s-get _hash))]
       (clojure.core/str "<blob " (clojure.core/count refs) " bytes>"))))
 
 ;; =============================================================================
@@ -273,7 +292,7 @@
             [init-s init-r] (ft/finger-tree)
             [s' h'] (reduce (fn [[s root] ref]
                               (ft/conj-right [s root] ref))
-                            [(merge @*store* init-s) init-r]
+                            [(merge (s-snapshot) init-s) init-r]
                             new-refs)]
         (->DaciteVector (store-vector! s' h' new-refs)))))
 
@@ -289,7 +308,7 @@
           [init-s init-r] (ft/finger-tree)
           [s' h'] (reduce (fn [[s root] ref]
                             (ft/conj-right [s root] ref))
-                          [(merge @*store* init-s) init-r]
+                          [(merge (s-snapshot) init-s) init-r]
                           new-refs)]
       (->DaciteVector (store-vector! s' h' new-refs))))
   (entryAt [this k]
@@ -412,7 +431,7 @@
 (defn wrap-hash
   "Wrap a raw hash in the appropriate Dacite type."
   [h]
-  (let [[type-kw _data] (get @*store* h)]
+  (let [[type-kw _data] (s-get h)]
     (case type-kw
       :vector (->DaciteVector h)
       :map (->DaciteMap h)
@@ -432,7 +451,7 @@
 ;; =============================================================================
 
 (defn- scalar [type-kw data]
-  (->DaciteScalar (store-put! [type-kw data])))
+  (->DaciteScalar (s-put! [type-kw data])))
 
 (defn null   "Create a null value."                       []  (scalar :null nil))
 (defn bool   "Create a boolean value."                    [b] (scalar :bool b))
@@ -471,7 +490,7 @@
         [init-s init-r] (ft/finger-tree)
         [ft-store ft-root]
         (reduce (fn [[st root] ref] (ft/conj-right [st root] ref))
-                [(merge @*store* init-s) init-r]
+                [(merge (s-snapshot) init-s) init-r]
                 char-refs)]
     (->DaciteString (store-string! ft-store ft-root char-refs))))
 
@@ -482,7 +501,7 @@
         [init-s init-r] (ft/finger-tree)
         [ft-store ft-root]
         (reduce (fn [[st root] ref] (ft/conj-right [st root] ref))
-                [(merge @*store* init-s) init-r]
+                [(merge (s-snapshot) init-s) init-r]
                 byte-refs)]
     (->DaciteBlob (store-blob! ft-store ft-root byte-refs))))
 
@@ -506,20 +525,20 @@
 ;; =============================================================================
 
 (defn- vector-count-internal [h]
-  (clojure.core/count (:refs (second (get @*store* h)))))
+  (clojure.core/count (:refs (second (s-get h)))))
 
 (defn- vector-refs-internal [h]
-  (:refs (second (get @*store* h))))
+  (:refs (second (s-get h))))
 
 (defn- store-string!
   "Merge ft-store into *store*, compute size, store string node. Returns hash."
   [ft-store ft-root refs]
-  (store-merge! ft-store)
-  (let [store @*store*
+  (s-merge! ft-store)
+  (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
         h (hash/node-hash :string ef)]
-    (swap! *store* assoc h [:string {:root ft-root
+    (store/s-put *store* h [:string {:root ft-root
                                      :refs (clojure.core/vec refs)
                                      :size-bytes sb}])
     h))
@@ -527,12 +546,12 @@
 (defn- store-blob!
   "Merge ft-store into *store*, compute size, store blob node. Returns hash."
   [ft-store ft-root refs]
-  (store-merge! ft-store)
-  (let [store @*store*
+  (s-merge! ft-store)
+  (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
         h (hash/node-hash :blob ef)]
-    (swap! *store* assoc h [:blob {:root ft-root
+    (store/s-put *store* h [:blob {:root ft-root
                                    :refs (clojure.core/vec refs)
                                    :size-bytes sb}])
     h))
@@ -540,12 +559,12 @@
 (defn- store-vector!
   "Merge ft-store into *store*, compute size, store vector node. Returns hash."
   [ft-store ft-root refs]
-  (store-merge! ft-store)
-  (let [store @*store*
+  (s-merge! ft-store)
+  (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
         h (hash/node-hash :vector ef)]
-    (swap! *store* assoc h [:vector {:root ft-root
+    (store/s-put *store* h [:vector {:root ft-root
                                      :refs (clojure.core/vec refs)
                                      :size-bytes sb}])
     h))
@@ -554,7 +573,7 @@
   (let [[init-store init-root] (ft/finger-tree)
         [ft-store ft-root]
         (reduce (fn [[s root] ref] (ft/conj-right [s root] ref))
-                [(merge @*store* init-store) init-root]
+                [(merge (s-snapshot) init-store) init-root]
                 refs)]
     (store-vector! ft-store ft-root refs)))
 
@@ -581,44 +600,44 @@
 ;; =============================================================================
 
 (defn- map-count-internal [h]
-  (hamt/hamt-count [@*store* (:root (second (get @*store* h)))]))
+  (hamt/hamt-count [(s-snapshot) (:root (second (s-get h)))]))
 
 (defn- map-get-internal [map-hash key]
-  (let [{:keys [root]} (second (get @*store* map-hash))
+  (let [{:keys [root]} (second (s-get map-hash))
         kh (extract-hash key)
-        k-hash (hash/typed-value-hash (get @*store* kh))]
-    (hamt/get-val [@*store* root] k-hash)))
+        k-hash (hash/typed-value-hash (s-get kh))]
+    (hamt/get-val [(s-snapshot) root] k-hash)))
 
 (defn- map-entries-internal [h]
-  (hamt/entries [@*store* (:root (second (get @*store* h)))]))
+  (hamt/entries [(s-snapshot) (:root (second (s-get h)))]))
 
 (defn- store-map!
   "Merge hamt-store into *store*, compute size, store map node. Returns hash."
   [hamt-store hamt-root pairs]
-  (store-merge! hamt-store)
-  (let [store @*store*
+  (s-merge! hamt-store)
+  (let [store (s-snapshot)
         ef (hamt/hamt-elements-fuse [store hamt-root])
         sb (hamt/hamt-size-bytes [store hamt-root])
         h (hash/node-hash :map ef)]
-    (swap! *store* assoc h [:map {:root hamt-root
+    (store/s-put *store* h [:map {:root hamt-root
                                   :pairs (clojure.core/vec pairs)
                                   :size-bytes sb}])
     h))
 
 (defn- map-assoc-internal [map-hash k v]
-  (let [{:keys [root pairs]} (second (get @*store* map-hash))
+  (let [{:keys [root pairs]} (second (s-get map-hash))
         kh (extract-hash k)
         vh (extract-hash v)
-        k-hash (hash/typed-value-hash (get @*store* kh))
-        [s' new-root] (hamt/assoc-val [@*store* root] k-hash kh vh)
+        k-hash (hash/typed-value-hash (s-get kh))
+        [s' new-root] (hamt/assoc-val [(s-snapshot) root] k-hash kh vh)
         new-pairs (conj (clojure.core/vec (remove #(= kh (first %)) pairs)) [kh vh])]
     (store-map! s' new-root new-pairs)))
 
 (defn- map-dissoc-internal [map-hash k]
-  (let [{:keys [root pairs]} (second (get @*store* map-hash))
+  (let [{:keys [root pairs]} (second (s-get map-hash))
         kh (extract-hash k)
-        k-hash (hash/typed-value-hash (get @*store* kh))
-        [s' new-root] (hamt/dissoc-val [@*store* root] k-hash)
+        k-hash (hash/typed-value-hash (s-get kh))
+        [s' new-root] (hamt/dissoc-val [(s-snapshot) root] k-hash)
         new-pairs (clojure.core/vec (remove #(= kh (first %)) pairs))]
     (store-map! s' new-root new-pairs)))
 
@@ -635,7 +654,7 @@
         (reduce (fn [[s root] [kh vh]]
                   (let [k-hash (hash/typed-value-hash (get s kh))]
                     (hamt/assoc-val [s root] k-hash kh vh)))
-                (let [[s root] (hamt/hamt)] [(merge @*store* s) root])
+                (let [[s root] (hamt/hamt)] [(merge (s-snapshot) s) root])
                 ref-pairs)]
     (->DaciteMap (store-map! hamt-store hamt-root ref-pairs))))
 

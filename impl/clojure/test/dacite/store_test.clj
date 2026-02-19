@@ -18,17 +18,16 @@
       (try
         (f)
         (finally
-          ;; Clean up
           (doseq [file (reverse (file-seq dir))]
             (.delete file)))))))
 
 (use-fixtures :each temp-dir-fixture)
 
 ;; =============================================================================
-;; Hash conversion tests
+;; Hash conversion
 ;; =============================================================================
 
-(deftest test-hash-hex-roundtrip
+(deftest hash-hex-roundtrip-test
   (testing "hash to hex and back"
     (let [h [1234567890123456789 -1234567890123456789 0 -1]
           hex (store/hash->hex h)
@@ -37,130 +36,163 @@
       (is (= h back)))))
 
 ;; =============================================================================
-;; Memory store tests
+;; MemStore
 ;; =============================================================================
 
-(deftest test-mem-store-basic
-  (testing "basic memory store operations"
+(deftest mem-store-basic-test
+  (testing "basic get/put/has?"
     (let [s (store/mem-store)
           h [1 2 3 4]
           v {:data "test"}]
-      (is (not (store/store-has? s h)))
-      (store/store-put s h v)
-      (is (store/store-has? s h))
-      (is (= v (store/store-get s h)))
-      (store/store-delete s h)
-      (is (not (store/store-has? s h))))))
+      (is (nil? (store/s-get s h)))
+      (is (not (store/s-has? s h)))
+      (store/s-put s h v)
+      (is (store/s-has? s h))
+      (is (= v (store/s-get s h))))))
 
-(deftest test-mem-store-put-value
-  (testing "put-value computes hash"
-    (let [s (store/mem-store)
-          v {:type "test/int" :data 42}
-          h (store/put-value s v)]
-      (is (vector? h))
-      (is (= 4 (count h)))
-      (is (= v (store/get-value s h))))))
-
-(deftest test-mem-store-list
-  (testing "list returns all hashes"
+(deftest mem-store-snapshot-test
+  (testing "snapshot returns plain map"
     (let [s (store/mem-store)]
-      (store/put-value s {:type "a" :data 1})
-      (store/put-value s {:type "b" :data 2})
-      (store/put-value s {:type "c" :data 3})
-      (is (= 3 (count (store/store-list s)))))))
+      (store/s-put s [1 2 3 4] :a)
+      (store/s-put s [5 6 7 8] :b)
+      (let [snap (store/s-snapshot s)]
+        (is (map? snap))
+        (is (= 2 (count snap)))
+        (is (= :a (get snap [1 2 3 4])))))))
+
+(deftest mem-store-merge-test
+  (testing "merge adds multiple entries"
+    (let [s (store/mem-store)]
+      (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b})
+      (is (= :a (store/s-get s [1 2 3 4])))
+      (is (= :b (store/s-get s [5 6 7 8]))))))
+
+(deftest mem-store-reset-test
+  (testing "reset clears store"
+    (let [s (store/mem-store)]
+      (store/s-put s [1 2 3 4] :a)
+      (store/s-reset s)
+      (is (nil? (store/s-get s [1 2 3 4])))
+      (is (= {} (store/s-snapshot s))))))
+
+(deftest mem-store-init-test
+  (testing "mem-store can be initialized with data"
+    (let [s (store/mem-store {[1 2 3 4] :a})]
+      (is (= :a (store/s-get s [1 2 3 4]))))))
 
 ;; =============================================================================
-;; File store tests
+;; FileStore
 ;; =============================================================================
 
-(deftest test-file-store-basic
+(deftest file-store-basic-test
   (testing "basic file store operations"
     (let [s (store/file-store (str *temp-dir*))
           h [1 2 3 4]
           v {:data "test"}]
-      (is (not (store/store-has? s h)))
-      (store/store-put s h v)
-      (is (store/store-has? s h))
-      (is (= v (store/store-get s h)))
-      (store/store-delete s h)
-      (is (not (store/store-has? s h))))))
+      (is (not (store/s-has? s h)))
+      (store/s-put s h v)
+      (is (store/s-has? s h))
+      (is (= v (store/s-get s h))))))
 
-(deftest test-file-store-persistence
+(deftest file-store-persistence-test
   (testing "file store persists across instances"
     (let [path (str *temp-dir*)
-          v {:type "test" :data "persistent"}
-          ;; Write with one instance
-          s1 (store/file-store path)
-          h (store/put-value s1 v)
-          ;; Read with new instance
-          s2 (store/file-store path)]
-      (is (= v (store/get-value s2 h))))))
+          h [1 2 3 4]
+          v {:data "persistent"}]
+      (store/s-put (store/file-store path) h v)
+      (is (= v (store/s-get (store/file-store path) h))))))
 
-(deftest test-file-store-sharding
+(deftest file-store-sharding-test
   (testing "file store creates sharded directories"
     (let [s (store/file-store (str *temp-dir*))
-          v {:type "test" :data 123}
-          h (store/put-value s v)
-          hex (store/hash->hex h)
-          expected-dir (io/file *temp-dir* (subs hex 0 2) (subs hex 2 4))]
-      (is (.exists expected-dir))
-      (is (.isDirectory expected-dir)))))
+          h [1 2 3 4]
+          v {:data 123}]
+      (store/s-put s h v)
+      (let [hex (store/hash->hex h)
+            expected-dir (io/file *temp-dir* (subs hex 0 2) (subs hex 2 4))]
+        (is (.exists expected-dir))
+        (is (.isDirectory expected-dir))))))
+
+(deftest file-store-snapshot-test
+  (testing "snapshot reads all files"
+    (let [s (store/file-store (str *temp-dir*))]
+      (store/s-put s [1 2 3 4] :a)
+      (store/s-put s [5 6 7 8] :b)
+      (let [snap (store/s-snapshot s)]
+        (is (= 2 (count snap)))))))
+
+(deftest file-store-reset-test
+  (testing "reset deletes all files"
+    (let [s (store/file-store (str *temp-dir*))]
+      (store/s-put s [1 2 3 4] :a)
+      (store/s-reset s)
+      (is (nil? (store/s-get s [1 2 3 4]))))))
 
 ;; =============================================================================
-;; Tree storage tests
+;; LayeredStore
 ;; =============================================================================
 
-(deftest test-store-tree-simple
-  (testing "store simple tree"
-    (let [s (store/mem-store)
-          tree {:type "dacite.core/vector"
-                :measure {:count 2}
-                :children [{:type "dacite.core/i64" :data 1}
-                           {:type "dacite.core/i64" :data 2}]}
-          root (store/store-tree! s tree)]
-      ;; Root should be a hash
-      (is (vector? root))
-      (is (= 4 (count root)))
-      ;; Store should have 3 entries (root + 2 children)
-      (is (= 3 (count (store/store-list s)))))))
+(deftest layered-store-read-through-test
+  (testing "reads fall through from fast to slow"
+    (let [fast (store/mem-store)
+          slow (store/mem-store {[1 2 3 4] :from-slow})
+          s (store/layered-store fast slow)]
+      ;; Not in fast, found in slow
+      (is (= :from-slow (store/s-get s [1 2 3 4]))))))
 
-(deftest test-fetch-tree-depth
-  (testing "fetch tree with depth control"
-    (let [s (store/mem-store)
-          tree {:type "root"
-                :children [{:type "child1"
-                            :children [{:type "grandchild1" :data 1}
-                                       {:type "grandchild2" :data 2}]}
-                           {:type "child2" :data 3}]}
-          root (store/store-tree! s tree)]
+(deftest layered-store-write-all-test
+  (testing "writes go to all layers"
+    (let [fast (store/mem-store)
+          slow (store/mem-store)
+          s (store/layered-store fast slow)]
+      (store/s-put s [1 2 3 4] :value)
+      (is (= :value (store/s-get fast [1 2 3 4])))
+      (is (= :value (store/s-get slow [1 2 3 4]))))))
 
-      ;; Depth 0: just root, children are hashes
-      (let [fetched (store/fetch-tree s root 0)]
-        (is (= "root" (:type fetched)))
-        (is (every? #(and (vector? %) (= 4 (count %))) (:children fetched))))
+(deftest layered-store-fast-wins-test
+  (testing "fast layer takes precedence"
+    (let [fast (store/mem-store {[1 2 3 4] :fast})
+          slow (store/mem-store {[1 2 3 4] :slow})
+          s (store/layered-store fast slow)]
+      (is (= :fast (store/s-get s [1 2 3 4]))))))
 
-      ;; Depth 1: root + immediate children expanded
-      (let [fetched (store/fetch-tree s root 1)]
-        (is (= "root" (:type fetched)))
-        (is (= "child1" (:type (first (:children fetched)))))
-        (is (= "child2" (:type (second (:children fetched)))))
-        ;; Grandchildren of child1 still hashes
-        (is (every? #(and (vector? %) (= 4 (count %)))
-                    (:children (first (:children fetched))))))
+(deftest layered-store-has?-test
+  (testing "has? checks all layers"
+    (let [fast (store/mem-store)
+          slow (store/mem-store {[1 2 3 4] :v})
+          s (store/layered-store fast slow)]
+      (is (store/s-has? s [1 2 3 4]))
+      (is (not (store/s-has? s [9 9 9 9]))))))
 
-      ;; Full depth: everything expanded
-      (let [fetched (store/fetch-tree s root)]
-        (is (= "grandchild1" (:type (first (:children (first (:children fetched)))))))))))
+(deftest layered-store-snapshot-test
+  (testing "snapshot merges all layers, fast wins"
+    (let [fast (store/mem-store {[1 2 3 4] :fast})
+          slow (store/mem-store {[1 2 3 4] :slow [5 6 7 8] :only-slow})
+          s (store/layered-store fast slow)
+          snap (store/s-snapshot s)]
+      (is (= :fast (get snap [1 2 3 4])))
+      (is (= :only-slow (get snap [5 6 7 8]))))))
 
-(deftest test-content-addressing
-  (testing "same content produces same hash"
-    (let [s (store/mem-store)
-          v {:type "test" :data 42}
-          h1 (store/put-value s v)
-          h2 (store/put-value s v)]
-      (is (= h1 h2))
-      ;; Only one entry in store
-      (is (= 1 (count (store/store-list s)))))))
+(deftest layered-store-with-file-test
+  (testing "mem + file layered store"
+    (let [mem (store/mem-store)
+          file (store/file-store (str *temp-dir*))
+          s (store/layered-store mem file)]
+      (store/s-put s [1 2 3 4] {:data "layered"})
+      ;; Both have it
+      (is (= {:data "layered"} (store/s-get mem [1 2 3 4])))
+      (is (= {:data "layered"} (store/s-get file [1 2 3 4])))
+      ;; New layered store with empty mem still finds it in file
+      (let [s2 (store/layered-store (store/mem-store) file)]
+        (is (= {:data "layered"} (store/s-get s2 [1 2 3 4])))))))
 
-(comment
-  (clojure.test/run-tests))
+;; =============================================================================
+;; Content addressing
+;; =============================================================================
+
+(deftest content-addressing-test
+  (testing "same content same hash means single entry"
+    (let [s (store/mem-store)]
+      (store/s-put s [1 2 3 4] :v)
+      (store/s-put s [1 2 3 4] :v)
+      (is (= 1 (count (store/s-snapshot s)))))))
