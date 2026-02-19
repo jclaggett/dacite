@@ -573,7 +573,7 @@
 (defn vec
   "([vals] => DaciteVector) | ([store vals] => [store' hash])"
   ([values]
-   (let [refs (mapv coerce-and-store! values)]
+   (let [refs (mapv extract-hash values)]
      (->DaciteVector (build-vector-from-refs! refs))))
   ([store values]
    (let [[s refs] (reduce (fn [[s refs] v]
@@ -670,7 +670,7 @@
   "(k v ... => DaciteMap)"
   [& kvs]
   (let [pairs (partition 2 kvs)
-        ref-pairs (mapv (fn [[k v]] [(coerce-and-store! k) (coerce-and-store! v)]) pairs)
+        ref-pairs (mapv (fn [[k v]] [(extract-hash k) (extract-hash v)]) pairs)
         store @*store*
         [hamt-store hamt-root]
         (reduce (fn [[s root] [kh vh]]
@@ -742,3 +742,40 @@
 ;; =============================================================================
 
 (defn dacite= [h1 h2] (= h1 h2))
+
+;; =============================================================================
+;; Boundary crossing: dac->clj and clj->dac
+;; =============================================================================
+
+(defn dac->clj
+  "Recursively convert a Dacite value to plain Clojure data.
+   Scalars unwrap to their raw value, strings to String,
+   vectors to persistent vectors, maps to persistent hash maps."
+  [x]
+  (cond
+    (instance? DaciteScalar x) @x
+    (instance? DaciteString x) @x
+    (instance? DaciteVector x) (mapv dac->clj (seq x))
+    (instance? DaciteMap x)    (into {} (map (fn [[k v]] [(dac->clj k) (dac->clj v)])) (seq x))
+    :else x))
+
+(defn clj->dac
+  "Recursively convert plain Clojure data to Dacite values.
+   Vectors become DaciteVector, maps become DaciteMap,
+   strings become DaciteString, scalars are auto-coerced.
+   Uses *store*."
+  [x]
+  (cond
+    (satisfies? IDaciteHash x) x
+    (clojure.core/vector? x)   (vec-of-refs (mapv (comp dacite-hash clj->dac) x))
+    (sequential? x)            (vec-of-refs (mapv (comp dacite-hash clj->dac) x))
+    (map? x)                   (let [pairs (mapcat (fn [[k v]] [(clj->dac k) (clj->dac v)]) x)]
+                                 (apply hash-map pairs))
+    (string? x)                (str x)
+    (nil? x)                   (null)
+    (instance? Boolean x)      (bool x)
+    (integer? x)               (i64 x)
+    (float? x)                 (f64 (double x))
+    (double? x)                (f64 x)
+    (char? x)                  (dacite-char x)
+    :else (throw (ex-info "Cannot convert to Dacite value" {:value x :type (type x)}))))

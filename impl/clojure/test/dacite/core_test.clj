@@ -401,3 +401,93 @@
     (let [[_ h1] (d/i64 {} 42)
           [_ h2] (d/i64 {} 43)]
       (is (not (d/dacite= h1 h2))))))
+
+;; =============================================================================
+;; dac->clj
+;; =============================================================================
+
+(deftest dac->clj-scalar
+  (testing "Scalars unwrap"
+    (is (= 42 (d/dac->clj (d/i64 42))))
+    (is (= true (d/dac->clj (d/bool true))))
+    (is (nil? (d/dac->clj (d/null))))
+    (is (= \a (d/dac->clj (d/dacite-char \a))))))
+
+(deftest dac->clj-string
+  (testing "Strings unwrap"
+    (is (= "hello" (d/dac->clj (d/str "hello"))))))
+
+(deftest dac->clj-vector
+  (testing "Vectors recursively unwrap"
+    (is (= [1 2 3] (d/dac->clj (d/vec [1 2 3]))))))
+
+(deftest dac->clj-nested-vector
+  (testing "Nested vectors unwrap recursively"
+    (let [inner (d/vec [1 2])
+          outer (d/vec-of-refs [(d/unwrap-hash inner) (d/dacite-hash (d/i64 3))])]
+      (is (= [[1 2] 3] (d/dac->clj outer))))))
+
+(deftest dac->clj-map
+  (testing "Maps recursively unwrap"
+    (is (= {"name" "Alice" "age" 30}
+           (d/dac->clj (d/hash-map "name" "Alice" "age" 30))))))
+
+(deftest dac->clj-empty-collections
+  (testing "Empty collections"
+    (is (= [] (d/dac->clj (d/vec []))))
+    (is (= {} (d/dac->clj (d/hash-map))))))
+
+(deftest dac->clj-passthrough
+  (testing "Non-Dacite values pass through"
+    (is (= 42 (d/dac->clj 42)))
+    (is (= "hi" (d/dac->clj "hi")))))
+
+;; =============================================================================
+;; clj->dac
+;; =============================================================================
+
+(deftest clj->dac-scalar
+  (testing "Scalars wrap"
+    (is (instance? dacite.core.DaciteScalar (d/clj->dac 42)))
+    (is (= 42 @(d/clj->dac 42)))
+    (is (instance? dacite.core.DaciteScalar (d/clj->dac true)))
+    (is (instance? dacite.core.DaciteScalar (d/clj->dac nil)))))
+
+(deftest clj->dac-string
+  (testing "Strings wrap"
+    (is (instance? dacite.core.DaciteString (d/clj->dac "hello")))
+    (is (= "hello" @(d/clj->dac "hello")))))
+
+(deftest clj->dac-vector
+  (testing "Vectors wrap recursively"
+    (let [v (d/clj->dac [1 2 3])]
+      (is (instance? dacite.core.DaciteVector v))
+      (is (= 3 (count v)))
+      (is (= [1 2 3] (d/dac->clj v))))))
+
+(deftest clj->dac-nested-vector
+  (testing "Nested vectors wrap recursively"
+    (let [v (d/clj->dac [[1 2] [3 4]])]
+      (is (= [[1 2] [3 4]] (d/dac->clj v))))))
+
+(deftest clj->dac-map
+  (testing "Maps wrap recursively"
+    (let [m (d/clj->dac {"a" 1 "b" 2})]
+      (is (instance? dacite.core.DaciteMap m))
+      (is (= {"a" 1 "b" 2} (d/dac->clj m))))))
+
+(deftest clj->dac-nested-map
+  (testing "Nested structures wrap recursively"
+    (let [data {"users" [{"name" "Alice"} {"name" "Bob"}]}
+          d (d/clj->dac data)]
+      (is (= data (d/dac->clj d))))))
+
+(deftest clj->dac-idempotent
+  (testing "Already-Dacite values pass through"
+    (let [v (d/i64 42)]
+      (is (identical? v (d/clj->dac v))))))
+
+(deftest clj->dac-round-trip
+  (testing "Round-trip: clj -> dac -> clj"
+    (let [data [1 "hello" nil true [2 3] {"a" 4}]]
+      (is (= data (d/dac->clj (d/clj->dac data)))))))
