@@ -74,6 +74,37 @@
   (testing "Scalar as zero-arg function returns deref"
     (is (= 42 ((d/i64 42))))))
 
+(deftest size-bytes-scalar-test
+  (testing "Scalar size-bytes"
+    (is (= 8 (d/size-bytes (d/i64 42))))
+    (is (= 1 (d/size-bytes (d/bool true))))
+    (is (= 0 (d/size-bytes (d/null))))
+    (is (= 4 (d/size-bytes (d/f32 1.0)))))
+  (testing "String size-bytes (UTF-8)"
+    (is (= 5 (d/size-bytes (d/str "hello"))))
+    (is (= 0 (d/size-bytes (d/str ""))))))
+
+(deftest size-bytes-vector-test
+  (testing "Vector size-bytes is sum of element sizes"
+    (let [v (d/vec [1 2 3])] ;; 3 x i64 = 24
+      (is (= 24 (d/size-bytes v)))))
+  (testing "Empty vector is 0 bytes"
+    (is (= 0 (d/size-bytes (d/vec []))))))
+
+(deftest size-bytes-map-test
+  (testing "Map size-bytes includes keys and values"
+    (let [m (d/hash-map "a" 1)] ;; "a" = 1 byte, i64 = 8 bytes
+      (is (= 9 (d/size-bytes m)))))
+  (testing "Empty map is 0 bytes"
+    (is (= 0 (d/size-bytes (d/hash-map))))))
+
+(deftest size-bytes-nested-test
+  (testing "Nested structure accumulates sizes"
+    (let [v (d/vec [1 2])       ;; 16 bytes
+          m (d/hash-map "k" v)] ;; "k"=1 + vec=16 = 17
+      (is (= 16 (d/size-bytes v)))
+      (is (= 17 (d/size-bytes m))))))
+
 (deftest scalar-hash-eq-test
   (testing "Same values have same hasheq"
     (is (= (hash (d/i64 42)) (hash (d/i64 42))))))
