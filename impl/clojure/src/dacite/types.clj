@@ -101,7 +101,7 @@
 ;; =============================================================================
 
 (defmethod dacite-size :string [[_ data]]
-  (count (.getBytes ^String data "UTF-8")))
+  (:size-bytes data 0))
 
 ;; =============================================================================
 ;; Collections (cached size-bytes from construction)

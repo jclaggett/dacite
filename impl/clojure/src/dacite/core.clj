@@ -68,7 +68,7 @@
 
 (declare ->DaciteScalar ->DaciteVector ->DaciteMap ->DaciteString)
 (declare wrap-hash coerce-and-store!)
-(declare store-vector! store-map!)
+(declare store-string! store-vector! store-map!)
 (declare vector-conj-internal vector-refs-internal vector-count-internal)
 (declare map-count-internal map-get-internal map-entries-internal)
 (declare map-assoc-internal map-dissoc-internal)
@@ -129,7 +129,7 @@
     (types/dacite-size v)))
 
 ;; =============================================================================
-;; DaciteString
+;; DaciteString — finger tree of chars, parallel to DaciteVector
 ;; =============================================================================
 
 (deftype DaciteString [^:unsynchronized-mutable _hash]
@@ -138,39 +138,42 @@
 
   IDeref
   (deref [_]
-    (let [[_type-kw data] (get @*store* _hash)]
-      data))
+    (let [{:keys [refs]} (second (get @*store* _hash))]
+      (apply clojure.core/str
+             (map (fn [ref] (second (get @*store* ref))) refs))))
 
   IHashEq
   (hasheq [_] (hash/hash->int _hash))
 
   Counted
   (count [_]
-    (let [[_type-kw data] (get @*store* _hash)]
-      (clojure.core/count data)))
+    (let [{:keys [refs]} (second (get @*store* _hash))]
+      (clojure.core/count refs)))
 
   Seqable
-  (seq [_]
-    (let [[_type-kw data] (get @*store* _hash)]
-      (seq data)))
+  (seq [this]
+    (when (pos? (.count this))
+      (let [{:keys [refs]} (second (get @*store* _hash))]
+        (map (fn [ref] (wrap-hash ref)) refs))))
 
   CharSequence
   (length [this] (.count this))
   (charAt [_ i]
-    (let [[_type-kw data] (get @*store* _hash)]
-      (.charAt ^String data i)))
+    (let [{:keys [refs]} (second (get @*store* _hash))
+          ref (nth refs i)]
+      (second (get @*store* ref))))
   (subSequence [_ start end]
-    (let [[_type-kw data] (get @*store* _hash)]
-      (.subSequence ^String data start end)))
+    (let [{:keys [refs]} (second (get @*store* _hash))]
+      (apply clojure.core/str
+             (map (fn [ref] (second (get @*store* ref)))
+                  (subvec refs start end)))))
 
   Object
   (hashCode [_] (hash/hash->int _hash))
   (equals [_ other]
     (and (instance? DaciteString other)
          (= _hash (.-_hash ^DaciteString other))))
-  (toString [_]
-    (let [[_type-kw data] (get @*store* _hash)]
-      (clojure.core/str data))))
+  (toString [this] (deref this)))
 
 ;; =============================================================================
 ;; DaciteVector
@@ -424,12 +427,15 @@
 ;; =============================================================================
 
 (defn str
-  "Create a dacite string."
+  "Create a dacite string from a Java String."
   [s]
-  (let [v [:string s]
-        h (hash/typed-value-hash v)]
-    (swap! *store* assoc h v)
-    (->DaciteString h)))
+  (let [char-refs (mapv (fn [c] (dacite-hash (dacite-char c))) (seq s))
+        [init-s init-r] (ft/finger-tree)
+        [ft-store ft-root]
+        (reduce (fn [[st root] ref] (ft/conj-right [st root] ref))
+                [(merge @*store* init-s) init-r]
+                char-refs)]
+    (->DaciteString (store-string! ft-store ft-root char-refs))))
 
 ;; =============================================================================
 ;; Auto-coercion (internal)
@@ -455,6 +461,19 @@
 
 (defn- vector-refs-internal [h]
   (:refs (second (get @*store* h))))
+
+(defn- store-string!
+  "Merge ft-store into *store*, compute size, store string node. Returns hash."
+  [ft-store ft-root refs]
+  (store-merge! ft-store)
+  (let [store @*store*
+        ef (ft/tree-elements-fuse [store ft-root])
+        sb (ft/tree-size-bytes [store ft-root])
+        h (hash/node-hash :string ef)]
+    (swap! *store* assoc h [:string {:root ft-root
+                                     :refs (clojure.core/vec refs)
+                                     :size-bytes sb}])
+    h))
 
 (defn- store-vector!
   "Merge ft-store into *store*, compute size, store vector node. Returns hash."

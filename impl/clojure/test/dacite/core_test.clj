@@ -136,8 +136,11 @@
       (is (= "ell" (clojure.core/str (.subSequence s 1 4)))))))
 
 (deftest str-seq-test
-  (testing "String is seqable"
-    (is (= [\a \b \c] (seq (d/str "abc"))))))
+  (testing "String is seqable, returns DaciteScalar chars"
+    (let [s (seq (d/str "abc"))]
+      (is (= 3 (clojure.core/count s)))
+      (is (every? #(instance? dacite.core.DaciteScalar %) s))
+      (is (= [\a \b \c] (mapv deref s))))))
 
 ;; =============================================================================
 ;; Vectors
