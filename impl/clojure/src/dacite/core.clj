@@ -581,23 +581,20 @@
 ;; Boundary crossing: dac->clj and clj->dac
 ;; =============================================================================
 
-(def ^:const default-max-nodes
-  "Default maximum number of nodes dac->clj will materialize."
-  10000)
+(def ^:const default-max-bytes
+  "Default maximum byte size dac->clj will materialize (1 MB)."
+  1048576)
 
-(defn- dac->clj*
-  "Internal recursive converter with node budget tracking."
-  [x counter max-nodes]
-  (when (> (vswap! counter inc) max-nodes)
-    (throw (ex-info (clojure.core/str "dac->clj exceeded max-nodes limit of " max-nodes)
-                    {:max-nodes max-nodes})))
+(defn- dac->clj-unsafe
+  "Internal recursive converter (no size check)."
+  [x]
   (cond
     (instance? DaciteScalar x) @x
     (instance? DaciteString x) @x
-    (instance? DaciteVector x) (mapv #(dac->clj* % counter max-nodes) (seq x))
+    (instance? DaciteVector x) (mapv dac->clj-unsafe (seq x))
     (instance? DaciteMap x)    (into {} (map (fn [[k v]]
-                                               [(dac->clj* k counter max-nodes)
-                                                (dac->clj* v counter max-nodes)]))
+                                               [(dac->clj-unsafe k)
+                                                (dac->clj-unsafe v)]))
                                      (seq x))
     :else x))
 
@@ -606,11 +603,18 @@
    Scalars unwrap to their raw value, strings to String,
    vectors to persistent vectors, maps to persistent hash maps.
 
-   Optional max-nodes parameter (default 10000) limits the number of
-   nodes materialized. Throws ex-info if the limit is exceeded."
-  ([x] (dac->clj x default-max-nodes))
-  ([x max-nodes]
-   (dac->clj* x (volatile! 0) max-nodes)))
+   Optional max-bytes parameter (default 1 MB) limits the total byte
+   size that will be materialized. Checked upfront via O(1) size-bytes.
+   Throws ex-info if the value exceeds the limit."
+  ([x] (dac->clj x default-max-bytes))
+  ([x max-bytes]
+   (when (satisfies? IDaciteHash x)
+     (let [sb (size-bytes x)]
+       (when (> sb max-bytes)
+         (throw (ex-info (clojure.core/str "dac->clj: value size " sb
+                                           " bytes exceeds limit of " max-bytes " bytes")
+                         {:size-bytes sb :max-bytes max-bytes})))))
+   (dac->clj-unsafe x)))
 
 (defn clj->dac
   "Recursively convert plain Clojure data to Dacite values.
