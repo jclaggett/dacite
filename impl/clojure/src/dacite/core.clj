@@ -1,30 +1,24 @@
 (ns dacite.core
-  "Dacite: Data citing with fused hashing.
+  "Dacite: Content-addressed data with Clojure-native interfaces.
 
-   Two APIs for constructing Dacite values:
+   Constructors create Dacite values backed by a content-addressed store.
+   Values implement standard Clojure interfaces (count, nth, get, assoc, etc.)
+   so application logic works identically whether the store is an in-memory atom,
+   a disk-backed cache, or a distributed network.
 
-   1. Integrated (mirrors clojure.core naming):
-      Uses a global store atom. Returns wrapped Dacite types that
-      implement Clojure interfaces (count, nth, get, assoc, etc).
+     (d/i64 42)              => DaciteScalar
+     (d/vec [1 2 3])         => DaciteVector
+     (d/str \"hello\")        => DaciteString
+     (d/hash-map \"a\" 1)     => DaciteMap
 
-        (d/i64 42)              => DaciteScalar
-        (d/vec [1 2 3])         => DaciteVector
-        (d/str \"hello\")        => DaciteString
-        (d/hash-map \"a\" 1)     => DaciteMap
-
-   2. Pure functional:
-      Takes a store map, returns [store' hash]. No side effects.
-
-        (d/i64 store 42)        => [store' hash]
-        (d/vec store [1 2 3])   => [store' hash]
-
-   Arity dispatch: 1 arg = integrated, 2 args = pure.
+   Boundary crossing:
+     (d/dac->clj v)          => plain Clojure data (recursive)
+     (d/clj->dac data)       => Dacite values (recursive)
 
    Use `with-store` for isolated store contexts (testing, transactions).
    Otherwise the global store is used automatically."
   (:refer-clojure :exclude [str vec hash-map])
   (:require [dacite.hash :as hash]
-            [dacite.types :as types]
             [dacite.finger-tree :as ft]
             [dacite.hamt :as hamt])
   (:import [clojure.lang IDeref IHashEq Counted Seqable ILookup
@@ -38,7 +32,7 @@
 
 (def ^:dynamic *store*
   "Dynamic var holding the current store atom. Initialized with a global
-   atom so the integrated API works without with-store."
+   atom so constructors work without with-store."
   (atom {}))
 
 (defmacro with-store
@@ -72,7 +66,7 @@
 ;; =============================================================================
 
 (declare ->DaciteScalar ->DaciteVector ->DaciteMap ->DaciteString)
-(declare wrap-hash coerce-and-store coerce-and-store!)
+(declare wrap-hash coerce-and-store!)
 (declare vector-conj-internal vector-refs-internal vector-count-internal)
 (declare map-count-internal map-get-internal map-entries-internal)
 (declare map-assoc-internal map-dissoc-internal)
@@ -399,138 +393,53 @@
     (throw (ex-info "Not a Dacite value" {:value x}))))
 
 ;; =============================================================================
-;; Scalar constructors — arity dispatch
+;; Scalar constructors
 ;; =============================================================================
 
-(defn- scalar-pure [store type-kw data]
-  (let [v [type-kw data]
-        h (hash/typed-value-hash v)]
-    [(assoc store h v) h]))
-
-(defn- scalar-integrated [type-kw data]
+(defn- scalar [type-kw data]
   (->DaciteScalar (store-put! [type-kw data])))
 
-(defn null
-  "([] => DaciteScalar) | ([store] => [store' hash])"
-  ([] (scalar-integrated :null nil))
-  ([store] (scalar-pure store :null nil)))
-
-(defn bool
-  "([b] => DaciteScalar) | ([store b] => [store' hash])"
-  ([b] (scalar-integrated :bool b))
-  ([store b] (scalar-pure store :bool b)))
-
-(defn i8
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] (scalar-integrated :i8 (byte n)))
-  ([store n] (scalar-pure store :i8 (byte n))))
-
-(defn i16
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] (scalar-integrated :i16 (short n)))
-  ([store n] (scalar-pure store :i16 (short n))))
-
-(defn i32
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] (scalar-integrated :i32 (int n)))
-  ([store n] (scalar-pure store :i32 (int n))))
-
-(defn i64
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] (scalar-integrated :i64 (long n)))
-  ([store n] (scalar-pure store :i64 (long n))))
-
-(defn u8
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] {:pre [(<= 0 n 255)]} (scalar-integrated :u8 n))
-  ([store n] {:pre [(<= 0 n 255)]} (scalar-pure store :u8 n)))
-
-(defn u16
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] {:pre [(<= 0 n 65535)]} (scalar-integrated :u16 n))
-  ([store n] {:pre [(<= 0 n 65535)]} (scalar-pure store :u16 n)))
-
-(defn u32
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] {:pre [(<= 0 n 4294967295)]} (scalar-integrated :u32 n))
-  ([store n] {:pre [(<= 0 n 4294967295)]} (scalar-pure store :u32 n)))
-
-(defn u64
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] {:pre [(<= 0 n)]} (scalar-integrated :u64 n))
-  ([store n] {:pre [(<= 0 n)]} (scalar-pure store :u64 n)))
+(defn null   "Create a null value."                       []  (scalar :null nil))
+(defn bool   "Create a boolean value."                    [b] (scalar :bool b))
+(defn i8     "Create an i8 value."                        [n] (scalar :i8 (byte n)))
+(defn i16    "Create an i16 value."                       [n] (scalar :i16 (short n)))
+(defn i32    "Create an i32 value."                       [n] (scalar :i32 (int n)))
+(defn i64    "Create an i64 value."                       [n] (scalar :i64 (long n)))
+(defn u8  "Create a u8 value."  [n] {:pre [(<= 0 n 255)]}        (scalar :u8 n))
+(defn u16 "Create a u16 value." [n] {:pre [(<= 0 n 65535)]}      (scalar :u16 n))
+(defn u32 "Create a u32 value." [n] {:pre [(<= 0 n 4294967295)]} (scalar :u32 n))
+(defn u64 "Create a u64 value." [n] {:pre [(<= 0 n)]}            (scalar :u64 n))
 
 (defn u256
-  "([data] => DaciteScalar) | ([store data] => [store' hash])"
-  ([^bytes data] {:pre [(= 32 (alength data))]} (scalar-integrated :u256 data))
-  ([store ^bytes data] {:pre [(= 32 (alength data))]} (scalar-pure store :u256 data)))
+  "Create a u256 value (e.g. hash as data). Data must be 32-byte array."
+  [^bytes data]
+  {:pre [(= 32 (alength data))]}
+  (scalar :u256 data))
 
-(defn f32
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] (scalar-integrated :f32 (float n)))
-  ([store n] (scalar-pure store :f32 (float n))))
-
-(defn f64
-  "([n] => DaciteScalar) | ([store n] => [store' hash])"
-  ([n] (scalar-integrated :f64 (double n)))
-  ([store n] (scalar-pure store :f64 (double n))))
+(defn f32    "Create an f32 value."  [n] (scalar :f32 (float n)))
+(defn f64    "Create an f64 value."  [n] (scalar :f64 (double n)))
 
 (defn dacite-char
-  "([c] => DaciteScalar) | ([store c] => [store' hash])"
-  ([c] {:pre [(char? c)]} (scalar-integrated :char c))
-  ([store c] {:pre [(char? c)]} (scalar-pure store :char c)))
+  "Create a char value."
+  [c]
+  {:pre [(char? c)]}
+  (scalar :char c))
 
 ;; =============================================================================
-;; Value accessors (pure)
-;; =============================================================================
-
-(defn value-type [store h] (types/dacite-type (get store h)))
-(defn value-data [store h] (types/dacite-data (get store h)))
-(defn lookup [store h] (get store h))
-
-;; =============================================================================
-;; Hashing utilities
-;; =============================================================================
-
-(defn hash-hex [h] (hash/hash->hex h))
-
-(defn hash-as-value [store raw-hash]
-  (u256 store (hash/longs->bytes raw-hash)))
-
-;; =============================================================================
-;; String construction — arity dispatch
+;; String construction
 ;; =============================================================================
 
 (defn str
-  "([s] => DaciteString) | ([store s] => [store' hash])"
-  ([s]
-   (let [v [:string s]
-         h (hash/typed-value-hash v)]
-     (swap! *store* assoc h v)
-     (->DaciteString h)))
-  ([store s]
-   (let [v [:string s]
-         h (hash/typed-value-hash v)]
-     [(assoc store h v) h])))
-
-(defn string-value [store h]
-  (let [[type-kw data] (get store h)]
-    (when (= :string type-kw) data)))
+  "Create a dacite string."
+  [s]
+  (let [v [:string s]
+        h (hash/typed-value-hash v)]
+    (swap! *store* assoc h v)
+    (->DaciteString h)))
 
 ;; =============================================================================
 ;; Auto-coercion (internal)
 ;; =============================================================================
-
-(defn- coerce-and-store [store x]
-  (cond
-    (nil? x)              (null store)
-    (instance? Boolean x) (bool store x)
-    (integer? x)          (i64 store x)
-    (float? x)            (f64 store (double x))
-    (double? x)           (f64 store x)
-    (char? x)             (dacite-char store x)
-    (string? x)           (str store x)
-    :else (throw (ex-info "Cannot coerce to dacite value" {:value x :type (type x)}))))
 
 (defn- coerce-and-store! [x]
   (cond
@@ -567,59 +476,19 @@
   (build-vector-from-refs! (conj (clojure.core/vec (vector-refs-internal vec-hash)) ref)))
 
 ;; =============================================================================
-;; Vector construction — arity dispatch
+;; Vector construction
 ;; =============================================================================
 
 (defn vec
-  "([vals] => DaciteVector) | ([store vals] => [store' hash])"
-  ([values]
-   (let [refs (mapv extract-hash values)]
-     (->DaciteVector (build-vector-from-refs! refs))))
-  ([store values]
-   (let [[s refs] (reduce (fn [[s refs] v]
-                            (let [[s' h] (coerce-and-store s v)]
-                              [s' (conj refs h)]))
-                          [store []] values)
-         [ft-store ft-root]
-         (reduce (fn [[st root] ref] (ft/conj-right [st root] ref))
-                 (let [[st root] (ft/finger-tree)] [(merge s st) root])
-                 refs)
-         ef (ft/tree-elements-fuse [ft-store ft-root])
-         h (hash/node-hash :vector ef)]
-     [(assoc ft-store h [:vector {:root ft-root :refs (clojure.core/vec refs)}]) h])))
+  "Create a dacite vector from values (auto-coerced or Dacite types)."
+  [values]
+  (let [refs (mapv extract-hash values)]
+    (->DaciteVector (build-vector-from-refs! refs))))
 
 (defn vec-of-refs
-  "([refs] => DaciteVector) | ([store refs] => [store' hash])"
-  ([refs] (->DaciteVector (build-vector-from-refs! refs)))
-  ([store refs]
-   (let [[ft-store ft-root]
-         (reduce (fn [[s root] ref] (ft/conj-right [s root] ref))
-                 (let [[s root] (ft/finger-tree)] [(merge store s) root])
-                 refs)
-         ef (ft/tree-elements-fuse [ft-store ft-root])
-         h (hash/node-hash :vector ef)]
-     [(assoc ft-store h [:vector {:root ft-root :refs (clojure.core/vec refs)}]) h])))
-
-;; =============================================================================
-;; Vector accessors (pure)
-;; =============================================================================
-
-(defn vector-count [store h]
-  (clojure.core/count (:refs (second (get store h)))))
-
-(defn vector-nth [store h n]
-  (nth (:refs (second (get store h))) n))
-
-(defn vector-refs [store h]
-  (:refs (second (get store h))))
-
-(defn vector-conj [store h ref]
-  (let [{:keys [root refs]} (second (get store h))
-        [s' new-root] (ft/conj-right [store root] ref)
-        new-refs (conj refs ref)
-        ef (ft/tree-elements-fuse [s' new-root])
-        vh (hash/node-hash :vector ef)]
-    [(assoc s' vh [:vector {:root new-root :refs new-refs}]) vh]))
+  "Create a dacite vector from raw hashes (refs already in store)."
+  [refs]
+  (->DaciteVector (build-vector-from-refs! refs)))
 
 ;; =============================================================================
 ;; Map internals
@@ -663,11 +532,11 @@
     h))
 
 ;; =============================================================================
-;; Map construction — arity dispatch
+;; Map construction
 ;; =============================================================================
 
 (defn hash-map
-  "(k v ... => DaciteMap)"
+  "Create a dacite map from key-value pairs (auto-coerced or Dacite types)."
   [& kvs]
   (let [pairs (partition 2 kvs)
         ref-pairs (mapv (fn [[k v]] [(extract-hash k) (extract-hash v)]) pairs)
@@ -682,60 +551,6 @@
         h (hash/node-hash :map ef)]
     (reset! *store* (assoc hamt-store h [:map {:root hamt-root :pairs ref-pairs}]))
     (->DaciteMap h)))
-
-(defn map-of
-  "Pure: (store {k v ...}) => [store' hash]"
-  [store m]
-  (let [[s pairs] (reduce (fn [[s pairs] [k v]]
-                            (let [[s' kh] (coerce-and-store s k)
-                                  [s'' vh] (coerce-and-store s' v)]
-                              [s'' (conj pairs [kh vh])]))
-                          [store []] m)
-        [hamt-store hamt-root]
-        (reduce (fn [[st root] [kh vh]]
-                  (let [k-hash (hash/typed-value-hash (get st kh))]
-                    (hamt/assoc-val [st root] k-hash kh vh)))
-                (let [[st root] (hamt/hamt)] [(merge s st) root])
-                pairs)
-        ef (hamt/hamt-elements-fuse [hamt-store hamt-root])
-        h (hash/node-hash :map ef)]
-    [(assoc hamt-store h [:map {:root hamt-root :pairs (clojure.core/vec pairs)}]) h]))
-
-;; =============================================================================
-;; Map accessors (pure)
-;; =============================================================================
-
-(defn map-count [store h]
-  (hamt/hamt-count [store (:root (second (get store h)))]))
-
-(defn map-get [store h key]
-  (let [{:keys [root]} (second (get store h))
-        [s' kh] (coerce-and-store store key)
-        k-hash (hash/typed-value-hash (get s' kh))]
-    (hamt/get-val [store root] k-hash)))
-
-(defn map-assoc [store h key-ref val-ref]
-  (let [{:keys [root pairs]} (second (get store h))
-        k-hash (hash/typed-value-hash (get store key-ref))
-        [s' new-root] (hamt/assoc-val [store root] k-hash key-ref val-ref)
-        new-pairs (conj (clojure.core/vec (remove #(= key-ref (first %)) pairs))
-                        [key-ref val-ref])
-        ef (hamt/hamt-elements-fuse [s' new-root])
-        mh (hash/node-hash :map ef)]
-    [(assoc s' mh [:map {:root new-root :pairs new-pairs}]) mh]))
-
-(defn map-dissoc [store h key]
-  (let [{:keys [root pairs]} (second (get store h))
-        [s' kh] (coerce-and-store store key)
-        k-hash (hash/typed-value-hash (get s' kh))
-        [s'' new-root] (hamt/dissoc-val [store root] k-hash)
-        new-pairs (clojure.core/vec (remove #(= kh (first %)) pairs))
-        ef (hamt/hamt-elements-fuse [s'' new-root])
-        mh (hash/node-hash :map ef)]
-    [(assoc s'' mh [:map {:root new-root :pairs new-pairs}]) mh]))
-
-(defn map-entries [store h]
-  (hamt/entries [store (:root (second (get store h)))]))
 
 ;; =============================================================================
 ;; Boundary crossing: dac->clj and clj->dac
