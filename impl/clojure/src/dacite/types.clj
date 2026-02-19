@@ -113,6 +113,9 @@
 (defmethod dacite-size :map [[_ data]]
   (:size-bytes data 0))
 
+(defmethod dacite-size :blob [[_ data]]
+  (:size-bytes data 0))
+
 ;; =============================================================================
 ;; REPL examples
 ;; =============================================================================

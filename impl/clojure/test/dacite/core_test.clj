@@ -143,6 +143,50 @@
       (is (= [\a \b \c] (mapv deref s))))))
 
 ;; =============================================================================
+;; Blobs
+;; =============================================================================
+
+(deftest blob-test
+  (testing "Blob construction"
+    (let [b (d/blob (byte-array [1 2 3]))]
+      (is (instance? dacite.core.DaciteBlob b))
+      (is (= 3 (count b))))))
+
+(deftest blob-deref-test
+  (testing "Deref returns byte array"
+    (let [b (d/blob (byte-array [10 20 30]))]
+      (is (bytes? @b))
+      (is (= [10 20 30] (clojure.core/vec @b))))))
+
+(deftest blob-empty-test
+  (testing "Empty blob"
+    (let [b (d/blob (byte-array 0))]
+      (is (= 0 (count b)))
+      (is (nil? (seq b))))))
+
+(deftest blob-seq-test
+  (testing "Seq returns DaciteScalar u8 wrappers"
+    (let [s (seq (d/blob (byte-array [1 2 3])))]
+      (is (= 3 (clojure.core/count s)))
+      (is (every? #(instance? dacite.core.DaciteScalar %) s))
+      (is (= [1 2 3] (mapv deref s))))))
+
+(deftest blob-equality-test
+  (testing "Same bytes = equal"
+    (is (= (d/blob (byte-array [1 2 3])) (d/blob (byte-array [1 2 3])))))
+  (testing "Different bytes = not equal"
+    (is (not= (d/blob (byte-array [1 2])) (d/blob (byte-array [3 4]))))))
+
+(deftest blob-size-bytes-test
+  (testing "Size equals byte count"
+    (is (= 5 (d/size-bytes (d/blob (byte-array [0 0 0 0 0])))))
+    (is (= 0 (d/size-bytes (d/blob (byte-array 0)))))))
+
+(deftest blob-toString-test
+  (testing "toString shows byte count"
+    (is (= "<blob 3 bytes>" (.toString (d/blob (byte-array [1 2 3])))))))
+
+;; =============================================================================
 ;; Vectors
 ;; =============================================================================
 
@@ -394,6 +438,12 @@
     (is (= {"name" "Alice" "age" 30}
            (d/dac->clj (d/hash-map "name" "Alice" "age" 30))))))
 
+(deftest dac->clj-blob-test
+  (testing "Blobs unwrap to byte array"
+    (let [result (d/dac->clj (d/blob (byte-array [1 2 3])))]
+      (is (bytes? result))
+      (is (= [1 2 3] (clojure.core/vec result))))))
+
 (deftest dac->clj-empty-collections-test
   (testing "Empty collections"
     (is (= [] (d/dac->clj (d/vec []))))
@@ -457,6 +507,12 @@
     (let [data {"users" [{"name" "Alice"} {"name" "Bob"}]}
           d (d/clj->dac data)]
       (is (= data (d/dac->clj d))))))
+
+(deftest clj->dac-blob-test
+  (testing "Byte arrays wrap to DaciteBlob"
+    (let [b (d/clj->dac (byte-array [10 20]))]
+      (is (instance? dacite.core.DaciteBlob b))
+      (is (= [10 20] (clojure.core/vec @b))))))
 
 (deftest clj->dac-idempotent-test
   (testing "Already-Dacite values pass through"

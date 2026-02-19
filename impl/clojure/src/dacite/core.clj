@@ -9,6 +9,7 @@
      (d/i64 42)              => DaciteScalar
      (d/vec [1 2 3])         => DaciteVector
      (d/str \"hello\")        => DaciteString
+     (d/blob bytes)          => DaciteBlob
      (d/hash-map \"a\" 1)     => DaciteMap
 
    Boundary crossing:
@@ -66,9 +67,9 @@
 ;; Forward declarations & protocol
 ;; =============================================================================
 
-(declare ->DaciteScalar ->DaciteVector ->DaciteMap ->DaciteString)
+(declare ->DaciteScalar ->DaciteVector ->DaciteMap ->DaciteString ->DaciteBlob)
 (declare wrap-hash coerce-and-store!)
-(declare store-string! store-vector! store-map!)
+(declare store-string! store-blob! store-vector! store-map!)
 (declare vector-conj-internal vector-refs-internal vector-count-internal)
 (declare map-count-internal map-get-internal map-entries-internal)
 (declare map-assoc-internal map-dissoc-internal)
@@ -174,6 +175,42 @@
     (and (instance? DaciteString other)
          (= _hash (.-_hash ^DaciteString other))))
   (toString [this] (deref this)))
+
+;; =============================================================================
+;; DaciteBlob — finger tree of bytes, parallel to DaciteString
+;; =============================================================================
+
+(deftype DaciteBlob [^:unsynchronized-mutable _hash]
+  IDaciteHash
+  (dacite-hash [_] _hash)
+
+  IDeref
+  (deref [_]
+    (let [{:keys [refs]} (second (get @*store* _hash))]
+      (byte-array (map (fn [ref] (second (get @*store* ref))) refs))))
+
+  IHashEq
+  (hasheq [_] (hash/hash->int _hash))
+
+  Counted
+  (count [_]
+    (let [{:keys [refs]} (second (get @*store* _hash))]
+      (clojure.core/count refs)))
+
+  Seqable
+  (seq [this]
+    (when (pos? (.count this))
+      (let [{:keys [refs]} (second (get @*store* _hash))]
+        (map (fn [ref] (wrap-hash ref)) refs))))
+
+  Object
+  (hashCode [_] (hash/hash->int _hash))
+  (equals [_ other]
+    (and (instance? DaciteBlob other)
+         (= _hash (.-_hash ^DaciteBlob other))))
+  (toString [this]
+    (let [{:keys [refs]} (second (get @*store* _hash))]
+      (clojure.core/str "<blob " (clojure.core/count refs) " bytes>"))))
 
 ;; =============================================================================
 ;; DaciteVector
@@ -380,6 +417,7 @@
       :vector (->DaciteVector h)
       :map (->DaciteMap h)
       :string (->DaciteString h)
+      :blob (->DaciteBlob h)
       (->DaciteScalar h))))
 
 (defn unwrap-hash
@@ -437,6 +475,17 @@
                 char-refs)]
     (->DaciteString (store-string! ft-store ft-root char-refs))))
 
+(defn blob
+  "Create a dacite blob from a byte array."
+  [^bytes bs]
+  (let [byte-refs (mapv (fn [b] (dacite-hash (u8 (Byte/toUnsignedInt b)))) (seq bs))
+        [init-s init-r] (ft/finger-tree)
+        [ft-store ft-root]
+        (reduce (fn [[st root] ref] (ft/conj-right [st root] ref))
+                [(merge @*store* init-s) init-r]
+                byte-refs)]
+    (->DaciteBlob (store-blob! ft-store ft-root byte-refs))))
+
 ;; =============================================================================
 ;; Auto-coercion (internal)
 ;; =============================================================================
@@ -473,6 +522,19 @@
     (swap! *store* assoc h [:string {:root ft-root
                                      :refs (clojure.core/vec refs)
                                      :size-bytes sb}])
+    h))
+
+(defn- store-blob!
+  "Merge ft-store into *store*, compute size, store blob node. Returns hash."
+  [ft-store ft-root refs]
+  (store-merge! ft-store)
+  (let [store @*store*
+        ef (ft/tree-elements-fuse [store ft-root])
+        sb (ft/tree-size-bytes [store ft-root])
+        h (hash/node-hash :blob ef)]
+    (swap! *store* assoc h [:blob {:root ft-root
+                                   :refs (clojure.core/vec refs)
+                                   :size-bytes sb}])
     h))
 
 (defn- store-vector!
@@ -591,6 +653,7 @@
   (cond
     (instance? DaciteScalar x) @x
     (instance? DaciteString x) @x
+    (instance? DaciteBlob x)   @x
     (instance? DaciteVector x) (mapv dac->clj-unsafe (seq x))
     (instance? DaciteMap x)    (into {} (map (fn [[k v]]
                                                [(dac->clj-unsafe k)
@@ -628,6 +691,7 @@
     (sequential? x)            (vec-of-refs (mapv (comp dacite-hash clj->dac) x))
     (map? x)                   (let [pairs (mapcat (fn [[k v]] [(clj->dac k) (clj->dac v)]) x)]
                                  (apply hash-map pairs))
+    (bytes? x)                 (blob x)
     (string? x)                (str x)
     (nil? x)                   (null)
     (instance? Boolean x)      (bool x)
