@@ -453,16 +453,16 @@
 (defn- scalar [type-kw data]
   (->DaciteScalar (s-put! [type-kw data])))
 
-(defn null   "Create a null value."                       []  (scalar :null nil))
-(defn bool   "Create a boolean value."                    [b] (scalar :bool b))
-(defn i8     "Create an i8 value."                        [n] (scalar :i8 (byte n)))
-(defn i16    "Create an i16 value."                       [n] (scalar :i16 (short n)))
-(defn i32    "Create an i32 value."                       [n] (scalar :i32 (int n)))
-(defn i64    "Create an i64 value."                       [n] (scalar :i64 (long n)))
-(defn u8  "Create a u8 value."  [n] {:pre [(<= 0 n 255)]}        (scalar :u8 n))
-(defn u16 "Create a u16 value." [n] {:pre [(<= 0 n 65535)]}      (scalar :u16 n))
-(defn u32 "Create a u32 value." [n] {:pre [(<= 0 n 4294967295)]} (scalar :u32 n))
-(defn u64 "Create a u64 value." [n] {:pre [(<= 0 n)]}            (scalar :u64 n))
+(defn null "Create a null value."    []  (scalar :null nil))
+(defn bool "Create a boolean value." [b] (scalar :bool b))
+(defn i8   "Create an i8 value."     [n] (scalar :i8 (byte n)))
+(defn i16  "Create an i16 value."    [n] (scalar :i16 (short n)))
+(defn i32  "Create an i32 value."    [n] (scalar :i32 (int n)))
+(defn i64  "Create an i64 value."    [n] (scalar :i64 (long n)))
+(defn u8   "Create a u8 value."      [n] {:pre [(<= 0 n 255)]}        (scalar :u8 n))
+(defn u16  "Create a u16 value."     [n] {:pre [(<= 0 n 65535)]}      (scalar :u16 n))
+(defn u32  "Create a u32 value."     [n] {:pre [(<= 0 n 4294967295)]} (scalar :u32 n))
+(defn u64  "Create a u64 value."     [n] {:pre [(<= 0 n)]}            (scalar :u64 n))
 
 (defn u256
   "Create a u256 value (e.g. hash as data). Data must be 32-byte array."
@@ -470,8 +470,8 @@
   {:pre [(= 32 (alength data))]}
   (scalar :u256 data))
 
-(defn f32    "Create an f32 value."  [n] (scalar :f32 (float n)))
-(defn f64    "Create an f64 value."  [n] (scalar :f64 (double n)))
+(defn f32  "Create an f32 value."    [n] (scalar :f32 (float n)))
+(defn f64  "Create an f64 value."    [n] (scalar :f64 (double n)))
 
 (defn dacite-char
   "Create a char value."
