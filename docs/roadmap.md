@@ -9,8 +9,6 @@
   - **Negative sets**: a `neg` sentinel element inverts set membership, enabling cofinite sets (e.g. blacklists). `{neg 1 2 3}` = "everything except 1, 2, 3". Pure convention, not enforced by core.
 - [ ] **Sorted map** — deferred. Requires a way to represent comparator functions as data so peers can agree on ordering. Finger tree B-tree machinery exists; the open problem is purely about key comparison.
 - [ ] **Sorted set** — same dependency (sorted map where key = value)
-- [ ] **Nil/unit cleanup** — should `null` be a singleton hash?
-
 ## 2. Store Protocol
 
 **Have:** `IStore` protocol with `s-get`, `s-put`, `s-has?`, `s-snapshot`, `s-merge`, `s-reset`. Three implementations.
@@ -54,7 +52,7 @@ Concrete things to build that prove the architecture:
 
 ## 6. Performance & Polish
 
-- [ ] **Memoize scalar constructors**
+- [ ] **Memoize scalar constructors** — includes singleton hashes for `null`, `true`, `false`
 - [ ] **Benchmarks** — construction, lookup, `dac->clj`, `size-bytes` at various scales
 - [ ] **Print methods** — custom `print-method` for Dacite types so REPL output is readable
 - [ ] **Error messages** — better errors when store misses occur (hash not found)
