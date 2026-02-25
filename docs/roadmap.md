@@ -2,10 +2,9 @@
 
 ## 1. Core Data Structures
 
-**Have:** scalar types, strings (finger tree of chars), vectors (finger tree of element hashes), maps (HAMT)
+**Have:** scalar types, strings (finger tree of chars), vectors (finger tree of element hashes), maps (HAMT), blobs (finger tree of bytes)
 
-**Need:**
-- [ ] **Blob** — finger tree of raw bytes, parallel to string. Use case: binary data, files, images
+- [x] **Blob** — finger tree of raw bytes, parallel to string. `d/blob`, `dac->clj`/`clj->dac` support, `size-bytes`
 - [ ] **Set** — HAMT-backed, keys only (no values). `d/hash-set`, supports `conj`, `disj`, `contains?`
 - [ ] **Sorted map** — B-tree or red-black tree backed, ordered by key hash. `d/sorted-map`, supports `subseq`, `rsubseq`
 - [ ] **Sorted set** — same backing, keys only
@@ -13,20 +12,19 @@
 
 ## 2. Store Protocol
 
-**Have:** `*store*` as an atom holding a plain map
+**Have:** `IStore` protocol with `s-get`, `s-put`, `s-has?`, `s-snapshot`, `s-merge`, `s-reset`. Three implementations.
 
-**Need:**
-- [ ] **IStore protocol** — minimal interface: `fetch`, `store`, maybe `contains?`
-- [ ] **Atom store** — current behavior, wrapped in the protocol
-- [ ] **Layered store** — compose stores: `(layered-store mem-store disk-store remote-store)`
-- [ ] **Disk store** — persistence to local filesystem (content-addressed directory structure like git objects)
+- [x] **IStore protocol** — minimal interface in `dacite.store`
+- [x] **Mem store** — atom-backed in-memory store (default)
+- [x] **File store** — content-addressed filesystem with directory sharding (like git objects)
+- [x] **Layered store** — compose stores with read-through; writes go to all layers
 - [ ] **LRU cache store** — bounded memory with eviction, backed by a slower store
 - [ ] **Read-through / write-through policies** — configurable per layer
 - [ ] **Lazy fetch** — types that resolve their data on access, not on construction
 
 ## 3. Serialization
 
-**Have:** nothing — values only exist in-memory Clojure maps
+**Have:** nothing — values only exist in-memory Clojure maps or EDN on disk
 
 **Need:**
 - [ ] **Wire format** — binary serialization of `[type data]` tuples for network/disk
@@ -61,10 +59,26 @@ Concrete things to build that prove the architecture:
 - [ ] **Error messages** — better errors when store misses occur (hash not found)
 - [ ] **`IReduce` / `IKVReduce`** — remaining Clojure interfaces for efficient reduction
 
+## Test Coverage (as of 2026-02-24)
+
+293 tests, 1370 assertions, 0 failures.
+
+| Namespace        | Forms  | Lines  |
+|------------------|--------|--------|
+| dacite.cache     | 99.10% | 100%   |
+| dacite.cache-map | 94.59% | 97.44% |
+| dacite.core      | 98.46% | 100%   |
+| dacite.finger-tree | 100% | 100%   |
+| dacite.hamt      | 95.79% | 98.95% |
+| dacite.hash      | 99.14% | 98.95% |
+| dacite.store     | 87.56% | 100%   |
+| dacite.types     | 100%   | 100%   |
+| **ALL FILES**    | **97.41%** | **99.64%** |
+
 ## Suggested Order
 
 ```
-blob → store protocol → disk store → set → serialization → sorted map → examples
+set → serialization → sorted map → examples
 ```
 
-Blob is straightforward (parallel to string). Store protocol is the architectural unlock — everything else builds on it. Disk store proves the protocol works. Sets and serialization open up real use cases.
+Store protocol and blob are done. Next unlock is sets (reuses HAMT), then serialization to enable network/disk transfer.
