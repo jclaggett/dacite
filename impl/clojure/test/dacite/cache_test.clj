@@ -97,20 +97,16 @@
 ;; Property-based tests
 ;; =============================================================================
 
-(def gen-type
-  "Generator for Dacite type names."
-  (gen/elements ["i64" "i32" "string" "bool" "f64" "f32"]))
-
-(def gen-scalar-data
-  "Generator for scalar value data."
-  (gen/one-of [gen/small-integer
-               gen/string-alphanumeric
-               gen/boolean
-               (gen/double* {:infinite? false :NaN? false})]))
-
 (def gen-dacite-value
-  "Generator for Dacite values [type, data]."
-  (gen/tuple gen-type gen-scalar-data))
+  "Generator for correctly-typed Dacite values [type, data]."
+  (gen/one-of [(gen/fmap #(vector "i64" (long %)) gen/small-integer)
+               (gen/fmap #(vector "i32" (int %)) gen/small-integer)
+               (gen/fmap #(vector "bool" %) gen/boolean)
+               (gen/fmap #(vector "f64" (double %))
+                         (gen/double* {:infinite? false :NaN? false}))
+               (gen/fmap #(vector "f32" (float %))
+                         (gen/double* {:infinite? false :NaN? false
+                                       :min -1e30 :max 1e30}))]))
 
 (defspec commit-then-lookup-returns-value 100
   (prop/for-all [value gen-dacite-value]

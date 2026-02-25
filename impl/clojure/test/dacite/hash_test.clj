@@ -287,14 +287,29 @@
       (is (= original round-tripped)))))
 
 (deftest test-encode-value
-  (testing "encode-value returns UTF-8 bytes of pr-str"
-    (let [result (hash/encode-value 42)]
+  (testing "null encodes to 0 bytes"
+    (let [result (hash/encode-value ["null" nil])]
       (is (bytes? result))
-      (is (= "42" (String. result "UTF-8"))))
-    (let [result (hash/encode-value "hello")]
-      (is (= "\"hello\"" (String. result "UTF-8"))))
-    (let [result (hash/encode-value nil)]
-      (is (= "nil" (String. result "UTF-8"))))))
+      (is (= 0 (alength result)))))
+  (testing "bool encodes to 1 byte"
+    (is (= [1] (vec (hash/encode-value ["bool" true]))))
+    (is (= [0] (vec (hash/encode-value ["bool" false])))))
+  (testing "i64 encodes to 8 big-endian bytes"
+    (let [result (hash/encode-value ["i64" 42])]
+      (is (= 8 (alength result)))
+      (is (= 42 (.getLong (java.nio.ByteBuffer/wrap result))))))
+  (testing "f64 encodes to 8 IEEE 754 bytes"
+    (let [result (hash/encode-value ["f64" 3.14])]
+      (is (= 8 (alength result)))
+      (is (= 3.14 (.getDouble (java.nio.ByteBuffer/wrap result))))))
+  (testing "char encodes to UTF-8"
+    (let [result (hash/encode-value ["char" \a])]
+      (is (= "a" (String. result "UTF-8")))))
+  (testing "u8 encodes to 1 byte"
+    (is (= [42] (vec (hash/encode-value ["u8" 42])))))
+  (testing "default falls back to pr-str for unknown types"
+    (let [result (hash/encode-value ["custom" {:x 1}])]
+      (is (bytes? result)))))
 
 (deftest test-typed-value-hash-string-type
   (testing "typed-value-hash handles string type name"
