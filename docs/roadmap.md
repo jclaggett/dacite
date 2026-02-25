@@ -7,8 +7,8 @@
 - [x] **Blob** — finger tree of raw bytes, parallel to string. `d/blob`, `dac->clj`/`clj->dac` support, `size-bytes`
 - [x] **Set** — sets are maps where key equals value (`{x x}`). No new type needed. Content addressing means zero storage overhead for the duplicate reference. Convenience functions (`hash-set`, `union`, `intersect`, `diff`, `negate`) go in a utility namespace, not core.
   - **Negative sets**: a `neg` sentinel element inverts set membership, enabling cofinite sets (e.g. blacklists). `{neg 1 2 3}` = "everything except 1, 2, 3". Pure convention, not enforced by core.
-- [ ] **Sorted map** — B-tree or red-black tree backed, ordered by key hash. `d/sorted-map`, supports `subseq`, `rsubseq`
-- [ ] **Sorted set** — same backing (sorted map where key = value)
+- [ ] **Sorted map** — deferred. Requires a way to represent comparator functions as data so peers can agree on ordering. Finger tree B-tree machinery exists; the open problem is purely about key comparison.
+- [ ] **Sorted set** — same dependency (sorted map where key = value)
 - [ ] **Nil/unit cleanup** — should `null` be a singleton hash?
 
 ## 2. Store Protocol
@@ -79,7 +79,7 @@ Concrete things to build that prove the architecture:
 ## Suggested Order
 
 ```
-serialization → sorted map → set utilities → examples
+serialization → set utilities → examples
 ```
 
 Store protocol, blob, and sets (as maps) are done. Serialization is the next architectural unlock for network/disk transfer. Set utility functions (`union`, `intersect`, `negate`, etc.) can come whenever — they're pure library code on top of maps.
