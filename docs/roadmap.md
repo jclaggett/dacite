@@ -5,9 +5,10 @@
 **Have:** scalar types, strings (finger tree of chars), vectors (finger tree of element hashes), maps (HAMT), blobs (finger tree of bytes)
 
 - [x] **Blob** — finger tree of raw bytes, parallel to string. `d/blob`, `dac->clj`/`clj->dac` support, `size-bytes`
-- [ ] **Set** — HAMT-backed, keys only (no values). `d/hash-set`, supports `conj`, `disj`, `contains?`
+- [x] **Set** — sets are maps where key equals value (`{x x}`). No new type needed. Content addressing means zero storage overhead for the duplicate reference. Convenience functions (`hash-set`, `union`, `intersect`, `diff`, `negate`) go in a utility namespace, not core.
+  - **Negative sets**: a `neg` sentinel element inverts set membership, enabling cofinite sets (e.g. blacklists). `{neg 1 2 3}` = "everything except 1, 2, 3". Pure convention, not enforced by core.
 - [ ] **Sorted map** — B-tree or red-black tree backed, ordered by key hash. `d/sorted-map`, supports `subseq`, `rsubseq`
-- [ ] **Sorted set** — same backing, keys only
+- [ ] **Sorted set** — same backing (sorted map where key = value)
 - [ ] **Nil/unit cleanup** — should `null` be a singleton hash?
 
 ## 2. Store Protocol
@@ -78,7 +79,7 @@ Concrete things to build that prove the architecture:
 ## Suggested Order
 
 ```
-set → serialization → sorted map → examples
+serialization → sorted map → set utilities → examples
 ```
 
-Store protocol and blob are done. Next unlock is sets (reuses HAMT), then serialization to enable network/disk transfer.
+Store protocol, blob, and sets (as maps) are done. Serialization is the next architectural unlock for network/disk transfer. Set utility functions (`union`, `intersect`, `negate`, etc.) can come whenever — they're pure library code on top of maps.
