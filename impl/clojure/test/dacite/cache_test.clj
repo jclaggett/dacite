@@ -13,7 +13,7 @@
 (deftest basic-commit-and-lookup
   (testing "commit! returns a hash and lookup retrieves the value"
     (let [mgr (cache/memory-cache-manager)
-          value [:i64 42]
+          value ["i64" 42]
           hash (cache/commit! mgr value)]
       (is (vector? hash) "hash should be a vector")
       (is (= 4 (count hash)) "hash should have 4 elements")
@@ -23,20 +23,20 @@
 (deftest content-addressability
   (testing "same value produces same hash"
     (let [mgr (cache/memory-cache-manager)
-          h1 (cache/commit! mgr [:string "hello"])
-          h2 (cache/commit! mgr [:string "hello"])]
+          h1 (cache/commit! mgr ["string" "hello"])
+          h2 (cache/commit! mgr ["string" "hello"])]
       (is (= h1 h2) "same value should produce same hash")))
 
   (testing "different values produce different hashes"
     (let [mgr (cache/memory-cache-manager)
-          h1 (cache/commit! mgr [:string "hello"])
-          h2 (cache/commit! mgr [:string "world"])]
+          h1 (cache/commit! mgr ["string" "hello"])
+          h2 (cache/commit! mgr ["string" "world"])]
       (is (not= h1 h2) "different values should produce different hashes")))
 
   (testing "different types produce different hashes"
     (let [mgr (cache/memory-cache-manager)
-          h1 (cache/commit! mgr [:i64 42])
-          h2 (cache/commit! mgr [:f64 42.0])]
+          h1 (cache/commit! mgr ["i64" 42])
+          h2 (cache/commit! mgr ["f64" 42.0])]
       (is (not= h1 h2) "different types should produce different hashes"))))
 
 (deftest lookup-missing
@@ -48,7 +48,7 @@
 (deftest multiple-values
   (testing "cache can hold multiple values"
     (let [mgr (cache/memory-cache-manager)
-          values [[:i64 1] [:i64 2] [:string "a"] [:bool true]]
+          values [["i64" 1] ["i64" 2] ["string" "a"] ["bool" true]]
           hashes (mapv #(cache/commit! mgr %) values)]
       (is (= (count (set hashes)) (count hashes)) "all hashes should be unique")
       (doseq [[hash value] (map vector hashes values)]
@@ -57,7 +57,7 @@
 (deftest hash-hex-conversion
   (testing "hash->hex produces 64-char string"
     (let [mgr (cache/memory-cache-manager)
-          hash (cache/commit! mgr [:i64 42])
+          hash (cache/commit! mgr ["i64" 42])
           hex (hash/hash->hex hash)]
       (is (string? hex))
       (is (= 64 (count hex)))
@@ -65,7 +65,7 @@
 
   (testing "hex->hash round-trips"
     (let [mgr (cache/memory-cache-manager)
-          hash (cache/commit! mgr [:string "test"])
+          hash (cache/commit! mgr ["string" "test"])
           hex (hash/hash->hex hash)
           hash2 (hash/hex->hash hex)]
       (is (= hash hash2) "round-trip should preserve hash"))))
@@ -74,15 +74,15 @@
   (testing "stats reports count"
     (let [mgr (cache/memory-cache-manager)]
       (is (= 0 (:count (cache/stats mgr))))
-      (cache/commit! mgr [:i64 1])
+      (cache/commit! mgr ["i64" 1])
       (is (= 1 (:count (cache/stats mgr))))
-      (cache/commit! mgr [:i64 2])
+      (cache/commit! mgr ["i64" 2])
       (is (= 2 (:count (cache/stats mgr))))))
 
   (testing "clear! removes all values"
     (let [mgr (cache/memory-cache-manager)
-          h (cache/commit! mgr [:i64 42])]
-      (is (= [:i64 42] (cache/lookup mgr h)))
+          h (cache/commit! mgr ["i64" 42])]
+      (is (= ["i64" 42] (cache/lookup mgr h)))
       (cache/clear! mgr)
       (is (= 0 (:count (cache/stats mgr))))
       (is (nil? (cache/lookup mgr h))))))
@@ -90,16 +90,16 @@
 (deftest global-cache
   (testing "global cache operations"
     (cache/init-global-cache!)
-    (let [h (cache/global-commit! [:i64 999])]
-      (is (= [:i64 999] (cache/global-lookup h))))))
+    (let [h (cache/global-commit! ["i64" 999])]
+      (is (= ["i64" 999] (cache/global-lookup h))))))
 
 ;; =============================================================================
 ;; Property-based tests
 ;; =============================================================================
 
 (def gen-type
-  "Generator for Dacite type keywords."
-  (gen/elements [:i64 :i32 :string :bool :f64 :f32]))
+  "Generator for Dacite type names."
+  (gen/elements ["i64" "i32" "string" "bool" "f64" "f32"]))
 
 (def gen-scalar-data
   "Generator for scalar value data."

@@ -13,7 +13,7 @@
 
 (defn insert-kv
   "Helper: add a key-value pair to a HAMT.
-   key and value are dacite values like [:string \"name\"].
+   key and value are dacite values like [\"string\" \"name\"].
    key-hash is used for HAMT navigation."
   [h key-value val-value key-hash]
   (let [[m root] h
@@ -26,7 +26,7 @@
    Uses sha256 of the key string for HAMT navigation."
   [h key-str value]
   (let [key-hash (hash/fuse-str key-str)]
-    (insert-kv h [:string key-str] [:i64 value] key-hash)))
+    (insert-kv h ["string" key-str] ["i64" value] key-hash)))
 
 (defn get-string-val
   "Helper: look up by string key, return the actual value from dacite-map."
@@ -59,7 +59,7 @@
     (let [h (insert-string-kv (hamt/hamt) "name" 42)]
       (is (= 1 (hamt/hamt-count h)))
       (is (pos? (hamt/hamt-size-bytes h)))
-      (is (= [:i64 42] (get-string-val h "name")))
+      (is (= ["i64" 42] (get-string-val h "name")))
       (is (nil? (get-string-val h "other"))))))
 
 (deftest test-multiple-entries
@@ -69,16 +69,16 @@
                 (insert-string-kv "b" 2)
                 (insert-string-kv "c" 3))]
       (is (= 3 (hamt/hamt-count h)))
-      (is (= [:i64 1] (get-string-val h "a")))
-      (is (= [:i64 2] (get-string-val h "b")))
-      (is (= [:i64 3] (get-string-val h "c"))))))
+      (is (= ["i64" 1] (get-string-val h "a")))
+      (is (= ["i64" 2] (get-string-val h "b")))
+      (is (= ["i64" 3] (get-string-val h "c"))))))
 
 (deftest test-overwrite
   (testing "overwriting existing key"
     (let [h1 (insert-string-kv (hamt/hamt) "key" 1)
           h2 (insert-string-kv h1 "key" 2)]
-      (is (= [:i64 1] (get-string-val h1 "key")))
-      (is (= [:i64 2] (get-string-val h2 "key")))
+      (is (= ["i64" 1] (get-string-val h1 "key")))
+      (is (= ["i64" 2] (get-string-val h2 "key")))
       (is (= 1 (hamt/hamt-count h1)))
       (is (= 1 (hamt/hamt-count h2))))))
 
@@ -91,16 +91,16 @@
           h2 (dissoc-string h1 "b")]
       (is (= 3 (hamt/hamt-count h1)))
       (is (= 2 (hamt/hamt-count h2)))
-      (is (= [:i64 1] (get-string-val h2 "a")))
+      (is (= ["i64" 1] (get-string-val h2 "a")))
       (is (nil? (get-string-val h2 "b")))
-      (is (= [:i64 3] (get-string-val h2 "c"))))))
+      (is (= ["i64" 3] (get-string-val h2 "c"))))))
 
 (deftest test-delete-nonexistent
   (testing "delete non-existent key"
     (let [h1 (insert-string-kv (hamt/hamt) "a" 1)
           h2 (dissoc-string h1 "b")]
       (is (= 1 (hamt/hamt-count h2)))
-      (is (= [:i64 1] (get-string-val h2 "a"))))))
+      (is (= ["i64" 1] (get-string-val h2 "a"))))))
 
 (deftest test-delete-to-empty
   (testing "delete last entry"
@@ -127,9 +127,9 @@
       (is (= 2 (hamt/hamt-count h1)))
       (is (= 3 (hamt/hamt-count h2)))
       (is (nil? (get-string-val h1 "c")))
-      (is (= [:i64 3] (get-string-val h2 "c")))
-      (is (= [:i64 1] (get-string-val h1 "a")))
-      (is (= [:i64 1] (get-string-val h2 "a"))))))
+      (is (= ["i64" 3] (get-string-val h2 "c")))
+      (is (= ["i64" 1] (get-string-val h1 "a")))
+      (is (= ["i64" 1] (get-string-val h2 "a"))))))
 
 ;; =============================================================================
 ;; Entries
@@ -148,9 +148,9 @@
                                [(get dacite-map k-ref) (get dacite-map v-ref)])
                              es))]
       (is (= 3 (count es)))
-      (is (contains? resolved [[:string "x"] [:i64 1]]))
-      (is (contains? resolved [[:string "y"] [:i64 2]]))
-      (is (contains? resolved [[:string "z"] [:i64 3]])))))
+      (is (contains? resolved [["string" "x"] ["i64" 1]]))
+      (is (contains? resolved [["string" "y"] ["i64" 2]]))
+      (is (contains? resolved [["string" "z"] ["i64" 3]])))))
 
 ;; =============================================================================
 ;; Large maps (exercise tree depth)
@@ -163,9 +163,9 @@
                     (hamt/hamt)
                     (range 1000))]
       (is (= 1000 (hamt/hamt-count h)))
-      (is (= [:i64 0] (get-string-val h "key0")))
-      (is (= [:i64 500] (get-string-val h "key500")))
-      (is (= [:i64 999] (get-string-val h "key999")))
+      (is (= ["i64" 0] (get-string-val h "key0")))
+      (is (= ["i64" 500] (get-string-val h "key500")))
+      (is (= ["i64" 999] (get-string-val h "key999")))
       (is (nil? (get-string-val h "key1000"))))))
 
 ;; =============================================================================
@@ -226,11 +226,11 @@
 
   (testing "add-value returns [map, hash]"
     (let [[m0 _] (hamt/hamt)
-          [m1 ref] (hamt/add-value m0 [:i64 42])]
+          [m1 ref] (hamt/add-value m0 ["i64" 42])]
       (is (map? m1))
       (is (vector? ref))
       (is (= 4 (count ref)))
-      (is (= [:i64 42] (get m1 ref)))))
+      (is (= ["i64" 42] (get m1 ref)))))
 
   (testing "identical inputs produce identical hashes"
     (let [[_ h1] (hamt/hamt)
@@ -248,7 +248,7 @@
                  (insert-string-kv "b" 2))
           h2 (dissoc-string h1 "a")]
       (is (= 1 (hamt/hamt-count h2)))
-      (is (= [:i64 2] (get-string-val h2 "b")))
+      (is (= ["i64" 2] (get-string-val h2 "b")))
       (is (nil? (get-string-val h2 "a"))))))
 
 (deftest test-delete-deep
@@ -265,12 +265,12 @@
                      (range 10 20))]
       (is (= 99 (hamt/hamt-count h2)))
       (is (nil? (get-string-val h2 "k50")))
-      (is (= [:i64 49] (get-string-val h2 "k49")))
-      (is (= [:i64 51] (get-string-val h2 "k51")))
+      (is (= ["i64" 49] (get-string-val h2 "k49")))
+      (is (= ["i64" 51] (get-string-val h2 "k51")))
       (is (= 89 (hamt/hamt-count h3)))
       ;; Verify remaining entries still accessible
-      (is (= [:i64 0] (get-string-val h3 "k0")))
-      (is (= [:i64 99] (get-string-val h3 "k99"))))))
+      (is (= ["i64" 0] (get-string-val h3 "k0")))
+      (is (= ["i64" 99] (get-string-val h3 "k99"))))))
 
 ;; =============================================================================
 ;; Property tests
@@ -283,7 +283,7 @@
   (prop/for-all [k gen-key-str
                  v gen-val]
                 (let [h (insert-string-kv (hamt/hamt) k v)]
-                  (= [:i64 v] (get-string-val h k)))))
+                  (= ["i64" v] (get-string-val h k)))))
 
 (defspec count-increases-on-new-key 100
   (prop/for-all [k1 gen-key-str
@@ -317,7 +317,7 @@
                                 (hamt/hamt)
                                 kvs)
                       expected (into {} kvs)]
-                  (every? (fn [[k v]] (= [:i64 v] (get-string-val h k))) expected))))
+                  (every? (fn [[k v]] (= ["i64" v] (get-string-val h k))) expected))))
 
 ;; =============================================================================
 ;; Semantic hash (elements-fuse)
@@ -330,8 +330,8 @@
 (deftest test-elements-fuse-single
   (testing "single entry's elements-fuse equals fuse(key-ref, val-ref)"
     (let [[m0 root] (hamt/hamt)
-          [m1 k-ref] (hamt/add-value m0 [:string "name"])
-          [m2 v-ref] (hamt/add-value m1 [:i64 42])
+          [m1 k-ref] (hamt/add-value m0 ["string" "name"])
+          [m2 v-ref] (hamt/add-value m1 ["i64" 42])
           key-hash (hash/fuse-str "name")
           h (hamt/assoc-val [m2 root] key-hash k-ref v-ref)
           expected (hash/fuse k-ref v-ref)]

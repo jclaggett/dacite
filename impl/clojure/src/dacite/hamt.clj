@@ -13,9 +13,9 @@
    - All nodes bounded in size using hashes as references
    
    Node types stored as [type, data]:
-   - [:hamt/empty {:measure m}]
-   - [:hamt/entry {:key-hash h :key-ref h :val-ref h :measure m}]
-   - [:hamt/bitmap {:bitmap n :children [h...] :measure m}]"
+   - [\"hamt/empty\" {:measure m}]
+   - [\"hamt/entry\" {:key-hash h :key-ref h :val-ref h :measure m}]
+   - [\"hamt/bitmap\" {:bitmap n :children [h...] :measure m}]"
   (:require [dacite.hash :as hash]
             [dacite.types :as types]))
 
@@ -89,7 +89,7 @@
   (let [type-kw (first node)
         data (second node)
         ef (:elements-fuse (:measure data))
-        h (if (= :hamt/bitmap type-kw)
+        h (if (= "hamt/bitmap" type-kw)
             ;; Include bitmap in hash: different routing = different identity
             (let [bitmap-bytes (.array (doto (java.nio.ByteBuffer/allocate 8)
                                          (.putLong (long (:bitmap data)))))
@@ -117,18 +117,18 @@
 ;; =============================================================================
 
 (defn- make-empty [dacite-map]
-  (add-node dacite-map [:hamt/empty {:measure measure-identity}]))
+  (add-node dacite-map ["hamt/empty" {:measure measure-identity}]))
 
 (defn- make-entry [dacite-map key-hash key-ref val-ref measure]
-  (add-node dacite-map [:hamt/entry {:key-hash key-hash
-                                     :key-ref key-ref
-                                     :val-ref val-ref
-                                     :measure measure}]))
+  (add-node dacite-map ["hamt/entry" {:key-hash key-hash
+                                      :key-ref key-ref
+                                      :val-ref val-ref
+                                      :measure measure}]))
 
 (defn- make-bitmap [dacite-map bitmap children measure]
-  (add-node dacite-map [:hamt/bitmap {:bitmap bitmap
-                                      :children (vec children)
-                                      :measure measure}]))
+  (add-node dacite-map ["hamt/bitmap" {:bitmap bitmap
+                                       :children (vec children)
+                                       :measure measure}]))
 
 ;; =============================================================================
 ;; Internal HAMT operations
@@ -141,14 +141,14 @@
   [dacite-map node-hash key-hash level]
   (let [node (lookup-node dacite-map node-hash)]
     (case (node-type node)
-      :hamt/empty nil
+      "hamt/empty" nil
 
-      :hamt/entry
+      "hamt/entry"
       (let [{entry-key-hash :key-hash entry-val-ref :val-ref} (node-data node)]
         (when (= entry-key-hash key-hash)
           entry-val-ref))
 
-      :hamt/bitmap
+      "hamt/bitmap"
       (let [{:keys [bitmap children]} (node-data node)
             chunk (hash-chunk key-hash level)
             bit (bit-set 0 chunk)]
@@ -162,10 +162,10 @@
   [dacite-map node-hash key-hash key-ref val-ref measure level]
   (let [node (lookup-node dacite-map node-hash)]
     (case (node-type node)
-      :hamt/empty
+      "hamt/empty"
       (make-entry dacite-map key-hash key-ref val-ref measure)
 
-      :hamt/entry
+      "hamt/entry"
       (let [existing-key-hash (:key-hash (node-data node))]
         (if (= existing-key-hash key-hash)
           ;; Same key - replace
@@ -188,7 +188,7 @@
                     combined-measure (measure-seq (mapv #(get-measure m1 %) children))]
                 (make-bitmap m1 bitmap children combined-measure))))))
 
-      :hamt/bitmap
+      "hamt/bitmap"
       (let [{:keys [bitmap children]} (node-data node)
             chunk (hash-chunk key-hash level)
             bit (bit-set 0 chunk)
@@ -215,14 +215,14 @@
   [dacite-map node-hash key-hash level]
   (let [node (lookup-node dacite-map node-hash)]
     (case (node-type node)
-      :hamt/empty [dacite-map nil]
+      "hamt/empty" [dacite-map nil]
 
-      :hamt/entry
+      "hamt/entry"
       (if (= key-hash (:key-hash (node-data node)))
         [dacite-map nil]
         [dacite-map node-hash])
 
-      :hamt/bitmap
+      "hamt/bitmap"
       (let [{:keys [bitmap children]} (node-data node)
             chunk (hash-chunk key-hash level)
             bit (bit-set 0 chunk)]
@@ -244,7 +244,7 @@
 
                   ;; Single entry child remaining - collapse
                   (and (= 1 (Long/bitCount new-bitmap))
-                       (= :hamt/entry (node-type (lookup-node m1 (first new-children)))))
+                       (= "hamt/entry" (node-type (lookup-node m1 (first new-children)))))
                   [m1 (first new-children)]
 
                   ;; Multiple children remain
@@ -261,11 +261,11 @@
   [dacite-map node-hash]
   (let [node (lookup-node dacite-map node-hash)]
     (case (node-type node)
-      :hamt/empty []
-      :hamt/entry (let [{:keys [key-ref val-ref]} (node-data node)]
-                    [[key-ref val-ref]])
-      :hamt/bitmap (let [{:keys [children]} (node-data node)]
-                     (mapcat #(hamt-entries* dacite-map %) children)))))
+      "hamt/empty" []
+      "hamt/entry" (let [{:keys [key-ref val-ref]} (node-data node)]
+                     [[key-ref val-ref]])
+      "hamt/bitmap" (let [{:keys [children]} (node-data node)]
+                      (mapcat #(hamt-entries* dacite-map %) children)))))
 
 ;; =============================================================================
 ;; Public API
@@ -278,7 +278,7 @@
 
 (defn add-value
   "Add a typed value to the dacite-map. Returns [updated-map, value-hash].
-   Value is a [type-kw, data] tuple (e.g., [:string \"name\"]).
+   Value is a [type-name, data] tuple (e.g., [\"string\" \"name\"]).
    Hash is computed as fuse(type-name-hash, scalar-hash) per spec."
   [dacite-map value]
   (let [h (hash/typed-value-hash value)]
@@ -305,14 +305,14 @@
   [[dacite-map root-hash] key-hash]
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :hamt/empty nil
+      "hamt/empty" nil
 
-      :hamt/entry
+      "hamt/entry"
       (let [{entry-key-hash :key-hash entry-val-ref :val-ref} (node-data node)]
         (when (= entry-key-hash key-hash)
           entry-val-ref))
 
-      :hamt/bitmap
+      "hamt/bitmap"
       (let [{:keys [bitmap children]} (node-data node)
             chunk (hash-chunk key-hash 0)
             bit (bit-set 0 chunk)]
@@ -363,8 +363,8 @@
 
   ;; Add values to map first
   (let [[m0 root] (hamt)
-        [m1 k-ref] (add-value m0 [:string "name"])
-        [m2 v-ref] (add-value m1 [:string "Alice"])
+        [m1 k-ref] (add-value m0 ["string" "name"])
+        [m2 v-ref] (add-value m1 ["string" "Alice"])
         key-hash (hash/fuse-str "name")
         h1 (assoc-val [m2 root] key-hash k-ref v-ref)]
     (get-val h1 key-hash)      ;; => v-ref

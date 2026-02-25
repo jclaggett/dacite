@@ -132,7 +132,7 @@
   (invoke [this] (deref this)))
 
 (defn scalar-type
-  "Get the type keyword of a Dacite value."
+  "Get the type name of a Dacite value."
   [x]
   (let [[type-kw _data] (s-get (dacite-hash x))]
     type-kw))
@@ -433,10 +433,10 @@
   [h]
   (let [[type-kw _data] (s-get h)]
     (case type-kw
-      :vector (->DaciteVector h)
-      :map (->DaciteMap h)
-      :string (->DaciteString h)
-      :blob (->DaciteBlob h)
+      "vector" (->DaciteVector h)
+      "map" (->DaciteMap h)
+      "string" (->DaciteString h)
+      "blob" (->DaciteBlob h)
       (->DaciteScalar h))))
 
 (defn unwrap-hash
@@ -453,31 +453,31 @@
 (defn- scalar [type-kw data]
   (->DaciteScalar (s-put! [type-kw data])))
 
-(defn null "Create a null value."    []  (scalar :null nil))
-(defn bool "Create a boolean value." [b] (scalar :bool b))
-(defn i8   "Create an i8 value."     [n] (scalar :i8 (byte n)))
-(defn i16  "Create an i16 value."    [n] (scalar :i16 (short n)))
-(defn i32  "Create an i32 value."    [n] (scalar :i32 (int n)))
-(defn i64  "Create an i64 value."    [n] (scalar :i64 (long n)))
-(defn u8   "Create a u8 value."      [n] {:pre [(<= 0 n 255)]}        (scalar :u8 n))
-(defn u16  "Create a u16 value."     [n] {:pre [(<= 0 n 65535)]}      (scalar :u16 n))
-(defn u32  "Create a u32 value."     [n] {:pre [(<= 0 n 4294967295)]} (scalar :u32 n))
-(defn u64  "Create a u64 value."     [n] {:pre [(<= 0 n)]}            (scalar :u64 n))
+(defn null "Create a null value."    []  (scalar "null" nil))
+(defn bool "Create a boolean value." [b] (scalar "bool" b))
+(defn i8   "Create an i8 value."     [n] (scalar "i8" (byte n)))
+(defn i16  "Create an i16 value."    [n] (scalar "i16" (short n)))
+(defn i32  "Create an i32 value."    [n] (scalar "i32" (int n)))
+(defn i64  "Create an i64 value."    [n] (scalar "i64" (long n)))
+(defn u8   "Create a u8 value."      [n] {:pre [(<= 0 n 255)]}        (scalar "u8" n))
+(defn u16  "Create a u16 value."     [n] {:pre [(<= 0 n 65535)]}      (scalar "u16" n))
+(defn u32  "Create a u32 value."     [n] {:pre [(<= 0 n 4294967295)]} (scalar "u32" n))
+(defn u64  "Create a u64 value."     [n] {:pre [(<= 0 n)]}            (scalar "u64" n))
 
 (defn u256
   "Create a u256 value (e.g. hash as data). Data must be 32-byte array."
   [^bytes data]
   {:pre [(= 32 (alength data))]}
-  (scalar :u256 data))
+  (scalar "u256" data))
 
-(defn f32  "Create an f32 value."    [n] (scalar :f32 (float n)))
-(defn f64  "Create an f64 value."    [n] (scalar :f64 (double n)))
+(defn f32  "Create an f32 value."    [n] (scalar "f32" (float n)))
+(defn f64  "Create an f64 value."    [n] (scalar "f64" (double n)))
 
 (defn dacite-char
   "Create a char value."
   [c]
   {:pre [(char? c)]}
-  (scalar :char c))
+  (scalar "char" c))
 
 ;; =============================================================================
 ;; String construction
@@ -537,10 +537,10 @@
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
-        h (hash/node-hash :string ef)]
-    (store/s-put *store* h [:string {:root ft-root
-                                     :refs (clojure.core/vec refs)
-                                     :size-bytes sb}])
+        h (hash/node-hash "string" ef)]
+    (store/s-put *store* h ["string" {:root ft-root
+                                      :refs (clojure.core/vec refs)
+                                      :size-bytes sb}])
     h))
 
 (defn- store-blob!
@@ -550,10 +550,10 @@
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
-        h (hash/node-hash :blob ef)]
-    (store/s-put *store* h [:blob {:root ft-root
-                                   :refs (clojure.core/vec refs)
-                                   :size-bytes sb}])
+        h (hash/node-hash "blob" ef)]
+    (store/s-put *store* h ["blob" {:root ft-root
+                                    :refs (clojure.core/vec refs)
+                                    :size-bytes sb}])
     h))
 
 (defn- store-vector!
@@ -563,10 +563,10 @@
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
-        h (hash/node-hash :vector ef)]
-    (store/s-put *store* h [:vector {:root ft-root
-                                     :refs (clojure.core/vec refs)
-                                     :size-bytes sb}])
+        h (hash/node-hash "vector" ef)]
+    (store/s-put *store* h ["vector" {:root ft-root
+                                      :refs (clojure.core/vec refs)
+                                      :size-bytes sb}])
     h))
 
 (defn- build-vector-from-refs! [refs]
@@ -618,10 +618,10 @@
   (let [store (s-snapshot)
         ef (hamt/hamt-elements-fuse [store hamt-root])
         sb (hamt/hamt-size-bytes [store hamt-root])
-        h (hash/node-hash :map ef)]
-    (store/s-put *store* h [:map {:root hamt-root
-                                  :pairs (clojure.core/vec pairs)
-                                  :size-bytes sb}])
+        h (hash/node-hash "map" ef)]
+    (store/s-put *store* h ["map" {:root hamt-root
+                                   :pairs (clojure.core/vec pairs)
+                                   :size-bytes sb}])
     h))
 
 (defn- map-assoc-internal [map-hash k v]

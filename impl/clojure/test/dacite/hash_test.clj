@@ -68,20 +68,20 @@
 
 ;; Composite generator for any scalar value with its type tag
 (def gen-tagged-scalar
-  "Generator for [type-keyword value] pairs."
+  "Generator for [type-name value] pairs."
   (gen/one-of
-   [(gen/tuple (gen/return :null) gen-null)
-    (gen/tuple (gen/return :bool) gen-bool)
-    (gen/tuple (gen/return :i8) gen-i8)
-    (gen/tuple (gen/return :i16) gen-i16)
-    (gen/tuple (gen/return :i32) gen-i32)
-    (gen/tuple (gen/return :i64) gen-i64)
-    (gen/tuple (gen/return :u8) gen-u8)
-    (gen/tuple (gen/return :u16) gen-u16)
-    (gen/tuple (gen/return :u32) gen-u32)
-    (gen/tuple (gen/return :f32) gen-f32)
-    (gen/tuple (gen/return :f64) gen-f64)
-    (gen/tuple (gen/return :char) gen-char)]))
+   [(gen/tuple (gen/return "null") gen-null)
+    (gen/tuple (gen/return "bool") gen-bool)
+    (gen/tuple (gen/return "i8") gen-i8)
+    (gen/tuple (gen/return "i16") gen-i16)
+    (gen/tuple (gen/return "i32") gen-i32)
+    (gen/tuple (gen/return "i64") gen-i64)
+    (gen/tuple (gen/return "u8") gen-u8)
+    (gen/tuple (gen/return "u16") gen-u16)
+    (gen/tuple (gen/return "u32") gen-u32)
+    (gen/tuple (gen/return "f32") gen-f32)
+    (gen/tuple (gen/return "f64") gen-f64)
+    (gen/tuple (gen/return "char") gen-char)]))
 
 ;; Generator for 256-bit hashes (as vectors of 4 longs) - the standard form
 (def gen-hash
@@ -151,8 +151,8 @@
                    (hash/unchecked-fuse (hash/unchecked-fuse a b) c))))
 
 (defspec different-types-different-hashes 100
-  (prop/for-all [type1 (gen/elements [:i32 :i64 :u32 :f32 :f64])
-                 type2 (gen/elements [:i32 :i64 :u32 :f32 :f64])
+  (prop/for-all [type1 (gen/elements ["i32" "i64" "u32" "f32" "f64"])
+                 type2 (gen/elements ["i32" "i64" "u32" "f32" "f64"])
                  value gen/small-integer]
     ;; Same numeric value with different types should hash differently
                 (or (= type1 type2)
@@ -196,14 +196,14 @@
 
 (deftest test-null-hashing
   (testing "null has consistent hash"
-    (let [h1 (hash/typed-value-hash [:null nil])
-          h2 (hash/typed-value-hash [:null nil])]
+    (let [h1 (hash/typed-value-hash ["null" nil])
+          h2 (hash/typed-value-hash ["null" nil])]
       (is (= h1 h2)))))
 
 (deftest test-bool-hashing
   (testing "true and false have different hashes"
-    (let [h-true (hash/typed-value-hash [:bool true])
-          h-false (hash/typed-value-hash [:bool false])]
+    (let [h-true (hash/typed-value-hash ["bool" true])
+          h-false (hash/typed-value-hash ["bool" false])]
       (is (not= h-true h-false)))))
 
 (deftest test-low-entropy-detection
@@ -303,9 +303,8 @@
       (is (= h1 h2))
       (is (vector? h1))
       (is (= 4 (count h1)))))
-  (testing "keyword and string type names produce same hash when name matches"
-    ;; :i64 → (name :i64) = "i64", string "i64" → str = "i64"
-    (let [h1 (hash/typed-value-hash [:i64 42])
+  (testing "same type name and data produce same hash"
+    (let [h1 (hash/typed-value-hash ["i64" 42])
           h2 (hash/typed-value-hash ["i64" 42])]
       (is (= h1 h2)))))
 
@@ -379,17 +378,17 @@
 
 (deftest test-node-hash
   (testing "node-hash with zero elements-fuse"
-    (let [h (hash/node-hash :ft/empty [0 0 0 0])]
+    (let [h (hash/node-hash "ft/empty" [0 0 0 0])]
       (is (vector? h))
       (is (= 4 (count h)))))
   (testing "different node types produce different hashes"
     (let [ef (hash/sha256-str "some-content")]
-      (is (not= (hash/node-hash :ft/deep ef)
-                (hash/node-hash :ft/digit ef)))))
+      (is (not= (hash/node-hash "ft/deep" ef)
+                (hash/node-hash "ft/digit" ef)))))
   (testing "same type + same elements-fuse = same hash"
     (let [ef (hash/sha256-str "content")]
-      (is (= (hash/node-hash :ft/deep ef)
-             (hash/node-hash :ft/deep ef))))))
+      (is (= (hash/node-hash "ft/deep" ef)
+             (hash/node-hash "ft/deep" ef))))))
 
 ;; =============================================================================
 ;; Fuse inverse (group structure)

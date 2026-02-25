@@ -14,11 +14,11 @@
    The map only grows (no GC). Persist by iterating over the map.
    
    Node types stored as [type, data]:
-   - [:ft/empty {:measure m}]
-   - [:ft/single {:value-hash h :measure m}]  ; single element wrapper
-   - [:ft/digit {:children [h...] :measure m}]
-   - [:ft/node {:children [h...] :measure m}]
-   - [:ft/deep {:left h :spine h :right h :measure m}]"
+   - [\"ft/empty\" {:measure m}]
+   - [\"ft/single\" {:value-hash h :measure m}]  ; single element wrapper
+   - [\"ft/digit\" {:children [h...] :measure m}]
+   - [\"ft/node\" {:children [h...] :measure m}]
+   - [\"ft/deep\" {:left h :spine h :right h :measure m}]"
   (:require [dacite.hash :as hash]
             [dacite.types :as types]))
 
@@ -75,37 +75,37 @@
 ;; =============================================================================
 
 (defn- make-empty [dacite-map]
-  (add-node dacite-map [:ft/empty {:measure measure-identity}]))
+  (add-node dacite-map ["ft/empty" {:measure measure-identity}]))
 
 (defn- make-single [dacite-map value-hash size-bytes]
-  (add-node dacite-map [:ft/single {:value-hash value-hash
-                                    :measure {:count 1
-                                              :size-bytes size-bytes
-                                              :elements-fuse value-hash}}]))
+  (add-node dacite-map ["ft/single" {:value-hash value-hash
+                                     :measure {:count 1
+                                               :size-bytes size-bytes
+                                               :elements-fuse value-hash}}]))
 
 (defn- make-digit [dacite-map child-hashes child-measures]
-  (add-node dacite-map [:ft/digit {:children (vec child-hashes)
-                                   :measure (measure-seq child-measures)}]))
+  (add-node dacite-map ["ft/digit" {:children (vec child-hashes)
+                                    :measure (measure-seq child-measures)}]))
 
 (defn- make-node [dacite-map child-hashes child-measures]
   {:pre [(<= 2 (count child-hashes) 32)]}
-  (add-node dacite-map [:ft/node {:children (vec child-hashes)
-                                  :measure (measure-seq child-measures)}]))
+  (add-node dacite-map ["ft/node" {:children (vec child-hashes)
+                                   :measure (measure-seq child-measures)}]))
 
 (defn- make-deep [dacite-map left-h spine-h right-h left-m spine-m right-m]
-  (add-node dacite-map [:ft/deep {:left left-h
-                                  :spine spine-h
-                                  :right right-h
-                                  :measure (measure-combine
-                                            (measure-combine left-m spine-m)
-                                            right-m)}]))
+  (add-node dacite-map ["ft/deep" {:left left-h
+                                   :spine spine-h
+                                   :right right-h
+                                   :measure (measure-combine
+                                             (measure-combine left-m spine-m)
+                                             right-m)}]))
 
 ;; =============================================================================
 ;; Type predicates
 ;; =============================================================================
 
 (defn- empty-node? [dacite-map hash]
-  (= :ft/empty (node-type (lookup-node dacite-map hash))))
+  (= "ft/empty" (node-type (lookup-node dacite-map hash))))
 
 ;; =============================================================================
 ;; Digit operations
@@ -163,9 +163,9 @@
   [dacite-map root-hash]
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty nil
-      :ft/deep (let [left-hash (:left (node-data node))]
-                 (digit-first dacite-map left-hash))
+      "ft/empty" nil
+      "ft/deep" (let [left-hash (:left (node-data node))]
+                  (digit-first dacite-map left-hash))
       root-hash)))
 
 (defn- tree-last*
@@ -173,9 +173,9 @@
   [dacite-map root-hash]
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty nil
-      :ft/deep (let [right-hash (:right (node-data node))]
-                 (digit-last dacite-map right-hash))
+      "ft/empty" nil
+      "ft/deep" (let [right-hash (:right (node-data node))]
+                  (digit-last dacite-map right-hash))
       root-hash)))
 
 (defn- to-tree-from-digit
@@ -193,8 +193,8 @@
   [dacite-map root-hash]
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty [dacite-map root-hash]
-      :ft/deep
+      "ft/empty" [dacite-map root-hash]
+      "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
             [m1 new-left] (digit-rest dacite-map left)]
         (if new-left
@@ -224,8 +224,8 @@
   [dacite-map root-hash]
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty [dacite-map root-hash]
-      :ft/deep
+      "ft/empty" [dacite-map root-hash]
+      "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
             [m1 new-right] (digit-butlast dacite-map right)]
         (if new-right
@@ -255,8 +255,8 @@
   [dacite-map root-hash elem-hash]
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty [dacite-map elem-hash]
-      :ft/deep
+      "ft/empty" [dacite-map elem-hash]
+      "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
             left-count (digit-count dacite-map left)]
         (if (< left-count 32)
@@ -293,8 +293,8 @@
   [dacite-map root-hash elem-hash]
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty [dacite-map elem-hash]
-      :ft/deep
+      "ft/empty" [dacite-map elem-hash]
+      "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
             right-count (digit-count dacite-map right)]
         (if (< right-count 32)
@@ -331,8 +331,8 @@
   [dacite-map root-hash]
   (let [node (lookup-node dacite-map root-hash)]
     (case (node-type node)
-      :ft/empty []
-      :ft/deep
+      "ft/empty" []
+      "ft/deep"
       (let [{:keys [left spine right]} (node-data node)]
         (concat
          (get-children dacite-map left)
@@ -351,7 +351,7 @@
 
 (defn add-value
   "Add a typed value to the dacite-map. Returns [updated-map, hash].
-   Value is a [type-kw, data] tuple (e.g., [:i64 42]).
+   Value is a [type-name, data] tuple (e.g., [\"i64\" 42]).
    Hash is computed as fuse(type-name-hash, scalar-hash) per spec."
   [dacite-map value]
   (let [h (hash/typed-value-hash value)]
@@ -459,21 +459,21 @@
 (comment
   ;; Create an empty tree
   (def ft0 (finger-tree))
-  ;; => [{hash [:ft/empty ...]} hash]
+  ;; => [{hash ["ft/empty" ...]} hash]
 
   (tree-empty? ft0)  ;; => true
   (tree-count ft0)   ;; => 0
 
   ;; Add values - first add to map, then conj
   (let [[m0 h0] (finger-tree)
-        [m1 v1] (add-value m0 [:i64 42])
-        [m2 v2] (add-value m1 [:i64 43])
+        [m1 v1] (add-value m0 ["i64" 42])
+        [m2 v2] (add-value m1 ["i64" 43])
         ft1 (conj-right [m2 h0] v1)  ;; use m2 which has both values
         ft2 (conj-right ft1 v2)]
     (tree-count ft2)     ;; => 2
     (to-vec ft2))        ;; => [v1 v2]
 
   ;; Simpler: use from-seq
-  (def ft (from-seq [[:i64 1] [:i64 2] [:i64 3]]))
+  (def ft (from-seq [["i64" 1] ["i64" 2] ["i64" 3]]))
   (tree-count ft)        ;; => 3
   (tree-first ft))        ;; => hash of [:i64 1]

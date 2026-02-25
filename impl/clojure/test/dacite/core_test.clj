@@ -47,13 +47,13 @@
   (testing "u256 for hash-as-data"
     (let [data (hash/longs->bytes [1 2 3 4])
           v (d/u256 data)]
-      (is (= :u256 (d/scalar-type v)))
+      (is (= "u256" (d/scalar-type v)))
       (is (= 32 (alength ^bytes @v))))))
 
 (deftest float-test
   (testing "Float constructors"
-    (is (= :f32 (d/scalar-type (d/f32 1.5))))
-    (is (= :f64 (d/scalar-type (d/f64 3.14))))))
+    (is (= "f32" (d/scalar-type (d/f32 1.5))))
+    (is (= "f64" (d/scalar-type (d/f64 3.14))))))
 
 (deftest char-test
   (testing "Character constructor"
@@ -67,9 +67,9 @@
     (is (not= (d/i64 42) (d/i64 43)))))
 
 (deftest scalar-type-test
-  (testing "scalar-type returns type keyword"
-    (is (= :i64 (d/scalar-type (d/i64 42))))
-    (is (= :null (d/scalar-type (d/null))))))
+  (testing "scalar-type returns type name"
+    (is (= "i64" (d/scalar-type (d/i64 42))))
+    (is (= "null" (d/scalar-type (d/null))))))
 
 (deftest scalar-ifn-test
   (testing "Scalar as zero-arg function returns deref"

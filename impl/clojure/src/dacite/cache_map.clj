@@ -14,7 +14,7 @@
    
    Usage:
      (def cm (cache-map (memory-cache-manager)))
-     (def ft (finger-tree/from-seq cm [[:i64 1] [:i64 2]]))"
+     (def ft (finger-tree/from-seq cm [[\"i64\" 1] [\"i64\" 2]]))"
   (:require [dacite.cache :as cache])
   (:import [clojure.lang ILookup Associative IPersistentMap MapEntry Seqable
             IPersistentCollection Counted IObj IMeta]))

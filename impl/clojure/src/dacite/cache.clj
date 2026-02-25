@@ -140,19 +140,19 @@
   (def mgr (memory-cache-manager))
 
   ;; Commit some scalar values
-  (def h1 (commit! mgr [:i64 42]))
-  (def h2 (commit! mgr [:string "hello"]))
-  (def h3 (commit! mgr [:bool true]))
+  (def h1 (commit! mgr ["i64" 42]))
+  (def h2 (commit! mgr ["string" "hello"]))
+  (def h3 (commit! mgr ["bool" true]))
 
   ;; Look up by hash
-  (lookup mgr h1)  ;; => [:i64 42]
-  (lookup mgr h2)  ;; => [:string "hello"]
+  (lookup mgr h1)  ;; => ["i64" 42]
+  (lookup mgr h2)  ;; => ["string" "hello"]
 
   ;; Same value = same hash (content-addressed)
-  (= h1 (commit! mgr [:i64 42]))  ;; => true
+  (= h1 (commit! mgr ["i64" 42]))  ;; => true
 
   ;; Different value = different hash
-  (= h1 (commit! mgr [:i64 43]))  ;; => false
+  (= h1 (commit! mgr ["i64" 43]))  ;; => false
 
   ;; Hash is printable
   (hash/hash->hex h1)  ;; => "abcd1234..."
@@ -162,10 +162,10 @@
 
   ;; Using global cache
   (init-global-cache!)
-  (def g1 (global-commit! [:f64 3.14]))
-  (global-lookup g1)  ;; => [:f64 3.14]
+  (def g1 (global-commit! ["f64" 3.14]))
+  (global-lookup g1)  ;; => ["f64" 3.14]
 
   ;; Nested structures work too (for now - will be refined)
-  (def h-nested (commit! mgr [:vector [1 2 3]]))
-  (lookup mgr h-nested)  ;; => [:vector [1 2 3]]
+  (def h-nested (commit! mgr ["vector" [1 2 3]]))
+  (lookup mgr h-nested)  ;; => ["vector" [1 2 3]]
   )

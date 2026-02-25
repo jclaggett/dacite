@@ -237,18 +237,16 @@
   (fuse-bytes null-separator))
 
 (defn typed-value-hash
-  "Compute the hash of a typed value [type-kw, data].
+  "Compute the hash of a typed value [type-name, data].
    
    A typed value is conceptually seq(type-name, data).
    The hash is: fuse-bytes(type-name-bytes ++ 0x00 ++ encode(data))
    
+   type-name is a string (e.g. \"i64\", \"vector\").
    The null byte acts as a domain separator — since type names
    cannot contain null bytes, this prevents boundary collisions."
-  [[type-kw data]]
-  (let [type-name (if (keyword? type-kw)
-                    (name type-kw)
-                    (str type-kw))
-        type-bytes (.getBytes ^String type-name "UTF-8")
+  [[type-name data]]
+  (let [type-bytes (.getBytes ^String type-name "UTF-8")
         data-bytes (encode-value data)]
     (-> (fuse-bytes type-bytes)
         (unchecked-fuse null-separator-hash)
@@ -259,14 +257,12 @@
    
    node_hash = fuse(fuse-str(node-type-name ++ 0x00), elements-fuse)
    
+   type-name is a string (e.g. \"ft/empty\", \"hamt/bitmap\").
    The null byte terminates the type name, preventing collisions
    with longer type names. Uses unchecked-fuse since elements-fuse
    may be [0,0,0,0] for empty nodes."
-  [type-kw elements-fuse]
-  (let [type-str (if (keyword? type-kw)
-                   (str (namespace type-kw) "/" (name type-kw))
-                   (str type-kw))
-        type-bytes (.getBytes ^String type-str "UTF-8")]
+  [type-name elements-fuse]
+  (let [type-bytes (.getBytes ^String type-name "UTF-8")]
     (-> (fuse-bytes type-bytes)
         (unchecked-fuse null-separator-hash)
         (unchecked-fuse elements-fuse))))
@@ -293,7 +289,7 @@
   (= a (hex->hash (hash->hex a)))
 
   ;; Typed value hash (with null separator)
-  (typed-value-hash [:i64 42])  ;; => fuse-bytes("i64" ++ 0x00 ++ encode(42))
+  (typed-value-hash ["i64" 42])  ;; => fuse-bytes("i64" ++ 0x00 ++ encode(42))
 
   ;; Internal node hash
-  (node-hash :ft/empty [0 0 0 0]))
+  (node-hash "ft/empty" [0 0 0 0]))
