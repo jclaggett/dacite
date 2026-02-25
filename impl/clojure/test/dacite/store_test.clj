@@ -186,6 +186,39 @@
       (let [s2 (store/layered-store (store/mem-store) file)]
         (is (= {:data "layered"} (store/s-get s2 [1 2 3 4])))))))
 
+(deftest file-store-merge-test
+  (testing "merge adds multiple entries to file store"
+    (let [s (store/file-store (str *temp-dir*))]
+      (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b})
+      (is (= :a (store/s-get s [1 2 3 4])))
+      (is (= :b (store/s-get s [5 6 7 8]))))))
+
+(deftest file-store-creates-dir-test
+  (testing "file-store creates directory if it doesn't exist"
+    (let [path (str *temp-dir* "/nested/subdir")
+          s (store/file-store path)]
+      (is (.exists (io/file path)))
+      (store/s-put s [1 2 3 4] :v)
+      (is (= :v (store/s-get s [1 2 3 4]))))))
+
+(deftest layered-store-merge-test
+  (testing "merge writes to all layers"
+    (let [fast (store/mem-store)
+          slow (store/mem-store)
+          s (store/layered-store fast slow)]
+      (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b})
+      (is (= :a (store/s-get fast [1 2 3 4])))
+      (is (= :b (store/s-get slow [5 6 7 8]))))))
+
+(deftest layered-store-reset-test
+  (testing "reset clears all layers"
+    (let [fast (store/mem-store {[1 2 3 4] :a})
+          slow (store/mem-store {[5 6 7 8] :b})
+          s (store/layered-store fast slow)]
+      (store/s-reset s)
+      (is (= {} (store/s-snapshot fast)))
+      (is (= {} (store/s-snapshot slow))))))
+
 ;; =============================================================================
 ;; Content addressing
 ;; =============================================================================
