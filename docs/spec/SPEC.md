@@ -307,23 +307,30 @@ Membership test for a negative set: `x` is a member if `get(set, x) == nil` (inv
 
 **Set operations with positive (pos) and negative (neg) sets:**
 
-In the table below, A and B refer to the **stored elements** (excluding the `neg` sentinel). For positive sets, stored elements are the members. For negative sets, stored elements are the *excluded* members.
+In the table below, A and B refer to the **stored maps** (including the `neg` sentinel when present). All operations are plain map operations — the `neg` sentinel is just another key that flows through naturally.
 
 | A | B | union | intersect | difference (A \ B) |
-|-----|-----|-------------|-------------|---------------------|
-| pos | pos | A ∪ B | A ∩ B | A \ B |
-| neg | neg | neg (A ∩ B) | neg (A ∪ B) | B \ A |
-| pos | neg | neg (B \ A) | A \ B | A ∩ B |
-| neg | pos | neg (A \ B) | B \ A | neg (A ∪ B) |
+|-----|-----|-----------------|-----------------|---------------------|
+| pos | pos | merge(A, B) | intersect(A, B) | diff(A, B) |
+| neg | neg | intersect(A, B) | merge(A, B) | diff(B, A) \ `neg` |
+| pos | neg | diff(B, A) | diff(A, B) | intersect(A, B) |
+| neg | pos | diff(A, B) | diff(B, A) | merge(A, B) |
+
+Where:
+- `merge(A, B)` — union of keys (map merge)
+- `intersect(A, B)` — keep only keys present in both
+- `diff(A, B)` — keys in A not in B
+
+When both inputs carry `neg`, the sentinel propagates automatically through merge and intersect — no special handling needed. The only case requiring explicit sentinel manipulation is `diff(neg, neg)`, which must strip `neg` from the result (since the difference of two cofinite sets is always finite).
 
 **Other operations:**
 
 | Operation | Definition |
 |-----------|------------|
-| `complement(A)` | Toggle the `neg` sentinel (add or remove) |
+| `complement(A)` | Toggle the `neg` key (add or remove) |
 | `member?(A, x)` | pos: `get(A, x) != nil` · neg: `get(A, x) == nil` |
 
-All set operations reduce to map operations (merge, intersect-keys, difference-keys) plus toggling the `neg` sentinel. This is a pure convention — the store and core types know nothing about sets or `neg`. Utility functions implement the convention.
+This is a pure convention — the store and core types know nothing about sets or `neg`. Utility functions implement the convention.
 
 ---
 
