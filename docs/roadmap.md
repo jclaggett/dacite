@@ -33,8 +33,8 @@
   - Kind 0x02: Map nodes (HAMT internals — empty, entry, bitmap)
   - Kind 0x03: Collections (vector, string, blob, map — 42-byte fixed headers)
 - [x] **Scalar encoding** — `encode-value` multimethod with canonical big-endian/IEEE 754/UTF-8
-- [ ] **Import/export** — serialize a value + its transitive closure from the store
-- [ ] **Partial transfer** — "I have these hashes, send me what I'm missing"
+- [ ] **Remote store** — `IStore` implementation backed by a network endpoint; lazy `s-get` fetches nodes on demand. This is the primary transfer mechanism — no bulk walks, just cache-on-access through store layering.
+- [ ] **Guarded walk** — explicit opt-in transitive closure walk with safety bounds (depth limit, byte budget, hash count cap). For small-value export/import and debugging. Not the default path.
 - [ ] **Content negotiation** — different representations for different transports
 
 ## 4. Documentation & Spec
@@ -82,7 +82,7 @@ Concrete things to build that prove the architecture:
 ## Suggested Order
 
 ```
-import/export → set utilities → examples
+remote store → set utilities → examples
 ```
 
-Serialization of individual nodes is done. The next architectural unlock is **import/export** — walking a value's transitive closure and bundling it for transfer between stores. Set utility functions (`union`, `intersect`, `negate`, etc.) can come whenever — they're pure library code on top of maps.
+Serialization of individual nodes is done. The next architectural unlock is a **remote store** — an `IStore` backed by a network endpoint, composed via `LayeredStore` for transparent lazy fetching with local caching. Dacite values can be arbitrarily large (larger than any single store), so the default transfer model is lazy node-at-a-time access, not bulk graph walks. Exhaustive walks are an explicit opt-in operation with safety bounds. Set utility functions (`union`, `intersect`, `negate`, etc.) can come whenever — they're pure library code on top of maps.
