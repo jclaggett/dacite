@@ -170,8 +170,7 @@
 
   Counted
   (count [_]
-    (let [{:keys [root]} (second (s-get _hash))]
-      (ft/tree-count [(s-snapshot) root])))
+    (:count (second (s-get _hash))))
 
   Seqable
   (seq [this]
@@ -220,8 +219,7 @@
 
   Counted
   (count [_]
-    (let [{:keys [root]} (second (s-get _hash))]
-      (ft/tree-count [(s-snapshot) root])))
+    (:count (second (s-get _hash))))
 
   Seqable
   (seq [this]
@@ -236,9 +234,8 @@
     (and (instance? DaciteBlob other)
          (= _hash (.-_hash ^DaciteBlob other))))
   (toString [_]
-    (let [{:keys [root]} (second (s-get _hash))
-          cnt (ft/tree-count [(s-snapshot) root])]
-      (clojure.core/str "<blob " cnt " bytes>"))))
+    (let [{:keys [count]} (second (s-get _hash))]
+      (clojure.core/str "<blob " count " bytes>"))))
 
 ;; =============================================================================
 ;; DaciteVector
@@ -526,8 +523,7 @@
 ;; =============================================================================
 
 (defn- vector-count-internal [h]
-  (let [{:keys [root]} (second (s-get h))]
-    (ft/tree-count [(s-snapshot) root])))
+  (:count (second (s-get h))))
 
 (defn- vector-nth-internal [h idx]
   (let [{:keys [root]} (second (s-get h))]
@@ -543,9 +539,11 @@
   (s-merge! ft-store)
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
+        cnt (ft/tree-count [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
         h (hash/node-hash "string" ef)]
     (store/s-put *store* h ["string" {:root ft-root
+                                      :count cnt
                                       :size-bytes sb}])
     h))
 
@@ -555,9 +553,11 @@
   (s-merge! ft-store)
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
+        cnt (ft/tree-count [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
         h (hash/node-hash "blob" ef)]
     (store/s-put *store* h ["blob" {:root ft-root
+                                    :count cnt
                                     :size-bytes sb}])
     h))
 
@@ -567,9 +567,11 @@
   (s-merge! ft-store)
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
+        cnt (ft/tree-count [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
         h (hash/node-hash "vector" ef)]
     (store/s-put *store* h ["vector" {:root ft-root
+                                      :count cnt
                                       :size-bytes sb}])
     h))
 
@@ -607,7 +609,7 @@
 ;; =============================================================================
 
 (defn- map-count-internal [h]
-  (hamt/hamt-count [(s-snapshot) (:root (second (s-get h)))]))
+  (:count (second (s-get h))))
 
 (defn- map-get-internal [map-hash key]
   (let [{:keys [root]} (second (s-get map-hash))
@@ -624,9 +626,11 @@
   (s-merge! hamt-store)
   (let [store (s-snapshot)
         ef (hamt/hamt-elements-fuse [store hamt-root])
+        cnt (hamt/hamt-count [store hamt-root])
         sb (hamt/hamt-size-bytes [store hamt-root])
         h (hash/node-hash "map" ef)]
     (store/s-put *store* h ["map" {:root hamt-root
+                                   :count cnt
                                    :size-bytes sb}])
     h))
 

@@ -281,6 +281,41 @@ All built-in types follow the `seq(type_name, data)` convention:
 | `"vector"` | seq of arbitrary values | Ordered collection |
 | `"map"` | map (HAMT) | Key-value collection |
 
+### Sets (Convention)
+
+A **set** is a map where every key maps to itself:
+
+```
+set({a, b, c}) = map({a: a, b: b, c: c})
+```
+
+There is no `"set"` type. Sets are ordinary `"map"` values. Content addressing means the duplicate key/value reference costs zero additional storage — both slots point to the same hash.
+
+Membership test: `get(set, x) != nil`.
+
+#### Negative Sets (Cofinite Sets)
+
+A **negative set** represents "everything except these elements." It uses a distinguished sentinel element `neg` as a key:
+
+```
+negative_set({a, b}) = map({neg: neg, a: a, b: b})
+```
+
+Where `neg` is a typed value `["neg", null]` — a null scalar with the type name `"neg"`.
+
+Membership test for a negative set: `x` is a member if `get(set, x) == nil` (inverted logic). The presence of the `neg` key signals the inversion.
+
+**Set operations on negative sets:**
+
+| Operation | Positive A | Negative A (has `neg`) |
+|-----------|-----------|----------------------|
+| `union(A, B)` | merge maps | intersect complements |
+| `intersect(A, B)` | keep common keys | merge complements |
+| `complement(A)` | add `neg` key | remove `neg` key |
+| `member?(A, x)` | `get(A, x) != nil` | `get(A, x) == nil` |
+
+This is a pure convention — the store and core types know nothing about sets or `neg`. Utility functions implement the convention.
+
 ---
 
 ## Internal Structures
@@ -311,19 +346,19 @@ Without this, single-child bitmap nodes at different HAMT levels would collide (
 
 | Node Type | Description | Data Fields |
 |-----------|-------------|-------------|
-| `:ft/empty` | Empty seq | `{measure}` |
-| `:ft/single` | Single element wrapper | `{value_hash, measure}` |
-| `:ft/digit` | Finger (1–32 children) | `{children: [hash...], measure}` |
-| `:ft/node` | Internal node (2–32 children) | `{children: [hash...], measure}` |
-| `:ft/deep` | Deep tree | `{left, spine, right, measure}` |
+| `"ft/empty"` | Empty seq | `{measure}` |
+| `"ft/single"` | Single element wrapper | `{value_hash, measure}` |
+| `"ft/digit"` | Finger (1–32 children) | `{children: [hash...], measure}` |
+| `"ft/node"` | Internal node (2–32 children) | `{children: [hash...], measure}` |
+| `"ft/deep"` | Deep tree | `{left, spine, right, measure}` |
 
 ### HAMT Nodes (Map)
 
 | Node Type | Description | Data Fields |
 |-----------|-------------|-------------|
-| `:hamt/empty` | Empty map | `{measure}` |
-| `:hamt/entry` | Single key-value pair | `{key_hash, key_ref, val_ref, measure}` |
-| `:hamt/bitmap` | Sparse internal node | `{bitmap, children: [hash...], measure}` |
+| `"hamt/empty"` | Empty map | `{measure}` |
+| `"hamt/entry"` | Single key-value pair | `{key_hash, key_ref, val_ref, measure}` |
+| `"hamt/bitmap"` | Sparse internal node | `{bitmap, children: [hash...], measure}` |
 
 All child references are hashes pointing to other nodes in the content-addressed store. This ensures every node has bounded size regardless of collection size.
 
@@ -598,6 +633,7 @@ Collections are top-level typed values whose structure is stored as a tree of se
 collection = 0x03
           ++ u8(collection_type)   // which collection
           ++ hash(root)            // root of the internal tree
+          ++ u64(count)            // number of elements
           ++ u64(size_bytes)       // total materialized size in bytes
 ```
 
@@ -612,9 +648,9 @@ Collection subtypes:
 
 The `root` hash references an existing seq node (for vector/string/blob) or map node (for map) already in the store. The collection header does **not** duplicate any element references — it is a thin typed wrapper over the tree root.
 
-The `size_bytes` field caches the total byte size of all leaf scalars in the collection. This enables O(1) size checks (e.g., enforcing materialization limits in `dac->clj`) without traversing the tree.
+The `count` field caches the number of elements in the collection. The `size_bytes` field caches the total byte size of all leaf scalars. Both are available in O(1) from the root's measure, and are stored here so the collection header is self-contained — no tree traversal needed for basic queries.
 
-**Fixed size:** 1 + 1 + 32 + 8 = **42 bytes** for every collection, regardless of element count.
+**Fixed size:** 1 + 1 + 32 + 8 + 8 = **50 bytes** for every collection, regardless of element count.
 
 The collection's hash is computed as:
 

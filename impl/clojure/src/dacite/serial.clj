@@ -8,7 +8,7 @@
    - Scalar:     0x00 + u8(len) + raw-bytes
    - Seq node:   0x01 + u8(subtype) + measure(48B) + u8(n) + hash[n]
    - Map node:   0x02 + u8(subtype) + measure(48B) + type-specific fields
-   - Collection: 0x03 + u8(subtype) + hash(root,32B) + u64(size-bytes)
+   - Collection: 0x03 + u8(subtype) + hash(root,32B) + u64(count) + u64(size-bytes)
 
    Measures are fixed 48 bytes: u64(count) + u64(size-bytes) + hash(32B).
    Hashes are 32 bytes (4 × i64, big-endian). All integers big-endian."
@@ -206,13 +206,14 @@
 
 (defn- serialize-collection
   "Serialize a collection header to bytes.
-   Format: 0x03 + u8(subtype) + hash(root) + u64(size-bytes)"
+   Format: 0x03 + u8(subtype) + hash(root) + u64(count) + u64(size-bytes)"
   [type-name data]
   (let [subtype (collection-subtype type-name)
-        buf (ByteBuffer/allocate 42)]
+        buf (ByteBuffer/allocate 50)]
     (write-u8 buf kind-collection)
     (write-u8 buf subtype)
     (write-hash buf (:root data))
+    (write-u64 buf (:count data))
     (write-u64 buf (:size-bytes data))
     (.array buf)))
 
@@ -333,8 +334,10 @@
   (let [subtype (read-u8 buf)
         type-name (subtype->collection-type subtype)
         root (read-hash buf)
+        cnt (read-u64 buf)
         size-bytes (read-u64 buf)]
     [type-name {:root root
+                :count cnt
                 :size-bytes size-bytes}]))
 
 (defn deserialize

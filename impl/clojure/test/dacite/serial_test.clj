@@ -183,52 +183,56 @@
 
 (deftest serialize-vector-collection-test
   (testing "vector collection round-trip"
-    (let [entry ["vector" {:root sample-hash-a :size-bytes 24}]
+    (let [entry ["vector" {:root sample-hash-a :count 3 :size-bytes 24}]
           bs (serial/serialize entry)
           result (serial/deserialize bs)]
-      (is (= 42 (alength bs)))
+      (is (= 50 (alength bs)))
       (is (= 0x03 (aget bs 0)))  ;; kind: collection
       (is (= 0x00 (aget bs 1)))  ;; subtype: vector
       (is (= "vector" (first result)))
       (is (= sample-hash-a (:root (second result))))
+      (is (= 3 (:count (second result))))
       (is (= 24 (:size-bytes (second result)))))))
 
 (deftest serialize-string-collection-test
   (testing "string collection round-trip"
-    (let [entry ["string" {:root sample-hash-b :size-bytes 5}]
+    (let [entry ["string" {:root sample-hash-b :count 5 :size-bytes 5}]
           bs (serial/serialize entry)
           result (serial/deserialize bs)]
-      (is (= 42 (alength bs)))
+      (is (= 50 (alength bs)))
       (is (= "string" (first result)))
       (is (= sample-hash-b (:root (second result))))
+      (is (= 5 (:count (second result))))
       (is (= 5 (:size-bytes (second result)))))))
 
 (deftest serialize-blob-collection-test
   (testing "blob collection round-trip"
-    (let [entry ["blob" {:root sample-hash-c :size-bytes 1024}]
+    (let [entry ["blob" {:root sample-hash-c :count 1024 :size-bytes 1024}]
           bs (serial/serialize entry)
           result (serial/deserialize bs)]
-      (is (= 42 (alength bs)))
+      (is (= 50 (alength bs)))
       (is (= "blob" (first result)))
       (is (= sample-hash-c (:root (second result))))
+      (is (= 1024 (:count (second result))))
       (is (= 1024 (:size-bytes (second result)))))))
 
 (deftest serialize-map-collection-test
   (testing "map collection round-trip"
-    (let [entry ["map" {:root sample-hash-a :size-bytes 80}]
+    (let [entry ["map" {:root sample-hash-a :count 5 :size-bytes 80}]
           bs (serial/serialize entry)
           result (serial/deserialize bs)]
-      (is (= 42 (alength bs)))
+      (is (= 50 (alength bs)))
       (is (= 0x03 (aget bs 1)))  ;; subtype: map
       (is (= "map" (first result)))
       (is (= sample-hash-a (:root (second result))))
+      (is (= 5 (:count (second result))))
       (is (= 80 (:size-bytes (second result)))))))
 
 (deftest collection-fixed-size-test
-  (testing "all collection types serialize to exactly 42 bytes"
+  (testing "all collection types serialize to exactly 50 bytes"
     (doseq [type-name ["vector" "string" "blob" "map"]]
-      (let [bs (serial/serialize [type-name {:root [0 0 0 0] :size-bytes 0}])]
-        (is (= 42 (alength bs)) (str type-name " should be 42 bytes"))))))
+      (let [bs (serial/serialize [type-name {:root [0 0 0 0] :count 0 :size-bytes 0}])]
+        (is (= 50 (alength bs)) (str type-name " should be 50 bytes"))))))
 
 ;; =============================================================================
 ;; Error cases
