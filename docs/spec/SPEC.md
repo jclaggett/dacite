@@ -311,17 +311,15 @@ In the table below, A and B refer to the **stored maps** (including the `neg` se
 
 | A | B | union (A ∪ B) | intersect (A ∩ B) | difference (A \ B) |
 |-----|-----|-----------------|-------------------|---------------------|
-| pos | pos | merge(A, B) | intersect(A, B) | diff(A, B) |
-| neg | neg | intersect(A, B) | merge(A, B) | diff(B, A) |
-| pos | neg | diff(B, A) | diff(A, B) | intersect(A, B) |
-| neg | pos | diff(A, B) | diff(B, A) | merge(A, B) |
+| pos | pos | merge(A, B) | keep(A, B) | remove(A, B) |
+| neg | neg | keep(A, B) | merge(A, B) | remove(B, A) |
+| pos | neg | remove(B, A) | remove(A, B) | keep(A, B) |
+| neg | pos | remove(A, B) | remove(B, A) | merge(A, B) |
 
 Where:
-- `merge(A, B)` — union of keys (map merge)
-- `intersect(A, B)` — keep only keys present in both
-- `diff(A, B)` — keys in A not in B
-
-The `neg` sentinel is just another key that flows through these operations naturally. When both inputs carry `neg`, merge and intersect preserve it. When only one does, diff and intersect drop it. No special sentinel manipulation is ever needed.
+- `merge(A, B)` — add B's keys not already in A
+- `keep(A, B)` — keep only A's keys that are also in B
+- `remove(A, B)` — remove A's keys that are also in B
 
 **Other operations:**
 
