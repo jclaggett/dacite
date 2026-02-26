@@ -309,10 +309,10 @@ Membership test for a negative set: `x` is a member if `get(set, x) == nil` (inv
 
 In the table below, A and B refer to the **stored maps** (including the `neg` sentinel when present). All operations are plain map operations — the `neg` sentinel is just another key that flows through naturally.
 
-| A | B | union | intersect | difference (A \ B) |
-|-----|-----|-----------------|-----------------|---------------------|
+| A | B | union (A ∪ B) | intersect (A ∩ B) | difference (A \ B) |
+|-----|-----|-----------------|-------------------|---------------------|
 | pos | pos | merge(A, B) | intersect(A, B) | diff(A, B) |
-| neg | neg | intersect(A, B) | merge(A, B) | diff(B, A) \ `neg` |
+| neg | neg | intersect(A, B) | merge(A, B) | diff(B, A) |
 | pos | neg | diff(B, A) | diff(A, B) | intersect(A, B) |
 | neg | pos | diff(A, B) | diff(B, A) | merge(A, B) |
 
@@ -321,7 +321,7 @@ Where:
 - `intersect(A, B)` — keep only keys present in both
 - `diff(A, B)` — keys in A not in B
 
-When both inputs carry `neg`, the sentinel propagates automatically through merge and intersect — no special handling needed. The only case requiring explicit sentinel manipulation is `diff(neg, neg)`, which must strip `neg` from the result (since the difference of two cofinite sets is always finite).
+The `neg` sentinel is just another key that flows through these operations naturally. When both inputs carry `neg`, merge and intersect preserve it. When only one does, diff and intersect drop it. No special sentinel manipulation is ever needed.
 
 **Other operations:**
 
