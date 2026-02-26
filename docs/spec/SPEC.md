@@ -305,16 +305,25 @@ Where `neg` is a typed value `["neg", null]` — a null scalar with the type nam
 
 Membership test for a negative set: `x` is a member if `get(set, x) == nil` (inverted logic). The presence of the `neg` key signals the inversion.
 
-**Set operations on negative sets:**
+**Set operations with positive (pos) and negative (neg) sets:**
 
-| Operation | Positive A | Negative A (has `neg`) |
-|-----------|-----------|----------------------|
-| `union(A, B)` | merge maps | intersect complements |
-| `intersect(A, B)` | keep common keys | merge complements |
-| `complement(A)` | add `neg` key | remove `neg` key |
-| `member?(A, x)` | `get(A, x) != nil` | `get(A, x) == nil` |
+In the table below, A and B refer to the **stored elements** (excluding the `neg` sentinel). For positive sets, stored elements are the members. For negative sets, stored elements are the *excluded* members.
 
-This is a pure convention — the store and core types know nothing about sets or `neg`. Utility functions implement the convention.
+| A | B | union | intersect | difference (A \ B) |
+|-----|-----|-------------|-------------|---------------------|
+| pos | pos | A ∪ B | A ∩ B | A \ B |
+| neg | neg | neg (A ∩ B) | neg (A ∪ B) | B \ A |
+| pos | neg | neg (B \ A) | A \ B | A ∩ B |
+| neg | pos | neg (A \ B) | B \ A | neg (A ∪ B) |
+
+**Other operations:**
+
+| Operation | Definition |
+|-----------|------------|
+| `complement(A)` | Toggle the `neg` sentinel (add or remove) |
+| `member?(A, x)` | pos: `get(A, x) != nil` · neg: `get(A, x) == nil` |
+
+All set operations reduce to map operations (merge, intersect-keys, difference-keys) plus toggling the `neg` sentinel. This is a pure convention — the store and core types know nothing about sets or `neg`. Utility functions implement the convention.
 
 ---
 
