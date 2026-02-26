@@ -340,6 +340,44 @@
          (get-children dacite-map right)))
       [root-hash])))
 
+(defn- scan-children
+  "Find the idx-th element among a sequence of child hashes by
+   scanning their measures. Recursively descends into nodes/digits."
+  [dacite-map children idx]
+  (loop [cs (seq children), remaining idx]
+    (let [c (first cs)
+          c-count (:count (get-measure dacite-map c))]
+      (if (< remaining c-count)
+        (let [node (lookup-node dacite-map c)]
+          (case (node-type node)
+            "ft/single" (get-value-hash dacite-map c)
+            "ft/node" (recur (seq (get-children dacite-map c)) remaining)
+            "ft/digit" (recur (seq (get-children dacite-map c)) remaining)))
+        (recur (next cs) (- remaining c-count))))))
+
+(defn- tree-nth*
+  "Find the nth element's value-hash by walking the tree structure,
+   guided by accumulated count measures. O(log n).
+   Assumes 0 <= idx < tree-count."
+  [dacite-map root-hash idx]
+  (let [node (lookup-node dacite-map root-hash)]
+    (case (node-type node)
+      "ft/single" (get-value-hash dacite-map root-hash)
+      "ft/node" (scan-children dacite-map (get-children dacite-map root-hash) idx)
+      "ft/digit" (scan-children dacite-map (get-children dacite-map root-hash) idx)
+      "ft/deep"
+      (let [{:keys [left spine right]} (node-data node)
+            left-count (:count (get-measure dacite-map left))]
+        (if (< idx left-count)
+          (scan-children dacite-map (get-children dacite-map left) idx)
+          (let [spine-count (:count (get-measure dacite-map spine))
+                spine-idx (- idx left-count)]
+            (if (< spine-idx spine-count)
+              (tree-nth* dacite-map spine spine-idx)
+              (scan-children dacite-map
+                             (get-children dacite-map right)
+                             (- spine-idx spine-count)))))))))
+
 ;; =============================================================================
 ;; Public API
 ;; =============================================================================
@@ -415,6 +453,23 @@
   "Get the total size in bytes (O(1) via cached measure)."
   [[dacite-map root-hash]]
   (:size-bytes (get-measure dacite-map root-hash)))
+
+(defn tree-nth
+  "Get the nth element's value-hash (0-indexed). O(log n) via measures.
+   Throws IndexOutOfBoundsException if out of range."
+  [[dacite-map root-hash] idx]
+  (let [cnt (:count (get-measure dacite-map root-hash))]
+    (when (or (neg? idx) (>= idx cnt))
+      (throw (IndexOutOfBoundsException.
+              (str "Index " idx " out of bounds for count " cnt))))
+    (tree-nth* dacite-map root-hash idx)))
+
+(defn tree-seq-lazy
+  "Return a lazy seq of value-hashes from the tree. O(1) to start,
+   O(n) total. Walks the tree structure lazily."
+  [[dacite-map root-hash]]
+  (let [single-hashes (tree-to-seq* dacite-map root-hash)]
+    (map #(get-value-hash dacite-map %) single-hashes)))
 
 (defn tree-elements-fuse
   "Get the fused hash of all elements (O(1) via cached measure).

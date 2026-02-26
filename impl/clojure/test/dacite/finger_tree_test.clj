@@ -321,5 +321,56 @@
           t-concat (ft/tree-concat (ft/from-seq vs1) (ft/from-seq vs2))]
       (is (= (ft/tree-elements-fuse t-full) (ft/tree-elements-fuse t-concat))))))
 
+;; =============================================================================
+;; tree-nth tests
+;; =============================================================================
+
+(deftest test-tree-nth-basic
+  (testing "nth on small trees"
+    (let [values (map #(vector "i64" %) (range 5))
+          tree (ft/from-seq values)
+          expected (ft/to-vec tree)]
+      (dotimes [i 5]
+        (is (= (nth expected i) (ft/tree-nth tree i)))))))
+
+(deftest test-tree-nth-single
+  (testing "nth on single-element tree"
+    (let [tree (ft/from-seq [["i64" 42]])
+          vh (ft/tree-nth tree 0)]
+      (is (some? vh)))))
+
+(deftest test-tree-nth-out-of-bounds
+  (testing "nth throws on out of bounds"
+    (let [tree (ft/from-seq [["i64" 1] ["i64" 2]])]
+      (is (thrown? IndexOutOfBoundsException (ft/tree-nth tree -1)))
+      (is (thrown? IndexOutOfBoundsException (ft/tree-nth tree 2)))
+      (is (thrown? IndexOutOfBoundsException (ft/tree-nth tree 100))))))
+
+(deftest test-tree-nth-empty
+  (testing "nth throws on empty tree"
+    (let [tree (ft/finger-tree)]
+      (is (thrown? IndexOutOfBoundsException (ft/tree-nth tree 0))))))
+
+(defspec tree-nth-matches-to-vec 50
+  (prop/for-all [n (gen/choose 1 200)]
+                (let [values (map #(vector "i64" %) (range n))
+                      tree (ft/from-seq values)
+                      expected (ft/to-vec tree)]
+                  (every? #(= (nth expected %) (ft/tree-nth tree %)) (range n)))))
+
+;; =============================================================================
+;; tree-seq-lazy tests
+;; =============================================================================
+
+(deftest test-tree-seq-lazy-matches-to-vec
+  (testing "lazy seq produces same elements as to-vec"
+    (let [values (map #(vector "i64" %) (range 20))
+          tree (ft/from-seq values)]
+      (is (= (ft/to-vec tree) (vec (ft/tree-seq-lazy tree)))))))
+
+(deftest test-tree-seq-lazy-empty
+  (testing "lazy seq of empty tree is empty"
+    (is (empty? (ft/tree-seq-lazy (ft/finger-tree))))))
+
 (comment
   (clojure.test/run-tests))

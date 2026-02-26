@@ -89,7 +89,8 @@
 (declare ->DaciteScalar ->DaciteVector ->DaciteMap ->DaciteString ->DaciteBlob)
 (declare wrap-hash coerce-and-store!)
 (declare store-string! store-blob! store-vector! store-map!)
-(declare vector-conj-internal vector-refs-internal vector-count-internal)
+(declare vector-conj-internal vector-count-internal vector-nth-internal vector-seq-internal
+         build-vector-from-refs!)
 (declare map-count-internal map-get-internal map-entries-internal)
 (declare map-assoc-internal map-dissoc-internal)
 
@@ -158,7 +159,9 @@
 
   IDeref
   (deref [_]
-    (let [{:keys [refs]} (second (s-get _hash))]
+    (let [{:keys [root]} (second (s-get _hash))
+          store (s-snapshot)
+          refs (ft/tree-seq-lazy [store root])]
       (apply clojure.core/str
              (map (fn [ref] (second (s-get ref))) refs))))
 
@@ -167,26 +170,29 @@
 
   Counted
   (count [_]
-    (let [{:keys [refs]} (second (s-get _hash))]
-      (clojure.core/count refs)))
+    (let [{:keys [root]} (second (s-get _hash))]
+      (ft/tree-count [(s-snapshot) root])))
 
   Seqable
   (seq [this]
     (when (pos? (.count this))
-      (let [{:keys [refs]} (second (s-get _hash))]
+      (let [{:keys [root]} (second (s-get _hash))
+            refs (ft/tree-seq-lazy [(s-snapshot) root])]
         (map (fn [ref] (wrap-hash ref)) refs))))
 
   CharSequence
   (length [this] (.count this))
   (charAt [_ i]
-    (let [{:keys [refs]} (second (s-get _hash))
-          ref (nth refs i)]
+    (let [{:keys [root]} (second (s-get _hash))
+          ref (ft/tree-nth [(s-snapshot) root] i)]
       (second (s-get ref))))
   (subSequence [_ start end]
-    (let [{:keys [refs]} (second (s-get _hash))]
+    (let [{:keys [root]} (second (s-get _hash))
+          store (s-snapshot)
+          refs (ft/tree-seq-lazy [store root])]
       (apply clojure.core/str
              (map (fn [ref] (second (s-get ref)))
-                  (subvec refs start end)))))
+                  (->> refs (drop start) (take (- end start)))))))
 
   Object
   (hashCode [_] (hash/hash->int _hash))
@@ -205,7 +211,8 @@
 
   IDeref
   (deref [_]
-    (let [{:keys [refs]} (second (s-get _hash))]
+    (let [{:keys [root]} (second (s-get _hash))
+          refs (ft/tree-seq-lazy [(s-snapshot) root])]
       (byte-array (map (fn [ref] (second (s-get ref))) refs))))
 
   IHashEq
@@ -213,13 +220,14 @@
 
   Counted
   (count [_]
-    (let [{:keys [refs]} (second (s-get _hash))]
-      (clojure.core/count refs)))
+    (let [{:keys [root]} (second (s-get _hash))]
+      (ft/tree-count [(s-snapshot) root])))
 
   Seqable
   (seq [this]
     (when (pos? (.count this))
-      (let [{:keys [refs]} (second (s-get _hash))]
+      (let [{:keys [root]} (second (s-get _hash))
+            refs (ft/tree-seq-lazy [(s-snapshot) root])]
         (map (fn [ref] (wrap-hash ref)) refs))))
 
   Object
@@ -227,9 +235,10 @@
   (equals [_ other]
     (and (instance? DaciteBlob other)
          (= _hash (.-_hash ^DaciteBlob other))))
-  (toString [this]
-    (let [{:keys [refs]} (second (s-get _hash))]
-      (clojure.core/str "<blob " (clojure.core/count refs) " bytes>"))))
+  (toString [_]
+    (let [{:keys [root]} (second (s-get _hash))
+          cnt (ft/tree-count [(s-snapshot) root])]
+      (clojure.core/str "<blob " cnt " bytes>"))))
 
 ;; =============================================================================
 ;; DaciteVector
@@ -251,27 +260,27 @@
   Seqable
   (seq [this]
     (when (pos? (.count this))
-      (map #(wrap-hash %) (vector-refs-internal _hash))))
+      (map #(wrap-hash %) (vector-seq-internal _hash))))
 
   ILookup
   (valAt [this k] (.valAt this k nil))
   (valAt [this k not-found]
     (if (and (integer? k) (<= 0 k) (< k (.count this)))
-      (wrap-hash (nth (vector-refs-internal _hash) k))
+      (wrap-hash (vector-nth-internal _hash k))
       not-found))
 
   Indexed
   (nth [this i]
-    (wrap-hash (nth (vector-refs-internal _hash) i)))
+    (wrap-hash (vector-nth-internal _hash i)))
   (nth [this i not-found]
     (if (and (<= 0 i) (< i (.count this)))
-      (wrap-hash (nth (vector-refs-internal _hash) i))
+      (wrap-hash (vector-nth-internal _hash i))
       not-found))
 
   IPersistentCollection
   (empty [_]
     (let [[s' h] (ft/finger-tree)]
-      (->DaciteVector (store-vector! s' h []))))
+      (->DaciteVector (store-vector! s' h))))
   (cons [this val]
     (let [vh (extract-hash val)]
       (->DaciteVector (vector-conj-internal _hash vh))))
@@ -281,20 +290,17 @@
 
   IPersistentStack
   (peek [this]
-    (let [refs (vector-refs-internal _hash)]
-      (when (seq refs)
-        (wrap-hash (last refs)))))
-  (pop [this]
-    (let [refs (vector-refs-internal _hash)]
-      (when (empty? refs)
+    (let [{:keys [root]} (second (s-get _hash))
+          store (s-snapshot)]
+      (when-let [vh (ft/tree-last [store root])]
+        (wrap-hash vh))))
+  (pop [_]
+    (let [{:keys [root]} (second (s-get _hash))
+          store (s-snapshot)]
+      (when (ft/tree-empty? [store root])
         (throw (IllegalStateException. "Can't pop empty vector")))
-      (let [new-refs (clojure.core/vec (butlast refs))
-            [init-s init-r] (ft/finger-tree)
-            [s' h'] (reduce (fn [[s root] ref]
-                              (ft/conj-right [s root] ref))
-                            [(merge (s-snapshot) init-s) init-r]
-                            new-refs)]
-        (->DaciteVector (store-vector! s' h' new-refs)))))
+      (let [[ft-store ft-root] (ft/tree-butlast [store root])]
+        (->DaciteVector (store-vector! ft-store ft-root)))))
 
   Associative
   (containsKey [this k]
@@ -303,14 +309,9 @@
     (when-not (integer? k)
       (throw (IllegalArgumentException. "Key must be integer")))
     (let [vh (extract-hash v)
-          refs (vector-refs-internal _hash)
-          new-refs (assoc refs k vh)
-          [init-s init-r] (ft/finger-tree)
-          [s' h'] (reduce (fn [[s root] ref]
-                            (ft/conj-right [s root] ref))
-                          [(merge (s-snapshot) init-s) init-r]
-                          new-refs)]
-      (->DaciteVector (store-vector! s' h' new-refs))))
+          refs (vector-seq-internal _hash)
+          new-refs (assoc (clojure.core/vec refs) k vh)]
+      (->DaciteVector (build-vector-from-refs! new-refs))))
   (entryAt [this k]
     (when (and (integer? k) (<= 0 k) (< k (.count this)))
       (clojure.lang.MapEntry/create k (.nth ^Indexed this k))))
@@ -378,7 +379,7 @@
   IPersistentCollection
   (empty [_]
     (let [[s' h'] (hamt/hamt)]
-      (->DaciteMap (store-map! s' h' []))))
+      (->DaciteMap (store-map! s' h'))))
   (cons [this entry]
     (if (instance? java.util.Map$Entry entry)
       (let [k (.getKey ^java.util.Map$Entry entry)
@@ -492,7 +493,7 @@
         (reduce (fn [[st root] ref] (ft/conj-right [st root] ref))
                 [(merge (s-snapshot) init-s) init-r]
                 char-refs)]
-    (->DaciteString (store-string! ft-store ft-root char-refs))))
+    (->DaciteString (store-string! ft-store ft-root))))
 
 (defn blob
   "Create a dacite blob from a byte array."
@@ -503,7 +504,7 @@
         (reduce (fn [[st root] ref] (ft/conj-right [st root] ref))
                 [(merge (s-snapshot) init-s) init-r]
                 byte-refs)]
-    (->DaciteBlob (store-blob! ft-store ft-root byte-refs))))
+    (->DaciteBlob (store-blob! ft-store ft-root))))
 
 ;; =============================================================================
 ;; Auto-coercion (internal)
@@ -525,47 +526,50 @@
 ;; =============================================================================
 
 (defn- vector-count-internal [h]
-  (clojure.core/count (:refs (second (s-get h)))))
+  (let [{:keys [root]} (second (s-get h))]
+    (ft/tree-count [(s-snapshot) root])))
 
-(defn- vector-refs-internal [h]
-  (:refs (second (s-get h))))
+(defn- vector-nth-internal [h idx]
+  (let [{:keys [root]} (second (s-get h))]
+    (ft/tree-nth [(s-snapshot) root] idx)))
+
+(defn- vector-seq-internal [h]
+  (let [{:keys [root]} (second (s-get h))]
+    (ft/tree-seq-lazy [(s-snapshot) root])))
 
 (defn- store-string!
   "Merge ft-store into *store*, compute size, store string node. Returns hash."
-  [ft-store ft-root refs]
+  [ft-store ft-root]
   (s-merge! ft-store)
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
         h (hash/node-hash "string" ef)]
     (store/s-put *store* h ["string" {:root ft-root
-                                      :refs (clojure.core/vec refs)
                                       :size-bytes sb}])
     h))
 
 (defn- store-blob!
   "Merge ft-store into *store*, compute size, store blob node. Returns hash."
-  [ft-store ft-root refs]
+  [ft-store ft-root]
   (s-merge! ft-store)
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
         h (hash/node-hash "blob" ef)]
     (store/s-put *store* h ["blob" {:root ft-root
-                                    :refs (clojure.core/vec refs)
                                     :size-bytes sb}])
     h))
 
 (defn- store-vector!
   "Merge ft-store into *store*, compute size, store vector node. Returns hash."
-  [ft-store ft-root refs]
+  [ft-store ft-root]
   (s-merge! ft-store)
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
         h (hash/node-hash "vector" ef)]
     (store/s-put *store* h ["vector" {:root ft-root
-                                      :refs (clojure.core/vec refs)
                                       :size-bytes sb}])
     h))
 
@@ -575,10 +579,13 @@
         (reduce (fn [[s root] ref] (ft/conj-right [s root] ref))
                 [(merge (s-snapshot) init-store) init-root]
                 refs)]
-    (store-vector! ft-store ft-root refs)))
+    (store-vector! ft-store ft-root)))
 
 (defn- vector-conj-internal [vec-hash ref]
-  (build-vector-from-refs! (conj (clojure.core/vec (vector-refs-internal vec-hash)) ref)))
+  (let [{:keys [root]} (second (s-get vec-hash))
+        store (s-snapshot)
+        [ft-store ft-root] (ft/conj-right [store root] ref)]
+    (store-vector! ft-store ft-root)))
 
 ;; =============================================================================
 ;; Vector construction
@@ -613,33 +620,30 @@
 
 (defn- store-map!
   "Merge hamt-store into *store*, compute size, store map node. Returns hash."
-  [hamt-store hamt-root pairs]
+  [hamt-store hamt-root]
   (s-merge! hamt-store)
   (let [store (s-snapshot)
         ef (hamt/hamt-elements-fuse [store hamt-root])
         sb (hamt/hamt-size-bytes [store hamt-root])
         h (hash/node-hash "map" ef)]
     (store/s-put *store* h ["map" {:root hamt-root
-                                   :pairs (clojure.core/vec pairs)
                                    :size-bytes sb}])
     h))
 
 (defn- map-assoc-internal [map-hash k v]
-  (let [{:keys [root pairs]} (second (s-get map-hash))
+  (let [{:keys [root]} (second (s-get map-hash))
         kh (extract-hash k)
         vh (extract-hash v)
         k-hash (hash/typed-value-hash (s-get kh))
-        [s' new-root] (hamt/assoc-val [(s-snapshot) root] k-hash kh vh)
-        new-pairs (conj (clojure.core/vec (remove #(= kh (first %)) pairs)) [kh vh])]
-    (store-map! s' new-root new-pairs)))
+        [s' new-root] (hamt/assoc-val [(s-snapshot) root] k-hash kh vh)]
+    (store-map! s' new-root)))
 
 (defn- map-dissoc-internal [map-hash k]
-  (let [{:keys [root pairs]} (second (s-get map-hash))
+  (let [{:keys [root]} (second (s-get map-hash))
         kh (extract-hash k)
         k-hash (hash/typed-value-hash (s-get kh))
-        [s' new-root] (hamt/dissoc-val [(s-snapshot) root] k-hash)
-        new-pairs (clojure.core/vec (remove #(= kh (first %)) pairs))]
-    (store-map! s' new-root new-pairs)))
+        [s' new-root] (hamt/dissoc-val [(s-snapshot) root] k-hash)]
+    (store-map! s' new-root)))
 
 ;; =============================================================================
 ;; Map construction
@@ -656,7 +660,7 @@
                     (hamt/assoc-val [s root] k-hash kh vh)))
                 (let [[s root] (hamt/hamt)] [(merge (s-snapshot) s) root])
                 ref-pairs)]
-    (->DaciteMap (store-map! hamt-store hamt-root ref-pairs))))
+    (->DaciteMap (store-map! hamt-store hamt-root))))
 
 ;; =============================================================================
 ;; Boundary crossing: dac->clj and clj->dac
