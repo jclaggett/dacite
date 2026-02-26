@@ -178,15 +178,61 @@
       (is (= sample-measure (:measure (second result)))))))
 
 ;; =============================================================================
-;; Error cases
+;; Collection round-trips
 ;; =============================================================================
 
-(deftest serialize-collection-throws-test
-  (testing "Serializing collection types throws"
-    (is (thrown? clojure.lang.ExceptionInfo
-                 (serial/serialize ["string" {:root [0 0 0 0] :refs [] :size-bytes 0}])))
-    (is (thrown? clojure.lang.ExceptionInfo
-                 (serial/serialize ["vector" {:root [0 0 0 0] :refs [] :size-bytes 0}])))))
+(deftest serialize-vector-collection-test
+  (testing "vector collection round-trip"
+    (let [entry ["vector" {:root sample-hash-a :size-bytes 24}]
+          bs (serial/serialize entry)
+          result (serial/deserialize bs)]
+      (is (= 42 (alength bs)))
+      (is (= 0x03 (aget bs 0)))  ;; kind: collection
+      (is (= 0x00 (aget bs 1)))  ;; subtype: vector
+      (is (= "vector" (first result)))
+      (is (= sample-hash-a (:root (second result))))
+      (is (= 24 (:size-bytes (second result)))))))
+
+(deftest serialize-string-collection-test
+  (testing "string collection round-trip"
+    (let [entry ["string" {:root sample-hash-b :size-bytes 5}]
+          bs (serial/serialize entry)
+          result (serial/deserialize bs)]
+      (is (= 42 (alength bs)))
+      (is (= "string" (first result)))
+      (is (= sample-hash-b (:root (second result))))
+      (is (= 5 (:size-bytes (second result)))))))
+
+(deftest serialize-blob-collection-test
+  (testing "blob collection round-trip"
+    (let [entry ["blob" {:root sample-hash-c :size-bytes 1024}]
+          bs (serial/serialize entry)
+          result (serial/deserialize bs)]
+      (is (= 42 (alength bs)))
+      (is (= "blob" (first result)))
+      (is (= sample-hash-c (:root (second result))))
+      (is (= 1024 (:size-bytes (second result)))))))
+
+(deftest serialize-map-collection-test
+  (testing "map collection round-trip"
+    (let [entry ["map" {:root sample-hash-a :size-bytes 80}]
+          bs (serial/serialize entry)
+          result (serial/deserialize bs)]
+      (is (= 42 (alength bs)))
+      (is (= 0x03 (aget bs 1)))  ;; subtype: map
+      (is (= "map" (first result)))
+      (is (= sample-hash-a (:root (second result))))
+      (is (= 80 (:size-bytes (second result)))))))
+
+(deftest collection-fixed-size-test
+  (testing "all collection types serialize to exactly 42 bytes"
+    (doseq [type-name ["vector" "string" "blob" "map"]]
+      (let [bs (serial/serialize [type-name {:root [0 0 0 0] :size-bytes 0}])]
+        (is (= 42 (alength bs)) (str type-name " should be 42 bytes"))))))
+
+;; =============================================================================
+;; Error cases
+;; =============================================================================
 
 (deftest serialize-unknown-seq-subtype-test
   (testing "Unknown seq subtype in ft/ namespace is handled"
@@ -197,7 +243,7 @@
 (deftest deserialize-unknown-kind-throws-test
   (testing "Unknown kind tag throws"
     (is (thrown? clojure.lang.ExceptionInfo
-                 (serial/deserialize (byte-array [0x03]))))))
+                 (serial/deserialize (byte-array [0x04]))))))
 
 ;; =============================================================================
 ;; Size validation

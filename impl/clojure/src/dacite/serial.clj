@@ -5,9 +5,10 @@
    canonical binary format defined in the Dacite spec.
 
    Binary format overview:
-   - Scalar:   0x00 + u8(len) + raw-bytes
-   - Seq node: 0x01 + u8(subtype) + measure(48B) + u8(n) + hash[n]
-   - Map node: 0x02 + u8(subtype) + measure(48B) + type-specific fields
+   - Scalar:     0x00 + u8(len) + raw-bytes
+   - Seq node:   0x01 + u8(subtype) + measure(48B) + u8(n) + hash[n]
+   - Map node:   0x02 + u8(subtype) + measure(48B) + type-specific fields
+   - Collection: 0x03 + u8(subtype) + hash(root,32B) + u64(size-bytes)
 
    Measures are fixed 48 bytes: u64(count) + u64(size-bytes) + hash(32B).
    Hashes are 32 bytes (4 × i64, big-endian). All integers big-endian."
@@ -18,9 +19,10 @@
 ;; Constants
 ;; =============================================================================
 
-(def ^:const kind-scalar 0x00)
-(def ^:const kind-seq    0x01)
-(def ^:const kind-map    0x02)
+(def ^:const kind-scalar     0x00)
+(def ^:const kind-seq        0x01)
+(def ^:const kind-map        0x02)
+(def ^:const kind-collection 0x03)
 
 ;; Seq node subtypes
 (def ^:const seq-empty    0x00)
@@ -33,6 +35,12 @@
 (def ^:const map-empty    0x00)
 (def ^:const map-entry    0x01)
 (def ^:const map-bitmap   0x02)
+
+;; Collection subtypes
+(def ^:const coll-vector  0x00)
+(def ^:const coll-string  0x01)
+(def ^:const coll-blob    0x02)
+(def ^:const coll-map     0x03)
 
 ;; =============================================================================
 ;; Write helpers
@@ -187,16 +195,34 @@
   [type-name]
   (#{"string" "vector" "map" "blob"} type-name))
 
+(defn- collection-subtype
+  "Map a collection type name to its binary subtype tag."
+  [type-name]
+  (case type-name
+    "vector" coll-vector
+    "string" coll-string
+    "blob"   coll-blob
+    "map"    coll-map))
+
+(defn- serialize-collection
+  "Serialize a collection header to bytes.
+   Format: 0x03 + u8(subtype) + hash(root) + u64(size-bytes)"
+  [type-name data]
+  (let [subtype (collection-subtype type-name)
+        buf (ByteBuffer/allocate 42)]
+    (write-u8 buf kind-collection)
+    (write-u8 buf subtype)
+    (write-hash buf (:root data))
+    (write-u64 buf (:size-bytes data))
+    (.array buf)))
+
 (defn serialize
   "Serialize a store entry [type-name, data] to canonical binary bytes.
 
    Scalars encode as: 0x00 + u8(len) + canonical-data-bytes
    Seq nodes encode as: 0x01 + u8(subtype) + measure + children
    Map nodes encode as: 0x02 + u8(subtype) + measure + type-specific
-
-   Top-level collections (string, vector, map, blob) are not directly
-   serializable — they are typed values whose structure is stored as
-   internal seq/map nodes. Serialize their constituent nodes instead."
+   Collections encode as: 0x03 + u8(subtype) + hash(root) + u64(size-bytes)"
   [[type-name data :as entry]]
   (cond
     (scalar-type? type-name)
@@ -209,9 +235,7 @@
     (serialize-map-node type-name data)
 
     (collection-type? type-name)
-    (throw (ex-info (str "Cannot directly serialize collection type '" type-name
-                         "'. Serialize constituent nodes instead.")
-                    {:type type-name}))
+    (serialize-collection type-name data)
 
     :else
     (throw (ex-info (str "Unknown type for serialization: " type-name)
@@ -294,6 +318,25 @@
                       :children children
                       :measure measure}]))))
 
+(defn- subtype->collection-type
+  "Map binary subtype tag to collection type name."
+  [subtype]
+  (case (int subtype)
+    0 "vector"
+    1 "string"
+    2 "blob"
+    3 "map"))
+
+(defn- deserialize-collection
+  "Deserialize a collection header from buffer (kind tag already consumed)."
+  [^ByteBuffer buf]
+  (let [subtype (read-u8 buf)
+        type-name (subtype->collection-type subtype)
+        root (read-hash buf)
+        size-bytes (read-u64 buf)]
+    [type-name {:root root
+                :size-bytes size-bytes}]))
+
 (defn deserialize
   "Deserialize binary bytes to a store entry.
 
@@ -302,6 +345,7 @@
      the store maps hash → [type-name data])
    - For seq nodes: [type-name data] with measure and child hashes
    - For map nodes: [type-name data] with measure and type-specific fields
+   - For collections: [type-name {:root hash :size-bytes n}]
 
    Note: Scalar deserialization returns raw bytes because the binary
    format only encodes the canonical data bytes, not the type name.
@@ -314,4 +358,5 @@
       0 (deserialize-scalar buf)
       1 (deserialize-seq-node buf)
       2 (deserialize-map-node buf)
+      3 (deserialize-collection buf)
       (throw (ex-info (str "Unknown node kind: " kind) {:kind kind})))))
