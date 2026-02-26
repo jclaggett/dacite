@@ -7,8 +7,10 @@
 - [x] **Blob** — finger tree of raw bytes, parallel to string. `d/blob`, `dac->clj`/`clj->dac` support, `size-bytes`
 - [x] **Set** — sets are maps where key equals value (`{x x}`). No new type needed. Content addressing means zero storage overhead for the duplicate reference. Convenience functions (`hash-set`, `union`, `intersect`, `diff`, `negate`) go in a utility namespace, not core.
   - **Negative sets**: a `neg` sentinel element inverts set membership, enabling cofinite sets (e.g. blacklists). `{neg 1 2 3}` = "everything except 1, 2, 3". Pure convention, not enforced by core.
+- [x] **Refs purged from collections** — collection nodes now store only `{:root h :size-bytes n}`. No flat element vectors. Finger tree `tree-nth` provides O(log n) indexed access via measures.
 - [ ] **Sorted map** — deferred. Requires a way to represent comparator functions as data so peers can agree on ordering. Finger tree B-tree machinery exists; the open problem is purely about key comparison.
 - [ ] **Sorted set** — same dependency (sorted map where key = value)
+
 ## 2. Store Protocol
 
 **Have:** `IStore` protocol with `s-get`, `s-put`, `s-has?`, `s-snapshot`, `s-merge`, `s-reset`. Three implementations.
@@ -23,21 +25,25 @@
 
 ## 3. Serialization
 
-**Have:** nothing — values only exist in-memory Clojure maps or EDN on disk
+**Have:** `dacite.serial` namespace with binary serialize/deserialize for all node types.
 
-**Need:**
-- [ ] **Wire format** — binary serialization of `[type data]` tuples for network/disk
+- [x] **Binary format** — canonical byte encoding per spec v0.4.0-draft
+  - Kind 0x00: Scalars (tag + u8 len + canonical bytes)
+  - Kind 0x01: Seq nodes (finger tree internals — empty, single, digit, node, deep)
+  - Kind 0x02: Map nodes (HAMT internals — empty, entry, bitmap)
+  - Kind 0x03: Collections (vector, string, blob, map — 42-byte fixed headers)
+- [x] **Scalar encoding** — `encode-value` multimethod with canonical big-endian/IEEE 754/UTF-8
 - [ ] **Import/export** — serialize a value + its transitive closure from the store
 - [ ] **Partial transfer** — "I have these hashes, send me what I'm missing"
 - [ ] **Content negotiation** — different representations for different transports
 
 ## 4. Documentation & Spec
 
-**Have:** spec v0.4.0-draft, development dialogue, README
+**Have:** spec v0.4.0-draft (with collection serialization), development dialogue, README
 
 **Need:**
 - [ ] **API docs** — codox or cljdoc for the public API
-- [ ] **Spec update to v0.5** — reflect strings-as-finger-trees, size-bytes, blob type, set type
+- [ ] **Spec update to v0.5** — reflect strings-as-finger-trees, size-bytes, blob type, set type, refs removal
 - [ ] **Architecture guide** — the store layering story, "hashes as pointers" mental model
 - [ ] **Tutorial** — build something real with Dacite step by step
 
@@ -58,26 +64,25 @@ Concrete things to build that prove the architecture:
 - [ ] **Error messages** — better errors when store misses occur (hash not found)
 - [ ] **`IReduce` / `IKVReduce`** — remaining Clojure interfaces for efficient reduction
 
-## Test Coverage (as of 2026-02-24)
+## Test Coverage (as of 2026-02-25)
 
-293 tests, 1370 assertions, 0 failures.
+298+ tests, 1350+ assertions, 0 failures.
 
-| Namespace        | Forms  | Lines  |
-|------------------|--------|--------|
-| dacite.cache     | 99.10% | 100%   |
-| dacite.cache-map | 94.59% | 97.44% |
-| dacite.core      | 98.46% | 100%   |
-| dacite.finger-tree | 100% | 100%   |
-| dacite.hamt      | 95.79% | 98.95% |
-| dacite.hash      | 99.14% | 98.95% |
-| dacite.store     | 87.56% | 100%   |
-| dacite.types     | 100%   | 100%   |
-| **ALL FILES**    | **97.41%** | **99.64%** |
+| Namespace          | Forms  | Lines  |
+|--------------------|--------|--------|
+| dacite.core        | ~98%   | 100%   |
+| dacite.finger-tree | 100%   | 100%   |
+| dacite.hamt        | ~96%   | ~99%   |
+| dacite.hash        | ~99%   | ~99%   |
+| dacite.serial      | —      | —      |
+| dacite.store       | ~88%   | 100%   |
+| dacite.types       | 100%   | 100%   |
+| **ALL FILES**      | **96.23%** | **99.55%** |
 
 ## Suggested Order
 
 ```
-serialization → set utilities → examples
+import/export → set utilities → examples
 ```
 
-Store protocol, blob, and sets (as maps) are done. Serialization is the next architectural unlock for network/disk transfer. Set utility functions (`union`, `intersect`, `negate`, etc.) can come whenever — they're pure library code on top of maps.
+Serialization of individual nodes is done. The next architectural unlock is **import/export** — walking a value's transitive closure and bundling it for transfer between stores. Set utility functions (`union`, `intersect`, `negate`, etc.) can come whenever — they're pure library code on top of maps.
