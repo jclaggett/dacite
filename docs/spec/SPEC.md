@@ -521,6 +521,7 @@ Every serialized node begins with a 1-byte **kind tag**:
 | `0x00` | Scalar | Raw bytes (atomic value) |
 | `0x01` | Seq node | Finger tree internal node |
 | `0x02` | Map node | HAMT internal node |
+| `0x03` | Collection | Top-level typed collection header |
 
 #### Scalar Serialization
 
@@ -589,6 +590,40 @@ For entries, `key_hash` is the routing hash (used for HAMT navigation), while `k
 
 **Size range:** 50 bytes (empty) to 1,079 bytes (32-child bitmap).
 
+#### Collection Serialization
+
+Collections are top-level typed values whose structure is stored as a tree of seq or map nodes. A collection header records the collection type, a root hash pointing into the tree, and the total size in bytes:
+
+```
+collection = 0x03
+          ++ u8(collection_type)   // which collection
+          ++ hash(root)            // root of the internal tree
+          ++ u64(size_bytes)       // total materialized size in bytes
+```
+
+Collection subtypes:
+
+| Subtype | Value | Root points to | Description |
+|---------|-------|----------------|-------------|
+| Vector | `0x00` | Finger tree root | Ordered collection of arbitrary values |
+| String | `0x01` | Finger tree root | Seq of char scalars |
+| Blob | `0x02` | Finger tree root | Seq of byte scalars |
+| Map | `0x03` | HAMT root | Key-value collection |
+
+The `root` hash references an existing seq node (for vector/string/blob) or map node (for map) already in the store. The collection header does **not** duplicate any element references — it is a thin typed wrapper over the tree root.
+
+The `size_bytes` field caches the total byte size of all leaf scalars in the collection. This enables O(1) size checks (e.g., enforcing materialization limits in `dac->clj`) without traversing the tree.
+
+**Fixed size:** 1 + 1 + 32 + 8 = **42 bytes** for every collection, regardless of element count.
+
+The collection's hash is computed as:
+
+```
+collection_hash = fuse(fuse_str(type_name ++ 0x00), root.measure.elements_fuse)
+```
+
+This is the standard typed value hash — the collection type name fused with the semantic hash of the underlying tree.
+
 #### Measure Serialization
 
 Measures appear inline in seq and map nodes:
@@ -601,9 +636,11 @@ Fixed size: 8 + 8 + 32 = **48 bytes**.
 
 #### Typed Value Serialization
 
-Typed values are not a separate serialization kind — they are ordinary 2-element seqs. The type name (position 0) is itself a seq of char scalars, and the data (position 1) is any primitive.
+Scalar typed values (e.g., `["i64" 42]`) are serialized as kind `0x00` (scalar) — the type information lives in the store mapping (hash → typed value), not in the serialized bytes.
 
-To serialize a typed value, serialize it as a seq with two children: the type name reference and the data reference.
+Collection typed values (string, vector, blob, map) are serialized as kind `0x03` (collection) — a thin header with the collection subtype, root hash, and cached size.
+
+In both cases, the type name is part of the **hash computation** (via the null-separated domain prefix), not the serialized payload. The store maps each hash to its full `[type_name, data]` entry; serialization encodes only the data portion.
 
 #### Hash Computation from Serialized Form
 
