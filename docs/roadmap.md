@@ -8,8 +8,8 @@
 - [x] **Set** — sets are maps where key equals value (`{x x}`). No new type needed. Content addressing means zero storage overhead for the duplicate reference. Convenience functions (`hash-set`, `union`, `intersect`, `diff`, `negate`) go in a utility namespace, not core.
   - **Negative sets**: a `neg` sentinel element inverts set membership, enabling cofinite sets (e.g. blacklists). `{neg 1 2 3}` = "everything except 1, 2, 3". Pure convention, not enforced by core.
 - [x] **Refs purged from collections** — collection nodes now store only `{:root h :size-bytes n}`. No flat element vectors. Finger tree `tree-nth` provides O(log n) indexed access via measures.
-- [ ] **Sorted map** — deferred. Requires a way to represent comparator functions as data so peers can agree on ordering. Finger tree B-tree machinery exists; the open problem is purely about key comparison.
-- [ ] **Sorted set** — same dependency (sorted map where key = value)
+- [x] **Sorted map** — **will not implement**. Requires comparator functions represented as data so peers can agree on ordering; complexity disproportionate to value. Users who need sorted traversal can sort keys client-side.
+- [x] **Sorted set** — same decision (depends on sorted map)
 
 ## 2. Store Protocol
 

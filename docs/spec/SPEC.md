@@ -2,9 +2,9 @@
 
 > Data citing with fused hashing.
 
-**Version:** 0.4.0-draft  
-**Status:** Early design  
-**Last updated:** 2026-02-26
+**Version:** 0.5.0-draft  
+**Status:** Active development  
+**Last updated:** 2026-02-27
 
 ---
 
@@ -488,20 +488,40 @@ HAMT traversal visits children in bitmap order (ascending chunk index), which co
 
 ## Storage Layer
 
-### Content-Addressed Store
+### Store Protocol (IStore)
 
-All nodes are stored and retrieved by their structural hash:
+All nodes are stored and retrieved by their content hash through a minimal protocol:
 
 ```
-commit!(value) → hash    // store a value, return its hash
-lookup(hash) → value     // retrieve a value by hash
+s-get(hash) → value | nil     // retrieve a value by hash
+s-put(hash, value) → store    // store a value at its hash (idempotent)
+s-has?(hash) → boolean        // check existence
+s-snapshot() → map            // bulk read of all entries (for construction/debugging)
+s-merge(entries) → store      // bulk insert of {hash: value} pairs
+s-reset() → store             // clear all entries
 ```
 
-Since values are immutable and content-addressed, `commit!` is idempotent.
+Since values are immutable and content-addressed, `s-put` is idempotent — storing the same value twice is a no-op.
+
+### Store Implementations
+
+Three implementations compose to form a store hierarchy:
+
+**Memory store** — atom-backed in-memory map. Fast, ephemeral. The default for construction and testing.
+
+**File store** — content-addressed filesystem with directory sharding (like git objects). Hashes map to file paths: `base-dir/ab/cdef0123...`. Provides durable persistence.
+
+**Layered store** — composes an ordered list of stores with read-through semantics. Reads walk the layers top-to-bottom, returning the first hit. Writes propagate to all layers. This enables transparent caching hierarchies:
+
+```
+LayeredStore([MemStore, FileStore])
+```
+
+Reads check memory first, then disk. Writes go to both. A remote store (planned) slots in as another layer — reads that miss locally fetch from the network, and the result is cached in upper layers automatically.
 
 ### CacheMap
 
-A CacheMap wraps a content-addressed store as a standard associative map interface:
+A CacheMap wraps a store as a standard associative map interface:
 
 - `get(hash)` → fetches from store on demand (lazy loading)
 - `assoc(hash, value)` → commits to store immediately (write-through)
@@ -959,7 +979,7 @@ Implementations should provide:
 - [ ] Network protocol details (HTTP? Custom?)
 - [x] Garbage collection / retention policies — stores are caches; LRU eviction at each layer; root pinning for authoritative stores; purge by removing root + natural eviction
 - [x] Set type — convention: maps where key=value, with `neg` sentinel for cofinite sets
-- [ ] Sorted map?
+- [x] Sorted map — **will not implement**. Sorted maps require comparator functions, which would need to be represented as data so that peers can agree on ordering. This adds complexity disproportionate to the value. Users who need sorted traversal can sort keys client-side.
 - [x] Scalar size limits — u8 length, max 255 bytes; larger payloads use blobs (efficient via leaf coalescing)
 - [x] Byte hash table distribution — protocol ID (table's own hash); table is a build-time constant, not stored in content-addressed space; well-known location specified
 - [x] Canonical serialization format — custom binary format (see Serialization)
