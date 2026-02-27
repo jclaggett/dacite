@@ -4,7 +4,7 @@
 
 **Version:** 0.4.0-draft  
 **Status:** Early design  
-**Last updated:** 2026-02-14
+**Last updated:** 2026-02-26
 
 ---
 
@@ -122,6 +122,14 @@ Two stores are compatible if and only if they share the same protocol ID. Implem
 - **If IDs don't match**, the stores are incompatible — all hashes differ
 
 The table itself is distributed out-of-band: hardcoded in implementations, published as a spec artifact, or fetched by protocol ID from a registry. The table is never stored as a content-addressed entry — it is infrastructure, not data.
+
+**Well-known location:** The default byte hash table (SHA-256 seeded) is published as a spec artifact at a well-known URL and included in the reference implementation source. New implementations should obtain the table from one of:
+
+1. **Spec repository** — canonical table file (e.g., `spec/byte_hash_table.bin`, 8,192 bytes)
+2. **Reference implementation** — extract from any existing implementation's source or binary
+3. **Protocol ID registry** — given a protocol ID, fetch the corresponding table
+
+Implementations must verify the table by computing `fuse_bytes(concat(table[0..255]))` and comparing against the expected protocol ID before use.
 
 ### fuse_bytes / fuse_str
 
@@ -374,6 +382,8 @@ Without this, single-child bitmap nodes at different HAMT levels would collide (
 
 **Collision resistance:** The fuse-based hash chain has ~2^96 birthday-bound collision resistance (from the additive structure of fuse components c1–c3). This is weaker than SHA-256's ~2^128 but astronomically beyond practical attack. The security bound is independent of how the byte hash table is seeded.
 
+**Threat model:** Fuse-based hashes are designed for **cooperative environments** where all participants are trusted to produce honest data. In adversarial contexts — where untrusted peers contribute data to a shared store — fuse hashes alone should not be relied upon for integrity. Deployments accepting data from untrusted sources should pair dacite hashes with a cryptographic hash (e.g., SHA-256) for verification. A practical approach: store `{dacite_hash, sha256}` pairs at trust boundaries and verify the cryptographic hash on ingest.
+
 ### Finger Tree Nodes (Seq)
 
 | Node Type | Description | Data Fields |
@@ -434,6 +444,8 @@ The root's measure gives **O(1)** access to count, total size, and semantic hash
 - **Digits (fingers):** 1–32 elements
 
 This high branching factor keeps trees shallow, minimizing network round trips. A tree of 1M elements is only ~4 levels deep.
+
+Note: Classic finger trees use a 2–3 branching factor, where amortized O(1) push/pop is proven via a potential-based argument. The 2–32 branching factor used here trades the classic amortized guarantee for shallower trees, reducing network round trips at the expense of more work during node splits and merges. Random access and splits remain O(log n). In practice, the constant factors are favorable because shallow trees mean fewer store fetches — the dominant cost in a distributed setting.
 
 ### Node Size Constraint
 
@@ -543,12 +555,60 @@ Default threshold: 1024 bytes (~1 TCP packet). Client controls threshold based o
 3. Client walks tree, fetching nodes with unknown hashes
 4. Unchanged subtrees (same hash) are skipped
 
+### Leaf Coalescing
+
+For collections whose leaves are small scalars (strings, blobs), the adaptive fetch mechanism can be extended with **leaf coalescing**: instead of returning individual scalar hashes, the server materializes contiguous runs of leaf values into raw byte chunks.
+
+**Request:**
+```
+GET /node/{hash}?inline_under={bytes}&leaf_chunk={bytes}
+```
+
+The `leaf_chunk` parameter specifies the maximum chunk size for coalesced leaves. When the server encounters a subtree whose leaves are uniform small scalars (e.g., chars or bytes), it may respond with:
+
+```
+CoalescedResponse {
+  kind: "coalesced",
+  chunks: [
+    { offset: 0, data: bytes[...] },    // raw leaf data, concatenated
+    { offset: 1024, data: bytes[...] }
+  ],
+  measure: Measure
+}
+```
+
+Each chunk contains the raw scalar data for a contiguous range of leaves, without per-element framing. The receiver can reconstruct individual scalars (and their hashes) from the raw bytes, or hold the chunk as-is for sequential access.
+
+**Example:** A 1024-byte blob stored as 1024 individual `[:u8 b]` scalars in a finger tree. Without coalescing, fetching the blob requires retrieving ~32 internal nodes plus 1024 scalar entries (though only 256 are unique). With a `leaf_chunk=1024` parameter, the server sends a single 1024-byte chunk — one response, one packet.
+
+The chunk size is client-controlled. Constrained devices may request small chunks (512 bytes); high-bandwidth clients may accept 64 KB or more. The tree structure provides natural split points at any node boundary.
+
+Leaf coalescing is an optimization hint — servers may ignore it and respond with structural or inline modes. Clients must handle all response modes.
+
 ### Caching
 
 Immutable content-addressed data is ideal for caching:
 - Hash = eternal identity
 - No cache invalidation needed
 - Multiple cache tiers work naturally
+
+### Retention and Eviction
+
+Since all data is immutable and content-addressed, stores operate as **caches** at every layer. There is no cache invalidation — a hash always maps to the same value. Retention is purely an eviction policy concern.
+
+**Store layers form a hierarchy:**
+
+```
+Local memory cache  →  Local disk store  →  Peer stores  →  Origin server
+```
+
+Each layer may independently evict entries using LRU or other policies. A cache miss at any layer triggers a fetch from the next layer upstream. This is safe because values are immutable — a re-fetched value is identical to the evicted one.
+
+**Root pinning:** The bottom layer (origin store with no upstream) is the **authoritative store**. At this layer, eviction means data loss. Implementations should support **root pinning** — marking specific collection root hashes as retained. Pinned roots and all nodes reachable from them are exempt from eviction.
+
+**Purging a collection:** To remove a specific collection, delete its root entry. The orphaned internal nodes will be evicted naturally as the store adds new data and applies its eviction policy. Nodes shared with other collections are not harmed — they remain reachable from their other roots and will not be evicted while referenced.
+
+For immediate purging (e.g., removing sensitive data), a store may walk the collection's tree and delete all reachable nodes. Shared nodes will be re-fetched on demand when other collections access them. This is the "nuclear option" — correct but potentially costly for other structures that shared subtrees.
 
 ---
 
@@ -709,6 +769,8 @@ Scalar typed values (e.g., `["i64" 42]`) are serialized as kind `0x00` (scalar) 
 Collection typed values (string, vector, blob, map) are serialized as kind `0x03` (collection) — a thin header with the collection subtype, root hash, and cached size.
 
 In both cases, the type name is part of the **hash computation** (via the null-separated domain prefix), not the serialized payload. The store maps each hash to its full `[type_name, data]` entry; serialization encodes only the data portion.
+
+**Recovering the type:** Although the serialized bytes do not carry the type name, the type is always recoverable from the store. A typed value is a 2-element seq; position 0 is the type name (itself a seq of char scalars stored in the content-addressed space). Given a typed value's hash, fetch the seq, then fetch position 0 to discover the type. No out-of-band schema is needed.
 
 #### Hash Computation from Serialized Form
 
@@ -895,11 +957,11 @@ Implementations should provide:
 ## Open Questions
 
 - [ ] Network protocol details (HTTP? Custom?)
-- [ ] Garbage collection / retention policies
+- [x] Garbage collection / retention policies — stores are caches; LRU eviction at each layer; root pinning for authoritative stores; purge by removing root + natural eviction
 - [x] Set type — convention: maps where key=value, with `neg` sentinel for cofinite sets
 - [ ] Sorted map?
-- [x] Scalar size limits — u8 length, max 255 bytes
-- [x] Byte hash table distribution — protocol ID (table's own hash); table is a build-time constant, not stored in content-addressed space
+- [x] Scalar size limits — u8 length, max 255 bytes; larger payloads use blobs (efficient via leaf coalescing)
+- [x] Byte hash table distribution — protocol ID (table's own hash); table is a build-time constant, not stored in content-addressed space; well-known location specified
 - [x] Canonical serialization format — custom binary format (see Serialization)
 - [x] Hashing decoupled from SHA-256 — byte hash table + fuse (SHA-256 is only the default seed)
 - [x] Domain separation — null byte (0x00) separator between type name and data
