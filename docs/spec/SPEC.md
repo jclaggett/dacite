@@ -105,6 +105,24 @@ byte_hash: byte → Hash    (256 entries)
 
 The default table is seeded using SHA-256: `byte_hash[i] = sha256(byte_array([i]))`. However, any set of 256 distinct, high-quality 32-byte values may be used. This decouples dacite references from any specific hash function at runtime.
 
+### Protocol ID
+
+The byte hash table is a **build-time constant** — it is not stored inside the content-addressed space. Instead, the table's own hash serves as a **protocol identifier**:
+
+```
+protocol_id = fuse_bytes(concat(table[0], table[1], ..., table[255]))
+```
+
+The table is hashed using itself: each row is a 32-byte value, the rows are concatenated into a 8,192-byte sequence, and `fuse_bytes` (which uses the table) produces the protocol ID.
+
+Two stores are compatible if and only if they share the same protocol ID. Implementations check this on first contact:
+
+- **File stores** include the protocol ID in store metadata (e.g., a `DACITE_PROTOCOL` file)
+- **Remote stores** exchange protocol IDs during handshake
+- **If IDs don't match**, the stores are incompatible — all hashes differ
+
+The table itself is distributed out-of-band: hardcoded in implementations, published as a spec artifact, or fetched by protocol ID from a registry. The table is never stored as a content-addressed entry — it is infrastructure, not data.
+
 ### fuse_bytes / fuse_str
 
 All data hashing is performed by mapping bytes through the table and fusing:
@@ -878,9 +896,10 @@ Implementations should provide:
 
 - [ ] Network protocol details (HTTP? Custom?)
 - [ ] Garbage collection / retention policies
-- [ ] Set type? Sorted map?
+- [x] Set type — convention: maps where key=value, with `neg` sentinel for cofinite sets
+- [ ] Sorted map?
 - [x] Scalar size limits — u8 length, max 255 bytes
-- [ ] Byte hash table distribution — how do implementations agree on the table? Hardcoded? Negotiated?
+- [x] Byte hash table distribution — protocol ID (table's own hash); table is a build-time constant, not stored in content-addressed space
 - [x] Canonical serialization format — custom binary format (see Serialization)
 - [x] Hashing decoupled from SHA-256 — byte hash table + fuse (SHA-256 is only the default seed)
 - [x] Domain separation — null byte (0x00) separator between type name and data
