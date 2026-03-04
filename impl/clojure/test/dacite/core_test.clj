@@ -3,6 +3,7 @@
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [dacite.core :as d]
             [dacite.hash :as hash]
+            [dacite.scalar :as scalar]
             [dacite.store :as store]))
 
 ;; Reset global store before each test
@@ -47,13 +48,13 @@
   (testing "u256 for hash-as-data"
     (let [data (hash/longs->bytes [1 2 3 4])
           v (d/u256 data)]
-      (is (= "u256" (d/scalar-type v)))
+      (is (= "u256" (scalar/scalar-type v)))
       (is (= 32 (alength ^bytes @v))))))
 
 (deftest float-test
   (testing "Float constructors"
-    (is (= "f32" (d/scalar-type (d/f32 1.5))))
-    (is (= "f64" (d/scalar-type (d/f64 3.14))))))
+    (is (= "f32" (scalar/scalar-type (d/f32 1.5))))
+    (is (= "f64" (scalar/scalar-type (d/f64 3.14))))))
 
 (deftest char-test
   (testing "Character constructor"
@@ -68,8 +69,8 @@
 
 (deftest scalar-type-test
   (testing "scalar-type returns type name"
-    (is (= "i64" (d/scalar-type (d/i64 42))))
-    (is (= "null" (d/scalar-type (d/null))))))
+    (is (= "i64" (scalar/scalar-type (d/i64 42))))
+    (is (= "null" (scalar/scalar-type (d/null))))))
 
 (deftest scalar-ifn-test
   (testing "Scalar as zero-arg function returns deref"
@@ -77,34 +78,34 @@
 
 (deftest size-bytes-scalar-test
   (testing "Scalar size-bytes"
-    (is (= 8 (d/size-bytes (d/i64 42))))
-    (is (= 1 (d/size-bytes (d/bool true))))
-    (is (= 0 (d/size-bytes (d/null))))
-    (is (= 4 (d/size-bytes (d/f32 1.0)))))
+    (is (= 8 (scalar/size-bytes (d/i64 42))))
+    (is (= 1 (scalar/size-bytes (d/bool true))))
+    (is (= 0 (scalar/size-bytes (d/null))))
+    (is (= 4 (scalar/size-bytes (d/f32 1.0)))))
   (testing "String size-bytes (UTF-8)"
-    (is (= 5 (d/size-bytes (d/str "hello"))))
-    (is (= 0 (d/size-bytes (d/str ""))))))
+    (is (= 5 (scalar/size-bytes (d/str "hello"))))
+    (is (= 0 (scalar/size-bytes (d/str ""))))))
 
 (deftest size-bytes-vector-test
   (testing "Vector size-bytes is sum of element sizes"
     (let [v (d/vec [1 2 3])] ;; 3 x i64 = 24
-      (is (= 24 (d/size-bytes v)))))
+      (is (= 24 (scalar/size-bytes v)))))
   (testing "Empty vector is 0 bytes"
-    (is (= 0 (d/size-bytes (d/vec []))))))
+    (is (= 0 (scalar/size-bytes (d/vec []))))))
 
 (deftest size-bytes-map-test
   (testing "Map size-bytes includes keys and values"
     (let [m (d/hash-map "a" 1)] ;; "a" = 1 byte, i64 = 8 bytes
-      (is (= 9 (d/size-bytes m)))))
+      (is (= 9 (scalar/size-bytes m)))))
   (testing "Empty map is 0 bytes"
-    (is (= 0 (d/size-bytes (d/hash-map))))))
+    (is (= 0 (scalar/size-bytes (d/hash-map))))))
 
 (deftest size-bytes-nested-test
   (testing "Nested structure accumulates sizes"
     (let [v (d/vec [1 2])       ;; 16 bytes
           m (d/hash-map "k" v)] ;; "k"=1 + vec=16 = 17
-      (is (= 16 (d/size-bytes v)))
-      (is (= 17 (d/size-bytes m))))))
+      (is (= 16 (scalar/size-bytes v)))
+      (is (= 17 (scalar/size-bytes m))))))
 
 (deftest scalar-hash-eq-test
   (testing "Same values have same hasheq"
@@ -180,8 +181,8 @@
 
 (deftest blob-size-bytes-test
   (testing "Size equals byte count"
-    (is (= 5 (d/size-bytes (d/blob (byte-array [0 0 0 0 0])))))
-    (is (= 0 (d/size-bytes (d/blob (byte-array 0)))))))
+    (is (= 5 (scalar/size-bytes (d/blob (byte-array [0 0 0 0 0])))))
+    (is (= 0 (scalar/size-bytes (d/blob (byte-array 0)))))))
 
 (deftest blob-toString-test
   (testing "toString shows byte count"
@@ -567,13 +568,13 @@
 (deftest scalar-hash-test
   (testing "scalar-hash returns the raw hash"
     (let [v (d/i64 42)
-          h (d/scalar-hash v)]
+          h (scalar/scalar-hash v)]
       (is (some? h))
       (is (= h (d/dacite-hash v)))))
   (testing "Same value same hash"
-    (is (= (d/scalar-hash (d/i64 42)) (d/scalar-hash (d/i64 42)))))
+    (is (= (scalar/scalar-hash (d/i64 42)) (scalar/scalar-hash (d/i64 42)))))
   (testing "Different value different hash"
-    (is (not= (d/scalar-hash (d/i64 42)) (d/scalar-hash (d/i64 43))))))
+    (is (not= (scalar/scalar-hash (d/i64 42)) (scalar/scalar-hash (d/i64 43))))))
 
 ;; =============================================================================
 ;; Uncovered edge cases
