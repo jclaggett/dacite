@@ -15,7 +15,7 @@
 (deftest null-test
   (testing "Null construction"
     (let [v (d/null)]
-      (is (instance? dacite.core.DaciteScalar v))
+      (is (instance? dacite.scalar.DaciteScalar v))
       (is (nil? @v)))))
 
 (deftest bool-test
@@ -117,7 +117,7 @@
 (deftest str-test
   (testing "String construction"
     (let [s (d/str "hello")]
-      (is (instance? dacite.core.DaciteString s))
+      (is (instance? dacite.collections.DaciteString s))
       (is (= "hello" @s))
       (is (= "hello" (clojure.core/str s))))))
 
@@ -140,7 +140,7 @@
   (testing "String is seqable, returns DaciteScalar chars"
     (let [s (seq (d/str "abc"))]
       (is (= 3 (clojure.core/count s)))
-      (is (every? #(instance? dacite.core.DaciteScalar %) s))
+      (is (every? #(instance? dacite.scalar.DaciteScalar %) s))
       (is (= [\a \b \c] (mapv deref s))))))
 
 ;; =============================================================================
@@ -150,7 +150,7 @@
 (deftest blob-test
   (testing "Blob construction"
     (let [b (d/blob (byte-array [1 2 3]))]
-      (is (instance? dacite.core.DaciteBlob b))
+      (is (instance? dacite.collections.DaciteBlob b))
       (is (= 3 (count b))))))
 
 (deftest blob-deref-test
@@ -169,7 +169,7 @@
   (testing "Seq returns DaciteScalar u8 wrappers"
     (let [s (seq (d/blob (byte-array [1 2 3])))]
       (is (= 3 (clojure.core/count s)))
-      (is (every? #(instance? dacite.core.DaciteScalar %) s))
+      (is (every? #(instance? dacite.scalar.DaciteScalar %) s))
       (is (= [1 2 3] (mapv deref s))))))
 
 (deftest blob-equality-test
@@ -194,13 +194,13 @@
 (deftest vec-test
   (testing "Vector construction"
     (let [v (d/vec [1 2 3])]
-      (is (instance? dacite.core.DaciteVector v))
+      (is (instance? dacite.collections.DaciteVector v))
       (is (= 3 (count v))))))
 
 (deftest vec-nth-test
   (testing "nth returns wrapped Dacite type"
     (let [v (d/vec [10 20 30])]
-      (is (instance? dacite.core.DaciteScalar (nth v 0)))
+      (is (instance? dacite.scalar.DaciteScalar (nth v 0)))
       (is (= 10 @(nth v 0)))
       (is (= 30 @(nth v 2))))))
 
@@ -251,7 +251,7 @@
   (testing "seq returns wrapped elements"
     (let [s (seq (d/vec [10 20 30]))]
       (is (= 3 (clojure.core/count s)))
-      (is (every? #(instance? dacite.core.DaciteScalar %) s))
+      (is (every? #(instance? dacite.scalar.DaciteScalar %) s))
       (is (= [10 20 30] (mapv deref s))))))
 
 (deftest vec-contains-key-test
@@ -284,7 +284,7 @@
           outer (d/vec-of-refs [(d/unwrap-hash inner)])]
       (is (= 1 (count outer)))
       (let [inner' (nth outer 0)]
-        (is (instance? dacite.core.DaciteVector inner'))
+        (is (instance? dacite.collections.DaciteVector inner'))
         (is (= 2 (count inner')))))))
 
 (deftest vec-accepts-dacite-values-test
@@ -302,17 +302,17 @@
 (deftest hash-map-test
   (testing "Map construction"
     (let [m (d/hash-map "name" "Alice" "age" 30)]
-      (is (instance? dacite.core.DaciteMap m))
+      (is (instance? dacite.collections.DaciteMap m))
       (is (= 2 (count m))))))
 
 (deftest hash-map-get-test
   (testing "get works on map"
     (let [m (d/hash-map "name" "Alice" "age" 30)]
       (let [name-val (get m "name")]
-        (is (instance? dacite.core.DaciteString name-val))
+        (is (instance? dacite.collections.DaciteString name-val))
         (is (= "Alice" @name-val)))
       (let [age-val (get m "age")]
-        (is (instance? dacite.core.DaciteScalar age-val))
+        (is (instance? dacite.scalar.DaciteScalar age-val))
         (is (= 30 @age-val))))))
 
 (deftest hash-map-get-missing-test
@@ -407,7 +407,7 @@
                              (is (= 99 @v))
                              v))]
       (is (map? store))
-      (is (instance? dacite.core.DaciteScalar result)))))
+      (is (instance? dacite.scalar.DaciteScalar result)))))
 
 ;; =============================================================================
 ;; dac->clj
@@ -475,20 +475,20 @@
 
 (deftest clj->dac-scalar-test
   (testing "Scalars wrap"
-    (is (instance? dacite.core.DaciteScalar (d/clj->dac 42)))
+    (is (instance? dacite.scalar.DaciteScalar (d/clj->dac 42)))
     (is (= 42 @(d/clj->dac 42)))
-    (is (instance? dacite.core.DaciteScalar (d/clj->dac true)))
-    (is (instance? dacite.core.DaciteScalar (d/clj->dac nil)))))
+    (is (instance? dacite.scalar.DaciteScalar (d/clj->dac true)))
+    (is (instance? dacite.scalar.DaciteScalar (d/clj->dac nil)))))
 
 (deftest clj->dac-string-test
   (testing "Strings wrap"
-    (is (instance? dacite.core.DaciteString (d/clj->dac "hello")))
+    (is (instance? dacite.collections.DaciteString (d/clj->dac "hello")))
     (is (= "hello" @(d/clj->dac "hello")))))
 
 (deftest clj->dac-vector-test
   (testing "Vectors wrap recursively"
     (let [v (d/clj->dac [1 2 3])]
-      (is (instance? dacite.core.DaciteVector v))
+      (is (instance? dacite.collections.DaciteVector v))
       (is (= 3 (count v)))
       (is (= [1 2 3] (d/dac->clj v))))))
 
@@ -500,7 +500,7 @@
 (deftest clj->dac-map-test
   (testing "Maps wrap recursively"
     (let [m (d/clj->dac {"a" 1 "b" 2})]
-      (is (instance? dacite.core.DaciteMap m))
+      (is (instance? dacite.collections.DaciteMap m))
       (is (= {"a" 1 "b" 2} (d/dac->clj m))))))
 
 (deftest clj->dac-nested-map-test
@@ -512,7 +512,7 @@
 (deftest clj->dac-blob-test
   (testing "Byte arrays wrap to DaciteBlob"
     (let [b (d/clj->dac (byte-array [10 20]))]
-      (is (instance? dacite.core.DaciteBlob b))
+      (is (instance? dacite.collections.DaciteBlob b))
       (is (= [10 20] (clojure.core/vec @b))))))
 
 (deftest clj->dac-idempotent-test
@@ -528,23 +528,23 @@
 (deftest clj->dac-float-test
   (testing "Floats wrap to f64"
     (let [v (d/clj->dac (float 1.5))]
-      (is (instance? dacite.core.DaciteScalar v))
+      (is (instance? dacite.scalar.DaciteScalar v))
       (is (= 1.5 @v))))
   (testing "Doubles wrap to f64"
     (let [v (d/clj->dac 3.14)]
-      (is (instance? dacite.core.DaciteScalar v))
+      (is (instance? dacite.scalar.DaciteScalar v))
       (is (= 3.14 @v)))))
 
 (deftest clj->dac-char-test
   (testing "Chars wrap to dacite-char"
     (let [v (d/clj->dac \x)]
-      (is (instance? dacite.core.DaciteScalar v))
+      (is (instance? dacite.scalar.DaciteScalar v))
       (is (= \x @v)))))
 
 (deftest clj->dac-list-test
   (testing "Lists (sequential) wrap to DaciteVector"
     (let [v (d/clj->dac '(1 2 3))]
-      (is (instance? dacite.core.DaciteVector v))
+      (is (instance? dacite.collections.DaciteVector v))
       (is (= [1 2 3] (d/dac->clj v))))))
 
 (deftest clj->dac-unsupported-test
@@ -633,7 +633,7 @@
     (let [v (d/vec [1 2 3])
           e (.empty v)]
       (is (= 0 (count e)))
-      (is (instance? dacite.core.DaciteVector e)))))
+      (is (instance? dacite.collections.DaciteVector e)))))
 
 (deftest vector-pop-empty-throws-test
   (testing "pop on empty vector throws"
@@ -699,7 +699,7 @@
     (let [m (d/hash-map "a" 1)
           e (.empty m)]
       (is (= 0 (count e)))
-      (is (instance? dacite.core.DaciteMap e)))))
+      (is (instance? dacite.collections.DaciteMap e)))))
 
 (deftest map-conj-map-entry-test
   (testing "conj with MapEntry"
@@ -753,7 +753,7 @@
     (let [b (d/blob (byte-array [1 2 3]))
           h (d/dacite-hash b)
           wrapped (d/wrap-hash h)]
-      (is (instance? dacite.core.DaciteBlob wrapped)))))
+      (is (instance? dacite.collections.DaciteBlob wrapped)))))
 
 (deftest unwrap-hash-non-dacite-test
   (testing "unwrap-hash throws on non-Dacite value"
