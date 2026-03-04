@@ -12,7 +12,7 @@
 
    Measures are fixed 48 bytes: u64(count) + u64(size-bytes) + hash(32B).
    Hashes are 32 bytes (4 × i64, big-endian). All integers big-endian."
-  (:require [dacite.hash :as hash])
+  (:require [dacite.types :as types])
   (:import [java.nio ByteBuffer]))
 
 ;; =============================================================================
@@ -105,7 +105,7 @@
   "Serialize a scalar typed value to bytes.
    Format: 0x00 + u8(len) + canonical-bytes"
   [typed-value]
-  (let [data-bytes (hash/encode-value typed-value)
+  (let [data-bytes (types/encode-value typed-value)
         len (alength data-bytes)
         buf (ByteBuffer/allocate (+ 2 len))]
     (write-u8 buf kind-scalar)

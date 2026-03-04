@@ -47,7 +47,7 @@
   [dacite-map node]
   (let [type-kw (first node)
         ef (:elements-fuse (:measure (second node)))
-        h (hash/node-hash type-kw ef)]
+        h (types/node-hash type-kw ef)]
     [(assoc dacite-map h node) h]))
 
 (defn- lookup-node
@@ -392,7 +392,7 @@
    Value is a [type-name, data] tuple (e.g., [\"i64\" 42]).
    Hash is computed as fuse(type-name-hash, scalar-hash) per spec."
   [dacite-map value]
-  (let [h (hash/typed-value-hash value)]
+  (let [h (types/typed-value-hash value)]
     [(assoc dacite-map h value) h]))
 
 (defn conj-left

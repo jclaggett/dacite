@@ -94,8 +94,8 @@
             (let [bitmap-bytes (.array (doto (java.nio.ByteBuffer/allocate 8)
                                          (.putLong (long (:bitmap data)))))
                   bitmap-hash (hash/fuse-bytes bitmap-bytes)]
-              (hash/unchecked-fuse (hash/node-hash type-kw ef) bitmap-hash))
-            (hash/node-hash type-kw ef))]
+              (hash/unchecked-fuse (types/node-hash type-kw ef) bitmap-hash))
+            (types/node-hash type-kw ef))]
     [(assoc dacite-map h node) h]))
 
 (defn- lookup-node
@@ -281,7 +281,7 @@
    Value is a [type-name, data] tuple (e.g., [\"string\" \"name\"]).
    Hash is computed as fuse(type-name-hash, scalar-hash) per spec."
   [dacite-map value]
-  (let [h (hash/typed-value-hash value)]
+  (let [h (types/typed-value-hash value)]
     [(assoc dacite-map h value) h]))
 
 (defn assoc-val

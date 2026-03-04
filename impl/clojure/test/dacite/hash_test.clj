@@ -5,7 +5,8 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [dacite.hash :as hash]))
+            [dacite.hash :as hash]
+            [dacite.types :as types]))
 
 ;; =============================================================================
 ;; Generators for scalar types
@@ -139,8 +140,8 @@
 
 (defspec typed-value-hash-determinism 100
   (prop/for-all [[type-kw value] gen-tagged-scalar]
-                (= (hash/typed-value-hash [type-kw value])
-                   (hash/typed-value-hash [type-kw value]))))
+                (= (types/typed-value-hash [type-kw value])
+                   (types/typed-value-hash [type-kw value]))))
 
 (defspec fuse-associative 100
   (prop/for-all [a gen-hash
@@ -156,8 +157,8 @@
                  value gen/small-integer]
     ;; Same numeric value with different types should hash differently
                 (or (= type1 type2)
-                    (not= (hash/typed-value-hash [type1 value])
-                          (hash/typed-value-hash [type2 value])))))
+                    (not= (types/typed-value-hash [type1 value])
+                          (types/typed-value-hash [type2 value])))))
 
 ;; =============================================================================
 ;; Unit tests for edge cases  
@@ -196,14 +197,14 @@
 
 (deftest test-null-hashing
   (testing "null has consistent hash"
-    (let [h1 (hash/typed-value-hash ["null" nil])
-          h2 (hash/typed-value-hash ["null" nil])]
+    (let [h1 (types/typed-value-hash ["null" nil])
+          h2 (types/typed-value-hash ["null" nil])]
       (is (= h1 h2)))))
 
 (deftest test-bool-hashing
   (testing "true and false have different hashes"
-    (let [h-true (hash/typed-value-hash ["bool" true])
-          h-false (hash/typed-value-hash ["bool" false])]
+    (let [h-true (types/typed-value-hash ["bool" true])
+          h-false (types/typed-value-hash ["bool" false])]
       (is (not= h-true h-false)))))
 
 (deftest test-low-entropy-detection
@@ -288,47 +289,47 @@
 
 (deftest test-encode-value
   (testing "null encodes to 0 bytes"
-    (let [result (hash/encode-value ["null" nil])]
+    (let [result (types/encode-value ["null" nil])]
       (is (bytes? result))
       (is (= 0 (alength result)))))
   (testing "bool encodes to 1 byte"
-    (is (= [1] (vec (hash/encode-value ["bool" true]))))
-    (is (= [0] (vec (hash/encode-value ["bool" false])))))
+    (is (= [1] (vec (types/encode-value ["bool" true]))))
+    (is (= [0] (vec (types/encode-value ["bool" false])))))
   (testing "i64 encodes to 8 big-endian bytes"
-    (let [result (hash/encode-value ["i64" 42])]
+    (let [result (types/encode-value ["i64" 42])]
       (is (= 8 (alength result)))
       (is (= 42 (.getLong (java.nio.ByteBuffer/wrap result))))))
   (testing "f64 encodes to 8 IEEE 754 bytes"
-    (let [result (hash/encode-value ["f64" 3.14])]
+    (let [result (types/encode-value ["f64" 3.14])]
       (is (= 8 (alength result)))
       (is (= 3.14 (.getDouble (java.nio.ByteBuffer/wrap result))))))
   (testing "char encodes to UTF-8"
-    (let [result (hash/encode-value ["char" \a])]
+    (let [result (types/encode-value ["char" \a])]
       (is (= "a" (String. result "UTF-8")))))
   (testing "u8 encodes to 1 byte"
-    (is (= [42] (vec (hash/encode-value ["u8" 42])))))
+    (is (= [42] (vec (types/encode-value ["u8" 42])))))
   (testing "default falls back to pr-str for unknown types"
-    (let [result (hash/encode-value ["custom" {:x 1}])]
+    (let [result (types/encode-value ["custom" {:x 1}])]
       (is (bytes? result)))))
 
 (deftest test-typed-value-hash-string-type
   (testing "typed-value-hash handles string type name"
-    (let [h1 (hash/typed-value-hash ["my.custom/type" 42])
-          h2 (hash/typed-value-hash ["my.custom/type" 42])]
+    (let [h1 (types/typed-value-hash ["my.custom/type" 42])
+          h2 (types/typed-value-hash ["my.custom/type" 42])]
       (is (= h1 h2))
       (is (vector? h1))
       (is (= 4 (count h1)))))
   (testing "same type name and data produce same hash"
-    (let [h1 (hash/typed-value-hash ["i64" 42])
-          h2 (hash/typed-value-hash ["i64" 42])]
+    (let [h1 (types/typed-value-hash ["i64" 42])
+          h2 (types/typed-value-hash ["i64" 42])]
       (is (= h1 h2)))))
 
 (deftest test-typed-value-hash-domain-separator
   (testing "different type/data boundaries produce different hashes"
     ;; Without a domain separator, type="i64" data="2" and type="i6" data="42"
     ;; would collide because fuse(fuse-str(a), fuse-str(b)) = fuse-str(a++b)
-    (let [h1 (hash/typed-value-hash ["ab" "cd"])
-          h2 (hash/typed-value-hash ["abc" "d"])]
+    (let [h1 (types/typed-value-hash ["ab" "cd"])
+          h2 (types/typed-value-hash ["abc" "d"])]
       (is (not= h1 h2) "domain separator prevents boundary collision"))))
 
 (deftest test-fuse-seq
@@ -393,17 +394,17 @@
 
 (deftest test-node-hash
   (testing "node-hash with zero elements-fuse"
-    (let [h (hash/node-hash "ft/empty" [0 0 0 0])]
+    (let [h (types/node-hash "ft/empty" [0 0 0 0])]
       (is (vector? h))
       (is (= 4 (count h)))))
   (testing "different node types produce different hashes"
     (let [ef (hash/sha256-str "some-content")]
-      (is (not= (hash/node-hash "ft/deep" ef)
-                (hash/node-hash "ft/digit" ef)))))
+      (is (not= (types/node-hash "ft/deep" ef)
+                (types/node-hash "ft/digit" ef)))))
   (testing "same type + same elements-fuse = same hash"
     (let [ef (hash/sha256-str "content")]
-      (is (= (hash/node-hash "ft/deep" ef)
-             (hash/node-hash "ft/deep" ef))))))
+      (is (= (types/node-hash "ft/deep" ef)
+             (types/node-hash "ft/deep" ef))))))
 
 ;; =============================================================================
 ;; Fuse inverse (group structure)

@@ -9,7 +9,13 @@
    Built-in implementations:
    - mem-store: In-memory atom-backed store (default)
    - file-store: Filesystem persistence with directory sharding
-   - layered-store: Compose stores with read-through / write-through"
+   - layered-store: Compose stores with read-through / write-through
+
+   Global store management:
+   - *store*: Dynamic var holding the current store
+   - with-store: Execute body with an isolated store
+   - reset-store!: Clear the global store
+   - set-store!: Replace the global store"
   (:require [dacite.hash :as hash]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
@@ -169,3 +175,34 @@
    Example: (layered-store (mem-store) (file-store \"/tmp/dacite\"))"
   [& layers]
   (->LayeredStore (clojure.core/vec layers)))
+
+;; =============================================================================
+;; Global store management
+;; =============================================================================
+
+(def ^:dynamic *store*
+  "Dynamic var holding the current IStore. Initialized with a global
+   in-memory store so constructors work without with-store."
+  (mem-store))
+
+(defmacro with-store
+  "Execute body with an isolated store. init can be an IStore or a map
+   (which will be wrapped in a mem-store). Returns [snapshot last-value]."
+  [[sym init] & body]
+  `(let [~sym (let [i# ~init]
+                (if (satisfies? IStore i#)
+                  i#
+                  (mem-store i#)))]
+     (binding [*store* ~sym]
+       (let [result# (do ~@body)]
+         [(s-snapshot *store*) result#]))))
+
+(defn reset-store!
+  "Reset the global store to empty. Useful for REPL/testing."
+  []
+  (s-reset *store*))
+
+(defn set-store!
+  "Replace the global store with a new IStore implementation."
+  [new-store]
+  (alter-var-root #'*store* (constantly new-store)))

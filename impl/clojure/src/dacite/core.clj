@@ -30,57 +30,46 @@
             IPersistentMap MapEquivalence]))
 
 ;; =============================================================================
-;; Store management
+;; Store management (canonical definitions in dacite.store)
 ;; =============================================================================
-
-(def ^:dynamic *store*
-  "Dynamic var holding the current IStore. Initialized with a global
-   in-memory store so constructors work without with-store."
-  (store/mem-store))
 
 (defmacro with-store
   "Execute body with an isolated store. init can be an IStore or a map
    (which will be wrapped in a mem-store). Returns [snapshot last-value]."
   [[sym init] & body]
-  `(let [~sym (let [i# ~init]
-                (if (satisfies? store/IStore i#)
-                  i#
-                  (store/mem-store i#)))]
-     (binding [*store* ~sym]
-       (let [result# (do ~@body)]
-         [(store/s-snapshot *store*) result#]))))
+  `(store/with-store [~sym ~init] ~@body))
 
 (defn reset-store!
   "Reset the global store to empty. Useful for REPL/testing."
   []
-  (store/s-reset *store*))
+  (store/reset-store!))
 
 (defn set-store!
   "Replace the global store with a new IStore implementation."
   [new-store]
-  (alter-var-root #'*store* (constantly new-store)))
+  (store/set-store! new-store))
 
 (defn- s-get
-  "Get a value from *store* by hash."
+  "Get a value from store/*store* by hash."
   [h]
-  (store/s-get *store* h))
+  (store/s-get store/*store* h))
 
 (defn- s-put!
-  "Store a typed value in *store*. Returns its hash."
+  "Store a typed value in store/*store*. Returns its hash."
   [value]
-  (let [h (hash/typed-value-hash value)]
-    (store/s-put *store* h value)
+  (let [h (types/typed-value-hash value)]
+    (store/s-put store/*store* h value)
     h))
 
 (defn- s-merge!
-  "Merge a map of {hash value} pairs into *store*."
+  "Merge a map of {hash value} pairs into store/*store*."
   [m]
-  (store/s-merge *store* m))
+  (store/s-merge store/*store* m))
 
 (defn- s-snapshot
-  "Get a plain map snapshot of *store* for bulk operations."
+  "Get a plain map snapshot of store/*store* for bulk operations."
   []
-  (store/s-snapshot *store*))
+  (store/s-snapshot store/*store*))
 
 ;; =============================================================================
 ;; Forward declarations & protocol
@@ -94,8 +83,9 @@
 (declare map-count-internal map-get-internal map-entries-internal)
 (declare map-assoc-internal map-dissoc-internal)
 
-(defprotocol IDaciteHash
-  (dacite-hash [this] "Return the internal hash of this Dacite value."))
+;; Re-export IDaciteHash from types for backward compatibility
+(def IDaciteHash types/IDaciteHash)
+(def dacite-hash types/dacite-hash)
 
 (defn- extract-hash
   "Extract hash from a Dacite type, or coerce and store a raw value."
@@ -534,45 +524,45 @@
     (ft/tree-seq-lazy [(s-snapshot) root])))
 
 (defn- store-string!
-  "Merge ft-store into *store*, compute size, store string node. Returns hash."
+  "Merge ft-store into store/*store*, compute size, store string node. Returns hash."
   [ft-store ft-root]
   (s-merge! ft-store)
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         cnt (ft/tree-count [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
-        h (hash/node-hash "string" ef)]
-    (store/s-put *store* h ["string" {:root ft-root
-                                      :count cnt
-                                      :size-bytes sb}])
+        h (types/node-hash "string" ef)]
+    (store/s-put store/*store* h ["string" {:root ft-root
+                                            :count cnt
+                                            :size-bytes sb}])
     h))
 
 (defn- store-blob!
-  "Merge ft-store into *store*, compute size, store blob node. Returns hash."
+  "Merge ft-store into store/*store*, compute size, store blob node. Returns hash."
   [ft-store ft-root]
   (s-merge! ft-store)
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         cnt (ft/tree-count [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
-        h (hash/node-hash "blob" ef)]
-    (store/s-put *store* h ["blob" {:root ft-root
-                                    :count cnt
-                                    :size-bytes sb}])
+        h (types/node-hash "blob" ef)]
+    (store/s-put store/*store* h ["blob" {:root ft-root
+                                          :count cnt
+                                          :size-bytes sb}])
     h))
 
 (defn- store-vector!
-  "Merge ft-store into *store*, compute size, store vector node. Returns hash."
+  "Merge ft-store into store/*store*, compute size, store vector node. Returns hash."
   [ft-store ft-root]
   (s-merge! ft-store)
   (let [store (s-snapshot)
         ef (ft/tree-elements-fuse [store ft-root])
         cnt (ft/tree-count [store ft-root])
         sb (ft/tree-size-bytes [store ft-root])
-        h (hash/node-hash "vector" ef)]
-    (store/s-put *store* h ["vector" {:root ft-root
-                                      :count cnt
-                                      :size-bytes sb}])
+        h (types/node-hash "vector" ef)]
+    (store/s-put store/*store* h ["vector" {:root ft-root
+                                            :count cnt
+                                            :size-bytes sb}])
     h))
 
 (defn- build-vector-from-refs! [refs]
@@ -614,38 +604,38 @@
 (defn- map-get-internal [map-hash key]
   (let [{:keys [root]} (second (s-get map-hash))
         kh (extract-hash key)
-        k-hash (hash/typed-value-hash (s-get kh))]
+        k-hash (types/typed-value-hash (s-get kh))]
     (hamt/get-val [(s-snapshot) root] k-hash)))
 
 (defn- map-entries-internal [h]
   (hamt/entries [(s-snapshot) (:root (second (s-get h)))]))
 
 (defn- store-map!
-  "Merge hamt-store into *store*, compute size, store map node. Returns hash."
+  "Merge hamt-store into store/*store*, compute size, store map node. Returns hash."
   [hamt-store hamt-root]
   (s-merge! hamt-store)
   (let [store (s-snapshot)
         ef (hamt/hamt-elements-fuse [store hamt-root])
         cnt (hamt/hamt-count [store hamt-root])
         sb (hamt/hamt-size-bytes [store hamt-root])
-        h (hash/node-hash "map" ef)]
-    (store/s-put *store* h ["map" {:root hamt-root
-                                   :count cnt
-                                   :size-bytes sb}])
+        h (types/node-hash "map" ef)]
+    (store/s-put store/*store* h ["map" {:root hamt-root
+                                         :count cnt
+                                         :size-bytes sb}])
     h))
 
 (defn- map-assoc-internal [map-hash k v]
   (let [{:keys [root]} (second (s-get map-hash))
         kh (extract-hash k)
         vh (extract-hash v)
-        k-hash (hash/typed-value-hash (s-get kh))
+        k-hash (types/typed-value-hash (s-get kh))
         [s' new-root] (hamt/assoc-val [(s-snapshot) root] k-hash kh vh)]
     (store-map! s' new-root)))
 
 (defn- map-dissoc-internal [map-hash k]
   (let [{:keys [root]} (second (s-get map-hash))
         kh (extract-hash k)
-        k-hash (hash/typed-value-hash (s-get kh))
+        k-hash (types/typed-value-hash (s-get kh))
         [s' new-root] (hamt/dissoc-val [(s-snapshot) root] k-hash)]
     (store-map! s' new-root)))
 
@@ -660,7 +650,7 @@
         ref-pairs (mapv (fn [[k v]] [(extract-hash k) (extract-hash v)]) pairs)
         [hamt-store hamt-root]
         (reduce (fn [[s root] [kh vh]]
-                  (let [k-hash (hash/typed-value-hash (get s kh))]
+                  (let [k-hash (types/typed-value-hash (get s kh))]
                     (hamt/assoc-val [s root] k-hash kh vh)))
                 (let [[s root] (hamt/hamt)] [(merge (s-snapshot) s) root])
                 ref-pairs)]
@@ -710,7 +700,7 @@
   "Recursively convert plain Clojure data to Dacite values.
    Vectors become DaciteVector, maps become DaciteMap,
    strings become DaciteString, scalars are auto-coerced.
-   Uses *store*."
+   Uses store/*store*."
   [x]
   (cond
     (satisfies? IDaciteHash x) x

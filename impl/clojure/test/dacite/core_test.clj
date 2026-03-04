@@ -557,10 +557,10 @@
 
 (deftest set-store-test
   (testing "set-store! replaces the global store"
-    (let [original d/*store*
+    (let [original store/*store*
           new-store (store/mem-store)]
       (d/set-store! new-store)
-      (is (identical? new-store d/*store*))
+      (is (identical? new-store store/*store*))
       ;; Restore original
       (d/set-store! original))))
 
