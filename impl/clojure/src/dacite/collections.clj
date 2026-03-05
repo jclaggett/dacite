@@ -458,16 +458,15 @@
 ;; Vector construction
 ;; =============================================================================
 
-(defn vec
-  "Create a dacite vector from values (auto-coerced or Dacite types)."
-  [values]
-  (let [refs (mapv extract-hash values)]
-    (->DaciteVector (build-vector-from-refs! refs))))
-
 (defn vec-of-refs
   "Create a dacite vector from raw hashes (refs already in store)."
   [refs]
   (->DaciteVector (build-vector-from-refs! refs)))
+
+(defn vec
+  "Create a dacite vector from values (auto-coerced or Dacite types)."
+  [values]
+  (vec-of-refs (mapv extract-hash values)))
 
 ;; =============================================================================
 ;; Map internals
