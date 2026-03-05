@@ -5,8 +5,7 @@
    in the store. Implements IDeref (to unwrap), IHashEq, IFn (zero-arg
    returns deref), and the IDaciteHash protocol.
 
-   Scalar constructors: null, bool, i8-i64, u8-u256, f32, f64, dacite-char.
-   Utility functions: scalar-type, scalar-hash, size-bytes."
+   Scalar constructors: null, bool, i8-i64, u8-u256, f32, f64, dacite-char."
   (:require [dacite.hash :as hash]
             [dacite.types :as types]
             [dacite.store :as store])
@@ -98,23 +97,4 @@
   [h]
   (->DaciteScalar h))
 
-;; =============================================================================
-;; Utility functions
-;; =============================================================================
 
-(defn scalar-type
-  "Get the type name of a Dacite value."
-  [x]
-  (let [[type-kw _data] (s-get (types/dacite-hash x))]
-    type-kw))
-
-(defn scalar-hash
-  "Get the raw hash of a Dacite value."
-  [x]
-  (types/dacite-hash x))
-
-(defn size-bytes
-  "Get the total size in bytes of a Dacite value (O(1) for collections)."
-  [x]
-  (let [v (s-get (types/dacite-hash x))]
-    (types/dacite-size v)))

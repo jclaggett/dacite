@@ -8,6 +8,7 @@
    clj->dac: recursively convert Clojure → Dacite (auto-coerces scalars,
      wraps vectors/maps/strings into their Dacite equivalents)."
   (:require [dacite.types :as types]
+            [dacite.store :as store]
             [dacite.scalar :as scalar]
             [dacite.collections :as coll])
   (:import [dacite.scalar DaciteScalar]
@@ -41,12 +42,14 @@
    vectors to persistent vectors, maps to persistent hash maps.
 
    Optional max-bytes parameter (default 1 MB) limits the total byte
-   size that will be materialized. Checked upfront via O(1) size-bytes.
+   size that will be materialized. Checked upfront via O(1) dacite-size.
    Throws ex-info if the value exceeds the limit."
   ([x] (dac->clj x default-max-bytes))
   ([x max-bytes]
    (when (satisfies? types/IDaciteHash x)
-     (let [sb (scalar/size-bytes x)]
+     (let [sb (-> (types/dacite-hash x)
+                  (->> (store/s-get store/*store*))
+                  types/dacite-size)]
        (when (> sb max-bytes)
          (throw (ex-info (str "dac->clj: value size " sb
                               " bytes exceeds limit of " max-bytes " bytes")
