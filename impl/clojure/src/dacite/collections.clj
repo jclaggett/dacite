@@ -529,3 +529,19 @@
                 (let [[s root] (hamt/hamt)] [(merge (s-snapshot) s) root])
                 ref-pairs)]
     (->DaciteMap (store-map! hamt-store hamt-root))))
+
+;; =============================================================================
+;; dacite-size implementations for collection types
+;; =============================================================================
+
+(defmethod types/dacite-size "string" [[_ data]]
+  (:size-bytes data 0))
+
+(defmethod types/dacite-size "vector" [[_ data]]
+  (:size-bytes data 0))
+
+(defmethod types/dacite-size "map" [[_ data]]
+  (:size-bytes data 0))
+
+(defmethod types/dacite-size "blob" [[_ data]]
+  (:size-bytes data 0))

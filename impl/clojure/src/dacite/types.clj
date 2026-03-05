@@ -16,8 +16,7 @@
    To add a new type, extend dacite-size and encode-value:
    (defmethod dacite-size \"my-type\" [[_ data]] ...)
    (defmethod encode-value \"my-type\" [[_ data]] ...)"
-  (:require [dacite.hash :as hash])
-  (:import [java.nio ByteBuffer]))
+  (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
 ;; IDaciteHash protocol
@@ -62,74 +61,6 @@
     (count (.getBytes (pr-str data) "UTF-8"))))
 
 ;; =============================================================================
-;; Null
-;; =============================================================================
-
-(defmethod dacite-size "null" [_] 0)
-
-;; =============================================================================
-;; Boolean
-;; =============================================================================
-
-(defmethod dacite-size "bool" [_] 1)
-
-;; =============================================================================
-;; Signed integers
-;; =============================================================================
-
-(defmethod dacite-size "i8" [_] 1)
-(defmethod dacite-size "i16" [_] 2)
-(defmethod dacite-size "i32" [_] 4)
-(defmethod dacite-size "i64" [_] 8)
-(defmethod dacite-size "i128" [_] 16)
-(defmethod dacite-size "i256" [_] 32)
-
-;; =============================================================================
-;; Unsigned integers
-;; =============================================================================
-
-(defmethod dacite-size "u8" [_] 1)
-(defmethod dacite-size "u16" [_] 2)
-(defmethod dacite-size "u32" [_] 4)
-(defmethod dacite-size "u64" [_] 8)
-(defmethod dacite-size "u128" [_] 16)
-(defmethod dacite-size "u256" [_] 32)
-
-;; =============================================================================
-;; Floating point
-;; =============================================================================
-
-(defmethod dacite-size "f32" [_] 4)
-(defmethod dacite-size "f64" [_] 8)
-
-;; =============================================================================
-;; Character (Unicode code point, UTF-8 encoded)
-;; =============================================================================
-
-(defmethod dacite-size "char" [[_ ch]]
-  (count (.getBytes (str ch) "UTF-8")))
-
-;; =============================================================================
-;; Strings (UTF-8 byte count)
-;; =============================================================================
-
-(defmethod dacite-size "string" [[_ data]]
-  (:size-bytes data 0))
-
-;; =============================================================================
-;; Collections (cached size-bytes from construction)
-;; =============================================================================
-
-(defmethod dacite-size "vector" [[_ data]]
-  (:size-bytes data 0))
-
-(defmethod dacite-size "map" [[_ data]]
-  (:size-bytes data 0))
-
-(defmethod dacite-size "blob" [[_ data]]
-  (:size-bytes data 0))
-
-;; =============================================================================
 ;; Canonical value encoding (multimethod)
 ;; =============================================================================
 
@@ -157,70 +88,6 @@
    Collections (string, vector, map, blob) are hashed via their
    elements_fuse measure, not via encode-value."
   (fn [[type-name _data]] type-name))
-
-;; Null: 0 bytes
-(defmethod encode-value "null" [_]
-  (byte-array 0))
-
-;; Boolean: 1 byte
-(defmethod encode-value "bool" [[_ b]]
-  (byte-array [(if b (byte 1) (byte 0))]))
-
-;; Signed integers: big-endian
-(defmethod encode-value "i8" [[_ n]]
-  (byte-array [(unchecked-byte n)]))
-
-(defmethod encode-value "i16" [[_ n]]
-  (let [buf (ByteBuffer/allocate 2)]
-    (.putShort buf (short n))
-    (.array buf)))
-
-(defmethod encode-value "i32" [[_ n]]
-  (let [buf (ByteBuffer/allocate 4)]
-    (.putInt buf (int n))
-    (.array buf)))
-
-(defmethod encode-value "i64" [[_ n]]
-  (let [buf (ByteBuffer/allocate 8)]
-    (.putLong buf (long n))
-    (.array buf)))
-
-;; Unsigned integers: big-endian (stored as their byte representation)
-(defmethod encode-value "u8" [[_ n]]
-  (byte-array [(unchecked-byte n)]))
-
-(defmethod encode-value "u16" [[_ n]]
-  (let [buf (ByteBuffer/allocate 2)]
-    (.putShort buf (unchecked-short n))
-    (.array buf)))
-
-(defmethod encode-value "u32" [[_ n]]
-  (let [buf (ByteBuffer/allocate 4)]
-    (.putInt buf (unchecked-int n))
-    (.array buf)))
-
-(defmethod encode-value "u64" [[_ n]]
-  (let [buf (ByteBuffer/allocate 8)]
-    (.putLong buf (unchecked-long n))
-    (.array buf)))
-
-(defmethod encode-value "u256" [[_ ^bytes data]]
-  data)
-
-;; Floating point: IEEE 754 big-endian
-(defmethod encode-value "f32" [[_ n]]
-  (let [buf (ByteBuffer/allocate 4)]
-    (.putFloat buf (float n))
-    (.array buf)))
-
-(defmethod encode-value "f64" [[_ n]]
-  (let [buf (ByteBuffer/allocate 8)]
-    (.putDouble buf (double n))
-    (.array buf)))
-
-;; Character: UTF-8 bytes
-(defmethod encode-value "char" [[_ ch]]
-  (.getBytes (str ch) "UTF-8"))
 
 ;; Default: fall back to pr-str for types without a canonical encoding.
 ;; This covers collection types (string, vector, map, blob) when they

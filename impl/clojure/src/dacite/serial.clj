@@ -12,7 +12,8 @@
 
    Measures are fixed 48 bytes: u64(count) + u64(size-bytes) + hash(32B).
    Hashes are 32 bytes (4 × i64, big-endian). All integers big-endian."
-  (:require [dacite.types :as types])
+  (:require [dacite.types :as types]
+            [dacite.scalar])
   (:import [java.nio ByteBuffer]))
 
 ;; =============================================================================

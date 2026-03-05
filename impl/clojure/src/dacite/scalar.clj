@@ -9,7 +9,8 @@
   (:require [dacite.hash :as hash]
             [dacite.types :as types]
             [dacite.store :as store])
-  (:import [clojure.lang IDeref IHashEq IFn]))
+  (:import [clojure.lang IDeref IHashEq IFn]
+           [java.nio ByteBuffer]))
 
 ;; =============================================================================
 ;; Private store helpers
@@ -97,4 +98,87 @@
   [h]
   (->DaciteScalar h))
 
+;; =============================================================================
+;; dacite-size implementations for scalar types
+;; =============================================================================
 
+(defmethod types/dacite-size "null" [_] 0)
+(defmethod types/dacite-size "bool" [_] 1)
+(defmethod types/dacite-size "i8" [_] 1)
+(defmethod types/dacite-size "i16" [_] 2)
+(defmethod types/dacite-size "i32" [_] 4)
+(defmethod types/dacite-size "i64" [_] 8)
+(defmethod types/dacite-size "i128" [_] 16)
+(defmethod types/dacite-size "i256" [_] 32)
+(defmethod types/dacite-size "u8" [_] 1)
+(defmethod types/dacite-size "u16" [_] 2)
+(defmethod types/dacite-size "u32" [_] 4)
+(defmethod types/dacite-size "u64" [_] 8)
+(defmethod types/dacite-size "u128" [_] 16)
+(defmethod types/dacite-size "u256" [_] 32)
+(defmethod types/dacite-size "f32" [_] 4)
+(defmethod types/dacite-size "f64" [_] 8)
+(defmethod types/dacite-size "char" [[_ ch]]
+  (count (.getBytes (str ch) "UTF-8")))
+
+;; =============================================================================
+;; encode-value implementations for scalar types
+;; =============================================================================
+
+(defmethod types/encode-value "null" [_]
+  (byte-array 0))
+
+(defmethod types/encode-value "bool" [[_ b]]
+  (byte-array [(if b (byte 1) (byte 0))]))
+
+(defmethod types/encode-value "i8" [[_ n]]
+  (byte-array [(unchecked-byte n)]))
+
+(defmethod types/encode-value "i16" [[_ n]]
+  (let [buf (ByteBuffer/allocate 2)]
+    (.putShort buf (short n))
+    (.array buf)))
+
+(defmethod types/encode-value "i32" [[_ n]]
+  (let [buf (ByteBuffer/allocate 4)]
+    (.putInt buf (int n))
+    (.array buf)))
+
+(defmethod types/encode-value "i64" [[_ n]]
+  (let [buf (ByteBuffer/allocate 8)]
+    (.putLong buf (long n))
+    (.array buf)))
+
+(defmethod types/encode-value "u8" [[_ n]]
+  (byte-array [(unchecked-byte n)]))
+
+(defmethod types/encode-value "u16" [[_ n]]
+  (let [buf (ByteBuffer/allocate 2)]
+    (.putShort buf (unchecked-short n))
+    (.array buf)))
+
+(defmethod types/encode-value "u32" [[_ n]]
+  (let [buf (ByteBuffer/allocate 4)]
+    (.putInt buf (unchecked-int n))
+    (.array buf)))
+
+(defmethod types/encode-value "u64" [[_ n]]
+  (let [buf (ByteBuffer/allocate 8)]
+    (.putLong buf (unchecked-long n))
+    (.array buf)))
+
+(defmethod types/encode-value "u256" [[_ ^bytes data]]
+  data)
+
+(defmethod types/encode-value "f32" [[_ n]]
+  (let [buf (ByteBuffer/allocate 4)]
+    (.putFloat buf (float n))
+    (.array buf)))
+
+(defmethod types/encode-value "f64" [[_ n]]
+  (let [buf (ByteBuffer/allocate 8)]
+    (.putDouble buf (double n))
+    (.array buf)))
+
+(defmethod types/encode-value "char" [[_ ch]]
+  (.getBytes (str ch) "UTF-8"))

@@ -1,7 +1,9 @@
 (ns dacite.types-test
   "Tests for dacite.types - 100% coverage via public API."
   (:require [clojure.test :refer [deftest is testing]]
-            [dacite.types :as types]))
+            [dacite.types :as types]
+            [dacite.scalar]
+            [dacite.collections]))
 
 ;; =============================================================================
 ;; Value accessors
