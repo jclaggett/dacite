@@ -185,18 +185,6 @@
    in-memory store so constructors work without with-store."
   (mem-store))
 
-(defmacro with-store
-  "Execute body with an isolated store. init can be an IStore or a map
-   (which will be wrapped in a mem-store). Returns [snapshot last-value]."
-  [[sym init] & body]
-  `(let [~sym (let [i# ~init]
-                (if (satisfies? IStore i#)
-                  i#
-                  (mem-store i#)))]
-     (binding [*store* ~sym]
-       (let [result# (do ~@body)]
-         [(s-snapshot *store*) result#]))))
-
 (defn reset-store!
   "Reset the global store to empty. Useful for REPL/testing."
   []
@@ -206,10 +194,6 @@
   "Replace the global store with a new IStore implementation."
   [new-store]
   (alter-var-root #'*store* (constantly new-store)))
-
-;; =============================================================================
-;; Convenience accessors on *store*
-;; =============================================================================
 
 (defn get-store
   "Get a value from *store* by hash."
@@ -221,12 +205,24 @@
   [h value]
   (s-put *store* h value))
 
+(defn snapshot-store
+  "Get a plain map snapshot of *store*."
+  []
+  (s-snapshot *store*))
+
 (defn merge-store!
   "Merge a map of {hash value} pairs into *store*."
   [m]
   (s-merge *store* m))
 
-(defn snapshot-store
-  "Get a plain map snapshot of *store*."
-  []
-  (s-snapshot *store*))
+(defmacro with-store
+  "Execute body with an isolated store. init can be an IStore or a map
+   (which will be wrapped in a mem-store). Returns [snapshot last-value]."
+  [[sym init] & body]
+  `(let [~sym (let [i# ~init]
+                (if (satisfies? IStore i#)
+                  i#
+                  (mem-store i#)))]
+     (binding [*store* ~sym]
+       (let [result# (do ~@body)]
+         [(snapshot-store) result#]))))
