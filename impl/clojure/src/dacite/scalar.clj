@@ -13,19 +13,14 @@
            [java.nio ByteBuffer]))
 
 ;; =============================================================================
-;; Private store helpers
+;; Private store helper
 ;; =============================================================================
 
-(defn- s-get
-  "Get a value from the current store by hash."
-  [h]
-  (store/s-get store/*store* h))
-
-(defn- s-put!
+(defn- put-typed!
   "Store a typed value. Returns its content-addressed hash."
   [value]
   (let [h (types/typed-value-hash value)]
-    (store/s-put store/*store* h value)
+    (store/put-store! h value)
     h))
 
 ;; =============================================================================
@@ -38,7 +33,7 @@
 
   IDeref
   (deref [_]
-    (let [[_type-kw data] (s-get _hash)]
+    (let [[_type-kw data] (store/get-store _hash)]
       data))
 
   IHashEq
@@ -50,7 +45,7 @@
     (and (instance? DaciteScalar other)
          (= _hash (.-_hash ^DaciteScalar other))))
   (toString [_]
-    (let [[type-kw data] (s-get _hash)]
+    (let [[type-kw data] (store/get-store _hash)]
       (pr-str [type-kw data])))
 
   IFn
@@ -61,7 +56,7 @@
 ;; =============================================================================
 
 (defn- scalar [type-kw data]
-  (->DaciteScalar (s-put! [type-kw data])))
+  (->DaciteScalar (put-typed! [type-kw data])))
 
 (defn null "Create a null value."    []  (scalar "null" nil))
 (defn bool "Create a boolean value." [b] (scalar "bool" b))

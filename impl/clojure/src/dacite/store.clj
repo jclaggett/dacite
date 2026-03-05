@@ -206,3 +206,27 @@
   "Replace the global store with a new IStore implementation."
   [new-store]
   (alter-var-root #'*store* (constantly new-store)))
+
+;; =============================================================================
+;; Convenience accessors on *store*
+;; =============================================================================
+
+(defn get-store
+  "Get a value from *store* by hash."
+  [h]
+  (s-get *store* h))
+
+(defn put-store!
+  "Store a value at hash in *store*. Returns the store."
+  [h value]
+  (s-put *store* h value))
+
+(defn merge-store!
+  "Merge a map of {hash value} pairs into *store*."
+  [m]
+  (s-merge *store* m))
+
+(defn snapshot-store
+  "Get a plain map snapshot of *store*."
+  []
+  (s-snapshot *store*))

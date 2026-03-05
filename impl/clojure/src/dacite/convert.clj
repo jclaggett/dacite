@@ -48,7 +48,7 @@
   ([x max-bytes]
    (when (satisfies? types/IDaciteHash x)
      (let [sb (-> (types/dacite-hash x)
-                  (->> (store/s-get store/*store*))
+                  store/get-store
                   types/dacite-size)]
        (when (> sb max-bytes)
          (throw (ex-info (str "dac->clj: value size " sb
