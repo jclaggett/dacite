@@ -1,6 +1,6 @@
 # Authorization Design — Store Access Control
 
-*Draft: 2026-03-05. From discussion between Jonathan and Gorm.*
+*Draft: 2026-03-05. Revised: 2026-03-06. From discussion between Jonathan and Gorm.*
 
 ## Core Principle
 
@@ -23,53 +23,40 @@ provides the user's **root hash** — the entry point to their data.
 To fetch any node, a client must provide:
 
 1. **Auth token** — proves identity (who you are)
-2. **Proof chain** — a sequence of hashes `[root, h1, h2, ..., target]` proving
-   that `target` is reachable from `root` through the DAG structure
+2. **Proof chain hash** — the hash of a Dacite vector containing
+   `[root, h1, h2, ..., target]`, proving that `target` is reachable from
+   `root` through the DAG structure
 
-The server verifies each link: node at `h_n` must contain a reference to `h_{n+1}`.
+The proof chain is always a Dacite vector. Small chains (≤32 hashes) are
+transmitted by value in a single response per the spec. Larger chains are
+fetched lazily like any other Dacite value.
+
+The server verifies each link: node at `h_n` must contain a reference to
+`h_{n+1}`.
 
 ### Properties
 
-- **No ACLs.** Authorization is derived from structure. If a node is in your tree,
-  you can reach it.
-- **Structural sharing is safe.** Two users may share the same subtree (same hash).
-  Each proves access through their own root. The server doesn't care that the
-  underlying node is shared — authorization paths are independent.
+- **No ACLs.** Authorization is derived from structure. If a node is in your
+  tree, you can reach it.
+- **Structural sharing is safe.** Two users may share the same subtree (same
+  hash). Each proves access through their own root. The server doesn't care
+  that the underlying node is shared — authorization paths are independent.
 - **Natural scoping.** Sharing a subtree root with someone grants access to
   everything below it, nothing above it. Delegation is just sharing a hash.
-- **Revocation** is possible by restructuring: change your tree so the revoked
-  subtree is no longer reachable from your root.
-
-## Proof Chain Optimization
-
-For shallow values, the proof chain is short and can be sent inline in a
-request header.
-
-For deeply nested values (chain length > 32), the proof chain itself is
-represented as a **Dacite vector** — a sequence of hashes stored as a Dacite
-value. The request includes only the chain's root hash. The server fetches
-chain segments as needed.
-
-**The authorization proof is itself a Dacite value.** Turtles all the way down.
-
-### Chunking Strategy
-
-| Chain length | Strategy                                    |
-|-------------|---------------------------------------------|
-| ≤ 32        | Inline in request header                    |
-| > 32        | Dacite vector; send chain root hash only    |
+- **Revocation** is achieved by restructuring: build a new root that omits the
+  revoked subtree (e.g., `dissoc`). The old root hash becomes inaccessible
+  once the user's root pointer is updated. No negative authorization needed.
 
 ## Peer-to-Peer Store Model
 
-To resolve the bootstrap problem (server needs the proof chain, but the chain
-is a Dacite value requiring authorization to access), the client advertises
-itself as a store to the server.
+Both client and server are stores. The `IStore` protocol is the universal
+interface for all data exchange.
 
 **Client and server are peers in a network of stores.**
 
-- Client requests hash `h` with proof chain hash `c`
-- Server needs to verify `c` → fetches chain segments from client's store
-  (via the same `IStore` protocol)
+- Client requests hash `h` with auth token and proof chain hash `c`
+- Server needs to verify `c` → fetches the proof chain vector from the
+  client's store (via `s-get`)
 - Server walks the chain, confirming reachability from root to `h`
 - Server returns node at `h`
 
@@ -85,32 +72,53 @@ server it authenticated with).
   policies could themselves be Dacite values shared across the network
 - The `IStore` protocol remains the universal interface
 
-## Open Questions
+## Writes: Root Replacement via s-get
 
-1. **Server-side proof caching.** Once the server verifies you can reach `h5`
-   from root, should it cache that fact for the session? Avoids re-verification
-   on repeated access. Trade-off: memory vs. round trips.
+The immutable nature of Dacite values means **all mutations redefine the root
+hash.** There is no in-place update.
 
-2. **Write authorization.** Does `s-put` use the same chain model? Writing new
-   nodes doesn't have a pre-existing path from root. Possibly: write is
-   authorized by proving you own the root that *will* reference the new node
-   (i.e., you're building a new version of your tree).
+Write flow:
 
-3. **Chain verification cost.** Walking the chain requires fetching and
-   inspecting intermediate nodes. For large trees this could be expensive.
-   Could Merkle inclusion proofs compress the verification?
+1. Client fetches current value from server, makes changes locally (e.g.,
+   `assoc` a new key into a map)
+2. Client computes new root hash for the modified value
+3. Client sends the new root hash to the server
+4. Server uses `s-get` to fetch new/changed nodes from the client's store
+5. Server updates the user's root pointer to the new hash
 
-4. **Delegation tokens.** Could a user mint a signed token saying "bearer may
-   access anything reachable from hash X"? This would avoid chain transmission
-   entirely for delegated access, at the cost of introducing a signing layer.
+**`s-put` may not be needed.** The client only needs to present a new root
+hash. The server pulls whatever it's missing. This preserves the peer model:
+data flows via `s-get` in both directions.
 
-5. **Negative authorization.** Can you *exclude* subtrees? E.g., share your
-   root but mark certain branches as off-limits. This would require explicit
-   deny rules, breaking the pure structural model.
+### Write Authorization
 
-6. **Proof chain as audit trail.** Since the chain is a Dacite value, it's
-   immutable and content-addressed. This naturally creates an audit log of
-   what paths were used to access what data.
+Authorized by identity: if your auth token entitles you to update your root
+pointer, you can present any new root hash. The server fetches the new subtrees
+and adopts the new root. No proof chain needed for writes — the act of
+updating your own root *is* the authorization.
+
+## Delegation
+
+A root hash can be designated as an independent entry point with its own
+authorization token. This enables delegation without proof chains: mint a
+token for a subtree root, hand it to another party, and they access that
+subtree directly.
+
+This is equivalent to giving someone their own "account" rooted at a subtree
+of your data.
+
+## Server-Side Proof Caching
+
+The server may cache verified proof chains in its own store. Implementation
+details (separate store, TTL policies, eviction) are left to the
+implementation. The important property: caching is an optimization, not a
+requirement. The protocol works without it.
+
+## Proof Chain as Audit Trail
+
+Since proof chains are Dacite values (immutable, content-addressed), they
+naturally form an audit log of what paths were used to access what data.
+The server can retain proof chain hashes as access records.
 
 ## Relationship to Roadmap
 
