@@ -36,7 +36,8 @@
                                      (seq x))
     :else x))
 
-(defn dac->clj
+;; ^:export for JS interop
+(defn ^:export dac->clj
   "Recursively convert a Dacite value to plain Clojure data.
    Scalars unwrap to their raw value, strings to String,
    vectors to persistent vectors, maps to persistent hash maps.
