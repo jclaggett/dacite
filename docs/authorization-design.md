@@ -1,6 +1,6 @@
 # Authorization Design — Store Access Control
 
-*Draft: 2026-03-05. Revised: 2026-03-06. From discussion between Jonathan and Gorm.*
+*Draft: 2026-03-05. Revised: 2026-03-07. From discussion between Jonathan and Gorm.*
 
 ## Core Principle
 
@@ -14,104 +14,109 @@ hash from a root you're entitled to.
 
 Users authenticate to a store service (e.g., `https://dacite.io/store`) using
 standard credentials (token, OAuth, etc.). Upon authentication, the server
-provides the user's **root hash** — the entry point to their data.
+provides the user's **root hash** and a **session token**.
 
-## Authorization: Proof Chains with Dedicated Stores
+## Two Stores, Two Auth Levels
 
-### Proof Chains
+A Dacite service exposes two stores to each authenticated client:
 
-To fetch a node, the client provides:
+### Session Store
 
-1. **Auth token** — proves identity (who you are)
-2. **Proof chain root hash** — the hash of a Dacite vector containing
-   `[root, h1, h2, ..., target]`, proving that `target` is reachable from
-   the client's root through the DAG structure
+- **Authorization:** session token only (no proof chain required)
+- **Scope:** per-session, ephemeral — lives and dies with the session
+- **Contents:** proof chains, session metadata
+- **Purpose:** holds the authorization data itself
 
-The proof chain is always a Dacite vector. Small chains (≤32 hashes) are
-transmitted by value in a single response per the spec. Larger chains are
-fetched lazily by the server from the client.
+The session store doesn't need proof chains because it IS the proof chain
+store. Proving you can access proof chains with proof chains would be circular.
+
+### Main Store
+
+- **Authorization:** session token + valid proof chain
+- **Scope:** persistent, shared across all users
+- **Contents:** all user data (Dacite values)
+- **Purpose:** holds the actual data
+
+Every `s-get` against the main store requires a proof chain proving that
+the requested hash is reachable from the client's authenticated root.
+
+## Proof Chains
+
+A proof chain is a Dacite vector of hashes `[root, h1, h2, ..., target]`
+proving that `target` is reachable from `root` through the DAG structure.
+
+To fetch a node from the main store, the client provides:
+
+1. **Session token** — proves identity and session
+2. **Proof chain** — proves structural reachability from root to target
 
 The server verifies each link: node at `h_n` must contain a reference to
-`h_{n+1}`. The server is stateless — each request is verified independently.
+`h_{n+1}`.
 
-### Dedicated Stores (Sandboxed Interaction)
+### Transmission
 
-When the server needs to fetch the proof chain from the client (via `s-get`),
-a question arises: what prevents the server from accessing other client data?
-
-The answer: the client creates a **dedicated store** containing only the nodes
-relevant to the interaction. The server can freely `s-get` anything from this
-store — there is nothing else in it.
-
-1. Client builds the proof chain (a Dacite vector of hashes)
-2. Client creates a dedicated store containing *only* the chain's nodes
-3. Client provides the server with the chain root hash and access to the
-   dedicated store
-4. Server fetches and verifies the chain from the dedicated store
-5. Server returns the requested node
-
-The dedicated store is a **sandbox per interaction** — the client controls
-exactly what surface area the server can see. No frontier tracking, no
-per-session state on the server.
+- **Small chains (≤32 hashes):** transmitted inline with the request
+- **Large chains (>32 hashes):** stored as a Dacite vector in the client's
+  session store. The client sends the chain's root hash; the server fetches
+  the chain from the session store (no proof chain needed — session store
+  access is authorized by session token alone)
 
 ### Properties
 
-- **Stateless server.** Each request is self-contained. No per-session state,
-  no frontier sets to maintain. Any server instance can handle any request.
-- **No ACLs.** Authorization is derived from structure. If a node is reachable
-  from your root, you can reach it.
-- **Client-scoped isolation.** The dedicated store exposes only what the client
-  chooses. The server cannot access unrelated client data.
-- **Structural sharing is safe.** Two users may share the same subtree (same
-  hash). Each proves access through their own root. The server doesn't care
-  that the underlying node is shared — authorization paths are independent.
-- **Natural scoping.** Sharing a subtree root grants access to everything below
-  it, nothing above it. Delegation is just sharing a hash.
-- **Revocation** is achieved by restructuring: build a new root that omits the
-  revoked subtree (e.g., `dissoc`). No negative authorization needed.
+- **No ACLs.** Authorization is derived from structure.
+- **Structural sharing is safe.** Two users may share the same subtree.
+  Each proves access through their own root.
+- **Natural scoping.** Sharing a subtree root grants access to everything
+  below it, nothing above it. Delegation is just sharing a hash.
+- **Revocation** is achieved by restructuring: build a new root that omits
+  the revoked subtree (e.g., `dissoc`). No negative authorization needed.
 
 ## Peer-to-Peer Store Model
 
 Both client and server are stores. The `IStore` protocol is the universal
-interface for all data exchange.
+interface for all data exchange. **Data is always transmitted using proof
+chains.**
 
 **Client and server are peers in a network of stores.**
 
-- **Reads:** Client authenticates → receives root hash → builds proof chain →
-  creates dedicated store with chain nodes → server verifies chain via
-  `s-get` from dedicated store → server returns requested node
-- **Writes:** Client builds new value locally → creates dedicated store with
-  new/changed subtree nodes → declares new root hash → server fetches new
-  nodes via `s-get` from dedicated store → server updates root pointer
+### Reads (client fetches from server)
 
-Both directions use the same `IStore` protocol. The dedicated store pattern
-ensures isolation in both cases.
+1. Client builds proof chain from root to target
+2. Client stores chain in session store (if large) or sends inline
+3. Server verifies chain against its own main store
+4. Server returns the requested node
+
+### Writes (server fetches from client)
+
+1. Client modifies data locally, computes new root hash
+2. Client declares new root hash to server
+3. Server walks from new root, building proof chains as it discovers
+   nodes it doesn't have
+4. Client verifies server's proof chains against its own store
+5. Client serves requested nodes
+6. Server updates the user's root pointer
+
+Both directions use proof chains. Both directions use `s-get`. The only
+asymmetry is policy: who declares roots and under what conditions.
 
 ### Implications
 
-- No special "auth channel" — just store operations
-- No server-side session state — stateless verification
-- Topologies compose: peers in a network, each creating dedicated stores
-  as needed for interactions
+- Data always flows via `s-get` + proof chain — one pattern, both directions
+- Session stores handle proof chain exchange without circular auth
 - The `IStore` protocol remains the universal interface
+- Topologies compose: peers in a network, each with their own session stores
 
 ## Writes: Root Replacement
 
 The immutable nature of Dacite values means **all mutations redefine the root
 hash.** There is no in-place update.
 
-1. Client fetches current value from server, makes changes locally
-2. Client computes new root hash for the modified value
-3. Client creates a dedicated store containing the new/changed subtree nodes
-4. Client declares the new root hash to the server
-5. Server fetches new nodes via `s-get` from the dedicated store
-6. Server updates the user's root pointer to the new hash
+**`s-put` may not be needed.** The client declares a new root hash; the server
+pulls whatever it's missing via proof-chain-authorized `s-get` calls against
+the client.
 
-**`s-put` may not be needed.** The client declares a new root hash and provides
-a dedicated store; the server pulls whatever it's missing.
-
-Write authorization is by identity: if your auth token entitles you to update
-your root pointer, you can declare any new root hash.
+Write authorization is by identity: if your session token entitles you to
+update your root pointer, you can declare any new root hash.
 
 ## Root Management
 
@@ -123,17 +128,27 @@ higher-level service protocol.
 ## Delegation
 
 A root hash can be designated as an independent entry point with its own
-authorization token. Mint a token for a subtree root, hand it to another party,
-and they prove access from that subtree root via proof chains.
+authorization token. Mint a token for a subtree root, hand it to another
+party, and they prove access from that subtree root via proof chains.
 
 This is equivalent to giving someone their own "account" rooted at a subtree
 of your data.
 
+## Dedicated Stores (Selective Sharing)
+
+Beyond the session store, clients can create **dedicated stores** for
+selective sharing scenarios — exposing a curated subset of data to a peer
+without revealing anything else. Like showing a hand of cards: you control
+exactly what the other side can see.
+
+Dedicated stores are a general-purpose tool, not part of the core auth flow.
+
 ## Audit Trail
 
-Proof chains are Dacite values (immutable, content-addressed). The server can
-retain proof chain hashes as access records, forming a natural audit log of
-what paths were used to access what data.
+The sequence of proof chains submitted during a session forms a natural audit
+trail: the server knows exactly which paths the client walked from root to
+each target. Proof chains are Dacite values (immutable, content-addressed)
+and can be retained as access records.
 
 ## Garbage Collection
 
@@ -229,7 +244,7 @@ This design sits between:
 - **Store Protocol** (§2 in roadmap) — `IStore` is the foundation
 - **Remote Store** (§3 in roadmap) — authorization is required before remote
   `s-get` makes sense
-- **Content Negotiation** (§3 in roadmap) — proof chain and dedicated store
+- **Content Negotiation** (§3 in roadmap) — proof chain and session store
   behavior could be negotiated aspects of the transport
 
 Authorization should be specced before or alongside the remote store
@@ -260,8 +275,8 @@ the authorization, verified step by step.
 
 2. **Dedicated stores solve the same problem better.** The frontier was
    invented to scope what the server could access when fetching from the
-   client. A dedicated store achieves the same isolation without any
-   server state — the client simply doesn't put anything else in it.
+   client. Proof chains + dedicated stores achieve the same isolation without
+   per-request server state.
 
 3. **Re-fetch complexity.** Once a hash left the frontier, the peer had to
    re-walk from a parent to re-open it. This added complexity to both
@@ -269,7 +284,7 @@ the authorization, verified step by step.
 
 ## Appendix B: Design Evolution
 
-The authorization design went through three iterations:
+The authorization design went through four iterations:
 
 1. **Proof chains only.** Client pre-computes a path from root to target.
    Problem: when the server fetches the chain from the client via `s-get`,
@@ -280,10 +295,15 @@ The authorization design went through three iterations:
    per-session server state, which is a scaling concern.
 
 3. **Proof chains + dedicated stores.** Returns to proof chains but solves
-   the scoping problem differently: the client creates an isolated store
-   containing only the relevant nodes. Server is stateless; client controls
-   the surface area. This is the current design.
+   the scoping problem with isolated stores. Server is stateless; client
+   controls the surface area.
+
+4. **Session store / main store split.** Recognizes that proof chain data
+   needs a different auth level than user data. Session store (token-only
+   auth) holds proof chains; main store (token + proof chain) holds data.
+   Eliminates the circular auth problem cleanly.
 
 The frontier model was the scaffolding that revealed the real solution —
-dedicated stores. Similar to how LISP was meant to be scaffolding for a
-"real" language, until `eval` showed that the scaffolding was the thing.
+dedicated stores. The dedicated store pattern then evolved into the
+session store / main store split when we recognized that proof chain
+exchange needs its own auth domain.
