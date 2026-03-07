@@ -141,6 +141,34 @@
         (hash/unchecked-fuse elements-fuse))))
 
 ;; =============================================================================
+;; Child hash extraction (multimethod)
+;; =============================================================================
+
+(defmulti child-hashes
+  "Extract all child hash references from a stored node value.
+   Returns a set of hashes that this node directly references.
+
+   Dispatches on type string. Each type defines what constitutes
+   its children:
+   - Scalars: no children (empty set)
+   - Collections (vector, string, blob, map): {:root h} → #{h}
+   - Internal tree nodes: type-specific child references
+
+   Returns nil for nil input, empty set for unknown types."
+  (fn [node]
+    (when (and (vector? node) (= 2 (count node)))
+      (first node))))
+
+(defmethod child-hashes nil [_] nil)
+
+(defmethod child-hashes :default [_] #{})
+
+;; Collection types have a :root child
+(doseq [t ["vector" "string" "blob" "map"]]
+  (defmethod child-hashes t [[_ data]]
+    #{(:root data)}))
+
+;; =============================================================================
 ;; REPL examples
 ;; =============================================================================
 
