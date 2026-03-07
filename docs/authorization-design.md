@@ -135,44 +135,93 @@ Proof chains are Dacite values (immutable, content-addressed). The server can
 retain proof chain hashes as access records, forming a natural audit log of
 what paths were used to access what data.
 
-## Garbage Collection: Store Migration
+## Garbage Collection
 
 Content-addressed stores are append-only: nodes are added but never modified.
 Over time, mutations (new roots replacing old ones) leave orphaned nodes —
 subtrees no longer reachable from any active root.
 
-Rather than tracking references or marking nodes, Dacite uses **store
-migration** — a copying garbage collector:
+Dacite GC is a **semi-space collector**: live data is identified by walking
+all active roots, and everything else is garbage. There are two equivalent
+strategies, differing only in where the "mark" lives.
+
+### Strategy 1: Store Migration (Copying Collection)
+
+The mark is **presence in the new store.**
 
 1. Create a new empty store B
 2. Walk every active root hash, copying reachable nodes from A to B
 3. Swap B in for A
 4. Discard A
 
-Everything unreachable — orphaned subtrees, old versions, abandoned nodes —
-simply doesn't get copied.
+Everything unreachable simply doesn't get copied.
+
+### Strategy 2: Color Marking (Mark-and-Sweep)
+
+The mark is **a color bit on each node** (red or green).
+
+1. Walk all active root hashes, marking reachable nodes red. New writes
+   are also red.
+2. When all roots are walked, cull all green nodes.
+3. Next cycle: walk roots marking green, new writes green, cull red.
+4. Repeat, alternating colors.
+
+### Equivalence
+
+These are the same operation expressed differently:
+
+| | Store Migration | Color Marking |
+|---|---|---|
+| Mark live | Copy to store B | Set to current color |
+| Identify dead | Not in store B | Still previous color |
+| Reclaim | Discard store A | Delete previous-color nodes |
+| Two spaces | Store A / Store B | Red / Green |
+
+Both are semi-space collectors. Store migration uses two physical stores as
+half-spaces; color marking uses two logical spaces (colors) within a single
+store.
+
+### Online GC (No Downtime)
+
+Both strategies support online collection without pausing writes:
+
+**Store migration (online):**
+- Writes go to store B (the new store)
+- Reads try B first, fall back to A
+- Background migration walks roots, copying from A to B
+- When done, drop A
+
+**Color marking (online):**
+- New writes use the current live color
+- Background walk marks reachable nodes with the live color
+- When walk completes, cull nodes with the dead color
+- No second store needed
 
 ### Properties
 
-- **No bookkeeping.** No reference counts, no mark bits, no tombstones. The
-  walk is the GC.
+- **No reference counting.** No per-node bookkeeping during normal operations.
 - **Cost proportional to live data.** You pay for what you keep, not what you
-  discard. Same property as a copying garbage collector.
-- **Structural sharing preserved.** If two roots share a subtree, the shared
-  nodes are copied once (store B deduplicates by hash on insert).
+  discard.
+- **Structural sharing preserved.** Shared subtrees are visited once
+  (deduplication by hash).
 - **Simple correctness.** A node is live if and only if it's reachable from an
   active root. No edge cases.
 
+### Trade-offs
+
+- **Store migration** needs 2× storage during the copy but requires no
+  per-node metadata. Conceptually simpler.
+- **Color marking** needs only 1 bit per node but requires in-place mutation
+  of the KV store (reading/writing color flags) and a scan for the cull step.
+
 ### Implementation Considerations
 
-- **Offline vs. online.** Simple version pauses writes during migration. Online
-  version writes to both A and B during the copy, then swaps.
 - **Frequency.** Scheduled (nightly), triggered by size threshold, or manual.
 - **Scope.** The walk visits every active root — all users, all delegated
   subtree roots. The set of active roots is maintained by the service layer.
 
-These are implementation details. The model is straightforward: live data is
-what's reachable; everything else is garbage.
+The choice between strategies is an implementation detail. The model is the
+same: live data is what's reachable; everything else is garbage.
 
 ## Relationship to Roadmap
 
