@@ -7,78 +7,64 @@
 **Knowing a hash does not authorize access to its value.**
 
 Content-addressed systems tempt you into treating hash-knowledge as a capability.
-Dacite rejects this. Authorization is structural: you prove you can *reach* a hash
-from a root you're entitled to.
+Dacite rejects this. Authorization is structural: you prove you can *reach* a
+hash from a root you're entitled to.
 
-## Model
-
-### Authentication
+## Authentication
 
 Users authenticate to a store service (e.g., `https://dacite.io/store`) using
 standard credentials (token, OAuth, etc.). Upon authentication, the server
 declares the user's **root hash** — the entry point to their data.
 
-### Authorization via Frontier
+## Authorization: The Frontier Model
 
 Dacite uses a single authorization model for all data exchange: the **frontier
-model.** Both client and server use the same model when serving data to a peer.
+model.** Both sides of any interaction use the same model when serving data.
 
-**Rule: each `s-get` response implicitly authorizes the next level down.**
+### How It Works
 
-1. A store declares a root hash to a peer (e.g., server declares the user's
-   root hash upon authentication)
-2. Peer does `s-get root` → gets node containing hashes `[h1, h2, h3]`
+A session begins when one store declares a root hash to a peer. The peer may
+then walk the tree by fetching nodes, and each fetch reveals the next level:
+
+1. Store declares root hash `r` to peer
+2. Peer does `s-get r` → gets node containing child hashes `[h1, h2, h3]`
 3. `h1`, `h2`, `h3` are now authorized (revealed by an authorized node)
 4. Peer does `s-get h2` → gets node containing `[h4, h5]`
 5. `h4`, `h5` are now authorized
-6. And so on
+6. And so on, down the tree
 
 The serving store maintains a **frontier set** per session: the set of child
 hashes that have been revealed but not yet fetched. When a hash is fetched, it
 is removed from the frontier and its children are added.
 
-**There is no separate proof chain mechanism.** The sequence of `s-get` calls
-from root to target *is* the proof — verified step by step as it happens. The
-server witnesses the path in real time through the frontier.
+### Properties
 
-### Frontier Properties
-
-- **Bounded size.** The frontier contains only unretrieved leaf-most hashes.
-  Its maximum size is bounded by branching factor × depth being explored
-  (e.g., ~32 for a HAMT level), not the total tree size.
-- **Session-scoped.** The frontier is discarded when the session ends. A TTL
-  or session timeout handles cleanup.
-- **No pre-traversal.** Neither side needs to traverse the tree upfront to
-  authorize access. Authorization emerges naturally from the fetch path.
-- **Re-fetch requires re-walk.** Once a hash leaves the frontier (it was
-  fetched and its children replaced it), the peer cannot re-fetch it without
-  first re-fetching parent hashes to re-open the frontier. This is acceptable
-  — any change to the user's value changes the root hash, requiring a fresh
-  walk from root regardless.
-- **Symmetric.** The same model applies in both directions. Server maintains
-  a frontier for each client session; client maintains a frontier for each
-  server session.
+- **No ACLs.** Authorization is derived from structure. If a node is reachable
+  from your root, you can reach it.
+- **Symmetric.** The same model applies in both directions. Server maintains a
+  frontier for each client; client maintains a frontier for each server.
+- **Bounded.** The frontier contains only unretrieved leaf-most hashes. Its
+  maximum size is bounded by branching factor × exploration depth (e.g., ~32
+  for a HAMT level), not the total tree size.
+- **Session-scoped.** The frontier is discarded when the session ends.
+- **No pre-traversal.** Neither side needs to traverse the tree upfront.
+  Authorization emerges naturally from the fetch path.
+- **Re-fetch requires re-walk.** Once a hash leaves the frontier, the peer
+  must re-walk from a parent to re-open it. This is acceptable — any mutation
+  changes the root hash, requiring a fresh walk regardless.
+- **Structural sharing is safe.** Two users may share the same subtree (same
+  hash). Each accesses it through their own root via their own frontier.
+- **Natural scoping.** Sharing a subtree root grants access to everything below
+  it, nothing above it. Delegation is just sharing a hash.
+- **Revocation** is achieved by restructuring: build a new root that omits the
+  revoked subtree (e.g., `dissoc`). No negative authorization needed.
 
 ### Future: Batched Fetches
 
-The frontier model requires the client to walk from root to target, which
-means O(depth) round trips for deeply nested values. Future optimization:
-batch multiple `s-get` calls in a single request to reduce round trips.
-The frontier still advances the same way — each response reveals children
-for the next batch.
-
-### Properties
-
-- **No ACLs.** Authorization is derived from structure. If a node is in your
-  tree, you can reach it.
-- **Structural sharing is safe.** Two users may share the same subtree (same
-  hash). Each proves access through their own root. The server doesn't care
-  that the underlying node is shared — authorization paths are independent.
-- **Natural scoping.** Sharing a subtree root with someone grants access to
-  everything below it, nothing above it. Delegation is just sharing a hash.
-- **Revocation** is achieved by restructuring: build a new root that omits the
-  revoked subtree (e.g., `dissoc`). The old root hash becomes inaccessible
-  once the user's root pointer is updated. No negative authorization needed.
+Walking from root to a deeply nested target requires O(depth) round trips.
+Future optimization: batch multiple `s-get` calls in a single request. The
+frontier advances the same way — each response reveals children for the next
+batch.
 
 ## Peer-to-Peer Store Model
 
@@ -87,71 +73,52 @@ interface for all data exchange.
 
 **Client and server are peers in a network of stores.**
 
-- Client authenticates → server declares client's root hash
-- Client walks from root to target via `s-get` calls (frontier model)
-- For writes: client declares new root → server walks new subtree via `s-get`
-  from client (same frontier model, reversed)
+- **Reads:** Client authenticates → server declares root hash → client walks
+  tree via `s-get` (server maintains frontier)
+- **Writes:** Client declares new root hash → server walks new subtree via
+  `s-get` from client (client maintains frontier)
 
-Both directions use the same `IStore` protocol and the same frontier
-authorization model. The only asymmetry is **policy**: who declares roots
-and under what conditions.
+Both directions use the same `IStore` protocol and the same frontier model.
+The only asymmetry is **policy**: who declares roots and under what conditions.
 
-### Implications
-
-- **One authorization concept.** No proof chains, no ACLs, no capability
-  tokens — just the frontier.
-- No special "auth channel" — just store operations
-- No push step — data flows via `s-get` in both directions
-- Topologies compose: peers in a network, each maintaining frontiers for
-  their active sessions
-- The `IStore` protocol remains the universal interface
-
-## Writes: Root Replacement via s-get
+## Writes: Root Replacement
 
 The immutable nature of Dacite values means **all mutations redefine the root
 hash.** There is no in-place update.
 
-Write flow:
-
-1. Client fetches current value from server, makes changes locally (e.g.,
-   `assoc` a new key into a map)
+1. Client fetches current value from server, makes changes locally
 2. Client computes new root hash for the modified value
 3. Client declares the new root hash to the server
 4. Server walks the new subtree via `s-get` from the client (frontier model)
 5. Server updates the user's root pointer to the new hash
 
-**`s-put` may not be needed.** The client only needs to declare a new root
-hash. The server pulls whatever it's missing. This preserves the peer model:
-data flows via `s-get` in both directions.
+**`s-put` may not be needed.** The client declares a new root hash; the server
+pulls whatever it's missing. Data flows via `s-get` in both directions.
 
-### Write Authorization
+Write authorization is by identity: if your auth token entitles you to update
+your root pointer, you can declare any new root hash.
 
-Authorized by identity: if your auth token entitles you to update your root
-pointer, you can declare any new root hash. The server fetches the new subtrees
-and adopts the new root.
+## Root Management
 
-### Root Management
-
-Root hash pointers are a service-layer concern, not a store-layer concern.
+Root hash pointers are a **service-layer** concern, not a store-layer concern.
 The `IStore` protocol remains purely content-addressed. Root management
-(binding a user identity to a root hash, updating root pointers) belongs to
-a higher-level service protocol.
+(binding a user identity to a root hash, updating root pointers) belongs to a
+higher-level service protocol.
 
 ## Delegation
 
 A root hash can be designated as an independent entry point with its own
-authorization token. This enables delegation without the full authentication
-flow: mint a token for a subtree root, hand it to another party, and they
-begin their frontier walk from that subtree root.
+authorization token. Mint a token for a subtree root, hand it to another party,
+and they begin their frontier walk from that subtree root.
 
 This is equivalent to giving someone their own "account" rooted at a subtree
 of your data.
 
-## Proof Chain as Audit Trail
+## Audit Trail
 
-The sequence of `s-get` calls in a session naturally forms an audit trail:
-the server knows exactly which path the client walked from root to target.
-This can be retained as an access log.
+The sequence of `s-get` calls in a session naturally forms an audit trail: the
+server knows exactly which path the client walked from root to target. This can
+be retained as an access log.
 
 ## Relationship to Roadmap
 
@@ -164,3 +131,41 @@ This design sits between:
 
 Authorization should be specced before or alongside the remote store
 implementation.
+
+---
+
+## Appendix A: Rejected Alternative — Proof Chain Model
+
+An earlier draft used a **proof chain** model for read authorization. This
+section documents the approach and why it was rejected in favor of the
+frontier model.
+
+### How It Worked
+
+To fetch a node, the client would pre-compute a **proof chain**: a Dacite
+vector of hashes `[root, h1, h2, ..., target]` showing that the target is
+reachable from the client's root through the DAG structure. The client would
+send the proof chain hash alongside its auth token and the target hash. The
+server would verify each link in the chain before returning the target node.
+
+For short chains (≤32 hashes), the entire chain would be transmitted by value
+in a single request. For longer chains, the chain itself — being a Dacite
+vector — would be fetched lazily by the server from the client's store.
+
+### Why It Was Rejected
+
+1. **Unnecessary complexity.** The proof chain is a second authorization
+   mechanism alongside the frontier. The frontier model alone is sufficient
+   for both reads and writes.
+
+2. **Redundant work.** The proof chain is equivalent to the sequence of
+   `s-get` calls the client makes when walking from root to target. The
+   frontier model captures the same proof implicitly, verified step by step.
+
+3. **Client burden.** The client must pre-compute and transmit the chain,
+   adding complexity to the client implementation.
+
+4. **The frontier is simpler.** One model, both directions, same rules. The
+   proof chain added a second concept that served the same purpose — trading
+   round trips for upfront computation. Future batched `s-get` can recover
+   the round-trip savings without a separate mechanism.
