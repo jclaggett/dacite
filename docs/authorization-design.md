@@ -132,6 +132,47 @@ This design sits between:
 Authorization should be specced before or alongside the remote store
 implementation.
 
+## Garbage Collection: Store Migration
+
+Content-addressed stores are append-only: nodes are added but never modified.
+Over time, mutations (new roots replacing old ones) leave orphaned nodes —
+subtrees no longer reachable from any active root.
+
+### Approach: Copying Collection
+
+Rather than tracking references or marking nodes, Dacite uses **store
+migration** — a copying garbage collector:
+
+1. Create a new empty store B
+2. Walk every active root hash, copying reachable nodes from A to B
+3. Swap B in for A
+4. Discard A
+
+Everything unreachable — orphaned subtrees, old versions, abandoned nodes —
+simply doesn't get copied.
+
+### Properties
+
+- **No bookkeeping.** No reference counts, no mark bits, no tombstones. The
+  walk is the GC.
+- **Cost proportional to live data.** You pay for what you keep, not what you
+  discard. Same property as a copying garbage collector.
+- **Structural sharing preserved.** If two roots share a subtree, the shared
+  nodes are copied once (store B deduplicates by hash on insert).
+- **Simple correctness.** A node is live if and only if it's reachable from an
+  active root. No edge cases.
+
+### Implementation Considerations
+
+- **Offline vs. online.** Simple version pauses writes during migration. Online
+  version writes to both A and B during the copy, then swaps.
+- **Frequency.** Scheduled (nightly), triggered by size threshold, or manual.
+- **Scope.** The walk visits every active root — all users, all delegated
+  subtree roots. The set of active roots is maintained by the service layer.
+
+These are implementation details. The model is straightforward: live data is
+what's reachable; everything else is garbage.
+
 ---
 
 ## Appendix A: Rejected Alternative — Proof Chain Model
