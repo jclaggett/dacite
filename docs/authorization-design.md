@@ -53,6 +53,123 @@ To fetch a node from the main store, the client provides:
 The server verifies each link: node at `h_n` must contain a reference to
 `h_{n+1}`.
 
+### Example: Tree and Proof Chain Walk
+
+Consider a Dacite map `{"name" "Alice", "scores" [10, 20, 30]}`:
+
+```
+                    ┌─────────────────┐
+                    │   map (root)     │
+                    │     #R           │
+                    └────┬────────┬───┘
+                         │        │
+              ┌──────────┘        └──────────┐
+              ▼                              ▼
+    ┌──────────────┐               ┌──────────────┐
+    │ hamt/entry   │               │ hamt/entry   │
+    │ "name"→      │               │ "scores"→    │
+    │  #E1         │               │  #E2         │
+    └──┬──────┬────┘               └──┬──────┬────┘
+       │      │                       │      │
+       ▼      ▼                       ▼      ▼
+    ┌─────┐ ┌───────┐             ┌────────┐ ┌──────────┐
+    │"name"│ │"Alice"│             │"scores"│ │ vector   │
+    │ #K1  │ │ #V1   │             │  #K2   │ │   #V2    │
+    └──────┘ └───────┘             └────────┘ └────┬─────┘
+                                                   │
+                                              ┌────┼────┐
+                                              ▼    ▼    ▼
+                                           ┌────┐┌────┐┌────┐
+                                           │ 10 ││ 20 ││ 30 │
+                                           │#S1 ││#S2 ││#S3 │
+                                           └────┘└────┘└────┘
+```
+
+To read the value `30` (#S3), the client builds a proof chain by walking
+from root to target:
+
+```
+  Proof chain: [#R, #E2, #V2, #S3]
+
+  Verification (server checks each link):
+    #R  contains #E2?  → yes (hamt/entry child of map root)
+    #E2 contains #V2?  → yes (val-ref of "scores" entry)
+    #V2 contains #S3?  → yes (element of the vector)
+    ✓ chain valid — serve node at #S3
+```
+
+### Read Flow (client reads from server)
+
+```
+  Client                              Server
+    │                                    │
+    │  1. authenticate                   │
+    │ ──────────────────────────────────► │
+    │  ◄── session token + root hash #R  │
+    │                                    │
+    │  2. s-get #S3                      │
+    │     proof chain: [#R, #E2, #V2, #S3]
+    │ ──────────────────────────────────► │
+    │     verify chain against main store│
+    │     #R→#E2→#V2→#S3 ✓              │
+    │  ◄── ["i64" 30]                    │
+    │                                    │
+```
+
+### Write Flow (server fetches new nodes from client)
+
+```
+  Client                              Server
+    │                                    │
+    │  1. declare new root #R'           │
+    │ ──────────────────────────────────► │
+    │                                    │
+    │  2. s-get #R'                      │
+    │     (server needs new root node)   │
+    │  ◄──────────────────────────────── │
+    │     proof chain: [#R']             │
+    │     verify: trivially valid        │
+    │  ──► ["map" {...}]                 │
+    │                                    │
+    │  3. s-get #E3 (new child)          │
+    │  ◄──────────────────────────────── │
+    │     proof chain: [#R', #E3]        │
+    │     verify: #R' contains #E3? ✓   │
+    │  ──► ["hamt/entry" {...}]          │
+    │                                    │
+    │  4. server already has #K1, #V1... │
+    │     (stops walking — no more gets) │
+    │                                    │
+    │  5. root pointer updated to #R'    │
+    │  ◄── ack                           │
+    │                                    │
+```
+
+### Structural Sharing: Two Users, One Subtree
+
+```
+  User A's root          User B's root
+    #RA                    #RB
+     │                      │
+     ├── "docs" ──┐    ┌── "refs" ──┐
+     │            ▼    ▼            │
+     │      ┌──────────────┐       │
+     │      │ shared map   │       │
+     │      │    #SM       │       │
+     │      └──────┬───────┘       │
+     │             │               │
+     │        ┌────┼────┐          │
+     │        ▼    ▼    ▼          │
+     │      [nodes shared by both] │
+     │                             │
+
+  User A's chain to #SM: [#RA, ..., #SM]  ✓
+  User B's chain to #SM: [#RB, ..., #SM]  ✓
+
+  Same data, independent authorization paths.
+  Neither user can access the other's unshared data.
+```
+
 ### Transmission
 
 - **Small chains (≤32 hashes):** transmitted inline with the request
