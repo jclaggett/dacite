@@ -16,7 +16,7 @@
 
 (defn- parse-args [args]
   (loop [args (seq args)
-         opts {:port 8484
+         opts {:port 8421
                :store-dir (str (System/getProperty "user.home") "/.dacite/store")}]
     (if (nil? args)
       opts

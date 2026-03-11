@@ -21,7 +21,7 @@
             [example.client :as client])
   (:gen-class))
 
-(def ^:private default-url "http://localhost:8484")
+(def ^:private default-url "http://localhost:8421")
 
 ;; =============================================================================
 ;; Directory → Dacite value
