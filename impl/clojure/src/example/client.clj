@@ -148,6 +148,41 @@
     body))
 
 ;; =============================================================================
+;; High-level: fetch entire value into local store
+;; =============================================================================
+
+(defn fetch-all!
+  "Fetch the entire tree rooted at the session's root hash into a local
+   mem-store. Walks the tree breadth-first, building proof chains as it
+   goes. Returns [local-store root-hash-bytes]."
+  [client-atom]
+  (let [{:keys [base-url token]} @client-atom
+        root-hex (get-root client-atom)
+        root-h (hash/hex->hash root-hex)
+        local (store/mem-store)]
+    (loop [queue (conj clojure.lang.PersistentQueue/EMPTY
+                       {:hash root-h :chain [root-h]})
+           visited #{}]
+      (if (empty? queue)
+        [local root-h]
+        (let [{:keys [hash chain]} (peek queue)
+              queue' (pop queue)]
+          (if (visited hash)
+            (recur queue' visited)
+            (let [node (get-node client-atom hash chain)]
+              (if (map? node) ;; error response
+                (do (println "Warning: failed to fetch" (hash/hash->hex hash) node)
+                    (recur queue' (conj visited hash)))
+                (do
+                  (store/s-put local hash node)
+                  (let [children (types/child-hashes node)
+                        new-entries (when children
+                                      (map (fn [ch] {:hash ch :chain (conj chain ch)})
+                                           (remove visited children)))]
+                    (recur (into queue' new-entries)
+                           (conj visited hash))))))))))))
+
+;; =============================================================================
 ;; High-level: build locally, push, update
 ;; =============================================================================
 

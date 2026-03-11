@@ -12,6 +12,12 @@
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test}
   
+  ;; Server: clojure -M:server [--port 8484] [--store-dir ~/.dacite/store]
+  :server {:main-opts ["-m" "dacite.main"]}
+  
+  ;; CLI: clojure -M:cli status|push|fetch|ls [args...]
+  :cli {:main-opts ["-m" "dacite.cli"]}
+  
   :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}}
           :ns-default build}
   
