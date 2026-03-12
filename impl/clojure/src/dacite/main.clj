@@ -27,19 +27,21 @@
 
 (defn -main [& args]
   (let [{:keys [port store-dir]} (parse-args args)
-        main-store (store/file-store store-dir)
+        lmdb (store/lmdb-store store-dir)
+        main-store (store/layered-store (store/mem-store) lmdb)
         service (svc/create-service main-store)
         user (System/getProperty "user.name")]
     ;; Auto-register the unix user (no password for local service)
     (svc/register-user service user "")
     (println (str "Dacite service starting..."))
-    (println (str "  Store: " store-dir))
+    (println (str "  Store: " store-dir " (LMDB + mem cache)"))
     (println (str "  User:  " user))
     (let [srv (server/start! service port)]
       ;; Block until interrupted
       (.addShutdownHook (Runtime/getRuntime)
                         (Thread. (fn []
                                    (println "\nShutting down...")
-                                   (server/stop! srv))))
+                                   (server/stop! srv)
+                                   (store/lmdb-close lmdb))))
       ;; Keep main thread alive
       @(promise))))

@@ -220,6 +220,128 @@
       (is (= {} (store/s-snapshot slow))))))
 
 ;; =============================================================================
+;; LmdbStore
+;; =============================================================================
+
+(deftest lmdb-store-basic-test
+  (testing "basic LMDB get/put/has?"
+    (let [s (store/lmdb-store (str *temp-dir* "/lmdb"))
+          h [1 2 3 4]
+          v ["i64" 42]]
+      (try
+        (is (nil? (store/s-get s h)))
+        (is (not (store/s-has? s h)))
+        (store/s-put s h v)
+        (is (store/s-has? s h))
+        (is (= v (store/s-get s h)))
+        (finally
+          (store/lmdb-close s))))))
+
+(deftest lmdb-store-persistence-test
+  (testing "LMDB persists across instances"
+    (let [path (str *temp-dir* "/lmdb-persist")
+          h [1 2 3 4]
+          v ["i64" 99]]
+      (let [s (store/lmdb-store path)]
+        (try
+          (store/s-put s h v)
+          (finally
+            (store/lmdb-close s))))
+      ;; New instance, same path
+      (let [s (store/lmdb-store path)]
+        (try
+          (is (= v (store/s-get s h)))
+          (finally
+            (store/lmdb-close s)))))))
+
+(deftest lmdb-store-snapshot-test
+  (testing "LMDB snapshot returns all entries"
+    (let [s (store/lmdb-store (str *temp-dir* "/lmdb-snap"))]
+      (try
+        (store/s-put s [1 2 3 4] ["i64" 1])
+        (store/s-put s [5 6 7 8] ["i64" 2])
+        (let [snap (store/s-snapshot s)]
+          (is (= 2 (count snap)))
+          (is (= ["i64" 1] (get snap [1 2 3 4])))
+          (is (= ["i64" 2] (get snap [5 6 7 8]))))
+        (finally
+          (store/lmdb-close s))))))
+
+(deftest lmdb-store-merge-test
+  (testing "LMDB merge writes multiple entries in single txn"
+    (let [s (store/lmdb-store (str *temp-dir* "/lmdb-merge"))]
+      (try
+        (store/s-merge s {[1 2 3 4] ["i64" 10] [5 6 7 8] ["i64" 20]})
+        (is (= ["i64" 10] (store/s-get s [1 2 3 4])))
+        (is (= ["i64" 20] (store/s-get s [5 6 7 8])))
+        (finally
+          (store/lmdb-close s))))))
+
+(deftest lmdb-store-reset-test
+  (testing "LMDB reset clears all entries"
+    (let [s (store/lmdb-store (str *temp-dir* "/lmdb-reset"))]
+      (try
+        (store/s-put s [1 2 3 4] ["i64" 1])
+        (store/s-reset s)
+        (is (nil? (store/s-get s [1 2 3 4])))
+        (is (= {} (store/s-snapshot s)))
+        (finally
+          (store/lmdb-close s))))))
+
+(deftest lmdb-store-complex-values-test
+  (testing "LMDB handles all node types"
+    (let [s (store/lmdb-store (str *temp-dir* "/lmdb-complex"))]
+      (try
+        ;; Scalar
+        (store/s-put s [1 0 0 0] ["i64" 42])
+        (is (= ["i64" 42] (store/s-get s [1 0 0 0])))
+
+        ;; Collection header
+        (store/s-put s [2 0 0 0] ["vector" {:root [9 8 7 6] :count 3 :size-bytes 24}])
+        (is (= ["vector" {:root [9 8 7 6] :count 3 :size-bytes 24}]
+               (store/s-get s [2 0 0 0])))
+
+        ;; FT node
+        (store/s-put s [3 0 0 0] ["ft/deep" {:left [1 1 1 1]
+                                             :spine [2 2 2 2]
+                                             :right [3 3 3 3]
+                                             :measure {:count 5
+                                                       :size-bytes 40
+                                                       :elements-fuse [0 0 0 0]}}])
+        (let [v (store/s-get s [3 0 0 0])]
+          (is (= "ft/deep" (first v)))
+          (is (= [1 1 1 1] (:left (second v)))))
+
+        ;; HAMT node
+        (store/s-put s [4 0 0 0] ["hamt/entry" {:key-hash [5 5 5 5]
+                                                :key-ref [6 6 6 6]
+                                                :val-ref [7 7 7 7]
+                                                :measure {:count 1
+                                                          :size-bytes 8
+                                                          :elements-fuse [0 0 0 0]}}])
+        (let [v (store/s-get s [4 0 0 0])]
+          (is (= "hamt/entry" (first v)))
+          (is (= [6 6 6 6] (:key-ref (second v)))))
+        (finally
+          (store/lmdb-close s))))))
+
+(deftest lmdb-store-with-layered-test
+  (testing "LMDB as backend in layered store"
+    (let [mem (store/mem-store)
+          lmdb (store/lmdb-store (str *temp-dir* "/lmdb-layered"))]
+      (try
+        (let [s (store/layered-store mem lmdb)]
+          (store/s-put s [1 2 3 4] ["i64" 42])
+          ;; Both have it
+          (is (= ["i64" 42] (store/s-get mem [1 2 3 4])))
+          (is (= ["i64" 42] (store/s-get lmdb [1 2 3 4])))
+          ;; New layered with empty mem still finds in LMDB
+          (let [s2 (store/layered-store (store/mem-store) lmdb)]
+            (is (= ["i64" 42] (store/s-get s2 [1 2 3 4])))))
+        (finally
+          (store/lmdb-close lmdb))))))
+
+;; =============================================================================
 ;; Content addressing
 ;; =============================================================================
 
