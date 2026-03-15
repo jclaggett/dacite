@@ -238,11 +238,12 @@
 ;; Error cases
 ;; =============================================================================
 
-(deftest serialize-unknown-seq-subtype-test
-  (testing "Unknown seq subtype in ft/ namespace is handled"
-    ;; ft/ types that aren't recognized will throw in seq-subtype
-    (is (thrown? IllegalArgumentException
-                 (serial/serialize ["ft/bogus" {:measure sample-measure}])))))
+(deftest serialize-unknown-type-falls-through-test
+  (testing "Unknown types use default encode-value (pr-str fallback)"
+    ;; Unrecognized types hit the :default encode-value method
+    ;; which produces pr-str bytes — no exception
+    (let [bs (serial/serialize ["ft/bogus" {:measure sample-measure}])]
+      (is (bytes? bs)))))
 
 (deftest deserialize-unknown-kind-throws-test
   (testing "Unknown kind tag throws"

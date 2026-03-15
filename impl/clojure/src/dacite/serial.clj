@@ -13,7 +13,11 @@
    Measures are fixed 48 bytes: u64(count) + u64(size-bytes) + hash(32B).
    Hashes are 32 bytes (4 × i64, big-endian). All integers big-endian."
   (:require [dacite.types :as types]
-            [dacite.scalar])
+            [dacite.scalar]
+            ;; Ensure encode-value methods are registered:
+            [dacite.finger-tree]
+            [dacite.hamt]
+            [dacite.collections])
   (:import [java.nio ByteBuffer]))
 
 ;; =============================================================================
@@ -49,23 +53,6 @@
 
 (defn- write-u8 [^ByteBuffer buf n]
   (.put buf (unchecked-byte n)))
-
-(defn- write-u32 [^ByteBuffer buf n]
-  (.putInt buf (unchecked-int n)))
-
-(defn- write-u64 [^ByteBuffer buf n]
-  (.putLong buf (long n)))
-
-(defn- write-hash [^ByteBuffer buf [a b c d]]
-  (.putLong buf (long a))
-  (.putLong buf (long b))
-  (.putLong buf (long c))
-  (.putLong buf (long d)))
-
-(defn- write-measure [^ByteBuffer buf {:keys [count size-bytes elements-fuse]}]
-  (write-u64 buf count)
-  (write-u64 buf size-bytes)
-  (write-hash buf elements-fuse))
 
 ;; =============================================================================
 ;; Read helpers
@@ -114,134 +101,17 @@
     (.put buf ^bytes data-bytes)
     (.array buf)))
 
-(defn- seq-subtype
-  "Map a seq node type name to its binary subtype tag."
-  [type-name]
-  (case type-name
-    "ft/empty"  seq-empty
-    "ft/single" seq-single
-    "ft/digit"  seq-digit
-    "ft/node"   seq-node
-    "ft/deep"   seq-deep))
-
-(defn- serialize-seq-node
-  "Serialize a finger tree node to bytes.
-   Format: 0x01 + u8(subtype) + measure(48B) + u8(n) + hash[n]"
-  [type-name data]
-  (let [subtype (seq-subtype type-name)
-        measure (:measure data)
-        children (case (int subtype)
-                   0 []                              ;; empty
-                   1 [(:value-hash data)]            ;; single
-                   2 (:children data)                ;; digit
-                   3 (:children data)                ;; node
-                   4 [(:left data) (:spine data) (:right data)]) ;; deep
-        n (count children)
-        buf (ByteBuffer/allocate (+ 2 48 1 (* 32 n)))]
-    (write-u8 buf kind-seq)
-    (write-u8 buf subtype)
-    (write-measure buf measure)
-    (write-u8 buf n)
-    (doseq [h children]
-      (write-hash buf h))
-    (.array buf)))
-
-(defn- map-subtype
-  "Map a HAMT node type name to its binary subtype tag."
-  [type-name]
-  (case type-name
-    "hamt/empty"  map-empty
-    "hamt/entry"  map-entry
-    "hamt/bitmap" map-bitmap))
-
-(defn- serialize-map-node
-  "Serialize a HAMT node to bytes.
-   Format: 0x02 + u8(subtype) + measure(48B) + type-specific fields"
-  [type-name data]
-  (let [subtype (map-subtype type-name)
-        measure (:measure data)]
-    (case (int subtype)
-      ;; empty: just header + measure
-      0 (let [buf (ByteBuffer/allocate (+ 2 48))]
-          (write-u8 buf kind-map)
-          (write-u8 buf subtype)
-          (write-measure buf measure)
-          (.array buf))
-
-      ;; entry: measure + key-hash + key-ref + val-ref
-      1 (let [buf (ByteBuffer/allocate (+ 2 48 (* 3 32)))]
-          (write-u8 buf kind-map)
-          (write-u8 buf subtype)
-          (write-measure buf measure)
-          (write-hash buf (:key-hash data))
-          (write-hash buf (:key-ref data))
-          (write-hash buf (:val-ref data))
-          (.array buf))
-
-      ;; bitmap: measure + u32(bitmap) + u8(n) + hash[n]
-      2 (let [children (:children data)
-              n (count children)
-              buf (ByteBuffer/allocate (+ 2 48 4 1 (* 32 n)))]
-          (write-u8 buf kind-map)
-          (write-u8 buf subtype)
-          (write-measure buf measure)
-          (write-u32 buf (:bitmap data))
-          (write-u8 buf n)
-          (doseq [h children]
-            (write-hash buf h))
-          (.array buf)))))
-
-(defn- collection-type?
-  "Is this type name a top-level collection (string, vector, map, blob)?"
-  [type-name]
-  (#{"string" "vector" "map" "blob"} type-name))
-
-(defn- collection-subtype
-  "Map a collection type name to its binary subtype tag."
-  [type-name]
-  (case type-name
-    "vector" coll-vector
-    "string" coll-string
-    "blob"   coll-blob
-    "map"    coll-map))
-
-(defn- serialize-collection
-  "Serialize a collection header to bytes.
-   Format: 0x03 + u8(subtype) + hash(root) + u64(count) + u64(size-bytes)"
-  [type-name data]
-  (let [subtype (collection-subtype type-name)
-        buf (ByteBuffer/allocate 50)]
-    (write-u8 buf kind-collection)
-    (write-u8 buf subtype)
-    (write-hash buf (:root data))
-    (write-u64 buf (:count data))
-    (write-u64 buf (:size-bytes data))
-    (.array buf)))
-
 (defn serialize
   "Serialize a store entry [type-name, data] to canonical binary bytes.
 
-   Scalars encode as: 0x00 + u8(len) + canonical-data-bytes
-   Seq nodes encode as: 0x01 + u8(subtype) + measure + children
-   Map nodes encode as: 0x02 + u8(subtype) + measure + type-specific
-   Collections encode as: 0x03 + u8(subtype) + hash(root) + u64(size-bytes)"
-  [[type-name data :as entry]]
-  (cond
-    (scalar-type? type-name)
+   Scalars are wrapped with a 0x00 + u8(len) framing header.
+   All other types (collections, finger tree nodes, HAMT nodes)
+   delegate directly to their encode-value implementations which
+   produce self-describing binary with kind tags."
+  [[type-name _data :as entry]]
+  (if (scalar-type? type-name)
     (serialize-scalar entry)
-
-    (.startsWith ^String type-name "ft/")
-    (serialize-seq-node type-name data)
-
-    (.startsWith ^String type-name "hamt/")
-    (serialize-map-node type-name data)
-
-    (collection-type? type-name)
-    (serialize-collection type-name data)
-
-    :else
-    (throw (ex-info (str "Unknown type for serialization: " type-name)
-                    {:type type-name}))))
+    (types/encode-value entry)))
 
 ;; =============================================================================
 ;; Deserialize: bytes → store entry

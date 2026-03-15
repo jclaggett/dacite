@@ -18,7 +18,8 @@
   (:import [clojure.lang IDeref IHashEq Counted Seqable ILookup
             IPersistentCollection Indexed IPersistentStack
             IPersistentVector Associative IFn Sequential
-            IPersistentMap MapEquivalence]))
+            IPersistentMap MapEquivalence]
+           [java.nio ByteBuffer]))
 
 ;; =============================================================================
 ;; Forward declarations
@@ -537,3 +538,53 @@
 
 (defmethod types/dacite-size "blob" [[_ data]]
   (:size-bytes data 0))
+
+;; =============================================================================
+;; Binary encoding (encode-value) for collection headers
+;; =============================================================================
+
+;; Binary format: 0x03 + u8(subtype) + hash(root,32B) + u64(count) + u64(size-bytes)
+;; Subtypes: vector=0, string=1, blob=2, map=3
+
+(def ^:private ^:const coll-kind 0x03)
+
+(defn- write-u8 ^ByteBuffer [^ByteBuffer buf n]
+  (.put buf (unchecked-byte n)))
+
+(defn- write-u64 ^ByteBuffer [^ByteBuffer buf n]
+  (.putLong buf (long n)))
+
+(defn- write-hash-buf ^ByteBuffer [^ByteBuffer buf [a b c d]]
+  (.putLong buf (long a))
+  (.putLong buf (long b))
+  (.putLong buf (long c))
+  (.putLong buf (long d)))
+
+(defn- encode-collection [subtype {:keys [root count size-bytes]}]
+  (let [buf (ByteBuffer/allocate 50)]
+    (write-u8 buf coll-kind)
+    (write-u8 buf subtype)
+    (write-hash-buf buf root)
+    (write-u64 buf count)
+    (write-u64 buf size-bytes)
+    (.array buf)))
+
+(defmethod types/encode-value "vector" [[_ data]]
+  (if (and (map? data) (:root data))
+    (encode-collection 0 data)
+    (.getBytes (pr-str data) "UTF-8")))
+
+(defmethod types/encode-value "string" [[_ data]]
+  (if (and (map? data) (:root data))
+    (encode-collection 1 data)
+    (.getBytes (pr-str data) "UTF-8")))
+
+(defmethod types/encode-value "blob" [[_ data]]
+  (if (and (map? data) (:root data))
+    (encode-collection 2 data)
+    (.getBytes (pr-str data) "UTF-8")))
+
+(defmethod types/encode-value "map" [[_ data]]
+  (if (and (map? data) (:root data))
+    (encode-collection 3 data)
+    (.getBytes (pr-str data) "UTF-8")))
