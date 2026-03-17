@@ -20,8 +20,7 @@
    - [\"ft/node\" {:children [h...] :measure m}]
    - [\"ft/deep\" {:left h :spine h :right h :measure m}]"
   (:require [dacite.hash :as hash]
-            [dacite.types :as types])
-  (:import [java.nio ByteBuffer]))
+            [dacite.types :as types]))
 
 ;; =============================================================================
 ;; Measure (Monoid)
@@ -525,64 +524,6 @@
 
 (defmethod types/child-hashes "ft/deep" [[_ data]]
   #{(:left data) (:spine data) (:right data)})
-
-;; =============================================================================
-;; Binary encoding (encode-value)
-;; =============================================================================
-
-;; Binary format: 0x01 + u8(subtype) + measure(48B) + u8(n) + hash[n]
-;; Subtypes: empty=0, single=1, digit=2, node=3, deep=4
-
-(def ^:private ^:const ft-kind 0x01)
-
-(defn- write-u8 ^ByteBuffer [^ByteBuffer buf n]
-  (.put buf (unchecked-byte n)))
-
-(defn- write-u64 ^ByteBuffer [^ByteBuffer buf n]
-  (.putLong buf (long n)))
-
-(defn- write-hash-buf ^ByteBuffer [^ByteBuffer buf [a b c d]]
-  (.putLong buf (long a))
-  (.putLong buf (long b))
-  (.putLong buf (long c))
-  (.putLong buf (long d)))
-
-(defn- write-measure-buf [^ByteBuffer buf {:keys [count size-bytes elements-fuse]}]
-  (write-u64 buf count)
-  (write-u64 buf size-bytes)
-  (write-hash-buf buf elements-fuse))
-
-(defn- encode-ft-node [subtype {:keys [measure] :as data}]
-  (let [children (case (int subtype)
-                   0 []
-                   1 [(:value-hash data)]
-                   2 (:children data)
-                   3 (:children data)
-                   4 [(:left data) (:spine data) (:right data)])
-        n (count children)
-        buf (ByteBuffer/allocate (+ 2 48 1 (* 32 n)))]
-    (write-u8 buf ft-kind)
-    (write-u8 buf subtype)
-    (write-measure-buf buf measure)
-    (write-u8 buf n)
-    (doseq [h children]
-      (write-hash-buf buf h))
-    (.array buf)))
-
-(defmethod types/encode-value "ft/empty" [[_ data]]
-  (encode-ft-node 0 data))
-
-(defmethod types/encode-value "ft/single" [[_ data]]
-  (encode-ft-node 1 data))
-
-(defmethod types/encode-value "ft/digit" [[_ data]]
-  (encode-ft-node 2 data))
-
-(defmethod types/encode-value "ft/node" [[_ data]]
-  (encode-ft-node 3 data))
-
-(defmethod types/encode-value "ft/deep" [[_ data]]
-  (encode-ft-node 4 data))
 
 ;; =============================================================================
 ;; REPL examples

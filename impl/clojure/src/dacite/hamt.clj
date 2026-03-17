@@ -17,8 +17,7 @@
    - [\"hamt/entry\" {:key-hash h :key-ref h :val-ref h :measure m}]
    - [\"hamt/bitmap\" {:bitmap n :children [h...] :measure m}]"
   (:require [dacite.hash :as hash]
-            [dacite.types :as types])
-  (:import [java.nio ByteBuffer]))
+            [dacite.types :as types]))
 
 ;; =============================================================================
 ;; Constants
@@ -365,65 +364,6 @@
 
 (defmethod types/child-hashes "hamt/bitmap" [[_ data]]
   (set (:children data)))
-
-;; =============================================================================
-;; Binary encoding (encode-value)
-;; =============================================================================
-
-;; Binary format: 0x02 + u8(subtype) + measure(48B) + type-specific
-;; Subtypes: empty=0, entry=1, bitmap=2
-
-(def ^:private ^:const hamt-kind 0x02)
-
-(defn- write-u8 ^ByteBuffer [^ByteBuffer buf n]
-  (.put buf (unchecked-byte n)))
-
-(defn- write-u32 ^ByteBuffer [^ByteBuffer buf n]
-  (.putInt buf (unchecked-int n)))
-
-(defn- write-u64 ^ByteBuffer [^ByteBuffer buf n]
-  (.putLong buf (long n)))
-
-(defn- write-hash-buf ^ByteBuffer [^ByteBuffer buf [a b c d]]
-  (.putLong buf (long a))
-  (.putLong buf (long b))
-  (.putLong buf (long c))
-  (.putLong buf (long d)))
-
-(defn- write-measure-buf [^ByteBuffer buf {:keys [count size-bytes elements-fuse]}]
-  (write-u64 buf count)
-  (write-u64 buf size-bytes)
-  (write-hash-buf buf elements-fuse))
-
-(defmethod types/encode-value "hamt/empty" [[_ data]]
-  (let [buf (ByteBuffer/allocate (+ 2 48))]
-    (write-u8 buf hamt-kind)
-    (write-u8 buf 0)
-    (write-measure-buf buf (:measure data))
-    (.array buf)))
-
-(defmethod types/encode-value "hamt/entry" [[_ data]]
-  (let [buf (ByteBuffer/allocate (+ 2 48 (* 3 32)))]
-    (write-u8 buf hamt-kind)
-    (write-u8 buf 1)
-    (write-measure-buf buf (:measure data))
-    (write-hash-buf buf (:key-hash data))
-    (write-hash-buf buf (:key-ref data))
-    (write-hash-buf buf (:val-ref data))
-    (.array buf)))
-
-(defmethod types/encode-value "hamt/bitmap" [[_ data]]
-  (let [children (:children data)
-        n (count children)
-        buf (ByteBuffer/allocate (+ 2 48 4 1 (* 32 n)))]
-    (write-u8 buf hamt-kind)
-    (write-u8 buf 2)
-    (write-measure-buf buf (:measure data))
-    (write-u32 buf (:bitmap data))
-    (write-u8 buf n)
-    (doseq [h children]
-      (write-hash-buf buf h))
-    (.array buf)))
 
 ;; =============================================================================
 ;; REPL examples
