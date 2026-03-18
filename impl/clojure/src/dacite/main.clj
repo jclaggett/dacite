@@ -9,7 +9,8 @@
    Defaults:
      port:      8484
      store-dir: ~/.dacite/store"
-  (:require [dacite.service :as svc]
+  (:require [dacite.hash]
+            [dacite.service :as svc]
             [dacite.store :as store]
             [example.server :as server])
   (:gen-class))
@@ -29,13 +30,18 @@
   (let [{:keys [port store-dir]} (parse-args args)
         lmdb (store/lmdb-store store-dir)
         main-store (store/layered-store (store/mem-store) lmdb)
-        service (svc/create-service main-store)
-        user (System/getProperty "user.name")]
-    ;; Auto-register the unix user (no password for local service)
-    (svc/register-user service user "")
+        refs-file (str store-dir "/refs.json")
+        service (svc/create-service main-store refs-file)
+        user (System/getProperty "user.name")
+        root-hash (svc/get-ref service "root")]
+    ;; Auto-register the unix user with persisted root hash
+    (svc/register-user service user "" root-hash)
     (println (str "Dacite service starting..."))
     (println (str "  Store: " store-dir " (LMDB + mem cache)"))
+    (println (str "  Refs:  " refs-file))
     (println (str "  User:  " user))
+    (when root-hash
+      (println (str "  Root:  " (dacite.hash/hash->hex root-hash))))
     (let [srv (server/start! service port)]
       ;; Block until interrupted
       (.addShutdownHook (Runtime/getRuntime)

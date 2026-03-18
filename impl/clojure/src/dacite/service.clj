@@ -8,6 +8,7 @@
    - A main store (persistent, shared across all users)
    - A user registry (user-id → root-hash)
    - Active sessions (session-token → session state)
+   - A refs-file path for persistent name→hash mappings
 
    Each session has:
    - A session store (ephemeral mem-store, acts as client proxy)
@@ -23,8 +24,57 @@
    - update-root: declare new root, server walks session store to pull new nodes"
   (:require [dacite.store :as store]
             [dacite.auth :as auth]
-            [dacite.types :as types])
+            [dacite.types :as types]
+            [dacite.hash :as hash]
+            [cheshire.core :as json]
+            [clojure.java.io :as io])
   (:import [java.util UUID]))
+
+;; =============================================================================
+;; Refs persistence (name → root-hash mappings)
+;; =============================================================================
+
+(defn- hash->json
+  "Convert a hash tuple [a b c d] to its hex string for JSON storage."
+  [h]
+  (when h (hash/hash->hex h)))
+
+(defn- json->hash
+  "Convert a hex string from JSON back to a hash tuple."
+  [hex]
+  (when hex (hash/hex->hash hex)))
+
+(defn- load-refs
+  "Load refs from a JSON file. Returns {} if file doesn't exist."
+  [^String path]
+  (let [f (io/file path)]
+    (if (.exists f)
+      (let [raw (json/parse-string (slurp f))]
+        (into {} (map (fn [[k v]] [k (json->hash v)])) raw))
+      {})))
+
+(defn- save-refs!
+  "Save refs map to a JSON file. Writes atomically via temp file."
+  [^String path refs]
+  (let [f (io/file path)
+        parent (.getParentFile f)
+        tmp (java.io.File/createTempFile "refs" ".json" parent)
+        json-map (into {} (map (fn [[k v]] [k (hash->json v)])) refs)]
+    (spit tmp (json/generate-string json-map {:pretty true}))
+    (.renameTo tmp f)))
+
+(defn get-ref
+  "Get the hash for a named ref."
+  [service ref-name]
+  (get-in @service [:refs ref-name]))
+
+(defn set-ref!
+  "Set a named ref to a hash. Persists to refs-file if configured."
+  [service ref-name h]
+  (swap! service assoc-in [:refs ref-name] h)
+  (when-let [path (:refs-file @service)]
+    (save-refs! path (:refs @service)))
+  service)
 
 ;; =============================================================================
 ;; Service creation
@@ -32,12 +82,17 @@
 
 (defn create-service
   "Create a new Dacite service backed by the given store (or a fresh mem-store).
+   Optionally pass a refs-file path for persistent name→hash mappings.
    Returns a service map (wrapped in an atom for mutability)."
   ([] (create-service (store/mem-store)))
-  ([main-store]
-   (atom {:main-store main-store
-          :users {}        ;; {user-id {:password password :root-hash hash}}
-          :sessions {}}))) ;; {token {:user-id id :session-store store :root-hash hash}}
+  ([main-store] (create-service main-store nil))
+  ([main-store refs-file]
+   (let [refs (if refs-file (load-refs refs-file) {})]
+     (atom {:main-store main-store
+            :refs-file refs-file
+            :refs refs              ;; {ref-name hash}
+            :users {}               ;; {user-id {:password password :root-hash hash}}
+            :sessions {}}))))
 
 ;; =============================================================================
 ;; User management
@@ -182,7 +237,7 @@
 (defn update-root
   "Declare a new root hash. The server walks from new-root through the
    session store (proxy), pulling new nodes into the main store.
-   On success, updates the user's root pointer."
+   On success, updates the user's root pointer and persists the 'root' ref."
   [service token new-root]
   (let [session (get-session service token)]
     (cond
@@ -201,4 +256,6 @@
                              (-> s
                                  (assoc-in [:users user-id :root-hash] new-root)
                                  (assoc-in [:sessions token :root-hash] new-root))))
+            ;; Persist the root ref
+            (set-ref! service "root" new-root)
             (assoc result :root-hash new-root)))))))

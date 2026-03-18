@@ -5,7 +5,8 @@
             [dacite.store :as store]
             [dacite.types :as types]
             [dacite.auth :as auth]
-            [dacite.hash :as hash]))
+            [dacite.hash :as hash]
+            [clojure.java.io :as io]))
 
 ;; =============================================================================
 ;; User management
@@ -187,6 +188,73 @@
         ;; because shared nodes (like "x", i64 1) are already in main
         (let [total-local2 (count (store/s-snapshot local2))]
           (is (< (:nodes-pulled r2) total-local2)))))))
+
+;; =============================================================================
+;; Logout
+;; =============================================================================
+
+;; =============================================================================
+;; Refs persistence
+;; =============================================================================
+
+(deftest refs-in-memory
+  (testing "get-ref / set-ref! without a refs-file"
+    (let [service (svc/create-service)
+          h (hash/sha256 (.getBytes "test"))]
+      (is (nil? (svc/get-ref service "root")))
+      (svc/set-ref! service "root" h)
+      (is (= h (svc/get-ref service "root"))))))
+
+(deftest refs-persisted-to-file
+  (let [tmp-dir (System/getProperty "java.io.tmpdir")
+        refs-file (str tmp-dir "/dacite-test-refs-" (System/nanoTime) ".json")
+        h1 (hash/sha256 (.getBytes "root-1"))
+        h2 (hash/sha256 (.getBytes "root-2"))]
+    (try
+      (testing "set-ref! writes to disk"
+        (let [service (svc/create-service (store/mem-store) refs-file)]
+          (svc/set-ref! service "root" h1)
+          (is (.exists (io/file refs-file)))
+          (is (= h1 (svc/get-ref service "root")))))
+
+      (testing "new service loads refs from disk"
+        (let [service2 (svc/create-service (store/mem-store) refs-file)]
+          (is (= h1 (svc/get-ref service2 "root")))))
+
+      (testing "multiple refs"
+        (let [service3 (svc/create-service (store/mem-store) refs-file)]
+          (svc/set-ref! service3 "branch-a" h2)
+          (is (= h1 (svc/get-ref service3 "root")))
+          (is (= h2 (svc/get-ref service3 "branch-a")))))
+
+      (finally
+        (.delete (io/file refs-file))))))
+
+(deftest update-root-persists-ref
+  (let [tmp-dir (System/getProperty "java.io.tmpdir")
+        refs-file (str tmp-dir "/dacite-test-refs-" (System/nanoTime) ".json")
+        main-store (store/mem-store)
+        service (svc/create-service main-store refs-file)]
+    (try
+      (svc/register-user service "alice" "pass")
+      (let [{:keys [token]} (svc/login service "alice" "pass")
+            local-store (store/mem-store)
+            value (binding [store/*store* local-store]
+                    (d/hash-map "greeting" "hello"))
+            root-h (types/dacite-hash value)]
+        (doseq [[h v] (store/s-snapshot local-store)]
+          (svc/session-put service token h v))
+        (svc/update-root service token root-h)
+
+        (testing "root ref persisted after update-root"
+          (is (= root-h (svc/get-ref service "root"))))
+
+        (testing "new service restores root from refs.json"
+          (let [service2 (svc/create-service (store/mem-store) refs-file)]
+            (is (= root-h (svc/get-ref service2 "root"))))))
+
+      (finally
+        (.delete (io/file refs-file))))))
 
 ;; =============================================================================
 ;; Logout
