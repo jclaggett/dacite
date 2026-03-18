@@ -374,6 +374,63 @@ party, and they prove access from that subtree root via proof chains.
 This is equivalent to giving someone their own "account" rooted at a subtree
 of your data.
 
+### Read-Only Delegation
+
+The simplest case. The delegator issues a scoped session rooted at a subtree
+hash. The delegatee can read anything reachable from that subtree root via
+proof chains, but cannot modify the delegator's tree.
+
+Proof-of-possession on the PUT side ensures the delegatee cannot capture
+hashes outside the subtree — they can only reference data reachable from
+their scoped root.
+
+### Write-Back via Proposed Roots (PR Model)
+
+For read-write delegation, the delegatee can mutate the subtree locally and
+propose a new subtree root. The delegator reviews and merges the change,
+analogous to a pull request:
+
+```
+  Delegatee                         Delegator
+    │                                    │
+    │  1. receives scoped session        │
+    │     rooted at subtree #S           │
+    │  ◄──────────────────────────────── │
+    │                                    │
+    │  2. mutates subtree locally        │
+    │     computes new subtree root #S'  │
+    │                                    │
+    │  3. proposes #S' as new subtree    │
+    │     (pushes new nodes to server)   │
+    │ ──────────────────────────────────►│
+    │                                    │
+    │  4. delegator inspects #S'         │
+    │     merges into full tree:         │
+    │     #R → #R' (replacing #S with   │
+    │     #S' at the appropriate path)   │
+    │                                    │
+    │  5. reissues scoped session        │
+    │     rooted at #S'                  │
+    │  ◄──────────────────────────────── │
+    │                                    │
+```
+
+The delegatee never sees or modifies the delegator's full root. The delegator
+retains full control over whether and how the proposed subtree is integrated.
+Structural sharing means only the changed nodes are transmitted.
+
+### Properties
+
+- **Scoped by construction.** The delegatee's session root bounds what they
+  can see and reference. No ACLs needed.
+- **Write-back is explicit.** The delegator decides when to merge, preserving
+  sovereignty over the full tree.
+- **Composable.** Delegation can be nested: the delegatee can further delegate
+  a sub-subtree to a third party, with the same scoping guarantees.
+- **Revocable.** The delegator simply stops reissuing the scoped session.
+  The delegatee's old root still exists in the store (content-addressed data
+  is immutable) but they lose the session to access it.
+
 ## Dedicated Stores (Selective Sharing)
 
 Beyond the session store, clients can create **dedicated stores** for
