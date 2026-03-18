@@ -1,6 +1,6 @@
 # Authorization Design — Store Access Control
 
-*Draft: 2026-03-05. Revised: 2026-03-07. From discussion between Jonathan and Gorm.*
+*Draft: 2026-03-05. Revised: 2026-03-07, 2026-03-18. From discussion between Jonathan and Gorm.*
 
 ## Core Principle
 
@@ -234,6 +234,129 @@ the client.
 
 Write authorization is by identity: if your session token entitles you to
 update your root pointer, you can declare any new root hash.
+
+## PUT-Side Authorization: Proof of Possession
+
+*Added 2026-03-18.*
+
+### The Problem
+
+GET-side proof chains prove **reachability**: "I can reach this hash from my
+root, so I'm allowed to read it." But this is insufficient for a shared store
+with multiple users.
+
+Consider: Alice has root `#RA`, Bob has root `#RB`. If Alice learns any hash
+in Bob's tree (by guessing, side channel, or social engineering), she can:
+
+1. Build a new root `#RA'` that references Bob's hash
+2. Push `#RA'` as her new root (the server accepts — it has all the nodes)
+3. Build a proof chain from `#RA'` to Bob's data
+4. Read Bob's data through her own root
+
+The proof chain is structurally valid. The server has no reason to deny it.
+**Knowing a hash should not grant access to its value**, but the current model
+allows exactly that by constructing a new root that captures the hash.
+
+### The Dual: Prove You Have the Data
+
+GET authorization asks: "Can you reach this hash from your root?"
+PUT authorization should ask: **"Can you prove you possess this data?"**
+
+When a client declares a new root hash, the server must verify that every
+hash referenced by the new root is **legitimately possessed** by the client.
+There are exactly two ways to prove possession:
+
+#### 1. Provide the Value (Data Possession)
+
+The client sends the actual node data. This is what `walk-and-pull` already
+does for nodes the server doesn't have: the server walks the new root,
+discovers missing nodes, and demands the client provide them.
+
+If the client cannot produce the node, the put fails.
+
+#### 2. Prove Reachability from the Old Root (Structural Possession)
+
+For nodes the server already has (structural sharing), the client proves it
+had access to them *before* the put — by providing a proof chain from its
+**previous root** to the referenced hash.
+
+This handles the common case of mutations that share structure with the
+previous version: the client doesn't need to re-send unchanged subtrees,
+but it does need to prove it already had them.
+
+### Root Transition Protocol
+
+**The old root hash remains valid until the new root is fully verified.**
+
+This is critical: if the server accepted the new root before verification,
+a failed put could leave the user in an inconsistent state. The transition
+is atomic — the old root is only replaced after the server confirms every
+hash in the new root is legitimately possessed.
+
+```
+  Client                              Server
+    │                                    │
+    │  1. declare new root #R'           │
+    │     (old root #R stays active)     │
+    │ ──────────────────────────────────► │
+    │                                    │
+    │  2. walk new root #R'              │
+    │     for each referenced hash #H:   │
+    │                                    │
+    │     case A: server doesn't have #H │
+    │       ◄── "send me #H"            │
+    │       ──► [node data for #H]       │
+    │       (proof: client has the data) │
+    │                                    │
+    │     case B: server has #H          │
+    │       ◄── "prove you had #H"      │
+    │       ──► proof chain [#R,...,#H]  │
+    │       (proof: reachable from old   │
+    │        root #R)                    │
+    │                                    │
+    │  3. all hashes verified            │
+    │     root pointer: #R → #R'         │
+    │  ◄── ack (new root #R')            │
+    │                                    │
+```
+
+### Why This Works
+
+**Alice cannot capture Bob's data.** When Alice pushes a new root referencing
+Bob's hash `#BH`:
+
+- The server already has `#BH` (it's in the shared store)
+- The server demands Alice prove she had `#BH` before this put
+- Alice must provide a proof chain from her old root `#RA` to `#BH`
+- No such chain exists — `#BH` is not reachable from `#RA`
+- **Put rejected.**
+
+**Structural sharing within a user's data works naturally.** When Alice
+mutates her map (e.g., `assoc "key" new-value`), the new root shares most
+subtrees with the old root. For each shared subtree:
+
+- The server already has these nodes
+- Alice proves reachability from her old root — trivially valid, since she
+  built the old root too
+- No re-transmission needed
+
+**New data is verified by possession.** For genuinely new nodes (the changed
+key-value pair, new internal nodes from the HAMT restructuring), Alice
+provides the actual data. The server verifies it hashes correctly and stores
+it.
+
+### Relationship to GET-Side Authorization
+
+| | GET (Read) | PUT (Write) |
+|---|---|---|
+| **Proves** | Reachability from current root | Possession of referenced data |
+| **Mechanism** | Proof chain from root to target | Value provision OR proof chain from old root |
+| **Prevents** | Reading data outside your tree | Capturing data outside your tree |
+| **Symmetry** | "I can reach it" | "I already had it" |
+
+Together, GET and PUT authorization form a complete access control model:
+you can only read what's reachable from your root, and you can only write
+references to data you legitimately possess.
 
 ## Root Management
 
