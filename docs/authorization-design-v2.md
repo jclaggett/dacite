@@ -69,13 +69,6 @@ Verification:
 | #E2 → #V2 | #E2 contains #V2? | ✓ (val-ref of "scores" entry) |
 | #V2 → #S3 | #V2 contains #S3? | ✓ (element of the vector) |
 
-### 2.4 Transmission
-
-- **Small chains (≤32 hashes):** transmitted inline with the request.
-- **Large chains (>32 hashes):** stored as a Dacite vector in an
-  unauthenticated store accessible to both parties. The requester sends
-  the chain's hash; the verifier fetches the chain from that store.
-
 ## 3. Two Kinds of Stores
 
 Dacite distinguishes two kinds of stores based on their authentication
@@ -175,16 +168,22 @@ structurally valid. **Knowing a hash has become a capability.**
 ### 5.2 The Solution: Prove You Had It
 
 When a client declares a new root, every referenced hash must be
-**legitimately possessed**:
+**legitimately possessed**. The server walks the new root and, for each
+hash it encounters, issues a uniform challenge:
 
-| Referenced hash | Server has it? | Client must... |
-|----------------|---------------|----------------|
-| New node | No | Provide the value (data possession) |
-| Existing node | Yes | Prove reachability from old root (structural possession) |
+**"Prove you possess #H."**
 
-This is why proof of possession has two forms. Data possession handles
-genuinely new data. Structural possession handles structural sharing with
-the client's own previous state.
+The server does not reveal whether it already has the data. The client
+responds with whichever form of proof it has:
+
+- **Data possession** — send the node value. The server verifies it
+  hashes correctly.
+- **Structural possession** — send a proof chain from the old root.
+  The server verifies each link.
+
+The client's choice is natural: if it created the node fresh, it has no
+proof chain and sends the data. If the node existed in its previous tree,
+it sends a chain (cheaper than retransmitting).
 
 ### 5.3 Root Transition Protocol
 
@@ -199,12 +198,11 @@ sequenceDiagram
     C->>S: declare new root #R' (old root #R stays active)
 
     loop walk new root #R'
-        alt server doesn't have #H
-            S->>C: send me #H
+        S->>C: prove you possess #H
+        alt client has data (new node)
             C-->>S: [node data for #H]
             Note over S: data possession ✓
-        else server has #H
-            S->>C: prove you had #H
+        else client has chain (existing node)
             C-->>S: chain [#R, ..., #H]
             Note over S: structural possession ✓
         end
@@ -215,16 +213,45 @@ sequenceDiagram
     S-->>C: ack (new root #R')
 ```
 
-### 5.4 Why Hash Capture Fails
+The server never discloses its internal state. The client cannot deduce
+which hashes the server already has.
+
+### 5.4 The Server Always Has Structurally-Proven Data
+
+A subtle but critical property: if the client sends a structural proof
+chain (from old root to #H), the server is **guaranteed to already have
+the data at #H**.
+
+Why? The proof chain proves #H is reachable from the client's old root.
+The server stored the client's old root and its entire reachable tree —
+that's what previous PUT verification ensured. So every hash reachable
+from the old root is already in the server's store.
+
+This means the two proof forms partition cleanly:
+
+| Client sends | What it means | Server's state |
+|---|---|---|
+| Node data | Client created this node | Server didn't have it; now it does |
+| Proof chain | Node existed in client's previous tree | Server already has it |
+
+There is no degenerate case where the client sends a valid proof chain
+for data the server lacks. The invariant is maintained inductively: each
+verified PUT ensures the server has all reachable data, which makes the
+next PUT's structural proofs sound.
+
+### 5.5 Why Hash Capture Fails
 
 When Alice pushes a root referencing Bob's hash `#BD`:
 
-1. The server already has `#BD` — so it demands structural possession
-2. Alice must provide a proof chain from her **old** root `#RA` to `#BD`
-3. No such chain exists — `#BD` is not reachable from `#RA`
+1. The server challenges: "prove you possess `#BD`"
+2. Alice cannot provide the data (she doesn't have Bob's node contents)
+3. Alice cannot provide a proof chain (no path from her old root `#RA` to `#BD`)
 4. **Put rejected.**
 
-### 5.5 Why Structural Sharing Works
+Alice never learns whether the server had `#BD` or not. The challenge is
+the same either way.
+
+### 5.6 Why Structural Sharing Works
 
 When Alice mutates her own data (e.g., `assoc "key" new-value`), the new
 root shares most subtrees with the old root. For shared subtrees, Alice
@@ -232,7 +259,7 @@ proves reachability from her old root — trivially valid, since she built
 it. For new nodes, she provides the data. No re-transmission of unchanged
 subtrees.
 
-### 5.6 GET vs PUT
+### 5.7 GET vs PUT
 
 | | GET (Read) | PUT (Write) |
 |---|---|---|
