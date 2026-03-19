@@ -1,606 +1,494 @@
 # Authorization Design — Store Access Control
 
-*Draft: 2026-03-05. Revised: 2026-03-07, 2026-03-18. From discussion between Jonathan and Gorm.*
+*Draft: 2026-03-19. From discussion between Jonathan and Gorm.*
 
-## Core Principle
+## 1. Core Principle
 
 **Knowing a hash does not authorize access to its value.**
 
-Content-addressed systems tempt you into treating hash-knowledge as a capability.
-Dacite rejects this. Authorization is structural: you prove you can *reach* a
-hash from a root you're entitled to.
+Content-addressed systems tempt you into treating hash-knowledge as a
+capability. Dacite rejects this. Authorization is structural: you prove
+you *possess* the data, not merely that you know its address.
 
-## Authentication
+## 2. Proof of Possession
 
-Users authenticate to a store service (e.g., `https://dacite.io/store`) using
-standard credentials (token, OAuth, etc.). Upon authentication, the server
-provides the user's **root hash** and a **session token**.
+Proof of Possession is Dacite's single authorization concept. Every
+access — read or write — requires the requester to prove they legitimately
+possess the data in question. There are exactly two forms:
 
-## Two Stores, Two Auth Levels
+### 2.1 Data Possession
 
-A Dacite service exposes two stores to each authenticated client:
+You have the actual value. You can produce the bytes, and they hash to the
+claimed address. This is the strongest form of proof — if you can hand
+someone the data, you obviously possess it.
 
-### Session Store
+### 2.2 Structural Possession
 
-- **Authorization:** session token only (no proof chain required)
-- **Scope:** per-session, ephemeral — lives and dies with the session
-- **Contents:** proof chains, session metadata
-- **Purpose:** holds the authorization data itself
+You can prove the hash is **reachable** from a root you're authorized to
+access. This is proven via a **proof chain**: an ordered sequence of hashes
+from root to target where each step is a parent→child relationship in the
+DAG.
 
-The session store doesn't need proof chains because it IS the proof chain
-store. Proving you can access proof chains with proof chains would be circular.
-
-### Main Store
-
-- **Authorization:** session token + valid proof chain
-- **Scope:** persistent, shared across all users
-- **Contents:** all user data (Dacite values)
-- **Purpose:** holds the actual data
-
-Every `s-get` against the main store requires a proof chain proving that
-the requested hash is reachable from the client's authenticated root.
-
-## Proof Chains
-
-A proof chain is a Dacite vector of hashes `[root, h1, h2, ..., target]`
-proving that `target` is reachable from `root` through the DAG structure.
-
-To fetch a node from the main store, the client provides:
-
-1. **Session token** — proves identity and session
-2. **Proof chain** — proves structural reachability from root to target
-
-The server verifies each link: node at `h_n` must contain a reference to
-`h_{n+1}`.
-
-### Example: Tree and Proof Chain Walk
-
-Consider a Dacite map `{"name" "Alice", "scores" [10, 20, 30]}`:
-
-```
-                    ┌─────────────────┐
-                    │   map (root)     │
-                    │     #R           │
-                    └────┬────────┬───┘
-                         │        │
-              ┌──────────┘        └──────────┐
-              ▼                              ▼
-    ┌──────────────┐               ┌──────────────┐
-    │ hamt/entry   │               │ hamt/entry   │
-    │ "name"→      │               │ "scores"→    │
-    │  #E1         │               │  #E2         │
-    └──┬──────┬────┘               └──┬──────┬────┘
-       │      │                       │      │
-       ▼      ▼                       ▼      ▼
-    ┌─────┐ ┌───────┐             ┌────────┐ ┌──────────┐
-    │"name"│ │"Alice"│             │"scores"│ │ vector   │
-    │ #K1  │ │ #V1   │             │  #K2   │ │   #V2    │
-    └──────┘ └───────┘             └────────┘ └────┬─────┘
-                                                   │
-                                              ┌────┼────┐
-                                              ▼    ▼    ▼
-                                           ┌────┐┌────┐┌────┐
-                                           │ 10 ││ 20 ││ 30 │
-                                           │#S1 ││#S2 ││#S3 │
-                                           └────┘└────┘└────┘
+```mermaid
+graph LR
+    R["#R (root)"] --> H1["#H1"] --> H2["#H2"] --> T["#T (target)"]
+    style R fill:#4a9,stroke:#333,color:#fff
+    style T fill:#49a,stroke:#333,color:#fff
 ```
 
-To read the value `30` (#S3), the client builds a proof chain by walking
-from root to target:
+The server verifies each link: the node at `h_n` must contain a reference
+to `h_{n+1}`. If every link checks out, the requester has proven structural
+possession of the target.
 
-```
-  Proof chain: [#R, #E2, #V2, #S3]
+### 2.3 Proof Chains
 
-  Verification (server checks each link):
-    #R  contains #E2?  → yes (hamt/entry child of map root)
-    #E2 contains #V2?  → yes (val-ref of "scores" entry)
-    #V2 contains #S3?  → yes (element of the vector)
-    ✓ chain valid — serve node at #S3
-```
+A proof chain is a Dacite vector of hashes `[root, h1, h2, ..., target]`.
+Consider a map `{"name" "Alice", "scores" [10, 20, 30]}`:
 
-### Read Flow (client reads from server)
-
-```
-  Client                              Server
-    │                                    │
-    │  1. authenticate                   │
-    │ ──────────────────────────────────► │
-    │  ◄── session token + root hash #R  │
-    │                                    │
-    │  2. s-get #S3                      │
-    │     proof chain: [#R, #E2, #V2, #S3]
-    │ ──────────────────────────────────► │
-    │     verify chain against main store│
-    │     #R→#E2→#V2→#S3 ✓              │
-    │  ◄── ["i64" 30]                    │
-    │                                    │
+```mermaid
+graph TD
+    R["map (root) #R"] --> E1["entry #E1\n'name' → 'Alice'"]
+    R --> E2["entry #E2\n'scores' → vector"]
+    E1 --> K1["'name' #K1"]
+    E1 --> V1["'Alice' #V1"]
+    E2 --> K2["'scores' #K2"]
+    E2 --> V2["vector #V2"]
+    V2 --> S1["10 #S1"]
+    V2 --> S2["20 #S2"]
+    V2 --> S3["30 #S3"]
+    style R fill:#4a9,stroke:#333,color:#fff
+    style S3 fill:#49a,stroke:#333,color:#fff
 ```
 
-### Write Flow (server fetches new nodes from client)
+To prove possession of `30` (#S3), the proof chain is `[#R, #E2, #V2, #S3]`.
+Verification:
 
-```
-  Client                              Server
-    │                                    │
-    │  1. declare new root #R'           │
-    │ ──────────────────────────────────► │
-    │                                    │
-    │  2. s-get #R'                      │
-    │     (server needs new root node)   │
-    │  ◄──────────────────────────────── │
-    │     proof chain: [#R']             │
-    │     verify: trivially valid        │
-    │  ──► ["map" {...}]                 │
-    │                                    │
-    │  3. s-get #E3 (new child)          │
-    │  ◄──────────────────────────────── │
-    │     proof chain: [#R', #E3]        │
-    │     verify: #R' contains #E3? ✓   │
-    │  ──► ["hamt/entry" {...}]          │
-    │                                    │
-    │  4. server already has #K1, #V1... │
-    │     (stops walking — no more gets) │
-    │                                    │
-    │  5. root pointer updated to #R'    │
-    │  ◄── ack                           │
-    │                                    │
-```
+| Link | Check | Result |
+|------|-------|--------|
+| #R → #E2 | #R contains #E2? | ✓ (entry child of map root) |
+| #E2 → #V2 | #E2 contains #V2? | ✓ (val-ref of "scores" entry) |
+| #V2 → #S3 | #V2 contains #S3? | ✓ (element of the vector) |
 
-### Structural Sharing: Two Users, One Subtree
+## 3. Two Kinds of Stores
 
-```
-  User A's root          User B's root
-    #RA                    #RB
-     │                      │
-     ├── "docs" ──┐    ┌── "refs" ──┐
-     │            ▼    ▼            │
-     │      ┌──────────────┐       │
-     │      │ shared map   │       │
-     │      │    #SM       │       │
-     │      └──────┬───────┘       │
-     │             │               │
-     │        ┌────┼────┐          │
-     │        ▼    ▼    ▼          │
-     │      [nodes shared by both] │
-     │                             │
+Dacite distinguishes two kinds of stores based on their authentication
+and mutation requirements:
 
-  User A's chain to #SM: [#RA, ..., #SM]  ✓
-  User B's chain to #SM: [#RB, ..., #SM]  ✓
+### 3.1 Unauthenticated, Read-Only Stores
 
-  Same data, independent authorization paths.
-  Neither user can access the other's unshared data.
-```
+- **No identity required** — any party with access can read
+- **Immutable** — values are written once, never modified
+- **Limited scope** — hold proof chains, session metadata, coordination data
+- **Purpose** — facilitate authorization without circular dependencies
 
-### Transmission
+These stores exist because proof chains themselves need to be exchanged,
+and requiring proof chains to access proof chains would be circular.
+An unauthenticated store breaks this cycle.
 
-- **Small chains (≤32 hashes):** transmitted inline with the request
-- **Large chains (>32 hashes):** stored as a Dacite vector in the client's
-  session store. The client sends the chain's root hash; the server fetches
-  the chain from the session store (no proof chain needed — session store
-  access is authorized by session token alone)
+### 3.2 Authenticated, Modifiable Stores
 
-### Properties
+- **Identity required** — bound to an authenticated session
+- **Root-managed** — a service layer maintains root hash pointers
+- **General purpose** — hold all user data (Dacite values)
+- **Purpose** — the primary data store
 
-- **No ACLs.** Authorization is derived from structure.
-- **Structural sharing is safe.** Two users may share the same subtree.
-  Each proves access through their own root.
-- **Natural scoping.** Sharing a subtree root grants access to everything
-  below it, nothing above it. Delegation is just sharing a hash.
-- **Revocation** is achieved by restructuring: build a new root that omits
-  the revoked subtree (e.g., `dissoc`). No negative authorization needed.
+Every read requires proof of structural possession (proof chain from the
+user's root). Every write requires full proof of possession (data or
+structural).
 
-## Peer-to-Peer Store Model
+### 3.3 How They Compose
 
-Both client and server are stores. The `IStore` protocol is the universal
-interface for all data exchange. **Data is always transmitted using proof
-chains.**
+In a typical client-server session:
 
-**Client and server are peers in a network of stores.**
+| Store | Auth Level | Contents |
+|-------|-----------|----------|
+| Session store | Unauthenticated, read-only | Proof chains, metadata |
+| Main store | Authenticated, modifiable | User data |
 
-### Reads (client fetches from server)
+The session store holds the authorization data itself. The main store holds
+the data being authorized. This separation is what makes the system
+non-circular.
 
-1. Client builds proof chain from root to target
-2. Client stores chain in session store (if large) or sends inline
-3. Server verifies chain against its own main store
-4. Server returns the requested node
+## 4. Reading (GET)
 
-### Writes (server fetches from client)
+Reading requires **structural possession only** — a proof chain from the
+reader's authorized root to the target hash.
 
-1. Client modifies data locally, computes new root hash
-2. Client declares new root hash to server
-3. Server walks from new root, building proof chains as it discovers
-   nodes it doesn't have
-4. Client verifies server's proof chains against its own store
-5. Client serves requested nodes
-6. Server updates the user's root pointer
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
 
-Both directions use proof chains. Both directions use `s-get`. The only
-asymmetry is policy: who declares roots and under what conditions.
+    C->>S: authenticate
+    S-->>C: session token + root hash #R
 
-### Implications
-
-- Data always flows via `s-get` + proof chain — one pattern, both directions
-- Session stores handle proof chain exchange without circular auth
-- The `IStore` protocol remains the universal interface
-- Topologies compose: peers in a network, each with their own session stores
-
-## Writes: Root Replacement
-
-The immutable nature of Dacite values means **all mutations redefine the root
-hash.** There is no in-place update.
-
-**`s-put` may not be needed.** The client declares a new root hash; the server
-pulls whatever it's missing via proof-chain-authorized `s-get` calls against
-the client.
-
-Write authorization is by identity: if your session token entitles you to
-update your root pointer, you can declare any new root hash.
-
-## PUT-Side Authorization: Proof of Possession
-
-*Added 2026-03-18.*
-
-### The Problem
-
-GET-side proof chains prove **reachability**: "I can reach this hash from my
-root, so I'm allowed to read it." But this is insufficient for a shared store
-with multiple users.
-
-Consider: Alice has root `#RA`, Bob has root `#RB`. If Alice learns any hash
-in Bob's tree (by guessing, side channel, or social engineering), she can:
-
-1. Build a new root `#RA'` that references Bob's hash
-2. Push `#RA'` as her new root (the server accepts — it has all the nodes)
-3. Build a proof chain from `#RA'` to Bob's data
-4. Read Bob's data through her own root
-
-The proof chain is structurally valid. The server has no reason to deny it.
-**Knowing a hash should not grant access to its value**, but the current model
-allows exactly that by constructing a new root that captures the hash.
-
-### The Dual: Prove You Have the Data
-
-GET authorization asks: "Can you reach this hash from your root?"
-PUT authorization should ask: **"Can you prove you possess this data?"**
-
-When a client declares a new root hash, the server must verify that every
-hash referenced by the new root is **legitimately possessed** by the client.
-There are exactly two ways to prove possession:
-
-#### 1. Provide the Value (Data Possession)
-
-The client sends the actual node data. This is what `walk-and-pull` already
-does for nodes the server doesn't have: the server walks the new root,
-discovers missing nodes, and demands the client provide them.
-
-If the client cannot produce the node, the put fails.
-
-#### 2. Prove Reachability from the Old Root (Structural Possession)
-
-For nodes the server already has (structural sharing), the client proves it
-had access to them *before* the put — by providing a proof chain from its
-**previous root** to the referenced hash.
-
-This handles the common case of mutations that share structure with the
-previous version: the client doesn't need to re-send unchanged subtrees,
-but it does need to prove it already had them.
-
-### Root Transition Protocol
-
-**The old root hash remains valid until the new root is fully verified.**
-
-This is critical: if the server accepted the new root before verification,
-a failed put could leave the user in an inconsistent state. The transition
-is atomic — the old root is only replaced after the server confirms every
-hash in the new root is legitimately possessed.
-
-```
-  Client                              Server
-    │                                    │
-    │  1. declare new root #R'           │
-    │     (old root #R stays active)     │
-    │ ──────────────────────────────────► │
-    │                                    │
-    │  2. walk new root #R'              │
-    │     for each referenced hash #H:   │
-    │                                    │
-    │     case A: server doesn't have #H │
-    │       ◄── "send me #H"            │
-    │       ──► [node data for #H]       │
-    │       (proof: client has the data) │
-    │                                    │
-    │     case B: server has #H          │
-    │       ◄── "prove you had #H"      │
-    │       ──► proof chain [#R,...,#H]  │
-    │       (proof: reachable from old   │
-    │        root #R)                    │
-    │                                    │
-    │  3. all hashes verified            │
-    │     root pointer: #R → #R'         │
-    │  ◄── ack (new root #R')            │
-    │                                    │
+    C->>S: GET #S3, chain: [#R, #E2, #V2, #S3]
+    Note over S: verify chain against main store
+    Note over S: #R→#E2→#V2→#S3 ✓
+    S-->>C: ["i64" 30]
 ```
 
-### Why This Works
+The server verifies each link in the proof chain against its own main
+store. If valid, it serves the requested node.
 
-**Alice cannot capture Bob's data.** When Alice pushes a new root referencing
-Bob's hash `#BH`:
+### 4.1 Properties
 
-- The server already has `#BH` (it's in the shared store)
-- The server demands Alice prove she had `#BH` before this put
-- Alice must provide a proof chain from her old root `#RA` to `#BH`
-- No such chain exists — `#BH` is not reachable from `#RA`
-- **Put rejected.**
+- **Stateless verification.** The server needs no per-session state beyond
+  the user's root hash. Any server with access to the main store can verify
+  any proof chain.
+- **Scoped by construction.** A proof chain can only reach nodes that are
+  structurally below the root. No ACLs needed — the DAG structure *is* the
+  access control.
 
-**Structural sharing within a user's data works naturally.** When Alice
-mutates her map (e.g., `assoc "key" new-value`), the new root shares most
-subtrees with the old root. For each shared subtree:
+## 5. Writing (PUT)
 
-- The server already has these nodes
-- Alice proves reachability from her old root — trivially valid, since she
-  built the old root too
-- No re-transmission needed
+Writing requires **full proof of possession** — both forms. This is
+strictly stronger than reading, because the writer must account for every
+hash referenced by the new root.
 
-**New data is verified by possession.** For genuinely new nodes (the changed
-key-value pair, new internal nodes from the HAMT restructuring), Alice
-provides the actual data. The server verifies it hashes correctly and stores
-it.
+### 5.1 The Problem: Hash Capture
 
-### Relationship to GET-Side Authorization
+Without PUT-side authorization, a malicious user can exploit a shared store.
+
+```mermaid
+graph TD
+    RA["Alice's root #RA"] --> AD["Alice's data"]
+    RB["Bob's root #RB"] --> BD["Bob's data"]
+    RA2["Alice declares #RB as her root"] --> BD
+    style RA2 fill:#a44,stroke:#333,color:#fff
+    style BD fill:#a44,stroke:#333,color:#fff
+```
+
+In the simplest case, if Alice learns Bob's root hash `#RB`, she declares
+it as her own root. The server accepts — it has all the nodes. Alice now
+has a structurally valid proof chain from "her" root to everything in
+Bob's tree. **Knowing a hash has become a capability.**
+
+### 5.2 The Solution: Prove You Had It
+
+When a client declares a new root, every referenced hash must be
+**legitimately possessed**. The server walks the new root and, for each
+hash it encounters, issues a uniform challenge:
+
+**"Prove you possess #H."**
+
+The server does not reveal whether it already has the data. The client
+responds with whichever form of proof it has:
+
+- **Data possession** — send the node value. The server verifies it
+  hashes correctly.
+- **Structural possession** — send a proof chain from the old root.
+  The server verifies each link.
+
+The client's choice is natural: if it created the node fresh, it has no
+proof chain and sends the data. If the node existed in its previous tree,
+it sends a chain (cheaper than retransmitting).
+
+### 5.3 Root Transition Protocol
+
+The old root remains valid until the new root is fully verified. The
+transition is atomic.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+
+    C->>S: declare new root #R' (old root #R stays active)
+
+    loop walk new root #R'
+        S->>C: prove you possess #H
+        alt client has data (new node)
+            C-->>S: [node data for #H]
+            Note over S: data possession ✓
+        else client has chain (existing node)
+            C-->>S: chain [#R, ..., #H]
+            Note over S: structural possession ✓
+        end
+    end
+
+    Note over S: all hashes verified
+    Note over S: root pointer: #R → #R'
+    S-->>C: ack (new root #R')
+```
+
+The server never discloses its internal state. The client cannot deduce
+which hashes the server already has.
+
+### 5.4 The Server Always Has Structurally-Proven Data
+
+A subtle but critical property: if the client sends a structural proof
+chain (from old root to #H), the server is **guaranteed to already have
+the data at #H**.
+
+Why? The proof chain proves #H is reachable from the client's old root.
+The server stored the client's old root and its entire reachable tree —
+that's what previous PUT verification ensured. So every hash reachable
+from the old root is already in the server's store.
+
+This means the two proof forms partition cleanly:
+
+| Client sends | What it means | Server's state |
+|---|---|---|
+| Node data | Client created this node | Server didn't have it; now it does |
+| Proof chain | Node existed in client's previous tree | Server already has it |
+
+There is no degenerate case where the client sends a valid proof chain
+for data the server lacks. The invariant is maintained inductively: each
+verified PUT ensures the server has all reachable data, which makes the
+next PUT's structural proofs sound.
+
+### 5.5 Why Hash Capture Fails
+
+When Alice pushes a root referencing Bob's hash `#BD`:
+
+1. The server challenges: "prove you possess `#BD`"
+2. Alice cannot provide the data (she doesn't have Bob's node contents)
+3. Alice cannot provide a proof chain (no path from her old root `#RA` to `#BD`)
+4. **Put rejected.**
+
+Alice never learns whether the server had `#BD` or not. The challenge is
+the same either way.
+
+### 5.6 Why Structural Sharing Works
+
+When Alice mutates her own data (e.g., `assoc "key" new-value`), the new
+root shares most subtrees with the old root. For shared subtrees, Alice
+proves reachability from her old root — trivially valid, since she built
+it. For new nodes, she provides the data. No re-transmission of unchanged
+subtrees.
+
+### 5.7 GET vs PUT
 
 | | GET (Read) | PUT (Write) |
 |---|---|---|
-| **Proves** | Reachability from current root | Possession of referenced data |
-| **Mechanism** | Proof chain from root to target | Value provision OR proof chain from old root |
-| **Prevents** | Reading data outside your tree | Capturing data outside your tree |
-| **Symmetry** | "I can reach it" | "I already had it" |
+| **Proves** | Structural possession only | Full possession (both forms) |
+| **Mechanism** | Proof chain from current root | Value provision OR proof chain from old root |
+| **Prevents** | Reading outside your tree | Capturing data outside your tree |
 
-Together, GET and PUT authorization form a complete access control model:
-you can only read what's reachable from your root, and you can only write
-references to data you legitimately possess.
+GET is a subset of PUT. Both are applications of proof of possession.
 
-## Root Management
+## 6. Peer-to-Peer Store Model
 
-Root hash pointers are a **service-layer** concern, not a store-layer concern.
-The `IStore` protocol remains purely content-addressed. Root management
-(binding a user identity to a root hash, updating root pointers) belongs to a
-higher-level service protocol.
+Client and server are both stores. Data flows via `s-get` + proof of
+possession in both directions.
 
-## Delegation
+```mermaid
+graph LR
+    C["Client Store"] <-->|"s-get + proof of possession"| S["Server Store"]
+    style C fill:#49a,stroke:#333,color:#fff
+    style S fill:#4a9,stroke:#333,color:#fff
+```
 
-A root hash can be designated as an independent entry point with its own
-authorization token. Mint a token for a subtree root, hand it to another
-party, and they prove access from that subtree root via proof chains.
+### 6.1 Reads: Client Fetches from Server
 
-This is equivalent to giving someone their own "account" rooted at a subtree
-of your data.
+1. Client builds proof chain from root to target
+2. Client stores chain in session store (if large) or sends inline
+3. Server verifies chain, returns the node
 
-### Read-Only Delegation
+### 6.2 Writes: Server Fetches from Client
 
-The simplest case. The delegator issues a scoped session rooted at a subtree
-hash. The delegatee can read anything reachable from that subtree root via
-proof chains, but cannot modify the delegator's tree.
+1. Client declares new root
+2. Server walks from new root, requesting nodes it needs
+3. Client verifies server's proof chains against its own store
+4. Client serves requested nodes
+5. Server verifies possession, updates root pointer
 
-Proof-of-possession on the PUT side ensures the delegatee cannot capture
+Both directions use proof chains. Both use `s-get`. The only asymmetry
+is policy: who declares roots and under what conditions.
+
+### 6.3 Implications
+
+- One protocol pattern for both directions
+- Unauthenticated stores handle proof chain exchange without circular auth
+- The `IStore` protocol remains the universal interface
+- Topologies compose: peers in a network, each with their own session stores
+
+## 7. Delegation
+
+A root hash *is* an authorization. Whoever holds a root hash and a
+session scoped to it can access everything reachable from that root —
+nothing more, nothing less. Delegation is simply issuing a session scoped
+to a subtree root.
+
+This means **identity and authorization are decoupled**. Authentication
+establishes *who you are*. A root hash establishes *what you can reach*.
+These are bound together by a session, but the binding is a policy choice:
+
+- One identity can hold multiple sessions with different scopes
+- Multiple identities can be granted sessions to the same subtree
+- A session's scope can be narrowed (delegated) but never widened
+
+The root hash is the authorization token. Identity is just how you get
+handed one.
+
+### 7.1 Read-Only Delegation
+
+The delegator issues a scoped session rooted at a subtree hash. The
+delegatee reads anything reachable from that subtree root via proof
+chains.
+
+Proof of possession on the PUT side ensures the delegatee cannot capture
 hashes outside the subtree — they can only reference data reachable from
 their scoped root.
 
-### Write-Back via Proposed Roots (PR Model)
+### 7.2 Write-Back via Proposed Roots (PR Model)
 
-For read-write delegation, the delegatee can mutate the subtree locally and
-propose a new subtree root. The delegator reviews and merges the change,
-analogous to a pull request:
+For read-write delegation, the delegatee mutates the subtree locally and
+proposes a new subtree root. The delegator reviews and merges.
 
-```
-  Delegatee                         Delegator
-    │                                    │
-    │  1. receives scoped session        │
-    │     rooted at subtree #S           │
-    │  ◄──────────────────────────────── │
-    │                                    │
-    │  2. mutates subtree locally        │
-    │     computes new subtree root #S'  │
-    │                                    │
-    │  3. proposes #S' as new subtree    │
-    │     (pushes new nodes to server)   │
-    │ ──────────────────────────────────►│
-    │                                    │
-    │  4. delegator inspects #S'         │
-    │     merges into full tree:         │
-    │     #R → #R' (replacing #S with   │
-    │     #S' at the appropriate path)   │
-    │                                    │
-    │  5. reissues scoped session        │
-    │     rooted at #S'                  │
-    │  ◄──────────────────────────────── │
-    │                                    │
+```mermaid
+sequenceDiagram
+    participant D as Delegatee
+    participant O as Delegator
+
+    O->>D: scoped session rooted at #S
+
+    Note over D: mutates subtree locally
+    Note over D: computes new subtree root #S'
+
+    D->>O: propose #S' (push new nodes)
+
+    Note over O: inspect #S'
+    Note over O: merge: #R → #R'<br/>(replacing #S with #S')
+
+    O->>D: reissue scoped session at #S'
 ```
 
-The delegatee never sees or modifies the delegator's full root. The delegator
-retains full control over whether and how the proposed subtree is integrated.
-Structural sharing means only the changed nodes are transmitted.
+The delegatee never sees or modifies the delegator's full root. The
+delegator retains full control over whether and how the proposed subtree
+is integrated.
 
-### Properties
+### 7.3 Properties
 
 - **Scoped by construction.** The delegatee's session root bounds what they
   can see and reference. No ACLs needed.
-- **Write-back is explicit.** The delegator decides when to merge, preserving
-  sovereignty over the full tree.
-- **Composable.** Delegation can be nested: the delegatee can further delegate
-  a sub-subtree to a third party, with the same scoping guarantees.
-- **Revocable.** The delegator simply stops reissuing the scoped session.
-  The delegatee's old root still exists in the store (content-addressed data
-  is immutable) but they lose the session to access it.
+- **Write-back is explicit.** The delegator decides when to merge.
+- **Composable.** Delegation can be nested — the delegatee can further
+  delegate a sub-subtree with the same scoping guarantees.
+- **Revocable.** The delegator stops reissuing the scoped session.
 
-## Dedicated Stores (Selective Sharing)
+## 8. Service Root Management
 
-Beyond the session store, clients can create **dedicated stores** for
-selective sharing scenarios — exposing a curated subset of data to a peer
-without revealing anything else. Like showing a hand of cards: you control
-exactly what the other side can see.
+The service layer applies delegation to manage multiple users. This is
+a **policy decision**, not a fundamental of the authorization model.
 
-Dedicated stores are a general-purpose tool, not part of the core auth flow.
+### 8.1 Single Root Map
 
-## Audit Trail
+The service maintains a single root hash pointing to a Dacite map of
+`{username → user-subtree}`. Each user is delegated their subtree.
+User writes are `assoc` operations into the root map.
 
-The sequence of proof chains submitted during a session forms a natural audit
-trail: the server knows exactly which paths the client walked from root to
-each target. Proof chains are Dacite values (immutable, content-addressed)
-and can be retained as access records.
+```mermaid
+graph TD
+    SR["Service Root #SR"] --> AE["entry: 'alice'"]
+    SR --> BE["entry: 'bob'"]
+    AE --> AT["Alice's tree"]
+    BE --> BT["Bob's tree"]
+    style SR fill:#4a9,stroke:#333,color:#fff
+```
 
-## Garbage Collection
+When Alice authenticates, the service looks up her entry in the root map
+and issues a session scoped to her subtree. This is delegation — the
+service is the delegator, each user is a delegatee.
 
-Content-addressed stores are append-only: nodes are added but never modified.
-Over time, mutations (new roots replacing old ones) leave orphaned nodes —
-subtrees no longer reachable from any active root.
+### 8.2 Service-Layer Concern
 
-Dacite GC is a **semi-space collector**: live data is identified by walking
-all active roots, and everything else is garbage. There are two equivalent
-strategies, differing only in where the "mark" lives.
+Root hash pointers are managed by the service layer, not the store layer.
+The `IStore` protocol remains purely content-addressed. Root management —
+binding identities to root hashes, updating root pointers, persisting
+roots — belongs to the service protocol.
 
-### Strategy 1: Store Migration (Copying Collection)
+### 8.3 Structural Sharing Across Users
+
+```mermaid
+graph TD
+    AE["Alice's tree"] --> SM["Shared subtree #SM"]
+    BE["Bob's tree"] --> SM
+    SM --> N1["shared nodes"]
+    SM --> N2["shared nodes"]
+    style SM fill:#aa4,stroke:#333,color:#fff
+```
+
+Two users may share identical subtrees (by content identity). Each proves
+access through their own root — independent authorization paths, same
+underlying data. Neither can access the other's unshared data.
+
+## 9. Audit Trail
+
+The sequence of proof chains submitted during a session forms a natural
+audit trail: the server knows exactly which paths the client walked.
+Proof chains are Dacite values (immutable, content-addressed) and can be
+retained as access records.
+
+---
+
+## Appendix A: Garbage Collection
+
+Content-addressed stores are append-only. Mutations leave orphaned nodes —
+subtrees no longer reachable from the service root.
+
+Authorization defines what's "live": a node is live if and only if it's
+reachable from the service root. Everything else is garbage. This makes
+GC a direct consequence of the authorization model.
+
+Dacite GC is a **semi-space collector** with two equivalent strategies:
+
+### Store Migration (Copying Collection)
 
 The mark is **presence in the new store.**
 
 1. Create a new empty store B
-2. Walk every active root hash, copying reachable nodes from A to B
-3. Swap B in for A
-4. Discard A
+2. Walk from the service root, copying reachable nodes from A to B
+3. Swap B in for A; discard A
 
-Everything unreachable simply doesn't get copied.
+### Color Marking (Mark-and-Sweep)
 
-### Strategy 2: Color Marking (Mark-and-Sweep)
+The mark is **a color bit** on each node (red or green).
 
-The mark is **a color bit on each node** (red or green).
-
-1. Walk all active root hashes, marking reachable nodes red. New writes
-   are also red.
-2. When all roots are walked, cull all green nodes.
-3. Next cycle: walk roots marking green, new writes green, cull red.
-4. Repeat, alternating colors.
+1. Walk from the service root, marking reachable nodes with the current
+   color. New writes also use the current color.
+2. Cull all nodes with the previous color.
+3. Alternate colors each cycle.
 
 ### Equivalence
 
-These are the same operation expressed differently:
-
 | | Store Migration | Color Marking |
 |---|---|---|
-| Mark live | Copy to store B | Set to current color |
-| Identify dead | Not in store B | Still previous color |
-| Reclaim | Discard store A | Delete previous-color nodes |
+| Mark live | Copy to new store | Set to current color |
+| Identify dead | Absent from new store | Previous color |
+| Reclaim | Discard old store | Delete previous-color nodes |
 | Two spaces | Store A / Store B | Red / Green |
 
-Both are semi-space collectors. Store migration uses two physical stores as
-half-spaces; color marking uses two logical spaces (colors) within a single
-store.
-
-### Online GC (No Downtime)
-
-Both strategies support online collection without pausing writes:
-
-**Store migration (online):**
-- Writes go to store B (the new store)
-- Reads try B first, fall back to A
-- Background migration walks roots, copying from A to B
-- When done, drop A
-
-**Color marking (online):**
-- New writes use the current live color
-- Background walk marks reachable nodes with the live color
-- When walk completes, cull nodes with the dead color
-- No second store needed
+Both support online collection without pausing writes. Store migration
+routes reads through both stores during the copy; color marking uses the
+live color for new writes while the background walk proceeds.
 
 ### Properties
 
 - **No reference counting.** No per-node bookkeeping during normal operations.
-- **Cost proportional to live data.** You pay for what you keep, not what you
-  discard.
-- **Structural sharing preserved.** Shared subtrees are visited once
-  (deduplication by hash).
-- **Simple correctness.** A node is live if and only if it's reachable from an
-  active root. No edge cases.
+- **Cost proportional to live data.** You pay for what you keep.
+- **Structural sharing preserved.** Shared subtrees are visited once.
+- **Single walk.** One service root means one walk covers all users' data.
 
-### Trade-offs
+## Appendix B: Rejected Alternative — Frontier Model
 
-- **Store migration** needs 2× storage during the copy but requires no
-  per-node metadata. Conceptually simpler.
-- **Color marking** needs only 1 bit per node but requires in-place mutation
-  of the KV store (reading/writing color flags) and a scan for the cull step.
+An intermediate design used a **frontier model**. Each `s-get` response
+implicitly authorized the next level down via a per-session frontier set.
+This eliminated proof chains but required server-side state per session,
+complicating scaling and failover. Proof chains + unauthenticated stores
+achieve the same isolation statelessly.
 
-### Implementation Considerations
+## Appendix C: Design Evolution
 
-- **Frequency.** Scheduled (nightly), triggered by size threshold, or manual.
-- **Scope.** The walk visits every active root — all users, all delegated
-  subtree roots. The set of active roots is maintained by the service layer.
-
-The choice between strategies is an implementation detail. The model is the
-same: live data is what's reachable; everything else is garbage.
-
-## Relationship to Roadmap
-
-This design sits between:
-- **Store Protocol** (§2 in roadmap) — `IStore` is the foundation
-- **Remote Store** (§3 in roadmap) — authorization is required before remote
-  `s-get` makes sense
-- **Content Negotiation** (§3 in roadmap) — proof chain and session store
-  behavior could be negotiated aspects of the transport
-
-Authorization should be specced before or alongside the remote store
-implementation.
-
----
-
-## Appendix A: Rejected Alternative — Frontier Model
-
-An intermediate draft used a **frontier model** for authorization. This
-section documents the approach and why it was replaced.
-
-### How It Worked
-
-Each `s-get` response implicitly authorized the next level down. The serving
-store maintained a **frontier set** per session: child hashes revealed but not
-yet fetched. When a hash was fetched, it left the frontier and its children
-were added.
-
-This eliminated proof chains entirely — the walk from root to target *was*
-the authorization, verified step by step.
-
-### Why It Was Rejected
-
-1. **Server-side statefulness.** The frontier set is per-session state that
-   the server must maintain. This complicates scaling, load balancing, and
-   failover. Stateless servers are simpler and more robust.
-
-2. **Dedicated stores solve the same problem better.** The frontier was
-   invented to scope what the server could access when fetching from the
-   client. Proof chains + dedicated stores achieve the same isolation without
-   per-request server state.
-
-3. **Re-fetch complexity.** Once a hash left the frontier, the peer had to
-   re-walk from a parent to re-open it. This added complexity to both
-   client and server implementations.
-
-## Appendix B: Design Evolution
-
-The authorization design went through four iterations:
-
-1. **Proof chains only.** Client pre-computes a path from root to target.
-   Problem: when the server fetches the chain from the client via `s-get`,
-   what scopes the server's access to client data?
-
-2. **Frontier model.** Invented to solve the scoping problem. Each fetch
-   reveals children, authorization is transitive. Problem: requires
-   per-session server state, which is a scaling concern.
-
-3. **Proof chains + dedicated stores.** Returns to proof chains but solves
-   the scoping problem with isolated stores. Server is stateless; client
-   controls the surface area.
-
-4. **Session store / main store split.** Recognizes that proof chain data
-   needs a different auth level than user data. Session store (token-only
-   auth) holds proof chains; main store (token + proof chain) holds data.
-   Eliminates the circular auth problem cleanly.
-
-The frontier model was the scaffolding that revealed the real solution —
-dedicated stores. The dedicated store pattern then evolved into the
-session store / main store split when we recognized that proof chain
-exchange needs its own auth domain.
+1. **Proof chains only.** Problem: what scopes the server's access to
+   client data when fetching proof chains?
+2. **Frontier model.** Solved scoping but added per-session server state.
+3. **Proof chains + dedicated stores.** Stateless, client controls
+   surface area.
+4. **Session store / main store split.** Recognized that proof chain
+   data needs a different auth level. Session store (unauthenticated)
+   holds proof chains; main store (authenticated) holds data.
+5. **Proof of Possession as unifying concept.** GET and PUT are both
+   applications of the same principle. Two forms (data, structural)
+   cover all cases.
