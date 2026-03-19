@@ -1,4 +1,4 @@
-# Authorization Design — Store Access Control (v2)
+# Authorization Design — Store Access Control
 
 *Draft: 2026-03-19. From discussion between Jonathan and Gorm.*
 
@@ -88,7 +88,7 @@ An unauthenticated store breaks this cycle.
 ### 3.2 Authenticated, Modifiable Stores
 
 - **Identity required** — bound to an authenticated session
-- **Root-managed** — a service layer maintains root hash pointers per user
+- **Root-managed** — a service layer maintains root hash pointers
 - **General purpose** — hold all user data (Dacite values)
 - **Purpose** — the primary data store
 
