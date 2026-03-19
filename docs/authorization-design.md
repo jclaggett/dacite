@@ -124,9 +124,8 @@ sequenceDiagram
     S-->>C: session token + root hash #R
 
     C->>S: GET #S3, chain: [#R, #E2, #V2, #S3]
-    Note over S: verify chain against main store
-    Note over S: #R→#E2→#V2→#S3 ✓
-    S-->>C: ["i64" 30]
+    Note over S: verify chain against main store<br/>#R→#E2→#V2→#S3 ✓
+    S-->>C: value of #S3
 ```
 
 The server verifies each link in the proof chain against its own main
@@ -200,17 +199,16 @@ sequenceDiagram
     loop walk new root #R'
         S->>C: prove you possess #H
         alt client has data (new node)
-            C-->>S: [node data for #H]
+            C-->>S: node data for #H
             Note over S: data possession ✓
         else client has chain (existing node)
-            C-->>S: chain [#R, ..., #H]
+            C-->>S: proof chain from #R to #H
             Note over S: structural possession ✓
         end
     end
 
-    Note over S: all hashes verified
-    Note over S: root pointer: #R → #R'
-    S-->>C: ack (new root #R')
+    Note over S: all hashes verified<br/>root pointer: #R → #R'
+    S-->>C: ack, new root #R'
 ```
 
 The server never discloses its internal state. The client cannot deduce
