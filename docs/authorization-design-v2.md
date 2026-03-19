@@ -304,51 +304,25 @@ is policy: who declares roots and under what conditions.
 - The `IStore` protocol remains the universal interface
 - Topologies compose: peers in a network, each with their own session stores
 
-## 7. Root Management
+## 7. Delegation
 
-### 7.1 Single Root Map
+A root hash *is* an authorization. Whoever holds a root hash and a
+session scoped to it can access everything reachable from that root —
+nothing more, nothing less. Delegation is simply issuing a session scoped
+to a subtree root.
 
-The service maintains a single root hash pointing to a Dacite map of
-`{username → user-subtree}`. Each user is delegated their subtree.
-User writes are `assoc` operations into the root map.
+This means **identity and authorization are decoupled**. Authentication
+establishes *who you are*. A root hash establishes *what you can reach*.
+These are bound together by a session, but the binding is a policy choice:
 
-```mermaid
-graph TD
-    SR["Service Root #SR"] --> AE["entry: 'alice'"]
-    SR --> BE["entry: 'bob'"]
-    AE --> AT["Alice's tree"]
-    BE --> BT["Bob's tree"]
-    style SR fill:#4a9,stroke:#333,color:#fff
-```
+- One identity can hold multiple sessions with different scopes
+- Multiple identities can be granted sessions to the same subtree
+- A session's scope can be narrowed (delegated) but never widened
 
-### 7.2 Service-Layer Concern
+The root hash is the authorization token. Identity is just how you get
+handed one.
 
-Root hash pointers are managed by the service layer, not the store layer.
-The `IStore` protocol remains purely content-addressed. Root management —
-binding identities to root hashes, updating root pointers, persisting
-roots — belongs to the service protocol.
-
-### 7.3 Structural Sharing Across Users
-
-```mermaid
-graph TD
-    AE["Alice's tree"] --> SM["Shared subtree #SM"]
-    BE["Bob's tree"] --> SM
-    SM --> N1["shared nodes"]
-    SM --> N2["shared nodes"]
-    style SM fill:#aa4,stroke:#333,color:#fff
-```
-
-Two users may share identical subtrees (by content identity). Each proves
-access through their own root — independent authorization paths, same
-underlying data. Neither can access the other's unshared data.
-
-## 8. Delegation
-
-A root hash can be designated as an independent entry point with its own
-authorization scope. Delegation is just sharing a subtree root.
-
-### 8.1 Read-Only Delegation
+### 7.1 Read-Only Delegation
 
 The delegator issues a scoped session rooted at a subtree hash. The
 delegatee reads anything reachable from that subtree root via proof
@@ -358,7 +332,7 @@ Proof of possession on the PUT side ensures the delegatee cannot capture
 hashes outside the subtree — they can only reference data reachable from
 their scoped root.
 
-### 8.2 Write-Back via Proposed Roots (PR Model)
+### 7.2 Write-Back via Proposed Roots (PR Model)
 
 For read-write delegation, the delegatee mutates the subtree locally and
 proposes a new subtree root. The delegator reviews and merges.
@@ -385,7 +359,7 @@ The delegatee never sees or modifies the delegator's full root. The
 delegator retains full control over whether and how the proposed subtree
 is integrated.
 
-### 8.3 Properties
+### 7.3 Properties
 
 - **Scoped by construction.** The delegatee's session root bounds what they
   can see and reference. No ACLs needed.
@@ -393,6 +367,52 @@ is integrated.
 - **Composable.** Delegation can be nested — the delegatee can further
   delegate a sub-subtree with the same scoping guarantees.
 - **Revocable.** The delegator stops reissuing the scoped session.
+
+## 8. Service Root Management
+
+The service layer applies delegation to manage multiple users. This is
+a **policy decision**, not a fundamental of the authorization model.
+
+### 8.1 Single Root Map
+
+The service maintains a single root hash pointing to a Dacite map of
+`{username → user-subtree}`. Each user is delegated their subtree.
+User writes are `assoc` operations into the root map.
+
+```mermaid
+graph TD
+    SR["Service Root #SR"] --> AE["entry: 'alice'"]
+    SR --> BE["entry: 'bob'"]
+    AE --> AT["Alice's tree"]
+    BE --> BT["Bob's tree"]
+    style SR fill:#4a9,stroke:#333,color:#fff
+```
+
+When Alice authenticates, the service looks up her entry in the root map
+and issues a session scoped to her subtree. This is delegation — the
+service is the delegator, each user is a delegatee.
+
+### 8.2 Service-Layer Concern
+
+Root hash pointers are managed by the service layer, not the store layer.
+The `IStore` protocol remains purely content-addressed. Root management —
+binding identities to root hashes, updating root pointers, persisting
+roots — belongs to the service protocol.
+
+### 8.3 Structural Sharing Across Users
+
+```mermaid
+graph TD
+    AE["Alice's tree"] --> SM["Shared subtree #SM"]
+    BE["Bob's tree"] --> SM
+    SM --> N1["shared nodes"]
+    SM --> N2["shared nodes"]
+    style SM fill:#aa4,stroke:#333,color:#fff
+```
+
+Two users may share identical subtrees (by content identity). Each proves
+access through their own root — independent authorization paths, same
+underlying data. Neither can access the other's unshared data.
 
 ## 9. Audit Trail
 
