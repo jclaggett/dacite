@@ -1,6 +1,7 @@
 # Authorization Design — Store Access Control
 
-*Draft: 2026-03-19. From discussion between Jonathan and Gorm.*
+*Draft: 2026-03-19. From discussion between Jonathan, Gorm, and
+[Chouser](https://github.com/chouser).*
 
 ## 1. Core Principle
 
@@ -359,14 +360,36 @@ The delegatee never sees or modifies the delegator's full root. The
 delegator retains full control over whether and how the proposed subtree
 is integrated.
 
-### 7.3 Properties
+### 7.3 Revocation by Restructuring
+
+Dacite does not support blacklisting subtrees under a root. There are no
+negative permissions — no "grant access to everything except this subtree."
+
+Instead, revocation is achieved by **building a new root with the undesired
+subtrees already removed.** The delegator constructs a new tree (e.g., via
+`dissoc`) and issues a new scoped session rooted at the trimmed subtree.
+
+This is simpler and avoids a subtle hygiene problem: a blacklist would
+require sharing the *hashes* of forbidden subtrees, even if the values
+aren't shared. The hash itself is a reference, and leaking references to
+data you're trying to restrict access to feels unhygienic — it gives the
+restricted party information about the structure of what they can't see.
+
+By restructuring instead of blacklisting:
+- No forbidden-hash metadata to maintain or transmit
+- No risk of leaking structural information about restricted data
+- The delegatee's view is exactly the tree they receive — nothing hidden,
+  nothing excluded
+
+### 7.4 Properties
 
 - **Scoped by construction.** The delegatee's session root bounds what they
   can see and reference. No ACLs needed.
 - **Write-back is explicit.** The delegator decides when to merge.
 - **Composable.** Delegation can be nested — the delegatee can further
   delegate a sub-subtree with the same scoping guarantees.
-- **Revocable.** The delegator stops reissuing the scoped session.
+- **Revocable.** The delegator builds a new root without the revoked
+  subtree and stops reissuing the old scoped session.
 
 ## 8. Service Root Management
 
@@ -420,6 +443,20 @@ The sequence of proof chains submitted during a session forms a natural
 audit trail: the server knows exactly which paths the client walked.
 Proof chains are Dacite values (immutable, content-addressed) and can be
 retained as access records.
+
+---
+
+## Acknowledgments
+
+[Chouser](https://github.com/chouser) contributed key insights during a
+collaboration session on 2026-03-06:
+
+- Stateless server verification (§4.1) — the observation that proof chains
+  eliminate the need for per-session server state
+- GC equivalence (Appendix A) — recognizing that color marking and store
+  migration are equivalent semi-space collection strategies
+- Decoupling identity and authorization (§7) — the distinction between
+  who you are and what you can reach
 
 ---
 
