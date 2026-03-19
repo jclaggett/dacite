@@ -153,17 +153,16 @@ Without PUT-side authorization, a malicious user can exploit a shared store.
 ```mermaid
 graph TD
     RA["Alice's root #RA"] --> AD["Alice's data"]
-    RB["Bob's root #RB"] --> BD["Bob's data #BD"]
-    RA2["Alice's NEW root #RA'"] --> AD
-    RA2 --> BD
+    RB["Bob's root #RB"] --> BD["Bob's data"]
+    RA2["Alice declares #RB as her root"] --> BD
     style RA2 fill:#a44,stroke:#333,color:#fff
     style BD fill:#a44,stroke:#333,color:#fff
 ```
 
-If Alice learns any hash in Bob's tree, she can build a new root that
-references it, push the root (the server has all the nodes), build a valid
-proof chain through her own root, and read Bob's data. The proof chain is
-structurally valid. **Knowing a hash has become a capability.**
+In the simplest case, if Alice learns Bob's root hash `#RB`, she declares
+it as her own root. The server accepts — it has all the nodes. Alice now
+has a structurally valid proof chain from "her" root to everything in
+Bob's tree. **Knowing a hash has become a capability.**
 
 ### 5.2 The Solution: Prove You Had It
 
@@ -395,61 +394,7 @@ is integrated.
   delegate a sub-subtree with the same scoping guarantees.
 - **Revocable.** The delegator stops reissuing the scoped session.
 
-## 9. Garbage Collection
-
-Content-addressed stores are append-only. Mutations leave orphaned nodes —
-subtrees no longer reachable from any active root.
-
-Dacite GC is a **semi-space collector**: live data is what's reachable from
-active roots. Everything else is garbage. Two equivalent strategies:
-
-### 9.1 Store Migration (Copying Collection)
-
-The mark is **presence in the new store.**
-
-1. Create a new empty store B
-2. Walk every active root, copying reachable nodes from A to B
-3. Swap B in for A; discard A
-
-### 9.2 Color Marking (Mark-and-Sweep)
-
-The mark is **a color bit** on each node (red or green).
-
-1. Walk all active roots, marking reachable nodes with the current color.
-   New writes also use the current color.
-2. Cull all nodes with the previous color.
-3. Alternate colors each cycle.
-
-### 9.3 Equivalence
-
-| | Store Migration | Color Marking |
-|---|---|---|
-| Mark live | Copy to new store | Set to current color |
-| Identify dead | Absent from new store | Previous color |
-| Reclaim | Discard old store | Delete previous-color nodes |
-| Two spaces | Store A / Store B | Red / Green |
-
-Both are semi-space collectors. Store migration uses two physical stores;
-color marking uses two logical spaces within one store.
-
-### 9.4 Online GC
-
-Both strategies support online collection without pausing writes:
-
-- **Store migration:** writes go to store B; reads try B first, fall back
-  to A; background walk copies from A to B; drop A when done.
-- **Color marking:** new writes use the live color; background walk marks
-  reachable nodes; cull dead-color nodes when done.
-
-### 9.5 Properties
-
-- **No reference counting.** No per-node bookkeeping during normal operations.
-- **Cost proportional to live data.** You pay for what you keep.
-- **Structural sharing preserved.** Shared subtrees are visited once.
-- **Scope.** The walk visits every active root — all users, all delegated
-  subtree roots. The set of active roots is maintained by the service layer.
-
-## 10. Audit Trail
+## 9. Audit Trail
 
 The sequence of proof chains submitted during a session forms a natural
 audit trail: the server knows exactly which paths the client walked.
@@ -458,7 +403,55 @@ retained as access records.
 
 ---
 
-## Appendix A: Rejected Alternative — Frontier Model
+## Appendix A: Garbage Collection
+
+Content-addressed stores are append-only. Mutations leave orphaned nodes —
+subtrees no longer reachable from the service root.
+
+Authorization defines what's "live": a node is live if and only if it's
+reachable from the service root. Everything else is garbage. This makes
+GC a direct consequence of the authorization model.
+
+Dacite GC is a **semi-space collector** with two equivalent strategies:
+
+### Store Migration (Copying Collection)
+
+The mark is **presence in the new store.**
+
+1. Create a new empty store B
+2. Walk from the service root, copying reachable nodes from A to B
+3. Swap B in for A; discard A
+
+### Color Marking (Mark-and-Sweep)
+
+The mark is **a color bit** on each node (red or green).
+
+1. Walk from the service root, marking reachable nodes with the current
+   color. New writes also use the current color.
+2. Cull all nodes with the previous color.
+3. Alternate colors each cycle.
+
+### Equivalence
+
+| | Store Migration | Color Marking |
+|---|---|---|
+| Mark live | Copy to new store | Set to current color |
+| Identify dead | Absent from new store | Previous color |
+| Reclaim | Discard old store | Delete previous-color nodes |
+| Two spaces | Store A / Store B | Red / Green |
+
+Both support online collection without pausing writes. Store migration
+routes reads through both stores during the copy; color marking uses the
+live color for new writes while the background walk proceeds.
+
+### Properties
+
+- **No reference counting.** No per-node bookkeeping during normal operations.
+- **Cost proportional to live data.** You pay for what you keep.
+- **Structural sharing preserved.** Shared subtrees are visited once.
+- **Single walk.** One service root means one walk covers all users' data.
+
+## Appendix B: Rejected Alternative — Frontier Model
 
 An intermediate design used a **frontier model**. Each `s-get` response
 implicitly authorized the next level down via a per-session frontier set.
@@ -466,7 +459,7 @@ This eliminated proof chains but required server-side state per session,
 complicating scaling and failover. Proof chains + unauthenticated stores
 achieve the same isolation statelessly.
 
-## Appendix B: Design Evolution
+## Appendix C: Design Evolution
 
 1. **Proof chains only.** Problem: what scopes the server's access to
    client data when fetching proof chains?
