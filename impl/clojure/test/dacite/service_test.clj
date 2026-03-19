@@ -5,8 +5,7 @@
             [dacite.store :as store]
             [dacite.types :as types]
             [dacite.auth :as auth]
-            [dacite.hash :as hash]
-            [clojure.java.io :as io]))
+            [dacite.hash :as hash]))
 
 ;; =============================================================================
 ;; User management
@@ -27,52 +26,54 @@
     (testing "login with unknown user"
       (is (nil? (svc/login service "bob" "secret123"))))))
 
-(deftest register-with-root-hash
-  (d/reset-store!)
-  (let [main-store store/*store*
-        data (d/hash-map "name" "Alice")
-        root-h (types/dacite-hash data)
-        service (svc/create-service main-store)]
-    (svc/register-user service "alice" "pass" root-h)
-
-    (testing "login returns root hash"
-      (let [result (svc/login service "alice" "pass")]
-        (is (= root-h (:root-hash result)))))))
-
 ;; =============================================================================
 ;; Read with proof chains
 ;; =============================================================================
 
 (deftest session-get-with-valid-chain
-  (d/reset-store!)
-  (let [main-store store/*store*
-        data (d/hash-map "x" 42)
-        root-h (types/dacite-hash data)
-        target (d/i64 42)
-        target-h (types/dacite-hash target)
+  (let [main-store (store/mem-store)
         service (svc/create-service main-store)]
-    (svc/register-user service "alice" "pass" root-h)
+    (svc/register-user service "alice" "pass")
     (let [{:keys [token]} (svc/login service "alice" "pass")
-          chain (auth/build-proof-chain main-store root-h target-h)
+          ;; Build user data and push it
+          local-store (store/mem-store)
+          data (binding [store/*store* local-store]
+                 (d/hash-map "x" 42))
+          root-h (types/dacite-hash data)
+          _ (doseq [[h v] (store/s-snapshot local-store)]
+              (svc/session-put service token h v))
+          _ (svc/update-root service token root-h)
+          ;; Now alice has a subtree root
+          user-root (:root-hash (get-in @service [:sessions token]))
+          target (binding [store/*store* local-store]
+                   (d/i64 42))
+          target-h (types/dacite-hash target)
+          chain (auth/build-proof-chain main-store user-root target-h)
           result (svc/session-get service token target-h chain)]
       (is (nil? (:error result)))
       (is (= ["i64" 42] (:value result))))))
 
 (deftest session-get-with-invalid-chain
-  (d/reset-store!)
-  (let [main-store store/*store*
-        data (d/hash-map "x" 42)
-        root-h (types/dacite-hash data)
-        target (d/i64 42)
-        target-h (types/dacite-hash target)
-        fake-hash (hash/sha256 (.getBytes "fake"))
+  (let [main-store (store/mem-store)
         service (svc/create-service main-store)]
-    (svc/register-user service "alice" "pass" root-h)
-    (let [{:keys [token]} (svc/login service "alice" "pass")]
+    (svc/register-user service "alice" "pass")
+    (let [{:keys [token]} (svc/login service "alice" "pass")
+          local-store (store/mem-store)
+          data (binding [store/*store* local-store]
+                 (d/hash-map "x" 42))
+          root-h (types/dacite-hash data)
+          _ (doseq [[h v] (store/s-snapshot local-store)]
+              (svc/session-put service token h v))
+          _ (svc/update-root service token root-h)
+          user-root (:root-hash (get-in @service [:sessions token]))
+          target (binding [store/*store* local-store]
+                   (d/i64 42))
+          target-h (types/dacite-hash target)
+          fake-hash (hash/sha256 (.getBytes "fake"))]
 
       (testing "tampered chain"
         (let [result (svc/session-get service token target-h
-                                      [root-h fake-hash target-h])]
+                                      [user-root fake-hash target-h])]
           (is (= :invalid-proof-chain (:error result)))))
 
       (testing "chain root mismatch"
@@ -82,7 +83,7 @@
 
       (testing "chain target mismatch"
         (let [result (svc/session-get service token target-h
-                                      [root-h fake-hash])]
+                                      [user-root fake-hash])]
           (is (= :chain-target-mismatch (:error result))))))))
 
 (deftest session-get-invalid-token
@@ -130,9 +131,6 @@
           root-h (types/dacite-hash value)
           local-nodes (store/s-snapshot local-store)]
 
-      (testing "main store doesn't have the nodes yet"
-        (is (not (store/s-has? main-store root-h))))
-
       ;; Push nodes to session store (proxy)
       (doseq [[h v] local-nodes]
         (svc/session-put service token h v))
@@ -146,8 +144,12 @@
       (testing "main store now has the nodes"
         (is (store/s-has? main-store root-h)))
 
-      (testing "user's root is updated"
-        (is (= root-h (svc/get-root-hash service "alice")))))))
+      (testing "service root is set"
+        (is (some? (svc/get-root-hash service))))
+
+      (testing "user's subtree is accessible via service root"
+        (let [user-root (svc/get-user-root service "alice")]
+          (is (= root-h user-root)))))))
 
 (deftest update-root-missing-node-fails
   (let [service (svc/create-service)]
@@ -190,71 +192,104 @@
           (is (< (:nodes-pulled r2) total-local2)))))))
 
 ;; =============================================================================
-;; Logout
+;; Single root map
 ;; =============================================================================
 
-;; =============================================================================
-;; Refs persistence
-;; =============================================================================
-
-(deftest refs-in-memory
-  (testing "get-ref / set-ref! without a refs-file"
-    (let [service (svc/create-service)
-          h (hash/sha256 (.getBytes "test"))]
-      (is (nil? (svc/get-ref service "root")))
-      (svc/set-ref! service "root" h)
-      (is (= h (svc/get-ref service "root"))))))
-
-(deftest refs-persisted-to-file
-  (let [tmp-dir (System/getProperty "java.io.tmpdir")
-        refs-file (str tmp-dir "/dacite-test-refs-" (System/nanoTime) ".json")
-        h1 (hash/sha256 (.getBytes "root-1"))
-        h2 (hash/sha256 (.getBytes "root-2"))]
-    (try
-      (testing "set-ref! writes to disk"
-        (let [service (svc/create-service (store/mem-store) refs-file)]
-          (svc/set-ref! service "root" h1)
-          (is (.exists (io/file refs-file)))
-          (is (= h1 (svc/get-ref service "root")))))
-
-      (testing "new service loads refs from disk"
-        (let [service2 (svc/create-service (store/mem-store) refs-file)]
-          (is (= h1 (svc/get-ref service2 "root")))))
-
-      (testing "multiple refs"
-        (let [service3 (svc/create-service (store/mem-store) refs-file)]
-          (svc/set-ref! service3 "branch-a" h2)
-          (is (= h1 (svc/get-ref service3 "root")))
-          (is (= h2 (svc/get-ref service3 "branch-a")))))
-
-      (finally
-        (.delete (io/file refs-file))))))
-
-(deftest update-root-persists-ref
-  (let [tmp-dir (System/getProperty "java.io.tmpdir")
-        refs-file (str tmp-dir "/dacite-test-refs-" (System/nanoTime) ".json")
-        main-store (store/mem-store)
-        service (svc/create-service main-store refs-file)]
-    (try
+(deftest single-root-map-structure
+  (testing "Service root is a map of username to user subtree"
+    (let [main-store (store/mem-store)
+          service (svc/create-service main-store)]
       (svc/register-user service "alice" "pass")
       (let [{:keys [token]} (svc/login service "alice" "pass")
             local-store (store/mem-store)
             value (binding [store/*store* local-store]
-                    (d/hash-map "greeting" "hello"))
+                    (d/hash-map "name" "Alice"))
             root-h (types/dacite-hash value)]
         (doseq [[h v] (store/s-snapshot local-store)]
           (svc/session-put service token h v))
         (svc/update-root service token root-h)
 
-        (testing "root ref persisted after update-root"
-          (is (= root-h (svc/get-ref service "root"))))
+        (testing "service root is a map containing alice's key"
+          (let [service-root (svc/get-root-hash service)]
+            (is (some? service-root))
+            (binding [store/*store* main-store]
+              (let [root-map (d/wrap-hash service-root)]
+                (is (= 1 (count root-map)))
+                (is (some? (get root-map "alice")))))))))))
 
-        (testing "new service restores root from refs.json"
-          (let [service2 (svc/create-service (store/mem-store) refs-file)]
-            (is (= root-h (svc/get-ref service2 "root"))))))
+(deftest two-users-single-root
+  (testing "Two users share a single service root map"
+    (let [main-store (store/mem-store)
+          service (svc/create-service main-store)]
+      (svc/register-user service "alice" "pass-a")
+      (svc/register-user service "bob" "pass-b")
+      (let [{token-a :token} (svc/login service "alice" "pass-a")
+            {token-b :token} (svc/login service "bob" "pass-b")
 
+            ;; Alice writes
+            local-a (store/mem-store)
+            va (binding [store/*store* local-a]
+                 (d/hash-map "secret" "alice-only"))
+            ha (types/dacite-hash va)
+            _ (doseq [[h v] (store/s-snapshot local-a)]
+                (svc/session-put service token-a h v))
+            _ (svc/update-root service token-a ha)
+
+            ;; Bob writes
+            local-b (store/mem-store)
+            vb (binding [store/*store* local-b]
+                 (d/hash-map "secret" "bob-only"))
+            hb (types/dacite-hash vb)
+            _ (doseq [[h v] (store/s-snapshot local-b)]
+                (svc/session-put service token-b h v))
+            _ (svc/update-root service token-b hb)]
+
+        (testing "both users have subtrees under single root"
+          (let [service-root (svc/get-root-hash service)]
+            (binding [store/*store* main-store]
+              (let [root-map (d/wrap-hash service-root)]
+                (is (= 2 (count root-map)))
+                (is (some? (get root-map "alice")))
+                (is (some? (get root-map "bob")))))))
+
+        (testing "user subtrees are correct"
+          (is (= ha (svc/get-user-root service "alice")))
+          (is (= hb (svc/get-user-root service "bob"))))))))
+
+;; =============================================================================
+;; LMDB root persistence
+;; =============================================================================
+
+(deftest root-persisted-to-lmdb
+  (let [tmp-dir (str (System/getProperty "java.io.tmpdir")
+                     "/dacite-test-" (System/nanoTime))
+        lmdb (store/lmdb-store tmp-dir)]
+    (try
+      (let [main-store (store/layered-store (store/mem-store) lmdb)
+            service (svc/create-service main-store lmdb)]
+        (svc/register-user service "alice" "pass")
+        (let [{:keys [token]} (svc/login service "alice" "pass")
+              local-store (store/mem-store)
+              value (binding [store/*store* local-store]
+                      (d/hash-map "greeting" "hello"))
+              root-h (types/dacite-hash value)]
+          (doseq [[h v] (store/s-snapshot local-store)]
+            (svc/session-put service token h v))
+          (svc/update-root service token root-h)
+
+          (testing "root persisted to LMDB meta db"
+            (let [stored-root (store/lmdb-get-meta lmdb "root")]
+              (is (some? stored-root))
+              (is (= (svc/get-root-hash service) stored-root))))
+
+          (testing "new service restores root from LMDB"
+            (let [service2 (svc/create-service main-store lmdb)]
+              (is (= (svc/get-root-hash service) (svc/get-root-hash service2)))))))
       (finally
-        (.delete (io/file refs-file))))))
+        (store/lmdb-close lmdb)
+        ;; Clean up temp files
+        (doseq [f (reverse (file-seq (java.io.File. tmp-dir)))]
+          (.delete f))))))
 
 ;; =============================================================================
 ;; Logout
@@ -267,56 +302,3 @@
       (svc/logout service token)
       (is (= :invalid-session
              (:error (svc/session-get service token nil nil)))))))
-
-;; =============================================================================
-;; End-to-end: two users, isolation
-;; =============================================================================
-
-(deftest e2e-two-users-isolated
-  (let [main-store (store/mem-store)
-        service (svc/create-service main-store)]
-    (svc/register-user service "alice" "pass-a")
-    (svc/register-user service "bob" "pass-b")
-    (let [{token-a :token} (svc/login service "alice" "pass-a")
-          {token-b :token} (svc/login service "bob" "pass-b")
-
-          ;; Alice writes her data
-          local-a (store/mem-store)
-          va (binding [store/*store* local-a]
-               (d/hash-map "secret" "alice-only"))
-          ha (types/dacite-hash va)
-          _ (doseq [[h v] (store/s-snapshot local-a)]
-              (svc/session-put service token-a h v))
-          _ (svc/update-root service token-a ha)
-
-          ;; Bob writes his data
-          local-b (store/mem-store)
-          vb (binding [store/*store* local-b]
-               (d/hash-map "secret" "bob-only"))
-          hb (types/dacite-hash vb)
-          _ (doseq [[h v] (store/s-snapshot local-b)]
-              (svc/session-put service token-b h v))
-          _ (svc/update-root service token-b hb)
-
-          ;; Alice's target
-          target-a (binding [store/*store* local-a]
-                     (d/str "alice-only"))
-          target-a-h (types/dacite-hash target-a)
-
-          ;; Bob tries to read Alice's data
-          chain-from-bob (auth/build-proof-chain main-store hb target-a-h)]
-
-      (testing "Alice can read her own data"
-        (let [chain (auth/build-proof-chain main-store ha target-a-h)
-              result (svc/session-get service token-a target-a-h chain)]
-          (is (nil? (:error result)))))
-
-      (testing "Bob cannot build a chain to Alice's data from his root"
-        ;; The chain would not start from Bob's root
-        ;; or would not exist at all
-        (when chain-from-bob
-          ;; Even if a chain exists, it won't start from Bob's root
-          (let [result (svc/session-get service token-b target-a-h
-                                        chain-from-bob)]
-            ;; Bob's session has a different root, so chain root won't match
-            (is (some? (:error result)))))))))

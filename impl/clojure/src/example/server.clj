@@ -158,6 +158,7 @@
       (let [session (get-in @service [:sessions token])]
         (if (nil? session)
           (send-response exchange 403 {:error "invalid session"})
+          ;; Return the user's subtree root, not the service root
           (send-response exchange 200
                          {:root-hash (some-> (:root-hash session)
                                              hash/hash->hex)}))))))

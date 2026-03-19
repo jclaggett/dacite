@@ -208,32 +208,64 @@
     this))
 
 (defn lmdb-store
-  "Create an LMDB-backed content-addressed store.
+  "Create an LMDB-backed content-addressed store with an optional meta db
+   for storing root hashes and other metadata.
 
    path is the directory for the LMDB environment. Created if it
    doesn't exist. Default max size is 1GB.
 
    Options:
      :max-size  - max database size in bytes (default 1GB)
-     :db-name   - database name (default \"dacite\")"
+     :db-name   - database name (default \"dacite\")
+     :meta-name - meta database name (default \"meta\")"
   ([path] (lmdb-store path {}))
-  ([path {:keys [max-size db-name]
+  ([path {:keys [max-size db-name meta-name]
           :or {max-size (* 1024 1024 1024)
-               db-name "dacite"}}]
+               db-name "dacite"
+               meta-name "meta"}}]
    (let [dir (io/file path)]
      (when-not (.exists dir)
        (.mkdirs dir))
      (let [env (-> (Env/create)
                    (.setMapSize max-size)
-                   (.setMaxDbs 1)
+                   (.setMaxDbs 2)
                    (.open dir (into-array EnvFlags [])))
-           db (.openDbi env db-name (into-array DbiFlags [DbiFlags/MDB_CREATE]))]
-       (->LmdbStore env db)))))
+           db (.openDbi env db-name (into-array DbiFlags [DbiFlags/MDB_CREATE]))
+           meta-db (.openDbi env meta-name (into-array DbiFlags [DbiFlags/MDB_CREATE]))]
+       (assoc (->LmdbStore env db) :meta-db meta-db)))))
+
+(defn lmdb-get-meta
+  "Get a metadata value by string key from the meta db. Returns nil if not found."
+  [store ^String key]
+  (let [^Env env (:env store)
+        ^Dbi meta-db (:meta-db store)
+        ^ByteBuffer k (let [bs (.getBytes key "UTF-8")
+                            buf (ByteBuffer/allocateDirect (alength bs))]
+                        (.put buf bs)
+                        (.flip buf))]
+    (with-open [txn (.txnRead env)]
+      (when-let [buf (.get meta-db txn k)]
+        (lmdb-val->value buf)))))
+
+(defn lmdb-put-meta!
+  "Put a metadata value by string key into the meta db."
+  [store ^String key value]
+  (let [^Env env (:env store)
+        ^Dbi meta-db (:meta-db store)
+        ^ByteBuffer k (let [bs (.getBytes key "UTF-8")
+                            buf (ByteBuffer/allocateDirect (alength bs))]
+                        (.put buf bs)
+                        (.flip buf))
+        ^ByteBuffer v (value->lmdb-val value)]
+    (with-open [txn (.txnWrite env)]
+      (.put meta-db txn k v (make-array PutFlags 0))
+      (.commit txn)))
+  store)
 
 (defn lmdb-close
   "Close an LMDB store environment. Must be called when done."
-  [^LmdbStore store]
-  (.close ^Env (.env store)))
+  [store]
+  (.close ^Env (:env store)))
 
 ;; =============================================================================
 ;; Layered store
