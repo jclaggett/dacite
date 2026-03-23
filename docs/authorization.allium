@@ -1,0 +1,539 @@
+-- allium: 2
+-- Authorization Design — Store Access Control
+--
+-- Behavioral specification for Dacite's authorization model.
+-- From discussion between Jonathan, Gorm, and Chouser.
+--
+-- Core thesis: Knowing a hash does not authorize access to its value.
+-- Authorization is structural: you prove you *possess* the data,
+-- not merely that you know its address.
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+-- Managed by the store/serialization layer, not this spec.
+
+external entity Hash {
+    -- Content address: the hash of a value's serialized form.
+    -- Opaque to the authorization model.
+}
+
+external entity Node {
+    -- A stored value in the content-addressed store.
+    hash: Hash
+    children: Set<Hash>
+    -- children are the hashes directly referenced by this node
+    -- (map entries, vector elements, etc.)
+}
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value ProofChain {
+    -- An ordered sequence of hashes from root to target.
+    -- Each consecutive pair must be a parent→child relationship.
+    hashes: List<Hash>
+
+    -- Derived
+    root: hashes.first
+    target: hashes.last
+    length: hashes.count
+}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum StoreKind { unauthenticated | authenticated }
+enum SessionScope { full | subtree }
+enum ProofForm { data | structural }
+enum ChallengeOutcome { verified | rejected }
+
+------------------------------------------------------------
+-- Entities and Variants
+------------------------------------------------------------
+
+entity Store {
+    kind: StoreKind
+    -- unauthenticated: read-only, no identity required
+    --   holds proof chains, session metadata, coordination data
+    -- authenticated: identity required, root-managed
+    --   holds all user data (Dacite values)
+}
+
+entity Identity {
+    -- An authenticated party. Authentication establishes *who you are*.
+    -- A root hash establishes *what you can reach*.
+    -- These are bound by a Session, but the binding is policy.
+    name: String
+}
+
+entity Session {
+    identity: Identity
+    store: Store
+    root_hash: Hash
+    scope: SessionScope
+    -- full: scoped to identity's root in the service root map
+    -- subtree: scoped to a delegated subtree
+
+    -- Relationships
+    challenges: Challenge with session = this
+}
+
+entity ServiceRoot {
+    -- The single root hash for the entire service.
+    -- Points to a Dacite map of {username → user-subtree}.
+    hash: Hash
+}
+
+entity UserEntry {
+    -- An entry in the service root map.
+    identity: Identity
+    subtree_root: Hash
+    service_root: ServiceRoot
+}
+
+entity Challenge {
+    -- Server's uniform challenge during PUT verification.
+    -- "Prove you possess #H." Server does not reveal whether
+    -- it already has the data.
+    session: Session
+    target_hash: Hash
+    outcome: pending | verified | rejected
+}
+
+entity Proof {
+    -- Client's response to a challenge.
+    challenge: Challenge
+    form: ProofForm
+    kind: DataProof | StructuralProof
+}
+
+variant DataProof : Proof {
+    -- Client provides the actual node value.
+    -- Server verifies it hashes to the claimed address.
+    node_data: Node
+}
+
+variant StructuralProof : Proof {
+    -- Client provides a proof chain from old root to target.
+    -- Server verifies each link.
+    chain: ProofChain
+}
+
+entity RootTransition {
+    -- An in-progress PUT: old root remains valid until
+    -- all challenges are verified. Transition is atomic.
+    session: Session
+    old_root: Hash
+    new_root: Hash
+    status: walking | verified | committed | rejected
+    pending_challenges: Challenge with session = session
+}
+
+entity Delegation {
+    -- A scoped session issued by a delegator to a delegatee.
+    delegator: Identity
+    delegatee: Identity
+    subtree_root: Hash
+    delegatee_session: Session
+}
+
+entity ProposedRoot {
+    -- Write-back from delegatee: a proposed new subtree root
+    -- for the delegator to review and merge (PR model).
+    delegation: Delegation
+    proposed_hash: Hash
+    status: proposed | accepted | rejected
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- No configurable parameters for the authorization model.
+    -- All behavior is structural.
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- ## Authentication
+
+rule Authenticate {
+    when: AuthRequest(identity, store)
+    requires: store.kind = authenticated
+    requires: exists UserEntry{identity, service_root: ServiceRoot}
+
+    let entry = UserEntry{identity, service_root: ServiceRoot}
+
+    ensures: Session.created(
+        identity: identity,
+        store: store,
+        root_hash: entry.subtree_root,
+        scope: full
+    )
+}
+
+-- ## Reading (GET)
+
+rule GetByProofChain {
+    -- Reading requires structural possession only.
+    when: GetRequest(session, target_hash, chain)
+
+    requires: session.scope = full implies chain.root = session.root_hash
+    requires: session.scope = subtree implies chain.root = session.root_hash
+    requires: chain.target = target_hash
+    requires: valid_chain(chain)
+    -- valid_chain: black box verifying each consecutive pair
+    -- h_n → h_{n+1} is a parent→child link in the store
+
+    ensures: GetResponse(session: session, hash: target_hash)
+
+    @guidance
+        -- Stateless verification: the server needs no per-session state
+        -- beyond the root hash. Any server with access to the store can
+        -- verify any proof chain.
+        -- Scoped by construction: a proof chain can only reach nodes
+        -- structurally below the root. The DAG structure *is* access control.
+}
+
+-- ## Writing (PUT)
+
+rule DeclarePut {
+    -- Client declares a new root. Old root stays active until verified.
+    when: PutRequest(session, new_root_hash)
+
+    requires: session.store.kind = authenticated
+
+    ensures: RootTransition.created(
+        session: session,
+        old_root: session.root_hash,
+        new_root: new_root_hash,
+        status: walking
+    )
+}
+
+rule WalkAndChallenge {
+    -- Server walks the new root, issuing challenges for each hash.
+    -- Server does NOT reveal whether it already has the data.
+    when: transition: RootTransition.status becomes walking
+    for hash in reachable_hashes(transition.new_root):
+        ensures: Challenge.created(
+            session: transition.session,
+            target_hash: hash,
+            outcome: pending
+        )
+
+    @guidance
+        -- reachable_hashes: black box that walks the DAG from a root
+        -- and yields all reachable hashes.
+        -- The server issues "prove you possess #H" uniformly, never
+        -- disclosing whether #H is already stored.
+}
+
+rule RespondWithData {
+    -- Client proves data possession: sends the node value.
+    when: ProveRequest(challenge, node_data)
+
+    requires: challenge.outcome = pending
+    requires: hash_of(node_data) = challenge.target_hash
+    -- hash_of: black box computing the content hash of node data
+
+    ensures:
+        challenge.outcome = verified
+        DataProof.created(
+            challenge: challenge,
+            form: data,
+            node_data: node_data
+        )
+
+    @guidance
+        -- The client sends data when it created the node fresh
+        -- and has no proof chain from the old root.
+}
+
+rule RespondWithChain {
+    -- Client proves structural possession: proof chain from old root.
+    when: ProveChainRequest(challenge, chain)
+
+    let transition = RootTransition{session: challenge.session}
+
+    requires: challenge.outcome = pending
+    requires: chain.root = transition.old_root
+    requires: chain.target = challenge.target_hash
+    requires: valid_chain(chain)
+
+    ensures:
+        challenge.outcome = verified
+        StructuralProof.created(
+            challenge: challenge,
+            form: structural,
+            chain: chain
+        )
+
+    @guidance
+        -- When the client sends a structural proof, the server is
+        -- GUARANTEED to already have the data at the target hash.
+        -- Why? The chain proves reachability from the old root.
+        -- The previous PUT verification ensured the server has all
+        -- data reachable from the old root. This invariant is
+        -- maintained inductively.
+}
+
+rule ChallengeFailed {
+    -- Client cannot prove possession. Challenge rejected.
+    when: ProveFailure(challenge)
+
+    requires: challenge.outcome = pending
+
+    ensures: challenge.outcome = rejected
+}
+
+rule CommitTransition {
+    -- All challenges verified. Atomic root transition.
+    when: transition: RootTransition.status = walking
+
+    requires: transition.pending_challenges.all(c => c.outcome = verified)
+
+    ensures:
+        transition.status = committed
+        transition.session.root_hash = transition.new_root
+
+        let entry = UserEntry{identity: transition.session.identity}
+        entry.subtree_root = transition.new_root
+
+    @guidance
+        -- The old root is no longer active after this point.
+        -- The transition is atomic: either all challenges pass
+        -- and the root updates, or any failure rejects the whole PUT.
+}
+
+rule RejectTransition {
+    -- Any challenge rejected. Entire PUT fails.
+    when: challenge: Challenge.outcome transitions_to rejected
+
+    let transition = RootTransition{session: challenge.session}
+
+    requires: transition.status = walking
+
+    ensures: transition.status = rejected
+
+    @guidance
+        -- Alice never learns whether the server had #BD or not.
+        -- The challenge is the same either way.
+        -- Hash capture fails because Alice can provide neither
+        -- the data nor a proof chain from her own root.
+}
+
+-- ## Delegation
+
+rule DelegateReadOnly {
+    -- Delegator issues a scoped session rooted at a subtree.
+    when: DelegateRequest(delegator_session, delegatee, subtree_hash)
+
+    requires: delegator_session.scope = full
+    requires: reachable(delegator_session.root_hash, subtree_hash)
+    -- subtree must be under delegator's root
+
+    ensures:
+        let scoped_session = Session.created(
+            identity: delegatee,
+            store: delegator_session.store,
+            root_hash: subtree_hash,
+            scope: subtree
+        )
+        Delegation.created(
+            delegator: delegator_session.identity,
+            delegatee: delegatee,
+            subtree_root: subtree_hash,
+            delegatee_session: scoped_session
+        )
+
+    @guidance
+        -- The delegatee can read anything reachable from subtree_hash
+        -- via proof chains. PUT-side proof of possession ensures
+        -- the delegatee cannot capture hashes outside the subtree.
+}
+
+rule ProposeWriteBack {
+    -- Delegatee proposes a new subtree root (PR model).
+    when: ProposeRootRequest(delegation, proposed_hash)
+
+    requires: delegation.delegatee_session.scope = subtree
+
+    ensures: ProposedRoot.created(
+        delegation: delegation,
+        proposed_hash: proposed_hash,
+        status: proposed
+    )
+
+    @guidance
+        -- The delegatee mutates the subtree locally and proposes
+        -- a new subtree root. The delegator reviews and decides
+        -- whether to merge. The delegatee never sees or modifies
+        -- the delegator's full root.
+}
+
+rule AcceptProposedRoot {
+    -- Delegator accepts the proposed subtree root.
+    when: AcceptProposal(delegator_session, proposal)
+
+    requires: proposal.status = proposed
+    requires: delegator_session.identity = proposal.delegation.delegator
+
+    ensures:
+        proposal.status = accepted
+        -- The delegator integrates #S' into their tree,
+        -- replacing the old subtree with the proposed one,
+        -- and PUTs a new root via the normal PUT flow.
+}
+
+rule RevokeByRestructuring {
+    -- Revocation is achieved by building a new root without
+    -- the undesired subtrees. No blacklists, no negative permissions.
+    when: RevokeRequest(delegator_session, delegation)
+
+    requires: delegator_session.identity = delegation.delegator
+
+    ensures:
+        not exists delegation.delegatee_session
+        not exists delegation
+
+    @guidance
+        -- The delegator constructs a new tree (via dissoc) and
+        -- issues a new scoped session at the trimmed subtree.
+        -- No forbidden-hash metadata to maintain or transmit.
+        -- No risk of leaking structural information about
+        -- restricted data. The delegatee's view is exactly
+        -- the tree they receive — nothing hidden, nothing excluded.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+invariant ServerHasAllReachableData {
+    -- After every committed PUT, the server's store contains
+    -- every node reachable from every active root.
+    -- This is maintained inductively: each PUT verification
+    -- ensures it, making the next PUT's structural proofs sound.
+    for entry in UserEntries:
+        for h in reachable_hashes(entry.subtree_root):
+            exists Node{hash: h}
+}
+
+invariant ProofChainScopesAccess {
+    -- A proof chain can only reach nodes structurally below its root.
+    -- No ACLs needed: the DAG structure IS the access control.
+    for s in Sessions:
+        for h in accessible_hashes(s):
+            reachable(s.root_hash, h)
+}
+
+invariant DelegationCannotWiden {
+    -- A session's scope can be narrowed (delegated) but never widened.
+    for d in Delegations:
+        reachable(
+            UserEntry{identity: d.delegator}.subtree_root,
+            d.subtree_root
+        )
+}
+
+invariant HashKnowledgeIsNotCapability {
+    -- Knowing a hash does not authorize access to its value.
+    -- Access requires a proof chain from an authorized root.
+    -- (This is the foundational invariant — all others derive from it.)
+
+    @guidance
+        -- This invariant cannot be expressed as a simple predicate.
+        -- It is the emergent property of requiring proof of possession
+        -- on every GET and PUT. Captured here as a named assertion
+        -- of the system's core security property.
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface ClientServerBoundary {
+    -- The HTTP boundary between client and server stores.
+    facing client: Identity
+
+    exposes:
+        -- Client can initiate these
+        AuthRequest
+        GetRequest
+        PutRequest
+        DelegateRequest
+        ProposeRootRequest
+        AcceptProposal
+        RevokeRequest
+
+    provides:
+        -- Server provides these
+        GetResponse
+        ProveRequest
+        ProveChainRequest
+
+    @guarantee UniformChallenge
+        -- The server issues "prove you possess #H" without revealing
+        -- whether it already has the data. The challenge protocol is
+        -- identical regardless of server state.
+
+    @guarantee AtomicTransition
+        -- Root transitions are atomic. The old root remains valid
+        -- until all challenges are verified. Either the entire PUT
+        -- succeeds or the entire PUT fails.
+
+    @guarantee NoInformationLeakage
+        -- Challenge failure does not reveal whether the server
+        -- has the challenged hash. The server's response is
+        -- identical for "I have it but you can't prove possession"
+        -- and "I don't have it."
+}
+
+surface PeerBoundary {
+    -- Peer-to-peer store boundary. Both sides are stores.
+    -- Data flows via s-get + proof of possession in both directions.
+    facing peer: Identity
+
+    exposes:
+        GetRequest
+        PutRequest
+
+    provides:
+        GetResponse
+        ProveRequest
+        ProveChainRequest
+
+    @guarantee SymmetricProtocol
+        -- One protocol pattern for both directions.
+        -- The only asymmetry is policy: who declares roots
+        -- and under what conditions.
+}
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+-- How should sharing grants integrate with proof of possession?
+-- Current model requires each user to independently prove possession
+-- of all data under their root. If Alice shares a subtree with Bob,
+-- can Alice's prior proof satisfy Bob's obligation?
+--
+-- Proposed direction: unify self-roots and sharing grants.
+-- Bob's old root is just a grant where authorized = {bob}.
+-- Sharing grants are additional grants with broader authorization sets.
+-- Walk-and-pull becomes: "is every hash either uploaded or reachable
+-- from some grant that authorizes the requesting user?"
+--
+-- This collapses three verification cases (uploaded / own-root /
+-- shared) into one uniform check.
+
+-- Should sharing grants attach to specific hashes or to named
+-- references that the owner can update?
