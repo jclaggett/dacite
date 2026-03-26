@@ -303,102 +303,138 @@ is policy: who declares roots and under what conditions.
 - The `IStore` protocol remains the universal interface
 - Topologies compose: peers in a network, each with their own session stores
 
-## 7. Delegation
+## 7. Sharing — Giving as the Primitive
 
-A root hash *is* an authorization. Whoever holds a root hash and a
-session scoped to it can access everything reachable from that root —
-nothing more, nothing less. Delegation is simply issuing a session scoped
-to a subtree root.
+Sharing in Dacite is an **act of giving**, not an ongoing authorization
+relationship. There are no grants, scoped sessions, or delegation tokens.
+There is one operation: **send a PR** — prove you possess a value and
+offer it to someone.
 
-This means **identity and authorization are decoupled**. Authentication
-establishes *who you are*. A root hash establishes *what you can reach*.
-These are bound together by a session, but the binding is a policy choice:
+This design emerged from a key observation: earlier models (grants with
+lifecycle management, scoped delegation sessions, hash-pinned vs
+path-pinned references) were smuggling **mutability** back into a
+content-addressed system. The complexity was a signal, not a feature.
 
-- One identity can hold multiple sessions with different scopes
-- Multiple identities can be granted sessions to the same subtree
-- A session's scope can be narrowed (delegated) but never widened
+### 7.1 The PR Primitive
 
-The root hash is the authorization token. Identity is just how you get
-handed one.
+A PR (proposed root) is the atomic unit of sharing:
 
-### 7.1 Read-Only Delegation
+1. **Sender proves possession** of a value (data or structural proof
+   from their own root — the same mechanism as PUT)
+2. **Server routes** the PR to the named recipient
+3. **Recipient decides** what to do with it
 
-The delegator issues a scoped session rooted at a subtree hash. The
-delegatee reads anything reachable from that subtree root via proof
-chains.
-
-Proof of possession on the PUT side ensures the delegatee cannot capture
-hashes outside the subtree — they can only reference data reachable from
-their scoped root.
-
-### 7.2 Write-Back via Proposed Roots (PR Model)
-
-For read-write delegation, the delegatee mutates the subtree locally and
-proposes a new subtree root. The delegator reviews and merges.
+That's the protocol. Everything else is policy.
 
 ```mermaid
 sequenceDiagram
-    participant D as Delegatee
-    participant O as Delegator
+    participant A as Alice
+    participant S as Server
+    participant B as Bob
 
-    O->>D: scoped session rooted at #S
+    Note over A: Alice has subtree #T<br/>under her root #RA
 
-    Note over D: mutates subtree locally
-    Note over D: computes new subtree root #S'
+    A->>S: PR to Bob: value #T<br/>proof chain [#RA, ..., #T]
+    Note over S: verify Alice's possession ✓<br/>route to Bob
 
-    D->>O: propose #S' (push new nodes)
+    S->>B: PR from Alice: #T
 
-    Note over O: inspect #S'
-    Note over O: merge: #R → #R'<br/>(replacing #S with #S')
-
-    O->>D: reissue scoped session at #S'
+    Note over B: Bob accepts, merges into his tree
+    B->>S: PUT new root #RB'<br/>(#T now under Bob's root)
+    Note over S: normal PUT verification
 ```
 
-The delegatee never sees or modifies the delegator's full root. The
-delegator retains full control over whether and how the proposed subtree
-is integrated.
+### 7.2 Two Ways to Give
 
-### 7.3 Revocation by Restructuring
+Mirroring the two forms of proof of possession, there are two ways
+Alice can give a value to Bob:
 
-Dacite does not support blacklisting subtrees under a root. There are no
-negative permissions — no "grant access to everything except this subtree."
+| Method | When | Cost |
+|--------|------|------|
+| **Data** | Alice sends the raw bytes | Bandwidth proportional to value size |
+| **Proof chain** | Alice proves reachability from her root | Bandwidth proportional to tree depth |
 
-Instead, revocation is achieved by **building a new root with the undesired
-subtrees already removed.** The delegator constructs a new tree (e.g., via
-`dissoc`) and issues a new scoped session rooted at the trimmed subtree.
+The proof chain form is where content addressing shines. Alice doesn't
+retransmit a large subtree — she provides a path from her root to the
+subtree hash. The server already has the data (it verified Alice's
+earlier PUT). Bob's acceptance triggers a normal PUT where Bob references
+the same hashes, proving possession via the PR he received.
 
-This is simpler and avoids a subtle hygiene problem: a blacklist would
-require sharing the *hashes* of forbidden subtrees, even if the values
-aren't shared. The hash itself is a reference, and leaking references to
-data you're trying to restrict access to feels unhygienic — it gives the
-restricted party information about the structure of what they can't see.
+### 7.3 What the Recipient Does (Policy, Not Protocol)
 
-By restructuring instead of blacklisting:
-- No forbidden-hash metadata to maintain or transmit
-- No risk of leaking structural information about restricted data
-- The delegatee's view is exactly the tree they receive — nothing hidden,
-  nothing excluded
+The protocol delivers a PR. What happens next is entirely the
+recipient's concern:
 
-### 7.4 Properties
+- **Accept immediately** — merge into their tree via a normal PUT
+- **Stage for review** — place in a client-side "inbox" subtree
+- **Auto-accept from trusted senders** — client-side policy
+- **Ignore or reject** — no action required
 
-- **Scoped by construction.** The delegatee's session root bounds what they
-  can see and reference. No ACLs needed.
-- **Write-back is explicit.** The delegator decides when to merge.
-- **Composable.** Delegation can be nested — the delegatee can further
-  delegate a sub-subtree with the same scoping guarantees.
-- **Revocable.** The delegator builds a new root without the revoked
-  subtree and stops reissuing the old scoped session.
+None of these are protocol concepts. The server doesn't know or care
+about inboxes, acceptance policies, or trust relationships. It verified
+possession and delivered the PR. Done.
+
+### 7.4 Common Sharing Patterns
+
+All sharing patterns reduce to sequences of PRs:
+
+**Alice shares photos with Bob:**
+Alice sends a PR containing her photos subtree. Bob accepts. Bob now
+has the photos under his own root.
+
+**Bob edits Alice's document:**
+Alice sends Bob a PR with the document. Bob modifies it locally, sends
+Alice a PR with the updated version. Alice reviews and merges. Two
+independent acts of giving — no delegation session required.
+
+**Living shared folder:**
+Alice periodically sends Bob new PRs as her subtree evolves. Each PR
+is a discrete, content-addressed value. No mutable references, no
+auto-updating grants. Alice decides when to share; Bob decides when
+to accept.
+
+**Revoking access:**
+Alice simply stops sending PRs. Bob retains whatever he already
+accepted (the data is immutable and under his root), but receives
+no further updates. There is nothing to revoke — there was never an
+ongoing authorization to withdraw.
+
+### 7.5 What This Eliminates
+
+The PR-as-sharing model replaces several concepts from earlier designs:
+
+| Eliminated | Replaced by |
+|------------|------------|
+| Grants (with lifecycle, creation, revocation) | PR — a single act |
+| Scoped sessions | Not needed — recipient has their own root |
+| Delegation as a distinct concept | Two-way PRs |
+| Hash-pinned vs path-pinned debate | Irrelevant — each PR is a specific value |
+| Grant storage and indexing | Not needed |
+| Session model changes | None — session still has one root |
+
+### 7.6 Properties
+
+- **No new authorization concepts.** PRs use the existing proof of
+  possession mechanism. No changes to GET or PUT verification.
+- **No mutable state.** Each PR is a content-addressed value. No
+  references, no pointers, no lifecycle.
+- **Symmetric.** Alice → Bob and Bob → Alice use the same primitive.
+- **Composable.** Bob can re-share received values with Carol via
+  another PR. No special permissions needed — if Bob has it under
+  his root, he can prove possession and give it.
+- **Minimal protocol surface.** The server gains one operation: route
+  a verified PR to a recipient.
 
 ## 8. Service Root Management
 
-The service layer applies delegation to manage multiple users. This is
-a **policy decision**, not a fundamental of the authorization model.
+The service layer manages multiple users' roots. This is a **policy
+decision**, not a fundamental of the authorization model.
 
 ### 8.1 Single Root Map
 
 The service maintains a single root hash pointing to a Dacite map of
-`{username → user-subtree}`. Each user is delegated their subtree.
-User writes are `assoc` operations into the root map.
+`{username → user-subtree}`. Each user authenticates and receives a
+session bound to their subtree root.
 
 ```mermaid
 graph TD
@@ -409,16 +445,16 @@ graph TD
     style SR fill:#4a9,stroke:#333,color:#fff
 ```
 
-When Alice authenticates, the service looks up her entry in the root map
-and issues a session scoped to her subtree. This is delegation — the
-service is the delegator, each user is a delegatee.
+User writes are `assoc` operations into the root map. PRs between
+users are routed by the service layer — it verifies the sender's
+proof of possession and delivers to the recipient.
 
 ### 8.2 Service-Layer Concern
 
 Root hash pointers are managed by the service layer, not the store layer.
 The `IStore` protocol remains purely content-addressed. Root management —
 binding identities to root hashes, updating root pointers, persisting
-roots — belongs to the service protocol.
+roots, and routing PRs — belongs to the service protocol.
 
 ### 8.3 Structural Sharing Across Users
 
@@ -431,9 +467,11 @@ graph TD
     style SM fill:#aa4,stroke:#333,color:#fff
 ```
 
-Two users may share identical subtrees (by content identity). Each proves
-access through their own root — independent authorization paths, same
-underlying data. Neither can access the other's unshared data.
+When Alice gives Bob a subtree via PR, and Bob accepts it into his
+tree, both roots reference the same underlying nodes. This is natural
+content-addressed deduplication — no special sharing mechanism needed.
+Each user proves access through their own root. Neither can access the
+other's unshared data.
 
 ## 9. Audit Trail
 
@@ -453,8 +491,14 @@ collaboration session on 2026-03-06:
   eliminate the need for per-session server state
 - GC equivalence (Appendix A) — recognizing that color marking and store
   migration are equivalent semi-space collection strategies
-- Decoupling identity and authorization (§7) — the distinction between
-  who you are and what you can reach
+- Decoupling identity and authorization — the distinction between who you
+  are and what you can reach
+
+§7 was substantially simplified on 2026-03-26. The original delegation
+model (scoped sessions, grant lifecycle, hash-pinned vs path-pinned
+references) was replaced by a single primitive: sharing as giving via
+PRs. The complexity of the earlier model was a signal that it was
+reintroducing mutability into a content-addressed system.
 
 ---
 
