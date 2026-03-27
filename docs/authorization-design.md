@@ -315,34 +315,46 @@ lifecycle management, scoped delegation sessions, hash-pinned vs
 path-pinned references) were smuggling **mutability** back into a
 content-addressed system. The complexity was a signal, not a feature.
 
-### 7.1 The PR Primitive
+### 7.1 The PR Primitive — Proof Chain Token
 
-A PR (proposed root) is the atomic unit of sharing:
+A PR is a **proof chain token**: the hash `#PC` of a Dacite vector `PC = [#RA, ..., #T]` where #T is the shared subtree root.
 
-1. **Sender proves possession** of a value (data or structural proof
-   from their own root — the same mechanism as PUT)
-2. **Server routes** the PR to the named recipient
-3. **Recipient decides** what to do with it
+**Protocol:**
 
-That's the protocol. Everything else is policy.
+1. Alice builds proof chain `PC` from her root `#RA` to target `#T`, stores it (unauthenticated store), gets `#PC`.
+2. Alice → Bob (out-of-band): "`#PC` from me".
+3. Bob → Server: "Add target of `#PC` (from Alice) to my valid roots".
+4. Server:
+   - Verifies `#PC` reachable from Alice's root `#RA`.
+   - Fetches `PC` vector.
+   - Extracts `#T = PC.last`.
+   - Adds `#T` to Bob's valid roots (service root tracks per-user sets).
+   - Responds: "Added `#T`".
+5. Bob PUTs new root, using structural proofs from `#T` (alongside his own root).
+6. Bob requests cleanup of `#T` (optional, after incorporating).
 
 ```mermaid
 sequenceDiagram
     participant A as Alice
-    participant S as Server
     participant B as Bob
+    participant S as Server
 
-    Note over A: Alice has subtree #T<br/>under her root #RA
+    Note over A: PC = [#RA, ..., #T]<br/>#PC = hash(PC)
 
-    A->>S: PR to Bob: value #T<br/>proof chain [#RA, ..., #T]
-    Note over S: verify Alice's possession ✓<br/>route to Bob
-
-    S->>B: PR from Alice: #T
-
-    Note over B: Bob accepts, merges into his tree
-    B->>S: PUT new root #RB'<br/>(#T now under Bob's root)
-    Note over S: normal PUT verification
+    A->>B: out-of-band: `#PC`
+    B->>S: claim `#PC` from Alice
+    Note over S: fetch/validate PC<br/>extract #T ✓
+    S-->>B: added #T
+    B->>S: PUT #RB' (proofs from #T)
+    Note over S: normal verification ✓
 ```
+
+**Properties:**
+- **No leaks** — Bob learns `#T` only post-validation.
+- **Alice offline OK** — server checks her current root.
+- **Revocation automatic** — Alice restructures → `#PC` unreachable → claim fails.
+- **Minimal** — one hash out-of-band, no new auth concepts.
+
 
 ### 7.2 Two Ways to Give
 
@@ -432,22 +444,29 @@ decision**, not a fundamental of the authorization model.
 
 ### 8.1 Single Root Map
 
-The service maintains a single root hash pointing to a Dacite map of
-`{username → user-subtree}`. Each user authenticates and receives a
-session bound to their subtree root.
+The service root is a Dacite map tracking per-user roots **plus valid PR targets**:
+
+```
+{service-root: {
+  users:    {alice: #RA, bob: #RB}
+  valid-roots: {bob: [#RB, #T1, #T2]}  ; PR targets Bob claimed
+}}
+```
+
+Each user authenticates and receives session bound to their root. PR claims add temporary extra roots to `valid-roots[username]`.
 
 ```mermaid
 graph TD
-    SR["Service Root #SR"] --> AE["entry: 'alice'"]
-    SR --> BE["entry: 'bob'"]
-    AE --> AT["Alice's tree"]
-    BE --> BT["Bob's tree"]
+    SR["Service Root #SR"] --> U["users"]
+    SR --> VR["valid-roots"]
+    U --> AE["alice: #RA"]
+    U --> BE["bob: #RB"]
+    VR --> BT["bob: [#RB, #T1, #T2]"]
     style SR fill:#4a9,stroke:#333,color:#fff
 ```
 
-User writes are `assoc` operations into the root map. PRs between
-users are routed by the service layer — it verifies the sender's
-proof of possession and delivers to the recipient.
+During PUT, proofs accepted from *any* hash in user's `valid-roots` set.
+
 
 ### 8.2 Service-Layer Concern
 
