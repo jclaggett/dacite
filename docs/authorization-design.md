@@ -303,35 +303,40 @@ is policy: who declares roots and under what conditions.
 - The `IStore` protocol remains the universal interface
 - Topologies compose: peers in a network, each with their own session stores
 
-## 7. Sharing — Giving as the Primitive
+## 7. Sharing — The Shares Map
 
-Sharing in Dacite is an **act of giving**, not an ongoing authorization
-relationship. There are no grants, scoped sessions, or delegation tokens.
-There is one operation: **send a PR** — prove you possess a value and
-offer it to someone.
+Sharing in Dacite uses a **shares map**: a conventional key in every
+participant's root that maps named references to shared subtrees with
+authorized user sets.
 
-This design emerged from a key observation: earlier models (grants with
-lifecycle management, scoped delegation sessions, hash-pinned vs
-path-pinned references) were smuggling **mutability** back into a
-content-addressed system. The complexity was a signal, not a feature.
+This design emerged through several iterations (see Appendix D). Earlier
+models — grants with lifecycle management, scoped delegation sessions,
+PR-based giving, proof chain tokens — each smuggled complexity back into
+the system. The shares map avoids protocol-level mutability by placing
+named references entirely within the participant's own data, managed
+through normal PUTs.
 
-### 7.1 The PR Primitive — Proof Chain Token
+### 7.1 Root Structure Convention
 
-A PR is a **proof chain token**: the hash `#PC` of a Dacite vector `PC = [#RA, ..., #T]` where #T is the shared subtree root.
+Every participant (user or server) has the same root structure:
 
-**Protocol:**
+```
+root: {
+  "value":  <the participant's own data>
+  "shares": {<name>: {target: #hash, authorized: #{...}}, ...}
+}
+```
 
-1. Alice builds proof chain `PC` from her root `#RA` to target `#T`, stores it (unauthenticated store), gets `#PC`.
-2. Alice → Bob (out-of-band): "`#PC` from me".
-3. Bob → Server: "Add target of `#PC` (from Alice) to my valid roots".
-4. Server:
-   - Verifies `#PC` reachable from Alice's root `#RA`.
-   - Fetches `PC` vector.
-   - Extracts `#T = PC.last`.
-   - Adds `#T` to Bob's valid roots (service root tracks per-user sets).
-   - Responds: "Added `#T`".
-5. Bob PUTs new root, using structural proofs from `#T` (alongside his own root).
-6. Bob requests cleanup of `#T` (optional, after incorporating).
+- **`"value"`** — the participant's application data. The sharing
+  mechanism never touches this.
+- **`"shares"`** — a map of named share entries. Each entry has:
+  - **`target`** — the hash of the shared subtree
+  - **`authorized`** — the set of identities who can claim this share
+
+### 7.2 The Claim Protocol
+
+Sharing requires two things: a share entry in the sharer's root, and
+an out-of-band exchange of the share name.
 
 ```mermaid
 sequenceDiagram
@@ -339,143 +344,152 @@ sequenceDiagram
     participant B as Bob
     participant S as Server
 
-    Note over A: PC = [#RA, ..., #T]<br/>#PC = hash(PC)
+    Note over A: Alice's shares:<br/>"photos": {#T, #{bob}}
 
-    A->>B: out-of-band: `#PC`
-    B->>S: claim `#PC` from Alice
-    Note over S: fetch/validate PC<br/>extract #T ✓
-    S-->>B: added #T
-    B->>S: PUT #RB' (proofs from #T)
-    Note over S: normal verification ✓
+    A->>B: out-of-band: "claim 'photos' from me"
+    B->>S: CLAIM "photos" from Alice
+    Note over S: look up Alice's root<br/>find shares["photos"]<br/>check bob ∈ authorized ✓<br/>extract #T
+    S-->>B: added #T to valid roots
+    B->>S: GET/PUT using #T as proof root
 ```
 
-**Properties:**
-- **No leaks** — Bob learns `#T` only post-validation.
-- **Alice offline OK** — server checks her current root.
-- **Revocation automatic** — Alice restructures → `#PC` unreachable → claim fails.
-- **Minimal** — one hash out-of-band, no new auth concepts.
+**Steps:**
 
+1. **Alice** creates a share entry in her root via normal PUT:
+   `shares["photos"] = {target: #T, authorized: #{bob}}`
+2. **Alice → Bob** (out-of-band): the share name `"photos"` and
+   Alice's identity. A text message, QR code, email — anything.
+3. **Bob → Server**: `CLAIM "photos" from Alice`.
+4. **Server**:
+   - Looks up Alice's root in the server's own shares map.
+   - Navigates to Alice's `shares["photos"]`.
+   - Checks that Bob is in the `authorized` set.
+   - Extracts the target hash `#T`.
+   - Adds `#T` to Bob's set of valid roots.
+   - Responds with `#T`.
+5. **Bob**: uses `#T` as a proof root for GET (read shared data) and
+   PUT (incorporate into his own tree via structural proofs from `#T`).
+6. **Bob** (optional): after incorporating `#T` into his own root,
+   requests removal of `#T` from his valid roots set.
 
-### 7.2 Two Ways to Give
+### 7.3 The Server Uses Shares Too
 
-Mirroring the two forms of proof of possession, there are two ways
-Alice can give a value to Bob:
-
-| Method | When | Cost |
-|--------|------|------|
-| **Data** | Alice sends the raw bytes | Bandwidth proportional to value size |
-| **Proof chain** | Alice proves reachability from her root | Bandwidth proportional to tree depth |
-
-The proof chain form is where content addressing shines. Alice doesn't
-retransmit a large subtree — she provides a path from her root to the
-subtree hash. The server already has the data (it verified Alice's
-earlier PUT). Bob's acceptance triggers a normal PUT where Bob references
-the same hashes, proving possession via the PR he received.
-
-### 7.3 What the Recipient Does (Policy, Not Protocol)
-
-The protocol delivers a PR. What happens next is entirely the
-recipient's concern:
-
-- **Accept immediately** — merge into their tree via a normal PUT
-- **Stage for review** — place in a client-side "inbox" subtree
-- **Auto-accept from trusted senders** — client-side policy
-- **Ignore or reject** — no action required
-
-None of these are protocol concepts. The server doesn't know or care
-about inboxes, acceptance policies, or trust relationships. It verified
-possession and delivered the PR. Done.
-
-### 7.4 Common Sharing Patterns
-
-All sharing patterns reduce to sequences of PRs:
-
-**Alice shares photos with Bob:**
-Alice sends a PR containing her photos subtree. Bob accepts. Bob now
-has the photos under his own root.
-
-**Bob edits Alice's document:**
-Alice sends Bob a PR with the document. Bob modifies it locally, sends
-Alice a PR with the updated version. Alice reviews and merges. Two
-independent acts of giving — no delegation session required.
-
-**Living shared folder:**
-Alice periodically sends Bob new PRs as her subtree evolves. Each PR
-is a discrete, content-addressed value. No mutable references, no
-auto-updating grants. Alice decides when to share; Bob decides when
-to accept.
-
-**Revoking access:**
-Alice simply stops sending PRs. Bob retains whatever he already
-accepted (the data is immutable and under his root), but receives
-no further updates. There is nothing to revoke — there was never an
-ongoing authorization to withdraw.
-
-### 7.5 What This Eliminates
-
-The PR-as-sharing model replaces several concepts from earlier designs:
-
-| Eliminated | Replaced by |
-|------------|------------|
-| Grants (with lifecycle, creation, revocation) | PR — a single act |
-| Scoped sessions | Not needed — recipient has their own root |
-| Delegation as a distinct concept | Two-way PRs |
-| Hash-pinned vs path-pinned debate | Irrelevant — each PR is a specific value |
-| Grant storage and indexing | Not needed |
-| Session model changes | None — session still has one root |
-
-### 7.6 Properties
-
-- **No new authorization concepts.** PRs use the existing proof of
-  possession mechanism. No changes to GET or PUT verification.
-- **No mutable state.** Each PR is a content-addressed value. No
-  references, no pointers, no lifecycle.
-- **Symmetric.** Alice → Bob and Bob → Alice use the same primitive.
-- **Composable.** Bob can re-share received values with Carol via
-  another PR. No special permissions needed — if Bob has it under
-  his root, he can prove possession and give it.
-- **Minimal protocol surface.** The server gains one operation: route
-  a verified PR to a recipient.
-
-## 8. Service Root Management
-
-The service layer manages multiple users' roots. This is a **policy
-decision**, not a fundamental of the authorization model.
-
-### 8.1 Single Root Map
-
-The service root is a Dacite map tracking per-user roots **plus valid PR targets**:
+The server is not a special entity. It uses the same shares map to
+manage user access:
 
 ```
-{service-root: {
-  users:    {alice: #RA, bob: #RB}
-  valid-roots: {bob: [#RB, #T1, #T2]}  ; PR targets Bob claimed
-}}
+Server's root: {
+  "value":  <server config/metadata>
+  "shares": {
+    "alice":        {target: #RA, authorized: #{alice}}
+    "bob":          {target: #RB, authorized: #{bob}}
+    "team-project": {target: #TP, authorized: #{alice, bob, carol}}
+  }
+}
 ```
 
-Each user authenticates and receives session bound to their root. PR claims add temporary extra roots to `valid-roots[username]`.
+User authentication is simply **claiming your share from the server.**
+There is no separate concept of a "user table" or "service root map."
+The server is a participant that shares subtrees with its users using
+the exact same mechanism.
 
 ```mermaid
 graph TD
-    SR["Service Root #SR"] --> U["users"]
-    SR --> VR["valid-roots"]
-    U --> AE["alice: #RA"]
-    U --> BE["bob: #RB"]
-    VR --> BT["bob: [#RB, #T1, #T2]"]
+    SR["Server Root"] --> SV["value: config"]
+    SR --> SS["shares"]
+    SS --> SA["'alice': {#RA, #{alice}}"]
+    SS --> SB["'bob': {#RB, #{bob}}"]
+    SS --> ST["'team-project': {#TP, #{alice,bob,carol}}"]
+    SA --> RA["Alice's tree"]
+    SB --> RB["Bob's tree"]
+    ST --> TP["Team tree"]
     style SR fill:#4a9,stroke:#333,color:#fff
 ```
 
-During PUT, proofs accepted from *any* hash in user's `valid-roots` set.
+### 7.4 Share Types
 
+The authorized set size naturally distinguishes different sharing
+patterns:
 
-### 8.2 Service-Layer Concern
+| Pattern | Authorized set | Example |
+|---------|---------------|---------|
+| **Private space** | `#{alice}` | Alice's personal data |
+| **Direct share** | `#{alice, bob}` | Alice shares photos with Bob |
+| **Shared space** | `#{alice, bob, carol}` | Team project |
 
-Root hash pointers are managed by the service layer, not the store layer.
-The `IStore` protocol remains purely content-addressed. Root management —
-binding identities to root hashes, updating root pointers, persisting
-roots, and routing PRs — belongs to the service protocol.
+All use the same mechanism. No special cases.
 
-### 8.3 Structural Sharing Across Users
+### 7.5 Named References
+
+Share names are chosen by the sharer and serve as **named references**
+under the sharer's control. Alice can:
+
+- **Update the target**: point `"photos"` at a new hash on her next
+  PUT. Bob claims again and gets the latest version. This gives
+  "living shared folder" behavior naturally, without any protocol
+  concept of mutable references — Alice is simply updating her own
+  map via normal PUTs.
+- **Revoke access**: remove Bob from the authorized set, or remove
+  the share entry entirely. Bob retains whatever he already
+  incorporated into his own root (the data is immutable), but can
+  no longer claim updates.
+- **Share with additional people**: add Carol to the authorized set.
+
+### 7.6 Common Sharing Patterns
+
+**Alice shares photos with Bob:**
+Alice adds `shares["photos"] = {#T, #{bob}}`. Tells Bob the name.
+Bob claims, gets #T, reads the photos. Alice updates the target hash
+when she adds new photos. Bob re-claims to see updates.
+
+**Bob edits Alice's document:**
+Alice shares the doc subtree with Bob. Bob claims, incorporates it
+into his tree, edits it. Bob creates a share entry in *his* shares
+pointing to the edited version, authorized for Alice. Alice claims
+Bob's share and reviews the changes. Two participants, same mechanism.
+
+**Team shared space:**
+Server creates `shares["team-project"] = {#TP, #{alice, bob, carol}}`.
+All three can claim and work with the shared subtree. Conflict
+resolution (simultaneous PUTs) is a policy concern, not a protocol one.
+
+**Revoking access:**
+Alice removes Bob from the authorized set via normal PUT. Bob can
+no longer claim. No blacklists, no negative permissions — Alice
+simply updated her own data.
+
+### 7.7 What This Eliminates
+
+The shares map replaces several concepts from earlier designs:
+
+| Eliminated | Replaced by |
+|------------|------------|
+| Grants (with lifecycle management) | Share entries in participant data |
+| Scoped sessions | Not needed — claimant gets a valid root |
+| Delegation as a distinct concept | Two-way shares |
+| Hash-pinned vs path-pinned debate | Named refs in participant's own map |
+| Server-side gift tables or PR queues | Sharer's root read at claim time |
+| Service root map as special concept | Server's own shares map |
+| Session model changes | Valid roots set (temporary, per-claim) |
+
+### 7.8 Properties
+
+- **One mechanism everywhere.** Users share with users. The server
+  shares with users. The same root structure, the same claim protocol.
+- **No new authorization concepts.** Claim checks set membership,
+  then uses existing proof of possession for GET/PUT.
+- **No protocol-level mutable references.** Named references live in
+  participant data, managed via normal PUTs.
+- **Sharer controls lifecycle.** Create, update, revoke — all `assoc`
+  and `dissoc` operations on the sharer's own root.
+- **No server state for sharing.** The server reads the sharer's root
+  at claim time. Nothing to store, no gift tables, no queues.
+- **Composable.** Bob can re-share received data by creating his own
+  share entry. If he has it under his root, he can share it.
+- **Turtles all the way down.** Server, users, and any future peer
+  topology all use the same structure.
+
+## 8. Structural Sharing Across Users
 
 ```mermaid
 graph TD
@@ -486,7 +500,7 @@ graph TD
     style SM fill:#aa4,stroke:#333,color:#fff
 ```
 
-When Alice gives Bob a subtree via PR, and Bob accepts it into his
+When Alice shares a subtree with Bob and Bob incorporates it into his
 tree, both roots reference the same underlying nodes. This is natural
 content-addressed deduplication — no special sharing mechanism needed.
 Each user proves access through their own root. Neither can access the
@@ -513,22 +527,20 @@ collaboration session on 2026-03-06:
 - Decoupling identity and authorization — the distinction between who you
   are and what you can reach
 
-§7 was substantially simplified on 2026-03-26. The original delegation
-model (scoped sessions, grant lifecycle, hash-pinned vs path-pinned
-references) was replaced by a single primitive: sharing as giving via
-PRs. The complexity of the earlier model was a signal that it was
-reintroducing mutability into a content-addressed system.
+§7 was redesigned across 2026-03-26 and 2026-03-27 through several
+iterations (see Appendix D). The final shares map model unified user
+sharing and server user-management into a single mechanism.
 
 ---
 
 ## Appendix A: Garbage Collection
 
 Content-addressed stores are append-only. Mutations leave orphaned nodes —
-subtrees no longer reachable from the service root.
+subtrees no longer reachable from any participant's root.
 
 Authorization defines what's "live": a node is live if and only if it's
-reachable from the service root. Everything else is garbage. This makes
-GC a direct consequence of the authorization model.
+reachable from some participant's root. Everything else is garbage. This
+makes GC a direct consequence of the authorization model.
 
 Dacite GC is a **semi-space collector** with two equivalent strategies:
 
@@ -537,14 +549,14 @@ Dacite GC is a **semi-space collector** with two equivalent strategies:
 The mark is **presence in the new store.**
 
 1. Create a new empty store B
-2. Walk from the service root, copying reachable nodes from A to B
+2. Walk from all live roots, copying reachable nodes from A to B
 3. Swap B in for A; discard A
 
 ### Color Marking (Mark-and-Sweep)
 
 The mark is **a color bit** on each node (red or green).
 
-1. Walk from the service root, marking reachable nodes with the current
+1. Walk from all live roots, marking reachable nodes with the current
    color. New writes also use the current color.
 2. Cull all nodes with the previous color.
 3. Alternate colors each cycle.
@@ -567,7 +579,6 @@ live color for new writes while the background walk proceeds.
 - **No reference counting.** No per-node bookkeeping during normal operations.
 - **Cost proportional to live data.** You pay for what you keep.
 - **Structural sharing preserved.** Shared subtrees are visited once.
-- **Single walk.** One service root means one walk covers all users' data.
 
 ## Appendix B: Rejected Alternative — Frontier Model
 
@@ -577,7 +588,7 @@ This eliminated proof chains but required server-side state per session,
 complicating scaling and failover. Proof chains + unauthenticated stores
 achieve the same isolation statelessly.
 
-## Appendix C: Design Evolution
+## Appendix C: Design Evolution — Authorization Model
 
 1. **Proof chains only.** Problem: what scopes the server's access to
    client data when fetching proof chains?
@@ -590,3 +601,25 @@ achieve the same isolation statelessly.
 5. **Proof of Possession as unifying concept.** GET and PUT are both
    applications of the same principle. Two forms (data, structural)
    cover all cases.
+
+## Appendix D: Design Evolution — Sharing Model
+
+1. **Delegation with scoped sessions (original §7).** Delegator issues
+   sessions scoped to subtree roots. Problem: lifecycle management of
+   scoped sessions, hash-pinned vs path-pinned references — smuggling
+   mutability into a content-addressed system.
+2. **Grants with authorized sets.** Generalized delegation but added
+   grant lifecycle complexity (creation, expiry, storage, indexing).
+3. **PR-as-giving.** Sharing as discrete acts of giving. Eliminated
+   ongoing authorization relationships. Problem: server needed to
+   route PRs, creating server state (queues, delivery policy).
+4. **Proof chain tokens.** Alice stores proof chain vector, shares its
+   hash. Bob claims via hash. Problem: Alice frozen until Bob claims
+   (proof chain tied to specific root).
+5. **Outbox convention.** Alice maintains outbox in her root with
+   `{random-key → target-hash}`. Problem: bearer token (anyone with
+   the key can claim), no authorization check.
+6. **Shares map (current).** Outbox entries gain authorized sets and
+   meaningful names. Server adopts the same model for user management.
+   One mechanism everywhere. No protocol-level mutability. Sharer
+   controls lifecycle via normal PUTs.
