@@ -5,6 +5,19 @@ combines two 256-bit hashes into a new 256-bit hash using nothing more
 than integer arithmetic. No SHA-256 at runtime, no hash function calls
 in the critical path — just six additions and a multiplication.
 
+The idea originates from an HP Labs white paper on using upper
+triangular matrix multiplication to combine hashes associatively:
+
+> Haber, S. et al. (2017). *Efficient and Secure Hash-Based Timestamps.*
+> HPE-2017-08. https://www.labs.hpe.com/techreports/2017/HPE-2017-08.pdf
+
+The paper proposes representing hashes as upper triangular matrices and
+multiplying them. Matrix multiplication is associative but not
+commutative — exactly the properties needed for tree-shape-independent
+hashing. Dacite's contribution is the specific 4×4 matrix over 64-bit
+cells, chosen based on empirical testing of degeneration behavior (see
+§1.8).
+
 This chapter introduces fuse, its algebraic properties, and how it
 turns raw bytes into content addresses.
 
@@ -188,7 +201,65 @@ fuse(a, b):
 An unchecked variant exists for internal use where inputs are known
 valid (e.g., combining measures within finger tree nodes).
 
-## 1.7 What This Layer Provides
+## 1.7 Why 4×4 with 64-bit Cells
+
+The HP paper describes hash fusing using upper triangular matrices
+in general terms. The same 256-bit hash can be packed into matrices
+of different sizes depending on cell width:
+
+| Cell size | Matrix size | Cells above diagonal |
+|-----------|-------------|---------------------|
+| 8-bit     | 9×9         | 36 (of which 32 used) |
+| 16-bit    | 7×7         | 21 (of which 16 used) |
+| 32-bit    | 5×5         | 10 (of which 8 used)  |
+| 64-bit    | 4×4         | 6 (of which 4 used)   |
+
+Larger cells mean fewer cells in the matrix, but each cell participates
+in more bit-mixing per multiply. This tradeoff matters for degeneration
+resistance.
+
+### The Folding Experiment
+
+Empirical testing (published at
+[Clojure Civitas](https://clojurecivitas.org/math/hashing/hashfusing.html))
+revealed a critical difference between cell sizes. The test: take a
+hash, fuse it with itself ("fold"), then fold the result with itself,
+and repeat. Count how many folds before all lower bits degenerate to
+zero:
+
+| Cell size | Folds to degenerate |
+|-----------|-------------------|
+| 8-bit     | 10                |
+| 16-bit    | 17                |
+| 32-bit    | 33                |
+| 64-bit    | 63                |
+
+With 8-bit cells, folding degenerates in just 10 steps — each fold
+loses about one bit of entropy per cell. With 64-bit cells, degeneration
+takes 63 folds — proportional to the cell width. In practice, 63 folds
+means `2^63` repeated identical elements, which is far beyond any
+realistic data size.
+
+A separate experiment with **random fuses** (alternating between two
+random hashes) showed zero collisions across millions of fuses for all
+cell sizes. Degeneration is specific to low-entropy data — repeated
+folding of the same value.
+
+### The Decision
+
+The 4×4 matrix with 64-bit cells won on all axes:
+
+- **Degeneration resistance** — 63 folds vs 10 for 8-bit cells
+- **Performance** — smallest matrix means fewest operations per fuse
+  (6 additions + 1 multiplication vs. dozens for 9×9)
+- **Simplicity** — 4 words map naturally to 256 bits; no packing tricks
+- **Hardware fit** — 64-bit integers are native on modern CPUs
+
+The low-entropy rejection check (§1.6) provides a safety net: even if
+someone constructs pathological data, fuse will reject the degenerate
+hash before it propagates.
+
+## 1.8 What This Layer Provides
 
 Hash fusion gives the rest of Dacite three guarantees:
 
