@@ -282,18 +282,19 @@ runs of identical values.
 
 | Cell size | Folds to zero (approx.) | Equivalent repeated fuses |
 |-----------|------------------------|--------------------------|
-| 8-bit     | ~10 (±2)               | ~2^10 = 1,024            |
-| 16-bit    | ~17 (±2)               | ~2^17 = 131,072          |
-| 32-bit    | ~33 (±2)               | ~2^33 ≈ 8.6 billion      |
-| 64-bit    | ~63 (±2)               | ~2^63 ≈ 9.2 × 10^18     |
+| 8-bit     | ~8                     | ~2^8 = 256               |
+| 16-bit    | ~16                    | ~2^16 = 65,536           |
+| 32-bit    | ~32                    | ~2^32 ≈ 4.3 billion      |
+| 64-bit    | ~64                    | ~2^64 ≈ 1.8 × 10^19     |
 
-The exact fold count varies with the starting hash (±2 folds observed
-across different inputs), but the relationship is statistical: folds to
-zero tracks closely with cell size in bits.
+The exact fold count varies with the starting hash, but the
+relationship is statistical: folds to zero tracks the cell size in
+bits. Smaller samples showed values within a few folds of the cell
+size; a larger sample would pin down the distribution more precisely.
 
 With 8-bit cells — the HP paper's implementation choice — repeating
-the same hash roughly 1,024 times causes complete degeneration. With
-64-bit cells, you'd need approximately 2^63 repetitions — far beyond
+the same hash roughly 256 times causes complete degeneration. With
+64-bit cells, you'd need approximately 2^64 repetitions — far beyond
 any realistic data.
 
 ```mermaid
@@ -315,7 +316,7 @@ fusing of the same value.
 
 The 4×4 matrix with 64-bit cells won on all axes:
 
-- **Degeneration resistance** — ~2^63 repeated fuses vs ~2^10 for
+- **Degeneration resistance** — ~2^64 repeated fuses vs ~2^8 for
   the HP paper's 8-bit cells
 - **Performance** — smallest matrix means fewest operations per fuse
   (6 additions + 1 multiplication vs. dozens for 9×9)
@@ -324,9 +325,10 @@ The 4×4 matrix with 64-bit cells won on all axes:
 
 The low-entropy rejection check (§1.6) checks the lower 32 bits of
 each word. This means fuse rejects degenerate hashes after
-approximately 2^32 repeated fuses of the same value — well within the
-64-bit cell's capacity but a practical limit that prevents propagating
-bad hashes through the system.
+approximately 2^32 repeated fuses of the same value — well within
+the 64-bit cell's ~2^64 capacity, providing a conservative safety
+margin that catches degeneration long before it reaches the
+theoretical limit.
 
 ## 1.8 What This Layer Provides
 
