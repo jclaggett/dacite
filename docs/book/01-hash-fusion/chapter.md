@@ -87,11 +87,61 @@ fuse(a, fuse(b, fuse(c, d)))    — right-degenerate tree
 This means two stores can organize the same data differently (different
 tree shapes for performance) and still agree on the root hash.
 
+```mermaid
+graph TD
+    subgraph "Left-degenerate tree"
+        L1["fuse"] --> L2["fuse"]
+        L1 --> Ld["d"]
+        L2 --> L3["fuse"]
+        L2 --> Lc["c"]
+        L3 --> La["a"]
+        L3 --> Lb["b"]
+    end
+
+    subgraph "Balanced tree"
+        B1["fuse"] --> B2["fuse"]
+        B1 --> B3["fuse"]
+        B2 --> Ba["a"]
+        B2 --> Bb["b"]
+        B3 --> Bc["c"]
+        B3 --> Bd["d"]
+    end
+
+    R["Same root hash"] -.-> L1
+    R -.-> B1
+
+    style R fill:#4a9,stroke:#333,color:#fff
+```
+
+Different tree shapes, same root hash. This is what makes finger trees
+possible — internal rebalancing never changes the identity of the
+sequence.
+
 ### Why Non-Commutativity Matters
 
 If fuse were commutative, `[a, b]` and `[b, a]` would hash the same.
 Sequences would be indistinguishable from sets. Order-sensitive data
 structures (vectors, strings) require that `fuse(a, b) ≠ fuse(b, a)`.
+
+```mermaid
+graph LR
+    subgraph "fuse(a, b)"
+        AB["fuse"] --> A1["a"]
+        AB --> B1["b"]
+    end
+
+    subgraph "fuse(b, a)"
+        BA["fuse"] --> B2["b"]
+        BA --> A2["a"]
+    end
+
+    AB -. "≠" .-> BA
+
+    style AB fill:#4a9,stroke:#333,color:#fff
+    style BA fill:#a44,stroke:#333,color:#fff
+```
+
+Order matters: `[a, b]` and `[b, a]` produce different hashes.
 
 ## 1.3 Group Structure
 
@@ -223,41 +273,52 @@ resistance.
 Empirical testing (published at
 [Clojure Civitas](https://clojurecivitas.org/math/hashing/hashfusing.html))
 revealed a critical difference between cell sizes. The test: take a
-hash, fuse it with itself ("fold"), then fold the result with itself,
-and repeat. Count how many folds before all lower bits degenerate to
-zero:
+hash h, fuse it with itself ("fold"), then fold the result with itself,
+and repeat. Each fold *squares* the hash: fold 1 = h², fold 2 = h⁴,
+fold n = h^(2^n). This measures resistance to the worst case — long
+runs of identical values.
 
-| Cell size | Folds to degenerate |
-|-----------|-------------------|
-| 8-bit     | 10                |
-| 16-bit    | 17                |
-| 32-bit    | 33                |
-| 64-bit    | 63                |
+| Cell size | Folds to zero | Equivalent repeated fuses |
+|-----------|--------------|--------------------------|
+| 8-bit     | 10           | 2^10 = 1,024             |
+| 16-bit    | 17           | 2^17 = 131,072           |
+| 32-bit    | 33           | 2^33 ≈ 8.6 billion       |
+| 64-bit    | 63           | 2^63 ≈ 9.2 × 10^18      |
 
-With 8-bit cells, folding degenerates in just 10 steps — each fold
-loses about one bit of entropy per cell. With 64-bit cells, degeneration
-takes 63 folds — proportional to the cell width. In practice, 63 folds
-means `2^63` repeated identical elements, which is far beyond any
-realistic data size.
+With 8-bit cells, repeating the same hash just 1,024 times causes
+complete degeneration. With 64-bit cells, you'd need 2^63 repetitions
+— far beyond any realistic data.
+
+```mermaid
+graph LR
+    H["h"] -->|"fold 1"| H2["h² = fuse(h,h)"]
+    H2 -->|"fold 2"| H4["h⁴ = fuse(h²,h²)"]
+    H4 -->|"fold 3"| H8["h⁸ = fuse(h⁴,h⁴)"]
+    H8 -->|"..."| HN["h^(2^n)"]
+    HN -->|"fold n"| Z["zero (degenerated)"]
+    style Z fill:#a44,stroke:#333,color:#fff
+```
 
 A separate experiment with **random fuses** (alternating between two
 random hashes) showed zero collisions across millions of fuses for all
 cell sizes. Degeneration is specific to low-entropy data — repeated
-folding of the same value.
+fusing of the same value.
 
 ### The Decision
 
 The 4×4 matrix with 64-bit cells won on all axes:
 
-- **Degeneration resistance** — 63 folds vs 10 for 8-bit cells
+- **Degeneration resistance** — 2^63 repeated fuses vs 2^10 for 8-bit
 - **Performance** — smallest matrix means fewest operations per fuse
   (6 additions + 1 multiplication vs. dozens for 9×9)
 - **Simplicity** — 4 words map naturally to 256 bits; no packing tricks
 - **Hardware fit** — 64-bit integers are native on modern CPUs
 
-The low-entropy rejection check (§1.6) provides a safety net: even if
-someone constructs pathological data, fuse will reject the degenerate
-hash before it propagates.
+The low-entropy rejection check (§1.6) checks the lower 32 bits of
+each word. This means fuse rejects degenerate hashes after
+approximately 2^32 repeated fuses of the same value — well within the
+64-bit cell's capacity but a practical limit that prevents propagating
+bad hashes through the system.
 
 ## 1.8 What This Layer Provides
 
