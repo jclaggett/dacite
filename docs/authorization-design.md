@@ -418,7 +418,46 @@ pointing to their modified version (see §7.6, "Bob edits Alice's
 document"). This keeps the sharing model simple: shares flow one
 direction, and the sharer retains full control.
 
-### 7.5 Share Types
+### 7.5 Named Groups
+
+Authorization sets can be defined once and referenced by name, avoiding
+repetition across shares:
+
+```
+root: {
+  "value":  <data>
+  "shares": {
+    "photos":  {target: #T1, authorized: "team"}
+    "docs":    {target: #T2, authorized: "team"}
+    "private": {target: #T3, authorized: "just-me"}
+  }
+  "groups": {
+    "team":    #{alice, bob, carol}
+    "just-me": #{alice}
+    "public":  #{neg}
+  }
+}
+```
+
+- **`"groups"`** — a map of group names to Dacite sets (positive or
+  negative). Managed via normal PUTs alongside `"value"` and `"shares"`.
+
+The claim check resolves the `authorized` field: if it's a string, look
+up the group in `"groups"` and check membership; if it's a set, check
+membership directly.
+
+**Properties:**
+- **Update once, apply everywhere.** Add Dave to `"team"` → he can
+  claim all team shares. One PUT.
+- **Revoke once.** Remove Carol from `"team"` → all her team shares
+  stop working.
+- **Readable.** Share entries say *what* the group is, not who is in it.
+- **Same machinery.** Groups are just another map in the root, managed
+  via normal PUTs. No new protocol concepts.
+- **Negative sets work here too.** `"public": #{neg}` authorizes
+  everyone. `"trusted": #{neg, eve}` authorizes everyone except Eve.
+
+### 7.6 Share Types
 
 The authorized set naturally distinguishes different sharing patterns.
 Since authorized sets are Dacite sets, they support both positive
@@ -439,7 +478,7 @@ This enables public sharing without enumerating all possible users.
 
 All patterns use the same mechanism. No special cases.
 
-### 7.6 Named References
+### 7.7 Named References
 
 Share names are chosen by the sharer and serve as **named references**
 under the sharer's control. Alice can:
@@ -455,7 +494,7 @@ under the sharer's control. Alice can:
   no longer claim updates.
 - **Share with additional people**: add Carol to the authorized set.
 
-### 7.7 Common Sharing Patterns
+### 7.8 Common Sharing Patterns
 
 **Alice shares photos with Bob:**
 Alice adds `shares["photos"] = {#T, #{bob}}`. Tells Bob the name.
@@ -483,7 +522,7 @@ Alice removes Bob from the authorized set via normal PUT. Bob can
 no longer claim. No blacklists, no negative permissions — Alice
 simply updated her own data.
 
-### 7.8 What This Eliminates
+### 7.9 What This Eliminates
 
 The shares map replaces several concepts from earlier designs:
 
@@ -497,7 +536,7 @@ The shares map replaces several concepts from earlier designs:
 | Service root map as special concept | Server's own shares map |
 | Session model changes | Valid roots set (temporary, per-claim) |
 
-### 7.9 Properties
+### 7.10 Properties
 
 - **One mechanism everywhere.** Users share with users. The server
   shares with users. The same root structure, the same claim protocol.
