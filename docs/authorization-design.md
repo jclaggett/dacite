@@ -406,20 +406,40 @@ graph TD
     style SR fill:#4a9,stroke:#333,color:#fff
 ```
 
-### 7.4 Share Types
+### 7.4 Shares Are Read-Only
 
-The authorized set size naturally distinguishes different sharing
-patterns:
+A claimed share grants **read access only**. The claimant can GET data
+under the shared target hash and can use it as a proof root to
+incorporate data into their own tree via PUT. But the claimant cannot
+modify the sharer's tree — writes go to the claimant's own root.
+
+To propose changes back, the claimant creates their own share entry
+pointing to their modified version (see §7.6, "Bob edits Alice's
+document"). This keeps the sharing model simple: shares flow one
+direction, and the sharer retains full control.
+
+### 7.5 Share Types
+
+The authorized set naturally distinguishes different sharing patterns.
+Since authorized sets are Dacite sets, they support both positive
+(enumerated) and negative (cofinite) forms:
 
 | Pattern | Authorized set | Example |
 |---------|---------------|---------|
 | **Private space** | `#{alice}` | Alice's personal data |
 | **Direct share** | `#{alice, bob}` | Alice shares photos with Bob |
 | **Shared space** | `#{alice, bob, carol}` | Team project |
+| **Public** | `#{neg}` (negative empty set) | Open data, anyone can claim |
+| **Public with exceptions** | `#{neg, eve}` | Everyone except Eve |
 
-All use the same mechanism. No special cases.
+A **negative set** (see SPEC.md §Negative Sets) represents "everyone
+except these elements." The empty negative set `#{neg}` — a map
+containing only the `neg` sentinel — means "everyone is authorized."
+This enables public sharing without enumerating all possible users.
 
-### 7.5 Named References
+All patterns use the same mechanism. No special cases.
+
+### 7.6 Named References
 
 Share names are chosen by the sharer and serve as **named references**
 under the sharer's control. Alice can:
@@ -435,7 +455,7 @@ under the sharer's control. Alice can:
   no longer claim updates.
 - **Share with additional people**: add Carol to the authorized set.
 
-### 7.6 Common Sharing Patterns
+### 7.7 Common Sharing Patterns
 
 **Alice shares photos with Bob:**
 Alice adds `shares["photos"] = {#T, #{bob}}`. Tells Bob the name.
@@ -453,12 +473,17 @@ Server creates `shares["team-project"] = {#TP, #{alice, bob, carol}}`.
 All three can claim and work with the shared subtree. Conflict
 resolution (simultaneous PUTs) is a policy concern, not a protocol one.
 
+**Public data:**
+Alice adds `shares["open-data"] = {#T, #{neg}}`. Anyone can claim it.
+No enumeration of users needed — the negative empty set authorizes
+everyone.
+
 **Revoking access:**
 Alice removes Bob from the authorized set via normal PUT. Bob can
 no longer claim. No blacklists, no negative permissions — Alice
 simply updated her own data.
 
-### 7.7 What This Eliminates
+### 7.8 What This Eliminates
 
 The shares map replaces several concepts from earlier designs:
 
@@ -472,7 +497,7 @@ The shares map replaces several concepts from earlier designs:
 | Service root map as special concept | Server's own shares map |
 | Session model changes | Valid roots set (temporary, per-claim) |
 
-### 7.8 Properties
+### 7.9 Properties
 
 - **One mechanism everywhere.** Users share with users. The server
   shares with users. The same root structure, the same claim protocol.
