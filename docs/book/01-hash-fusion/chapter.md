@@ -264,9 +264,11 @@ of different sizes depending on cell width:
 | 32-bit    | 5×5         | 10 (of which 8 used)  |
 | 64-bit    | 4×4         | 6 (of which 4 used)   |
 
-Larger cells mean fewer cells in the matrix, but each cell participates
-in more bit-mixing per multiply. This tradeoff matters for degeneration
-resistance.
+The HP paper's specific implementation used **8-bit cells in a 9×9
+matrix**. Larger cells mean fewer cells in the matrix, but each cell
+participates in more bit-mixing per multiply. This tradeoff matters
+for degeneration resistance — and as the experiments below show, the
+8-bit choice degenerates surprisingly quickly.
 
 ### The Folding Experiment
 
@@ -278,16 +280,21 @@ and repeat. Each fold *squares* the hash: fold 1 = h², fold 2 = h⁴,
 fold n = h^(2^n). This measures resistance to the worst case — long
 runs of identical values.
 
-| Cell size | Folds to zero | Equivalent repeated fuses |
-|-----------|--------------|--------------------------|
-| 8-bit     | 10           | 2^10 = 1,024             |
-| 16-bit    | 17           | 2^17 = 131,072           |
-| 32-bit    | 33           | 2^33 ≈ 8.6 billion       |
-| 64-bit    | 63           | 2^63 ≈ 9.2 × 10^18      |
+| Cell size | Folds to zero (approx.) | Equivalent repeated fuses |
+|-----------|------------------------|--------------------------|
+| 8-bit     | ~10 (±2)               | ~2^10 = 1,024            |
+| 16-bit    | ~17 (±2)               | ~2^17 = 131,072          |
+| 32-bit    | ~33 (±2)               | ~2^33 ≈ 8.6 billion      |
+| 64-bit    | ~63 (±2)               | ~2^63 ≈ 9.2 × 10^18     |
 
-With 8-bit cells, repeating the same hash just 1,024 times causes
-complete degeneration. With 64-bit cells, you'd need 2^63 repetitions
-— far beyond any realistic data.
+The exact fold count varies with the starting hash (±2 folds observed
+across different inputs), but the relationship is statistical: folds to
+zero tracks closely with cell size in bits.
+
+With 8-bit cells — the HP paper's implementation choice — repeating
+the same hash roughly 1,024 times causes complete degeneration. With
+64-bit cells, you'd need approximately 2^63 repetitions — far beyond
+any realistic data.
 
 ```mermaid
 graph LR
@@ -308,7 +315,8 @@ fusing of the same value.
 
 The 4×4 matrix with 64-bit cells won on all axes:
 
-- **Degeneration resistance** — 2^63 repeated fuses vs 2^10 for 8-bit
+- **Degeneration resistance** — ~2^63 repeated fuses vs ~2^10 for
+  the HP paper's 8-bit cells
 - **Performance** — smallest matrix means fewest operations per fuse
   (6 additions + 1 multiplication vs. dozens for 9×9)
 - **Simplicity** — 4 words map naturally to 256 bits; no packing tricks
