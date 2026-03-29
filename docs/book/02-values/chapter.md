@@ -474,7 +474,9 @@ The irreducible core of the value layer:
 | `ft-conj-right` | `(Seq, Hash) → Seq` | Append to right end |
 | `ft-conj-left` | `(Hash, Seq) → Seq` | Prepend to left end |
 | `ft-first` | `Seq → Hash` | Peek at left end |
+| `ft-last` | `Seq → Hash` | Peek at right end |
 | `ft-rest` | `Seq → Seq` | Remove from left |
+| `ft-butlast` | `Seq → Seq` | Remove from right |
 | `ft-nth` | `(Seq, int) → Hash` | Random access by index |
 | `ft-split` | `(Seq, int) → (Seq, Seq)` | Split at index |
 | `ft-concat` | `(Seq, Seq) → Seq` | Concatenate two seqs |
@@ -505,8 +507,6 @@ Convenience functions that compose from the primitives:
 
 | Function | Derivation | Description |
 |----------|------------|-------------|
-| `ft-last` | `ft-first(right of ft-split(s, count-1))` | Peek at right end |
-| `ft-butlast` | `left of ft-split(s, count-1)` | Remove from right |
 | `ft-count` | `(ft-measure s).count` | Element count, O(1) |
 | `ft-size-bytes` | `(ft-measure s).size_bytes` | Total byte size, O(1) |
 
