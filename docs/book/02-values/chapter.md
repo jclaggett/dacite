@@ -217,26 +217,10 @@ negative_set({a, b}) = seq("set", map({negative: negative, a: a, b: b}))
 Membership is inverted: `x` is a member if `get(set.data, x) == nil`
 (and `x` is not the `negative` sentinel itself).
 
-```mermaid
-graph TD
-    subgraph "Positive set {x, y}"
-        PS["set"] --> PM["map"]
-        PM --> PX["x → x"]
-        PM --> PY["y → y"]
-    end
-
-    subgraph "Negative set (everything except x, y)"
-        NS["set"] --> NM["map"]
-        NM --> NN["negative → negative"]
-        NM --> NX["x → x"]
-        NM --> NY["y → y"]
-    end
-
-    PS -. "complement" .-> NS
-    NS -. "complement" .-> PS
-
-    style NN fill:#a44,stroke:#333,color:#fff
-```
+For a thorough treatment of negative sets — including proofs that
+the sentinel flows correctly through all set operations using only
+map primitives — see
+[Negative Sets as Data](https://clojurecivitas.org/math/sets/negative_sets.html).
 
 ### Set Operations
 
