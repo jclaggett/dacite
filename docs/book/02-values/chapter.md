@@ -159,9 +159,11 @@ All built-in types follow the `seq(type_name, data)` convention:
 | `"u8"` … `"u256"` | 1–32 byte scalar (big-endian, unsigned) | Unsigned integers |
 | `"f32"`, `"f64"` | 4 or 8 byte scalar (IEEE 754) | Floating point |
 | `"char"` | 1–4 byte scalar (UTF-8) | Unicode character |
+| `"negative"` | null scalar | Sentinel for negative sets |
 | `"string"` | seq of char scalars | UTF-8 string |
 | `"blob"` | seq of byte scalars | Binary data |
 | `"vector"` | seq of arbitrary typed values | Ordered collection |
+| `"set"` | HAMT self-map | Set (positive or negative) |
 | `"map"` | HAMT of key-value pairs | Associative collection |
 
 Scalar types (`null` through `char`) wrap a single scalar in a typed
@@ -181,42 +183,53 @@ is purely semantic.
 
 ## 2.4 Sets and Negative Sets
 
-### Sets as Maps
+### The Set Type
 
-A set is a map where every key maps to itself:
-
-```
-set({a, b, c}) = map({a: a, b: b, c: c})
-```
-
-There is no `"set"` type. Sets are ordinary `"map"` values. Content
-addressing means the key and value point to the same hash — zero
-additional storage for the "duplicate" reference.
-
-Membership test: `get(set, x) != nil`.
-
-### Negative Sets (Cofinite Sets)
-
-A **negative set** represents "everything except these elements." It
-uses a sentinel key `neg` — a typed value `["neg", null]`:
+A `"set"` is a typed value wrapping a self-map — a HAMT where every
+key maps to itself:
 
 ```
-negative_set({a, b}) = map({neg: neg, a: a, b: b})
+set({a, b, c}) = seq("set", map({a: a, b: b, c: c}))
 ```
 
-Membership is inverted: `x` is a member if `get(set, x) == nil`.
+Content addressing means the key and value point to the same hash —
+zero additional storage for the "duplicate" reference.
+
+Membership test: `get(set.data, x) != nil`.
+
+### The Negative Sentinel
+
+The built-in type `"negative"` is a sentinel value used to denote
+negative (cofinite) sets — sets that represent "everything except
+these elements":
+
+```
+negative = seq("negative", null)
+```
+
+A **negative set** is a `"set"` whose self-map includes the `negative`
+sentinel as an element:
+
+```
+negative_set({a, b}) = seq("set", map({negative: negative, a: a, b: b}))
+```
+
+Membership is inverted: `x` is a member if `get(set.data, x) == nil`
+(and `x` is not the `negative` sentinel itself).
 
 ```mermaid
 graph TD
     subgraph "Positive set {x, y}"
-        PS["map"] --> PX["x → x"]
-        PS --> PY["y → y"]
+        PS["set"] --> PM["map"]
+        PM --> PX["x → x"]
+        PM --> PY["y → y"]
     end
 
     subgraph "Negative set (everything except x, y)"
-        NS["map"] --> NN["neg → neg"]
-        NS --> NX["x → x"]
-        NS --> NY["y → y"]
+        NS["set"] --> NM["map"]
+        NM --> NN["negative → negative"]
+        NM --> NX["x → x"]
+        NM --> NY["y → y"]
     end
 
     PS -. "complement" .-> NS
@@ -227,8 +240,9 @@ graph TD
 
 ### Set Operations
 
-The `neg` sentinel flows through ordinary map operations. No special
-machinery needed:
+The `negative` sentinel flows through ordinary map operations. Because
+it's just another element in the self-map, no special set machinery is
+needed — only the three map primitives:
 
 | A | B | union (A ∪ B) | intersect (A ∩ B) | difference (A \ B) |
 |-----|-----|-----------------|-------------------|---------------------|
@@ -238,15 +252,17 @@ machinery needed:
 | neg | pos | remove(A, B) | remove(B, A) | merge(A, B) |
 
 Where:
-- `merge(A, B)` — add B's keys not already in A
-- `keep(A, B)` — keep only A's keys that are also in B
-- `remove(A, B)` — remove A's keys that are also in B
+- `merge(A, B)` — add B's elements not already in A
+- `keep(A, B)` — keep only A's elements that are also in B
+- `remove(A, B)` — remove A's elements that are also in B
 
-Complement is just toggling the `neg` key:
-`complement(A)` = add `neg` if absent, remove if present.
+Complement is toggling the `negative` element:
+`complement(A)` = add `negative` if absent, remove if present.
 
-This is a pure convention. The store and core types know nothing about
-sets or `neg`.
+The `negative` sentinel participates in these operations like any other
+element, which is what makes the pos/neg operation table work — the
+sentinel's presence or absence propagates correctly through merge, keep,
+and remove without special cases.
 
 ## 2.5 Inside Seqs: Finger Trees
 
