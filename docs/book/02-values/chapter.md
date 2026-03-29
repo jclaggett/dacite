@@ -454,9 +454,11 @@ structure; the cryptographic hash gives you adversarial resistance.
 
 ## 2.8 API Surface
 
-A complete implementation of this layer exposes:
+### Primitives
 
-**Primitives & Construction**
+The irreducible core of the value layer:
+
+**Construction**
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
@@ -464,23 +466,7 @@ A complete implementation of this layer exposes:
 | `typed-value` | `(string, Primitive) → Seq` | Create `seq(type_name, data)` |
 | `typed-hash` | `(string, Hash) → Hash` | Compute hash with null separator |
 
-**Built-in Type Constructors**
-
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| `dac-null` | `→ TypedValue` | `seq("null", scalar([]))` |
-| `dac-bool` | `bool → TypedValue` | `seq("bool", scalar([0x00\|0x01]))` |
-| `dac-int` | `(width, int) → TypedValue` | `seq("i64", scalar(big-endian))` etc. |
-| `dac-float` | `(width, float) → TypedValue` | `seq("f32"\|"f64", scalar(ieee754))` |
-| `dac-char` | `char → TypedValue` | `seq("char", scalar(utf8))` |
-| `dac-string` | `string → TypedValue` | `seq("string", seq(chars...))` |
-| `dac-blob` | `bytes → TypedValue` | `seq("blob", seq(bytes...))` |
-| `dac-vector` | `[values...] → TypedValue` | `seq("vector", seq(values...))` |
-| `dac-set` | `[values...] → TypedValue` | `seq("set", map({v:v, ...}))` |
-| `dac-map` | `{k:v, ...} → TypedValue` | `seq("map", map({k:v, ...}))` |
-| `dac-negative` | `→ TypedValue` | `seq("negative", null)` — sentinel |
-
-**Seq Operations (Finger Tree)**
+**Seq (Finger Tree)**
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
@@ -488,16 +474,13 @@ A complete implementation of this layer exposes:
 | `ft-conj-right` | `(Seq, Hash) → Seq` | Append to right end |
 | `ft-conj-left` | `(Hash, Seq) → Seq` | Prepend to left end |
 | `ft-first` | `Seq → Hash` | Peek at left end |
-| `ft-last` | `Seq → Hash` | Peek at right end |
 | `ft-rest` | `Seq → Seq` | Remove from left |
-| `ft-butlast` | `Seq → Seq` | Remove from right |
 | `ft-nth` | `(Seq, int) → Hash` | Random access by index |
-| `ft-concat` | `(Seq, Seq) → Seq` | Concatenate two seqs |
 | `ft-split` | `(Seq, int) → (Seq, Seq)` | Split at index |
-| `ft-count` | `Seq → int` | Element count (O(1) from measure) |
-| `ft-size-bytes` | `Seq → int` | Total byte size (O(1) from measure) |
+| `ft-concat` | `(Seq, Seq) → Seq` | Concatenate two seqs |
+| `ft-measure` | `Seq → Measure` | Root measure (count, size, fuse) |
 
-**Map Operations (HAMT)**
+**Map (HAMT)**
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
@@ -505,38 +488,79 @@ A complete implementation of this layer exposes:
 | `hamt-get` | `(Map, Hash) → Hash \| nil` | Lookup by key hash |
 | `hamt-assoc` | `(Map, Hash, Hash) → Map` | Insert or update |
 | `hamt-dissoc` | `(Map, Hash) → Map` | Remove by key hash |
-| `hamt-count` | `Map → int` | Entry count (O(1) from measure) |
+| `hamt-measure` | `Map → Measure` | Root measure (count, size, fuse) |
 
-**Set Operations**
-
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| `set-member?` | `(Set, Hash) → bool` | Membership (handles positive/negative) |
-| `set-complement` | `Set → Set` | Toggle the `negative` element |
-| `set-union` | `(Set, Set) → Set` | Union (dispatches on pos/neg) |
-| `set-intersect` | `(Set, Set) → Set` | Intersection |
-| `set-difference` | `(Set, Set) → Set` | Difference |
-
-**Cross-Type**
+**Measure**
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `content-hash` | `TypedValue → Hash` | Strip type tag, compare underlying data |
+| `measure-combine` | `(Measure, Measure) → Measure` | Monoid combine |
+| `measure-identity` | `→ Measure` | `{0, 0, [0,0,0,0]}` |
 
-**Properties your tests should verify:**
+### Derived
+
+Convenience functions that compose from the primitives:
+
+**From seq primitives**
+
+| Function | Derivation | Description |
+|----------|------------|-------------|
+| `ft-last` | `ft-first(right of ft-split(s, count-1))` | Peek at right end |
+| `ft-butlast` | `left of ft-split(s, count-1)` | Remove from right |
+| `ft-count` | `(ft-measure s).count` | Element count, O(1) |
+| `ft-size-bytes` | `(ft-measure s).size_bytes` | Total byte size, O(1) |
+
+**From map primitives**
+
+| Function | Derivation | Description |
+|----------|------------|-------------|
+| `hamt-count` | `(hamt-measure m).count` | Entry count, O(1) |
+
+**Built-in type constructors** — all derived from `typed-value` + `scalar`:
+
+| Function | Derivation |
+|----------|------------|
+| `dac-null` | `typed-value("null", scalar([]))` |
+| `dac-bool` | `typed-value("bool", scalar([0\|1]))` |
+| `dac-int` | `typed-value("i64", scalar(big-endian))` etc. |
+| `dac-float` | `typed-value("f32"\|"f64", scalar(ieee754))` |
+| `dac-char` | `typed-value("char", scalar(utf8))` |
+| `dac-negative` | `typed-value("negative", dac-null)` |
+| `dac-string` | `typed-value("string", seq(chars...))` |
+| `dac-blob` | `typed-value("blob", seq(bytes...))` |
+| `dac-vector` | `typed-value("vector", seq(values...))` |
+| `dac-set` | `typed-value("set", self-map(values...))` |
+| `dac-map` | `typed-value("map", map(entries...))` |
+
+**Set operations** — derived from HAMT primitives + `dac-negative`:
+
+| Function | Derivation | Description |
+|----------|------------|-------------|
+| `set-member?` | `hamt-get` + check for `negative` | Membership (pos/neg aware) |
+| `set-complement` | Toggle `negative` via `hamt-assoc`/`hamt-dissoc` | Complement |
+| `set-union` | Dispatch to `merge`/`keep`/`remove` on pos/neg | Union |
+| `set-intersect` | Dispatch to `merge`/`keep`/`remove` on pos/neg | Intersection |
+| `set-difference` | Dispatch to `merge`/`keep`/`remove` on pos/neg | Difference |
+
+**Cross-type**
+
+| Function | Derivation | Description |
+|----------|------------|-------------|
+| `content-hash` | `fuse(inv(type-name-hash), typed-hash)` | Strip type tag |
+
+### Properties
 
 - All typed values round-trip: construct → hash → reconstruct yields
   same hash
-- Cross-type equality: `content-hash(string("abc"))` =
-  `content-hash(vector(['a','b','c']))`
-- Finger tree: `count(conj-right(t, x))` = `count(t) + 1`
-- Finger tree: `nth(conj-right(empty, x), 0)` = `x`
-- Finger tree: `concat(a, b)` has measure = `combine(measure(a), measure(b))`
-- HAMT: `get(assoc(m, k, v), k)` = `v`
-- HAMT: `get(dissoc(m, k), k)` = `nil`
-- HAMT: insertion order doesn't affect hash (semantic hash is deterministic)
-- Sets: `union(complement(A), A)` = universal set (negative empty)
-- Sets: `intersect(A, complement(A))` = empty set
+- `content-hash(string("abc"))` = `content-hash(vector(['a','b','c']))`
+- `count(conj-right(t, x))` = `count(t) + 1`
+- `nth(conj-right(empty, x), 0)` = `x`
+- `measure(concat(a, b))` = `combine(measure(a), measure(b))`
+- `get(assoc(m, k, v), k)` = `v`
+- `get(dissoc(m, k), k)` = `nil`
+- Insertion order doesn't affect map hash (deterministic traversal)
+- `union(complement(A), A)` = universal set (negative empty)
+- `intersect(A, complement(A))` = empty set
 
 **This layer depends only on Layer 1 (hash).** No I/O, no persistence,
 no state beyond the values themselves. All functions are pure.

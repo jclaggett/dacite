@@ -332,21 +332,30 @@ theoretical limit.
 
 ## 1.8 API Surface
 
-A complete implementation of this layer exposes:
+### Primitives
+
+The irreducible core — everything else derives from these:
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `fuse` | `(Hash, Hash) → Hash` | Combine two hashes (checked) |
-| `unchecked-fuse` | `(Hash, Hash) → Hash` | Combine two hashes (no low-entropy check) |
+| `unchecked-fuse` | `(Hash, Hash) → Hash` | Combine without low-entropy check |
 | `inv` | `Hash → Hash` | Compute the group inverse |
-| `unfuse` | `(Hash, Hash) → Hash` | Strip right: `unfuse(fuse(a,b), b) = a` |
 | `fuse-bytes` | `bytes → Hash` | Hash a byte sequence via table lookup |
-| `fuse-str` | `string → Hash` | Hash a UTF-8 string (`fuse-bytes` of UTF-8 bytes) |
 | `byte-hash-table` | `byte → Hash` | The 256-entry lookup table |
-| `protocol-id` | `→ Hash` | The table's self-hash (compatibility check) |
 | `low-entropy?` | `Hash → bool` | Check if lower 32 bits are all zero |
 
-**Properties your tests should verify:**
+### Derived
+
+Convenience functions that compose from the primitives:
+
+| Function | Derivation | Description |
+|----------|------------|-------------|
+| `unfuse` | `fuse(a, inv(b))` | Strip right: recover left operand |
+| `fuse-str` | `fuse-bytes(utf8-encode(s))` | Hash a UTF-8 string |
+| `protocol-id` | `fuse-bytes(concat(table[0..255]))` | The table's self-hash |
+
+### Properties
 
 - `fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)` — associativity
 - `fuse(a, b) ≠ fuse(b, a)` for a ≠ b — non-commutativity
@@ -354,7 +363,7 @@ A complete implementation of this layer exposes:
 - `fuse([0,0,0,0], a) = a` — left identity
 - `fuse(a, inv(a)) = [0,0,0,0]` — right inverse
 - `fuse(inv(a), a) = [0,0,0,0]` — left inverse
-- `unfuse(fuse(a, b), b) = a` — right recovery
+- `fuse(a, inv(b)) = unfuse(a, b)` — unfuse is derived
 - `fuse(inv(a), fuse(a, b)) = b` — left recovery
 - `fuse-bytes(a ++ b) = fuse(fuse-bytes(a), fuse-bytes(b))` — composability
 - `fuse` rejects when `low-entropy?` is true for input or output
