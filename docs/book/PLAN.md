@@ -91,6 +91,28 @@ Where existing content maps to the new structure:
 | `authorization.allium` | TBD — formal spec track, possibly per-chapter |
 | `spec/schema/*.json` | `03-stores/` (serialization schemas) |
 
+## Library Layering
+
+Each chapter maps to an independent library with a clean API boundary:
+
+```
+Layer 1: hash    — zero dependencies, pure math
+Layer 2: values  — depends on hash only
+Layer 3: stores  — depends on hash + values
+Layer 4: sharing — depends on hash + values + stores
+```
+
+This is a dependency chain, not a monolith. Each layer can be
+implemented, tested, and ported independently. A Rust or C port starts
+with Layer 1 (a weekend of integer arithmetic), adds Layer 2 (data
+structures, still no I/O), then Layer 3 (where platform-specific
+choices like LMDB vs SQLite diverge). Layer 4 is protocol-level and
+can share a spec across languages.
+
+Each chapter ends with an **API Surface** section listing the public
+functions, their signatures, and testable properties — serving as both
+documentation and a module specification for implementors.
+
 ## Writing Approach
 
 Each chapter should:
@@ -98,7 +120,8 @@ Each chapter should:
 2. **Start with intuition** — what problem does this layer solve?
 3. **Build to precision** — spec-level detail after the intuition lands
 4. **Include examples** — concrete Dacite values, not just abstractions
-5. **End with properties** — what guarantees does this layer provide?
+5. **End with API surface** — public functions, signatures, test properties
+6. **End with guarantees** — what does this layer provide to the next?
 
 ## Tone
 

@@ -330,7 +330,40 @@ the 64-bit cell's ~2^64 capacity, providing a conservative safety
 margin that catches degeneration long before it reaches the
 theoretical limit.
 
-## 1.8 What This Layer Provides
+## 1.8 API Surface
+
+A complete implementation of this layer exposes:
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `fuse` | `(Hash, Hash) → Hash` | Combine two hashes (checked) |
+| `unchecked-fuse` | `(Hash, Hash) → Hash` | Combine two hashes (no low-entropy check) |
+| `inv` | `Hash → Hash` | Compute the group inverse |
+| `unfuse` | `(Hash, Hash) → Hash` | Strip right: `unfuse(fuse(a,b), b) = a` |
+| `fuse-bytes` | `bytes → Hash` | Hash a byte sequence via table lookup |
+| `fuse-str` | `string → Hash` | Hash a UTF-8 string (`fuse-bytes` of UTF-8 bytes) |
+| `byte-hash-table` | `byte → Hash` | The 256-entry lookup table |
+| `protocol-id` | `→ Hash` | The table's self-hash (compatibility check) |
+| `low-entropy?` | `Hash → bool` | Check if lower 32 bits are all zero |
+
+**Properties your tests should verify:**
+
+- `fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)` — associativity
+- `fuse(a, b) ≠ fuse(b, a)` for a ≠ b — non-commutativity
+- `fuse(a, [0,0,0,0]) = a` — right identity
+- `fuse([0,0,0,0], a) = a` — left identity
+- `fuse(a, inv(a)) = [0,0,0,0]` — right inverse
+- `fuse(inv(a), a) = [0,0,0,0]` — left inverse
+- `unfuse(fuse(a, b), b) = a` — right recovery
+- `fuse(inv(a), fuse(a, b)) = b` — left recovery
+- `fuse-bytes(a ++ b) = fuse(fuse-bytes(a), fuse-bytes(b))` — composability
+- `fuse` rejects when `low-entropy?` is true for input or output
+
+**This layer has zero dependencies** — no I/O, no state, just integer
+arithmetic and a lookup table. It is the natural starting point for
+porting Dacite to a new language.
+
+## 1.9 What This Layer Provides
 
 Hash fusion gives the rest of Dacite three guarantees:
 

@@ -452,7 +452,96 @@ Verify the cryptographic hash on ingest; use the dacite hash for
 internal navigation. The fuse hash gives you speed and algebraic
 structure; the cryptographic hash gives you adversarial resistance.
 
-## 2.8 What This Layer Provides
+## 2.8 API Surface
+
+A complete implementation of this layer exposes:
+
+**Primitives & Construction**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `scalar` | `bytes → Scalar` | Create a scalar from raw bytes |
+| `typed-value` | `(string, Primitive) → Seq` | Create `seq(type_name, data)` |
+| `typed-hash` | `(string, Hash) → Hash` | Compute hash with null separator |
+
+**Built-in Type Constructors**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `dac-null` | `→ TypedValue` | `seq("null", scalar([]))` |
+| `dac-bool` | `bool → TypedValue` | `seq("bool", scalar([0x00\|0x01]))` |
+| `dac-int` | `(width, int) → TypedValue` | `seq("i64", scalar(big-endian))` etc. |
+| `dac-float` | `(width, float) → TypedValue` | `seq("f32"\|"f64", scalar(ieee754))` |
+| `dac-char` | `char → TypedValue` | `seq("char", scalar(utf8))` |
+| `dac-string` | `string → TypedValue` | `seq("string", seq(chars...))` |
+| `dac-blob` | `bytes → TypedValue` | `seq("blob", seq(bytes...))` |
+| `dac-vector` | `[values...] → TypedValue` | `seq("vector", seq(values...))` |
+| `dac-set` | `[values...] → TypedValue` | `seq("set", map({v:v, ...}))` |
+| `dac-map` | `{k:v, ...} → TypedValue` | `seq("map", map({k:v, ...}))` |
+| `dac-negative` | `→ TypedValue` | `seq("negative", null)` — sentinel |
+
+**Seq Operations (Finger Tree)**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `ft-empty` | `→ Seq` | Empty finger tree |
+| `ft-conj-right` | `(Seq, Hash) → Seq` | Append to right end |
+| `ft-conj-left` | `(Hash, Seq) → Seq` | Prepend to left end |
+| `ft-first` | `Seq → Hash` | Peek at left end |
+| `ft-last` | `Seq → Hash` | Peek at right end |
+| `ft-rest` | `Seq → Seq` | Remove from left |
+| `ft-butlast` | `Seq → Seq` | Remove from right |
+| `ft-nth` | `(Seq, int) → Hash` | Random access by index |
+| `ft-concat` | `(Seq, Seq) → Seq` | Concatenate two seqs |
+| `ft-split` | `(Seq, int) → (Seq, Seq)` | Split at index |
+| `ft-count` | `Seq → int` | Element count (O(1) from measure) |
+| `ft-size-bytes` | `Seq → int` | Total byte size (O(1) from measure) |
+
+**Map Operations (HAMT)**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `hamt-empty` | `→ Map` | Empty HAMT |
+| `hamt-get` | `(Map, Hash) → Hash \| nil` | Lookup by key hash |
+| `hamt-assoc` | `(Map, Hash, Hash) → Map` | Insert or update |
+| `hamt-dissoc` | `(Map, Hash) → Map` | Remove by key hash |
+| `hamt-count` | `Map → int` | Entry count (O(1) from measure) |
+
+**Set Operations**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `set-member?` | `(Set, Hash) → bool` | Membership (handles positive/negative) |
+| `set-complement` | `Set → Set` | Toggle the `negative` element |
+| `set-union` | `(Set, Set) → Set` | Union (dispatches on pos/neg) |
+| `set-intersect` | `(Set, Set) → Set` | Intersection |
+| `set-difference` | `(Set, Set) → Set` | Difference |
+
+**Cross-Type**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `content-hash` | `TypedValue → Hash` | Strip type tag, compare underlying data |
+
+**Properties your tests should verify:**
+
+- All typed values round-trip: construct → hash → reconstruct yields
+  same hash
+- Cross-type equality: `content-hash(string("abc"))` =
+  `content-hash(vector(['a','b','c']))`
+- Finger tree: `count(conj-right(t, x))` = `count(t) + 1`
+- Finger tree: `nth(conj-right(empty, x), 0)` = `x`
+- Finger tree: `concat(a, b)` has measure = `combine(measure(a), measure(b))`
+- HAMT: `get(assoc(m, k, v), k)` = `v`
+- HAMT: `get(dissoc(m, k), k)` = `nil`
+- HAMT: insertion order doesn't affect hash (semantic hash is deterministic)
+- Sets: `union(complement(A), A)` = universal set (negative empty)
+- Sets: `intersect(A, complement(A))` = empty set
+
+**This layer depends only on Layer 1 (hash).** No I/O, no persistence,
+no state beyond the values themselves. All functions are pure.
+
+## 2.9 What This Layer Provides
 
 The value layer gives the rest of Dacite:
 
