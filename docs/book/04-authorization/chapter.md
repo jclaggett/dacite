@@ -34,12 +34,12 @@ link in the DAG.
 
 ```mermaid
 graph TD
-    R[\"map (root) #R\"] --> E1[\"entry #E1\\n'name' → 'Alice'\"]
-    R --> E2[\"entry #E2\\n'scores' → vector\"]
-    E2 --> V2[\"vector #V2\"]
-    V2 --> S1[\"10\"]
-    V2 --> S2[\"20\"]
-    V2 --> S3[\"30 #S3\"]
+    R["map (root) #R"] --> E1["entry #E1\n'name' → 'Alice'"]
+    R --> E2["entry #E2\n'scores' → vector"]
+    E2 --> V2["vector #V2"]
+    V2 --> S1["10"]
+    V2 --> S2["20"]
+    V2 --> S3["30 #S3"]
     style R fill:#4a9,stroke:#333,color:#fff
     style S3 fill:#49a,stroke:#333,color:#fff
 ```
@@ -69,9 +69,15 @@ Structural possession only:
 
 ```mermaid
 sequenceDiagram
-    C->>S: GET #S3, chain [#R, #E2, #V2, #S3]
-    Note over S: verify ✓
-    S-->>C: #S3 value
+    participant C as Client
+    participant S as Server
+
+    C->>S: authenticate
+    S-->>C: session token + root hash #R
+
+    C->>S: GET #S3, chain: [#R, #E2, #V2, #S3]
+    Note over S: verify chain<br/>#R→#E2→#V2→#S3 ✓
+    S-->>C: value of #S3
 ```
 
 Stateless/scoped by DAG.
@@ -84,22 +90,39 @@ Full possession (data or structural from *old* root).
 
 Alice learns Bob's root `#RB`, declares it — gains his tree.
 
+```mermaid
+graph TD
+    RA["Alice's root #RA"] --> AD["Alice's data"]
+    RB["Bob's root #RB"] --> BD["Bob's data"]
+    RA2["Alice declares #RB\nas her root"] --> BD
+    style RA2 fill:#a44,stroke:#333,color:#fff
+    style BD fill:#a44,stroke:#333,color:#fff
+```
+
 ### Solution: Prove Possession of New Root
 
 Server challenges each hash in new root. Client responds data/chain.
 
 ```mermaid
 sequenceDiagram
-    C->>S: new root #R'
-    loop walk #R'
-        S->>C: prove #H
-        alt data
-            C-->>S: bytes ✓
-        else chain
-            C-->>S: [#R .. #H] ✓
+    participant C as Client
+    participant S as Server
+
+    C->>S: declare new root #R' (old root #R stays active)
+
+    loop walk new root #R'
+        S->>C: prove you possess #H
+        alt new node (client has data)
+            C-->>S: node data for #H
+            Note over S: data possession ✓
+        else existing node (client has chain)
+            C-->>S: proof chain from #R to #H
+            Note over S: structural possession ✓
         end
     end
-    S-->>C: root → #R'
+
+    Note over S: all hashes verified<br/>root pointer: #R → #R'
+    S-->>C: ack, new root #R'
 ```
 
 Server has all prior-tree data; partitions cleanly. Hash capture fails.

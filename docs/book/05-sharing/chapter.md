@@ -30,11 +30,17 @@ Managed via PUTs.
 
 ```mermaid
 sequenceDiagram
-    Note over A: shares[\"photos\"]={#T, #{bob}}
-    A->>B: OOB name
-    B->>S: CLAIM photos alice
-    Note over S: root.shares → ✓ → #T
-    S-->>B: #T root
+    participant A as Alice
+    participant B as Bob
+    participant S as Server
+
+    Note over A: shares["photos"]:<br/>{target: #T, authorized: #{bob}}
+
+    A->>B: out-of-band: "claim 'photos' from me"
+    B->>S: CLAIM "photos" from Alice
+    Note over S: look up Alice's root<br/>find shares["photos"]<br/>check bob ∈ authorized ✓<br/>extract #T
+    S-->>B: added #T to valid roots
+    B->>S: GET/PUT using #T as proof root
 ```
 
 ## 5.3 Server Uses Shares
@@ -50,9 +56,15 @@ Auth = claim server share. No special server state.
 
 ```mermaid
 graph TD
-    SR[\"Server Root\"] --> SS[\"shares\"]
-    SS --> SA[\"alice: {#RA, #{alice}}\"]
-    SA --> RA[\"Alice tree\"]
+    SR["Server Root"] --> SV["value: config"]
+    SR --> SS["shares"]
+    SS --> SA["'alice': {#RA, #{alice}}"]
+    SS --> SB["'bob': {#RB, #{bob}}"]
+    SS --> ST["'team': {#TP, #{alice,bob,carol}}"]
+    SA --> RA["Alice's tree"]
+    SB --> RB["Bob's tree"]
+    ST --> TP["Team tree"]
+    style SR fill:#4a9,stroke:#333,color:#fff
 ```
 
 ## 5.4 Read-Only + Edit Flow
@@ -88,8 +100,11 @@ Photos: update target. Edits: re-share modified. Team: multi-auth share.
 
 ```mermaid
 graph TD
-    AE[\"Alice\"] --> SM[\"#SM shared\"]
-    BE[\"Bob\"] --> SM
+    AE["Alice's tree"] --> SM["Shared subtree #SM"]
+    BE["Bob's tree"] --> SM
+    SM --> N1["shared nodes"]
+    SM --> N2["shared nodes"]
+    style SM fill:#aa4,stroke:#333,color:#fff
 ```
 
 Deduplication natural.
