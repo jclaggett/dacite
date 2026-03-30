@@ -178,4 +178,4 @@ Stores are caches at every layer. Evict freely — immutable data re-fetches ide
 4. **Caching** — eternal validity, hierarchical layers
 5. **Portability** — IStore protocol language-agnostic
 
-Chapter 4 adds multi-user sharing on this foundation.
+Chapter 4 adds authorization: proof of possession and authenticated stores.
