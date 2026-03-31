@@ -1,10 +1,10 @@
-(ns dacite.hamt-test
+(ns dacite.value.hamt-test
   "Tests for Dacite HAMT implementation - 100% coverage via public API."
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [dacite.hamt :as hamt]
+            [dacite.value.hamt :as hamt]
             [dacite.hash :as hash]))
 
 ;; =============================================================================

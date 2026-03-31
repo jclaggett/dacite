@@ -18,9 +18,9 @@
    Otherwise the global store is used automatically."
   (:refer-clojure :exclude [str vec hash-map])
   (:require [dacite.store :as store]
-            [dacite.types :as types]
-            [dacite.scalar :as scalar]
-            [dacite.collections :as coll]
+            [dacite.value.types :as types]
+            [dacite.value.scalar :as scalar]
+            [dacite.value.collections :as coll]
             [dacite.convert :as convert]))
 
 ;; =============================================================================

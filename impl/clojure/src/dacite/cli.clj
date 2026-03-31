@@ -13,11 +13,11 @@
    Files are stored as blobs. Directories are maps.
    Auth uses the unix username."
   (:require [clojure.java.io :as io]
-            [dacite.collections :as coll]
+            [dacite.value.collections :as coll]
             [dacite.convert :as convert]
             [dacite.core :as d]
             [dacite.store :as store]
-            [dacite.types :as types]
+            [dacite.value.types :as types]
             [example.client :as client])
   (:gen-class))
 

@@ -3,7 +3,7 @@
             [dacite.service :as svc]
             [dacite.core :as d]
             [dacite.store :as store]
-            [dacite.types :as types]
+            [dacite.value.types :as types]
             [dacite.auth :as auth]
             [dacite.hash :as hash]))
 

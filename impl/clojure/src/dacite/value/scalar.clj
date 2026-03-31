@@ -1,4 +1,4 @@
-(ns dacite.scalar
+(ns dacite.value.scalar
   "Dacite scalar types and constructors.
 
    DaciteScalar wraps a content-addressed hash pointing to a typed value
@@ -7,7 +7,7 @@
 
    Scalar constructors: null, bool, i8-i64, u8-u256, f32, f64, dacite-char."
   (:require [dacite.hash :as hash]
-            [dacite.types :as types]
+            [dacite.value.types :as types]
             [dacite.store :as store])
   (:import [clojure.lang IDeref IHashEq IFn]
            [java.nio ByteBuffer]))

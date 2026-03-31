@@ -7,12 +7,12 @@
 
    clj->dac: recursively convert Clojure → Dacite (auto-coerces scalars,
      wraps vectors/maps/strings into their Dacite equivalents)."
-  (:require [dacite.types :as types]
+  (:require [dacite.value.types :as types]
             [dacite.store :as store]
-            [dacite.scalar :as scalar]
-            [dacite.collections :as coll])
-  (:import [dacite.scalar DaciteScalar]
-           [dacite.collections DaciteString DaciteBlob DaciteVector DaciteMap]))
+            [dacite.value.scalar :as scalar]
+            [dacite.value.collections :as coll])
+  (:import [dacite.value.scalar DaciteScalar]
+           [dacite.value.collections DaciteString DaciteBlob DaciteVector DaciteMap]))
 
 ;; =============================================================================
 ;; dac->clj

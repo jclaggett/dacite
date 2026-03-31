@@ -1,10 +1,10 @@
-(ns dacite.finger-tree-test
+(ns dacite.value.finger-tree-test
   "Tests for Dacite pure finger tree implementation."
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [dacite.finger-tree :as ft]))
+            [dacite.value.finger-tree :as ft]))
 
 ;; =============================================================================
 ;; Helpers

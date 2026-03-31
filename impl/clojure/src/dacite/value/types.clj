@@ -1,4 +1,4 @@
-(ns dacite.types
+(ns dacite.value.types
   "Dacite type system.
    
    All Dacite values are [type, data] tuples where:

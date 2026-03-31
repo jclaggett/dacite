@@ -1,4 +1,4 @@
-(ns dacite.hamt
+(ns dacite.value.hamt
   "Hash Array Mapped Trie (HAMT) implementation for Dacite.
    
    A persistent map data structure with:
@@ -17,7 +17,7 @@
    - [\"hamt/entry\" {:key-hash h :key-ref h :val-ref h :measure m}]
    - [\"hamt/bitmap\" {:bitmap n :children [h...] :measure m}]"
   (:require [dacite.hash :as hash]
-            [dacite.types :as types]))
+            [dacite.value.types :as types]))
 
 ;; =============================================================================
 ;; Constants

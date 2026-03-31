@@ -1,4 +1,4 @@
-(ns dacite.finger-tree
+(ns dacite.value.finger-tree
   "Pure Finger Tree implementation for Dacite.
    
    A persistent sequence data structure with:
@@ -20,7 +20,7 @@
    - [\"ft/node\" {:children [h...] :measure m}]
    - [\"ft/deep\" {:left h :spine h :right h :measure m}]"
   (:require [dacite.hash :as hash]
-            [dacite.types :as types]))
+            [dacite.value.types :as types]))
 
 ;; =============================================================================
 ;; Measure (Monoid)

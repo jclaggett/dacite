@@ -14,10 +14,10 @@
    - verify-proof-chain: verify that each link in a chain is valid
    - dedicated-store: create a store containing only specific nodes"
   (:require [dacite.store :as store]
-            [dacite.types :as types]
+            [dacite.value.types :as types]
             ;; Require these to register child-hashes implementations
-            [dacite.finger-tree]
-            [dacite.hamt]))
+            [dacite.value.finger-tree]
+            [dacite.value.hamt]))
 
 ;; =============================================================================
 ;; Proof chain construction

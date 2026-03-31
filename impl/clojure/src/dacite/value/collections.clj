@@ -1,4 +1,4 @@
-(ns dacite.collections
+(ns dacite.value.collections
   "Dacite collection types: string, blob, vector, and map.
 
    Each collection is a content-addressed wrapper around internal tree
@@ -10,11 +10,11 @@
    hashes and their typed Dacite wrappers."
   (:refer-clojure :exclude [str vec hash-map])
   (:require [dacite.hash :as hash]
-            [dacite.types :as types]
+            [dacite.value.types :as types]
             [dacite.store :as store]
-            [dacite.scalar :as scalar]
-            [dacite.finger-tree :as ft]
-            [dacite.hamt :as hamt])
+            [dacite.value.scalar :as scalar]
+            [dacite.value.finger-tree :as ft]
+            [dacite.value.hamt :as hamt])
   (:import [clojure.lang IDeref IHashEq Counted Seqable ILookup
             IPersistentCollection Indexed IPersistentStack
             IPersistentVector Associative IFn Sequential
