@@ -80,15 +80,19 @@ collection = 0x03
 
 The collection header is always exactly 50 bytes.
 
-## Hash Computation Rules
+## JSON Format (for debugging and interop)
 
-Hashes are computed from *logical content*, not serialized bytes:
+**Structural mode** (hash references):
+- Uses `"kind"`, `"hash"`, and child hashes.
 
-- Scalar: `fuse_bytes(data)`
-- Typed value: `fuse(fuse_str(type_name ++ 0x00), data_hash)`
-- Seq/Map node: `fuse(fuse_str(node_type ++ 0x00), elements_fuse)` (with HAMT bitmap exception)
+**Materialized mode** (fully inlined):
+- Produces familiar nested objects with `"type"` and `"value"`.
+
+**Hybrid mode**: Combines both using an `inline_under` threshold.
+
+See the old `SPEC.md` for full JSON examples and schemas if needed.
 
 ---
 
-*Extracted and adapted from old SPEC.md. This file is the new canonical reference for wire/storage format.*
+*Extracted and adapted from old SPEC.md (as of 2026-02-27). This is the new canonical reference for the binary wire/storage format.*
 
