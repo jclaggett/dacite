@@ -71,6 +71,7 @@
 (def f32        scalar/f32)
 (def f64        scalar/f64)
 (def dacite-char scalar/dacite-char)
+(def neg        scalar/neg)
 
 ;; =============================================================================
 ;; Collection constructors
@@ -81,6 +82,7 @@
 (def vec        coll/vec)
 (def vec-of-refs coll/vec-of-refs)
 (def hash-map   coll/hash-map)
+(def dacite-set coll/dacite-set)
 
 ;; =============================================================================
 ;; Wrapping and unwrapping

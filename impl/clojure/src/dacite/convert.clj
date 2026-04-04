@@ -12,7 +12,7 @@
             [dacite.value.scalar :as scalar]
             [dacite.value.collections :as coll])
   (:import [dacite.value.scalar DaciteScalar]
-           [dacite.value.collections DaciteString DaciteBlob DaciteVector DaciteMap]))
+           [dacite.value.collections DaciteString DaciteBlob DaciteVector DaciteMap DaciteSet]))
 
 ;; =============================================================================
 ;; dac->clj
@@ -34,6 +34,7 @@
                                                [(dac->clj-unsafe k)
                                                 (dac->clj-unsafe v)]))
                                      (seq x))
+    (instance? DaciteSet x)   (into #{} (map dac->clj-unsafe) (seq x))
     :else x))
 
 ;; ^:export for JS interop
@@ -70,6 +71,7 @@
     (satisfies? types/IDaciteHash x) x
     (vector? x)              (coll/vec-of-refs (mapv (comp types/dacite-hash clj->dac) x))
     (sequential? x)          (coll/vec-of-refs (mapv (comp types/dacite-hash clj->dac) x))
+    (set? x)                 (apply coll/dacite-set (map clj->dac x))
     (map? x)                 (let [pairs (mapcat (fn [[k v]] [(clj->dac k) (clj->dac v)]) x)]
                                (apply coll/hash-map pairs))
     (bytes? x)               (coll/blob x)

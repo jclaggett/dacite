@@ -325,7 +325,7 @@
   (deref [_]
     (let [{:keys [root]} (second (store/get-store _hash))
           entries (hamt/entries [(store/snapshot-store) root])]
-      (into #{} (map (fn [[kh _vh]] (deref (scalar/wrap-scalar kh)))) entries)))
+      (into #{} (map (fn [[kh _vh]] (deref (wrap-hash kh)))) entries)))
 
   IHashEq
   (hasheq [_] (hash/hash->int _hash))

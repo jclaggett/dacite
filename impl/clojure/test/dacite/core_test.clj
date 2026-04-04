@@ -397,6 +397,136 @@
       (is (= 42 @(get m "key"))))))
 
 ;; =============================================================================
+;; Sets
+;; =============================================================================
+
+(deftest dacite-set-test
+  (testing "Set construction"
+    (let [s (d/dacite-set 1 2 3)]
+      (is (instance? dacite.value.collections.DaciteSet s))
+      (is (= 3 (count s))))))
+
+(deftest dacite-set-empty-test
+  (testing "Empty set"
+    (let [s (d/dacite-set)]
+      (is (= 0 (count s)))
+      (is (nil? (seq s))))))
+
+(deftest dacite-set-lookup-test
+  (testing "Lookup returns element for member"
+    (let [s (d/dacite-set 10 20 30)]
+      (is (some? (get s 10)))
+      (is (some? (get s 20)))))
+  (testing "Lookup returns nil for non-member"
+    (is (nil? (get (d/dacite-set 1 2) 99)))))
+
+(deftest dacite-set-lookup-not-found-test
+  (testing "Lookup with not-found"
+    (is (= :nope (get (d/dacite-set 1 2) 99 :nope)))))
+
+(deftest dacite-set-ifn-test
+  (testing "Set as function"
+    (let [s (d/dacite-set 10 20)]
+      (is (some? (s 10)))
+      (is (nil? (s 99))))))
+
+(deftest dacite-set-seq-test
+  (testing "Seq returns wrapped elements"
+    (let [s (d/dacite-set 10 20 30)
+          elems (seq s)]
+      (is (= 3 (clojure.core/count elems)))
+      (is (= #{10 20 30} (into #{} (map deref) elems))))))
+
+(deftest dacite-set-deref-test
+  (testing "Deref returns Clojure set"
+    (is (= #{1 2 3} @(d/dacite-set 1 2 3)))))
+
+(deftest dacite-set-equality-test
+  (testing "Same elements = equal"
+    (is (= (d/dacite-set 1 2 3) (d/dacite-set 1 2 3))))
+  (testing "Different elements = not equal"
+    (is (not= (d/dacite-set 1 2) (d/dacite-set 3 4)))))
+
+(deftest dacite-set-conj-test
+  (testing "conj adds element"
+    (let [s (conj (d/dacite-set 1 2) 3)]
+      (is (= 3 (count s)))
+      (is (some? (get s 3))))))
+
+(deftest dacite-set-conj-duplicate-test
+  (testing "conj with existing element is idempotent"
+    (let [s (conj (d/dacite-set 1 2) 1)]
+      (is (= 2 (count s))))))
+
+(deftest dacite-set-empty-collection-test
+  (testing "empty returns empty set"
+    (let [s (d/dacite-set 1 2 3)
+          e (.empty s)]
+      (is (= 0 (count e)))
+      (is (instance? dacite.value.collections.DaciteSet e)))))
+
+(deftest dacite-set-hashCode-test
+  (testing "hashCode works"
+    (is (integer? (.hashCode (d/dacite-set 1 2))))))
+
+(deftest dacite-set-hasheq-test
+  (testing "hasheq works"
+    (is (integer? (hash (d/dacite-set 1 2))))))
+
+(deftest dacite-set-toString-test
+  (testing "toString returns readable representation"
+    (is (string? (.toString (d/dacite-set 1 2))))))
+
+(deftest dacite-set-iterator-test
+  (testing "Iterator works on non-empty set"
+    (let [it (.iterator (d/dacite-set 1 2 3))]
+      (is (.hasNext it))))
+  (testing "Iterator works on empty set"
+    (let [it (.iterator (d/dacite-set))]
+      (is (not (.hasNext it))))))
+
+(deftest dacite-set-size-bytes-test
+  (testing "Set size-bytes reflects element sizes (self-map: key+value)"
+    (let [s (d/dacite-set 1 2 3)] ;; 3 x i64, self-map counts k+v = 48
+      (is (= 48 (value-size s))))))
+
+(deftest dacite-set-with-strings-test
+  (testing "Set with string elements"
+    (let [s (d/dacite-set "a" "b" "c")]
+      (is (= 3 (count s)))
+      (is (= #{"a" "b" "c"} @s)))))
+
+(deftest neg-test
+  (testing "Neg sentinel construction"
+    (let [n (d/neg)]
+      (is (instance? dacite.value.scalar.DaciteScalar n))
+      (is (nil? @n))))
+  (testing "Neg is deterministic"
+    (is (= (d/neg) (d/neg)))))
+
+;; =============================================================================
+;; dac->clj / clj->dac for sets
+;; =============================================================================
+
+(deftest dac->clj-set-test
+  (testing "Sets unwrap to Clojure sets"
+    (is (= #{1 2 3} (d/dac->clj (d/dacite-set 1 2 3))))))
+
+(deftest dac->clj-empty-set-test
+  (testing "Empty set unwraps"
+    (is (= #{} (d/dac->clj (d/dacite-set))))))
+
+(deftest clj->dac-set-test
+  (testing "Clojure sets wrap to DaciteSet"
+    (let [s (d/clj->dac #{1 2 3})]
+      (is (instance? dacite.value.collections.DaciteSet s))
+      (is (= #{1 2 3} (d/dac->clj s))))))
+
+(deftest clj->dac-set-round-trip-test
+  (testing "Round-trip: clj set -> dac -> clj"
+    (is (= #{"a" "b"} (d/dac->clj (d/clj->dac #{"a" "b"}))))))
+
+;; =============================================================================
 ;; with-store isolation
 ;; =============================================================================
 
