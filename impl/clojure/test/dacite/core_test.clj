@@ -7,8 +7,10 @@
             [dacite.value.cache :as cache]
             [dacite.value.types :as types]))
 
-;; Reset global store before each test
-(use-fixtures :each (fn [f] (d/reset-store!) (f)))
+;; Each test runs with a fresh Layer 2 cache (no store needed)
+(use-fixtures :each (fn [f]
+                      (binding [cache/*cache* (atom {})]
+                        (f))))
 
 ;; Test helpers for type/size inspection
 (defn- value-type [x]
