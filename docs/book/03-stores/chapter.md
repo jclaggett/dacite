@@ -1,6 +1,6 @@
 # Chapter 3: Stores
 
-Chapter 2 gave us a complete data model — immutable, content-addressed values with O(1) metadata and clean APIs. But those values live in memory. What happens when you need persistence, distribution, or lazy loading across machines?
+Chapter 2 gave us a complete data model — immutable, content-addressed values with O(1) metadata and clean APIs. But those values live in a cache (a plain Clojure map in an atom). What happens when you need persistence, distribution, or lazy loading across machines?
 
 This chapter adds **stores** — the persistence layer. A store is a content-addressed key-value system where keys are hashes and values are serialized nodes. Stores compose hierarchically: memory → disk → peers → origin server. Reads walk layers top-down; writes propagate everywhere.
 
@@ -23,25 +23,37 @@ This protocol is **language-agnostic**. Clojure, Rust, TypeScript — all implem
 
 ## 3.2 Store Implementations
 
-Stores form a hierarchy, composed as layers:
-
 ### Memory Store
 
-An in-memory map: `{hash → serialized-bytes}`. Fast reads/writes, ephemeral. Default for testing and construction.
+An in-memory atom over a map: `{hash → serialized-value}`. Fast reads/writes, ephemeral. Default for testing and construction.
 
-### File Store (LMDB/Filetree)
+A MemStore's internal atom is shared directly with the Layer 2 cache (§3.3), so value constructors and store operations see the same data with zero synchronization overhead.
 
-Content-addressed filesystem:
-- Hashes shard to paths: `base/ab/cdef...`
-- LMDB for metadata/indexing, files for blobs
-- Durable, but slower than memory
+### File Store
+
+Content-addressed filesystem with directory sharding:
+
+```
+base/ab/cd/abcdef....edn
+```
+
+Each hash maps to a two-level directory structure. Values stored as EDN. Durable, but slower than memory.
+
+### LMDB Store
+
+LMDB-backed persistent store with optional meta database:
+
+- **Data db**: `hash → serialized-value` (32-byte keys, EDN values)
+- **Meta db**: `string-key → value` (for root hashes, metadata)
+
+Supports configurable max size, database names. Requires explicit `lmdb-close` when done.
 
 ### Layered Store
 
 Composes stores with read-through semantics:
 
 ```
-Layered([Mem, LMDB, Remote])
+(layered-store (mem-store) (lmdb-store "/tmp/dacite"))
 ```
 
 - **Reads**: Walk top-down, return first hit
@@ -50,26 +62,44 @@ Layered([Mem, LMDB, Remote])
 
 A remote peer slots in naturally — local layers cache remote fetches automatically.
 
-## 3.3 CacheMap Abstraction
+## 3.3 Cache Bridge
 
-Data structures operate on `[cachemap, root-hash]` tuples. CacheMap wraps any store:
+Layer 2 values operate on a cache — a dynamic var `*cache*` holding an atom over a plain map. Layer 3 bridges stores to this cache so that value operations and store operations stay in sync.
 
+### How the Bridge Works
+
+The convenience functions in the store namespace write to **both** cache and store:
+
+- `get-store` checks the cache first, falls through to the store on miss, and populates the cache on hit
+- `put-store!` writes to both cache and store
+- `merge-store!` merges into both
+
+For MemStores, the bridge is zero-overhead: the store's internal atom **is** the cache atom. No copying, no synchronization. For other store types (File, LMDB, Layered), a separate cache atom is created from a snapshot.
+
+### Binding Stores
+
+Any code that rebinds `*store*` must also rebind `*cache*` to keep them in sync. Two macros handle this:
+
+**`bind-store`** — binds both `*store*` and `*cache*` for the duration of body:
+
+```clojure
+(store/bind-store my-store
+  (d/hash-map "key" "value"))
 ```
-cachemap-get(cm, hash) → Value    // lazy fetch
-cachemap-assoc(cm, hash, value) → CacheMap  // write-through
-cachemap-merge(cm1, cm2) → CacheMap        // share backing store
+
+**`with-store`** — creates an isolated store context, returns `[snapshot result]`:
+
+```clojure
+(store/with-store [s (mem-store)]
+  (d/hash-map "key" "value"))
+;; => [{hash1 [...], hash2 [...], ...} <DaciteMap>]
 ```
 
-Operate on values as if fully in-memory. Traversals fetch on-demand. Multiple CacheMaps sharing a store see consistent state.
-
-This enables:
-- **Lazy loading** — traverse only accessed paths
-- **Bounded memory** — evict aggressively, re-fetch on miss
-- **Transparency** — same code for memory/disk/remote
+Never use `(binding [store/*store* ...])` directly — use `bind-store` or `with-store` instead.
 
 ## 3.4 Serialization
 
-Stores hold serialized bytes. Dacite defines two formats:
+Stores hold serialized values. Dacite defines two formats:
 
 ### Binary (Canonical)
 
@@ -79,25 +109,27 @@ Authoritative for hashing/storage. Deterministic, compact, streaming.
 node = kind-tag (1 byte) + fields
 ```
 
-**Scalar**: `0x00 + u8(len) + bytes[len]` (max 255 bytes)
+**Scalar**: `0x00 + u8(type-len) + type-bytes + u8(val-len) + val-bytes`
 
 **Seq Node**: `0x01 + u8(subtype) + measure (48 bytes) + u8(n-children) + hashes[n]`
 
-**Map Node**: `0x02 + u8(subtype) + measure + type-specific`
+**Map Node**: `0x02 + u8(subtype) + type-specific fields`
 
-**Collection Header**: `0x03 + u8(type) + root-hash + u64(count) + u64(size_bytes)` (50 bytes fixed)
+**Collection Header**: `0x03 + u8(type) + root-hash + u64(count) + u64(size_bytes)`
 
-Measures inline: `u64(count) + u64(size_bytes) + hash(32 bytes)`.
+Measures are 48 bytes: `u64(count) + u64(size_bytes) + hash(32 bytes)`.
 
 Nodes fit in ~1 KB. No unbounded structures.
 
-### JSON (Debug/Interop)
+See [Appendix: Serialization](../appendices/serialization.md) for the complete binary format specification.
 
-Human-readable, materialized or structural modes. Validates against schemas: `structural.schema.json`, `materialized.schema.json`.
+### JSON (Interop)
 
-Round-trips preserve hashes.
+Round-trips through `clj->dac` / `dac->clj` and Cheshire. Preserves hashes through the value layer's content-addressing.
 
-## 3.5 Distribution Model
+## 3.5 Distribution Model (Future)
+
+> **Not yet implemented.** This section describes the target design.
 
 Immutable hashes enable **perfect caching** — no invalidation needed.
 
@@ -128,7 +160,9 @@ Client controls thresholds. Blobs/strings fetch as single chunks.
 
 Stores layer as: `local-mem → local-disk → peers → origin`. Peers discover via root hashes. No central index — hashes are the index.
 
-## 3.6 Retention and Eviction
+## 3.6 Retention and Eviction (Future)
+
+> **Not yet implemented.** This section describes the target design.
 
 Stores are caches at every layer. Evict freely — immutable data re-fetches identically.
 
@@ -142,40 +176,60 @@ Stores are caches at every layer. Evict freely — immutable data re-fetches ide
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `get` | `hash → Value|nil` | Fetch serialized value |
+| `get` | `hash → Value\|nil` | Fetch serialized value |
 | `put` | `(hash, Value) → Store` | Store (idempotent) |
 | `has?` | `hash → bool` | Exists? |
 | `snapshot` | `→ {hash: Value}` | All entries |
 | `merge` | `{hash: Value} → Store` | Bulk insert |
 | `reset` | `→ Store` | Clear |
 
-### Derived (Layered/CacheMap)
+### Convenience (cache-bridged)
 
-| Function | Derivation | Description |
-|----------|------------|-------------|
-| `layered` | `[Store...] → Store` | Compose layers |
-| `cachemap` | `Store → CacheMap` | Lazy assoc/get wrapper |
-| `serialize-binary` | `Value → bytes` | Canonical bytes |
-| `deserialize-binary` | `bytes → Value` | Reconstruct from bytes |
-| `to-json` | `(Value, mode) → string` | Structural/materialized JSON |
+| Function | Description |
+|----------|-------------|
+| `get-store` | Cache-first lookup, falls through to store |
+| `put-store!` | Write to both cache and store |
+| `merge-store!` | Bulk write to both |
+| `snapshot-store` | Cache snapshot |
+| `bind-store` | Bind `*store*` + `*cache*` together |
+| `with-store` | Isolated store context, returns `[snapshot result]` |
+
+### Constructors
+
+| Function | Description |
+|----------|-------------|
+| `mem-store` | In-memory atom-backed store |
+| `file-store` | Filesystem with directory sharding |
+| `lmdb-store` | LMDB-backed persistent store |
+| `layered-store` | Compose stores with read-through |
+
+### Serialization
+
+| Function | Description |
+|----------|-------------|
+| `serialize` | Value → canonical bytes |
+| `deserialize` | Bytes → value |
+| `json->dacite` | JSON string → Dacite value |
+| `dacite->json` | Dacite value → JSON string |
 
 ### Properties
 
 - `put(h, v); get(h) = v`
 - `put(h, v); put(h, v)` idempotent
 - Layered reads top-down, writes everywhere
-- `cachemap-get(assoc(cm, h, v), h) = v`
 - Binary round-trip preserves hash
 - JSON round-trip preserves hash
+- Cache and store always in sync within a binding context
 
-**Depends on Layers 1-2.** First with I/O/state.
+**Depends on Layers 1–2.** First layer with I/O and state.
 
 ## 3.8 What This Layer Provides
 
-1. **Persistence** — values survive restarts
-2. **Distribution** — compose local/remote transparently
+1. **Persistence** — values survive restarts (LMDB, file store)
+2. **Distribution** — compose local/remote transparently (future)
 3. **Laziness** — fetch on-demand, O(1) metadata skips subtrees
 4. **Caching** — eternal validity, hierarchical layers
-5. **Portability** — IStore protocol language-agnostic
+5. **Portability** — IStore protocol is language-agnostic
+6. **Cache bridge** — Layer 2 values work transparently with any store backend
 
-Chapter 4 adds authorization: proof of possession and authenticated stores.
+Chapter 4 adds authorization: proof of possession and authenticated access.
