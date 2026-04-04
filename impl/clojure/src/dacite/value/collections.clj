@@ -522,6 +522,12 @@
                 ref-pairs)]
     (->DaciteMap (store-map! hamt-store hamt-root))))
 
+(defn dacite-set
+  "Create a dacite set from elements."
+  [& xs]
+  (let [self-map-pairs (interleave xs xs)]
+    (apply hash-map self-map-pairs)))
+
 ;; =============================================================================
 ;; dacite-size implementations for collection types
 ;; =============================================================================
@@ -536,6 +542,9 @@
   (:size-bytes data 0))
 
 (defmethod types/dacite-size "blob" [[_ data]]
+  (:size-bytes data 0))
+
+(defmethod types/dacite-size "set" [[_ data]]
   (:size-bytes data 0))
 
 
