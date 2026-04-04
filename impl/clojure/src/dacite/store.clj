@@ -321,7 +321,7 @@
 ;; Global store management
 ;; =============================================================================
 
-(defn- store->cache-atom
+(defn store->cache-atom
   "Get or create a cache atom for a store. MemStores share their internal atom."
   [store]
   (if (instance? MemStore store)
