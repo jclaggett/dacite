@@ -58,6 +58,16 @@
 (defn- scalar [type-kw data]
   (->DaciteScalar (put-typed! [type-kw data])))
 
+(defn neg
+  "The negative sentinel used for negative/cofinite sets."
+  []
+  (scalar "negative" nil))
+
+(defn dacite-set
+  "Create a dacite set from elements."
+  [& xs]
+  (apply hash-map (interleave xs xs)))
+
 (defn null "Create a null value."    []  (scalar "null" nil))
 (defn bool "Create a boolean value." [b] (scalar "bool" b))
 (defn i8   "Create an i8 value."     [n] (scalar "i8" (byte n)))
@@ -176,4 +186,7 @@
     (.array buf)))
 
 (defmethod types/encode-value "char" [[_ ch]]
-  (.getBytes (str ch) "UTF-8"))
+  (.getBytes (str ch) "UTF-8")),
+
+(defmethod types/encode-value "negative" [[_ _]]
+  (byte-array []))
