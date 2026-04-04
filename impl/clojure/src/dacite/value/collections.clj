@@ -24,13 +24,14 @@
 ;; Forward declarations
 ;; =============================================================================
 
-(declare ->DaciteString ->DaciteBlob ->DaciteVector ->DaciteMap)
+(declare ->DaciteString ->DaciteBlob ->DaciteVector ->DaciteMap ->DaciteSet)
 (declare wrap-hash coerce-and-store! str)
 (declare store-string! store-blob! store-vector! store-map!)
 (declare vector-conj-internal vector-count-internal vector-nth-internal
          vector-seq-internal build-vector-from-refs!)
 (declare map-count-internal map-get-internal map-entries-internal
          map-assoc-internal map-dissoc-internal)
+(declare store-set!)
 
 (defn- extract-hash
   "Extract hash from a Dacite type, or coerce and store a raw value."
@@ -313,6 +314,72 @@
     (clojure.core/str (into {} (map (fn [[k v]] [@k @v])) (seq this)))))
 
 ;; =============================================================================
+;; DaciteSet — HAMT-backed self-map
+;; =============================================================================
+
+(deftype DaciteSet [^:unsynchronized-mutable _hash]
+  types/IDaciteHash
+  (dacite-hash [_] _hash)
+
+  IDeref
+  (deref [_]
+    (let [{:keys [root]} (second (store/get-store _hash))
+          entries (hamt/entries [(store/snapshot-store) root])]
+      (into #{} (map (fn [[kh _vh]] (deref (scalar/wrap-scalar kh)))) entries)))
+
+  IHashEq
+  (hasheq [_] (hash/hash->int _hash))
+
+  Counted
+  (count [_]
+    (:count (second (store/get-store _hash))))
+
+  Seqable
+  (seq [_]
+    (let [{:keys [root]} (second (store/get-store _hash))
+          entries (hamt/entries [(store/snapshot-store) root])]
+      (when (clojure.core/seq entries)
+        (map (fn [[kh _vh]] (wrap-hash kh)) entries))))
+
+  ILookup
+  (valAt [this k] (.valAt this k nil))
+  (valAt [_ k not-found]
+    (let [result (map-get-internal _hash k)]
+      (if result
+        (wrap-hash result)
+        not-found)))
+
+  IPersistentCollection
+  (empty [_]
+    (let [[s' h'] (hamt/hamt)]
+      (->DaciteSet (store-set! s' h'))))
+  (cons [_ val]
+    (let [{:keys [root]} (second (store/get-store _hash))
+          vh (extract-hash val)
+          k-hash (types/typed-value-hash (store/get-store vh))
+          [s' new-root] (hamt/assoc-val [(store/snapshot-store) root] k-hash vh vh)]
+      (->DaciteSet (store-set! s' new-root))))
+  (equiv [_ other]
+    (and (instance? DaciteSet other)
+         (= _hash (.-_hash ^DaciteSet other))))
+
+  IFn
+  (invoke [this k] (.valAt this k))
+  (invoke [this k not-found] (.valAt this k not-found))
+
+  Iterable
+  (iterator [this]
+    (.iterator ^Iterable (or (seq this) ())))
+
+  Object
+  (hashCode [_] (hash/hash->int _hash))
+  (equals [_ other]
+    (and (instance? DaciteSet other)
+         (= _hash (.-_hash ^DaciteSet other))))
+  (toString [this]
+    (clojure.core/str (deref this))))
+
+;; =============================================================================
 ;; Hash wrapping
 ;; =============================================================================
 
@@ -323,6 +390,7 @@
     (case type-kw
       "vector" (->DaciteVector h)
       "map" (->DaciteMap h)
+      "set" (->DaciteSet h)
       "string" (->DaciteString h)
       "blob" (->DaciteBlob h)
       (scalar/wrap-scalar h))))
@@ -522,11 +590,31 @@
                 ref-pairs)]
     (->DaciteMap (store-map! hamt-store hamt-root))))
 
+(defn- store-set!
+  "Merge hamt-store into current store, compute size, store set node. Returns hash."
+  [hamt-store hamt-root]
+  (store/merge-store! hamt-store)
+  (let [store (store/snapshot-store)
+        ef (hamt/hamt-elements-fuse [store hamt-root])
+        cnt (hamt/hamt-count [store hamt-root])
+        sb (hamt/hamt-size-bytes [store hamt-root])
+        h (types/node-hash "set" ef)]
+    (store/put-store! h ["set" {:root hamt-root
+                                :count cnt
+                                :size-bytes sb}])
+    h))
+
 (defn dacite-set
-  "Create a dacite set from elements."
+  "Create a dacite set from elements (auto-coerced or Dacite types)."
   [& xs]
-  (let [self-map-pairs (interleave xs xs)]
-    (apply hash-map self-map-pairs)))
+  (let [refs (mapv extract-hash xs)
+        [hamt-store hamt-root]
+        (reduce (fn [[s root] vh]
+                  (let [k-hash (types/typed-value-hash (get s vh))]
+                    (hamt/assoc-val [s root] k-hash vh vh)))
+                (let [[s root] (hamt/hamt)] [(merge (store/snapshot-store) s) root])
+                refs)]
+    (->DaciteSet (store-set! hamt-store hamt-root))))
 
 ;; =============================================================================
 ;; dacite-size implementations for collection types
