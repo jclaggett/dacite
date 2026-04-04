@@ -37,16 +37,16 @@
     (let [{:keys [token]} (svc/login service "alice" "pass")
           ;; Build user data and push it
           local-store (store/mem-store)
-          data (binding [store/*store* local-store]
-                 (d/hash-map "x" 42))
+          data (store/bind-store local-store
+                                 (d/hash-map "x" 42))
           root-h (types/dacite-hash data)
           _ (doseq [[h v] (store/s-snapshot local-store)]
               (svc/session-put service token h v))
           _ (svc/update-root service token root-h)
           ;; Now alice has a subtree root
           user-root (:root-hash (get-in @service [:sessions token]))
-          target (binding [store/*store* local-store]
-                   (d/i64 42))
+          target (store/bind-store local-store
+                                   (d/i64 42))
           target-h (types/dacite-hash target)
           chain (auth/build-proof-chain main-store user-root target-h)
           result (svc/session-get service token target-h chain)]
@@ -59,15 +59,15 @@
     (svc/register-user service "alice" "pass")
     (let [{:keys [token]} (svc/login service "alice" "pass")
           local-store (store/mem-store)
-          data (binding [store/*store* local-store]
-                 (d/hash-map "x" 42))
+          data (store/bind-store local-store
+                                 (d/hash-map "x" 42))
           root-h (types/dacite-hash data)
           _ (doseq [[h v] (store/s-snapshot local-store)]
               (svc/session-put service token h v))
           _ (svc/update-root service token root-h)
           user-root (:root-hash (get-in @service [:sessions token]))
-          target (binding [store/*store* local-store]
-                   (d/i64 42))
+          target (store/bind-store local-store
+                                   (d/i64 42))
           target-h (types/dacite-hash target)
           fake-hash (hash/sha256 (.getBytes "fake"))]
 
@@ -126,8 +126,8 @@
     (let [{:keys [token]} (svc/login service "alice" "pass")
           ;; Build a value in a local store (simulating the client)
           local-store (store/mem-store)
-          value (binding [store/*store* local-store]
-                  (d/hash-map "greeting" "hello"))
+          value (store/bind-store local-store
+                                  (d/hash-map "greeting" "hello"))
           root-h (types/dacite-hash value)
           local-nodes (store/s-snapshot local-store)]
 
@@ -168,8 +168,8 @@
 
             ;; First write
             local1 (store/mem-store)
-            v1 (binding [store/*store* local1]
-                 (d/hash-map "x" 1))
+            v1 (store/bind-store local1
+                                 (d/hash-map "x" 1))
             h1 (types/dacite-hash v1)
             _ (doseq [[h v] (store/s-snapshot local1)]
                 (svc/session-put service token h v))
@@ -177,8 +177,8 @@
 
             ;; Second write: add a key (shares structural nodes)
             local2 (store/mem-store)
-            v2 (binding [store/*store* local2]
-                 (d/hash-map "x" 1 "y" 2))
+            v2 (store/bind-store local2
+                                 (d/hash-map "x" 1 "y" 2))
             h2 (types/dacite-hash v2)
             _ (doseq [[h v] (store/s-snapshot local2)]
                 (svc/session-put service token h v))
@@ -202,8 +202,8 @@
       (svc/register-user service "alice" "pass")
       (let [{:keys [token]} (svc/login service "alice" "pass")
             local-store (store/mem-store)
-            value (binding [store/*store* local-store]
-                    (d/hash-map "name" "Alice"))
+            value (store/bind-store local-store
+                                    (d/hash-map "name" "Alice"))
             root-h (types/dacite-hash value)]
         (doseq [[h v] (store/s-snapshot local-store)]
           (svc/session-put service token h v))
@@ -212,10 +212,10 @@
         (testing "service root is a map containing alice's key"
           (let [service-root (svc/get-root-hash service)]
             (is (some? service-root))
-            (binding [store/*store* main-store]
-              (let [root-map (d/wrap-hash service-root)]
-                (is (= 1 (count root-map)))
-                (is (some? (get root-map "alice")))))))))))
+            (store/bind-store main-store
+                              (let [root-map (d/wrap-hash service-root)]
+                                (is (= 1 (count root-map)))
+                                (is (some? (get root-map "alice")))))))))))
 
 (deftest two-users-single-root
   (testing "Two users share a single service root map"
@@ -228,8 +228,8 @@
 
             ;; Alice writes
             local-a (store/mem-store)
-            va (binding [store/*store* local-a]
-                 (d/hash-map "secret" "alice-only"))
+            va (store/bind-store local-a
+                                 (d/hash-map "secret" "alice-only"))
             ha (types/dacite-hash va)
             _ (doseq [[h v] (store/s-snapshot local-a)]
                 (svc/session-put service token-a h v))
@@ -237,8 +237,8 @@
 
             ;; Bob writes
             local-b (store/mem-store)
-            vb (binding [store/*store* local-b]
-                 (d/hash-map "secret" "bob-only"))
+            vb (store/bind-store local-b
+                                 (d/hash-map "secret" "bob-only"))
             hb (types/dacite-hash vb)
             _ (doseq [[h v] (store/s-snapshot local-b)]
                 (svc/session-put service token-b h v))
@@ -246,11 +246,11 @@
 
         (testing "both users have subtrees under single root"
           (let [service-root (svc/get-root-hash service)]
-            (binding [store/*store* main-store]
-              (let [root-map (d/wrap-hash service-root)]
-                (is (= 2 (count root-map)))
-                (is (some? (get root-map "alice")))
-                (is (some? (get root-map "bob")))))))
+            (store/bind-store main-store
+                              (let [root-map (d/wrap-hash service-root)]
+                                (is (= 2 (count root-map)))
+                                (is (some? (get root-map "alice")))
+                                (is (some? (get root-map "bob")))))))
 
         (testing "user subtrees are correct"
           (is (= ha (svc/get-user-root service "alice")))
@@ -270,8 +270,8 @@
         (svc/register-user service "alice" "pass")
         (let [{:keys [token]} (svc/login service "alice" "pass")
               local-store (store/mem-store)
-              value (binding [store/*store* local-store]
-                      (d/hash-map "greeting" "hello"))
+              value (store/bind-store local-store
+                                      (d/hash-map "greeting" "hello"))
               root-h (types/dacite-hash value)]
           (doseq [[h v] (store/s-snapshot local-store)]
             (svc/session-put service token h v))

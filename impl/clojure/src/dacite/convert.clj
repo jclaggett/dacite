@@ -8,7 +8,7 @@
    clj->dac: recursively convert Clojure → Dacite (auto-coerces scalars,
      wraps vectors/maps/strings into their Dacite equivalents)."
   (:require [dacite.value.types :as types]
-            [dacite.store :as store]
+            [dacite.value.cache :as cache]
             [dacite.value.scalar :as scalar]
             [dacite.value.collections :as coll])
   (:import [dacite.value.scalar DaciteScalar]
@@ -50,7 +50,7 @@
   ([x max-bytes]
    (when (satisfies? types/IDaciteHash x)
      (let [sb (-> (types/dacite-hash x)
-                  store/get-store
+                  cache/cache-get
                   types/dacite-size)]
        (when (> sb max-bytes)
          (throw (ex-info (str "dac->clj: value size " sb

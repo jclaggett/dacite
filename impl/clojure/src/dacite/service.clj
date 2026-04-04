@@ -61,10 +61,10 @@
       (when root-node
         ;; root-node is a Dacite map: look up user's key in the HAMT
         ;; We need to walk the map structure to find the user's value
-        (binding [store/*store* main-store]
-          (let [m (d/wrap-hash root-hash)]
-            (when-let [user-val (get m user-id)]
-              (types/dacite-hash user-val))))))))
+        (store/bind-store main-store
+                          (let [m (d/wrap-hash root-hash)]
+                            (when-let [user-val (get m user-id)]
+                              (types/dacite-hash user-val))))))))
 
 (defn create-service
   "Create a new Dacite service backed by the given store (or a fresh mem-store).
@@ -245,13 +245,13 @@
                 ;; Assoc user's new subtree into the service root map
                 old-root (:root-hash @service)
                 new-service-root
-                (binding [store/*store* main-store]
-                  (let [root-map (if old-root
-                                   (d/wrap-hash old-root)
-                                   (d/hash-map))
-                        user-val (d/wrap-hash new-user-root)
-                        new-map (assoc root-map user-id user-val)]
-                    (types/dacite-hash new-map)))]
+                (store/bind-store main-store
+                                  (let [root-map (if old-root
+                                                   (d/wrap-hash old-root)
+                                                   (d/hash-map))
+                                        user-val (d/wrap-hash new-user-root)
+                                        new-map (assoc root-map user-id user-val)]
+                                    (types/dacite-hash new-map)))]
             ;; Update service root and session
             (swap! service (fn [s]
                              (-> s

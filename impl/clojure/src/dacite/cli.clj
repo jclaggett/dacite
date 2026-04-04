@@ -61,28 +61,28 @@
         "map"
         (do
           (.mkdirs target)
-          (binding [store/*store* local-store]
-            (let [dac-map (coll/wrap-hash root-hash)]
-              (doseq [[k v] (seq dac-map)]
-                (let [key-str (convert/dac->clj k)
-                      val-hash (types/dacite-hash v)
-                      child-file (io/file target key-str)]
-                  (materialize child-file val-hash local-store))))))
+          (store/bind-store local-store
+                            (let [dac-map (coll/wrap-hash root-hash)]
+                              (doseq [[k v] (seq dac-map)]
+                                (let [key-str (convert/dac->clj k)
+                                      val-hash (types/dacite-hash v)
+                                      child-file (io/file target key-str)]
+                                  (materialize child-file val-hash local-store))))))
 
         "blob"
-        (binding [store/*store* local-store]
-          (let [bytes (convert/dac->clj (coll/wrap-hash root-hash))]
-            (io/copy bytes target)))
+        (store/bind-store local-store
+                          (let [bytes (convert/dac->clj (coll/wrap-hash root-hash))]
+                            (io/copy bytes target)))
 
         "string"
-        (binding [store/*store* local-store]
-          (let [text (convert/dac->clj (coll/wrap-hash root-hash))]
-            (spit target text)))
+        (store/bind-store local-store
+                          (let [text (convert/dac->clj (coll/wrap-hash root-hash))]
+                            (spit target text)))
 
         ;; Scalar — write as string
-        (binding [store/*store* local-store]
-          (let [val (convert/dac->clj (coll/wrap-hash root-hash))]
-            (spit target (pr-str val))))))))
+        (store/bind-store local-store
+                          (let [val (convert/dac->clj (coll/wrap-hash root-hash))]
+                            (spit target (pr-str val))))))))
 
 ;; =============================================================================
 ;; List contents
@@ -91,35 +91,35 @@
 (defn- list-entries
   "List entries at a path within the fetched Dacite value."
   [local-store root-hash path-parts]
-  (binding [store/*store* local-store]
-    (let [target-hash (reduce
-                       (fn [h k]
-                         (when h
-                           (let [node (store/s-get local-store h)]
-                             (when (= "map" (first node))
-                               (let [m (coll/wrap-hash h)
-                                     v (get m k)]
-                                 (when v (types/dacite-hash v)))))))
-                       root-hash
-                       path-parts)]
-      (when target-hash
-        (let [node (store/s-get local-store target-hash)]
-          (case (first node)
-            "map"
-            (let [m (coll/wrap-hash target-hash)]
-              (doseq [[k v] (seq m)]
-                (let [val-hash (types/dacite-hash v)
-                      val-node (store/s-get local-store val-hash)
-                      type-str (first val-node)
-                      indicator (case type-str
-                                  "map" "dir/"
-                                  "blob" "blob"
-                                  "string" "str "
-                                  (str type-str))]
-                  (println (format "  %-6s %s" indicator (convert/dac->clj k))))))
+  (store/bind-store local-store
+                    (let [target-hash (reduce
+                                       (fn [h k]
+                                         (when h
+                                           (let [node (store/s-get local-store h)]
+                                             (when (= "map" (first node))
+                                               (let [m (coll/wrap-hash h)
+                                                     v (get m k)]
+                                                 (when v (types/dacite-hash v)))))))
+                                       root-hash
+                                       path-parts)]
+                      (when target-hash
+                        (let [node (store/s-get local-store target-hash)]
+                          (case (first node)
+                            "map"
+                            (let [m (coll/wrap-hash target-hash)]
+                              (doseq [[k v] (seq m)]
+                                (let [val-hash (types/dacite-hash v)
+                                      val-node (store/s-get local-store val-hash)
+                                      type-str (first val-node)
+                                      indicator (case type-str
+                                                  "map" "dir/"
+                                                  "blob" "blob"
+                                                  "string" "str "
+                                                  (str type-str))]
+                                  (println (format "  %-6s %s" indicator (convert/dac->clj k))))))
 
             ;; Not a map — show the value
-            (println (convert/dac->clj (coll/wrap-hash target-hash)))))))))
+                            (println (convert/dac->clj (coll/wrap-hash target-hash)))))))))
 
 ;; =============================================================================
 ;; Commands
@@ -160,8 +160,8 @@
         (println (str "Pushing " dir-path " ..."))
         (let [result (client/push-value! c
                                          (fn [s]
-                                           (binding [store/*store* s]
-                                             (dir->dacite dir))))]
+                                           (store/bind-store s
+                                                             (dir->dacite dir))))]
           (if (:ok result)
             (do
               (println (str "  Root:  " (:root-hash result)))

@@ -4,6 +4,7 @@
             [dacite.core :as d]
             [dacite.hash :as hash]
             [dacite.store :as store]
+            [dacite.value.cache :as cache]
             [dacite.value.types :as types]))
 
 ;; Reset global store before each test
@@ -11,10 +12,10 @@
 
 ;; Test helpers for type/size inspection
 (defn- value-type [x]
-  (first (store/s-get store/*store* (d/dacite-hash x))))
+  (first (cache/cache-get (d/dacite-hash x))))
 
 (defn- value-size [x]
-  (types/dacite-size (store/s-get store/*store* (d/dacite-hash x))))
+  (types/dacite-size (cache/cache-get (d/dacite-hash x))))
 
 ;; =============================================================================
 ;; Scalars

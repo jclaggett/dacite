@@ -8,7 +8,7 @@
    Scalar constructors: null, bool, i8-i64, u8-u256, f32, f64, dacite-char."
   (:require [dacite.hash :as hash]
             [dacite.value.types :as types]
-            [dacite.store :as store])
+            [dacite.value.cache :as cache])
   (:import [clojure.lang IDeref IHashEq IFn]
            [java.nio ByteBuffer]))
 
@@ -17,10 +17,10 @@
 ;; =============================================================================
 
 (defn- put-typed!
-  "Store a typed value. Returns its content-addressed hash."
+  "Store a typed value in the cache. Returns its content-addressed hash."
   [value]
   (let [h (types/typed-value-hash value)]
-    (store/put-store! h value)
+    (cache/cache-put! h value)
     h))
 
 ;; =============================================================================
@@ -33,7 +33,7 @@
 
   IDeref
   (deref [_]
-    (let [[_type-kw data] (store/get-store _hash)]
+    (let [[_type-kw data] (cache/cache-get _hash)]
       data))
 
   IHashEq
@@ -45,7 +45,7 @@
     (and (instance? DaciteScalar other)
          (= _hash (.-_hash ^DaciteScalar other))))
   (toString [_]
-    (let [[type-kw data] (store/get-store _hash)]
+    (let [[type-kw data] (cache/cache-get _hash)]
       (pr-str [type-kw data])))
 
   IFn
