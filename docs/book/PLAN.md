@@ -20,6 +20,7 @@ docs/book/
     B-rejected-alternatives.md
     C-development-dialogue.md
     D-roadmap.md
+    serialization.md
 ```
 
 ## Source Mapping
@@ -29,6 +30,7 @@ docs/book/
 | spec/SPEC.md §Hash–Fuse | 01 |
 | spec/SPEC.md §Primitives–HAMT | 02 |
 | spec/SPEC.md §Storage–Dist | 03 |
+| spec/SPEC.md (serialization) | appendices/serialization.md |
 | auth-design §1–5, App A( GC) | 04 |
 | auth-design §6(peer) | 03+04 |
 | auth-design §7–9, App B–D | 05 |
