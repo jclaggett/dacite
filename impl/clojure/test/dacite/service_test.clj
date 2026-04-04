@@ -76,10 +76,10 @@
                                       [user-root fake-hash target-h])]
           (is (= :invalid-proof-chain (:error result)))))
 
-      (testing "chain root mismatch"
+      (testing "chain root not in grants"
         (let [result (svc/session-get service token target-h
                                       [fake-hash target-h])]
-          (is (= :chain-root-mismatch (:error result)))))
+          (is (= :no-matching-grant (:error result)))))
 
       (testing "chain target mismatch"
         (let [result (svc/session-get service token target-h
