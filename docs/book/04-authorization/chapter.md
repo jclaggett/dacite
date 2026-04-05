@@ -79,7 +79,7 @@ sequenceDiagram
     C->>S: authenticate
     S-->>C: session token + root hash #R
 
-    C->>S: GET #S3, chain: (#R, #E2, #V2, #S3)
+    C->>S: GET #S3, chain: #R -> #E2 -> #V2 -> #S3
     Note over S: verify chain #R to #S3 valid
     S-->>C: value of #S3
 ```
@@ -135,7 +135,7 @@ sequenceDiagram
     Note over S: hash matches, store node
     S-->>C: OK
 
-    C->>S: chain (#R, ..., #entry-name) (unchanged subtree)
+    C->>S: chain #R -> ... -> #entry-name
     Note over S: chain valid, skip subtree
     S-->>C: OK
 
@@ -143,7 +143,7 @@ sequenceDiagram
     Note over S: hash matches, store node
     S-->>C: OK
 
-    C->>S: chain (#R, ..., #key-age) (unchanged key)
+    C->>S: chain #R -> ... -> #key-age
     Note over S: chain valid, skip subtree
     S-->>C: OK
 
