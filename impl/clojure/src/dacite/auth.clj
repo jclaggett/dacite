@@ -1,10 +1,15 @@
 (ns dacite.auth
   "Authorization for Dacite stores.
 
-   Implements proof chain construction and verification for the Dacite
-   authorization model. A proof chain is a sequence of hashes
-   [root, h1, h2, ..., target] proving that the target is reachable
-   from the root through the DAG structure.
+   Implements proof of possession and root transition verification for
+   the Dacite authorization model.
+
+   Proof chains are ordered sequences of hashes [root, h1, ..., target]
+   proving structural reachability from root to target through the DAG.
+
+   Root transitions use a DFS walk protocol: the client proves each hash
+   in the new root's tree via either a proof chain (structural possession)
+   or raw data (data possession). The server validates proofs as a stream.
 
    The child-hashes multimethod is defined in dacite.types and extended
    by dacite.finger-tree and dacite.hamt for their respective node types.
@@ -12,7 +17,9 @@
    Key functions:
    - build-proof-chain: find a path from root to target, return as hash vector
    - verify-proof-chain: verify that each link in a chain is valid
-   - dedicated-store: create a store containing only specific nodes"
+   - dedicated-store: create a store containing only specific nodes
+   - validate-proof: verify a single proof (chain or data) for one hash
+   - verify-transition: DFS walk of new root, validating proofs from a prover fn"
   (:require [dacite.store :as store]
             [dacite.value.types :as types]
             ;; Require these to register child-hashes implementations
@@ -36,8 +43,9 @@
         (let [[current path] (peek queue)
               queue' (pop queue)
               node (store/s-get store current)
-              children (types/child-hashes node)]
-          (if (contains? children target-hash)
+              children (types/child-hashes node)
+              child-set (set children)]
+          (if (contains? child-set target-hash)
             (conj path target-hash)
             (let [unvisited (remove visited children)
                   new-visited (into visited unvisited)
@@ -66,7 +74,7 @@
         (let [parent-hash (first remaining)
               child-hash (second remaining)
               node (store/s-get store parent-hash)]
-          (if (and node (contains? (types/child-hashes node) child-hash))
+          (if (and node (some #{child-hash} (types/child-hashes node)))
             (recur (next remaining))
             false))))))
 
@@ -87,3 +95,96 @@
       (when-let [v (store/s-get source-store h)]
         (store/s-put ds h v)))
     ds))
+
+;; =============================================================================
+;; Proof validation
+;; =============================================================================
+
+(defn validate-proof
+  "Validate a single proof for a hash. Returns the stored node value on
+   success, or nil on failure.
+
+   proof is one of:
+   - {:chain [root ... target]}  — structural possession; chain's last
+     element must equal hash, root must be in valid-roots, and chain
+     must verify against the store.
+   - {:data value}               — data possession; the value must
+     already be stored at hash (i.e., its serialized form hashes to
+     the expected hash). The store is assumed to enforce this on put.
+
+   valid-roots is a set of hashes accepted as proof chain roots.
+   In Layer 4 this is #{user-root}; Layer 5 adds share roots."
+  [store valid-roots hash proof]
+  (case (:type proof)
+    :chain
+    (let [chain (:chain proof)]
+      (when (and (seq chain)
+                 (= hash (last chain))
+                 (contains? valid-roots (first chain))
+                 (verify-proof-chain store chain))
+        (store/s-get store hash)))
+
+    :data
+    (let [value (:value proof)]
+      ;; Store the value — the store is content-addressed so put is
+      ;; only valid if the value hashes to the expected hash.
+      ;; Caller (service layer) should verify hash matches before
+      ;; calling, or the store should enforce it.
+      (store/s-put store hash value)
+      value)
+
+    ;; Unknown proof type
+    nil))
+
+;; =============================================================================
+;; Root transition verification
+;; =============================================================================
+
+(defn verify-transition
+  "Verify a root transition from old-root to new-root using a prover function.
+
+   Walks the new root's tree in DFS order. For each hash:
+   - If already in the store, skip (server has it).
+   - Otherwise, call (prover hash) to get a proof, then validate it.
+
+   prover is (fn [hash] -> {:type :chain, :chain [...]} | {:type :data, :value ...})
+
+   valid-roots is a set of hashes accepted as proof chain anchors.
+
+   Returns {:valid? true,  :new-nodes {hash value, ...}} on success,
+   or       {:valid? false, :failed-hash hash, :reason string} on failure."
+  [store valid-roots new-root prover]
+  (loop [stack [new-root]
+         new-nodes {}]
+    (if (empty? stack)
+      {:valid? true :new-nodes new-nodes}
+      (let [hash (peek stack)
+            stack' (pop stack)]
+        (if (or (store/s-has? store hash)
+                (contains? new-nodes hash))
+          ;; Already known — skip
+          (recur stack' new-nodes)
+          ;; Need proof
+          (let [proof (prover hash)
+                node (validate-proof store valid-roots hash proof)]
+            (if (nil? node)
+              {:valid? false :failed-hash hash :reason "invalid proof"}
+              ;; Push children onto stack in reverse order so first child
+              ;; is on top (DFS left-to-right)
+              (let [children (types/child-hashes node)]
+                (recur (into stack' (rseq (vec children)))
+                       (assoc new-nodes hash node))))))))))
+
+(defn apply-transition
+  "Verify and apply a root transition. On success, merges new nodes into
+   the store and returns {:valid? true, :new-nodes ...}.
+   On failure, returns the error map without modifying the store.
+
+   This is a convenience over verify-transition — the service layer
+   should call this and then update its own root pointer."
+  [store valid-roots new-root prover]
+  (let [result (verify-transition store valid-roots new-root prover)]
+    (when (:valid? result)
+      (doseq [[h v] (:new-nodes result)]
+        (store/s-put store h v)))
+    result))

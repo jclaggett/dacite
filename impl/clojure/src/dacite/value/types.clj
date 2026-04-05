@@ -145,28 +145,30 @@
 ;; =============================================================================
 
 (defmulti child-hashes
-  "Extract all child hash references from a stored node value.
-   Returns a set of hashes that this node directly references.
+  "Extract child hash references from a stored node value.
+   Returns an ordered vector of hashes that this node directly references.
+   Order is deterministic and structural — both sides of a protocol
+   can compute the same sequence independently.
 
    Dispatches on type string. Each type defines what constitutes
    its children:
-   - Scalars: no children (empty set)
-   - Collections (vector, string, blob, map): {:root h} → #{h}
+   - Scalars: no children (empty vector)
+   - Collections (vector, string, blob, map, set): {:root h} → [h]
    - Internal tree nodes: type-specific child references
 
-   Returns nil for nil input, empty set for unknown types."
+   Returns nil for nil input, empty vector for unknown types."
   (fn [node]
     (when (and (vector? node) (= 2 (count node)))
       (first node))))
 
 (defmethod child-hashes nil [_] nil)
 
-(defmethod child-hashes :default [_] #{})
+(defmethod child-hashes :default [_] [])
 
 ;; Collection types have a :root child
-(doseq [t ["vector" "string" "blob" "map"]]
+(doseq [t ["vector" "string" "blob" "map" "set"]]
   (defmethod child-hashes t [[_ data]]
-    #{(:root data)}))
+    [(:root data)]))
 
 ;; =============================================================================
 ;; REPL examples

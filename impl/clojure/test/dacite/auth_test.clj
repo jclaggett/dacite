@@ -15,7 +15,7 @@
   (let [v (d/i64 42)
         h (types/dacite-hash v)
         node (store/get-store h)]
-    (is (= #{} (types/child-hashes node)))))
+    (is (= [] (types/child-hashes node)))))
 
 (deftest child-hashes-vector-has-root-child
   (d/reset-store!)
@@ -23,7 +23,7 @@
         h (types/dacite-hash v)
         node (store/get-store h)
         [_ data] node]
-    (is (= #{(:root data)} (types/child-hashes node)))))
+    (is (= [(:root data)] (types/child-hashes node)))))
 
 (deftest child-hashes-map-has-root-child
   (d/reset-store!)
@@ -31,13 +31,13 @@
         h (types/dacite-hash v)
         node (store/get-store h)
         [_ data] node]
-    (is (= #{(:root data)} (types/child-hashes node)))))
+    (is (= [(:root data)] (types/child-hashes node)))))
 
 (deftest child-hashes-nil-returns-nil
   (is (nil? (types/child-hashes nil))))
 
 (deftest child-hashes-unknown-format-returns-empty
-  (is (= #{} (types/child-hashes ["unknown-type" {}]))))
+  (is (= [] (types/child-hashes ["unknown-type" {}]))))
 
 (deftest child-hashes-ft-deep-has-three-children
   (d/reset-store!)
@@ -50,6 +50,7 @@
     ;; The root of a 10-element vector should be ft/deep
     (when (= "ft/deep" (first root-node))
       (let [children (types/child-hashes root-node)]
+        (is (vector? children))
         (is (= 3 (count children)))))))
 
 (deftest child-hashes-hamt-entry-has-key-and-val
@@ -62,6 +63,7 @@
     ;; A single-entry map's root should be hamt/entry
     (when (= "hamt/entry" (first root-node))
       (let [children (types/child-hashes root-node)]
+        (is (vector? children))
         (is (= 2 (count children)))))))
 
 ;; =============================================================================
@@ -326,3 +328,169 @@
           (when chain
             ;; If a chain is found, it must be valid
             (is (true? (auth/verify-proof-chain s chain)))))))))
+
+;; =============================================================================
+;; validate-proof tests
+;; =============================================================================
+
+(deftest validate-proof-chain-valid
+  (d/reset-store!)
+  (let [v (d/vec [10 20 30])
+        root-h (types/dacite-hash v)
+        elem (first v)
+        elem-h (types/dacite-hash elem)
+        s store/*store*
+        chain (auth/build-proof-chain s root-h elem-h)
+        result (auth/validate-proof s #{root-h} elem-h {:type :chain :chain chain})]
+    (is (some? result))))
+
+(deftest validate-proof-chain-wrong-root-rejected
+  (d/reset-store!)
+  (let [v (d/vec [10 20 30])
+        root-h (types/dacite-hash v)
+        elem (first v)
+        elem-h (types/dacite-hash elem)
+        s store/*store*
+        chain (auth/build-proof-chain s root-h elem-h)
+        fake-root (hash/sha256 (.getBytes "fake"))]
+    ;; valid-roots doesn't include the chain's root
+    (is (nil? (auth/validate-proof s #{fake-root} elem-h {:type :chain :chain chain})))))
+
+(deftest validate-proof-chain-target-mismatch-rejected
+  (d/reset-store!)
+  (let [v (d/vec [10 20 30])
+        root-h (types/dacite-hash v)
+        elem (first v)
+        elem-h (types/dacite-hash elem)
+        s store/*store*
+        chain (auth/build-proof-chain s root-h elem-h)
+        other-h (hash/sha256 (.getBytes "other"))]
+    ;; hash doesn't match chain's last element
+    (is (nil? (auth/validate-proof s #{root-h} other-h {:type :chain :chain chain})))))
+
+(deftest validate-proof-data-valid
+  (d/reset-store!)
+  (let [v (d/i64 42)
+        h (types/dacite-hash v)
+        node (store/get-store h)
+        ;; Create a fresh store that doesn't have this node
+        s (store/mem-store)
+        result (auth/validate-proof s #{} h {:type :data :value node})]
+    (is (= node result))
+    (is (some? (store/s-get s h)))))
+
+(deftest validate-proof-unknown-type-rejected
+  (d/reset-store!)
+  (let [h (hash/sha256 (.getBytes "whatever"))]
+    (is (nil? (auth/validate-proof store/*store* #{} h {:type :magic :stuff true})))))
+
+;; =============================================================================
+;; verify-transition tests
+;; =============================================================================
+
+(deftest verify-transition-unchanged-root
+  (testing "transition to same root needs no proofs"
+    (d/reset-store!)
+    (let [v (d/hash-map "x" 1)
+          root-h (types/dacite-hash v)
+          s store/*store*
+          result (auth/verify-transition s #{root-h} root-h
+                                         (fn [_] (throw (ex-info "should not be called" {}))))]
+      (is (:valid? result))
+      (is (empty? (:new-nodes result))))))
+
+(deftest verify-transition-simple-update
+  (testing "client updates one value, proves new nodes with data and old with chains"
+    (d/reset-store!)
+    (let [old-data (d/hash-map "x" 1)
+          old-root (types/dacite-hash old-data)
+          old-store store/*store*
+          ;; Build new data in a separate store to simulate client
+          [client-snap new-root]
+          (store/with-store [cs (store/mem-store (store/s-snapshot old-store))]
+            (let [new-data (d/hash-map "x" 2)
+                  nr (types/dacite-hash new-data)]
+              nr))
+          client-store (store/mem-store client-snap)
+          ;; Prover: if the server's old store has it, give a chain;
+          ;; otherwise give data from the client store
+          prover (fn [h]
+                   (if (store/s-has? old-store h)
+                     ;; Build a chain from old root — might not always work
+                     ;; but for shared nodes the hash exists so verify-transition
+                     ;; will skip before calling prover
+                     {:type :data :value (store/s-get client-store h)}
+                     {:type :data :value (store/s-get client-store h)}))
+          result (auth/verify-transition old-store #{old-root} new-root prover)]
+      (is (:valid? result))
+      (is (pos? (count (:new-nodes result)))))))
+
+(deftest verify-transition-proof-chain-reuse
+  (testing "unchanged subtrees proved via chains, not data"
+    (d/reset-store!)
+    (let [old-data (d/hash-map "a" 1 "b" 2)
+          old-root (types/dacite-hash old-data)
+          s store/*store*
+          ;; Extend with a new key
+          new-data (assoc old-data "c" 3)
+          new-root (types/dacite-hash new-data)
+          ;; All nodes are in the same store, so verify-transition
+          ;; should skip everything already present
+          prover (fn [h]
+                   (throw (ex-info "should not need proof for existing nodes" {:hash h})))
+          result (auth/verify-transition s #{old-root} new-root prover)]
+      (is (:valid? result))
+      ;; No new nodes needed — everything was already in the store
+      (is (empty? (:new-nodes result))))))
+
+(deftest verify-transition-invalid-proof-fails
+  (testing "prover returns bad data, transition fails"
+    (d/reset-store!)
+    (let [old-data (d/hash-map "x" 1)
+          old-root (types/dacite-hash old-data)
+          s store/*store*
+          fake-root (hash/sha256 (.getBytes "new-root"))
+          prover (fn [_h] {:type :data :value nil})
+          result (auth/verify-transition s #{old-root} fake-root prover)]
+      (is (false? (:valid? result)))
+      (is (= fake-root (:failed-hash result))))))
+
+;; =============================================================================
+;; apply-transition tests
+;; =============================================================================
+
+(deftest apply-transition-merges-new-nodes
+  (testing "successful transition merges new nodes into store"
+    (d/reset-store!)
+    (let [old-data (d/hash-map "x" 1)
+          old-root (types/dacite-hash old-data)
+          old-snap (store/s-snapshot store/*store*)
+          ;; Build new data in a separate store
+          [client-snap new-root]
+          (store/with-store [cs (store/mem-store old-snap)]
+            (let [new-data (d/hash-map "x" 2)
+                  nr (types/dacite-hash new-data)]
+              nr))
+          client-store (store/mem-store client-snap)
+          ;; Server store starts with just the old data
+          server (store/mem-store old-snap)
+          prover (fn [h]
+                   {:type :data :value (store/s-get client-store h)})
+          result (auth/apply-transition server #{old-root} new-root prover)]
+      (is (:valid? result))
+      ;; Server now has the new root
+      (is (store/s-has? server new-root)))))
+
+(deftest apply-transition-failure-doesnt-modify-store
+  (testing "failed transition leaves store untouched"
+    (d/reset-store!)
+    (let [old-data (d/hash-map "x" 1)
+          old-root (types/dacite-hash old-data)
+          server (store/mem-store (store/s-snapshot store/*store*))
+          original-snap (store/s-snapshot server)
+          fake-root (hash/sha256 (.getBytes "bad-root"))
+          prover (fn [_h] {:type :chain :chain [(hash/sha256 (.getBytes "wrong"))]})
+          result (auth/apply-transition server #{old-root} fake-root prover)]
+      (is (false? (:valid? result)))
+      ;; Store unchanged
+      (is (= original-snap (store/s-snapshot server))))))

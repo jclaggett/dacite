@@ -357,13 +357,13 @@
 ;; child-hashes implementations for HAMT node types
 ;; =============================================================================
 
-(defmethod types/child-hashes "hamt/empty" [_] #{})
+(defmethod types/child-hashes "hamt/empty" [_] [])
 
 (defmethod types/child-hashes "hamt/entry" [[_ data]]
-  #{(:key-ref data) (:val-ref data)})
+  [(:key-ref data) (:val-ref data)])
 
 (defmethod types/child-hashes "hamt/bitmap" [[_ data]]
-  (set (:children data)))
+  (:children data))
 
 ;; =============================================================================
 ;; REPL examples

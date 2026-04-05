@@ -511,19 +511,19 @@
 ;; child-hashes implementations for finger tree node types
 ;; =============================================================================
 
-(defmethod types/child-hashes "ft/empty" [_] #{})
+(defmethod types/child-hashes "ft/empty" [_] [])
 
 (defmethod types/child-hashes "ft/single" [[_ data]]
-  #{(:value-hash data)})
+  [(:value-hash data)])
 
 (defmethod types/child-hashes "ft/digit" [[_ data]]
-  (set (:children data)))
+  (:children data))
 
 (defmethod types/child-hashes "ft/node" [[_ data]]
-  (set (:children data)))
+  (:children data))
 
 (defmethod types/child-hashes "ft/deep" [[_ data]]
-  #{(:left data) (:spine data) (:right data)})
+  [(:left data) (:spine data) (:right data)])
 
 ;; =============================================================================
 ;; REPL examples
