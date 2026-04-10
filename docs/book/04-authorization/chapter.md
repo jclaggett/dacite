@@ -56,7 +56,7 @@ This chapter introduces the mechanisms Dacite uses to solve this problem: proof 
 Hashes leak — in logs, URLs, errors. A hash is an *address*, not a *key*.
 Dacite's authorization is **structural**: prove you *possess* the data.
 
-## 4.2 Proof of Possession
+## 4.3 Proof of Possession
 
 Every access requires proof of legitimate possession. Two forms:
 
@@ -85,7 +85,7 @@ graph TD
 
 Chain `[#R, #E2, #V2, #S3]`; three lookups confirm reachability.
 
-## 4.3 Two Kinds of Stores (Future)
+## 4.4 Two Kinds of Stores (Future)
 
 > **Not yet implemented.** This section describes the target design.
 
@@ -106,7 +106,7 @@ Identity-bound; root-managed; user data.
 | Session | Unauth RO | Proofs/metadata |
 | Main | Auth mod | Data |
 
-## 4.4 Reading (GET)
+## 4.5 Reading (GET)
 
 Structural possession only:
 
@@ -125,7 +125,7 @@ sequenceDiagram
 
 Stateless/scoped by DAG.
 
-## 4.5 Writing (PUT / Root Update)
+## 4.6 Writing (PUT / Root Update)
 
 Writing is expressed as a **root replacement**. The client does not send a separate “new root” declaration. Instead, it begins a proof stream whose *first proof* is for the new root itself.
 
@@ -167,7 +167,7 @@ sequenceDiagram
 
 GET is a strict subset of this PUT protocol.
 
-## 4.6 Garbage Collection (Future)
+## 4.7 Garbage Collection (Future)
 
 > **Not yet implemented.** This section describes the target design.
 
@@ -183,7 +183,7 @@ Semi-space collector (two strategies, equivalent):
 
 Online; cost proportional to live data; preserves sharing.
 
-## 4.7 API Surface
+## 4.8 API Surface
 
 ### Implemented
 
@@ -215,7 +215,7 @@ In Layer 4, `valid-roots` is `#{user-root}`. Layer 5 extends this with share roo
 
 **Depends on Layers 1-3.** Verification logic atop stores.
 
-## 4.8 What This Layer Provides
+## 4.9 What This Layer Provides
 
 1. **Secure stores** -- proof of possession prevents hash-as-capability
 2. **Stateless auth** -- roots + chains, no session state
