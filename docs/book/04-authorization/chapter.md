@@ -86,90 +86,47 @@ sequenceDiagram
 
 Stateless/scoped by DAG.
 
-## 4.5 Writing (PUT)
+## 4.5 Writing (PUT / Root Update)
 
-Full possession (data or structural from *old* root).
+Writing is expressed as a **root replacement**. The client does not send a separate “new root” declaration. Instead, it begins a proof stream whose *first proof* is for the new root itself.
 
-### Hash Capture Problem
+- If the first proof is a **chain proof**, the last hash in the chain becomes the new root.
+- If the first proof is a **data proof**, the hash of that node becomes the new root.
 
-Alice learns Bob's root `#RB`, declares it -- gains his tree.
+The client then walks the new tree in deterministic DFS order (via `child-hashes`). For each node, it sends either:
+- A **data proof** for newly created or modified nodes, or
+- A **chain proof** from the *old* authorized root for unchanged subtrees.
 
-```mermaid
-graph TD
-    RA["Alice's root #RA"] --> AD["Alice's data"]
-    RB["Bob's root #RB"] --> BD["Bob's data"]
-    RA2["Alice declares #RB\nas her root"] --> BD
-    style RA2 fill:#a44,stroke:#333,color:#fff
-    style BD fill:#a44,stroke:#333,color:#fff
-```
+The server validates each proof as it arrives. When the DFS traversal completes (stack is empty), the server atomically updates the user’s root to the new hash.
 
-### Solution: Client-Driven Proof Stream
-
-The client walks its new root tree in DFS order and sends proofs
-sequentially. The server validates each proof as it arrives and responds
-OK. If any proof fails, the server rejects and the transition aborts.
-
-For each hash in the new tree, the client sends one of:
-- **Data proof** -- the serialized node (new data the server doesn't have)
-- **Chain proof** -- a proof chain `[#R, ..., #H]` from the old root (unchanged subtree; cuts off descent)
-
-The server doesn't need to request specific hashes -- both sides walk the
-same deterministic DFS over ordered `child-hashes`, so the sequence of
-proofs is implicit.
+This eliminates a round-trip and removes special-case root declaration logic. Because every node in the new tree must be proven from either new data or a valid chain from the client’s *current* root, hash-capture attacks are prevented.
 
 ```mermaid
 sequenceDiagram
     participant C as Client
     participant S as Server
 
-    C->>S: PUT new root #R'
-    S-->>C: OK, awaiting proofs
+    C->>S: Begin PUT proof stream (first proof = new root)
 
-    Note over C: DFS walk of #R' tree
+    Note over C,S: Client walks new tree in DFS order
 
-    C->>S: data proof for #R' (new map header)
-    Note over S: hash matches, store node
+    C->>S: Proof for new root (chain or data)
+    Note over S: Validates proof. New root hash = resolved hash.
     S-->>C: OK
 
-    C->>S: data proof for #HAMT' (new HAMT node)
-    Note over S: hash matches, store node
+    C->>S: Next proof in DFS order...
     S-->>C: OK
 
-    C->>S: chain #R -> ... -> #entry-name
-    Note over S: chain valid, skip subtree
-    S-->>C: OK
-
-    C->>S: data proof for #entry-age' (new entry)
-    Note over S: hash matches, store node
-    S-->>C: OK
-
-    C->>S: chain #R -> ... -> #key-age
-    Note over S: chain valid, skip subtree
-    S-->>C: OK
-
-    C->>S: data proof for #val-31 (new scalar, leaf)
-    Note over S: hash matches, leaf node
-    S-->>C: OK
-
-    Note over S: DFS stack empty, all hashes verified
-    S-->>C: transition complete, root #R to #R'
+    Note over S: DFS stack empty — transition complete
+    S-->>C: Root updated
 ```
-
-Chain proofs cut off entire unchanged subtrees -- only the modified
-spine needs data proofs. The server maintains a DFS stack; each proof
-either resolves a hash (chain) or resolves it and pushes its children
-(data). When the stack is empty, the transition is complete.
 
 | Client sends | Server action |
 |--------------|---------------|
-| Data proof | Verify hash, store node, push children |
+| Data proof | Verify hash, store node, push children onto DFS stack |
 | Chain proof | Verify chain from old root, skip subtree |
 
-Hash capture fails: declaring Bob's root as your own requires proving
-every hash in Bob's tree, which requires either the data or a chain
-from *your* old root -- neither of which an attacker has.
-
-GET is a subset of PUT.
+GET is a strict subset of this PUT protocol.
 
 ## 4.6 Garbage Collection (Future)
 
