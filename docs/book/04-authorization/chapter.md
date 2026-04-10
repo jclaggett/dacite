@@ -1,20 +1,59 @@
 # Chapter 4: Authorization
 
-Chapter 3 gave us stores -- persistence and distribution across machines.
+Chapter 3 gave us stores — persistence and distribution across machines.
 But stores don't care *who* is reading or writing. Any party with network
 access can fetch any hash. In a single-user system, that's fine. In a
 multi-user system, it's "knowing a hash is authorization."
 
-Dacite rejects this. This chapter adds **authorization** -- proof of
+Dacite rejects this. This chapter adds **authorization** — proof of
 possession, authenticated stores, and the GET/PUT protocols. Together they
-give secure access control without ACLs or capabilities -- just structural
+give secure access control without ACLs or capabilities — just structural
 proofs over the DAG.
 
-## 4.1 Core Principle
+## 4.1 The Authorization Challenge
+
+In a conventional operating system, memory protection is relatively straightforward. The kernel allocates regions of RAM to a process and uses hardware memory management units (MMUs) to prevent that process from reading or writing addresses outside its allocation. A memory address is only meaningful *within* a protected context.
+
+```mermaid
+graph TD
+    subgraph OS [Traditional OS]
+        Kernel[Kernel
+Memory Protection]
+        ProcessA[Process A
+Allocated Range]
+        ProcessB[Process B
+Allocated Range]
+        Kernel --- ProcessA
+        Kernel --- ProcessB
+    end
+    style Kernel fill:#4a9,stroke:#333,color:#fff
+```
+
+Dacite faces a fundamentally harder problem.
+
+All data is **content-addressed**. A hash is not a private location granted by a central authority — it is a globally unique, publicly shareable pointer into an immutable DAG that may be referenced by many users simultaneously. Knowing a hash gives you an address, but there is no kernel standing behind it to enforce ownership.
+
+```mermaid
+graph TD
+    subgraph Dacite [Dacite Content-Addressed DAG]
+        RootA[User A Root #RA]
+        RootB[User B Root #RB]
+        Shared[Shared Subtree #S]
+        RootA --> Shared
+        RootB --> Shared
+    end
+    style Shared fill:#a84,stroke:#333,color:#fff
+```
+
+Because hashes are public and data is immutable and widely shareable, we cannot rely on simple address-based protection. We must prove **legitimate structural possession** — that a requester can demonstrate they are authorized to access a value from *their own* authorized root.
+
+This chapter introduces the mechanisms Dacite uses to solve this problem: proof chains, authenticated stores, and the GET/PUT protocols built on structural proofs.
+
+## 4.2 Core Principle
 
 **Knowing a hash does not authorize access to its value.**
 
-Hashes leak -- in logs, URLs, errors. A hash is an *address*, not a *key*.
+Hashes leak — in logs, URLs, errors. A hash is an *address*, not a *key*.
 Dacite's authorization is **structural**: prove you *possess* the data.
 
 ## 4.2 Proof of Possession
