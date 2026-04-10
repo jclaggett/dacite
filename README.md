@@ -17,16 +17,16 @@ Dacite is a system for **distributed immutable data structures** with content-ad
 
 ## Documentation
 
-**The Dacite Book** (primary documentation):
+**The Dacite Book** (primary living documentation):
 
-- [Introduction & Philosophy](docs/book/00-introduction.md) *(coming soon)*
 - [01 — Hash Fusion](docs/book/01-hash-fusion/chapter.md)
 - [02 — Values](docs/book/02-values/chapter.md)
 - [03 — Stores](docs/book/03-stores/chapter.md)
 - [04 — Authorization](docs/book/04-authorization/chapter.md)
 - [05 — Sharing](docs/book/05-sharing/chapter.md)
 
-The book is the authoritative source. Older files remain in `docs/spec/` and `docs/development-dialogue.md` for historical reference.
+**Development Dialogue** — chronological record of the design process:  
+[docs/development-dialogue.md](docs/development-dialogue.md)
 
 ## Implementations
 
