@@ -51,21 +51,21 @@ Dacite's authorization is **structural**: prove you *possess* the data.
 
 Every access in Dacite requires a proof of legitimate possession. There are two fundamental forms of proof:
 
-### Data Possession (Strongest)
+### Data Proof
 
-The client simply sends the raw bytes. The server hashes them and confirms the hash matches the requested address. This is the most direct form of proof — the client is demonstrating it physically holds the data.
+The client sends the raw bytes. The server hashes them and confirms the hash matches the requested address. This is the most direct form of proof — the client is demonstrating it physically holds the data.
 
-### Structural Possession (Proof Chains)
+### Chain Proof (Structural Possession)
 
-When the client does not want to send the full data (or the data is very large), it can send a **proof chain** — an ordered list of hashes from an authorized root down to the target value.
+When the client does not want to send the full data (or the data is very large), it can send a **chain proof** — an ordered list of hashes from an authorized root down to the target value.
 
-A proof chain has the form:
+A chain proof has the form:
 
 `[#R, #h1, #h2, ..., #target]`
 
 For each consecutive pair in the chain, the server verifies that the parent node *actually contains* the child hash. This proves the target is reachable from the root through a valid path in the DAG.
 
-**Example Proof Chain**
+**Example Chain Proof**
 
 ```mermaid
 graph TD
@@ -81,7 +81,7 @@ graph TD
 
 A client wanting value `#S3` can send the chain `[#R, #E2, #V2, #S3]`. The server performs three lookups to confirm each link is valid.
 
-Proof chains allow efficient verification without sending large subtrees. They are the foundation of both reading and writing in Dacite.
+**Chain proofs** allow efficient verification without sending large subtrees. Together with **data proofs**, they form the foundation of both reading and writing in Dacite.
 
 ## 4.4 Reading (GET)
 
@@ -144,26 +144,50 @@ sequenceDiagram
 
 GET is a strict subset of this PUT protocol.
 
-## 4.6 Two Kinds of Stores (Future)
+## 4.6 Client-Side Proof Caching
 
-> **Not yet implemented.** This section describes the target design.
+The GET and PUT protocols place the burden of proof on the client. The server is stateless: it validates proofs but does not track paths or sessions. This section describes how clients efficiently generate the chain proofs required by these protocols.
 
-To break the circularity inherent in proof chains (you need the root to prove the root), Dacite distinguishes between two kinds of stores:
+### Chain Proofs as Cached Path Information
 
-### Unauthenticated, Read-Only (Session Stores)
+A chain proof is a Dacite Vector of hashes `[#R, #h1, ..., #target]` representing a path from an authorized root to a target node. During normal operation, clients build and cache these proofs naturally:
 
-These stores have no identity. They are immutable and exist only to hold proof chains and metadata during a session. The current `dedicated-store` implementation serves this role — it is a scoped in-memory store containing only the nodes along a given proof chain.
+**During GET:** A client requests node `#A` with chain proof `Ac = [#R, ..., #A]`. The server returns the value. The client now knows that every child hash of `A` is reachable via `(conj Ac child-hash)`. These extended proofs can be cached for future use.
 
-### Authenticated, Modifiable (Main Stores)
+**During PUT:** A client constructs new node `#B` that reuses child `#c` from a previous GET. Rather than rebuilding a path from scratch, the client looks up `#c` in its cache, finds its chain proof, and emits it directly.
 
-These are identity-bound and root-managed. They contain the actual user data and are the stores whose roots are updated during PUT operations.
+### The Cache Structure
 
-| Store Type       | Authentication | Mutability | Purpose                     |
-|------------------|----------------|------------|-----------------------------|
-| Session Store    | None           | Immutable  | Hold proofs during requests |
-| Main Store       | Identity-bound | Modifiable | Persistent user data        |
+The client maintains a map from hash to chain proof:
 
-This separation allows clean layering: proofs are validated in session stores, while root updates happen in main stores.
+```clojure
+;; hash → [root-hash ... target-hash]
+{hash-a [root-hash mid1 hash-a]
+ hash-b [root-hash mid1 mid2 hash-b]}
+```
+
+- **Population:** Lazily, during GET responses. Each fetched node extends its proof with its children.
+- **Lookup:** O(1) for any cached hash. A chain proof for a child is `(conj parent-proof child-hash)`.
+- **Growth:** Bounded by the set of nodes the client has fetched in its current session.
+
+### Root Changes and Invalidation
+
+When the client's primary root is successfully updated via PUT, chain proofs based on the old root become invalid for future GETs and PUTs. However:
+
+1. The client just walked the new tree during the PUT protocol. It knows the new structure.
+2. For unchanged subtrees, the client can re-derive chain proofs by following the same paths under the new root.
+3. Chain proofs based on **shared roots** (read-only, see Chapter 5) remain valid across primary root updates.
+
+The client must track which root each cached chain proof is based on (primary vs. shared) and invalidate accordingly.
+
+### The Inverted Client/Server Relationship
+
+Because chain proofs are represented as Dacite Vectors, they are themselves storable values. During a PUT, the client provides the server with an **unauthorized store** containing just the chain proofs it wishes to use. The server fetches these proofs as ordinary Dacite values to verify them. The client becomes, temporarily, a store provider to the server.
+
+### Design Notes
+
+- **Deferred:** Cache size bounds and eviction policies are left for future work. For now, the cache is session-scoped and unbounded.
+- **Optimization only:** This caching is purely a client-side optimization. The server protocol is unchanged; a client with an empty cache can always construct chain proofs from the root hash manually.
 
 ## 4.7 Garbage Collection (Future)
 
