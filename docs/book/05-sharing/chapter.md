@@ -14,26 +14,29 @@ Next, Alice tells Bob about the offer through some out-of-band channel. She migh
 
 Bob now contacts the server and says, "I would like to claim the share named `photos` from Alice." The server looks up Alice's current root, finds the `shares` entry for `photos`, checks whether Bob is in the authorized set, and if so, adds the target hash `#T` to Bob's session-scoped set of claimed roots. From that moment on, Bob can issue GET requests against `#T` (and any subtree under it) using the normal proof chain mechanism. His access is strictly read-only: he may not replace the value at `#T` itself. He may, however, create new values under his own primary root that reference or incorporate content reachable from `#T`.
 
-The sequence is straightforward once you see it in action. Alice offers. Bob claims. The server validates the claim against Alice's current root and grants Bob an additional valid root for the duration of his session. No special server state is required beyond what is already stored in Alice's root. The set of claimed roots lasts only for the current session. Bob must re-claim any shared roots in each new session. This keeps the server stateless with respect to long-lived claims.
-
-A subtle but important point: Alice is sharing a specific value (the immutable content reachable from `#T`), not an ongoing pointer to a location that might change. Because Dacite values are content-addressed and immutable, once Bob receives `#T` he has permanent access to that exact value and everything it contains. If Alice later wants Bob to see an updated version of the photos, she must create a new value at a new hash and either update the target in her existing share or create a fresh share entry. There is no way for her to retroactively alter what Bob already received.
-
-One alternative design would have been to record claimed roots persistently in a `claims` map inside Bob's root, similar to how `shares` records offers. This would let Bob work with only a single root and would make shared access survive across sessions. However, it would require the server (or the client convention) to decide where received shares live in the user's tree. An inbox? A Downloads-style directory? A special `received` subtree? Different applications would naturally want different organizations, and enforcing one canonical location would make the sharing layer more opinionated than necessary. By keeping claimed roots session-scoped, the mechanism stays lightweight and the client is free to incorporate shared data into its own tree however it chooses.
-
 ```mermaid
 sequenceDiagram
     participant A as Alice
     participant B as Bob
     participant S as Server
 
-    Note over A: shares["photos"]:<br/>{target: #T, authorized: #{bob}}
+    A->>S: PUT root (add shares["photos"] = {#T, #{bob}})
+    S-->>A: OK (new root hash)
 
     A->>B: out-of-band: "claim 'photos' from me"
     B->>S: CLAIM "photos" from Alice
-    Note over S: look up Alice's root<br/>find shares["photos"]<br/>check bob ∈ authorized ✓<br/>extract #T
-    S-->>B: added #T to valid roots
-    B->>S: GET/PUT using #T as proof root
+    Note over S: look up Alice's root<br/>find shares["photos"]<br/>check bob ∈ authorized ✓<br/>add #T to Bob's claimed roots
+    S-->>B: OK
+
+    B->>S: GET #T (with proof from claimed root)
+    S-->>B: Value at #T
 ```
+
+The sequence is straightforward once you see it in action. Alice offers. Bob claims. The server validates the claim against Alice's current root and grants Bob an additional valid root for the duration of his session. No special server state is required beyond what is already stored in Alice's root. The set of claimed roots lasts only for the current session. Bob must re-claim any shared roots in each new session. This keeps the server stateless with respect to long-lived claims.
+
+A subtle but important point: Alice is sharing a specific value (the immutable content reachable from `#T`), not an ongoing pointer to a location that might change. Because Dacite values are content-addressed and immutable, once Bob receives `#T` he has permanent access to that exact value and everything it contains. If Alice later wants Bob to see an updated version of the photos, she must create a new value at a new hash and either update the target in her existing share or create a fresh share entry. There is no way for her to retroactively alter what Bob already received.
+
+One alternative design would have been to record claimed roots persistently in a `claims` map inside Bob's root, similar to how `shares` records offers. This would let Bob work with only a single root and would make shared access survive across sessions. However, it would require the server (or the client convention) to decide where received shares live in the user's tree. An inbox? A Downloads-style directory? A special `received` subtree? Different applications would naturally want different organizations, and enforcing one canonical location would make the sharing layer more opinionated than necessary. By keeping claimed roots session-scoped, the mechanism stays lightweight and the client is free to incorporate shared data into its own tree however it chooses.
 
 ## 5.2 Root Structure Convention
 
