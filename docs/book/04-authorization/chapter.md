@@ -189,7 +189,7 @@ This is not a new mechanism — it is a natural consequence of the client's exis
 ### Design Notes
 
 - **Deferred:** Cache size bounds and eviction policies are left for future work. For now, the cache is session-scoped and unbounded.
-- **Optimization only:** This caching is purely a client-side optimization. The server protocol is unchanged; a client with an empty cache can always construct chain proofs from the root hash manually.
+- **Required for PUT:** The client's chain proof cache is not merely an optimization — it is the mechanism by which the server verifies PUT requests. The client must provide chain proofs as Dacite Vectors for the server to fetch and validate.
 
 ## 4.7 Garbage Collection (Future)
 
