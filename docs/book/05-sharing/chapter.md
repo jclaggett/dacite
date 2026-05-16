@@ -1,8 +1,6 @@
 # Chapter 5: Sharing
 
-Chapter 4 gave us authorization — authenticated stores where access is
-proven structurally from roots. Each user has a scoped tree. How does
-Alice give Bob read access to a *subtree* without her full root?
+Chapter 4 gave us **authorized stores** — stores where access is proven structurally from roots. Each user has a scoped tree within the store. How does Alice give Bob read access to a *subtree* without her full root?
 
 No new primitives. Just a **shares map convention** in every root,
 plus a `claim` protocol. Users share with users; server shares with

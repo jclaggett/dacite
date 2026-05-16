@@ -7,7 +7,7 @@ Dacite: distributed immutable data with content-addressed nodes.
 1. **Hash Fusion** — fuse primitive.
 2. **Values** — scalar/seq/map + types.
 3. **Stores** — IStore, layers, serialization, distribution.
-4. **Authorization** — PoP, GET/PUT, auth stores.
+4. **Authorized Stores** — PoP, GET/PUT, auth stores.
 5. **Sharing** — shares map, claim protocol.
 
 Stop after 2 (structs), 3 (persistence), 4 (auth stores), 5 (multi-user).

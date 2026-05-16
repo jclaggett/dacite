@@ -41,7 +41,7 @@ docs/book/
 Layer 1: hash
 Layer 2: values (→hash)
 Layer 3: stores (→1+2)
-Layer 4: auth (→1-3)
+Layer 4: authorized stores (→1-3)
 Layer 5: sharing (→1-4, conventions only)
 
 ## Writing Approach
