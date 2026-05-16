@@ -182,7 +182,9 @@ The client must track which root each cached chain proof is based on (primary vs
 
 ### The Inverted Client/Server Relationship
 
-Because chain proofs are represented as Dacite Vectors, they are themselves storable values. During a PUT, the client provides the server with an **unauthorized store** containing just the chain proofs it wishes to use. The server fetches these proofs as ordinary Dacite values to verify them. The client becomes, temporarily, a store provider to the server.
+Because chain proofs are represented as Dacite Vectors, they are themselves storable values. During a PUT, the client provides the server with an **unauthorized store** containing just the chain proofs it wishes to use. The server fetches these proofs as ordinary Dacite values to verify them.
+
+This is not a new mechanism — it is a natural consequence of the client's existing cache. The same chain proofs the client builds for its own efficient operation are precisely what the server needs to verify. The client cache serves dual purpose: it enables fast chain proof generation for the client's own use, and it provides the proofs the server needs during PUT verification.
 
 ### Design Notes
 
