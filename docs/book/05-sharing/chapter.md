@@ -6,19 +6,7 @@ No new primitives. Just a **shares map convention** in every root,
 plus a `claim` protocol. Users share with users; server shares with
 users — uniform mechanism.
 
-## 5.1 Root Structure Convention
-
-```
-root = {
-  \"value\": <app data>,
-  \"shares\": {name: {target: #H, authorized: Set}, ...},
-  \"groups\": {name: Set, ...}
-}
-```
-
-Managed via PUTs.
-
-## 5.2 Claim Protocol
+## 5.1 Claim Protocol
 
 1. Alice PUTs `shares[\"photos\"] = {#T, #{bob}}`
 2. Alice → Bob OOB: \"claim photos from me\"
@@ -40,6 +28,18 @@ sequenceDiagram
     S-->>B: added #T to valid roots
     B->>S: GET/PUT using #T as proof root
 ```
+
+## 5.2 Root Structure Convention
+
+```
+root = {
+  \"value\": <app data>,
+  \"shares\": {name: {target: #H, authorized: Set}, ...},
+  \"groups\": {name: Set, ...}
+}
+```
+
+Managed via PUTs.
 
 ## 5.3 Server Uses Shares
 

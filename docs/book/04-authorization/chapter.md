@@ -38,7 +38,7 @@ graph TD
     style Shared fill:#a84,stroke:#333,color:#fff
 ```
 
-Because hashes are public and data is immutable and widely shareable, we cannot rely on simple address-based protection. We must prove **legitimate structural possession** — that a requester can demonstrate they are authorized to access a value from *their own* authorized root.
+Sharing is intentional and valuable. The danger is that any party who merely learns a hash can fetch its value — there is no kernel or access control list standing behind a content address. We must prove **legitimate structural possession** — that a requester can demonstrate they are authorized to access a value from *their own* authorized root.
 
 This chapter introduces the mechanisms Dacite uses to solve this problem: proof chains, authenticated stores, and the GET/PUT protocols built on structural proofs.
 
