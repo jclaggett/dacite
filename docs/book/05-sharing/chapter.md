@@ -94,7 +94,7 @@ The `groups` map inside a root lets a user define named sets of identities. Inst
 
 Updating the group updates access everywhere the group name is used. This is ordinary data manipulation, not a special administrative operation.
 
-Public sharing is also supported through a convention. The set `#{neg}` means "everyone except the listed members." A share with `authorized: #{neg}` is effectively public. The cofinite set convention was introduced in Chapter 2 as part of the set type and is reused here without any new machinery.
+Public sharing is also supported through a convention. The set `#{neg}` means "everyone except the listed members." A share with `authorized: #{neg}` is effectively public. The cofinite set convention was introduced in Chapter 3 as part of the set type and is reused here without any new machinery.
 
 ## 5.6 Share Types
 
@@ -176,4 +176,4 @@ Zero new primitives are added to the store or authorization layers. Sharing is a
 3. **Mutable references** — The target of a share can be updated through normal PUT operations.
 4. **Composability** — A user can re-share data they received from someone else, creating chains of delegation without any special support.
 
-The top of the stack is now complete: hash fusion, values, stores, authorized stores, and sharing conventions. Each layer adds capability without introducing new primitives at the layers below.
+The top of the stack is now complete: stores, hash fusion, values, authorized stores, and sharing conventions. Each layer adds capability without introducing new primitives at the layers below.

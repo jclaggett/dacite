@@ -1,15 +1,17 @@
-# Chapter 2: Values
+# Chapter 3: Values
 
-Chapter 1 gave us a single operation — fuse — and three guarantees:
-content identity, tree-shape independence, and decomposability. This
-chapter builds an entire data model on that foundation.
+Chapter 1 gave us **stores** — a content-addressed map and a mutable
+root ref. Chapter 2 gave us **fuse** and three guarantees: content
+identity, tree-shape independence, and decomposability. This chapter
+builds the **value model** on both foundations: scalars, seqs, maps, and
+the typed conventions layered on top.
 
 Dacite has exactly **three primitives**: scalar, seq, and map.
 Everything else — integers, strings, vectors, sets, even negative
 sets — is a convention built from these three. The system is small
 because the primitives are powerful.
 
-## 2.1 Values Know Their Store and Hash
+## 3.1 Values Know Their Store and Hash
 
 Every Dacite value carries two pieces of metadata:
 
@@ -33,9 +35,9 @@ every operation — values know where they belong.
 
 This also means **values are tied to their store**. A value created in
 store A cannot be directly inserted into store B; you must first migrate
-the underlying content (or use ref push — see Chapter 3).
+the underlying content (or use ref push — see Chapter 1).
 
-## 2.2 Three Primitives
+## 3.2 Three Primitives
 
 ### Scalar
 
@@ -49,7 +51,7 @@ scalar_hash = fuse_bytes(raw_bytes)
 
 A scalar is untyped at the primitive level. The byte `0x61` and the
 character `'a'` are the same scalar if they have the same bytes. Types
-give meaning to scalars — that's §2.3.
+give meaning to scalars — that's §3.3.
 
 Examples of scalar data:
 - Null (0 bytes)
@@ -61,7 +63,7 @@ Examples of scalar data:
 ### Seq
 
 A **seq** is an ordered collection of references, implemented as a
-finger tree (§2.6). It is the universal building block for ordered data.
+finger tree (§3.6). It is the universal building block for ordered data.
 
 A seq's hash is its **semantic hash** — derived from fusing all
 elements in order:
@@ -78,7 +80,7 @@ same order.
 ### Map
 
 A **map** is an unordered collection of key-value pairs, implemented
-as a HAMT (§2.7). Each entry contributes `fuse(key_hash, value_hash)`
+as a HAMT (§3.7). Each entry contributes `fuse(key_hash, value_hash)`
 to the map's semantic hash:
 
 ```
@@ -95,7 +97,7 @@ Three primitives, three hash rules. Every structure in Dacite — from
 a 64-bit integer to a terabyte dataset — is built from scalars
 referenced by seqs and maps.
 
-## 2.2 Typed Values
+## 3.3 Typed Values
 
 Scalars are raw bytes. A seq is just references. How do we know that
 `[0x00, 0x00, 0x00, 0x2A]` is the integer 42 and not four null bytes?
@@ -146,7 +148,7 @@ boundary marker, type `"i64"` with data `"2"` would collide with type
 
 ### Cross-Type Equality
 
-Here's where Chapter 1's group structure pays off. Two typed values
+Here's where Chapter 2's group structure pays off. Two typed values
 with different type names but the same underlying data can be compared
 in **O(1)**:
 
@@ -173,7 +175,7 @@ graph TD
     style VC fill:#4a9,stroke:#333,color:#fff
 ```
 
-## 2.3 Built-in Types
+## 3.4 Built-in Types
 
 All built-in types follow the `seq(type_name, data)` convention:
 
@@ -207,7 +209,7 @@ a 1-byte blob containing `0x41` have different hashes.
 Internally, both use the same finger tree machinery. The difference
 is purely semantic.
 
-## 2.4 Sets and Negative Sets
+## 3.5 Sets and Negative Sets
 
 ### The Set Type
 
@@ -274,7 +276,7 @@ element, which is what makes the pos/neg operation table work — the
 sentinel's presence or absence propagates correctly through merge, keep,
 and remove without special cases.
 
-## 2.5 Inside Seqs: Finger Trees
+## 3.6 Inside Seqs: Finger Trees
 
 Seqs are implemented as finger trees — a persistent data structure
 that provides O(1) amortized access to both ends and O(log n) random
@@ -375,7 +377,7 @@ produce the same hash — different tree shapes normalize to a single
 hash in the store. This is correct because nodes with the same
 elements are functionally interchangeable.
 
-## 2.6 Inside Maps: HAMT
+## 3.7 Inside Maps: HAMT
 
 Maps are implemented as a Hash Array Mapped Trie — a persistent hash
 map that provides O(log₃₂ n) lookup, insert, and delete.
@@ -439,7 +441,7 @@ they route lookups differently and are **not** interchangeable. Without
 the bitmap in the hash, these nodes would collide, creating
 self-referential loops in the store.
 
-## 2.7 Collision Resistance
+## 3.8 Collision Resistance
 
 Fuse-based hashes have ~2^96 birthday-bound collision resistance,
 from the additive structure of components c1–c3. This is weaker than
@@ -462,7 +464,7 @@ Verify the cryptographic hash on ingest; use the dacite hash for
 internal navigation. The fuse hash gives you speed and algebraic
 structure; the cryptographic hash gives you adversarial resistance.
 
-## 2.8 API Surface
+## 3.9 API Surface
 
 ### Primitives
 
@@ -594,11 +596,11 @@ operations, only for construction.
 - `union(complement(A), A)` = universal set (negative empty)
 - `intersect(A, complement(A))` = empty set
 
-This layer depends only on Layer 1 (hash).** No I/O required for
+This layer depends on Chapter 2 (hash fusion) and Chapter 1 (stores). No I/O required for
 pure operations, though values carry a store reference for transparent
 persistence when mutated. All primitive functions are pure.
 
-## 2.9 What This Layer Provides
+## 3.10 What This Layer Provides
 
 The value layer gives the rest of Dacite:
 
@@ -615,5 +617,5 @@ The value layer gives the rest of Dacite:
 6. **Store-aware** — values know their store, enabling transparent
    persistence on mutation.
 
-The next chapter adds persistence: how values move between memory,
-disk, and the network.
+The next chapter adds **authorization** on top of stores: proof of
+possession before fetch or store.

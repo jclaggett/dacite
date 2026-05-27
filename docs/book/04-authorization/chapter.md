@@ -1,10 +1,10 @@
 # Chapter 4: Authorized Stores
 
-Chapter 3 gave us stores — persistence and distribution across machines. Every store has a root. But Chapter 3's stores are **unauthorized**: anyone with access can fetch any hash. In a single-user system, that's fine. In a multi-user system, it's "knowing a hash is authorization."
+Chapter 1 gave us stores — persistence and distribution across machines. Every store has a root. But Chapter 1's stores are **unauthorized**: anyone with access can fetch any hash. In a single-user system, that's fine. In a multi-user system, it's "knowing a hash is authorization."
 
 Dacite rejects this. This chapter introduces **authorized stores** — stores that require **proof of possession** before they will fetch or store a node. The mechanism is structural proofs over the DAG: data proofs and chain proofs. Together they give secure access control without ACLs or capabilities — just roots and the paths between them.
 
-The authorized store protocol builds directly on the unauthorized store from Chapter 3. The difference is that `fetch` and `store` now require proof. All interaction still flows through `get-root` and `set-root`, but the store verifies that every accessed node is structurally reachable from an authorized root.
+The authorized store protocol builds directly on the unauthorized store from Chapter 1. The difference is that `fetch` and `store` now require proof. All interaction still flows through `get-root` and `set-root`, but the store verifies that every accessed node is structurally reachable from an authorized root.
 
 ## 4.1 The Authorization Challenge
 

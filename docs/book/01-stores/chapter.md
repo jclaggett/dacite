@@ -1,77 +1,76 @@
-# Chapter 3: Stores
+# Chapter 1: Stores
 
-Chapter 2 gave us a complete data model — immutable, content-addressed values. Those values need a place to live. This chapter introduces **stores** — the persistence layer that holds values and provides a single mutable **root** via Clojure's `IRef` interface.
+This chapter introduces **stores** — the persistence layer at the bottom of Dacite. A store is two things at once:
 
-A store is a ref whose dereferenced value is a Dacite value (typically a map). Like a filesystem, every store has exactly one current root value. The store's backing storage may contain many other nodes not reachable from the root; those are simply detached and eligible for future garbage collection.
+1. A **content-addressed map** from 256-bit hashes to serialized node bytes
+2. A **mutable root** (via Clojure's `IRef`) that points at one hash in that map
 
-## 3.1 Store as Ref
+The root node is stored in the backing map like any other entry. The store's ref holds only the root hash. Like a filesystem, every store has exactly one current root. The backing storage may contain many other nodes not reachable from the root; those are **detached** and eligible for garbage collection.
 
-A store implements `clojure.lang.IRef`. You use `deref`, `swap!`, and `reset!` to interact with it:
+Chapter 2 explains how hashes are computed. Chapter 3 defines the value model built on top of stores. Here we stay at the persistence layer: refs, the `IStore` protocol, implementations, and sync.
+
+## 1.1 Store as Ref
+
+A store implements `clojure.lang.IRef`. You use `deref`, `swap!`, and `reset!` to read and update the current root hash:
 
 ```clojure
 (def store (dacite/store {:backend (dacite/lmdb "path/to/db")}))
 
 @store
-;; => #dacite/map{}  (or nil if empty)
+;; => nil or a 4-long hash vector (the current root)
 
-(swap! store assoc "users" (dacite/vector store [...]))
-(reset! store (dacite/hash-map store :a 1))
+;; Install a new root by hash
+(reset! store root-hash)
+
+;; Transform the current root hash
+(swap! store (fn [h] (compute-new-root h)))
 ```
 
-The store is a **ref of a Dacite value**, not a ref of a map of refs. Applications needing multiple named roots build that layer themselves.
+The store is a **ref of a root hash**, not a ref of a Clojure map. Higher-level APIs (Chapter 3) wrap this: they build nodes, store them via `IStore`, and return hashes you can install as the root. Applications needing multiple named roots build that layer themselves.
 
-## 3.2 Value Constructors Take a Store
-
-All Dacite value constructors take the store as their first argument:
-
-```clojure
-(dacite/vector store 1 2 3)
-(dacite/hash-map store :a 1 :b 2)
-(dacite/string store "hello")
-```
-
-This makes the store dependency explicit. For convenience, use `partial`:
-
-```clojure
-(def my-vec (partial dacite/vector store))
-(def my-map (partial dacite/hash-map store))
-
-(my-vec 1 2 3)
-(my-map :x 42)
-```
-
-## 3.3 Store Protocol
+## 1.2 Store Protocol
 
 Underneath the ref interface, every store implements `IStore` for content-addressed access:
 
 ```clojure
 (defprotocol IStore
   (fetch [store hash] "Return serialized bytes or nil")
-  (store [store value] "Store value, return its hash")
+  (store [store bytes] "Store bytes, return content hash")
   (s-has? [store hash] "Check if hash exists in backing storage"))
 ```
 
-Application code rarely uses these directly. The primary surface is `@store`, `swap!`, and `reset!`.
-
-## 3.4 Root-Centric Operation
-
-All interaction with a store flows through its root:
+Typical usage at this layer:
 
 ```clojure
-;; Read-transform-write cycle
-(swap! store assoc-in ["config" "version"] 2)
-
-;; Reset to a fresh value
-(reset! store (dacite/hash-map store "users" [] "posts" []))
+(def h (store store serialized-bytes))
+(fetch store h)   ;; => serialized-bytes
+(s-has? store h)  ;; => true
 ```
 
-The root value is stored in the backing content-addressed storage just like any other value. The store's ref holds its hash.
+Application code usually works through `@store`, `swap!`, and `reset!` on the root, or through value constructors (Chapter 3) that call `store` internally. The public value API always takes `store` as its first argument so persistence stays explicit.
 
-## 3.5 Detached Nodes and Garbage Collection
+## 1.3 Root-Centric Operation
 
-Any node reachable from the current root is live. Nodes that were previously reachable but are no longer part of the root tree are **detached**. They remain in the backing storage until garbage collection runs.
+All interaction with a store flows through its root hash:
 
-## 3.6 Store Implementations
+```clojure
+;; Read current root
+(def root @store)
+
+;; Replace root entirely
+(reset! store new-root-hash)
+
+;; Transform root (e.g. after building a successor node)
+(swap! store (fn [old-root] (build-successor store old-root)))
+```
+
+The root's serialized bytes live in the backing map at the root hash, just like any other node. Updating the root does not delete old nodes immediately — they become detached until GC runs.
+
+## 1.4 Detached Nodes and Garbage Collection
+
+Any node reachable from the current root is **live**. Nodes that were previously reachable but are no longer part of the root tree are **detached**. They remain in the backing storage until garbage collection runs.
+
+## 1.5 Store Implementations
 
 ### Memory Store
 An atom-backed store. Fast, ephemeral, ideal for testing and construction.
@@ -107,7 +106,9 @@ Composes multiple stores as a stack. Reads check layers top-down; writes go to a
 | `:top-only` | Write only to top layer (overlay/COW semantics) |
 | custom fn | `(fn [root-hash layers] ...)` returns updated layers |
 
-## 3.7 Ref Push and Sync
+Two stores are **compatible** if they share the same protocol identifier for hashing (Chapter 2).
+
+## 1.6 Ref Push and Sync
 
 Stores push their root ref to other stores. This is the primitive for asynchronous behavior and synchronization:
 
@@ -120,13 +121,12 @@ After a push, the target store's root is `reset!` to the source's current root h
 
 Push is intentionally simple: it sends a hash. Applications decide when and where to push. Ref management is an application concern, not a store concern.
 
-## 3.8 What This Layer Provides
+## 1.7 What This Layer Provides
 
 1. A single, well-defined root per store, accessed via `IRef`
-2. Simple `swap!` / `reset!` operations
-3. Explicit store parameter in constructors
-4. Content-addressed storage underneath
-5. Composable implementations (memory, disk, layered)
-6. Ref push as a sync primitive
+2. Simple `swap!` / `reset!` on the root hash
+3. Content-addressed `fetch` / `store` / `s-has?` underneath
+4. Composable implementations (memory, disk, layered)
+5. Ref push as a sync primitive
 
-Chapter 4 adds authorization on top of this root model.
+Chapter 2 defines how node hashes are formed. Chapter 3 builds the value model on top of this layer. Chapter 4 adds authorization on top of the root model.

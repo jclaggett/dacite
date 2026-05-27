@@ -36,13 +36,27 @@ docs/book/
 | auth-design §7–9, App B–D | 05 |
 | ... | ...
 
-## Library Layering
+## Reading Order vs Implementation Layering
 
-Layer 1: hash
-Layer 2: values (→hash)
-Layer 3: stores (→1+2)
-Layer 4: authorized stores (→1-3)
-Layer 5: sharing (→1-4, conventions only)
+**Reading order** (the book): stores → hash fusion → values → authorization → sharing.
+
+**Implementation layering** (the library): two foundational packages with no dependency on the value model — **hash** (fuse, byte table, protocol id) and **stores** (content-addressed persistence, root ref, backends). Everything else builds on one or both:
+
+```
+hash ─────────────┐
+                  ├──► values ──► authorized stores ──► sharing (conventions)
+stores ───────────┘
+```
+
+Values combine hashing with store-backed nodes. Authorization extends stores; sharing is conventions on top of authorized stores. The book introduces stores before hash for pedagogy; in code, `dacite.store` and `dacite.hash` are peers at the bottom of the stack.
+
+| Book ch. | Topic | Library |
+|----------|-------|---------|
+| 1 | Stores | `dacite.store` (foundational) |
+| 2 | Hash fusion | `dacite.hash` (foundational) |
+| 3 | Values | `dacite.value.*` (→ hash + stores) |
+| 4 | Authorization | `dacite.auth` (→ stores + values) |
+| 5 | Sharing | conventions (→ auth + values) |
 
 ## Writing Approach
 

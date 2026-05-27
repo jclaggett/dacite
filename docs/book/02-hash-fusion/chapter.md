@@ -1,9 +1,14 @@
-# Chapter 1: Hash Fusion
+# Chapter 2: Hash Fusion
 
-Everything in Dacite is built on a single operation: **fuse**. It
-combines two 256-bit hashes into a new 256-bit hash using nothing more
-than integer arithmetic. No SHA-256 at runtime, no hash function calls
-in the critical path — just six additions and a multiplication.
+Chapter 1 introduced **stores** — a map from content hashes to serialized
+bytes, plus a mutable root. Every node in that map is keyed by its hash.
+This chapter defines how those hashes are formed.
+
+Everything in Dacite's compound structures is built on a single
+operation: **fuse**. It combines two 256-bit hashes into a new 256-bit
+hash using nothing more than integer arithmetic. No SHA-256 at runtime,
+no hash function calls in the critical path — just six additions and a
+multiplication.
 
 The idea originates from an HP Labs white paper on using upper
 triangular matrix multiplication to combine hashes associatively:
@@ -16,12 +21,13 @@ multiplying them. Matrix multiplication is associative but not
 commutative — exactly the properties needed for tree-shape-independent
 hashing. Dacite's contribution is the specific 4×4 matrix over 64-bit
 cells, chosen based on empirical testing of degeneration behavior (see
-§1.8).
+§2.8).
 
 This chapter introduces fuse, its algebraic properties, and how it
-turns raw bytes into content addresses.
+turns raw bytes into content addresses. Chapter 3 applies these ideas to
+the value model (scalars, seqs, maps, and types).
 
-## 1.1 Hashes as Four Words
+## 2.1 Hashes as Four Words
 
 A Dacite hash is 256 bits, represented as four 64-bit unsigned integers
 in big-endian word order:
@@ -33,7 +39,7 @@ hash = [c0, c1, c2, c3]
 Word `c0` holds the most mixed bits (from fuse) and is used first for
 HAMT navigation. Word `c3` holds the least mixed bits.
 
-## 1.2 The Fuse Operation
+## 2.2 The Fuse Operation
 
 Fuse takes two hashes and produces a third:
 
@@ -143,7 +149,7 @@ graph LR
 
 Order matters: `[a, b]` and `[b, a]` produce different hashes.
 
-## 1.3 Group Structure
+## 2.3 Group Structure
 
 Fuse forms a **group** over (ℤ/2^64)^4. Every hash has a unique
 inverse:
@@ -169,13 +175,13 @@ Strip from the left: `fuse(inv(a), fused) = b`.
 ### What the Group Enables
 
 - **Cross-type equality** — strip a type tag hash to compare raw content
-  (see Chapter 2, Typed Values).
+  (see Chapter 3, Typed Values).
 - **Hash recovery** — recover one component of a fused pair when the
   other is known.
 - **Incremental re-hashing** — update a fused chain without recomputing
   from scratch. Replace an element by unfusing the old and fusing the new.
 
-## 1.4 The Byte Hash Table
+## 2.4 The Byte Hash Table
 
 Dacite doesn't hash bytes directly with fuse. Instead, it uses a
 precomputed lookup table mapping each byte value (0–255) to a 256-bit
@@ -206,9 +212,9 @@ Because fuse is associative:
 Composing fused results is equivalent to fusing the concatenation.
 This is both a feature (tree nodes can combine child hashes) and a
 constraint (domain separators are needed between fields — see
-Chapter 2).
+Chapter 3).
 
-## 1.5 Protocol ID
+## 2.5 Protocol ID
 
 The byte hash table is a **build-time constant**, not stored inside the
 content-addressed space. The table's own hash serves as a protocol
@@ -224,7 +230,7 @@ bytes, and `fuse_bytes` (which uses the table) produces the ID.
 Two stores are compatible if and only if they share the same protocol
 ID. Implementations check this on first contact.
 
-## 1.6 Low-Entropy Rejection
+## 2.6 Low-Entropy Rejection
 
 Fuse must reject inputs and outputs where the lower 32 bits are zero
 in all four words:
@@ -251,7 +257,7 @@ fuse(a, b):
 An unchecked variant exists for internal use where inputs are known
 valid (e.g., combining measures within finger tree nodes).
 
-## 1.7 Why 4×4 with 64-bit Cells
+## 2.7 Why 4×4 with 64-bit Cells
 
 The HP paper describes hash fusing using upper triangular matrices
 in general terms. The same 256-bit hash can be packed into matrices
@@ -323,14 +329,14 @@ The 4×4 matrix with 64-bit cells won on all axes:
 - **Simplicity** — 4 words map naturally to 256 bits; no packing tricks
 - **Hardware fit** — 64-bit integers are native on modern CPUs
 
-The low-entropy rejection check (§1.6) checks the lower 32 bits of
+The low-entropy rejection check (§2.6) checks the lower 32 bits of
 each word. This means fuse rejects degenerate hashes after
 approximately 2^32 repeated fuses of the same value — well within
 the 64-bit cell's ~2^64 capacity, providing a conservative safety
 margin that catches degeneration long before it reaches the
 theoretical limit.
 
-## 1.8 API Surface
+## 2.8 API Surface
 
 ### Primitives
 
@@ -372,7 +378,7 @@ Convenience functions that compose from the primitives:
 arithmetic and a lookup table. It is the natural starting point for
 porting Dacite to a new language.
 
-## 1.9 What This Layer Provides
+## 2.9 What This Layer Provides
 
 Hash fusion gives the rest of Dacite three guarantees:
 
@@ -384,4 +390,5 @@ Hash fusion gives the rest of Dacite three guarantees:
    apart, not just composed. This enables typed values, incremental
    updates, and cross-type comparisons.
 
-The next chapter builds data structures on this foundation.
+The next chapter builds the value model (scalars, seqs, maps, and types)
+on this foundation.
