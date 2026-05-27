@@ -10,9 +10,9 @@ stands alone; read sequentially for full picture.
 ```
 docs/book/
 ├── 00-preface.md
-├── 01-hash-fusion/chapter.md     # Layer 1: primitive
-├── 02-values/chapter.md          # Layer 2: data model
-├── 03-stores/chapter.md          # Layer 3: persistence/distribution
+├── 01-stores/chapter.md          # Layer 1: persistence (new Ch. 1)
+├── 02-hash-fusion/chapter.md     # Layer 2: primitive (was Ch. 1)
+├── 03-values/chapter.md          # Layer 3: data model (was Ch. 2)
 ├── 04-authorization/chapter.md   # Layer 4: PoP, GET/PUT, auth stores, GC
 ├── 05-sharing/chapter.md         # Layer 5: shares map, claim, conventions
 └── appendices/
@@ -27,9 +27,9 @@ docs/book/
 
 | Source | Target |
 |--------|--------|
-| spec/SPEC.md §Hash–Fuse | 01 |
-| spec/SPEC.md §Primitives–HAMT | 02 |
-| spec/SPEC.md §Storage–Dist | 03 |
+| spec/SPEC.md §Storage–Dist | 01 |
+| spec/SPEC.md §Hash–Fuse | 02 |
+| spec/SPEC.md §Primitives–HAMT | 03 |
 | spec/SPEC.md (serialization) | appendices/serialization.md |
 | auth-design §1–5, App A( GC) | 04 |
 | auth-design §6(peer) | 03+04 |
