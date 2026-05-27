@@ -9,7 +9,33 @@ Everything else — integers, strings, vectors, sets, even negative
 sets — is a convention built from these three. The system is small
 because the primitives are powerful.
 
-## 2.1 Three Primitives
+## 2.1 Values Know Their Store and Hash
+
+Every Dacite value carries two pieces of metadata:
+
+- **hash** — its content-addressed identity (via `dacite-hash`)
+- **store** — the store that created and persists it
+
+```clojure
+(def v (dacite/vector store 1 2 3))
+
+(dacite-hash v)
+;; => [c0 c1 c2 c3]  ; the 4-long hash
+
+(dacite-store v)
+;; => #<DaciteStore ...>  ; the store that owns this value
+```
+
+The store reference enables transparent persistence: when you `assoc`
+a Dacite map or `conj` a Dacite vector, the new value is automatically
+stored in the same backing storage. You don't thread the store through
+every operation — values know where they belong.
+
+This also means **values are tied to their store**. A value created in
+store A cannot be directly inserted into store B; you must first migrate
+the underlying content (or use ref push — see Chapter 3).
+
+## 2.2 Three Primitives
 
 ### Scalar
 
@@ -23,7 +49,7 @@ scalar_hash = fuse_bytes(raw_bytes)
 
 A scalar is untyped at the primitive level. The byte `0x61` and the
 character `'a'` are the same scalar if they have the same bytes. Types
-give meaning to scalars — that's §2.2.
+give meaning to scalars — that's §2.3.
 
 Examples of scalar data:
 - Null (0 bytes)
@@ -35,7 +61,7 @@ Examples of scalar data:
 ### Seq
 
 A **seq** is an ordered collection of references, implemented as a
-finger tree (§2.5). It is the universal building block for ordered data.
+finger tree (§2.6). It is the universal building block for ordered data.
 
 A seq's hash is its **semantic hash** — derived from fusing all
 elements in order:
@@ -52,7 +78,7 @@ same order.
 ### Map
 
 A **map** is an unordered collection of key-value pairs, implemented
-as a HAMT (§2.6). Each entry contributes `fuse(key_hash, value_hash)`
+as a HAMT (§2.7). Each entry contributes `fuse(key_hash, value_hash)`
 to the map's semantic hash:
 
 ```
@@ -500,21 +526,43 @@ Convenience functions that compose from the primitives:
 |----------|------------|-------------|
 | `hamt-count` | `(hamt-measure m).count` | Entry count, O(1) |
 
-**Built-in type constructors** — all derived from `typed-value` + `scalar`:
+**Built-in type constructors** — all take store as first argument, then the value data:
 
-| Function | Derivation |
-|----------|------------|
-| `dac-null` | `typed-value("null", scalar([]))` |
-| `dac-bool` | `typed-value("bool", scalar([0\|1]))` |
-| `dac-int` | `typed-value("i64", scalar(big-endian))` etc. |
-| `dac-float` | `typed-value("f32"\|"f64", scalar(ieee754))` |
-| `dac-char` | `typed-value("char", scalar(utf8))` |
-| `dac-negative` | `typed-value("negative", dac-null)` |
-| `dac-string` | `typed-value("string", seq(chars...))` |
-| `dac-blob` | `typed-value("blob", seq(bytes...))` |
-| `dac-vector` | `typed-value("vector", seq(values...))` |
-| `dac-set` | `typed-value("set", self-map(values...))` |
-| `dac-map` | `typed-value("map", map(entries...))` |
+| Function | Signature | Derivation |
+|----------|-----------|------------|
+| `dac-null` | `(store) → Value` | `typed-value("null", scalar([]))` |
+| `dac-bool` | `(store, boolean) → Value` | `typed-value("bool", scalar([0\|1]))` |
+| `dac-int` | `(store, integer) → Value` | `typed-value("i64", scalar(big-endian))` etc. |
+| `dac-float` | `(store, float) → Value` | `typed-value("f32"\|"f64", scalar(ieee754))` |
+| `dac-char` | `(store, char) → Value` | `typed-value("char", scalar(utf8))` |
+| `dac-negative` | `(store) → Value` | `typed-value("negative", dac-null)` |
+| `dac-string` | `(store, string) → Value` | `typed-value("string", seq(chars...))` |
+| `dac-blob` | `(store, bytes) → Value` | `typed-value("blob", seq(bytes...))` |
+| `dac-vector` | `(store, values...) → Value` | `typed-value("vector", seq(values...))` |
+| `dac-set` | `(store, values...) → Value` | `typed-value("set", self-map(values...))` |
+| `dac-map` | `(store, kvs...) → Value` | `typed-value("map", map(entries...))` |
+
+Use `partial` to bind a store for convenience:
+
+```clojure
+(def my-vec (partial dacite/vector store))
+(def my-map (partial dacite/hash-map store))
+
+(my-vec 1 2 3)        ;; => store-aware vector
+(my-map :a 1 :b 2)    ;; => store-aware map
+```
+
+**Value accessors**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `dacite-hash` | `Value → Hash` | Content-addressed identity (4-long hash) |
+| `dacite-store` | `Value → Store` | The store that created and persists this value |
+
+The store reference enables transparent persistence. When you `assoc`
+a map or `conj` a vector, the resulting value is automatically stored
+in the same backing storage — no explicit store parameter needed for
+operations, only for construction.
 
 **Set operations** — derived from HAMT primitives + `dac-negative`:
 
@@ -546,8 +594,9 @@ Convenience functions that compose from the primitives:
 - `union(complement(A), A)` = universal set (negative empty)
 - `intersect(A, complement(A))` = empty set
 
-**This layer depends only on Layer 1 (hash).** No I/O, no persistence,
-no state beyond the values themselves. All functions are pure.
+This layer depends only on Layer 1 (hash).** No I/O required for
+pure operations, though values carry a store reference for transparent
+persistence when mutated. All primitive functions are pure.
 
 ## 2.9 What This Layer Provides
 
@@ -563,6 +612,8 @@ The value layer gives the rest of Dacite:
    node is ever "too big to fetch."
 5. **Semantic equality** — two structures with the same logical
    content have the same hash, regardless of internal organization.
+6. **Store-aware** — values know their store, enabling transparent
+   persistence on mutation.
 
 The next chapter adds persistence: how values move between memory,
 disk, and the network.
