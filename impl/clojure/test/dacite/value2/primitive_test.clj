@@ -14,7 +14,7 @@
 (deftest test-raw-bytes-stores-and-retrieves
   (let [store (store/mem-store)
         data (.getBytes "hello" "UTF-8")
-        [store' h] (prim/raw-bytes store data)]
+        [store' h] (prim/store-bytes store data)]
     ;; MemStore is mutable (returns same instance), so check content instead
     (is (some? (store/s-get store' h)) "Data is retrievable from store")
     (is (vector? h) "Hash is a vector of 4 longs")
@@ -27,20 +27,20 @@
 (deftest test-raw-bytes-content-addressed
   (let [store (store/mem-store)
         data (.getBytes "same" "UTF-8")
-        [store' h1] (prim/raw-bytes store data)
-        [store'' h2] (prim/raw-bytes store' data)]
+        [store' h1] (prim/store-bytes store data)
+        [store'' h2] (prim/store-bytes store' data)]
     (is (= h1 h2) "Same data = same hash")
     (is (identical? store' store'') "Store unchanged on second store (already present)")))
 
 (deftest test-raw-bytes-different-data-different-hashes
   (let [store (store/mem-store)
-        [store' h1] (prim/raw-bytes store (.getBytes "a" "UTF-8"))
-        [store'' h2] (prim/raw-bytes store' (.getBytes "b" "UTF-8"))]
+        [store' h1] (prim/store-bytes store (.getBytes "a" "UTF-8"))
+        [store'' h2] (prim/store-bytes store' (.getBytes "b" "UTF-8"))]
     (is (not= h1 h2) "Different data = different hash")))
 
 (deftest test-raw-bytes-empty-array
   (let [store (store/mem-store)
-        [store' h] (prim/raw-bytes store (byte-array 0))]
+        [store' h] (prim/store-bytes store (byte-array 0))]
     (is (vector? h) "Empty array still produces a hash")
     ;; The hash is fuse-bytes of empty array = identity [0 0 0 0]
     (is (= [0 0 0 0] h) "Empty array hashes to identity")))

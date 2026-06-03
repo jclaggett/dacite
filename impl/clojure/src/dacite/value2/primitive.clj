@@ -17,7 +17,7 @@
 ;; Raw primitives
 ;; =============================================================================
 
-(defn raw-bytes
+(defn store-bytes
   "Store a raw byte array. Returns [store' hash].
 
    The hash is computed from the bytes via fuse-bytes (dogfooding the
@@ -84,33 +84,33 @@
 ;; Convenience: store typed numeric scalars via raw-bytes
 ;; =============================================================================
 
-(defn raw-i8   [store n] (raw-bytes store (i8->bytes n)))
-(defn raw-i16  [store n] (raw-bytes store (i16->bytes n)))
-(defn raw-i32  [store n] (raw-bytes store (i32->bytes n)))
-(defn raw-i64  [store n] (raw-bytes store (i64->bytes n)))
-(defn raw-f32  [store n] (raw-bytes store (f32->bytes n)))
-(defn raw-f64  [store n] (raw-bytes store (f64->bytes n)))
-(defn raw-u8   [store n] (raw-bytes store (u8->bytes n)))
-(defn raw-u16  [store n] (raw-bytes store (u16->bytes n)))
-(defn raw-u32  [store n] (raw-bytes store (u32->bytes n)))
-(defn raw-u64  [store n] (raw-bytes store (u64->bytes n)))
-(defn raw-char [store c] (raw-bytes store (char->bytes c)))
+(defn raw-i8   [store n] (store-bytes store (i8->bytes n)))
+(defn raw-i16  [store n] (store-bytes store (i16->bytes n)))
+(defn raw-i32  [store n] (store-bytes store (i32->bytes n)))
+(defn raw-i64  [store n] (store-bytes store (i64->bytes n)))
+(defn raw-f32  [store n] (store-bytes store (f32->bytes n)))
+(defn raw-f64  [store n] (store-bytes store (f64->bytes n)))
+(defn raw-u8   [store n] (store-bytes store (u8->bytes n)))
+(defn raw-u16  [store n] (store-bytes store (u16->bytes n)))
+(defn raw-u32  [store n] (store-bytes store (u32->bytes n)))
+(defn raw-u64  [store n] (store-bytes store (u64->bytes n)))
+(defn raw-char [store c] (store-bytes store (char->bytes c)))
 
 (defn raw-u256
   "Store a 32-byte value (e.g. a hash as data)."
   [store ^bytes data]
   {:pre [(= 32 (alength data))]}
-  (raw-bytes store data))
+  (store-bytes store data))
 
 (defn raw-null
   "Store the null value (0 bytes)."
   [store]
-  (raw-bytes store (byte-array 0)))
+  (store-bytes store (byte-array 0)))
 
 (defn raw-bool
   "Store a boolean as 1 byte (0x00 or 0x01)."
   [store b]
-  (raw-bytes store (byte-array [(if b (byte 1) (byte 0))])))
+  (store-bytes store (byte-array [(if b (byte 1) (byte 0))])))
 
 ;; =============================================================================
 ;; REPL examples
@@ -119,7 +119,7 @@
 (comment
   ;; Raw bytes
   (let [store (store/mem-store)
-        [store' h] (raw-bytes store (.getBytes "hello" "UTF-8"))]
+        [store' h] (store-bytes store (.getBytes "hello" "UTF-8"))]
     [(hash/hash->hex h)
      (String. (store/s-get store' h) "UTF-8")])
   ;; => ["..." "hello"]
@@ -137,6 +137,6 @@
         [store' h-true] (raw-bool store true)
         [store'' h-false] (raw-bool store' false)]
     [(seq (store/s-get store'' h-true))
-     (seq (store/s-get store'' h-false))])
+     (seq (store/s-get store'' h-false))]))
   ;; => [(1) (0)]
-  )
+

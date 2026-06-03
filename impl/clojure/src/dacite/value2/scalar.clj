@@ -31,8 +31,8 @@
     "Store a typed value [type-name, data-bytes].
      Returns [store' hash] where hash = fuse(type-hash, data-hash)."
     [store type-name ^bytes data-bytes]
-    (let [[store' type-hash] (prim/raw-bytes store (.getBytes ^String type-name "UTF-8"))
-          [store'' data-hash] (prim/raw-bytes store' data-bytes)
+    (let [[store' type-hash] (prim/store-bytes store (.getBytes ^String type-name "UTF-8"))
+          [store'' data-hash] (prim/store-bytes store' data-bytes)
           tuple-hash (hash/unchecked-fuse type-hash data-hash)
           store''' (store/s-put store'' tuple-hash [type-hash data-hash])]
       [store''' tuple-hash]))
