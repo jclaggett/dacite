@@ -7,15 +7,16 @@
 
    Core design:
    - store  : the IStore where the value's data lives
-   - hash   : content-addressed pointer to a typed node [\"type\" {...}]
-   - type   : cached type string (e.g. \"i64\", \"vector\")
-   - data   : cached type-specific payload (e.g. {:root h, :count n})
+   - hash   : content-addressed pointer to a typed value [type-hash data-hash]
+   - type   : cached type string (e.g. i64, vector)
+   - data   : cached type-specific payload (decoded from raw bytes)
 
    All values are immutable. Operations return new DaciteValues.
 
    Constructors are pure: they take a store and return [store' hash].
    A convenience layer (with-store / current-store) sits on top."
   (:require [dacite.store :as store]
+            [dacite.value2.primitive :as prim]
             [dacite.value2.scalar :as scalar]))
 
 ;; =============================================================================
@@ -24,9 +25,9 @@
 
 (defrecord DaciteValue [store hash type data]
   ;; store : IStore implementation
-  ;; hash  : 4-long vector (content-addressed hash)
+  ;; hash  : 4-long vector (content-addressed hash = fuse(type-hash, data-hash))
   ;; type  : string (e.g. "i64", "vector", "map")
-  ;; data  : type-specific payload (e.g. 42, {:root h, :count n})
+  ;; data  : decoded payload (e.g. 42, "hello", {:root h, :count n})
   )
 
 ;; =============================================================================
@@ -52,19 +53,61 @@
 ;; =============================================================================
 
 (defn- fetch-by-hash
-  "Fetch a typed value [type data] from a store by hash.
-   Returns [type data] or nil if not found."
+  "Fetch a typed value [type-hash data-hash] from a store by hash.
+   Returns [type-hash data-hash] or nil if not found."
   [store h]
   (when-let [entry (store/s-get store h)]
     (when (and (vector? entry) (= 2 (count entry)))
       entry)))
 
+(defn- decode-scalar-data
+  "Decode raw bytes to a Clojure value based on type string.
+   Returns the decoded value or nil for unsupported types."
+  [type-str raw-bytes]
+  (case type-str
+    "null" nil
+    "bool" (= 1 (aget raw-bytes 0))
+    "i8" (aget raw-bytes 0)
+    "i16" (let [buf (java.nio.ByteBuffer/wrap raw-bytes)]
+            (.getShort buf))
+    "i32" (let [buf (java.nio.ByteBuffer/wrap raw-bytes)]
+            (.getInt buf))
+    "i64" (let [buf (java.nio.ByteBuffer/wrap raw-bytes)]
+            (.getLong buf))
+    "u8" (bit-and (aget raw-bytes 0) 0xFF)
+    "u16" (let [buf (java.nio.ByteBuffer/wrap raw-bytes)]
+            (bit-and (.getShort buf) 0xFFFF))
+    "u32" (let [buf (java.nio.ByteBuffer/wrap raw-bytes)]
+            (bit-and (.getInt buf) 0xFFFFFFFF))
+    "u64" (let [buf (java.nio.ByteBuffer/wrap raw-bytes)
+                val (.getLong buf)]
+            (if (neg? val)
+              (+ val 18446744073709551616N)
+              val))
+    "u256" raw-bytes
+    "f32" (let [buf (java.nio.ByteBuffer/wrap raw-bytes)]
+            (.getFloat buf))
+    "f64" (let [buf (java.nio.ByteBuffer/wrap raw-bytes)]
+            (.getDouble buf))
+    "char" (let [s (String. raw-bytes "UTF-8")]
+             (if (= 1 (count s))
+               (first s)
+               s))
+    "negative" nil
+    ;; Default: return raw bytes for unknown types
+    raw-bytes))
+
 (defn make-value
   "Create a DaciteValue from a store and hash.
-   Fetches the type and data from the store. Returns nil if hash not found."
+   Fetches and decodes the type and data from the store.
+   Returns nil if hash not found or data incomplete."
   [store h]
-  (when-let [[type data] (fetch-by-hash store h)]
-    (->DaciteValue store h type data)))
+  (when-let [[type-hash data-hash] (fetch-by-hash store h)]
+    (when-let [type-bytes (prim/fetch-raw store type-hash)]
+      (when-let [data-bytes (prim/fetch-raw store data-hash)]
+        (let [type-str (String. ^bytes type-bytes "UTF-8")
+              decoded-data (decode-scalar-data type-str data-bytes)]
+          (->DaciteValue store h type-str decoded-data))))))
 
 ;; =============================================================================
 ;; Value predicates
@@ -136,11 +179,11 @@
 
   ;; Convenience constructor
   (with-store (store/mem-store)
-    (let [[_ v] (c-i64 42)]
+    (let [v (c-i64 42)]
       (value-type v))) ;; => "i64"
 
   ;; Check if scalar
   (with-store (store/mem-store)
-    (let [[_ v] (c-i64 42)]
+    (let [v (c-i64 42)]
       (scalar? v))) ;; => true
   )
