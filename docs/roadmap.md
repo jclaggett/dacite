@@ -96,7 +96,23 @@ Reimplementing values with store-awareness and type information.
 - [ ] Config management (nested maps with diff/merge)
 - [ ] File sync (directory tree as nested maps/blobs)
 
-## 7. Performance & Polish
+## Open Questions / Future Work
+
+### User Types (Open Type System)
+
+See `docs/design/future/user-types.md` for full vision.
+
+Brief: future open type system where users define types via shape+operation specs,
+both stored as Dacite values. Types themselves have hashes. Core primitive types
+are well-known entries in the type registry. Requires current type implementation
+to use hash-based type identifiers and dispatch-based encoding/decoding.
+
+**Status:** Design only, not scheduled.
+
+### Other Future Work
+
+- [ ] Sorted map/set (requires comparator-as-data)
+- [ ] CRDT-style collaboration examples
 
 - [ ] Memoize scalar constructors (singleton hashes for `null`, `true`, `false`)
 - [ ] Benchmarks (construction, lookup, `dac->clj`, `size-bytes`)
