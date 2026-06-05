@@ -1,16 +1,144 @@
 (ns dacite.value2.types
   "Dacite type system for value2.
 
-   All Dacite values are [type, data] tuples stored in a content-addressed store.
+   Two layers:
+   1. Wire protocol: leading byte tag for primitive types (0x00-0xFE),
+      0xFF indicates user type followed by 32-byte type hash.
+   2. Store level: every value is stored as [type-hash data-hash]
+      where type-hash is the content hash of the type name (for primitives,
+      precomputed).
+
    This namespace defines:
+   - Primitive type byte tags and precomputed type hashes
    - typed-value-hash for content addressing of typed values
    - node-hash for internal tree nodes
    - child-hashes for extracting child references
    - encode-value for canonical byte encoding
-   
+
    Scalars are stored directly as [type data].
    Collections store metadata like {:root hash :count n :size-bytes n}."
   (:require [dacite.hash :as hash]))
+
+;; =============================================================================
+;; Primitive type byte tags
+;; =============================================================================
+
+(def ^:const tag-null     (byte 0x00))
+(def ^:const tag-bool     (byte 0x01))
+(def ^:const tag-i8       (byte 0x02))
+(def ^:const tag-i16      (byte 0x03))
+(def ^:const tag-i32      (byte 0x04))
+(def ^:const tag-i64      (byte 0x05))
+(def ^:const tag-u8       (byte 0x06))
+(def ^:const tag-u16      (byte 0x07))
+(def ^:const tag-u32      (byte 0x08))
+(def ^:const tag-u64      (byte 0x09))
+(def ^:const tag-u256     (byte 0x0A))
+(def ^:const tag-f32      (byte 0x0B))
+(def ^:const tag-f64      (byte 0x0C))
+(def ^:const tag-char     (byte 0x0D))
+(def ^:const tag-negative (byte 0x0E))
+
+;; Map from tag byte to primitive type name string
+(def tag->type-name
+  "Map from primitive tag byte to type name string."
+  {tag-null     "null"
+   tag-bool     "bool"
+   tag-i8       "i8"
+   tag-i16      "i16"
+   tag-i32      "i32"
+   tag-i64      "i64"
+   tag-u8       "u8"
+   tag-u16      "u16"
+   tag-u32      "u32"
+   tag-u64      "u64"
+   tag-u256     "u256"
+   tag-f32      "f32"
+   tag-f64      "f64"
+   tag-char     "char"
+   tag-negative "negative"})
+
+;; Map from primitive type name string to tag byte
+(def type-name->tag
+  "Map from type name string to primitive tag byte."
+  (into {} (map (fn [[k v]] [v k]) tag->type-name)))
+
+;; =============================================================================
+;; Precomputed type hashes for primitives
+;; =============================================================================
+
+(defonce ^:private primitive-type-hash-cache
+  (atom {}))
+
+(defn primitive-type-hash
+  "Return the precomputed type hash for a primitive type name.
+   Lazily computes and caches the hash on first access.
+   The hash is fuse-str of the type name string bytes."
+  [type-name]
+  (if-let [cached (get @primitive-type-hash-cache type-name)]
+    cached
+    (let [h (hash/fuse-str type-name)]
+      (swap! primitive-type-hash-cache assoc type-name h)
+      h)))
+
+(defn primitive-type-tag
+  "Return the primitive type tag byte for a type name, or nil if not primitive."
+  [type-name]
+  (get type-name->tag type-name))
+
+(defn type-tag->hash
+  "Return the precomputed type hash for a primitive tag byte, or nil."
+  [tag]
+  (when-let [type-name (get tag->type-name tag)]
+    (primitive-type-hash type-name)))
+
+(defn type-hash->tag
+  "Return the primitive type tag byte for a type hash, or nil if not a primitive hash."
+  [type-hash]
+  (let [cache @primitive-type-hash-cache]
+    (some (fn [[type-name h]]
+            (when (= h type-hash)
+              (get type-name->tag type-name)))
+          cache)))
+
+;; Eagerly precompute all primitive type hashes
+(doseq [[_ type-name] tag->type-name]
+  (primitive-type-hash type-name))
+
+;; =============================================================================
+;; Typed value hash
+;; =============================================================================
+
+(defn typed-value-hash
+  "Compute the hash of a typed value [type-hash, data-hash].
+
+   hash = fuse(type-hash, data-hash)
+
+   For primitive types, type-hash is the precomputed hash of the type name.
+   For user types (future), the type hash is passed directly."
+  [type-hash data-hash]
+  (hash/unchecked-fuse type-hash data-hash))
+
+;; =============================================================================
+;; Node hash
+;; =============================================================================
+
+(def ^:private ^bytes null-separator
+  "Domain separator byte (0x00) between type name and data."
+  (byte-array [0]))
+
+(def ^:private null-separator-hash
+  (hash/fuse-bytes null-separator))
+
+(defn node-hash
+  "Compute the hash of an internal tree node.
+
+   node_hash = fuse(fuse-str(node-type-name ++ 0x00), elements-fuse)"
+  [type-name elements-fuse]
+  (let [type-bytes (.getBytes ^String type-name "UTF-8")]
+    (-> (hash/fuse-bytes type-bytes)
+        (hash/unchecked-fuse null-separator-hash)
+        (hash/unchecked-fuse elements-fuse))))
 
 ;; =============================================================================
 ;; Canonical value encoding (multimethod)
@@ -108,38 +236,6 @@
 
 (defmethod encode-value "negative" [[_ _]]
   (byte-array []))
-
-;; =============================================================================
-;; Typed value and node hashing
-;; =============================================================================
-
-(def ^:private ^bytes null-separator
-  "Domain separator byte (0x00) between type name and data."
-  (byte-array [0]))
-
-(def ^:private null-separator-hash
-  (hash/fuse-bytes null-separator))
-
-(defn typed-value-hash
-  "Compute the hash of a typed value [type-name, data].
-
-   hash = fuse-bytes(type-name-bytes ++ 0x00 ++ encode(data))"
-  [[type-name _data :as typed-value]]
-  (let [type-bytes (.getBytes ^String type-name "UTF-8")
-        data-bytes (encode-value typed-value)]
-    (-> (hash/fuse-bytes type-bytes)
-        (hash/unchecked-fuse null-separator-hash)
-        (hash/unchecked-fuse (hash/fuse-bytes data-bytes)))))
-
-(defn node-hash
-  "Compute the hash of an internal tree node.
-
-   node_hash = fuse(fuse-str(node-type-name ++ 0x00), elements-fuse)"
-  [type-name elements-fuse]
-  (let [type-bytes (.getBytes ^String type-name "UTF-8")]
-    (-> (hash/fuse-bytes type-bytes)
-        (hash/unchecked-fuse null-separator-hash)
-        (hash/unchecked-fuse elements-fuse))))
 
 ;; =============================================================================
 ;; Child hash extraction (multimethod)
