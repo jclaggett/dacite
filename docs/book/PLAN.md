@@ -2,7 +2,7 @@
 
 ## Concept
 
-Reorganized around five conceptual layers (expanded from four). Each chapter
+Reorganized around three conceptual layers (down from five). Each chapter
 stands alone; read sequentially for full picture.
 
 ## Structure
@@ -10,11 +10,12 @@ stands alone; read sequentially for full picture.
 ```
 docs/book/
 ├── 00-preface.md
-├── 01-stores/chapter.md          # Layer 1: persistence (new Ch. 1)
-├── 02-hash-fusion/chapter.md     # Layer 2: primitive (was Ch. 1)
-├── 03-values/chapter.md          # Layer 3: data model (was Ch. 2)
-├── 04-authorization/chapter.md   # Layer 4: PoP, GET/PUT, auth stores, GC
-├── 05-sharing/chapter.md         # Layer 5: shares map, claim, conventions
+├── 01-stores/chapter.md          # Layer 1: persistence
+├── 02-hash-fusion/chapter.md     # Layer 2: primitive
+├── 03-values/chapter.md          # Layer 3: data model
+├── archive/                      # Historical chapters (superseded)
+│   ├── 04-authorization/         # Layer 4: auth (archived 2026-06-05)
+│   └── 05-sharing/               # Layer 5: sharing (archived 2026-06-05)
 └── appendices/
     A-design-evolution.md
     B-rejected-alternatives.md
@@ -31,32 +32,35 @@ docs/book/
 | spec/SPEC.md §Hash–Fuse | 02 |
 | spec/SPEC.md §Primitives–HAMT | 03 |
 | spec/SPEC.md (serialization) | appendices/serialization.md |
-| auth-design §1–5, App A( GC) | 04 |
-| auth-design §6(peer) | 03+04 |
-| auth-design §7–9, App B–D | 05 |
-| ... | ...
+| ~~auth-design §1–5, App A(GC)~~ | ~~04~~ (archived) |
+| ~~auth-design §6(peer)~~ | ~~03+04~~ (archived) |
+| ~~auth-design §7–9, App B–D~~ | ~~05~~ (archived) |
+| ... | ... |
+
+> **Note**: Chapters 4 & 5 (authorization, sharing) archived 2026-06-05.
+> See `archive/README.md`. The events-based design supersedes them.
 
 ## Reading Order vs Implementation Layering
 
-**Reading order** (the book): stores → hash fusion → values → authorization → sharing.
+**Reading order** (the book): stores → hash fusion → values.
 
 **Implementation layering** (the library): two foundational packages with no dependency on the value model — **hash** (fuse, byte table, protocol id) and **stores** (content-addressed persistence, root ref, backends). Everything else builds on one or both:
 
 ```
 hash ─────────────┐
-                  ├──► values ──► authorized stores ──► sharing (conventions)
+                  ├──► values
 stores ───────────┘
 ```
 
-Values combine hashing with store-backed nodes. Authorization extends stores; sharing is conventions on top of authorized stores. The book introduces stores before hash for pedagogy; in code, `dacite.store` and `dacite.hash` are peers at the bottom of the stack.
+Values combine hashing with store-backed nodes.
+
+The book introduces stores before hash for pedagogy; in code, `dacite.store` and `dacite.hash` are peers at the bottom of the stack.
 
 | Book ch. | Topic | Library |
 |----------|-------|---------|
 | 1 | Stores | `dacite.store` (foundational) |
 | 2 | Hash fusion | `dacite.hash` (foundational) |
 | 3 | Values | `dacite.value.*` (→ hash + stores) |
-| 4 | Authorization | `dacite.auth` (→ stores + values) |
-| 5 | Sharing | conventions (→ auth + values) |
 
 ## Writing Approach
 

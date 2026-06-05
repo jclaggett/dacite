@@ -1,72 +1,112 @@
 # Dacite Roadmap
 
+## Current Direction (2026-06-05)
+
+**Architecture shift:** Dacite service provides **dedicated stores per user** (not a shared multi-user store). This eliminates the need for Proof of Possession, authorization, and sharing layers entirely. User isolation by architecture, not convention.
+
+**Value model shift:** All Dacite Values now explicitly carry their Store. Constructors take store as first parameter and return `[store' hash]`. Values are effectively `[store hash]` pairs — you cannot operate on a value without knowing which store it lives in. This is analogous to how in-memory data structures implicitly have access to RAM.
+
+## 0. Value Model Rework (IN PROGRESS)
+
+Reimplementing values with store-awareness and type information.
+
+**Status:**
+- [x] Core observation: values need stores (like RAM for data structures)
+- [x] `value2/` namespace tree started (`primitive.clj`, `scalar.clj`, `types.clj`)
+- [ ] **Type information design** — how should types be captured? (current topic)
+- [ ] Seq primitive (finger tree of hashes) — needed for `[type-hash data-hash]` tuples
+- [ ] Map primitive (HAMT of hash→hash)
+- [ ] Port collection types to new model
+- [ ] Port `dac->clj` / `clj->dac` conversion
+- [ ] Port test suite
+
 ## 1. Core Data Structures
 
-**Have:** scalar types, strings (finger tree of chars), vectors (finger tree of element hashes), maps (HAMT), blobs (finger tree of bytes)
+**Have (in old model):** scalar types, strings, vectors, maps, blobs, sets
 
-- [x] **Blob** — finger tree of raw bytes, parallel to string. `d/blob`, `dac->clj`/`clj->dac` support, `size-bytes`
-- [x] **Set** — sets are maps where key equals value (`{x x}`). No new type needed. Content addressing means zero storage overhead for the duplicate reference. Convenience functions (`hash-set`, `union`, `intersect`, `diff`, `negate`) go in a utility namespace, not core.
-  - **Negative sets**: a `neg` sentinel element inverts set membership, enabling cofinite sets (e.g. blacklists). `{neg 1 2 3}` = "everything except 1, 2, 3". Pure convention, not enforced by core.
-- [x] **Refs purged from collections** — collection nodes now store only `{:root h :size-bytes n}`. No flat element vectors. Finger tree `tree-nth` provides O(log n) indexed access via measures.
-- [x] **Sorted map** — **will not implement**. Requires comparator functions represented as data so peers can agree on ordering; complexity disproportionate to value. Users who need sorted traversal can sort keys client-side.
-- [x] **Sorted set** — same decision (depends on sorted map)
+**Need (in new model):**
+- [ ] All collection types rebuilt on `value2` primitives
+- [ ] `size-bytes` via finger tree measures (port from old model)
+- [ ] Set as `{x x}` maps (port from old model)
+- [ ] Negative sets (cofinite sets via `neg` sentinel)
+
+**Explicitly not implementing:**
+- [x] ~~Sorted map/set~~ — requires comparator-as-data; complexity disproportionate to value
 
 ## 2. Store Protocol
 
-**Have:** `IStore` protocol with `s-get`, `s-put`, `s-has?`, `s-snapshot`, `s-merge`, `s-reset`. Three implementations.
+**Have:** `IStore` protocol with `s-get`, `s-put`, `s-has?`, `s-snapshot`, `s-merge`, `s-reset`
 
-- [x] **IStore protocol** — minimal interface in `dacite.store`
-- [x] **Mem store** — atom-backed in-memory store (default)
-- [x] **File store** — content-addressed filesystem with directory sharding (like git objects)
-- [x] **Layered store** — compose stores with read-through; writes go to all layers
-- [ ] **LRU cache store** — bounded memory with eviction, backed by a slower store
+**Status:**
+- [x] IStore protocol
+- [x] Mem store
+- [x] File store (content-addressed filesystem with directory sharding)
+- [x] Layered store (compose with read-through; writes to all layers)
+- [ ] **LRU cache store** — bounded memory with eviction
+- [ ] **Remote store** — `IStore` backed by network endpoint. Primary transfer mechanism for cloud service. Lazy `s-get` fetches on demand via store layering.
 - [ ] **Read-through / write-through policies** — configurable per layer
-- [ ] **Lazy fetch** — types that resolve their data on access, not on construction
+
+**For cloud service:** Remote store is the key unlock. Each user gets a dedicated store on the server, accessed via remote `IStore` implementation.
 
 ## 3. Serialization
 
-**Have:** `dacite.serial` namespace with binary serialize/deserialize for all node types.
+**Have:** `dacite.serial` with binary format for all node types (spec v0.4.0-draft)
 
-- [x] **Binary format** — canonical byte encoding per spec v0.4.0-draft
-  - Kind 0x00: Scalars (tag + u8 len + canonical bytes)
-  - Kind 0x01: Seq nodes (finger tree internals — empty, single, digit, node, deep)
-  - Kind 0x02: Map nodes (HAMT internals — empty, entry, bitmap)
-  - Kind 0x03: Collections (vector, string, blob, map — 42-byte fixed headers)
-- [x] **Scalar encoding** — `encode-value` multimethod with canonical big-endian/IEEE 754/UTF-8
-- [ ] **Remote store** — `IStore` implementation backed by a network endpoint; lazy `s-get` fetches nodes on demand. This is the primary transfer mechanism — no bulk walks, just cache-on-access through store layering.
-- [ ] **Guarded walk** — explicit opt-in transitive closure walk with safety bounds (depth limit, byte budget, hash count cap). For small-value export/import and debugging. Not the default path.
-- [ ] **Content negotiation** — different representations for different transports
+**Status:**
+- [x] Binary format (scalars, seq nodes, map nodes, collections)
+- [x] Scalar encoding
+- [ ] **Remote store serialization** — wire format for `s-get`/`s-put` over network
+- [ ] **Guarded walk** — explicit opt-in transitive closure with safety bounds (depth, byte budget, hash count). For export/import, not default path.
+- [ ] Content negotiation
 
-## 4. Documentation & Spec
+## 4. Cloud Service
 
-**Have:** spec v0.4.0-draft (with collection serialization), development dialogue, README
+**Goal:** Dacite service providing dedicated cloud-based Dacite Stores.
+
+**Not needed (architecturally eliminated):**
+- [x] ~~Proof of Possession~~ — no shared store, no need to prove key ownership
+- [x] ~~Authorization layer~~ — dedicated stores per user
+- [x] ~~Sharing mechanisms~~ — out of scope for core; handle at higher protocol level
 
 **Need:**
-- [ ] **API docs** — codox or cljdoc for the public API
-- [ ] **Spec update to v0.5** — reflect strings-as-finger-trees, size-bytes, blob type, set type, refs removal
-- [ ] **Architecture guide** — the store layering story, "hashes as pointers" mental model
-- [ ] **Tutorial** — build something real with Dacite step by step
+- [ ] User account management
+- [ ] Store provisioning (one store per user)
+- [ ] Remote store protocol (HTTP/gRPC/WebSocket?)
+- [ ] Authentication (who owns this store?)
+- [ ] Store persistence/backup
 
-## 5. Example Use Cases
+## 5. Documentation & Spec
 
-Concrete things to build that prove the architecture:
-- [ ] **Version-controlled document** — a map that tracks its own history via hash chains
-- [ ] **CRDT-style collaboration** — two peers editing the same structure, merging via content addressing
-- [ ] **File sync** — represent a directory tree as nested maps/blobs, sync between stores
-- [ ] **Event log** — append-only vector where each entry references the previous hash (blockchain-lite)
-- [ ] **Config management** — nested maps with diff/merge operations
+**Have:** Spec v0.4.0-draft, development dialogue, README, book chapters 1-3
 
-## 6. Performance & Polish
+**Need:**
+- [ ] **Spec update to v0.5** — reflect new value model (store-aware, type system)
+- [ ] **Book chapter rewrite** — chapters 1-3 updated for new model
+- [ ] API docs
+- [ ] Architecture guide (store layering, "hashes as pointers", dedicated stores)
+- [ ] Tutorial
 
-- [ ] **Memoize scalar constructors** — includes singleton hashes for `null`, `true`, `false`
-- [ ] **Benchmarks** — construction, lookup, `dac->clj`, `size-bytes` at various scales
-- [ ] **Print methods** — custom `print-method` for Dacite types so REPL output is readable
-- [ ] **Error messages** — better errors when store misses occur (hash not found)
-- [ ] **`IReduce` / `IKVReduce`** — remaining Clojure interfaces for efficient reduction
+**Archived:**
+- [x] ~~Chapters 4 (authorization) & 5 (sharing)~~ — superseded by dedicated store model. See `docs/book/archive/`.
 
-## Test Coverage (as of 2026-02-25)
+## 6. Example Use Cases
 
-298+ tests, 1350+ assertions, 0 failures.
+- [ ] Version-controlled document (map tracking history via hash chains)
+- [ ] Event log (append-only vector with hash references)
+- [ ] Config management (nested maps with diff/merge)
+- [ ] File sync (directory tree as nested maps/blobs)
+
+## 7. Performance & Polish
+
+- [ ] Memoize scalar constructors (singleton hashes for `null`, `true`, `false`)
+- [ ] Benchmarks (construction, lookup, `dac->clj`, `size-bytes`)
+- [ ] Print methods for readable REPL output
+- [ ] Error messages for store misses
+- [ ] `IReduce` / `IKVReduce` interfaces
+
+## Test Coverage (as of 2026-03-19)
+
+345 tests, 1413 assertions, 0 failures.
 
 | Namespace          | Forms  | Lines  |
 |--------------------|--------|--------|
@@ -77,12 +117,13 @@ Concrete things to build that prove the architecture:
 | dacite.serial      | —      | —      |
 | dacite.store       | ~88%   | 100%   |
 | dacite.types       | 100%   | 100%   |
-| **ALL FILES**      | **96.23%** | **99.55%** |
+| **ALL FILES**      | **96.72%** | **99.55%** |
+
+**Note:** Test numbers are for old model. Will need rebuild for value2.
 
 ## Suggested Order
 
 ```
-remote store → set utilities → examples
+type information design → seq/map primitives → port collections →
+port tests → remote store → cloud service MVP
 ```
-
-Serialization of individual nodes is done. The next architectural unlock is a **remote store** — an `IStore` backed by a network endpoint, composed via `LayeredStore` for transparent lazy fetching with local caching. Dacite values can be arbitrarily large (larger than any single store), so the default transfer model is lazy node-at-a-time access, not bulk graph walks. Exhaustive walks are an explicit opt-in operation with safety bounds. Set utility functions (`union`, `intersect`, `negate`, etc.) can come whenever — they're pure library code on top of maps.
