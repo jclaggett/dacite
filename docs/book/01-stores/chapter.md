@@ -2,99 +2,25 @@
 
 This chapter introduces **stores** — the persistence layer at the bottom of Dacite. A store is two things at once:
 
-1. A **content-addressed map** from 256-bit hashes to typed, serialized entries
+1. A **content-addressed map** from 256-bit hashes to byte arrays
 2. A **mutable root** (via Clojure's `IRef`) that points at one hash in that map
 
-Each entry in a store is a pair: `hash → [type, bytes]`. The **type** is a primitive type tag from a closed set that tells you how to interpret the bytes. The **bytes** are the type-specific payload.
+Each entry in a store is a pair: `hash → bytes`. The store knows nothing about the structure or meaning of the bytes — it simply maps hashes to opaque values.
 
-Chapter 2 explains how hashes are computed. Chapter 3 defines the value model built on top of stores. Here we stay at the persistence layer: entry types, the `IStore` protocol, implementations, and sync.
+Chapter 2 explains how hashes are computed. Chapter 3 defines the value model built on top of stores. Here we stay at the persistence layer: the `IStore` protocol, implementations, and sync.
 
 ## 1.1 Store Entries
 
 Every entry in a store has the same structure:
 
 ```
-hash → [type, bytes]
+hash → bytes
 ```
 
 - **hash**: A 256-bit content hash (4 × 64-bit integers)
-- **type**: A primitive type tag from the closed set defined below
-- **bytes**: The serialized payload, whose format depends on the type
+- **bytes**: An opaque byte array. The store neither knows nor interprets its structure.
 
-This is self-describing at the structural level. Given a hash, you can fetch its type without deserializing the payload. Given the type, you know how to deserialize the bytes.
-
-### Primitive Types (Closed Set)
-
-The primitive types are partitioned into three categories:
-
-**Scalars** — atomic values with no internal structure:
-- `:null` — empty, no bytes
-- `:bool` — 1 byte (0x00 or 0x01)
-- `:i8`, `:i16`, `:i32`, `:i64` — signed integers, big-endian, fixed width
-- `:u8`, `:u16`, `:u32`, `:u64` — unsigned integers, big-endian, fixed width
-- `:f32`, `:f64` — IEEE 754 floats, big-endian
-- `:char` — Unicode scalar value, UTF-8 encoded
-
-**Sequence Nodes** — internal nodes of finger trees (used by vectors, strings, blobs):
-- `:ft-empty` — empty sequence
-- `:ft-single` — single element
-- `:ft-digit` — small sequence fragment (2-4 elements)
-- `:ft-node` — internal tree node
-- `:ft-deep` — deep tree with left/right spines
-
-**Map Nodes** — internal nodes of hash array mapped tries (used by maps and sets):
-- `:hamt-empty` — empty map
-- `:hamt-entry` — single key-value entry
-- `:hamt-bitmap` — compressed branching node
-
-**Compound** — the bridge from storage to value types:
-- `:compound` — a user-facing value (vector, string, blob, map, set) whose specific type is identified by a type hash in its payload
-
-### Binary Format
-
-Each entry is serialized to bytes as:
-
-```
-u8(type) + payload
-```
-
-The type byte is a single unsigned byte encoding the primitive type. The payload format is type-specific:
-
-- **Scalars**: Fixed-width encoding (e.g., `:i64` → 8 bytes big-endian)
-- **Sequence nodes**: Measure (48 bytes) + child hashes (variable)
-- **Map nodes**: Measure (48 bytes) + type-specific fields
-- **Compound**: Type hash (32 bytes) + root hash (32 bytes) + count (u64) + size-bytes (u64)
-
-The type byte values are assigned in ranges:
-
-```
-0x00-0x0F    scalars
-0x10-0x1F    sequence nodes
-0x20-0x2F    map nodes
-0x30-0x3F    compound and reserved
-```
-
-### Compound Entries and Value Types
-
-A `:compound` entry carries a **type hash** that identifies its semantic type:
-
-```clojure
-;; Compound payload structure
-{:type-hash hash    ;; hash of the type definition
- :root hash        ;; hash of the root structural node
- :count u64         ;; element count
- :size-bytes u64}   ;; total serialized size
-```
-
-The type hash is a content hash of a type definition. For built-in types, these are precomputed from canonical string representations:
-
-- `"vector"` → a well-known hash
-- `"string"` → a well-known hash
-- `"blob"` → a well-known hash
-- `"map"` → a well-known hash
-- `"set"` → a well-known hash
-
-In the future, user-defined types work the same way: store a type definition, get its hash, use that hash in compound entries. The storage layer does not distinguish built-in from user-defined types — it only sees `:compound` entries with type hashes.
+The store is a pure key/value mapping. All interpretation of the stored bytes happens in higher layers (Chapter 3).
 
 ## 1.2 Store as Ref
 
@@ -121,21 +47,23 @@ Underneath the ref interface, every store implements `IStore` for content-addres
 
 ```clojure
 (defprotocol IStore
-  (fetch [store hash] "Return [type bytes] or nil")
-  (store [store type bytes] "Store [type bytes], return content hash")
-  (s-type [store hash] "Return primitive type for hash, or nil")
-  (s-has? [store hash] "Check if hash exists in backing storage"))
+  (s-get [store hash] "Return bytes or nil")
+  (s-put [store hash bytes] "Store bytes at hash, return store")
+  (s-has? [store hash] "Check if hash exists")
+  (s-snapshot [store] "Return map of all {hash → bytes}")
+  (s-merge [store m] "Merge {hash → bytes} into store")
+  (s-reset [store] "Clear all entries"))
 ```
 
 Typical usage at this layer:
 
 ```clojure
-;; Store a typed entry
-(def h (store store :i64 (encode-i64 42)))
+;; Store a value
+(def h (hash-of-value))
+(s-put store h some-bytes)
 
 ;; Fetch back
-(fetch store h)   ;; => [:i64 <8 bytes>]
-(s-type store h)  ;; => :i64
+(s-get store h)   ;; => some-bytes
 (s-has? store h)  ;; => true
 ```
 
@@ -162,7 +90,7 @@ The root entry lives in the backing map at the root hash, just like any other en
 
 Any entry reachable from the current root is **live**. Entries that were previously reachable but are no longer part of the root tree are **detached**. They remain in the backing storage until garbage collection runs.
 
-Because entries are self-describing (they carry their type), GC can traverse the tree without external knowledge: given a hash, fetch its type, deserialize just enough to find child hashes, recurse.
+GC is a Chapter 3 concern: given a hash, the value layer knows how to deserialize the bytes, discover child references, and recurse. The store itself knows nothing about structure.
 
 ## 1.6 Store Implementations
 
@@ -218,10 +146,9 @@ Push is intentionally simple: it sends a hash. Applications decide when and wher
 ## 1.8 What This Layer Provides
 
 1. A single, well-defined root per store, accessed via `IRef`
-2. Self-describing entries: `hash → [type, bytes]`
-3. A closed set of primitive types for scalars, internal nodes, and compound values
-4. Content-addressed `fetch` / `store` / `s-type` / `s-has?`
-5. Composable implementations (memory, disk, layered)
-6. Ref push as a sync primitive
+2. Opaque entries: `hash → bytes`
+3. Content-addressed `s-get` / `s-put` / `s-has?` / `s-snapshot` / `s-merge` / `s-reset`
+4. Composable implementations (memory, disk, layered)
+5. Ref push as a sync primitive
 
-Chapter 2 defines how node hashes are formed. Chapter 3 builds the value model on top of this layer. Chapter 4 adds authorization on top of the root model.
+Chapter 2 defines how hashes are formed. Chapter 3 builds the value model on top of this layer. Chapter 4 adds authorization on top of the root model.

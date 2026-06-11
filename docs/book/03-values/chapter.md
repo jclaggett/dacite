@@ -6,17 +6,19 @@ identity, tree-shape independence, and decomposability. This chapter
 builds the **value model** on both foundations: scalars, seqs, maps, and
 the typed conventions layered on top.
 
-Dacite has exactly **three primitives**: scalar, seq, and map.
+Dacite has exactly **four primitives**: scalar, seq, map, and compound.
 Everything else — integers, strings, vectors, sets, even negative
-sets — is a convention built from these three. The system is small
+sets — is a convention built from these four. The system is small
 because the primitives are powerful.
 
-## 3.1 Values Know Their Store and Hash
+## 3.1 Values Know Their Store, Hash, Type, and Content
 
-Every Dacite value carries two pieces of metadata:
+Every Dacite value carries four pieces of metadata:
 
-- **hash** — its content-addressed identity (via `dacite-hash`)
 - **store** — the store that created and persists it
+- **hash** — its content-addressed identity (via `dacite-hash`)
+- **type** — a string identifying its semantic type (e.g. `"i64"`, `"vector"`)
+- **content** — the value itself, accessible via `deref`
 
 ```clojure
 (def v (dacite/vector store 1 2 3))
@@ -37,7 +39,9 @@ This also means **values are tied to their store**. A value created in
 store A cannot be directly inserted into store B; you must first migrate
 the underlying content (or use ref push — see Chapter 1).
 
-## 3.2 Three Primitives
+## 3.2 Four Primitives
+
+Dacite has four primitive kinds: scalar, seq, map, and compound.
 
 ### Scalar
 
@@ -51,7 +55,7 @@ scalar_hash = fuse_bytes(raw_bytes)
 
 A scalar is untyped at the primitive level. The byte `0x61` and the
 character `'a'` are the same scalar if they have the same bytes. Types
-give meaning to scalars — that's §3.3.
+give meaning to scalars — that's §3.5.
 
 Examples of scalar data:
 - Null (0 bytes)
@@ -91,41 +95,52 @@ Because fuse is non-commutative, the order matters — but HAMT
 traversal visits entries in ascending key-hash order, making the
 fuse chain deterministic regardless of insertion order.
 
+### Compound
+
+A **compound** is a typed wrapper around either a seq or a map. It is
+the bridge between the primitive layer and user-facing types. Every
+compound has:
+
+- a **type name** — a string like `"vector"`, `"string"`, `"map"`, `"set"`
+- a **root** — a hash pointing to the underlying seq or map
+
+```
+compound_hash = fuse(type_name_hash, root_hash)
+```
+
+The type name itself is a seq of character scalars. Its hash is the
+semantic hash of that seq. This means the type name contributes to
+the compound's content address — a vector and a string with the same
+underlying elements have different hashes.
+
 ### That's It
 
-Three primitives, three hash rules. Every structure in Dacite — from
+Four primitives, four hash rules. Every structure in Dacite — from
 a 64-bit integer to a terabyte dataset — is built from scalars
-referenced by seqs and maps.
+referenced by seqs, maps, and compounds.
 
-## 3.3 Typed Values
+## 3.3 Typed Values (Conventions on Primitives)
 
 Scalars are raw bytes. A seq is just references. How do we know that
 `[0x00, 0x00, 0x00, 0x2A]` is the integer 42 and not four null bytes?
 
-**Types are data.** A typed value is a 2-element seq:
+**Types are conventions, not primitives.** A typed value is a
+primitive value plus an interpretation:
 
-```
-typed_value = seq(type_name, data)
-```
+- **Scalar types** (`"null"`, `"bool"`, `"i64"`, etc.) — interpret raw
+  bytes according to a type convention
+- **Collection types** (`"vector"`, `"string"`, `"map"`, `"set"`) —
+  compounds whose type name determines the interpretation of the
+  underlying seq or map
 
-Where:
-- **Position 0** — the type name (itself a seq of char scalars)
-- **Position 1** — the data (any primitive: scalar, seq, or map)
-
-This is a convention, not enforced by the storage layer. The system
-treats typed values as ordinary seqs. The "typed" interpretation is
-applied by consumers.
-
-### Type Names
-
-A type name is a seq of character scalars:
+The type name itself is a seq of character scalars:
 
 ```
 type_name("string") = seq('s', 't', 'r', 'i', 'n', 'g')
 ```
 
-Type names are self-documenting. Given any typed value, read position 0
-to discover its type. No registry. No schema negotiation.
+Type names are self-documenting. Given any typed value, read its type
+name to discover its interpretation. No registry. No schema negotiation.
 
 Built-in types use bare names: `"string"`, `"i64"`, `"vector"`.
 User-defined types should use namespaced names (`"myapp/user"`) to
@@ -161,63 +176,55 @@ Strip the type tag, compare the remainder. If a `"string"` and a
 are identical — because the data is literally the same content-addressed
 structure.
 
-```mermaid
-graph TD
-    S["string 'abc'"] --> SH["typed_hash"]
-    V["vector ['a','b','c']"] --> VH["typed_hash"]
-
-    SH -->|"unfuse type tag"| SC["content_hash"]
-    VH -->|"unfuse type tag"| VC["content_hash"]
-
-    SC -. "==" .-> VC
-
-    style SC fill:#4a9,stroke:#333,color:#fff
-    style VC fill:#4a9,stroke:#333,color:#fff
-```
-
 ## 3.4 Built-in Types
 
-All built-in types follow the `seq(type_name, data)` convention:
+All built-in types are conventions on the four primitives:
 
-| Type Name | Data | Description |
-|-----------|------|-------------|
-| `"null"` | null scalar (0 bytes) | Unit type |
-| `"bool"` | 1-byte scalar | `0x00` = false, `0x01` = true |
-| `"i8"` … `"i256"` | 1–32 byte scalar (big-endian, signed) | Signed integers |
-| `"u8"` … `"u256"` | 1–32 byte scalar (big-endian, unsigned) | Unsigned integers |
-| `"f32"`, `"f64"` | 4 or 8 byte scalar (IEEE 754) | Floating point |
-| `"char"` | 1–4 byte scalar (UTF-8) | Unicode character |
-| `"negative"` | null scalar | Sentinel for negative sets |
+**Scalar types** — interpret raw bytes as a specific value:
+
+| Type Name | Bytes | Description |
+|-----------|-------|-------------|
+| `"null"` | 0 bytes | Unit type |
+| `"bool"` | 1 byte | `0x00` = false, `0x01` = true |
+| `"i8"` … `"i256"` | 1–32 bytes big-endian signed | Signed integers |
+| `"u8"` … `"u256"` | 1–32 bytes big-endian unsigned | Unsigned integers |
+| `"f32"`, `"f64"` | 4 or 8 bytes IEEE 754 | Floating point |
+| `"char"` | 1–4 bytes UTF-8 | Unicode character |
+| `"negative"` | 0 bytes | Sentinel for negative sets |
+
+**Compound types** — wrap a seq or map with a type name:
+
+| Type Name | Underlying | Description |
+|-----------|------------|-------------|
 | `"string"` | seq of char scalars | UTF-8 string |
 | `"blob"` | seq of byte scalars | Binary data |
 | `"vector"` | seq of arbitrary typed values | Ordered collection |
 | `"set"` | HAMT self-map | Set (positive or negative) |
 | `"map"` | HAMT of key-value pairs | Associative collection |
 
-Scalar types (`null` through `char`) wrap a single scalar in a typed
-seq. Collection types (`string` through `map`) wrap a tree root — the
-typed value is a thin header over the content-addressed tree.
+Scalar types are interpretations of the scalar primitive. Collection
+types are compounds — a type name plus a reference to a seq or map.
 
 ### Strings and Blobs
 
 Strings and blobs are both seqs of scalars, but with different type
 names. A string is a seq of `char` scalars; a blob is a seq of `u8`
-scalars. The type tag in the hash prevents collisions even when the
-underlying bytes are identical — the string `"A"` (UTF-8 `0x41`) and
-a 1-byte blob containing `0x41` have different hashes.
+scalars. The type name in the compound hash prevents collisions even
+when the underlying bytes are identical — the string `"A"` (UTF-8
+`0x41`) and a 1-byte blob containing `0x41` have different hashes.
 
 Internally, both use the same finger tree machinery. The difference
-is purely semantic.
+is purely the compound wrapper's type name.
 
 ## 3.5 Sets and Negative Sets
 
 ### The Set Type
 
-A `"set"` is a typed value wrapping a self-map — a HAMT where every
+A `"set"` is a compound wrapping a self-map — a HAMT where every
 key maps to itself:
 
 ```
-set({a, b, c}) = seq("set", map({a: a, b: b, c: c}))
+set({a, b, c}) = compound("set", map({a: a, b: b, c: c}))
 ```
 
 Content addressing means the key and value point to the same hash —
@@ -232,14 +239,14 @@ negative (cofinite) sets — sets that represent "everything except
 these elements":
 
 ```
-negative = seq("negative", null)
+negative = compound("negative", null_scalar)
 ```
 
 A **negative set** is a `"set"` whose self-map includes the `negative`
 sentinel as an element:
 
 ```
-negative_set({a, b}) = seq("set", map({negative: negative, a: a, b: b}))
+negative_set({a, b}) = compound("set", map({negative: negative, a: a, b: b}))
 ```
 
 Membership is inverted: `x` is a member if `get(set.data, x) == nil`
@@ -470,13 +477,11 @@ structure; the cryptographic hash gives you adversarial resistance.
 
 The irreducible core of the value layer:
 
-**Construction**
+**Scalar**
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `scalar` | `bytes → Scalar` | Create a scalar from raw bytes |
-| `typed-value` | `(string, Primitive) → Seq` | Create `seq(type_name, data)` |
-| `typed-hash` | `(string, Hash) → Hash` | Compute hash with null separator |
+| `scalar` | `bytes → Scalar` | Create a scalar from raw bytes. Hash = `fuse_bytes(bytes)`. |
 
 **Seq (Finger Tree)**
 
@@ -504,6 +509,12 @@ The irreducible core of the value layer:
 | `hamt-dissoc` | `(Map, Hash) → Map` | Remove by key hash |
 | `hamt-measure` | `Map → Measure` | Root measure (count, size, fuse) |
 
+**Compound**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `compound` | `(String, Hash) → Compound` | Create compound from type name and root hash. Hash = `fuse(type_name_hash, root_hash)`. |
+
 **Measure**
 
 | Function | Signature | Description |
@@ -530,19 +541,19 @@ Convenience functions that compose from the primitives:
 
 **Built-in type constructors** — all take store as first argument, then the value data:
 
-| Function | Signature | Derivation |
-|----------|-----------|------------|
-| `dac-null` | `(store) → Value` | `typed-value("null", scalar([]))` |
-| `dac-bool` | `(store, boolean) → Value` | `typed-value("bool", scalar([0\|1]))` |
-| `dac-int` | `(store, integer) → Value` | `typed-value("i64", scalar(big-endian))` etc. |
-| `dac-float` | `(store, float) → Value` | `typed-value("f32"\|"f64", scalar(ieee754))` |
-| `dac-char` | `(store, char) → Value` | `typed-value("char", scalar(utf8))` |
-| `dac-negative` | `(store) → Value` | `typed-value("negative", dac-null)` |
-| `dac-string` | `(store, string) → Value` | `typed-value("string", seq(chars...))` |
-| `dac-blob` | `(store, bytes) → Value` | `typed-value("blob", seq(bytes...))` |
-| `dac-vector` | `(store, values...) → Value` | `typed-value("vector", seq(values...))` |
-| `dac-set` | `(store, values...) → Value` | `typed-value("set", self-map(values...))` |
-| `dac-map` | `(store, kvs...) → Value` | `typed-value("map", map(entries...))` |
+| Function | Signature | Primitive | Description |
+|----------|-----------|-----------|-------------|
+| `dac-null` | `(store) → Value` | Scalar | Empty scalar, type `"null"` |
+| `dac-bool` | `(store, boolean) → Value` | Scalar | 1-byte scalar, type `"bool"` |
+| `dac-int` | `(store, integer) → Value` | Scalar | Big-endian scalar, type `"i64"` etc. |
+| `dac-float` | `(store, float) → Value` | Scalar | IEEE 754 scalar, type `"f32"`/`"f64"` |
+| `dac-char` | `(store, char) → Value` | Scalar | UTF-8 scalar, type `"char"` |
+| `dac-negative` | `(store) → Value` | Scalar | Null scalar, type `"negative"` |
+| `dac-string` | `(store, string) → Value` | Compound | Type `"string"`, root = seq of chars |
+| `dac-blob` | `(store, bytes) → Value` | Compound | Type `"blob"`, root = seq of bytes |
+| `dac-vector` | `(store, values...) → Value` | Compound | Type `"vector"`, root = seq of values |
+| `dac-set` | `(store, values...) → Value` | Compound | Type `"set"`, root = self-map |
+| `dac-map` | `(store, kvs...) → Value` | Compound | Type `"map"`, root = map of entries |
 
 Use `partial` to bind a store for convenience:
 
