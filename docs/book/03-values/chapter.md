@@ -3,21 +3,17 @@
 Chapter 1 gave us **stores** — a content-addressed map and a mutable
 root ref. Chapter 2 gave us **fuse** and three guarantees: content
 identity, tree-shape independence, and decomposability. This chapter
-builds the **value model** on both foundations: scalars, seqs, maps, and
-the typed conventions layered on top.
-
-Dacite has exactly **four primitives**: scalar, seq, map, and compound.
-Everything else — integers, strings, vectors, sets, even negative
-sets — is a convention built from these four. The system is small
-because the primitives are powerful.
+builds the **value model** on both foundations: a closed set of six
+user value kinds — scalars, vectors, strings, blobs, maps, and sets —
+together with the internal primitives that implement them.
 
 ## 3.1 Values Know Their Store, Hash, Type, and Content
 
-Every Dacite value carries four pieces of metadata:
+Every Dacite value carries four pieces of data:
 
 - **store** — the store that created and persists it
 - **hash** — its content-addressed identity (via `dacite-hash`)
-- **type** — a string identifying its semantic type (e.g. `"i64"`, `"vector"`)
+- **type** — a string identifying its kind (e.g. `"i64"`, `"vector"`)
 - **content** — the value itself, accessible via `deref`
 
 ```clojure
@@ -28,6 +24,9 @@ Every Dacite value carries four pieces of metadata:
 
 (dacite-store v)
 ;; => #<DaciteStore ...>  ; the store that owns this value
+
+(dacite-type v)
+;; => "vector"  ; the value's type name
 ```
 
 The store reference enables transparent persistence: when you `assoc`
@@ -39,148 +38,117 @@ This also means **values are tied to their store**. A value created in
 store A cannot be directly inserted into store B; you must first migrate
 the underlying content (or use ref push — see Chapter 1).
 
-## 3.2 Four Primitives
+## 3.2 A Closed Set of User Values
 
-Dacite has four primitive kinds: scalar, seq, map, and compound.
+Dacite exposes a **closed set** of six user value kinds:
 
-### Scalar
+- **scalar** — an atomic, typed value: a number, character, boolean, or null
+- **vector** — an ordered collection of values
+- **string** — text: an ordered collection of characters
+- **blob** — binary data: an ordered collection of bytes
+- **map** — an associative collection of key/value pairs
+- **set** — an unordered collection of distinct values
 
-A **scalar** is an atomic, bounded-size value — the only primitive that
-contains raw bytes rather than references to other values. Maximum
-size: 255 bytes (encoded as a u8 length prefix).
+Scalars are atomic. The other five are collections, and they are not
+primitive all the way down — they are assembled from **internal value
+primitives**:
 
-```
-scalar_hash = fuse_bytes(raw_bytes)
-```
+- **Finger-tree nodes** implement the sequence types: vector, string,
+  and blob (§3.6).
+- **HAMT nodes** implement the associative types: map and set (§3.7).
 
-A scalar is untyped at the primitive level. The byte `0x61` and the
-character `'a'` are the same scalar if they have the same bytes. Types
-give meaning to scalars — that's §3.5.
+Internal nodes are real content-addressed values with their own type
+names and hashes, but they are never handed to users directly. They
+exist only to give the user types their shape and performance.
 
-Examples of scalar data:
-- Null (0 bytes)
-- A boolean (1 byte: `0x00` or `0x01`)
-- A big-endian integer (1–32 bytes depending on width)
-- An IEEE 754 float (4 or 8 bytes)
-- A single UTF-8 character (1–4 bytes)
+The set of user types is fixed, but it is not special-cased in the
+storage layer: a type is just a string of characters (§3.3). The
+vocabulary could grow in the future without changing any of the
+machinery below.
 
-### Seq
+## 3.3 How Every Value Is Hashed
 
-A **seq** is an ordered collection of references, implemented as a
-finger tree (§3.6). It is the universal building block for ordered data.
-
-A seq's hash is its **semantic hash** — derived from fusing all
-elements in order:
-
-```
-seq_hash = fuse(fuse(fuse(e0, e1), e2), ..., en)
-```
-
-Because fuse is associative, this hash is the same regardless of how
-the seq is split internally. A balanced finger tree and a degenerate
-one produce the same seq hash if they contain the same elements in the
-same order.
-
-### Map
-
-A **map** is an unordered collection of key-value pairs, implemented
-as a HAMT (§3.7). Each entry contributes `fuse(key_hash, value_hash)`
-to the map's semantic hash:
+Every Dacite value — user-facing or internal — is hashed by the same
+rule:
 
 ```
-map_hash = fuse(entry_0, fuse(entry_1, ...))
+value_hash = fuse(type_hash, data_hash)
 ```
 
-Because fuse is non-commutative, the order matters — but HAMT
-traversal visits entries in ascending key-hash order, making the
-fuse chain deterministic regardless of insertion order.
+### The Type Hash
 
-### Compound
-
-A **compound** is a typed wrapper around either a seq or a map. It is
-the bridge between the primitive layer and user-facing types. Every
-compound has:
-
-- a **type name** — a string like `"vector"`, `"string"`, `"map"`, `"set"`
-- a **root** — a hash pointing to the underlying seq or map
+The **type hash** identifies the kind of value. It is the fuse of the
+type name's characters followed by a terminating `0x00` byte:
 
 ```
-compound_hash = fuse(type_name_hash, root_hash)
+type_hash = fuse_bytes(type_name ++ [0x00])
 ```
 
-The type name itself is a seq of character scalars. Its hash is the
-semantic hash of that seq. This means the type name contributes to
-the compound's content address — a vector and a string with the same
-underlying elements have different hashes.
+Type names are ordinary character strings — `"i64"`, `"vector"`,
+`"ft/node"`. Because type names never contain a null byte, the trailing
+`0x00` cleanly separates the type from the data that follows. Without a
+boundary marker, type `"i64"` with data `"2"` could collide with type
+`"i6"` and data `"42"` (fuse composes over concatenation). The `0x00`
+makes the boundary unambiguous.
 
-### That's It
+This is also what makes types self-describing: given any value, read its
+type name to discover its interpretation. No registry, no schema
+negotiation.
 
-Four primitives, four hash rules. Every structure in Dacite — from
-a 64-bit integer to a terabyte dataset — is built from scalars
-referenced by seqs, maps, and compounds.
+### The Data Hash
 
-## 3.3 Typed Values (Conventions on Primitives)
+The **data hash** captures the value's content. How it is computed
+depends on the kind of value:
 
-Scalars are raw bytes. A seq is just references. How do we know that
-`[0x00, 0x00, 0x00, 0x2A]` is the integer 42 and not four null bytes?
-
-**Types are conventions, not primitives.** A typed value is a
-primitive value plus an interpretation:
-
-- **Scalar types** (`"null"`, `"bool"`, `"i64"`, etc.) — interpret raw
-  bytes according to a type convention
-- **Collection types** (`"vector"`, `"string"`, `"map"`, `"set"`) —
-  compounds whose type name determines the interpretation of the
-  underlying seq or map
-
-The type name itself is a seq of character scalars:
+- **Scalar** — the fuse of its canonical bytes:
 
 ```
-type_name("string") = seq('s', 't', 'r', 'i', 'n', 'g')
+data_hash = fuse_bytes(canonical_bytes)
 ```
 
-Type names are self-documenting. Given any typed value, read its type
-name to discover its interpretation. No registry. No schema negotiation.
-
-Built-in types use bare names: `"string"`, `"i64"`, `"vector"`.
-User-defined types should use namespaced names (`"myapp/user"`) to
-avoid collisions.
-
-### The Null Separator
-
-The semantic hash of a typed value uses a null byte between the type
-name and data:
+- **Collection** — the fuse of all **leaf** element hashes, in sequence
+  order (vector, string, blob) or ascending key-hash order (map, set):
 
 ```
-typed_hash = fuse(fuse(fuse_str(type_name), fuse_bytes([0x00])), hash(data))
+data_hash = fuse(fuse(fuse(e0, e1), e2), ..., en)
 ```
 
-Why the separator? Because fuse composes over concatenation
-(`fuse(fuse_str(a), fuse_str(b)) = fuse_str(a ++ b)`). Without a
-boundary marker, type `"i64"` with data `"2"` would collide with type
-`"i6"` with data `"42"`. Since type names cannot contain null bytes,
-`0x00` is an unambiguous terminator.
+For collections, the data hash is built from the leaves **only**. The
+internal node type hashes (`ft/node`, `hamt/bitmap`, …) never enter it.
+This is deliberate — it is what makes the data hash **shape-independent**.
+
+### Shape Independence
+
+Because internal type hashes are excluded, two collections with the same
+leaves but different internal tree shapes produce the same data hash, and
+therefore the same value hash. A balanced finger tree and a degenerate
+one holding the same elements in the same order are indistinguishable by
+hash. This is what lets a store reorganize a collection for performance
+without changing its identity.
+
+(There is exactly one exception — HAMT bitmap nodes — explained in §3.7.)
 
 ### Cross-Type Equality
 
-Here's where Chapter 2's group structure pays off. Two typed values
-with different type names but the same underlying data can be compared
-in **O(1)**:
+Here is where Chapter 2's group structure pays off. Since
+`value_hash = fuse(type_hash, data_hash)`, the type hash can be stripped
+back off with the group inverse:
 
 ```
-content_hash(tv) = fuse(inv(type_name_hash), typed_hash)
+content_hash(v) = fuse(inv(type_hash), value_hash) = data_hash
 ```
 
-Strip the type tag, compare the remainder. If a `"string"` and a
-`"vector"` of chars share the same underlying seq, their content hashes
-are identical — because the data is literally the same content-addressed
-structure.
+Two values with different types but the same underlying data have the
+same content hash, computed in **O(1)**. A `"string"` and a `"vector"`
+holding the same characters share a data hash — because their leaves are
+literally the same content-addressed values — even though their full
+hashes differ by the type tag.
 
-## 3.4 Built-in Types
+## 3.4 The User Value Types
 
-All built-in types are conventions on the four primitives:
+The six user value kinds divide into atomic scalars and collections.
 
-**Scalar types** — interpret raw bytes as a specific value:
+**Scalar types** — an atomic value with a canonical byte encoding:
 
 | Type Name | Bytes | Description |
 |-----------|-------|-------------|
@@ -190,66 +158,69 @@ All built-in types are conventions on the four primitives:
 | `"u8"` … `"u256"` | 1–32 bytes big-endian unsigned | Unsigned integers |
 | `"f32"`, `"f64"` | 4 or 8 bytes IEEE 754 | Floating point |
 | `"char"` | 1–4 bytes UTF-8 | Unicode character |
-| `"negative"` | 0 bytes | Sentinel for negative sets |
+| `"negative"` | 0 bytes | Sentinel for negative sets (§3.5) |
 
-**Compound types** — wrap a seq or map with a type name:
+**Collection types** — a type hash over a tree of leaves:
 
-| Type Name | Underlying | Description |
-|-----------|------------|-------------|
-| `"string"` | seq of char scalars | UTF-8 string |
-| `"blob"` | seq of byte scalars | Binary data |
-| `"vector"` | seq of arbitrary typed values | Ordered collection |
-| `"set"` | HAMT self-map | Set (positive or negative) |
-| `"map"` | HAMT of key-value pairs | Associative collection |
+| Type Name | Leaves | Backed by | Description |
+|-----------|--------|-----------|-------------|
+| `"string"` | char scalars | finger tree | UTF-8 string |
+| `"blob"` | byte scalars | finger tree | Binary data |
+| `"vector"` | arbitrary values | finger tree | Ordered collection |
+| `"map"` | key/value pairs | HAMT | Associative collection |
+| `"set"` | distinct values | HAMT | Set (positive or negative) |
 
-Scalar types are interpretations of the scalar primitive. Collection
-types are compounds — a type name plus a reference to a seq or map.
+Scalar types are atomic. Collection types are backed by internal
+finger-tree or HAMT primitives (§3.6, §3.7); the type hash is what
+distinguishes, say, a vector from a set even when their leaves coincide.
 
-### Strings and Blobs
+### Strings, Blobs, and Vectors
 
-Strings and blobs are both seqs of scalars, but with different type
-names. A string is a seq of `char` scalars; a blob is a seq of `u8`
-scalars. The type name in the compound hash prevents collisions even
-when the underlying bytes are identical — the string `"A"` (UTF-8
-`0x41`) and a 1-byte blob containing `0x41` have different hashes.
+Strings, blobs, and vectors are all sequences over a finger tree; they
+differ only in their type name and the kind of leaves they hold. A
+string is a sequence of `char` scalars, a blob a sequence of `u8`
+scalars, a vector a sequence of arbitrary values.
 
-Internally, both use the same finger tree machinery. The difference
-is purely the compound wrapper's type name.
+The type hash keeps them distinct even when their bytes coincide: the
+string `"A"` (UTF-8 `0x41`) and a one-byte blob containing `0x41` have
+the same leaves but different type hashes, and therefore different value
+hashes. Internally they share the same finger-tree machinery; only the
+type hash differs.
 
 ## 3.5 Sets and Negative Sets
 
 ### The Set Type
 
-A `"set"` is a compound wrapping a self-map — a HAMT where every
-key maps to itself:
+A `"set"` is a user value backed by a **self-map** — a HAMT in which
+every key maps to itself:
 
 ```
-set({a, b, c}) = compound("set", map({a: a, b: b, c: c}))
+set({a, b, c})  →  type "set" over self-map {a: a, b: b, c: c}
 ```
 
 Content addressing means the key and value point to the same hash —
 zero additional storage for the "duplicate" reference.
 
-Membership test: `get(set.data, x) != nil`.
+Membership test: `get(self-map, x) != nil`.
 
 ### The Negative Sentinel
 
-The built-in type `"negative"` is a sentinel value used to denote
+The built-in scalar type `"negative"` is a sentinel used to denote
 negative (cofinite) sets — sets that represent "everything except
 these elements":
 
 ```
-negative = compound("negative", null_scalar)
+negative  →  scalar of type "negative" (empty data)
 ```
 
 A **negative set** is a `"set"` whose self-map includes the `negative`
 sentinel as an element:
 
 ```
-negative_set({a, b}) = compound("set", map({negative: negative, a: a, b: b}))
+negative_set({a, b})  →  type "set" over self-map {negative, a, b}
 ```
 
-Membership is inverted: `x` is a member if `get(set.data, x) == nil`
+Membership is inverted: `x` is a member if `get(self-map, x) == nil`
 (and `x` is not the `negative` sentinel itself).
 
 For a thorough treatment of negative sets — including proofs that
@@ -368,21 +339,28 @@ measures are internal bookkeeping, not user-facing hashes.
 The root's measure gives **O(1)** access to:
 - `count` — how many elements
 - `size_bytes` — total materialized size
-- `elements_fuse` — the seq's semantic hash
+- `elements_fuse` — the seq's data hash
 
 ### Node Hashing
 
-Internal nodes are hashed using their type name and semantic content:
+Internal nodes are hashed using their type name and semantic content,
+the same `type_hash` rule as every other value (§3.3):
 
 ```
 node_hash = fuse(fuse_str(node_type_name ++ "\0"), node.measure.elements_fuse)
 ```
 
-The null byte terminates the type name (same convention as typed
-values). Nodes with the same type and the same logical elements
-produce the same hash — different tree shapes normalize to a single
-hash in the store. This is correct because nodes with the same
-elements are functionally interchangeable.
+The null byte terminates the type name. Nodes with the same type and the
+same logical elements produce the same hash — different tree shapes
+normalize to a single hash in the store. This is correct because nodes
+with the same elements are functionally interchangeable.
+
+The `elements_fuse` a node caches is exactly the **data hash** a user
+sequence wraps. A `"vector"` value's hash is
+`fuse(type_hash("vector"), root.measure.elements_fuse)` — its type hash
+fused with the leaf fuse of its root node. The internal node's own type
+hash (`ft/node`, etc.) never reaches the vector's hash, which is
+precisely why the vector hash is shape-independent (§3.3).
 
 ## 3.7 Inside Maps: HAMT
 
@@ -431,7 +409,7 @@ not 32.
 HAMT traversal visits children in ascending bitmap order, which
 corresponds to ascending key hash order. This makes `elements_fuse`
 deterministic regardless of insertion order — two maps with the same
-entries always have the same semantic hash.
+entries always have the same data hash.
 
 ### HAMT Bitmap Node Hashing
 
@@ -441,12 +419,14 @@ Bitmap nodes include the bitmap value in their hash:
 hamt_bitmap_hash = fuse(node_hash, fuse_bytes(bitmap_as_8_bytes))
 ```
 
-This is the only exception to the "same elements → same hash" rule.
+This is the only exception to the shape-independence rule of §3.3.
 It's necessary because two bitmap nodes at different HAMT levels could
 have the same elements and element fuse but different bitmaps — meaning
 they route lookups differently and are **not** interchangeable. Without
 the bitmap in the hash, these nodes would collide, creating
-self-referential loops in the store.
+self-referential loops in the store. The exception is confined to
+internal bitmap nodes; a map's own data hash — the fuse of its leaf
+entries — remains shape-independent.
 
 ## 3.8 Collision Resistance
 
@@ -475,13 +455,14 @@ structure; the cryptographic hash gives you adversarial resistance.
 
 ### Primitives
 
-The irreducible core of the value layer:
+The irreducible core of the value layer — scalars plus the internal
+tree primitives the collection types are built from:
 
 **Scalar**
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `scalar` | `bytes → Scalar` | Create a scalar from raw bytes. Hash = `fuse_bytes(bytes)`. |
+| `scalar` | `(String, bytes) → Scalar` | Create a typed scalar. Value hash = `fuse(type_hash, fuse_bytes(bytes))`. |
 
 **Seq (Finger Tree)**
 
@@ -509,12 +490,6 @@ The irreducible core of the value layer:
 | `hamt-dissoc` | `(Map, Hash) → Map` | Remove by key hash |
 | `hamt-measure` | `Map → Measure` | Root measure (count, size, fuse) |
 
-**Compound**
-
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| `compound` | `(String, Hash) → Compound` | Create compound from type name and root hash. Hash = `fuse(type_name_hash, root_hash)`. |
-
 **Measure**
 
 | Function | Signature | Description |
@@ -539,21 +514,21 @@ Convenience functions that compose from the primitives:
 |----------|------------|-------------|
 | `hamt-count` | `(hamt-measure m).count` | Entry count, O(1) |
 
-**Built-in type constructors** — all take store as first argument, then the value data:
+**User value constructors** — all take store as first argument, then the value data:
 
-| Function | Signature | Primitive | Description |
-|----------|-----------|-----------|-------------|
+| Function | Signature | Kind | Description |
+|----------|-----------|------|-------------|
 | `dac-null` | `(store) → Value` | Scalar | Empty scalar, type `"null"` |
 | `dac-bool` | `(store, boolean) → Value` | Scalar | 1-byte scalar, type `"bool"` |
 | `dac-int` | `(store, integer) → Value` | Scalar | Big-endian scalar, type `"i64"` etc. |
 | `dac-float` | `(store, float) → Value` | Scalar | IEEE 754 scalar, type `"f32"`/`"f64"` |
 | `dac-char` | `(store, char) → Value` | Scalar | UTF-8 scalar, type `"char"` |
-| `dac-negative` | `(store) → Value` | Scalar | Null scalar, type `"negative"` |
-| `dac-string` | `(store, string) → Value` | Compound | Type `"string"`, root = seq of chars |
-| `dac-blob` | `(store, bytes) → Value` | Compound | Type `"blob"`, root = seq of bytes |
-| `dac-vector` | `(store, values...) → Value` | Compound | Type `"vector"`, root = seq of values |
-| `dac-set` | `(store, values...) → Value` | Compound | Type `"set"`, root = self-map |
-| `dac-map` | `(store, kvs...) → Value` | Compound | Type `"map"`, root = map of entries |
+| `dac-negative` | `(store) → Value` | Scalar | Empty scalar, type `"negative"` |
+| `dac-string` | `(store, string) → Value` | Collection | Type `"string"`, leaves = chars |
+| `dac-blob` | `(store, bytes) → Value` | Collection | Type `"blob"`, leaves = bytes |
+| `dac-vector` | `(store, values...) → Value` | Collection | Type `"vector"`, leaves = values |
+| `dac-set` | `(store, values...) → Value` | Collection | Type `"set"`, leaves = self-map entries |
+| `dac-map` | `(store, kvs...) → Value` | Collection | Type `"map"`, leaves = map entries |
 
 Use `partial` to bind a store for convenience:
 
@@ -571,6 +546,7 @@ Use `partial` to bind a store for convenience:
 |----------|-----------|-------------|
 | `dacite-hash` | `Value → Hash` | Content-addressed identity (4-long hash) |
 | `dacite-store` | `Value → Store` | The store that created and persists this value |
+| `dacite-type` | `Value → String` | The value's type name |
 
 The store reference enables transparent persistence. When you `assoc`
 a map or `conj` a vector, the resulting value is automatically stored
@@ -591,12 +567,12 @@ operations, only for construction.
 
 | Function | Derivation | Description |
 |----------|------------|-------------|
-| `content-hash` | `fuse(inv(type-name-hash), typed-hash)` | Strip type tag |
+| `content-hash` | `fuse(inv(type-hash), value-hash)` | Strip type tag, recover data hash |
 
 ### Properties
 
-- All typed values round-trip: construct → hash → reconstruct yields
-  same hash
+- All values round-trip: construct → hash → reconstruct yields
+  the same hash
 - `content-hash(string("abc"))` = `content-hash(vector(['a','b','c']))`
 - `count(conj-right(t, x))` = `count(t) + 1`
 - `nth(conj-right(empty, x), 0)` = `x`
@@ -615,16 +591,18 @@ persistence when mutated. All primitive functions are pure.
 
 The value layer gives the rest of Dacite:
 
-1. **A complete data model** — scalars, sequences, and maps compose
-   into arbitrarily complex structures, all content-addressed.
-2. **Open types** — any type name is a first-class value, no registry
-   needed. New types cost nothing.
-3. **O(1) metadata** — count, size, and semantic hash are always
+1. **A closed data model** — six user value kinds — scalars, vectors,
+   strings, blobs, maps, and sets — compose into arbitrarily complex
+   structures, all content-addressed.
+2. **Self-describing types** — every value names its own type, and a
+   type is just a string of characters. The user set is closed, but the
+   vocabulary can grow without new machinery.
+3. **O(1) metadata** — count, size, and data hash are always
    available at the root, without traversal.
 4. **Bounded nodes** — every node in every tree fits in ~1 KB. No
    node is ever "too big to fetch."
-5. **Semantic equality** — two structures with the same logical
-   content have the same hash, regardless of internal organization.
+5. **Shape independence** — two collections with the same leaves have
+   the same hash, regardless of internal tree organization.
 6. **Store-aware** — values know their store, enabling transparent
    persistence on mutation.
 
