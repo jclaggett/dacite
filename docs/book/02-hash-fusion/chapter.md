@@ -4,7 +4,7 @@ Chapter 1 introduced **stores** — a map from content hashes to serialized
 bytes, plus a mutable root. Every node in that map is keyed by its hash.
 This chapter defines how those hashes are formed.
 
-Everything in Dacite's compound structures is built on a single
+Everything in Dacite's composite structures is built on a single
 operation: **fuse**. It combines two 256-bit hashes into a new 256-bit
 hash using nothing more than integer arithmetic. No SHA-256 at runtime,
 no hash function calls in the critical path — just six additions and a
@@ -25,7 +25,8 @@ cells, chosen based on empirical testing of degeneration behavior (see
 
 This chapter introduces fuse, its algebraic properties, and how it
 turns raw bytes into content addresses. Chapter 3 applies these ideas to
-the value model (scalars, seqs, maps, and types).
+the value model: scalars, plus the vectors, strings, blobs, maps, and
+sets built on them.
 
 ## 2.1 Hashes as Four Words
 
@@ -174,8 +175,8 @@ Strip from the left: `fuse(inv(a), fused) = b`.
 
 ### What the Group Enables
 
-- **Cross-type equality** — strip a type tag hash to compare raw content
-  (see Chapter 3, Typed Values).
+- **Cross-type equality** — strip a type hash to compare the underlying
+  content (see Chapter 3, Cross-Type Equality).
 - **Hash recovery** — recover one component of a fused pair when the
   other is known.
 - **Incremental re-hashing** — update a fused chain without recomputing
@@ -211,8 +212,8 @@ Because fuse is associative:
 
 Composing fused results is equivalent to fusing the concatenation.
 This is both a feature (tree nodes can combine child hashes) and a
-constraint (domain separators are needed between fields — see
-Chapter 3).
+constraint (a domain separator is needed between a value's type and its
+data — see Chapter 3).
 
 ## 2.5 Protocol ID
 
@@ -255,7 +256,7 @@ fuse(a, b):
 ```
 
 An unchecked variant exists for internal use where inputs are known
-valid (e.g., combining measures within finger tree nodes).
+valid.
 
 ## 2.7 Why 4×4 with 64-bit Cells
 
@@ -390,5 +391,5 @@ Hash fusion gives the rest of Dacite three guarantees:
    apart, not just composed. This enables typed values, incremental
    updates, and cross-type comparisons.
 
-The next chapter builds the value model (scalars, seqs, maps, and types)
-on this foundation.
+The next chapter builds the value model — scalars, plus the vectors,
+strings, blobs, maps, and sets built on them — on this foundation.
