@@ -23,7 +23,7 @@ Every Dacite value carries four pieces of data:
   consume is fetched.
 
 ```clojure
-(def v (dacite/vector store 1 2 3))
+(def v (dacite/vector 1 2 3))
 
 (dacite-hash v)
 ;; => [c0 c1 c2 c3]  ; the 4-long hash
@@ -34,6 +34,19 @@ Every Dacite value carries four pieces of data:
 (dacite-type v)
 ;; => "vector"  ; the value's type name
 ```
+
+Most work happens in the context of a **current store** — a dynamic binding
+(`*store*` in the reference implementation) that defaults to an in-memory
+store for REPL use. Constructors such as `(dacite/vector 1 2 3)` persist
+into that store; the resulting value remembers which store created it.
+When you need a specific store — tests, migration, multiple stores — use
+the explicit `-with-store` variants:
+
+```clojure
+(dacite/vector-with-store store 1 2 3)
+```
+
+Use `with-store` to bind an isolated store for a block of code (see §3.9).
 
 The store reference enables transparent persistence: when you `assoc`
 a Dacite map or `conj` a Dacite vector, the new value is automatically
@@ -520,31 +533,44 @@ Convenience functions that compose from the primitives:
 |----------|------------|-------------|
 | `hamt-count` | `(hamt-measure m).count` | Entry count, O(1) |
 
-**User value constructors** — all take store as first argument, then the value data:
+**User value constructors** — implicit forms use the current store; explicit
+`-with-store` forms take a store as the first argument. Implicit constructors
+are the primary API; most application code never passes a store explicitly.
 
-| Function | Signature | Kind | Description |
-|----------|-----------|------|-------------|
-| `dac-null` | `(store) → Value` | Scalar | Empty scalar, type `"null"` |
-| `dac-bool` | `(store, boolean) → Value` | Scalar | 1-byte scalar, type `"bool"` |
-| `dac-int` | `(store, integer) → Value` | Scalar | Big-endian scalar, type `"i64"` etc. |
-| `dac-float` | `(store, float) → Value` | Scalar | IEEE 754 scalar, type `"f32"`/`"f64"` |
-| `dac-char` | `(store, char) → Value` | Scalar | UTF-8 scalar, type `"char"` |
-| `dac-negative` | `(store) → Value` | Scalar | Empty scalar, type `"negative"` |
-| `dac-string` | `(store, string) → Value` | Collection | Type `"string"`, leaves = chars |
-| `dac-blob` | `(store, bytes) → Value` | Collection | Type `"blob"`, leaves = bytes |
-| `dac-vector` | `(store, values...) → Value` | Collection | Type `"vector"`, leaves = values |
-| `dac-set` | `(store, values...) → Value` | Collection | Type `"set"`, leaves = self-map entries |
-| `dac-map` | `(store, kvs...) → Value` | Collection | Type `"map"`, leaves = map entries |
+| Function | Implicit signature | Explicit signature | Kind |
+|----------|-------------------|-------------------|------|
+| `null` | `() → Value` | `(store) → Value` | Scalar |
+| `bool` | `(boolean) → Value` | `(store, boolean) → Value` | Scalar |
+| `i64`, `f64`, … | `(data) → Value` | `(store, data) → Value` | Scalar |
+| `char` | `(char) → Value` | `(store, char) → Value` | Scalar |
+| `negative` | `() → Value` | `(store) → Value` | Scalar |
+| `string` | `(string) → Value` | `(store, string) → Value` | Collection |
+| `blob` | `(bytes) → Value` | `(store, bytes) → Value` | Collection |
+| `vector` | `(values...) → Value` | `(store, values...) → Value` | Collection |
+| `set` | `(values...) → Value` | `(store, values...) → Value` | Collection |
+| `map` | `(kvs...) → Value` | `(store, kvs...) → Value` | Collection |
+| `get-value` | `(hash) → Value \| nil` | `(store, hash) → Value \| nil` | Lookup |
 
-Use `partial` to bind a store for convenience:
+Examples:
 
 ```clojure
-(def my-vec (partial dacite/vector store))
-(def my-map (partial dacite/hash-map store))
+;; implicit — uses *store* (default or bound)
+(dacite/i64 42)
+(dacite/vector 1 2 3)
+(dacite/hash-map "a" 1 "b" 2)
 
-(my-vec 1 2 3)        ;; => store-aware vector
-(my-map :a 1 :b 2)    ;; => store-aware map
+;; explicit — when the store matters
+(dacite/i64-with-store store 42)
+(dacite/vector-with-store store 1 2 3)
+
+;; isolated context (testing, transactions)
+(store/with-store [s (store/mem-store)]
+  (dacite/vector 1 2 3))
 ```
+
+The `-with-store` suffix avoids the varargs ambiguity that would arise if
+store were an optional first argument to the same function — `(vector 1)` must
+mean a one-element vector, not an empty vector in store `1`.
 
 **Value accessors**
 
@@ -557,8 +583,8 @@ Use `partial` to bind a store for convenience:
 
 The store reference enables transparent persistence. When you `assoc`
 a map or `conj` a vector, the resulting value is automatically stored
-in the same backing storage — no explicit store parameter needed for
-operations, only for construction.
+in the same backing storage — no store parameter needed for operations
+or for construction in the common case.
 
 **Set operations** — derived from HAMT primitives + `dac-negative`:
 

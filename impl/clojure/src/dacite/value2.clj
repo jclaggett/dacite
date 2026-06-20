@@ -4,24 +4,37 @@
    on stores (Chapter 1) and fuse (Chapter 2).
 
    The value2 refactor's defining property: every value carries its own
-   store and hash (§3.1). Constructors take the store first; the resulting
-   value knows where it belongs, so operations like conj/assoc persist
-   transparently into the same store without threading it through.
+   store and hash (§3.1). Most work uses implicit constructors that persist
+   into the current store (`dacite.store/*store*`, defaulting to an in-memory
+   store for REPL use):
 
-       (def v (dacite.value2/vector store 1 2 3))
+       (def v (dacite.value2/vector 1 2 3))
        (dacite-hash v)   ; => [c0 c1 c2 c3]
        (dacite-store v)  ; => the owning store
        (dacite-type v)   ; => \"vector\"
-       (->clj v)         ; => content as a plain Clojure value
+       (->clj v)         ; => lazy seq of realized elements
 
-   Use partial to bind a store for convenience:
+   When the store must be explicit — tests, migration, multiple stores —
+   use the `-with-store` variants:
 
-       (def vec3 (partial dacite.value2/vector store))
-       (vec3 1 2 3)"
+       (dacite.value2/vector-with-store store 1 2 3)
+
+   Bind an isolated store with `dacite.store/with-store` for tests and
+   transactions."
   (:refer-clojure :exclude [vector hash-map set])
-  (:require [dacite.value2.types :as types]
+  (:require [dacite.store :as store]
+            [dacite.value2.types :as types]
             [dacite.value2.scalar :as scalar]
             [dacite.value2.collections :as coll]))
+
+;; Implicit constructors use `dacite.store/*store*`. Bind it with
+;; `with-store` below (or `store/bind-store`) for isolated contexts.
+
+(defmacro with-store
+  "Execute body with an isolated store. init can be an IStore or a map
+   (wrapped in a mem-store). Returns [snapshot last-value]."
+  [[sym init] & body]
+  `(store/with-store [~sym ~init] ~@body))
 
 ;; =============================================================================
 ;; Accessors
@@ -52,45 +65,74 @@
 (def wrap-hash coll/wrap-hash)
 
 (defn get-value
-  "Look up a hash in a store and return the corresponding Dacite value
-   (a store-aware wrapper), or nil if the hash is not present."
+  "Look up a hash in the current store and return the corresponding Dacite
+   value, or nil if the hash is not present."
+  [h]
+  (coll/get-value h))
+
+(defn get-value-with-store
+  "Look up a hash in an explicit store and return the corresponding Dacite
+   value, or nil if the hash is not present."
   [store h]
-  (coll/get-value store h))
+  (coll/get-value-with-store store h))
 
 ;; =============================================================================
-;; Scalar constructors
+;; Scalar constructors (implicit + explicit)
 ;; =============================================================================
 
-(def scalar      scalar/scalar)
-(def null        scalar/null)
-(def bool        scalar/bool)
-(def i8          scalar/i8)
-(def i16         scalar/i16)
-(def i32         scalar/i32)
-(def i64         scalar/i64)
-(def u8          scalar/u8)
-(def u16         scalar/u16)
-(def u32         scalar/u32)
-(def u64         scalar/u64)
-(def u256        scalar/u256)
-(def f32         scalar/f32)
-(def f64         scalar/f64)
-(def dacite-char scalar/dacite-char)
-(def negative    scalar/negative)
+(def scalar              scalar/scalar)
+(def scalar-with-store   scalar/scalar-with-store)
+(def null                scalar/null)
+(def null-with-store     scalar/null-with-store)
+(def bool                scalar/bool)
+(def bool-with-store     scalar/bool-with-store)
+(def i8                  scalar/i8)
+(def i8-with-store       scalar/i8-with-store)
+(def i16                 scalar/i16)
+(def i16-with-store      scalar/i16-with-store)
+(def i32                 scalar/i32)
+(def i32-with-store      scalar/i32-with-store)
+(def i64                 scalar/i64)
+(def i64-with-store      scalar/i64-with-store)
+(def u8                  scalar/u8)
+(def u8-with-store       scalar/u8-with-store)
+(def u16                 scalar/u16)
+(def u16-with-store      scalar/u16-with-store)
+(def u32                 scalar/u32)
+(def u32-with-store      scalar/u32-with-store)
+(def u64                 scalar/u64)
+(def u64-with-store      scalar/u64-with-store)
+(def u256                scalar/u256)
+(def u256-with-store     scalar/u256-with-store)
+(def f32                 scalar/f32)
+(def f32-with-store      scalar/f32-with-store)
+(def f64                 scalar/f64)
+(def f64-with-store      scalar/f64-with-store)
+(def dacite-char         scalar/dacite-char)
+(def dacite-char-with-store scalar/dacite-char-with-store)
+(def negative            scalar/negative)
+(def negative-with-store scalar/negative-with-store)
 
 ;; Generic aliases per the §3.9 table.
 (def dac-int   scalar/i64)
+(def dac-int-with-store scalar/i64-with-store)
 (def dac-float scalar/f64)
+(def dac-float-with-store scalar/f64-with-store)
 
 ;; =============================================================================
-;; Collection constructors
+;; Collection constructors (implicit + explicit)
 ;; =============================================================================
 
-(def string   coll/string)
-(def blob     coll/blob)
-(def vector   coll/vector)
-(def hash-map coll/hash-map)
-(def set      coll/dacite-set)
+(def string            coll/string)
+(def string-with-store coll/string-with-store)
+(def blob              coll/blob)
+(def blob-with-store   coll/blob-with-store)
+(def vector            coll/vector)
+(def vector-with-store coll/vector-with-store)
+(def hash-map          coll/hash-map)
+(def hash-map-with-store coll/hash-map-with-store)
+(def set               coll/dacite-set)
+(def set-with-store    coll/dacite-set-with-store)
 
 ;; =============================================================================
 ;; Set operations (§3.5)

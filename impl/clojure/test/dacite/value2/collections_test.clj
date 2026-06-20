@@ -20,7 +20,7 @@
 
 (deftest vector-basics
   (let [s (store/mem-store)
-        v (v2/vector s 1 2 3)]
+        v (v2/vector-with-store s 1 2 3)]
     (is (= "vector" (v2/dacite-type v)))
     (is (= 3 (count v)))
     (is (= [1 2 3] (realize-each v)))
@@ -31,7 +31,7 @@
 
 (deftest vector-conj-is-persistent
   (let [s (store/mem-store)
-        v (v2/vector s 1 2 3)
+        v (v2/vector-with-store s 1 2 3)
         v' (conj v 4)]
     (is (= [1 2 3 4] (realize-each v')))
     (testing "original is unchanged (immutable)"
@@ -41,14 +41,14 @@
 
 (deftest vector-assoc-and-stack
   (let [s (store/mem-store)
-        v (v2/vector s 1 2 3)]
+        v (v2/vector-with-store s 1 2 3)]
     (is (= [1 9 3] (realize-each (assoc v 1 9))))
     (is (= 3 (v2/->clj (peek v))))
     (is (= [1 2] (realize-each (pop v))))))
 
 (deftest vector-empty-and-wrap
   (let [s (store/mem-store)
-        v (v2/vector s 1 2 3)
+        v (v2/vector-with-store s 1 2 3)
         w (v2/wrap-hash s (v2/dacite-hash v))]
     (is (= "vector" (v2/dacite-type w)))
     (is (= [1 2 3] (realize-each w)))
@@ -60,7 +60,7 @@
 
 (deftest string-basics
   (let [s (store/mem-store)
-        str-v (v2/string s "hello")]
+        str-v (v2/string-with-store s "hello")]
     (is (= "string" (v2/dacite-type str-v)))
     (is (= 5 (count str-v)))
     (testing "->clj yields a lazy seq of chars; (apply str ...) rebuilds the String"
@@ -72,7 +72,7 @@
 
 (deftest blob-basics
   (let [s (store/mem-store)
-        b (v2/blob s (byte-array [1 2 3 4]))]
+        b (v2/blob-with-store s (byte-array [1 2 3 4]))]
     (is (= "blob" (v2/dacite-type b)))
     (is (= 4 (count b)))
     (is (= [1 2 3 4] (vec (v2/->clj b))))))
@@ -83,7 +83,7 @@
 
 (deftest map-basics
   (let [s (store/mem-store)
-        m (v2/hash-map s "a" 1 "b" 2)]
+        m (v2/hash-map-with-store s "a" 1 "b" 2)]
     (is (= "map" (v2/dacite-type m)))
     (is (= 2 (count m)))
     (is (= 1 (v2/->clj (get m "a"))))
@@ -93,7 +93,7 @@
 
 (deftest map-assoc-dissoc
   (let [s (store/mem-store)
-        m (v2/hash-map s "a" 1 "b" 2)
+        m (v2/hash-map-with-store s "a" 1 "b" 2)
         m2 (assoc m "c" 3)
         m3 (dissoc m "a")]
     (is (= 3 (count m2)))
@@ -106,8 +106,8 @@
 
 (deftest map-insertion-order-independent
   (let [s (store/mem-store)]
-    (is (= (v2/dacite-hash (v2/hash-map s "a" 1 "b" 2 "c" 3))
-           (v2/dacite-hash (v2/hash-map s "c" 3 "a" 1 "b" 2))))))
+    (is (= (v2/dacite-hash (v2/hash-map-with-store s "a" 1 "b" 2 "c" 3))
+           (v2/dacite-hash (v2/hash-map-with-store s "c" 3 "a" 1 "b" 2))))))
 
 ;; =============================================================================
 ;; Sets
@@ -115,7 +115,7 @@
 
 (deftest set-basics
   (let [s (store/mem-store)
-        st (v2/set s 1 2 3)]
+        st (v2/set-with-store s 1 2 3)]
     (is (= "set" (v2/dacite-type st)))
     (is (= 3 (count st)))
     (is (= #{1 2 3} (set-vals st)))
@@ -124,20 +124,20 @@
 
 (deftest set-order-independent
   (let [s (store/mem-store)]
-    (is (= (v2/dacite-hash (v2/set s 1 2 3))
-           (v2/dacite-hash (v2/set s 3 1 2))))))
+    (is (= (v2/dacite-hash (v2/set-with-store s 1 2 3))
+           (v2/dacite-hash (v2/set-with-store s 3 1 2))))))
 
 (deftest set-operations
   (let [s (store/mem-store)
-        a (v2/set s 1 2 3)
-        b (v2/set s 3 4 5)]
+        a (v2/set-with-store s 1 2 3)
+        b (v2/set-with-store s 3 4 5)]
     (is (= #{1 2 3 4 5} (set-vals (v2/set-union a b))))
     (is (= #{3} (set-vals (v2/set-intersect a b))))
     (is (= #{1 2} (set-vals (v2/set-difference a b))))))
 
 (deftest negative-sets
   (let [s (store/mem-store)
-        a (v2/set s 1 2 3)
+        a (v2/set-with-store s 1 2 3)
         comp (v2/set-complement a)]
     (testing "complement inverts membership"
       (is (not (v2/set-member? comp 1)))
@@ -160,8 +160,8 @@
 
 (deftest vector-shape-independence
   (let [s (store/mem-store)
-        bulk (apply v2/vector s (range 50))
-        incremental (reduce conj (v2/vector s) (range 50))]
+        bulk (apply v2/vector-with-store s (range 50))
+        incremental (reduce conj (v2/vector-with-store s) (range 50))]
     (is (= (v2/dacite-hash bulk) (v2/dacite-hash incremental)))
     (is (= 50 (count bulk)))))
 
@@ -172,17 +172,17 @@
 (deftest ->clj-collections-are-lazy-seqs
   (let [s (store/mem-store)]
     (testing "vector -> lazy seq of values"
-      (let [r (v2/->clj (v2/vector s 1 2 3))]
+      (let [r (v2/->clj (v2/vector-with-store s 1 2 3))]
         (is (seq? r))
         (is (= [1 2 3] r))))
     (testing "set -> lazy seq of values"
-      (is (= #{1 2 3} (set (v2/->clj (v2/set s 1 2 3))))))
+      (is (= #{1 2 3} (set (v2/->clj (v2/set-with-store s 1 2 3))))))
     (testing "blob -> lazy seq of byte values"
-      (is (= [1 2 3 4] (vec (v2/->clj (v2/blob s (byte-array [1 2 3 4])))))))))
+      (is (= [1 2 3 4] (vec (v2/->clj (v2/blob-with-store s (byte-array [1 2 3 4])))))))))
 
 (deftest ->clj-map-yields-realized-pairs
   (let [s (store/mem-store)
-        m (v2/hash-map s 1 10 2 20)
+        m (v2/hash-map-with-store s 1 10 2 20)
         r (v2/->clj m)]
     (is (seq? r))
     (testing "each entry is a [k v] pair with key and value realized"
@@ -190,7 +190,7 @@
 
 (deftest ->clj-is-deep-with-nested-collections
   (let [s (store/mem-store)
-        nested (v2/vector s (v2/vector s 1 2) 3)
+        nested (v2/vector-with-store s (v2/vector-with-store s 1 2) 3)
         r (v2/->clj nested)]
     (testing "sub-collections become nested seqs"
       (is (= [[1 2] 3] r))
@@ -198,11 +198,11 @@
 
 (deftest ->clj-empty-collections-are-nil
   (let [s (store/mem-store)]
-    (is (nil? (v2/->clj (v2/vector s))))
-    (is (nil? (v2/->clj (v2/set s))))
-    (is (nil? (v2/->clj (v2/string s ""))))
-    (is (nil? (v2/->clj (v2/hash-map s))))
-    (is (nil? (v2/->clj (empty (v2/vector s 1 2 3)))))))
+    (is (nil? (v2/->clj (v2/vector-with-store s))))
+    (is (nil? (v2/->clj (v2/set-with-store s))))
+    (is (nil? (v2/->clj (v2/string-with-store s ""))))
+    (is (nil? (v2/->clj (v2/hash-map-with-store s))))
+    (is (nil? (v2/->clj (empty (v2/vector-with-store s 1 2 3)))))))
 
 ;; =============================================================================
 ;; Bounded toString (partial-availability-safe debug rendering)
@@ -210,14 +210,14 @@
 
 (deftest bounded-toString-small-collections
   (let [s (store/mem-store)]
-    (is (= "[1 2 3]" (str (v2/vector s 1 2 3))))
-    (is (= #{1 2 3} (set-vals (v2/set s 1 2 3))))
-    (is (re-find #"^#\{.+\}$" (str (v2/set s 1 2 3))))
-    (is (= "<blob 4 bytes 0x01 02 03 04>" (str (v2/blob s (byte-array [1 2 3 4])))))))
+    (is (= "[1 2 3]" (str (v2/vector-with-store s 1 2 3))))
+    (is (= #{1 2 3} (set-vals (v2/set-with-store s 1 2 3))))
+    (is (re-find #"^#\{.+\}$" (str (v2/set-with-store s 1 2 3))))
+    (is (= "<blob 4 bytes 0x01 02 03 04>" (str (v2/blob-with-store s (byte-array [1 2 3 4])))))))
 
 (deftest bounded-toString-truncates-large-collections
   (let [s (store/mem-store)
-        v (apply v2/vector s (range 50))]
+        v (apply v2/vector-with-store s (range 50))]
     (is (re-find #"… \(50 total\)" (str v)))
     (binding [render/*to-string-element-limit* 5]
       (is (re-find #"\[0 1 2 3 4 … \(50 total\)" (str v))))))
@@ -225,13 +225,17 @@
 (deftest bounded-toString-truncates-large-strings
   (let [s (store/mem-store)
         long-str (apply str (repeat 100 \x))
-        str-v (v2/string s long-str)]
-    (is (= "hello" (str (v2/string s "hello"))))
+        str-v (v2/string-with-store s long-str)]
+    (is (= "hello" (str (v2/string-with-store s "hello"))))
     (binding [render/*to-string-char-limit* 10]
       (let [rendered (str str-v)]
         (is (re-find #"^\"x{10}…\" \(100 chars\)$" rendered))))))
 
 (deftest print-respects-print-length
   (let [s (store/mem-store)
-        v (v2/vector s 1 2 3 4 5)]
+        v (v2/vector-with-store s 1 2 3 4 5)]
     (is (= "[1 2 #]" (binding [*print-length* 2] (pr-str v))))))
+
+(deftest implicit-vector-single-element
+  (store/bind-store (store/mem-store)
+                    (is (= [1] (mapv v2/->clj (v2/vector 1))))))

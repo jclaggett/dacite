@@ -31,7 +31,7 @@
 ;; =============================================================================
 
 (declare ->DaciteString ->DaciteBlob ->DaciteVector ->DaciteMap ->DaciteSet)
-(declare wrap-hash extract-hash coerce-and-store! string)
+(declare wrap-hash extract-hash coerce-and-store! string string-with-store)
 (declare store-seq-node! store-assoc-node! node-root realize-hashes)
 
 ;; =============================================================================
@@ -417,13 +417,19 @@
     "blob" (->DaciteBlob store h)
     (scalar/wrap-scalar store h)))
 
-(defn get-value
-  "Look up a hash in the store and return the corresponding store-aware
-   Dacite value, dispatching on the stored entry's type. Returns nil if
-   the hash is not present."
+(defn get-value-with-store
+  "Look up a hash in an explicit store and return the corresponding
+   store-aware Dacite value, dispatching on the stored entry's type.
+   Returns nil if the hash is not present."
   [store h]
   (when (store/s-has? store h)
     (wrap-hash store h)))
+
+(defn get-value
+  "Look up a hash in the current store and return the corresponding
+   store-aware Dacite value, or nil if the hash is not present."
+  [h]
+  (get-value-with-store store/*store* h))
 
 (defn- coerce-and-store!
   "Coerce a plain Clojure value into the store, returning its hash."
@@ -434,7 +440,7 @@
     (char? x)             (scalar/put-scalar! store "char" x)
     (integer? x)          (scalar/put-scalar! store "i64" (long x))
     (float? x)            (scalar/put-scalar! store "f64" (double x))
-    (string? x)           (types/dacite-hash (string store x))
+    (string? x)           (types/dacite-hash (string-with-store store x))
     :else (throw (ex-info "Cannot coerce to dacite value" {:value x :type (type x)}))))
 
 (defn extract-hash
@@ -445,33 +451,48 @@
     (coerce-and-store! store x)))
 
 ;; =============================================================================
-;; Constructors (store first, per §3.9)
+;; Constructors — explicit (-with-store) and implicit (*store*)
 ;; =============================================================================
 
-(defn string
-  "Create a Dacite string from a Java String."
+(defn string-with-store
+  "Create a Dacite string from a Java String in an explicit store."
   [store ^String s]
   (let [refs (mapv #(scalar/put-scalar! store "char" %) (seq s))]
     (->DaciteString store (store-seq-node! store "string" (ft-build! store refs)))))
 
-(defn blob
-  "Create a Dacite blob from a byte array."
+(defn string
+  "Create a Dacite string using the current store."
+  [^String s]
+  (string-with-store store/*store* s))
+
+(defn blob-with-store
+  "Create a Dacite blob from a byte array in an explicit store."
   [store ^bytes bs]
   (let [refs (mapv #(scalar/put-scalar! store "u8" (Byte/toUnsignedInt %)) (seq bs))]
     (->DaciteBlob store (store-seq-node! store "blob" (ft-build! store refs)))))
 
-(defn vec-of-refs
-  "Create a Dacite vector from raw hashes already in the store."
+(defn blob
+  "Create a Dacite blob using the current store."
+  [^bytes bs]
+  (blob-with-store store/*store* bs))
+
+(defn vec-of-refs-with-store
+  "Create a Dacite vector from raw hashes already in an explicit store."
   [store refs]
   (->DaciteVector store (store-seq-node! store "vector" (ft-build! store refs))))
 
-(defn vector
-  "Create a Dacite vector from values (Dacite values or coercible)."
+(defn vector-with-store
+  "Create a Dacite vector from values in an explicit store."
   [store & values]
-  (vec-of-refs store (mapv #(extract-hash store %) values)))
+  (vec-of-refs-with-store store (mapv #(extract-hash store %) values)))
 
-(defn hash-map
-  "Create a Dacite map from key/value pairs (Dacite values or coercible)."
+(defn vector
+  "Create a Dacite vector using the current store."
+  [& values]
+  (apply vector-with-store store/*store* values))
+
+(defn hash-map-with-store
+  "Create a Dacite map from key/value pairs in an explicit store."
   [store & kvs]
   (let [root (reduce (fn [root [k v]]
                        (let [kh (extract-hash store k)
@@ -481,8 +502,13 @@
                      (partition 2 kvs))]
     (->DaciteMap store (store-assoc-node! store "map" root))))
 
-(defn dacite-set
-  "Create a Dacite set from elements (Dacite values or coercible)."
+(defn hash-map
+  "Create a Dacite map using the current store."
+  [& kvs]
+  (apply hash-map-with-store store/*store* kvs))
+
+(defn dacite-set-with-store
+  "Create a Dacite set from elements in an explicit store."
   [store & xs]
   (let [root (reduce (fn [root x]
                        (let [vh (extract-hash store x)]
@@ -490,6 +516,11 @@
                      (hamt/hamt-empty store)
                      xs)]
     (->DaciteSet store (store-assoc-node! store "set" root))))
+
+(defn dacite-set
+  "Create a Dacite set using the current store."
+  [& xs]
+  (apply dacite-set-with-store store/*store* xs))
 
 ;; =============================================================================
 ;; Set operations (§3.5) — derived from HAMT primitives + the negative sentinel

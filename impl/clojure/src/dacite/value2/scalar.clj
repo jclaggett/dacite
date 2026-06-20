@@ -53,44 +53,91 @@
   (->DaciteScalar store h))
 
 ;; =============================================================================
-;; Constructors (store first, per §3.9)
+;; Constructors — explicit (-with-store) and implicit (*store*)
 ;; =============================================================================
 
-(defn scalar
-  "Create a typed scalar of an arbitrary type name."
+(defn scalar-with-store
+  "Create a typed scalar of an arbitrary type name in an explicit store."
   [store type-name data]
   (->DaciteScalar store (put-scalar! store type-name data)))
 
-(defn null "Create a null value."    [store]   (scalar store "null" nil))
-(defn bool "Create a boolean value." [store b] (scalar store "bool" b))
-(defn i8   "Create an i8 value."     [store n] (scalar store "i8" (byte n)))
-(defn i16  "Create an i16 value."    [store n] (scalar store "i16" (short n)))
-(defn i32  "Create an i32 value."    [store n] (scalar store "i32" (int n)))
-(defn i64  "Create an i64 value."    [store n] (scalar store "i64" (long n)))
-(defn u8   "Create a u8 value."      [store n] {:pre [(<= 0 n 255)]}        (scalar store "u8" n))
-(defn u16  "Create a u16 value."     [store n] {:pre [(<= 0 n 65535)]}      (scalar store "u16" n))
-(defn u32  "Create a u32 value."     [store n] {:pre [(<= 0 n 4294967295)]} (scalar store "u32" n))
-(defn u64  "Create a u64 value."     [store n] {:pre [(<= 0 n)]}            (scalar store "u64" n))
+(defn scalar
+  "Create a typed scalar using the current store (*store*)."
+  [type-name data]
+  (scalar-with-store store/*store* type-name data))
 
-(defn u256
-  "Create a u256 value from a 32-byte array."
+(defn null-with-store
+  "Create a null value in an explicit store."
+  [store]
+  (scalar-with-store store "null" nil))
+
+(defn null
+  "Create a null value using the current store."
+  []
+  (null-with-store store/*store*))
+
+(defn bool-with-store [store b] (scalar-with-store store "bool" b))
+(defn bool [b] (bool-with-store store/*store* b))
+
+(defn i8-with-store  [store n] (scalar-with-store store "i8" (byte n)))
+(defn i8  [n] (i8-with-store store/*store* n))
+
+(defn i16-with-store [store n] (scalar-with-store store "i16" (short n)))
+(defn i16 [n] (i16-with-store store/*store* n))
+
+(defn i32-with-store [store n] (scalar-with-store store "i32" (int n)))
+(defn i32 [n] (i32-with-store store/*store* n))
+
+(defn i64-with-store [store n] (scalar-with-store store "i64" (long n)))
+(defn i64 [n] (i64-with-store store/*store* n))
+
+(defn u8-with-store  [store n] {:pre [(<= 0 n 255)]}        (scalar-with-store store "u8" n))
+(defn u8  [n] {:pre [(<= 0 n 255)]}        (u8-with-store store/*store* n))
+
+(defn u16-with-store [store n] {:pre [(<= 0 n 65535)]}      (scalar-with-store store "u16" n))
+(defn u16 [n] {:pre [(<= 0 n 65535)]}      (u16-with-store store/*store* n))
+
+(defn u32-with-store [store n] {:pre [(<= 0 n 4294967295)]} (scalar-with-store store "u32" n))
+(defn u32 [n] {:pre [(<= 0 n 4294967295)]} (u32-with-store store/*store* n))
+
+(defn u64-with-store [store n] {:pre [(<= 0 n)]}            (scalar-with-store store "u64" n))
+(defn u64 [n] {:pre [(<= 0 n)]}            (u64-with-store store/*store* n))
+
+(defn u256-with-store
   [store ^bytes data]
   {:pre [(= 32 (alength data))]}
-  (scalar store "u256" data))
+  (scalar-with-store store "u256" data))
 
-(defn f32 "Create an f32 value." [store n] (scalar store "f32" (float n)))
-(defn f64 "Create an f64 value." [store n] (scalar store "f64" (double n)))
+(defn u256
+  [^bytes data]
+  {:pre [(= 32 (alength data))]}
+  (u256-with-store store/*store* data))
 
-(defn dacite-char
-  "Create a char value."
+(defn f32-with-store [store n] (scalar-with-store store "f32" (float n)))
+(defn f32 [n] (f32-with-store store/*store* n))
+
+(defn f64-with-store [store n] (scalar-with-store store "f64" (double n)))
+(defn f64 [n] (f64-with-store store/*store* n))
+
+(defn dacite-char-with-store
   [store c]
   {:pre [(char? c)]}
-  (scalar store "char" c))
+  (scalar-with-store store "char" c))
 
-(defn negative
+(defn dacite-char
+  [c]
+  {:pre [(char? c)]}
+  (dacite-char-with-store store/*store* c))
+
+(defn negative-with-store
   "The negative sentinel used for negative/cofinite sets (§3.5)."
   [store]
-  (scalar store "negative" nil))
+  (scalar-with-store store "negative" nil))
+
+(defn negative
+  "The negative sentinel in the current store."
+  []
+  (negative-with-store store/*store*))
 
 ;; =============================================================================
 ;; Canonical encoding (multimethod)
