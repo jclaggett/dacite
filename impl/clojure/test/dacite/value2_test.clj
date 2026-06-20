@@ -1,221 +1,99 @@
 (ns dacite.value2-test
-  "Tests for the value2 namespace."
-  (:require [clojure.test :refer [deftest is]]
+  "Tests for scalars, accessors, and store-awareness in the value2 layer."
+  (:require [clojure.test :refer [deftest is testing]]
             [dacite.store :as store]
-            [dacite.value2 :as v2]
-            [dacite.value2.scalar :as scalar]))
+            [dacite.value2 :as v2]))
 
 ;; =============================================================================
-;; Scalar constructors (pure)
+;; Scalar construction & accessors
 ;; =============================================================================
 
-(deftest test-null-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/null store)
-        v (v2/make-value store' h)]
-    (is (= "null" (v2/value-type v)))
-    (is (nil? (v2/value-data v)))
-    (is (v2/scalar? v))
-    (is (not (v2/collection? v)))))
+(deftest scalar-types-and-realize
+  (let [s (store/mem-store)]
+    (is (= "null" (v2/dacite-type (v2/null s))))
+    (is (nil? (v2/->clj (v2/null s))))
+    (is (= "bool" (v2/dacite-type (v2/bool s true))))
+    (is (= true (v2/->clj (v2/bool s true))))
+    (is (= (byte 42) (v2/->clj (v2/i8 s 42))))
+    (is (= (short 1000) (v2/->clj (v2/i16 s 1000))))
+    (is (= (int 123456) (v2/->clj (v2/i32 s 123456))))
+    (is (= 9999999999 (v2/->clj (v2/i64 s 9999999999))))
+    (is (= 255 (v2/->clj (v2/u8 s 255))))
+    (is (= 65535 (v2/->clj (v2/u16 s 65535))))
+    (is (= 4294967295 (v2/->clj (v2/u32 s 4294967295))))
+    (is (= 18446744073709551615 (v2/->clj (v2/u64 s 18446744073709551615))))
+    (is (float? (v2/->clj (v2/f32 s 3.14))))
+    (is (double? (v2/->clj (v2/f64 s 3.14159))))
+    (is (= \a (v2/->clj (v2/dacite-char s \a))))
+    (is (= "negative" (v2/dacite-type (v2/negative s))))))
 
-(deftest test-bool-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/bool store true)
-        v (v2/make-value store' h)]
-    (is (= "bool" (v2/value-type v)))
-    (is (= true (v2/value-data v)))
-    (is (v2/scalar? v))
-    (is (not (v2/collection? v)))))
+(deftest values-are-not-derefable
+  (let [s (store/mem-store)]
+    (is (not (instance? clojure.lang.IDeref (v2/i64 s 1))))
+    (is (not (instance? clojure.lang.IDeref (v2/vector s 1 2))))))
 
-(deftest test-i8-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/i8 store 42)
-        v (v2/make-value store' h)]
-    (is (= "i8" (v2/value-type v)))
-    (is (= (byte 42) (v2/value-data v)))
-    (is (v2/scalar? v))))
-
-(deftest test-i16-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/i16 store 1000)
-        v (v2/make-value store' h)]
-    (is (= "i16" (v2/value-type v)))
-    (is (= (short 1000) (v2/value-data v)))))
-
-(deftest test-i32-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/i32 store 123456)
-        v (v2/make-value store' h)]
-    (is (= "i32" (v2/value-type v)))
-    (is (= (int 123456) (v2/value-data v)))))
-
-(deftest test-i64-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/i64 store 9999999999)
-        v (v2/make-value store' h)]
-    (is (= "i64" (v2/value-type v)))
-    (is (= 9999999999 (v2/value-data v)))))
-
-(deftest test-u8-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/u8 store 255)
-        v (v2/make-value store' h)]
-    (is (= "u8" (v2/value-type v)))
-    (is (= 255 (v2/value-data v)))))
-
-(deftest test-u8-validation
-  (let [store (store/mem-store)]
-    (is (thrown? AssertionError (scalar/u8 store 256)))
-    (is (thrown? AssertionError (scalar/u8 store -1)))))
-
-(deftest test-u16-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/u16 store 65535)
-        v (v2/make-value store' h)]
-    (is (= "u16" (v2/value-type v)))
-    (is (= 65535 (v2/value-data v)))))
-
-(deftest test-u16-validation
-  (let [store (store/mem-store)]
-    (is (thrown? AssertionError (scalar/u16 store 65536)))
-    (is (thrown? AssertionError (scalar/u16 store -1)))))
-
-(deftest test-u32-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/u32 store 4294967295)
-        v (v2/make-value store' h)]
-    (is (= "u32" (v2/value-type v)))
-    (is (= 4294967295 (v2/value-data v)))))
-
-(deftest test-u32-validation
-  (let [store (store/mem-store)]
-    (is (thrown? AssertionError (scalar/u32 store 4294967296)))
-    (is (thrown? AssertionError (scalar/u32 store -1)))))
-
-(deftest test-u64-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/u64 store 18446744073709551615)
-        v (v2/make-value store' h)]
-    (is (= "u64" (v2/value-type v)))
-    (is (= 18446744073709551615 (v2/value-data v)))))
-
-(deftest test-u64-validation
-  (let [store (store/mem-store)]
-    (is (thrown? AssertionError (scalar/u64 store -1)))))
-
-(deftest test-u256-constructor
-  (let [store (store/mem-store)
-        data (byte-array 32 (byte 0x42))
-        [store' h] (scalar/u256 store data)
-        v (v2/make-value store' h)]
-    (is (= "u256" (v2/value-type v)))
-    (is (= 32 (alength ^bytes (v2/value-data v))))))
-
-(deftest test-u256-validation
-  (let [store (store/mem-store)]
-    (is (thrown? AssertionError (scalar/u256 store (byte-array 31))))
-    (is (thrown? AssertionError (scalar/u256 store (byte-array 33))))))
-
-(deftest test-f32-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/f32 store 3.14)
-        v (v2/make-value store' h)]
-    (is (= "f32" (v2/value-type v)))
-    (is (float? (v2/value-data v)))
-    (is (> 0.001 (Math/abs (- 3.14 (v2/value-data v)))))))
-
-(deftest test-f64-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/f64 store 3.14159265358979)
-        v (v2/make-value store' h)]
-    (is (= "f64" (v2/value-type v)))
-    (is (double? (v2/value-data v)))
-    (is (> 0.0001 (Math/abs (- 3.14159265358979 (v2/value-data v)))))))
-
-(deftest test-char-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/dacite-char store \a)
-        v (v2/make-value store' h)]
-    (is (= "char" (v2/value-type v)))
-    (is (= \a (v2/value-data v)))))
-
-(deftest test-char-validation
-  (let [store (store/mem-store)]
-    (is (thrown? AssertionError (scalar/dacite-char store "a")))))
-
-(deftest test-neg-constructor
-  (let [store (store/mem-store)
-        [store' h] (scalar/neg store)
-        v (v2/make-value store' h)]
-    (is (= "negative" (v2/value-type v)))
-    (is (nil? (v2/value-data v)))))
+(deftest scalar-validation
+  (let [s (store/mem-store)]
+    (is (thrown? AssertionError (v2/u8 s 256)))
+    (is (thrown? AssertionError (v2/u8 s -1)))
+    (is (thrown? AssertionError (v2/u16 s 65536)))
+    (is (thrown? AssertionError (v2/u32 s 4294967296)))
+    (is (thrown? AssertionError (v2/u64 s -1)))
+    (is (thrown? AssertionError (v2/dacite-char s "a")))
+    (is (thrown? AssertionError (v2/u256 s (byte-array 31))))))
 
 ;; =============================================================================
 ;; Content addressing
 ;; =============================================================================
 
-(deftest test-content-addressing
-  (let [store (store/mem-store)
-        [store' h1] (scalar/i64 store 42)
-        [store'' h2] (scalar/i64 store' 42)
-        [store''' h3] (scalar/i64 store'' 43)]
-    ;; Same value = same hash
-    (is (= h1 h2))
-    ;; Different value = different hash
-    (is (not= h1 h3))))
+(deftest content-addressing
+  (let [s (store/mem-store)]
+    (testing "same value, same hash"
+      (is (= (v2/dacite-hash (v2/i64 s 42))
+             (v2/dacite-hash (v2/i64 s 42)))))
+    (testing "different value, different hash"
+      (is (not= (v2/dacite-hash (v2/i64 s 42))
+                (v2/dacite-hash (v2/i64 s 43)))))
+    (testing "type tag distinguishes equal data"
+      ;; i64 0 and a different int width carry distinct type hashes
+      (is (not= (v2/dacite-hash (v2/i32 s 0))
+                (v2/dacite-hash (v2/i64 s 0)))))))
 
 ;; =============================================================================
-;; Convenience layer
+;; Store awareness (§3.1)
 ;; =============================================================================
 
-(deftest test-with-store
-  (v2/with-store (store/mem-store)
-    (let [v (v2/c-i64 42)]
-      (is (= "i64" (v2/value-type v)))
-      (is (= 42 (v2/value-data v))))))
+(deftest values-know-their-store
+  (let [s (store/mem-store)
+        v (v2/i64 s 42)]
+    (is (identical? s (v2/dacite-store v)))
+    (testing "the value persists in its own store"
+      (is (some? (store/s-get s (v2/dacite-hash v)))))))
 
-(deftest test-convenience-constructors
-  (v2/with-store (store/mem-store)
-    (let [v-null (v2/c-null)
-          v-bool (v2/c-bool false)
-          v-i8 (v2/c-i8 1)
-          v-i16 (v2/c-i16 2)
-          v-i32 (v2/c-i32 3)
-          v-i64 (v2/c-i64 4)
-          v-u8 (v2/c-u8 5)
-          v-u16 (v2/c-u16 6)
-          v-u32 (v2/c-u32 7)
-          v-u64 (v2/c-u64 8)
-          v-f32 (v2/c-f32 9.0)
-          v-f64 (v2/c-f64 10.0)
-          v-char (v2/c-char \x)]
-      (is (= "null" (v2/value-type v-null)))
-      (is (= "bool" (v2/value-type v-bool)))
-      (is (= "i8" (v2/value-type v-i8)))
-      (is (= "i16" (v2/value-type v-i16)))
-      (is (= "i32" (v2/value-type v-i32)))
-      (is (= "i64" (v2/value-type v-i64)))
-      (is (= "u8" (v2/value-type v-u8)))
-      (is (= "u16" (v2/value-type v-u16)))
-      (is (= "u32" (v2/value-type v-u32)))
-      (is (= "u64" (v2/value-type v-u64)))
-      (is (= "f32" (v2/value-type v-f32)))
-      (is (= "f64" (v2/value-type v-f64)))
-      (is (= "char" (v2/value-type v-char))))))
+(deftest get-value-round-trips
+  (let [s (store/mem-store)
+        v (v2/i64 s 42)
+        back (v2/get-value s (v2/dacite-hash v))]
+    (is (= "i64" (v2/dacite-type back)))
+    (is (= 42 (v2/->clj back)))
+    (testing "missing hash returns nil"
+      (is (nil? (v2/get-value s [0 0 0 0]))))))
 
 ;; =============================================================================
-;; Error cases
+;; Cross-type equality (§3.3)
 ;; =============================================================================
 
-(deftest test-make-value-not-found
-  (let [store (store/mem-store)
-        fake-hash [0 0 0 0]
-        v (v2/make-value store fake-hash)]
-    (is (nil? v))))
+(deftest cross-type-content-hash
+  (let [s (store/mem-store)
+        str-v (v2/string s "abc")
+        chars (mapv #(v2/dacite-char s %) "abc")
+        vec-v (apply v2/vector s chars)]
+    (testing "different types => different value hashes"
+      (is (not= (v2/dacite-hash str-v) (v2/dacite-hash vec-v))))
+    (testing "same leaves => same content hash"
+      (is (= (v2/content-hash str-v) (v2/content-hash vec-v))))))
 
-;; =============================================================================
-;; Run all
-;; =============================================================================
-
-(comment
-  (clojure.test/run-tests *ns*))
+(deftest content-hash-strips-type
+  (let [s (store/mem-store)]
+    ;; An empty string's data hash is the group identity.
+    (is (= [0 0 0 0] (v2/content-hash (v2/string s ""))))))

@@ -1,293 +1,149 @@
 (ns dacite.value2.types
-  "Dacite type system for value2.
+  "Pure type and hashing rules for the value2 layer (Chapter 3).
 
-   Two layers:
-   1. Wire protocol: leading byte tag for primitive types (0x00-0xFE),
-      0xFF indicates user type followed by 32-byte type hash.
-   2. Store level: every value is stored as [type-hash data-hash]
-      where type-hash is the content hash of the type name (for primitives,
-      precomputed).
+   Every value — user-facing or internal — is hashed by one rule:
 
-   This namespace defines:
-   - Primitive type byte tags and precomputed type hashes
-   - typed-value-hash for content addressing of typed values
-   - node-hash for internal tree nodes
-   - child-hashes for extracting child references
-   - encode-value for canonical byte encoding
+       value_hash = fuse(type_hash, data_hash)
 
-   Scalars are stored directly as [type data].
-   Collections store metadata like {:root hash :count n :size-bytes n}."
+   where the type hash is the fuse of the type name followed by a
+   terminating 0x00 byte:
+
+       type_hash = fuse_bytes(type_name ++ 0x00)
+
+   Type names never contain a null byte, so the trailing 0x00 cleanly
+   separates the type from the data that follows (fuse composes over
+   concatenation, so a boundary marker is required).
+
+   This namespace is pure: it knows nothing about stores. Stores enter
+   at the finger-tree / hamt / scalar / collection layers, where values
+   actually persist. Here we only define the hashing algebra, the value
+   protocol, and the per-type encoding/size multimethods."
   (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
-;; Primitive type byte tags
+;; Value protocol
 ;; =============================================================================
 
-(def ^:const tag-null     (byte 0x00))
-(def ^:const tag-bool     (byte 0x01))
-(def ^:const tag-i8       (byte 0x02))
-(def ^:const tag-i16      (byte 0x03))
-(def ^:const tag-i32      (byte 0x04))
-(def ^:const tag-i64      (byte 0x05))
-(def ^:const tag-u8       (byte 0x06))
-(def ^:const tag-u16      (byte 0x07))
-(def ^:const tag-u32      (byte 0x08))
-(def ^:const tag-u64      (byte 0x09))
-(def ^:const tag-u256     (byte 0x0A))
-(def ^:const tag-f32      (byte 0x0B))
-(def ^:const tag-f64      (byte 0x0C))
-(def ^:const tag-char     (byte 0x0D))
-(def ^:const tag-negative (byte 0x0E))
+(defprotocol IDaciteValue
+  "A store-aware, content-addressed Dacite value.
 
-;; Map from tag byte to primitive type name string
-(def tag->type-name
-  "Map from primitive tag byte to type name string."
-  {tag-null     "null"
-   tag-bool     "bool"
-   tag-i8       "i8"
-   tag-i16      "i16"
-   tag-i32      "i32"
-   tag-i64      "i64"
-   tag-u8       "u8"
-   tag-u16      "u16"
-   tag-u32      "u32"
-   tag-u64      "u64"
-   tag-u256     "u256"
-   tag-f32      "f32"
-   tag-f64      "f64"
-   tag-char     "char"
-   tag-negative "negative"})
-
-;; Map from primitive type name string to tag byte
-(def type-name->tag
-  "Map from type name string to primitive tag byte."
-  (into {} (map (fn [[k v]] [v k]) tag->type-name)))
+   Dacite values are immutable values, not references, so they do not
+   implement IDeref. Converting to a plain Clojure value is an explicit
+   call (->clj)."
+  (dacite-hash [this] "The value's 4-long content hash.")
+  (dacite-store [this] "The store that created and persists this value.")
+  (dacite-type [this] "The value's type name string (e.g. \"i64\", \"vector\").")
+  (->clj [this]
+    "Realize this value as a plain Clojure value. A scalar yields its
+     language value. A collection yields a lazy seq of its realized
+     elements (each element is itself ->clj'd, so sub-collections become
+     nested lazy seqs); a map yields a lazy seq of [k v] pairs with both
+     key and value realized. Empty collections yield nil (matching `seq`).
+     Laziness means only the consumed portion is fetched from the store,
+     preserving partial availability for large values."))
 
 ;; =============================================================================
-;; Precomputed type hashes for primitives
+;; Stored entry accessors
 ;; =============================================================================
+;; A value persists in the store as a [type-name data] tuple. The first
+;; element names the type (self-describing); the second is type-specific.
 
-(defonce ^:private primitive-type-hash-cache
-  (atom {}))
+(defn entry-type
+  "Type name from a stored [type-name data] entry."
+  [[type-name _]]
+  type-name)
 
-(defn primitive-type-hash
-  "Return the precomputed type hash for a primitive type name.
-   Lazily computes and caches the hash on first access.
-   The hash is fuse-str of the type name string bytes."
-  [type-name]
-  (if-let [cached (get @primitive-type-hash-cache type-name)]
-    cached
-    (let [h (hash/fuse-str type-name)]
-      (swap! primitive-type-hash-cache assoc type-name h)
-      h)))
-
-(defn primitive-type-tag
-  "Return the primitive type tag byte for a type name, or nil if not primitive."
-  [type-name]
-  (get type-name->tag type-name))
-
-(defn type-tag->hash
-  "Return the precomputed type hash for a primitive tag byte, or nil."
-  [tag]
-  (when-let [type-name (get tag->type-name tag)]
-    (primitive-type-hash type-name)))
-
-(defn type-hash->tag
-  "Return the primitive type tag byte for a type hash, or nil if not a primitive hash."
-  [type-hash]
-  (let [cache @primitive-type-hash-cache]
-    (some (fn [[type-name h]]
-            (when (= h type-hash)
-              (get type-name->tag type-name)))
-          cache)))
-
-;; Eagerly precompute all primitive type hashes
-(doseq [[_ type-name] tag->type-name]
-  (primitive-type-hash type-name))
+(defn entry-data
+  "Data payload from a stored [type-name data] entry."
+  [[_ data]]
+  data)
 
 ;; =============================================================================
-;; Typed value hash
-;; =============================================================================
-
-(defn typed-value-hash
-  "Compute the hash of a typed value [type-hash, data-hash].
-
-   hash = fuse(type-hash, data-hash)
-
-   For primitive types, type-hash is the precomputed hash of the type name.
-   For user types (future), the type hash is passed directly."
-  [type-hash data-hash]
-  (hash/unchecked-fuse type-hash data-hash))
-
-;; =============================================================================
-;; Node hash
+;; Type / value / node / content hashing
 ;; =============================================================================
 
 (def ^:private ^bytes null-separator
-  "Domain separator byte (0x00) between type name and data."
+  "Domain separator (0x00) terminating a type name."
   (byte-array [0]))
 
 (def ^:private null-separator-hash
   (hash/fuse-bytes null-separator))
 
-(defn node-hash
-  "Compute the hash of an internal tree node.
+(def ^:private type-hash-cache (atom {}))
 
-   node_hash = fuse(fuse-str(node-type-name ++ 0x00), elements-fuse)"
-  [type-name elements-fuse]
-  (let [type-bytes (.getBytes ^String type-name "UTF-8")]
-    (-> (hash/fuse-bytes type-bytes)
-        (hash/unchecked-fuse null-separator-hash)
-        (hash/unchecked-fuse elements-fuse))))
+(defn type-hash
+  "The type hash for a type name: fuse_bytes(type_name ++ 0x00).
+
+   Computed as fuse(fuse_bytes(name), fuse_bytes(0x00)) — equivalent to
+   hashing the concatenation, since fuse composes over concatenation.
+   Cached per name. Uses unchecked-fuse: never throws on the separator."
+  [type-name]
+  (or (@type-hash-cache type-name)
+      (let [h (hash/unchecked-fuse
+               (hash/fuse-bytes (.getBytes ^String type-name "UTF-8"))
+               null-separator-hash)]
+        (swap! type-hash-cache assoc type-name h)
+        h)))
+
+(defn value-hash
+  "value_hash = fuse(type_hash, data_hash).
+
+   Uses unchecked-fuse so that empty/zero data hashes (e.g. null, the
+   empty collection) do not trip the low-entropy check."
+  [type-name data-hash]
+  (hash/unchecked-fuse (type-hash type-name) data-hash))
+
+(def node-hash
+  "Internal tree nodes hash by the same rule as every other value:
+   fuse(type_hash, elements_fuse)."
+  value-hash)
+
+(defn content-hash
+  "Strip the type tag, recovering the data hash:
+
+       content_hash = fuse(inv(type_hash), value_hash) = data_hash
+
+   Because value_hash = fuse(type_hash, data_hash) and fuse forms a
+   group, left-multiplying by the type hash's inverse cancels it. Two
+   values of different types but identical data share a content hash."
+  [type-name value-hash-v]
+  (hash/unchecked-fuse (hash/fuse-inverse (type-hash type-name)) value-hash-v))
 
 ;; =============================================================================
-;; Canonical value encoding (multimethod)
+;; Canonical scalar encoding (multimethod)
 ;; =============================================================================
 
 (defmulti encode-value
-  "Encode a typed Dacite value to canonical bytes for hashing.
+  "Canonical bytes for a scalar [type data]. Each scalar type has a
+   fixed-width, big-endian, language-agnostic encoding. Collections are
+   hashed via their elements_fuse measure, never through encode-value."
+  entry-type)
 
-   Dispatches on type-name string. Each scalar type has a fixed-width,
-   big-endian, language-agnostic encoding:
-
-     null  → 0 bytes
-     bool  → 1 byte (0x00 or 0x01)
-     i8    → 1 byte signed
-     i16   → 2 bytes big-endian signed
-     i32   → 4 bytes big-endian signed
-     i64   → 8 bytes big-endian signed
-     u8    → 1 byte unsigned
-     u16   → 2 bytes big-endian unsigned
-     u32   → 4 bytes big-endian unsigned
-     u64   → 8 bytes big-endian unsigned
-     u256  → 32 bytes raw
-     f32   → 4 bytes IEEE 754 big-endian
-     f64   → 8 bytes IEEE 754 big-endian
-     char  → 1-4 bytes UTF-8
-
-   Collections use node-hash + elements_fuse instead."
-  (fn [[type-name _data]] type-name))
-
-;; Default: fall back to pr-str for types without a canonical encoding.
 (defmethod encode-value :default [[_ data]]
   (.getBytes (pr-str data) "UTF-8"))
 
-;; =============================================================================
-;; Scalar encode-value implementations
-;; =============================================================================
+(defn scalar-data-hash
+  "data_hash for a scalar = fuse_bytes(canonical_bytes)."
+  [typed-value]
+  (hash/fuse-bytes (encode-value typed-value)))
 
-(defmethod encode-value "null" [_]
-  (byte-array 0))
-
-(defmethod encode-value "bool" [[_ b]]
-  (byte-array [(if b (byte 1) (byte 0))]))
-
-(defmethod encode-value "i8" [[_ n]]
-  (byte-array [(unchecked-byte n)]))
-
-(defmethod encode-value "i16" [[_ n]]
-  (let [buf (java.nio.ByteBuffer/allocate 2)]
-    (.putShort buf (short n))
-    (.array buf)))
-
-(defmethod encode-value "i32" [[_ n]]
-  (let [buf (java.nio.ByteBuffer/allocate 4)]
-    (.putInt buf (int n))
-    (.array buf)))
-
-(defmethod encode-value "i64" [[_ n]]
-  (let [buf (java.nio.ByteBuffer/allocate 8)]
-    (.putLong buf (long n))
-    (.array buf)))
-
-(defmethod encode-value "u8" [[_ n]]
-  (byte-array [(unchecked-byte n)]))
-
-(defmethod encode-value "u16" [[_ n]]
-  (let [buf (java.nio.ByteBuffer/allocate 2)]
-    (.putShort buf (unchecked-short n))
-    (.array buf)))
-
-(defmethod encode-value "u32" [[_ n]]
-  (let [buf (java.nio.ByteBuffer/allocate 4)]
-    (.putInt buf (unchecked-int n))
-    (.array buf)))
-
-(defmethod encode-value "u64" [[_ n]]
-  (let [buf (java.nio.ByteBuffer/allocate 8)]
-    (.putLong buf (unchecked-long n))
-    (.array buf)))
-
-(defmethod encode-value "u256" [[_ ^bytes data]]
-  data)
-
-(defmethod encode-value "f32" [[_ n]]
-  (let [buf (java.nio.ByteBuffer/allocate 4)]
-    (.putFloat buf (float n))
-    (.array buf)))
-
-(defmethod encode-value "f64" [[_ n]]
-  (let [buf (java.nio.ByteBuffer/allocate 8)]
-    (.putDouble buf (double n))
-    (.array buf)))
-
-(defmethod encode-value "char" [[_ ch]]
-  (.getBytes (str ch) "UTF-8"))
-
-(defmethod encode-value "negative" [[_ _]]
-  (byte-array []))
+(defn scalar-value-hash
+  "value_hash for a scalar [type data]."
+  [typed-value]
+  (value-hash (entry-type typed-value) (scalar-data-hash typed-value)))
 
 ;; =============================================================================
-;; Child hash extraction (multimethod)
-;; =============================================================================
-
-(defmulti child-hashes
-  "Extract child hash references from a stored node value.
-   Returns an ordered vector of hashes that this node directly references.
-
-   Dispatches on type string."
-  (fn [node]
-    (when (and (vector? node) (= 2 (count node)))
-      (first node))))
-
-(defmethod child-hashes nil [_] nil)
-(defmethod child-hashes :default [_] [])
-
-;; Collection types have a :root child
-(doseq [t ["vector" "string" "blob" "map" "set"]]
-  (defmethod child-hashes t [[_ data]]
-    (when-let [root (:root data)]
-      [root])))
-
-;; =============================================================================
-;; Size computation (multimethod)
+;; Size (multimethod)
 ;; =============================================================================
 
 (defmulti dacite-size
-  "Get the size in bytes of a typed value.
-   Dispatches on type string."
-  (fn [[type-name _data]] type-name))
+  "Byte size of a stored [type data] value. Scalars define explicit
+   methods; collections carry :size-bytes in their data."
+  entry-type)
 
-;; Default: check for :size-bytes in collection data
 (defmethod dacite-size :default [[_ data]]
-  (if-let [sb (:size-bytes data)]
-    sb
-    (count (.getBytes (pr-str data) "UTF-8"))))
-
-;; Scalar sizes
-(defmethod dacite-size "null" [_] 0)
-(defmethod dacite-size "bool" [_] 1)
-(defmethod dacite-size "i8" [_] 1)
-(defmethod dacite-size "i16" [_] 2)
-(defmethod dacite-size "i32" [_] 4)
-(defmethod dacite-size "i64" [_] 8)
-(defmethod dacite-size "u8" [_] 1)
-(defmethod dacite-size "u16" [_] 2)
-(defmethod dacite-size "u32" [_] 4)
-(defmethod dacite-size "u64" [_] 8)
-(defmethod dacite-size "u256" [_] 32)
-(defmethod dacite-size "f32" [_] 4)
-(defmethod dacite-size "f64" [_] 8)
-(defmethod dacite-size "char" [[_ ch]]
-  (count (.getBytes (str ch) "UTF-8")))
-(defmethod dacite-size "negative" [_] 0)
+  (if-let [m (:measure data)]
+    (:size-bytes m)
+    (if-let [sb (:size-bytes data)]
+      sb
+      (count (.getBytes (pr-str data) "UTF-8")))))
