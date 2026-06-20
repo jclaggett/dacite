@@ -30,12 +30,20 @@
 ;; DaciteScalar
 ;; =============================================================================
 
+(def ^:const negative-sentinel
+  "Clojure value returned by `->clj` for the `\"negative\"` scalar sentinel."
+  :dacite/negative)
+
 (deftype DaciteScalar [store _hash]
   types/IDaciteValue
   (dacite-hash [_] _hash)
   (dacite-store [_] store)
   (dacite-type [_] (types/entry-type (store/s-get store _hash)))
-  (->clj [_] (types/entry-data (store/s-get store _hash)))
+  (->clj [_]
+    (let [entry (store/s-get store _hash)]
+      (if (= "negative" (types/entry-type entry))
+        negative-sentinel
+        (types/entry-data entry))))
 
   IHashEq
   (hasheq [_] (hash/hash->int _hash))

@@ -35,7 +35,8 @@
   (dacite-type [this] "The value's type name string (e.g. \"i64\", \"vector\").")
   (->clj [this]
     "Realize this value as a plain Clojure value. A scalar yields its
-     language value. A collection yields a lazy seq of its realized
+     language value (the `\"negative\"` sentinel yields `:dacite/negative`,
+     distinct from `null`). A collection yields a lazy seq of its realized
      elements (each element is itself ->clj'd, so sub-collections become
      nested lazy seqs); a map yields a lazy seq of [k v] pairs with both
      key and value realized. Empty collections yield nil (matching `seq`).

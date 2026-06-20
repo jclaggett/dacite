@@ -25,7 +25,10 @@
     (is (float? (v2/->clj (v2/f32-with-store s 3.14))))
     (is (double? (v2/->clj (v2/f64-with-store s 3.14159))))
     (is (= \a (v2/->clj (v2/dacite-char-with-store s \a))))
-    (is (= "negative" (v2/dacite-type (v2/negative-with-store s))))))
+    (is (= "negative" (v2/dacite-type (v2/negative-with-store s))))
+    (is (= :dacite/negative (v2/->clj (v2/negative-with-store s))))
+    (is (not= (v2/->clj (v2/negative-with-store s))
+              (v2/->clj (v2/null-with-store s))))))
 
 (deftest values-are-not-derefable
   (let [s (store/mem-store)]

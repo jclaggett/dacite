@@ -152,7 +152,9 @@
         (is (not (v2/set-member? e 999)))))
     (testing "double complement restores the set"
       (is (= (v2/dacite-hash a)
-             (v2/dacite-hash (v2/set-complement comp)))))))
+             (v2/dacite-hash (v2/set-complement comp)))))
+    (testing "->clj exposes sentinel as :dacite/negative, not nil"
+      (is (= #{:dacite/negative 1 2 3} (set (v2/->clj comp)))))))
 
 ;; =============================================================================
 ;; Shape independence (§3.3) — many small pushes equal one bulk build

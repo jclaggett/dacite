@@ -112,6 +112,7 @@
 (def dacite-char-with-store scalar/dacite-char-with-store)
 (def negative            scalar/negative)
 (def negative-with-store scalar/negative-with-store)
+(def negative-sentinel   scalar/negative-sentinel)
 
 ;; Generic aliases per the §3.9 table.
 (def dac-int   scalar/i64)
