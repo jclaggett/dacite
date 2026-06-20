@@ -3,12 +3,16 @@
 **Status:** Design discussion. Some points decided and implemented; others
 proposed or held as future direction. See the per-section status markers.
 
+> **🔖 Renamed (2026-06-20):** the reference API method is `realize` (formerly
+> `->clj`). The name is language-neutral and reflects behavior: scalars yield
+> native values; collections yield lazy iterables, not host-language collections.
+>
 > **🔖 Resolved (2026-06-19):** §2 collection realization is decided and
-> implemented. Rather than *dropping* whole-collection `->clj`, we made it
-> **lazy and deep**: `->clj` on a collection returns a lazy seq of `->clj`'d
+> implemented. Rather than *dropping* whole-collection `realize`, we made it
+> **lazy and deep**: `realize` on a collection returns a lazy seq of `realize`'d
 > elements (a map returns a lazy seq of realized `[k v]` pairs), with empty
 > collections yielding `nil`. Laziness is what reconciles the convenience of
-> `->clj` with partial availability — only the consumed portion is fetched.
+> `realize` with partial availability — only the consumed portion is fetched.
 > See the updated §2 below. **Bounded `toString`** is now implemented too
 > (default 32 elements / 64 chars; REPL via `print-method` + `*print-length*`).
 
@@ -44,10 +48,10 @@ and authorization/sharing layers.
 Dacite values are immutable, content-addressed values — the opposite of mutable
 references. So they do **not** implement `IDeref`; there is no `@value`.
 
-Converting a value to a plain language value is an **explicit** call: `->clj`.
+Converting a value to a plain language value is an **explicit** call: `realize`.
 
 This was implemented: `IDeref` (and the scalar's pointless zero-arg `IFn`) were
-removed; `->clj` was added to the `IDaciteValue` protocol and exported from the
+removed; `realize` was added to the `IDaciteValue` protocol and exported from the
 `dacite.value2` facade.
 
 ## 2. Realization vs. partial availability (Decided, implemented)
@@ -58,30 +62,30 @@ Any operation that yields a **complete** language collection (a Clojure
 vector/map/set/`String`/`byte[]`) is inherently a **full-traversal,
 full-availability** operation — a finite language collection is fully realized
 by definition. So the real question was not "shallow vs. deep" realization; it
-was whether a whole-collection `->clj` that *forces full availability* should
+was whether a whole-collection `realize` that *forces full availability* should
 exist at all.
 
-A "shallow" *eager* collection `->clj` (leaves left as wrapped Dacite values)
+A "shallow" *eager* collection `realize` (leaves left as wrapped Dacite values)
 still walks the entire spine and every leaf reference to build the result. That
 is exactly the assumption we want to avoid for large/partial values.
 
-### Resolution: lazy + deep `->clj`
+### Resolution: lazy + deep `realize`
 
-The resolution (2026-06-19) keeps a single, uniform `->clj` but makes it **lazy
+The resolution (2026-06-19) keeps a single, uniform `realize` but makes it **lazy
 and deep** instead of eager:
 
-- `->clj` on a **scalar** → its language value (atomic, one local node).
-- `->clj` on a **collection** → a **lazy seq** of `->clj`'d elements. Because
+- `realize` on a **scalar** → its language value (atomic, one local node).
+- `realize` on a **collection** → a **lazy seq** of `realize`'d elements. Because
   it is lazy, realizing *k* elements fetches ~O(k + path) nodes, not the whole
   tree — partial availability is preserved. A caller who consumes the whole seq
-  owns that full-traversal cost explicitly (`(vec (->clj v))`, `(apply str
-  (->clj s))`, etc.).
-- Deep by construction: each element is itself `->clj`'d, so sub-collections
+  owns that full-traversal cost explicitly (`(vec (realize v))`, `(apply str
+  (realize s))`, etc.).
+- Deep by construction: each element is itself `realize`'d, so sub-collections
   become **nested lazy seqs**.
 - Maps → a lazy seq of `[k v]` pairs with both key and value realized.
 - Empty collections → `nil` (matching `clojure.core/seq`).
 
-This is strictly better than the "drop whole-collection `->clj`" proposal that
+This is strictly better than the "drop whole-collection `realize`" proposal that
 preceded it: it is uniform (one function across scalars and collections),
 deep (recursion is automatic), and partial-availability-safe (laziness), while
 still letting the caller force a concrete language structure when they want one.
@@ -100,24 +104,24 @@ This is the real "manipulate a huge value in part" surface, and it is intact.
 The only thing that forces full availability is asking for the entire value as
 native data.
 
-### Why a *lazy* `->clj` is not redundant
+### Why a *lazy* `realize` is not redundant
 
 A `DaciteVector` already *behaves* as a language vector (lazily, partially) via
-its interfaces, so an *eager* `->clj` would be both redundant and a forced
-realization. A *lazy* `->clj` is different: it is the one operation that walks
+its interfaces, so an *eager* `realize` would be both redundant and a forced
+realization. A *lazy* `realize` is different: it is the one operation that walks
 the structure as a uniform, **deep** sequence (recursively realizing nested
 collections and unwrapping leaves to language values) without committing to a
 concrete container. The wrapper interfaces (`nth`/`get`/`seq`) hand back wrapped
-elements; `->clj` hands back realized language values, lazily.
+elements; `realize` hands back realized language values, lazily.
 
 ### Strings and blobs
 
-Strings and blobs follow the same rule: `->clj` returns a lazy seq of their
+Strings and blobs follow the same rule: `realize` returns a lazy seq of their
 items (chars for strings, byte values for blobs). The common "give me the whole
 thing" case is then an explicit, call-site-owned materialization:
 
-- String → `(apply str (->clj s))`
-- Blob → `(byte-array (->clj b))`
+- String → `(apply str (realize s))`
+- Blob → `(byte-array (realize b))`
 
 `toString` still renders a `String` for a `DaciteString` (it reconstructs the
 characters directly), so logging/printing a string is unaffected. Dedicated
@@ -146,9 +150,9 @@ Two application needs drive scalar design.
 
 ### Need 1 — see the value (present / log) (Decided)
 
-Showing a value to a user or writing it to a log is exactly `->clj` on a scalar:
+Showing a value to a user or writing it to a log is exactly `realize` on a scalar:
 atomic, one local node, no traversal. (`toString` gives the `[type data]` debug
-form; `->clj` gives the bare value for UI/logs.)
+form; `realize` gives the bare value for UI/logs.)
 
 ### Need 2 — compute (Decided: option (a))
 
@@ -164,7 +168,7 @@ to most ambitious:
 #### (a) Explicit extract → compute → rewrap (baseline) — Chosen
 
 ```clojure
-(i64 store (+ (->clj a) (->clj b)))
+(i64 store (+ (realize a) (realize b)))
 ```
 
 Full control over result store and type; zero magic; verbose, and repeats the
@@ -179,7 +183,7 @@ and re-wraps the result:
 (defn lift [f]
   (fn [& args]
     (let [store (->> args (filter dacite-value?) first dacite-store)
-          raw   (map #(if (dacite-value? %) (->clj %) %) args)]
+          raw   (map #(if (dacite-value? %) (realize %) %) args)]
       (coerce store (apply f raw)))))   ; coerce: language value -> Dacite value
 
 (def dac+ (lift +))
@@ -190,7 +194,7 @@ Elegant, and reuses the existing coerce path. **But the result type is decided
 by the language value, not the operand types**, which is the crux:
 
 - `i8 + i8 → i64` (width is lost; this is widening, not wrapping)
-- `u64` round-trips **unsafely**: `(->clj (u64 ... (dec (expt 2 64))))` is a
+- `u64` round-trips **unsafely**: `(realize (u64 ... (dec (expt 2 64))))` is a
   bignum, and coerce's `integer? → i64` would overflow.
 
 So generic lift cannot faithfully handle wide/unsigned types. It forces two
@@ -234,8 +238,8 @@ its own design pass.
 ## Decision (2026-06-18)
 
 - Adopt **(a)** as the supported approach for scalar computation now: extract
-  with `->clj`, compute in the host language, re-wrap with the desired scalar
-  constructor. **No new machinery is required** — the existing scalar `->clj`
+  with `realize`, compute in the host language, re-wrap with the desired scalar
+  constructor. **No new machinery is required** — the existing scalar `realize`
   plus the constructors already cover it.
 - Defer **(b)** (generic `lift`) and **(c)** (type-aware promotion) to future
   work.
@@ -254,14 +258,14 @@ only if a generic `lift` ((b)/(c)) is taken up later.
 
 | Topic | Status |
 |-------|--------|
-| No `IDeref`; explicit `->clj` | Decided, implemented |
-| `->clj` on scalars → language value | Decided, implemented |
-| `->clj` on collections → lazy, deep seq (map → `[k v]` pairs); empty → `nil` | Decided, implemented |
+| No `IDeref`; explicit `realize` | Decided, implemented |
+| `realize` on scalars → language value | Decided, implemented |
+| `realize` on collections → lazy, deep iterable (map → `[k v]` pairs); empty → `nil` | Decided, implemented |
 | String/blob materialization via `(apply str ...)` / `(byte-array ...)` | Decided, implemented |
 | Bounded collection `toString` | Decided, implemented (32 el / 64 char defaults) |
 | REPL `print-method` + `*print-length*` / `*print-level*` | Decided, implemented |
 | Dedicated `string->str` / `blob->bytes` helpers | Future (optional ergonomic) |
-| Scalar presentation via `->clj` | Decided |
+| Scalar presentation via `realize` | Decided |
 | Scalar computation: (a) explicit | Decided — supported approach (no new code) |
 | Scalar computation: (b) generic `lift` | Future |
 | Scalar computation: (c) type-aware promotion | Future |

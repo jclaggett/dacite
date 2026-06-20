@@ -8,11 +8,11 @@
 (defn- realize-each
   "Realize every element of a seqable Dacite collection to Clojure values."
   [coll]
-  (mapv v2/->clj (or (seq coll) ())))
+  (mapv v2/realize (or (seq coll) ())))
 
 (defn- set-vals
   [s]
-  (into #{} (map v2/->clj) (or (seq s) ())))
+  (into #{} (map v2/realize) (or (seq s) ())))
 
 ;; =============================================================================
 ;; Vectors
@@ -24,9 +24,9 @@
     (is (= "vector" (v2/dacite-type v)))
     (is (= 3 (count v)))
     (is (= [1 2 3] (realize-each v)))
-    (is (= 2 (v2/->clj (nth v 1))))
-    (is (= 2 (v2/->clj (get v 1))))
-    (is (= 2 (v2/->clj (v 1))))
+    (is (= 2 (v2/realize (nth v 1))))
+    (is (= 2 (v2/realize (get v 1))))
+    (is (= 2 (v2/realize (v 1))))
     (is (nil? (get v 99)))))
 
 (deftest vector-conj-is-persistent
@@ -43,7 +43,7 @@
   (let [s (store/mem-store)
         v (v2/vector-with-store s 1 2 3)]
     (is (= [1 9 3] (realize-each (assoc v 1 9))))
-    (is (= 3 (v2/->clj (peek v))))
+    (is (= 3 (v2/realize (peek v))))
     (is (= [1 2] (realize-each (pop v))))))
 
 (deftest vector-empty-and-wrap
@@ -63,9 +63,9 @@
         str-v (v2/string-with-store s "hello")]
     (is (= "string" (v2/dacite-type str-v)))
     (is (= 5 (count str-v)))
-    (testing "->clj yields a lazy seq of chars; (apply str ...) rebuilds the String"
-      (is (= [\h \e \l \l \o] (v2/->clj str-v)))
-      (is (= "hello" (apply str (v2/->clj str-v)))))
+    (testing "realize yields a lazy seq of chars; (apply str ...) rebuilds the String"
+      (is (= [\h \e \l \l \o] (v2/realize str-v)))
+      (is (= "hello" (apply str (v2/realize str-v)))))
     (is (= "hello" (str str-v)))
     (is (= \h (.charAt ^CharSequence str-v 0)))
     (is (= [\h \e \l \l \o] (realize-each str-v)))))
@@ -75,7 +75,7 @@
         b (v2/blob-with-store s (byte-array [1 2 3 4]))]
     (is (= "blob" (v2/dacite-type b)))
     (is (= 4 (count b)))
-    (is (= [1 2 3 4] (vec (v2/->clj b))))))
+    (is (= [1 2 3 4] (vec (v2/realize b))))))
 
 ;; =============================================================================
 ;; Maps
@@ -86,8 +86,8 @@
         m (v2/hash-map-with-store s "a" 1 "b" 2)]
     (is (= "map" (v2/dacite-type m)))
     (is (= 2 (count m)))
-    (is (= 1 (v2/->clj (get m "a"))))
-    (is (= 2 (v2/->clj (m "b"))))
+    (is (= 1 (v2/realize (get m "a"))))
+    (is (= 2 (v2/realize (m "b"))))
     (is (nil? (get m "z")))
     (is (contains? m "a"))))
 
@@ -97,12 +97,12 @@
         m2 (assoc m "c" 3)
         m3 (dissoc m "a")]
     (is (= 3 (count m2)))
-    (is (= 3 (v2/->clj (get m2 "c"))))
+    (is (= 3 (v2/realize (get m2 "c"))))
     (testing "immutability"
       (is (= 2 (count m))))
     (is (= 1 (count m3)))
     (is (nil? (get m3 "a")))
-    (is (= 2 (v2/->clj (get m3 "b"))))))
+    (is (= 2 (v2/realize (get m3 "b"))))))
 
 (deftest map-insertion-order-independent
   (let [s (store/mem-store)]
@@ -153,8 +153,8 @@
     (testing "double complement restores the set"
       (is (= (v2/dacite-hash a)
              (v2/dacite-hash (v2/set-complement comp)))))
-    (testing "->clj exposes sentinel as :dacite/negative, not nil"
-      (is (= #{:dacite/negative 1 2 3} (set (v2/->clj comp)))))))
+    (testing "realize exposes sentinel as :dacite/negative, not nil"
+      (is (= #{:dacite/negative 1 2 3} (set (v2/realize comp)))))))
 
 ;; =============================================================================
 ;; Shape independence (§3.3) — many small pushes equal one bulk build
@@ -168,43 +168,43 @@
     (is (= 50 (count bulk)))))
 
 ;; =============================================================================
-;; ->clj realizes collections as lazy seqs (deep, partial-availability-friendly)
+;; realize realizes collections as lazy seqs (deep, partial-availability-friendly)
 ;; =============================================================================
 
-(deftest ->clj-collections-are-lazy-seqs
+(deftest realize-collections-are-lazy-seqs
   (let [s (store/mem-store)]
     (testing "vector -> lazy seq of values"
-      (let [r (v2/->clj (v2/vector-with-store s 1 2 3))]
+      (let [r (v2/realize (v2/vector-with-store s 1 2 3))]
         (is (seq? r))
         (is (= [1 2 3] r))))
     (testing "set -> lazy seq of values"
-      (is (= #{1 2 3} (set (v2/->clj (v2/set-with-store s 1 2 3))))))
+      (is (= #{1 2 3} (set (v2/realize (v2/set-with-store s 1 2 3))))))
     (testing "blob -> lazy seq of byte values"
-      (is (= [1 2 3 4] (vec (v2/->clj (v2/blob-with-store s (byte-array [1 2 3 4])))))))))
+      (is (= [1 2 3 4] (vec (v2/realize (v2/blob-with-store s (byte-array [1 2 3 4])))))))))
 
-(deftest ->clj-map-yields-realized-pairs
+(deftest realize-map-yields-realized-pairs
   (let [s (store/mem-store)
         m (v2/hash-map-with-store s 1 10 2 20)
-        r (v2/->clj m)]
+        r (v2/realize m)]
     (is (seq? r))
     (testing "each entry is a [k v] pair with key and value realized"
       (is (= #{[1 10] [2 20]} (set r))))))
 
-(deftest ->clj-is-deep-with-nested-collections
+(deftest realize-is-deep-with-nested-collections
   (let [s (store/mem-store)
         nested (v2/vector-with-store s (v2/vector-with-store s 1 2) 3)
-        r (v2/->clj nested)]
+        r (v2/realize nested)]
     (testing "sub-collections become nested seqs"
       (is (= [[1 2] 3] r))
       (is (seq? (first r))))))
 
-(deftest ->clj-empty-collections-are-nil
+(deftest realize-empty-collections-are-nil
   (let [s (store/mem-store)]
-    (is (nil? (v2/->clj (v2/vector-with-store s))))
-    (is (nil? (v2/->clj (v2/set-with-store s))))
-    (is (nil? (v2/->clj (v2/string-with-store s ""))))
-    (is (nil? (v2/->clj (v2/hash-map-with-store s))))
-    (is (nil? (v2/->clj (empty (v2/vector-with-store s 1 2 3)))))))
+    (is (nil? (v2/realize (v2/vector-with-store s))))
+    (is (nil? (v2/realize (v2/set-with-store s))))
+    (is (nil? (v2/realize (v2/string-with-store s ""))))
+    (is (nil? (v2/realize (v2/hash-map-with-store s))))
+    (is (nil? (v2/realize (empty (v2/vector-with-store s 1 2 3)))))))
 
 ;; =============================================================================
 ;; Bounded toString (partial-availability-safe debug rendering)
@@ -240,4 +240,4 @@
 
 (deftest implicit-vector-single-element
   (store/bind-store (store/mem-store)
-                    (is (= [1] (mapv v2/->clj (v2/vector 1))))))
+                    (is (= [1] (mapv v2/realize (v2/vector 1))))))

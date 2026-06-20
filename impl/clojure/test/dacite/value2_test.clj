@@ -11,24 +11,24 @@
 (deftest scalar-types-and-realize
   (let [s (store/mem-store)]
     (is (= "null" (v2/dacite-type (v2/null-with-store s))))
-    (is (nil? (v2/->clj (v2/null-with-store s))))
+    (is (nil? (v2/realize (v2/null-with-store s))))
     (is (= "bool" (v2/dacite-type (v2/bool-with-store s true))))
-    (is (= true (v2/->clj (v2/bool-with-store s true))))
-    (is (= (byte 42) (v2/->clj (v2/i8-with-store s 42))))
-    (is (= (short 1000) (v2/->clj (v2/i16-with-store s 1000))))
-    (is (= (int 123456) (v2/->clj (v2/i32-with-store s 123456))))
-    (is (= 9999999999 (v2/->clj (v2/i64-with-store s 9999999999))))
-    (is (= 255 (v2/->clj (v2/u8-with-store s 255))))
-    (is (= 65535 (v2/->clj (v2/u16-with-store s 65535))))
-    (is (= 4294967295 (v2/->clj (v2/u32-with-store s 4294967295))))
-    (is (= 18446744073709551615 (v2/->clj (v2/u64-with-store s 18446744073709551615))))
-    (is (float? (v2/->clj (v2/f32-with-store s 3.14))))
-    (is (double? (v2/->clj (v2/f64-with-store s 3.14159))))
-    (is (= \a (v2/->clj (v2/dacite-char-with-store s \a))))
+    (is (= true (v2/realize (v2/bool-with-store s true))))
+    (is (= (byte 42) (v2/realize (v2/i8-with-store s 42))))
+    (is (= (short 1000) (v2/realize (v2/i16-with-store s 1000))))
+    (is (= (int 123456) (v2/realize (v2/i32-with-store s 123456))))
+    (is (= 9999999999 (v2/realize (v2/i64-with-store s 9999999999))))
+    (is (= 255 (v2/realize (v2/u8-with-store s 255))))
+    (is (= 65535 (v2/realize (v2/u16-with-store s 65535))))
+    (is (= 4294967295 (v2/realize (v2/u32-with-store s 4294967295))))
+    (is (= 18446744073709551615 (v2/realize (v2/u64-with-store s 18446744073709551615))))
+    (is (float? (v2/realize (v2/f32-with-store s 3.14))))
+    (is (double? (v2/realize (v2/f64-with-store s 3.14159))))
+    (is (= \a (v2/realize (v2/dacite-char-with-store s \a))))
     (is (= "negative" (v2/dacite-type (v2/negative-with-store s))))
-    (is (= :dacite/negative (v2/->clj (v2/negative-with-store s))))
-    (is (not= (v2/->clj (v2/negative-with-store s))
-              (v2/->clj (v2/null-with-store s))))))
+    (is (= :dacite/negative (v2/realize (v2/negative-with-store s))))
+    (is (not= (v2/realize (v2/negative-with-store s))
+              (v2/realize (v2/null-with-store s))))))
 
 (deftest values-are-not-derefable
   (let [s (store/mem-store)]
@@ -78,7 +78,7 @@
         v (v2/i64-with-store s 42)
         back (v2/get-value-with-store s (v2/dacite-hash v))]
     (is (= "i64" (v2/dacite-type back)))
-    (is (= 42 (v2/->clj back)))
+    (is (= 42 (v2/realize back)))
     (testing "missing hash returns nil"
       (is (nil? (v2/get-value-with-store s [0 0 0 0]))))))
 
@@ -109,6 +109,6 @@
   (let [s (store/mem-store)]
     (store/bind-store s
                       (let [v (v2/vector 1 2 3)]
-                        (is (= [1 2 3] (mapv v2/->clj (or (seq v) ()))))
+                        (is (= [1 2 3] (mapv v2/realize (or (seq v) ()))))
                         (is (identical? s (v2/dacite-store v)))
-                        (is (= 42 (v2/->clj (v2/i64 42))))))))
+                        (is (= 42 (v2/realize (v2/i64 42))))))))

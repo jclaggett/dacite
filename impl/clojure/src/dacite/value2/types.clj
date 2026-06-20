@@ -28,18 +28,18 @@
   "A store-aware, content-addressed Dacite value.
 
    Dacite values are immutable values, not references, so they do not
-   implement IDeref. Converting to a plain Clojure value is an explicit
-   call (->clj)."
+   implement IDeref. Converting to host-language values is an explicit
+   call (`realize`)."
   (dacite-hash [this] "The value's 4-long content hash.")
   (dacite-store [this] "The store that created and persists this value.")
   (dacite-type [this] "The value's type name string (e.g. \"i64\", \"vector\").")
-  (->clj [this]
-    "Realize this value as a plain Clojure value. A scalar yields its
-     language value (the `\"negative\"` sentinel yields `:dacite/negative`,
-     distinct from `null`). A collection yields a lazy seq of its realized
-     elements (each element is itself ->clj'd, so sub-collections become
-     nested lazy seqs); a map yields a lazy seq of [k v] pairs with both
-     key and value realized. Empty collections yield nil (matching `seq`).
+  (realize [this]
+    "Expose this value's content in the host language. A scalar yields its
+     native value (the `\"negative\"` sentinel yields `:dacite/negative`,
+     distinct from `null`). A collection yields a lazy iterable of realized
+     elements (each element is itself realized, so sub-collections become
+     nested lazy iterables); a map yields a lazy iterable of [k v] pairs with
+     both key and value realized. Empty collections yield nil (no elements).
      Laziness means only the consumed portion is fetched from the store,
      preserving partial availability for large values."))
 

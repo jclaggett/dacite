@@ -43,7 +43,7 @@
   (:root (types/entry-data (store/s-get store h))))
 
 (defn- render-scalar [v]
-  (pr-str (types/->clj v)))
+  (pr-str (types/realize v)))
 
 (defn- render-string [v]
   (let [store (types/dacite-store v)
@@ -170,7 +170,7 @@
 
 (defn- print-scalar [v ^Writer w]
   (binding [*out* w]
-    (pr (types/->clj v))))
+    (pr (types/realize v))))
 
 (defn print-dacite-value
   "Write a Dacite value to a `Writer`, honoring `*print-length*` and

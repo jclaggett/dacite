@@ -74,11 +74,11 @@
 
 (defn- realize-hashes
   "Lazily realize a seq of element hashes to native Clojure values by
-   wrapping each hash and recursively calling `->clj`. Because the result
+   wrapping each hash and recursively calling `realize`. Because the result
    is a lazy seq, only the consumed portion is fetched from the store —
    preserving partial availability for large values (§3)."
   [store hs]
-  (map #(types/->clj (wrap-hash store %)) hs))
+  (map #(types/realize (wrap-hash store %)) hs))
 
 ;; =============================================================================
 ;; DaciteString — finger tree of chars
@@ -89,7 +89,7 @@
   (dacite-hash [_] _hash)
   (dacite-store [_] store)
   (dacite-type [_] "string")
-  (->clj [_]
+  (realize [_]
     (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
       (when (pos? count)
         (realize-hashes store (ft/ft-seq store root)))))
@@ -132,7 +132,7 @@
   (dacite-hash [_] _hash)
   (dacite-store [_] store)
   (dacite-type [_] "blob")
-  (->clj [_]
+  (realize [_]
     (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
       (when (pos? count)
         (realize-hashes store (ft/ft-seq store root)))))
@@ -164,7 +164,7 @@
   (dacite-hash [_] _hash)
   (dacite-store [_] store)
   (dacite-type [_] "vector")
-  (->clj [_]
+  (realize [_]
     (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
       (when (pos? count)
         (realize-hashes store (ft/ft-seq store root)))))
@@ -257,12 +257,12 @@
   (dacite-hash [_] _hash)
   (dacite-store [_] store)
   (dacite-type [_] "map")
-  (->clj [_]
+  (realize [_]
     (let [entries (hamt/hamt-entries store (node-root store _hash))]
       (when (clojure.core/seq entries)
         (map (fn [[kh vh]]
-               [(types/->clj (wrap-hash store kh))
-                (types/->clj (wrap-hash store vh))])
+               [(types/realize (wrap-hash store kh))
+                (types/realize (wrap-hash store vh))])
              entries))))
 
   IHashEq
@@ -351,10 +351,10 @@
   (dacite-hash [_] _hash)
   (dacite-store [_] store)
   (dacite-type [_] "set")
-  (->clj [_]
+  (realize [_]
     (let [entries (hamt/hamt-entries store (node-root store _hash))]
       (when (clojure.core/seq entries)
-        (map (fn [[kh _]] (types/->clj (wrap-hash store kh))) entries))))
+        (map (fn [[kh _]] (types/realize (wrap-hash store kh))) entries))))
 
   IHashEq
   (hasheq [_] (hash/hash->int _hash))

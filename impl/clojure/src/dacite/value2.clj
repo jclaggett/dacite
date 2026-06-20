@@ -12,7 +12,7 @@
        (dacite-hash v)   ; => [c0 c1 c2 c3]
        (dacite-store v)  ; => the owning store
        (dacite-type v)   ; => \"vector\"
-       (->clj v)         ; => lazy seq of realized elements
+       (realize v)         ; => lazy iterable of realized elements
 
    When the store must be explicit — tests, migration, multiple stores —
    use the `-with-store` variants:
@@ -44,17 +44,17 @@
 (def dacite-store types/dacite-store)
 (def dacite-type  types/dacite-type)
 
-(def ->clj
-  "Realize a Dacite value as a plain Clojure value. Dacite values are
-   immutable values (not references), so this conversion is an explicit
-   call rather than a deref.
+(def realize
+  "Expose a Dacite value's content in the host language. Dacite values are
+   immutable values (not references), so this conversion is an explicit call
+   rather than a deref.
 
-   Scalars realize to their language value. Collections realize to a lazy
-   seq of realized elements (sub-collections become nested lazy seqs);
-   maps realize to a lazy seq of realized [k v] pairs. Empty collections
-   yield nil. The seq is lazy, so only the part you consume is fetched —
-   keeping large values partially available."
-  types/->clj)
+   Scalars yield native values. Collections yield a lazy iterable of realized
+   elements (sub-collections become nested lazy iterables); maps yield a lazy
+   iterable of realized [k v] pairs. Empty collections yield nil. The iterable
+   is lazy, so only the part you consume is fetched — keeping large values
+   partially available."
+  types/realize)
 
 (defn content-hash
   "Strip a value's type tag to recover its data hash (§3.3). Two values of

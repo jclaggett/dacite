@@ -31,7 +31,7 @@
 ;; =============================================================================
 
 (def ^:const negative-sentinel
-  "Clojure value returned by `->clj` for the `\"negative\"` scalar sentinel."
+  "Host-language value returned by `realize` for the `\"negative\"` scalar sentinel."
   :dacite/negative)
 
 (deftype DaciteScalar [store _hash]
@@ -39,7 +39,7 @@
   (dacite-hash [_] _hash)
   (dacite-store [_] store)
   (dacite-type [_] (types/entry-type (store/s-get store _hash)))
-  (->clj [_]
+  (realize [_]
     (let [entry (store/s-get store _hash)]
       (if (= "negative" (types/entry-type entry))
         negative-sentinel

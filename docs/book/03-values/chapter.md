@@ -14,13 +14,13 @@ Every Dacite value carries four pieces of data:
 - **store** — the store that created and persists it
 - **hash** — its content-addressed identity (via `dacite-hash`)
 - **type** — a string identifying its kind (e.g. `"i64"`, `"vector"`)
-- **content** — the value itself, realized to a plain language value via
-  an explicit conversion (`->clj` in the reference implementation). A
-  scalar realizes to its language value; a collection realizes to a
-  *lazy* sequence of realized elements (a map to realized `[key value]`
-  pairs), so sub-collections become nested lazy sequences. Laziness keeps
-  realization compatible with partial availability — only the part you
-  consume is fetched.
+- **content** — the value itself, exposed in the host language via
+  an explicit call (`realize` in the reference implementation). A
+  scalar yields its native value; a collection yields a
+  *lazy iterable* of realized elements (a map yields realized
+  `[key value]` pairs), so sub-collections become nested lazy iterables.
+  Laziness keeps access compatible with partial availability — only the
+  part you consume is fetched.
 
 ```clojure
 (def v (dacite/vector 1 2 3))
@@ -579,7 +579,7 @@ mean a one-element vector, not an empty vector in store `1`.
 | `dacite-hash` | `Value → Hash` | Content-addressed identity (4-long hash) |
 | `dacite-store` | `Value → Store` | The store that created and persists this value |
 | `dacite-type` | `Value → String` | The value's type name |
-| `->clj` | `Value → clj` | Realize content (explicit; values are not references). Scalar → language value; collection → lazy seq of realized elements (map → `[k v]` pairs); empty → `nil`. Lazy, so partial-availability-friendly |
+| `realize` | `Value → native` | Expose content (explicit; values are not references). Scalar → native value; collection → lazy iterable of realized elements (map → `[k v]` pairs); empty → nil. Lazy, so partial-availability-friendly |
 
 The store reference enables transparent persistence. When you `assoc`
 a map or `conj` a vector, the resulting value is automatically stored
