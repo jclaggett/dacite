@@ -34,6 +34,11 @@
          (for [suit suits rank ranks]
            (card-label rank suit))))
 
+(defn shuffle-deck
+  "Return a new deck vector with the same cards in random order."
+  [deck]
+  (apply v/vector (shuffle (vec (or (seq deck) ())))))
+
 ;; =============================================================================
 ;; Game state
 ;; =============================================================================
@@ -45,7 +50,7 @@
   "Initial game: full deck and empty hands for both players."
   []
   (v/hash-map
-   "deck" (standard-deck)
+   "deck" (shuffle-deck (standard-deck))
    "player-1" (v/vector)
    "player-2" (v/vector)))
 
