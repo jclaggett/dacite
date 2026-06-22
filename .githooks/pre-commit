@@ -19,9 +19,22 @@ run_fmt_check() {
         return 0
     fi
 
-    # Strip impl/clojure/ prefix for cljfmt (which runs from CLJ_DIR)
-    local relative_files
-    relative_files="${staged_files//impl\/clojure/.}"
+    # Strip impl/clojure/ prefix for cljfmt (which runs from CLJ_DIR).
+    # Repo-root examples/ live outside impl/clojure — use a relative path back.
+    local relative_files=""
+    while IFS= read -r f; do
+        case "$f" in
+            impl/clojure/*)
+                relative_files="$relative_files ${f#impl/clojure/}"
+                ;;
+            examples/*)
+                relative_files="$relative_files ../../$f"
+                ;;
+            *)
+                relative_files="$relative_files $f"
+                ;;
+        esac
+    done <<< "$staged_files"
 
     if ! (cd "$CLJ_DIR" && clojure -M:fmt check $relative_files 2>/dev/null); then
         echo ""
