@@ -6,14 +6,12 @@
      maps → hash maps, sets → sets). Optionally enforces a max-bytes limit
      (default 1 MB) via O(1) size check.
 
-   clj->dac: recursively convert Clojure → Dacite (auto-coerces scalars,
-     wraps vectors/maps/sets/strings/blobs into their Dacite equivalents).
+   clj->dac: convert Clojure → Dacite via coerce-and-store! + wrap-hash.
 
    Both directions operate in the current store (`dacite.store/*store*`)."
   (:require [dacite.store :as store]
-            [dacite.value.types :as types]
-            [dacite.value.scalar :as scalar]
-            [dacite.value.collections :as coll]))
+            [dacite.value :as value]
+            [dacite.value.types :as types]))
 
 ;; =============================================================================
 ;; dac->clj
@@ -67,24 +65,11 @@
 ;; =============================================================================
 
 (defn clj->dac
-  "Recursively convert plain Clojure data to Dacite values in the current
-   store. Vectors become DaciteVector, sets become DaciteSet, maps become
-   DaciteMap, strings become DaciteString, byte arrays become DaciteBlob,
-   and scalars are auto-coerced."
+  "Convert plain Clojure data to a Dacite value in the current store.
+   Scalars, strings, blobs, vectors, maps, and sets are coerced via
+   coerce-and-store! and wrapped at the root; already-Dacite values pass
+   through unchanged."
   [x]
-  (cond
-    (satisfies? types/IDaciteValue x) x
-    (vector? x)           (apply coll/vector (map clj->dac x))
-    (set? x)              (apply coll/dacite-set (map clj->dac x))
-    (map? x)              (apply coll/hash-map
-                                 (mapcat (fn [[k v]] [(clj->dac k) (clj->dac v)]) x))
-    (bytes? x)            (coll/blob x)
-    (string? x)           (coll/string x)
-    (sequential? x)       (apply coll/vector (map clj->dac x))
-    (nil? x)              (scalar/null)
-    (instance? Boolean x) (scalar/bool x)
-    (integer? x)          (scalar/i64 x)
-    (float? x)            (scalar/f64 (double x))
-    (double? x)           (scalar/f64 x)
-    (char? x)             (scalar/dacite-char x)
-    :else (throw (ex-info "Cannot convert to Dacite value" {:value x :type (type x)}))))
+  (if (satisfies? types/IDaciteValue x)
+    x
+    (value/wrap-hash (types/coerce-and-store! store/*store* x))))

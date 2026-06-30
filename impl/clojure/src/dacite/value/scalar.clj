@@ -84,6 +84,10 @@
   [store x]
   (put-scalar! store "f64" (double x)))
 
+(defmethod types/coerce-and-store! :double
+  [store x]
+  (put-scalar! store "f64" (double x)))
+
 ;; =============================================================================
 ;; Constructors — explicit (-with-store) and implicit (*store*)
 ;; =============================================================================

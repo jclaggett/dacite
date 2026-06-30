@@ -14,11 +14,11 @@
    separates the type from the data that follows (fuse composes over
    concatenation, so a boundary marker is required).
 
-   Stores enter at the finger-tree / hamt / scalar / collection layers,
-   where values actually persist. Here we define the hashing algebra, the
-   value protocol, per-type encoding/size multimethods, and the
-   wrap-entry / coerce-and-store! multimethods (extended in scalar and
-   collections). Store-aware entry points live in dacite.value."
+   This namespace is store-free: it knows nothing about live store I/O.
+   Here we define the hashing algebra, the value protocol, per-type
+   encoding/size multimethods, and the wrap-entry / coerce-and-store!
+   dispatch tables (extended in scalar and collections). Store-aware
+   entry points live in dacite.value."
   (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
@@ -196,7 +196,7 @@
 
 (defmulti coerce-and-store!
   "Coerce a plain Clojure value into the store, returning its hash.
-   Scalar coercions register in dacite.value.scalar; strings in
+   Scalar coercions register in dacite.value.scalar; collections in
    dacite.value.collections."
   (fn [_store x]
     (cond
@@ -205,7 +205,13 @@
       (char? x) :char
       (integer? x) :i64
       (float? x) :f64
+      (double? x) :double
       (string? x) :string
+      (vector? x) :vector
+      (set? x) :set
+      (map? x) :map
+      (bytes? x) :blob
+      (sequential? x) :sequential
       :else :unsupported)))
 
 (defmethod coerce-and-store! :unsupported [_ x]

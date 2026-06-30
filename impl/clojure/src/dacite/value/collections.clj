@@ -502,6 +502,27 @@
   [& xs]
   (apply dacite-set-with-store store/*store* xs))
 
+(defmethod types/coerce-and-store! :blob
+  [store ^bytes x]
+  (types/dacite-hash (blob-with-store store x)))
+
+(defmethod types/coerce-and-store! :vector
+  [store xs]
+  (types/dacite-hash (apply vector-with-store store xs)))
+
+(defmethod types/coerce-and-store! :sequential
+  [store xs]
+  (types/dacite-hash (apply vector-with-store store xs)))
+
+(defmethod types/coerce-and-store! :set
+  [store xs]
+  (types/dacite-hash (apply dacite-set-with-store store xs)))
+
+(defmethod types/coerce-and-store! :map
+  [store m]
+  (types/dacite-hash
+   (apply hash-map-with-store store (mapcat (fn [[k v]] [k v]) m))))
+
 ;; =============================================================================
 ;; Set operations (§3.5) — derived from HAMT primitives + the negative sentinel
 ;; =============================================================================
