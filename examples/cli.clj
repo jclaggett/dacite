@@ -1,14 +1,14 @@
-(ns dacite.cli
-  "Dacite command-line client.
+(ns examples.cli
+  "Example command-line tool for a running Dacite service.
 
-   Interacts with a running Dacite service to push and fetch
-   directory trees.
+   Push and fetch directory trees via the HTTP API. Not part of the core
+   library — demonstrates how to build a client on top of dacite.
 
-   Usage:
-     clojure -M -m dacite.cli status
-     clojure -M -m dacite.cli push <dir>
-     clojure -M -m dacite.cli fetch <dir>
-     clojure -M -m dacite.cli ls [path...]
+   Run from impl/clojure:
+     clojure -M:cli status
+     clojure -M:cli push <dir>
+     clojure -M:cli fetch <dir>
+     clojure -M:cli ls [path...]
 
    Files are stored as blobs. Directories are maps.
    Auth uses the unix username."
@@ -17,8 +17,7 @@
             [dacite.core :as d]
             [dacite.store :as store]
             [dacite.value.types :as types]
-            [example.client :as client])
-  (:gen-class))
+            [example.client :as client]))
 
 (def ^:private default-url "http://localhost:8421")
 
@@ -209,7 +208,7 @@
       "fetch" (cmd-fetch url (first rest-args))
       "ls" (cmd-ls url rest-args)
       (do
-        (println "Usage: dacite <command> [args]")
+        (println "Usage: cli <command> [args]")
         (println)
         (println "Commands:")
         (println "  status          Check if the service is running")
