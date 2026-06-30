@@ -1,19 +1,16 @@
-(ns dacite.main
-  "Dacite service entry point.
+(ns examples.main
+  "Example Dacite service entry point.
 
    Starts an HTTP server backed by a FileStore, auto-registers the
-   unix user, and runs until interrupted.
+   unix user, and runs until interrupted. Not part of the core library —
+   a placeholder until a dedicated service project exists.
 
-   Usage: clojure -M -m dacite.main [--port PORT] [--store-dir DIR]
-
-   Defaults:
-     port:      8484
-     store-dir: ~/.dacite/store"
+   Run from impl/clojure:
+     clojure -M:server [--port 8421] [--store-dir ~/.local/dacite/store]"
   (:require [dacite.hash :as hash]
             [dacite.service :as svc]
             [dacite.store :as store]
-            [example.server :as server])
-  (:gen-class))
+            [example.server :as server]))
 
 (defn- parse-args [args]
   (loop [args (seq args)
