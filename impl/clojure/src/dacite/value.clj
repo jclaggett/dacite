@@ -1,14 +1,14 @@
-(ns dacite.value2
-  "Public API for the value2 layer (Chapter 3): a closed set of six user
+(ns dacite.value
+  "Public API for the value layer (Chapter 3): a closed set of six user
    value kinds — scalars, vectors, strings, blobs, maps, and sets — built
    on stores (Chapter 1) and fuse (Chapter 2).
 
-   The value2 refactor's defining property: every value carries its own
+   The value refactor's defining property: every value carries its own
    store and hash (§3.1). Most work uses implicit constructors that persist
    into the current store (`dacite.store/*store*`, defaulting to an in-memory
    store for REPL use):
 
-       (def v (dacite.value2/vector 1 2 3))
+       (def v (dacite.value/vector 1 2 3))
        (dacite-hash v)   ; => [c0 c1 c2 c3]
        (dacite-store v)  ; => the owning store
        (dacite-type v)   ; => \"vector\"
@@ -17,15 +17,15 @@
    When the store must be explicit — tests, migration, multiple stores —
    use the `-with-store` variants:
 
-       (dacite.value2/vector-with-store store 1 2 3)
+       (dacite.value/vector-with-store store 1 2 3)
 
    Bind an isolated store with `dacite.store/with-store` for tests and
    transactions."
   (:refer-clojure :exclude [vector hash-map set])
   (:require [dacite.store :as store]
-            [dacite.value2.types :as types]
-            [dacite.value2.scalar :as scalar]
-            [dacite.value2.collections :as coll]))
+            [dacite.value.types :as types]
+            [dacite.value.scalar :as scalar]
+            [dacite.value.collections :as coll]))
 
 ;; Implicit constructors use `dacite.store/*store*`. Bind it with
 ;; `with-store` below (or `store/bind-store`) for isolated contexts.

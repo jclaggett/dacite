@@ -1,4 +1,4 @@
-(ns dacite.value2.render
+(ns dacite.value.render
   "Bounded rendering for Dacite values: safe `toString` and REPL printing.
 
    `toString` never throws and never force-realizes a whole collection. It
@@ -11,8 +11,8 @@
    `*print-level*` for REPL output."
   (:require [clojure.string :as str]
             [dacite.store :as store]
-            [dacite.value2.types :as types]
-            [dacite.value2.finger-tree :as ft])
+            [dacite.value.types :as types]
+            [dacite.value.finger-tree :as ft])
   (:import [java.io Writer]))
 
 (declare print-dacite-value)

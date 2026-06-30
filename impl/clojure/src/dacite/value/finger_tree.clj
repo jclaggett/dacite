@@ -1,7 +1,7 @@
-(ns dacite.value2.finger-tree
-  "Store-aware finger tree for the value2 layer.
+(ns dacite.value.finger-tree
+  "Store-aware finger tree for the value layer.
 
-   This is the value2 refactor's core difference from the original value
+   This is the value refactor's core difference from the original value
    layer: instead of threading a pure {hash -> node} map and merging the
    result back into a global cache, every operation reads and writes nodes
    directly through the value's own IStore via s-get / s-put.
@@ -21,7 +21,7 @@
    finger tree, trading the amortized O(1) proof for shallower trees."
   (:require [dacite.hash :as hash]
             [dacite.store :as store]
-            [dacite.value2.types :as types]))
+            [dacite.value.types :as types]))
 
 ;; =============================================================================
 ;; Measure (monoid)

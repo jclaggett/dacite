@@ -3,7 +3,7 @@
 
    This is the public API namespace. All constructors, conversion functions,
    and store management are re-exported here for convenience. The
-   implementation is the value2 layer (Chapter 3): every value carries its
+   implementation is the value layer (Chapter 3): every value carries its
    own store and hash, and host-language content is recovered with an
    explicit `realize` rather than `deref`.
 
@@ -25,9 +25,9 @@
    Otherwise the current store (`dacite.store/*store*`) is used."
   (:refer-clojure :exclude [str vec hash-map])
   (:require [dacite.store :as store]
-            [dacite.value2.types :as types]
-            [dacite.value2.scalar :as scalar]
-            [dacite.value2.collections :as coll]
+            [dacite.value.types :as types]
+            [dacite.value.scalar :as scalar]
+            [dacite.value.collections :as coll]
             [dacite.convert :as convert]))
 
 ;; =============================================================================

@@ -17,7 +17,7 @@
             [clojure.string :as str]
             [dacite.hash :as hash]
             [dacite.store :as store]
-            [dacite.value2.types :as types])
+            [dacite.value.types :as types])
   (:import [java.net URI]
            [java.net.http HttpClient HttpRequest HttpRequest$BodyPublishers
             HttpResponse$BodyHandlers]))

@@ -11,9 +11,9 @@
 
    Both directions operate in the current store (`dacite.store/*store*`)."
   (:require [dacite.store :as store]
-            [dacite.value2.types :as types]
-            [dacite.value2.scalar :as scalar]
-            [dacite.value2.collections :as coll]))
+            [dacite.value.types :as types]
+            [dacite.value.scalar :as scalar]
+            [dacite.value.collections :as coll]))
 
 ;; =============================================================================
 ;; dac->clj

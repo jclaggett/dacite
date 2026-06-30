@@ -1,5 +1,5 @@
-(ns dacite.value2.scalar
-  "Dacite scalar values for the value2 layer.
+(ns dacite.value.scalar
+  "Dacite scalar values for the value layer.
 
    A scalar is an atomic, typed value with a canonical byte encoding. It
    persists in the store as a [type-name data] tuple at its value hash,
@@ -9,8 +9,8 @@
    store that created it, so deref and accessors need no global state."
   (:require [dacite.hash :as hash]
             [dacite.store :as store]
-            [dacite.value2.types :as types]
-            [dacite.value2.render :as render])
+            [dacite.value.types :as types]
+            [dacite.value.render :as render])
   (:import [clojure.lang IHashEq]
            [java.nio ByteBuffer]))
 

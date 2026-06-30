@@ -52,7 +52,7 @@ Converting a value to a plain language value is an **explicit** call: `realize`.
 
 This was implemented: `IDeref` (and the scalar's pointless zero-arg `IFn`) were
 removed; `realize` was added to the `IDaciteValue` protocol and exported from the
-`dacite.value2` facade.
+`dacite.value` facade.
 
 ## 2. Realization vs. partial availability (Decided, implemented)
 
@@ -131,7 +131,7 @@ future ergonomic but are not needed for correctness.
 ### Bounded `toString` (Decided, implemented)
 
 `Object/toString` is always bounded and never throws. Defaults (overridable via
-dynamic vars in `dacite.value2.render`):
+dynamic vars in `dacite.value.render`):
 
 - `*to-string-element-limit*` — 32 elements for vectors/maps/sets
 - `*to-string-char-limit*` — 64 characters for strings

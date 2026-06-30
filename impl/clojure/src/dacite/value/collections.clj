@@ -1,11 +1,11 @@
-(ns dacite.value2.collections
-  "Dacite collection values for the value2 layer: string, blob, vector,
+(ns dacite.value.collections
+  "Dacite collection values for the value layer: string, blob, vector,
    map, and set.
 
    Each collection is a store-aware wrapper of [store, hash] over an
    internal tree (finger tree for sequences, HAMT for maps/sets). All
    wrappers implement standard Clojure interfaces, and — crucially for the
-   value2 refactor — they reach the store through their own store field
+   value refactor — they reach the store through their own store field
    rather than a global cache. Operations that produce a new collection
    persist their nodes into that same store and return a new wrapper,
    giving the transparent persistence of §3.1.
@@ -16,11 +16,11 @@
   (:refer-clojure :exclude [vector hash-map])
   (:require [dacite.hash :as hash]
             [dacite.store :as store]
-            [dacite.value2.types :as types]
-            [dacite.value2.scalar :as scalar]
-            [dacite.value2.finger-tree :as ft]
-            [dacite.value2.hamt :as hamt]
-            [dacite.value2.render :as render])
+            [dacite.value.types :as types]
+            [dacite.value.scalar :as scalar]
+            [dacite.value.finger-tree :as ft]
+            [dacite.value.hamt :as hamt]
+            [dacite.value.render :as render])
   (:import [clojure.lang IHashEq Counted Seqable ILookup
             IPersistentCollection Indexed IPersistentStack
             IPersistentVector Associative IFn Sequential

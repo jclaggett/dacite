@@ -12,7 +12,7 @@ Reimplementing values with store-awareness and type information.
 
 **Status:**
 - [x] Core observation: values need stores (like RAM for data structures)
-- [x] `value2/` namespace tree started (`primitive.clj`, `scalar.clj`, `types.clj`)
+- [x] `value/` namespace tree started (`primitive.clj`, `scalar.clj`, `types.clj`)
 - [ ] **Type information design** — how should types be captured? (current topic)
 - [ ] Seq primitive (finger tree of hashes) — needed for `[type-hash data-hash]` tuples
 - [ ] Map primitive (HAMT of hash→hash)
@@ -25,7 +25,7 @@ Reimplementing values with store-awareness and type information.
 **Have (in old model):** scalar types, strings, vectors, maps, blobs, sets
 
 **Need (in new model):**
-- [ ] All collection types rebuilt on `value2` primitives
+- [ ] All collection types rebuilt on `value` primitives
 - [ ] `size-bytes` via finger tree measures (port from old model)
 - [ ] Set as `{x x}` maps (port from old model)
 - [ ] Negative sets (cofinite sets via `neg` sentinel)
@@ -135,7 +135,7 @@ to use hash-based type identifiers and dispatch-based encoding/decoding.
 | dacite.types       | 100%   | 100%   |
 | **ALL FILES**      | **96.72%** | **99.55%** |
 
-**Note:** Test numbers are for old model. Will need rebuild for value2.
+**Note:** Test numbers are for old model. Will need rebuild for value.
 
 ## Suggested Order
 

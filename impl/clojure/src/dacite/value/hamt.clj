@@ -1,7 +1,7 @@
-(ns dacite.value2.hamt
-  "Store-aware Hash Array Mapped Trie (HAMT) for the value2 layer.
+(ns dacite.value.hamt
+  "Store-aware Hash Array Mapped Trie (HAMT) for the value layer.
 
-   Like the value2 finger tree, every operation reads and writes nodes
+   Like the value finger tree, every operation reads and writes nodes
    directly through the value's IStore via s-get / s-put rather than
    threading a pure map. The store is mutated in place, so operations
    return only the new root hash.
@@ -20,7 +20,7 @@
    elements but different routing are NOT interchangeable."
   (:require [dacite.hash :as hash]
             [dacite.store :as store]
-            [dacite.value2.types :as types])
+            [dacite.value.types :as types])
   (:import [java.nio ByteBuffer]))
 
 ;; =============================================================================

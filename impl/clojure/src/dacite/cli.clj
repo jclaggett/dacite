@@ -16,7 +16,7 @@
             [dacite.convert :as convert]
             [dacite.core :as d]
             [dacite.store :as store]
-            [dacite.value2.types :as types]
+            [dacite.value.types :as types]
             [example.client :as client])
   (:gen-class))
 

@@ -1,8 +1,8 @@
-(ns dacite.value2-test
-  "Tests for scalars, accessors, and store-awareness in the value2 layer."
+(ns dacite.value-test
+  "Tests for scalars, accessors, and store-awareness in the value layer."
   (:require [clojure.test :refer [deftest is testing]]
             [dacite.store :as store]
-            [dacite.value2 :as v2]))
+            [dacite.value :as v2]))
 
 ;; =============================================================================
 ;; Scalar construction & accessors

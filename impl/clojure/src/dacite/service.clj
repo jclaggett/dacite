@@ -29,7 +29,7 @@
    - update-root: declare new root, server walks session store to pull new nodes"
   (:require [dacite.store :as store]
             [dacite.auth :as auth]
-            [dacite.value2.types :as types]
+            [dacite.value.types :as types]
             [dacite.core :as d])
   (:import [java.util UUID]))
 

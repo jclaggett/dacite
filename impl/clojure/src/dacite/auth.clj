@@ -11,8 +11,8 @@
    in the new root's tree via either a proof chain (structural possession)
    or raw data (data possession). The server validates proofs as a stream.
 
-   The child-hashes multimethod is defined in dacite.value2.types and
-   extended by dacite.value2.finger-tree and dacite.value2.hamt for their
+   The child-hashes multimethod is defined in dacite.value.types and
+   extended by dacite.value.finger-tree and dacite.value.hamt for their
    respective node types.
 
    Key functions:
@@ -22,10 +22,10 @@
    - validate-proof: verify a single proof (chain or data) for one hash
    - verify-transition: DFS walk of new root, validating proofs from a prover fn"
   (:require [dacite.store :as store]
-            [dacite.value2.types :as types]
+            [dacite.value.types :as types]
             ;; Require these to register child-hashes implementations
-            [dacite.value2.finger-tree]
-            [dacite.value2.hamt]))
+            [dacite.value.finger-tree]
+            [dacite.value.hamt]))
 
 ;; =============================================================================
 ;; Proof chain construction

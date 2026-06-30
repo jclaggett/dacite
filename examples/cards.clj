@@ -1,5 +1,5 @@
 (ns examples.cards
-  "Two-player card game modeled entirely as Dacite values (value2 API).
+  "Two-player card game modeled entirely as Dacite values (value API).
 
    The deck and each player's hand are Dacite vectors. Game state is a Dacite
    map. Drawing takes the top card off the deck (vector peek/pop) and adds it
@@ -9,7 +9,7 @@
    Run from impl/clojure:
      clojure -M:cards"
   (:require [dacite.store :as store]
-            [dacite.value2 :as v]))
+            [dacite.value :as v]))
 
 ;; =============================================================================
 ;; Card model
@@ -97,7 +97,7 @@
 
 (defn -main
   [& _]
-  (println "=== Dacite cards (value2) ===")
+  (println "=== Dacite cards (value) ===")
   (println)
   (store/reset-store!)
   (let [[_ final-game]

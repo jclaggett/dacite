@@ -1,10 +1,10 @@
 (ns dacite.core-test
-  "Tests for the Dacite core API (value2-backed facade)."
+  "Tests for the Dacite core API (value-backed facade)."
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [dacite.core :as d]
             [dacite.hash :as hash]
             [dacite.store :as store]
-            [dacite.value2.types :as types]))
+            [dacite.value.types :as types]))
 
 ;; Each test runs against a fresh in-memory store.
 (use-fixtures :each (fn [f]

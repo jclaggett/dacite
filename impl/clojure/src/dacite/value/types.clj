@@ -1,5 +1,5 @@
-(ns dacite.value2.types
-  "Pure type and hashing rules for the value2 layer (Chapter 3).
+(ns dacite.value.types
+  "Pure type and hashing rules for the value layer (Chapter 3).
 
    Every value — user-facing or internal — is hashed by one rule:
 
@@ -168,7 +168,7 @@
    Scalar types have no children (the :default). Collection types
    (vector/string/blob/map/set) point at their tree :root. Internal
    finger-tree and HAMT node types register their own methods in
-   dacite.value2.finger-tree and dacite.value2.hamt."
+   dacite.value.finger-tree and dacite.value.hamt."
   (fn [node]
     (when (and (vector? node) (= 2 (count node)))
       (first node))))

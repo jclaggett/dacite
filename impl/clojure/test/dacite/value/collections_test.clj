@@ -1,9 +1,9 @@
-(ns dacite.value2.collections-test
-  "Tests for vectors, strings, blobs, maps, and sets in the value2 layer."
+(ns dacite.value.collections-test
+  "Tests for vectors, strings, blobs, maps, and sets in the value layer."
   (:require [clojure.test :refer [deftest is testing]]
             [dacite.store :as store]
-            [dacite.value2 :as v2]
-            [dacite.value2.render :as render]))
+            [dacite.value :as v2]
+            [dacite.value.render :as render]))
 
 (defn- realize-each
   "Realize every element of a seqable Dacite collection to Clojure values."
