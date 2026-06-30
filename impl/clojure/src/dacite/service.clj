@@ -1,7 +1,7 @@
 (ns dacite.service
   "Dacite service layer.
 
-   Manages sessions, root pointers, and proof chain verification.
+   Manages sessions, root pointers, and store access for authenticated users.
    Sits between the store layer and the transport layer (HTTP, etc.).
 
    The service maintains a single root hash pointing to a Dacite map
@@ -24,11 +24,10 @@
    - create-service: initialize a new service with a main store
    - register-user: add a user with a password
    - login: authenticate and create a session (scoped to user's subtree)
-   - session-get: read from main store with proof chain verification
+   - session-get: read from main store (session token required)
    - session-put: push nodes to session store (client proxy)
    - update-root: declare new root, server walks session store to pull new nodes"
   (:require [dacite.store :as store]
-            [dacite.auth :as auth]
             [dacite.value.types :as types]
             [dacite.core :as d])
   (:import [java.util UUID]))
@@ -133,33 +132,17 @@
   (get-in @service [:sessions token]))
 
 ;; =============================================================================
-;; Read: s-get with proof chain verification
+;; Read: session-authorized main store access
 ;; =============================================================================
 
 (defn session-get
-  "Read a node from the main store, authorized by proof chain.
-   The chain must start from the session's root hash.
-   Returns the node value, or nil with an error."
-  [service token target-hash chain]
+  "Read a node from the main store. Authorized by session token only."
+  [service token target-hash]
   (let [session (get-session service token)]
-    (cond
-      (nil? session)
+    (if (nil? session)
       {:error :invalid-session}
-
-      (nil? chain)
-      {:error :no-proof-chain}
-
-      (not= (first chain) (:root-hash session))
-      {:error :chain-root-mismatch}
-
-      (not= (last chain) target-hash)
-      {:error :chain-target-mismatch}
-
-      :else
       (let [main-store (:main-store @service)]
-        (if (auth/verify-proof-chain main-store chain)
-          {:value (store/s-get main-store target-hash)}
-          {:error :invalid-proof-chain})))))
+        {:value (store/s-get main-store target-hash)}))))
 
 ;; =============================================================================
 ;; Session store: client proxy
@@ -196,8 +179,7 @@
 
 (defn- walk-and-pull
   "Walk from new-root through the session store (proxy), pulling new nodes
-   into the main store. Uses proof chains to verify each node.
-   Returns {:ok true :nodes-pulled n} or {:error ...}."
+   into the main store. Returns {:ok true :nodes-pulled n} or {:error ...}."
   [main-store session-store new-root]
   (loop [queue (conj clojure.lang.PersistentQueue/EMPTY new-root)
          visited #{}

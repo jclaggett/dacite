@@ -4,7 +4,6 @@
             [dacite.core :as d]
             [dacite.store :as store]
             [dacite.value.types :as types]
-            [dacite.auth :as auth]
             [dacite.hash :as hash]))
 
 ;; =============================================================================
@@ -27,15 +26,14 @@
       (is (nil? (svc/login service "bob" "secret123"))))))
 
 ;; =============================================================================
-;; Read with proof chains
+;; Read from main store
 ;; =============================================================================
 
-(deftest session-get-with-valid-chain
+(deftest session-get-from-main-store
   (let [main-store (store/mem-store)
         service (svc/create-service main-store)]
     (svc/register-user service "alice" "pass")
     (let [{:keys [token]} (svc/login service "alice" "pass")
-          ;; Build user data and push it
           local-store (store/mem-store)
           data (store/bind-store local-store
                                  (d/hash-map "x" 42))
@@ -43,52 +41,16 @@
           _ (doseq [[h v] (store/s-snapshot local-store)]
               (svc/session-put service token h v))
           _ (svc/update-root service token root-h)
-          ;; Now alice has a subtree root
-          user-root (:root-hash (get-in @service [:sessions token]))
           target (store/bind-store local-store
                                    (d/i64 42))
           target-h (types/dacite-hash target)
-          chain (auth/build-proof-chain main-store user-root target-h)
-          result (svc/session-get service token target-h chain)]
+          result (svc/session-get service token target-h)]
       (is (nil? (:error result)))
       (is (= ["i64" 42] (:value result))))))
 
-(deftest session-get-with-invalid-chain
-  (let [main-store (store/mem-store)
-        service (svc/create-service main-store)]
-    (svc/register-user service "alice" "pass")
-    (let [{:keys [token]} (svc/login service "alice" "pass")
-          local-store (store/mem-store)
-          data (store/bind-store local-store
-                                 (d/hash-map "x" 42))
-          root-h (types/dacite-hash data)
-          _ (doseq [[h v] (store/s-snapshot local-store)]
-              (svc/session-put service token h v))
-          _ (svc/update-root service token root-h)
-          user-root (:root-hash (get-in @service [:sessions token]))
-          target (store/bind-store local-store
-                                   (d/i64 42))
-          target-h (types/dacite-hash target)
-          fake-hash (hash/sha256 (.getBytes "fake"))]
-
-      (testing "tampered chain"
-        (let [result (svc/session-get service token target-h
-                                      [user-root fake-hash target-h])]
-          (is (= :invalid-proof-chain (:error result)))))
-
-      (testing "chain root mismatch"
-        (let [result (svc/session-get service token target-h
-                                      [fake-hash target-h])]
-          (is (= :chain-root-mismatch (:error result)))))
-
-      (testing "chain target mismatch"
-        (let [result (svc/session-get service token target-h
-                                      [user-root fake-hash])]
-          (is (= :chain-target-mismatch (:error result))))))))
-
 (deftest session-get-invalid-token
   (let [service (svc/create-service)
-        result (svc/session-get service "bad-token" nil nil)]
+        result (svc/session-get service "bad-token" nil)]
     (is (= :invalid-session (:error result)))))
 
 ;; =============================================================================
@@ -301,4 +263,4 @@
     (let [{:keys [token]} (svc/login service "alice" "pass")]
       (svc/logout service token)
       (is (= :invalid-session
-             (:error (svc/session-get service token nil nil)))))))
+             (:error (svc/session-get service token nil)))))))

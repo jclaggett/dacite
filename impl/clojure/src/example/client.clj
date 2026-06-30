@@ -2,7 +2,7 @@
   "Example Dacite HTTP client.
 
    A simple client that talks to the example.server. Demonstrates
-   the full flow: login, read with proof chains, write with session
+   the full flow: login, read from the main store, write with session
    store proxy.
 
    Usage:
@@ -11,13 +11,14 @@
      (get-root c)
      (push-nodes! c {hash node, ...})
      (update-root! c new-root-hash)
-     (get-node c target-hash proof-chain)"
+     (get-node c target-hash)"
   (:require [cheshire.core :as che]
             [clojure.edn :as edn]
-            [clojure.string :as str]
             [dacite.hash :as hash]
             [dacite.store :as store]
-            [dacite.value.types :as types])
+            [dacite.value.types :as types]
+            [dacite.value.finger-tree]
+            [dacite.value.hamt])
   (:import [java.net URI]
            [java.net.http HttpClient HttpRequest HttpRequest$BodyPublishers
             HttpResponse$BodyHandlers]))
@@ -103,15 +104,12 @@
       body)))
 
 (defn get-node
-  "Fetch a node from the main store using a proof chain.
-   chain is a vector of hash byte-arrays."
-  [client-atom target-hash chain]
+  "Fetch a node from the main store. Authorized by session token."
+  [client-atom target-hash]
   (let [{:keys [base-url token]} @client-atom
         hex-target (hash/hash->hex target-hash)
-        hex-chain (str/join "," (map hash/hash->hex chain))
         {:keys [status body]} (json-get base-url (str "/store/" hex-target)
-                                        {"Authorization" token
-                                         "X-Proof-Chain" hex-chain})]
+                                        {"Authorization" token})]
     (if (= 200 status)
       (edn/read-string (:value body))
       body)))
@@ -153,34 +151,29 @@
 
 (defn fetch-all!
   "Fetch the entire tree rooted at the session's root hash into a local
-   mem-store. Walks the tree breadth-first, building proof chains as it
-   goes. Returns [local-store root-hash-bytes]."
+   mem-store. Walks the tree breadth-first. Returns [local-store root-hash-bytes]."
   [client-atom]
-  (let [{:keys [base-url token]} @client-atom
-        root-hex (get-root client-atom)
+  (let [root-hex (get-root client-atom)
         root-h (hash/hex->hash root-hex)
         local (store/mem-store)]
-    (loop [queue (conj clojure.lang.PersistentQueue/EMPTY
-                       {:hash root-h :chain [root-h]})
+    (loop [queue (conj clojure.lang.PersistentQueue/EMPTY root-h)
            visited #{}]
       (if (empty? queue)
         [local root-h]
-        (let [{:keys [hash chain]} (peek queue)
+        (let [h (peek queue)
               queue' (pop queue)]
-          (if (visited hash)
+          (if (visited h)
             (recur queue' visited)
-            (let [node (get-node client-atom hash chain)]
+            (let [node (get-node client-atom h)]
               (if (map? node) ;; error response
-                (do (println "Warning: failed to fetch" (hash/hash->hex hash) node)
-                    (recur queue' (conj visited hash)))
+                (do (println "Warning: failed to fetch" (hash/hash->hex h) node)
+                    (recur queue' (conj visited h)))
                 (do
-                  (store/s-put local hash node)
+                  (store/s-put local h node)
                   (let [children (types/child-hashes node)
-                        new-entries (when children
-                                      (map (fn [ch] {:hash ch :chain (conj chain ch)})
-                                           (remove visited children)))]
-                    (recur (into queue' new-entries)
-                           (conj visited hash))))))))))))
+                        new-hashes (when children (remove visited children))]
+                    (recur (into queue' (or new-hashes []))
+                           (conj visited h))))))))))))
 
 ;; =============================================================================
 ;; High-level: build locally, push, update

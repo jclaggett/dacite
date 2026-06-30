@@ -8,8 +8,7 @@
      POST /auth/login         {user, password} → {token, root-hash}
      POST /auth/logout        {token}          → {ok}
 
-     GET  /store/:hex-hash    (Authorization: token, X-Proof-Chain: hex,hex,...)
-                              → {value node}
+     GET  /store/:hex-hash    (Authorization: token) → {value node}
 
      POST /session/nodes      {token, nodes: {hex-hash: node, ...}}
                               → {ok, count}
@@ -79,7 +78,6 @@
 
 (defn- handle-store-get [service exchange hex-hash]
   (let [token (get-header exchange "Authorization")
-        chain-header (get-header exchange "X-Proof-Chain")
         target-hash (hex->hash-safe hex-hash)]
     (cond
       (nil? token)
@@ -88,12 +86,8 @@
       (nil? target-hash)
       (send-response exchange 400 {:error "invalid hash"})
 
-      (nil? chain-header)
-      (send-response exchange 400 {:error "missing X-Proof-Chain header"})
-
       :else
-      (let [chain (mapv hex->hash-safe (str/split chain-header #","))
-            result (svc/session-get service token target-hash chain)]
+      (let [result (svc/session-get service token target-hash)]
         (if (:error result)
           (send-response exchange 403 {:error (name (:error result))})
           (send-response exchange 200
