@@ -60,6 +60,30 @@
   [store h]
   (->DaciteScalar store h))
 
+(defmethod types/wrap-entry :default
+  [_type-name store h]
+  (wrap-scalar store h))
+
+(defmethod types/coerce-and-store! :null
+  [store _]
+  (put-scalar! store "null" nil))
+
+(defmethod types/coerce-and-store! :bool
+  [store x]
+  (put-scalar! store "bool" x))
+
+(defmethod types/coerce-and-store! :char
+  [store x]
+  (put-scalar! store "char" x))
+
+(defmethod types/coerce-and-store! :i64
+  [store x]
+  (put-scalar! store "i64" (long x)))
+
+(defmethod types/coerce-and-store! :f64
+  [store x]
+  (put-scalar! store "f64" (double x)))
+
 ;; =============================================================================
 ;; Constructors — explicit (-with-store) and implicit (*store*)
 ;; =============================================================================

@@ -31,7 +31,7 @@
 ;; =============================================================================
 
 (declare ->DaciteString ->DaciteBlob ->DaciteVector ->DaciteMap ->DaciteSet)
-(declare wrap-hash extract-hash coerce-and-store! string string-with-store)
+(declare string string-with-store wrap-hash)
 (declare store-seq-node! store-assoc-node! node-root realize-hashes)
 
 ;; =============================================================================
@@ -42,6 +42,11 @@
   "Root tree hash of a stored collection node."
   [store h]
   (:root (types/entry-data (store/s-get store h))))
+
+(defn- wrap-hash
+  "Wrap a raw hash in the appropriate Dacite value (internal helper)."
+  [store h]
+  (types/wrap-entry (types/entry-type (store/s-get store h)) store h))
 
 (defn- store-seq-node!
   "Persist a sequence collection node (string/blob/vector) over a finger
@@ -199,7 +204,7 @@
   (empty [_]
     (->DaciteVector store (store-seq-node! store "vector" (ft/ft-empty store))))
   (cons [_ val]
-    (let [vh (extract-hash store val)
+    (let [vh (types/extract-hash store val)
           nr (ft/ft-conj-right store (node-root store _hash) vh)]
       (->DaciteVector store (store-seq-node! store "vector" nr))))
   (equiv [_ other]
@@ -222,7 +227,7 @@
   (assoc [this k v]
     (when-not (integer? k)
       (throw (IllegalArgumentException. "Key must be integer")))
-    (let [vh (extract-hash store v)
+    (let [vh (types/extract-hash store v)
           refs (assoc (clojure.core/vec (ft/ft-seq store (node-root store _hash))) k vh)]
       (->DaciteVector store (store-seq-node! store "vector" (ft-build! store refs)))))
   (entryAt [this k]
@@ -282,7 +287,7 @@
   ILookup
   (valAt [this k] (.valAt this k nil))
   (valAt [_ k not-found]
-    (let [kh (extract-hash store k)]
+    (let [kh (types/extract-hash store k)]
       (if-let [vh (hamt/hamt-get store (node-root store _hash) kh)]
         (wrap-hash store vh)
         not-found)))
@@ -305,14 +310,14 @@
 
   Associative
   (containsKey [_ k]
-    (some? (hamt/hamt-get store (node-root store _hash) (extract-hash store k))))
+    (some? (hamt/hamt-get store (node-root store _hash) (types/extract-hash store k))))
   (assoc [_ k v]
-    (let [kh (extract-hash store k)
-          vh (extract-hash store v)
+    (let [kh (types/extract-hash store k)
+          vh (types/extract-hash store v)
           nr (hamt/hamt-assoc store (node-root store _hash) kh kh vh)]
       (->DaciteMap store (store-assoc-node! store "map" nr))))
   (entryAt [_ k]
-    (let [kh (extract-hash store k)]
+    (let [kh (types/extract-hash store k)]
       (when-let [vh (hamt/hamt-get store (node-root store _hash) kh)]
         (clojure.lang.MapEntry/create (wrap-hash store kh) (wrap-hash store vh)))))
 
@@ -322,7 +327,7 @@
       (throw (RuntimeException. "Key already present"))
       (.assoc ^Associative this k v)))
   (without [_ k]
-    (let [kh (extract-hash store k)
+    (let [kh (types/extract-hash store k)
           nr (hamt/hamt-dissoc store (node-root store _hash) kh)]
       (->DaciteMap store (store-assoc-node! store "map" nr))))
 
@@ -371,7 +376,7 @@
   ILookup
   (valAt [this k] (.valAt this k nil))
   (valAt [_ k not-found]
-    (let [kh (extract-hash store k)]
+    (let [kh (types/extract-hash store k)]
       (if (hamt/hamt-get store (node-root store _hash) kh)
         (wrap-hash store kh)
         not-found)))
@@ -380,7 +385,7 @@
   (empty [_]
     (->DaciteSet store (store-assoc-node! store "set" (hamt/hamt-empty store))))
   (cons [_ val]
-    (let [vh (extract-hash store val)
+    (let [vh (types/extract-hash store val)
           nr (hamt/hamt-assoc store (node-root store _hash) vh vh vh)]
       (->DaciteSet store (store-assoc-node! store "set" nr))))
   (equiv [_ other]
@@ -401,54 +406,25 @@
          (= _hash (.-_hash ^DaciteSet other))))
   (toString [this] (render/bounded-to-string this)))
 
-;; =============================================================================
-;; Wrapping & coercion
-;; =============================================================================
+(defmethod types/wrap-entry "vector"
+  [_type-name store h]
+  (->DaciteVector store h))
 
-(defn wrap-hash
-  "Wrap a raw hash (already in store) in the appropriate Dacite type,
-   dispatching on the stored entry's type name."
-  [store h]
-  (case (types/entry-type (store/s-get store h))
-    "vector" (->DaciteVector store h)
-    "map" (->DaciteMap store h)
-    "set" (->DaciteSet store h)
-    "string" (->DaciteString store h)
-    "blob" (->DaciteBlob store h)
-    (scalar/wrap-scalar store h)))
+(defmethod types/wrap-entry "map"
+  [_type-name store h]
+  (->DaciteMap store h))
 
-(defn get-value-with-store
-  "Look up a hash in an explicit store and return the corresponding
-   store-aware Dacite value, dispatching on the stored entry's type.
-   Returns nil if the hash is not present."
-  [store h]
-  (when (store/s-has? store h)
-    (wrap-hash store h)))
+(defmethod types/wrap-entry "set"
+  [_type-name store h]
+  (->DaciteSet store h))
 
-(defn get-value
-  "Look up a hash in the current store and return the corresponding
-   store-aware Dacite value, or nil if the hash is not present."
-  [h]
-  (get-value-with-store store/*store* h))
+(defmethod types/wrap-entry "string"
+  [_type-name store h]
+  (->DaciteString store h))
 
-(defn- coerce-and-store!
-  "Coerce a plain Clojure value into the store, returning its hash."
-  [store x]
-  (cond
-    (nil? x)              (scalar/put-scalar! store "null" nil)
-    (instance? Boolean x) (scalar/put-scalar! store "bool" x)
-    (char? x)             (scalar/put-scalar! store "char" x)
-    (integer? x)          (scalar/put-scalar! store "i64" (long x))
-    (float? x)            (scalar/put-scalar! store "f64" (double x))
-    (string? x)           (types/dacite-hash (string-with-store store x))
-    :else (throw (ex-info "Cannot coerce to dacite value" {:value x :type (type x)}))))
-
-(defn extract-hash
-  "Hash of a Dacite value, or coerce-and-store a plain Clojure value."
-  [store x]
-  (if (satisfies? types/IDaciteValue x)
-    (types/dacite-hash x)
-    (coerce-and-store! store x)))
+(defmethod types/wrap-entry "blob"
+  [_type-name store h]
+  (->DaciteBlob store h))
 
 ;; =============================================================================
 ;; Constructors — explicit (-with-store) and implicit (*store*)
@@ -459,6 +435,10 @@
   [store ^String s]
   (let [refs (mapv #(scalar/put-scalar! store "char" %) (seq s))]
     (->DaciteString store (store-seq-node! store "string" (ft-build! store refs)))))
+
+(defmethod types/coerce-and-store! :string
+  [store ^String x]
+  (types/dacite-hash (string-with-store store x)))
 
 (defn string
   "Create a Dacite string using the current store."
@@ -484,7 +464,7 @@
 (defn vector-with-store
   "Create a Dacite vector from values in an explicit store."
   [store & values]
-  (vec-of-refs-with-store store (mapv #(extract-hash store %) values)))
+  (vec-of-refs-with-store store (mapv #(types/extract-hash store %) values)))
 
 (defn vector
   "Create a Dacite vector using the current store."
@@ -495,8 +475,8 @@
   "Create a Dacite map from key/value pairs in an explicit store."
   [store & kvs]
   (let [root (reduce (fn [root [k v]]
-                       (let [kh (extract-hash store k)
-                             vh (extract-hash store v)]
+                       (let [kh (types/extract-hash store k)
+                             vh (types/extract-hash store v)]
                          (hamt/hamt-assoc store root kh kh vh)))
                      (hamt/hamt-empty store)
                      (partition 2 kvs))]
@@ -511,7 +491,7 @@
   "Create a Dacite set from elements in an explicit store."
   [store & xs]
   (let [root (reduce (fn [root x]
-                       (let [vh (extract-hash store x)]
+                       (let [vh (types/extract-hash store x)]
                          (hamt/hamt-assoc store root vh vh vh)))
                      (hamt/hamt-empty store)
                      xs)]
@@ -565,7 +545,7 @@
   [s x]
   (let [store (types/dacite-store s)
         root (node-root store (types/dacite-hash s))
-        xh (extract-hash store x)
+        xh (types/extract-hash store x)
         present (some? (hamt/hamt-get store root xh))]
     (if (negative-set? store root)
       (and (not present) (not= xh (neg-hash store)))

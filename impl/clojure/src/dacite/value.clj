@@ -62,19 +62,34 @@
   [v]
   (types/content-hash (dacite-type v) (dacite-hash v)))
 
-(def wrap-hash coll/wrap-hash)
+;; =============================================================================
+;; Wrapping & coercion (store-aware entry points)
+;; =============================================================================
 
-(defn get-value
-  "Look up a hash in the current store and return the corresponding Dacite
-   value, or nil if the hash is not present."
-  [h]
-  (coll/get-value h))
+(defn wrap-hash
+  "Wrap a raw hash (already in a store) in the appropriate Dacite value,
+   dispatching on the stored entry's type."
+  ([h]
+   (wrap-hash store/*store* h))
+  ([store h]
+   (types/wrap-entry (types/entry-type (store/s-get store h)) store h)))
 
 (defn get-value-with-store
   "Look up a hash in an explicit store and return the corresponding Dacite
    value, or nil if the hash is not present."
   [store h]
-  (coll/get-value-with-store store h))
+  (when (store/s-has? store h)
+    (wrap-hash store h)))
+
+(defn get-value
+  "Look up a hash in the current store and return the corresponding Dacite
+   value, or nil if the hash is not present."
+  [h]
+  (get-value-with-store store/*store* h))
+
+(def extract-hash
+  "Hash of a Dacite value, or coerce-and-store a plain Clojure value."
+  types/extract-hash)
 
 ;; =============================================================================
 ;; Scalar constructors (implicit + explicit)

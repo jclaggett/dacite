@@ -25,6 +25,7 @@
    Otherwise the current store (`dacite.store/*store*`) is used."
   (:refer-clojure :exclude [str vec hash-map])
   (:require [dacite.store :as store]
+            [dacite.value :as value]
             [dacite.value.types :as types]
             [dacite.value.scalar :as scalar]
             [dacite.value.collections :as coll]
@@ -133,7 +134,7 @@
   "Wrap a raw hash (already in the current store) in the appropriate Dacite
    value, dispatching on the stored entry's type."
   [h]
-  (coll/wrap-hash store/*store* h))
+  (value/wrap-hash h))
 
 (defn unwrap-hash
   "Extract the raw hash from a Dacite value."

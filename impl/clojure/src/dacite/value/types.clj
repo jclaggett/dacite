@@ -14,10 +14,11 @@
    separates the type from the data that follows (fuse composes over
    concatenation, so a boundary marker is required).
 
-   This namespace is pure: it knows nothing about stores. Stores enter
-   at the finger-tree / hamt / scalar / collection layers, where values
-   actually persist. Here we only define the hashing algebra, the value
-   protocol, and the per-type encoding/size multimethods."
+   Stores enter at the finger-tree / hamt / scalar / collection layers,
+   where values actually persist. Here we define the hashing algebra, the
+   value protocol, per-type encoding/size multimethods, and the
+   wrap-entry / coerce-and-store! multimethods (extended in scalar and
+   collections). Store-aware entry points live in dacite.value."
   (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
@@ -180,3 +181,39 @@
 (doseq [t ["vector" "string" "blob" "map" "set"]]
   (defmethod child-hashes t [[_ data]]
     [(:root data)]))
+
+;; =============================================================================
+;; Wrapping & coercion (dispatch tables)
+;; =============================================================================
+
+(defmulti wrap-entry
+  "Wrap a raw hash as the appropriate Dacite type, dispatching on the
+   stored entry's type name. Scalar types use the :default method
+   (registered in dacite.value.scalar); collection types register in
+   dacite.value.collections. Callers pass type-name after reading the
+   store entry; dacite.value/wrap-hash performs that lookup."
+  (fn [type-name _store _h] type-name))
+
+(defmulti coerce-and-store!
+  "Coerce a plain Clojure value into the store, returning its hash.
+   Scalar coercions register in dacite.value.scalar; strings in
+   dacite.value.collections."
+  (fn [_store x]
+    (cond
+      (nil? x) :null
+      (instance? Boolean x) :bool
+      (char? x) :char
+      (integer? x) :i64
+      (float? x) :f64
+      (string? x) :string
+      :else :unsupported)))
+
+(defmethod coerce-and-store! :unsupported [_ x]
+  (throw (ex-info "Cannot coerce to dacite value" {:value x :type (type x)})))
+
+(defn extract-hash
+  "Hash of a Dacite value, or coerce-and-store a plain Clojure value."
+  [store x]
+  (if (satisfies? IDaciteValue x)
+    (dacite-hash x)
+    (coerce-and-store! store x)))
