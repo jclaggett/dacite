@@ -399,3 +399,21 @@
               (ft-conj-right store h vh)))
           root-a
           (tree-to-seq* store root-b)))
+
+;; =============================================================================
+;; child-hashes implementations for finger tree node types
+;; =============================================================================
+
+(defmethod types/child-hashes "ft/empty" [_] [])
+
+(defmethod types/child-hashes "ft/single" [[_ data]]
+  [(:value-hash data)])
+
+(defmethod types/child-hashes "ft/digit" [[_ data]]
+  (:children data))
+
+(defmethod types/child-hashes "ft/node" [[_ data]]
+  (:children data))
+
+(defmethod types/child-hashes "ft/deep" [[_ data]]
+  [(:left data) (:spine data) (:right data)])

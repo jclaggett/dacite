@@ -2,17 +2,18 @@
   "Boundary crossing between Dacite values and plain Clojure data.
 
    dac->clj: recursively convert Dacite → Clojure (scalars unwrap,
-     strings → String, vectors → persistent vectors, maps → hash maps).
-     Optionally enforces a max-bytes limit (default 1 MB) via O(1) size check.
+     strings → String, blobs → byte arrays, vectors → persistent vectors,
+     maps → hash maps, sets → sets). Optionally enforces a max-bytes limit
+     (default 1 MB) via O(1) size check.
 
    clj->dac: recursively convert Clojure → Dacite (auto-coerces scalars,
-     wraps vectors/maps/strings into their Dacite equivalents)."
-  (:require [dacite.value.types :as types]
-            [dacite.value.cache :as cache]
-            [dacite.value.scalar :as scalar]
-            [dacite.value.collections :as coll])
-  (:import [dacite.value.scalar DaciteScalar]
-           [dacite.value.collections DaciteString DaciteBlob DaciteVector DaciteMap DaciteSet]))
+     wraps vectors/maps/sets/strings/blobs into their Dacite equivalents).
+
+   Both directions operate in the current store (`dacite.store/*store*`)."
+  (:require [dacite.store :as store]
+            [dacite.value2.types :as types]
+            [dacite.value2.scalar :as scalar]
+            [dacite.value2.collections :as coll]))
 
 ;; =============================================================================
 ;; dac->clj
@@ -23,35 +24,38 @@
   1048576)
 
 (defn- dac->clj-unsafe
-  "Internal recursive converter (no size check)."
+  "Internal recursive converter (no size check). Dispatches on the value's
+   Dacite type, materializing each kind into its concrete Clojure form."
   [x]
-  (cond
-    (instance? DaciteScalar x) @x
-    (instance? DaciteString x) @x
-    (instance? DaciteBlob x)   @x
-    (instance? DaciteVector x) (mapv dac->clj-unsafe (seq x))
-    (instance? DaciteMap x)    (into {} (map (fn [[k v]]
-                                               [(dac->clj-unsafe k)
-                                                (dac->clj-unsafe v)]))
-                                     (seq x))
-    (instance? DaciteSet x)   (into #{} (map dac->clj-unsafe) (seq x))
-    :else x))
+  (if (satisfies? types/IDaciteValue x)
+    (case (types/dacite-type x)
+      "vector" (mapv dac->clj-unsafe (seq x))
+      "set"    (into #{} (map dac->clj-unsafe) (seq x))
+      "map"    (into {} (map (fn [e]
+                               [(dac->clj-unsafe (key e))
+                                (dac->clj-unsafe (val e))]))
+                     (seq x))
+      "string" (if-let [cs (types/realize x)] (apply str cs) "")
+      "blob"   (byte-array (map unchecked-byte (types/realize x)))
+      ;; scalars realize directly to their native value
+      (types/realize x))
+    x))
 
 ;; ^:export for JS interop
 (defn ^:export dac->clj
   "Recursively convert a Dacite value to plain Clojure data.
-   Scalars unwrap to their raw value, strings to String,
-   vectors to persistent vectors, maps to persistent hash maps.
+   Scalars unwrap to their raw value, strings to String, blobs to byte
+   arrays, vectors to persistent vectors, maps to persistent hash maps,
+   sets to persistent sets.
 
    Optional max-bytes parameter (default 1 MB) limits the total byte
    size that will be materialized. Checked upfront via O(1) dacite-size.
    Throws ex-info if the value exceeds the limit."
   ([x] (dac->clj x default-max-bytes))
   ([x max-bytes]
-   (when (satisfies? types/IDaciteHash x)
-     (let [sb (-> (types/dacite-hash x)
-                  cache/cache-get
-                  types/dacite-size)]
+   (when (satisfies? types/IDaciteValue x)
+     (let [entry (store/s-get (types/dacite-store x) (types/dacite-hash x))
+           sb (types/dacite-size entry)]
        (when (> sb max-bytes)
          (throw (ex-info (str "dac->clj: value size " sb
                               " bytes exceeds limit of " max-bytes " bytes")
@@ -63,23 +67,24 @@
 ;; =============================================================================
 
 (defn clj->dac
-  "Recursively convert plain Clojure data to Dacite values.
-   Vectors become DaciteVector, maps become DaciteMap,
-   strings become DaciteString, scalars are auto-coerced."
+  "Recursively convert plain Clojure data to Dacite values in the current
+   store. Vectors become DaciteVector, sets become DaciteSet, maps become
+   DaciteMap, strings become DaciteString, byte arrays become DaciteBlob,
+   and scalars are auto-coerced."
   [x]
   (cond
-    (satisfies? types/IDaciteHash x) x
-    (vector? x)              (coll/vec-of-refs (mapv (comp types/dacite-hash clj->dac) x))
-    (sequential? x)          (coll/vec-of-refs (mapv (comp types/dacite-hash clj->dac) x))
-    (set? x)                 (apply coll/dacite-set (map clj->dac x))
-    (map? x)                 (let [pairs (mapcat (fn [[k v]] [(clj->dac k) (clj->dac v)]) x)]
-                               (apply coll/hash-map pairs))
-    (bytes? x)               (coll/blob x)
-    (string? x)              (coll/str x)
-    (nil? x)                 (scalar/null)
-    (instance? Boolean x)    (scalar/bool x)
-    (integer? x)             (scalar/i64 x)
-    (float? x)               (scalar/f64 (double x))
-    (double? x)              (scalar/f64 x)
-    (char? x)                (scalar/dacite-char x)
+    (satisfies? types/IDaciteValue x) x
+    (vector? x)           (apply coll/vector (map clj->dac x))
+    (set? x)              (apply coll/dacite-set (map clj->dac x))
+    (map? x)              (apply coll/hash-map
+                                 (mapcat (fn [[k v]] [(clj->dac k) (clj->dac v)]) x))
+    (bytes? x)            (coll/blob x)
+    (string? x)           (coll/string x)
+    (sequential? x)       (apply coll/vector (map clj->dac x))
+    (nil? x)              (scalar/null)
+    (instance? Boolean x) (scalar/bool x)
+    (integer? x)          (scalar/i64 x)
+    (float? x)            (scalar/f64 (double x))
+    (double? x)           (scalar/f64 x)
+    (char? x)             (scalar/dacite-char x)
     :else (throw (ex-info "Cannot convert to Dacite value" {:value x :type (type x)}))))

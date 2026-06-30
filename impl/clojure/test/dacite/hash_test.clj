@@ -6,8 +6,8 @@
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
             [dacite.hash :as hash]
-            [dacite.value.types :as types]
-            [dacite.value.scalar]))
+            [dacite.value2.types :as types]
+            [dacite.value2.scalar]))
 
 ;; =============================================================================
 ;; Generators for scalar types

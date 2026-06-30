@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest testing is]]
             [dacite.core :as d]
             [dacite.store :as store]
-            [dacite.value.types :as types]
+            [dacite.value2.types :as types]
             [dacite.hash :as hash]
             [dacite.auth :as auth]))
 

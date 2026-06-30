@@ -13,11 +13,10 @@
    Files are stored as blobs. Directories are maps.
    Auth uses the unix username."
   (:require [clojure.java.io :as io]
-            [dacite.value.collections :as coll]
             [dacite.convert :as convert]
             [dacite.core :as d]
             [dacite.store :as store]
-            [dacite.value.types :as types]
+            [dacite.value2.types :as types]
             [example.client :as client])
   (:gen-class))
 
@@ -62,7 +61,7 @@
         (do
           (.mkdirs target)
           (store/bind-store local-store
-                            (let [dac-map (coll/wrap-hash root-hash)]
+                            (let [dac-map (d/wrap-hash root-hash)]
                               (doseq [[k v] (seq dac-map)]
                                 (let [key-str (convert/dac->clj k)
                                       val-hash (types/dacite-hash v)
@@ -71,17 +70,17 @@
 
         "blob"
         (store/bind-store local-store
-                          (let [bytes (convert/dac->clj (coll/wrap-hash root-hash))]
+                          (let [bytes (convert/dac->clj (d/wrap-hash root-hash))]
                             (io/copy bytes target)))
 
         "string"
         (store/bind-store local-store
-                          (let [text (convert/dac->clj (coll/wrap-hash root-hash))]
+                          (let [text (convert/dac->clj (d/wrap-hash root-hash))]
                             (spit target text)))
 
         ;; Scalar — write as string
         (store/bind-store local-store
-                          (let [val (convert/dac->clj (coll/wrap-hash root-hash))]
+                          (let [val (convert/dac->clj (d/wrap-hash root-hash))]
                             (spit target (pr-str val))))))))
 
 ;; =============================================================================
@@ -97,7 +96,7 @@
                                          (when h
                                            (let [node (store/s-get local-store h)]
                                              (when (= "map" (first node))
-                                               (let [m (coll/wrap-hash h)
+                                               (let [m (d/wrap-hash h)
                                                      v (get m k)]
                                                  (when v (types/dacite-hash v)))))))
                                        root-hash
@@ -106,7 +105,7 @@
                         (let [node (store/s-get local-store target-hash)]
                           (case (first node)
                             "map"
-                            (let [m (coll/wrap-hash target-hash)]
+                            (let [m (d/wrap-hash target-hash)]
                               (doseq [[k v] (seq m)]
                                 (let [val-hash (types/dacite-hash v)
                                       val-node (store/s-get local-store val-hash)
@@ -119,7 +118,7 @@
                                   (println (format "  %-6s %s" indicator (convert/dac->clj k))))))
 
             ;; Not a map — show the value
-                            (println (convert/dac->clj (coll/wrap-hash target-hash)))))))))
+                            (println (convert/dac->clj (d/wrap-hash target-hash)))))))))
 
 ;; =============================================================================
 ;; Commands

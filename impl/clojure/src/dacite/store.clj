@@ -17,7 +17,6 @@
    - reset-store!: Clear the global store
    - set-store!: Replace the global store"
   (:require [dacite.hash :as hash]
-            [dacite.value.cache :as cache]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
   (:import [java.io File]
@@ -318,73 +317,49 @@
   (->LayeredStore (clojure.core/vec layers)))
 
 ;; =============================================================================
-;; Global store management
+;; Current store management
 ;; =============================================================================
 
-(defn store->cache-atom
-  "Get or create a cache atom for a store. MemStores share their internal atom."
-  [store]
-  (if (instance? MemStore store)
-    (:data store)
-    (atom (s-snapshot store))))
-
 (def ^:dynamic *store*
-  "Dynamic var holding the current IStore. Initialized with a global
-   in-memory store so constructors work without with-store."
-  (let [s (mem-store)]
-    ;; Bind Layer 2 cache to the MemStore's internal atom
-    (alter-var-root #'cache/*cache* (constantly (:data s)))
-    s))
+  "Dynamic var holding the current IStore. Initialized with an in-memory
+   store so constructors work without an explicit with-store."
+  (mem-store))
 
 (defn reset-store!
-  "Reset the global store to empty. Also resets the Layer 2 cache."
+  "Reset the current store to empty."
   []
-  (s-reset *store*)
-  (reset! cache/*cache* {}))
+  (s-reset *store*))
 
 (defn set-store!
-  "Replace the global store with a new IStore implementation.
-   If the store is a MemStore, shares its atom with the cache.
-   Otherwise, snapshots the store into a fresh cache atom."
+  "Replace the current store with a new IStore implementation."
   [new-store]
-  (alter-var-root #'*store* (constantly new-store))
-  (if (instance? MemStore new-store)
-    (alter-var-root #'cache/*cache* (constantly (:data new-store)))
-    (alter-var-root #'cache/*cache* (constantly (atom (s-snapshot new-store))))))
+  (alter-var-root #'*store* (constantly new-store)))
 
 (defn get-store
-  "Get a value by hash. Checks cache first, falls through to store."
+  "Get a value by hash from the current store. Returns nil if absent."
   [h]
-  (or (cache/cache-get h)
-      (when-let [v (s-get *store* h)]
-        (cache/cache-put! h v)
-        v)))
+  (s-get *store* h))
 
 (defn put-store!
-  "Store a value at hash in both cache and store."
+  "Store a value at hash in the current store."
   [h value]
-  (cache/cache-put! h value)
   (s-put *store* h value))
 
 (defn snapshot-store
-  "Get a plain map snapshot of the cache."
+  "Return a plain {hash value} map snapshot of the current store."
   []
-  (cache/cache-snapshot))
+  (s-snapshot *store*))
 
 (defn merge-store!
-  "Merge a map of {hash value} pairs into both cache and store."
+  "Merge a map of {hash value} pairs into the current store."
   [m]
-  (cache/cache-merge! m)
   (s-merge *store* m))
 
 (defmacro bind-store
-  "Bind *store* and *cache* together for the duration of body.
-   Use this instead of (binding [*store* ...]) to keep layers in sync."
+  "Bind *store* to the given store for the duration of body."
   [store & body]
-  `(let [s# ~store]
-     (binding [*store* s#
-               cache/*cache* (store->cache-atom s#)]
-       ~@body)))
+  `(binding [*store* ~store]
+     ~@body))
 
 (defmacro with-store
   "Execute body with an isolated store. init can be an IStore or a map
@@ -397,4 +372,4 @@
          ~sym store#]
      (bind-store store#
                  (let [result# (do ~@body)]
-                   [@cache/*cache* result#]))))
+                   [(s-snapshot store#) result#]))))

@@ -148,3 +148,35 @@
     (if-let [sb (:size-bytes data)]
       sb
       (count (.getBytes (pr-str data) "UTF-8")))))
+
+;; Backward-compatible alias for callers that name the scalar value hash
+;; `typed-value-hash` (e.g. hashing tests).
+(def typed-value-hash scalar-value-hash)
+
+;; =============================================================================
+;; Child hash extraction (multimethod)
+;; =============================================================================
+
+(defmulti child-hashes
+  "Ordered child hash references a stored node directly points to.
+
+   Dispatches on the entry's type name. Both sides of a protocol can
+   compute the same sequence independently, so it drives proof-chain and
+   transition walks (Chapter 4). Returns nil for nil input and [] for
+   types with no children.
+
+   Scalar types have no children (the :default). Collection types
+   (vector/string/blob/map/set) point at their tree :root. Internal
+   finger-tree and HAMT node types register their own methods in
+   dacite.value2.finger-tree and dacite.value2.hamt."
+  (fn [node]
+    (when (and (vector? node) (= 2 (count node)))
+      (first node))))
+
+(defmethod child-hashes nil [_] nil)
+
+(defmethod child-hashes :default [_] [])
+
+(doseq [t ["vector" "string" "blob" "map" "set"]]
+  (defmethod child-hashes t [[_ data]]
+    [(:root data)]))
