@@ -15,15 +15,9 @@
          :main-opts ["-m" "cognitect.test-runner"]
          :exec-fn cognitect.test-runner.api/test}
   
-  ;; Example server: clojure -M:server [--port 8421] [--store-dir ~/.local/dacite/store]
-  :server {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
-                      "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
-           :main-opts ["-e" "(do (load-file \"../../examples/server.clj\") (load-file \"../../examples/main.clj\") (apply examples.main/-main *command-line-args*))"]}
-  
-  ;; Example CLI: clojure -M:cli status|push|fetch|ls [args...]
-  :cli {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
-                   "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
-        :main-opts ["-e" "(do (load-file \"../../examples/client.clj\") (load-file \"../../examples/cli.clj\") (apply examples.cli/-main *command-line-args*))"]}
+  ;; NOTE: the networked example stack (:server / :cli) was archived to
+  ;; impl/clojure/archive/examples/ along with dacite.service, pending a
+  ;; service design doc. See docs/design/stores-phase-1.md item 5.
 
   ;; Cards example: clojure -M:cards
   :cards {:main-opts ["-e" "(load-file \"../../examples/cards.clj\") (examples.cards/-main)"]}

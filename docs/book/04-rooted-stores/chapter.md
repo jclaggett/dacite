@@ -4,110 +4,151 @@ The first three chapters describe an entirely immutable world. A content store (
 
 But useful systems change over time. A configuration is edited, a document is revised, a peer learns that "the current state" is now something new. Dacite expresses all of that with **one** mutable cell layered on top of the immutable world:
 
-> A **rooted store** wraps a content store and adds a single mutable **root hash** — a reference that points at one value in the store.
+> A **rooted store** wraps a content store and adds a single mutable **root** — a reference to one hash in the store.
 
-Everything underneath stays immutable. The root is the only thing that moves. "Changing" the data means computing a new value (a new tree of immutable nodes, sharing all the unchanged ones) and then pointing the root at its hash.
+Everything underneath stays immutable. The root is the only thing that moves. "Changing" the data means computing a new value (a new tree of immutable nodes, sharing all the unchanged ones) and then moving the root to its hash.
 
-A rooted store also implements `IStore`, delegating every content operation to the store it wraps. So it is a drop-in wherever a content store is expected — the current-store binding, a service's main store — while additionally exposing the root.
+A rooted store is also a content store: it answers all the content operations of Chapter 1 by delegating to the store it wraps. So it is a drop-in wherever a content store is expected, while additionally exposing the root.
 
-## 4.1 A Ref Over a Root Hash
+Because a root may be **shared** — several writers, and often across a network — its update contract is the heart of this chapter. That contract is **compare-and-set**.
 
-A rooted store implements Clojure's reference interfaces (`IDeref`, `IRef`, `IAtom2`), so the root is read and updated with the ordinary ref operators:
+## 4.1 The Root and Its Operations
 
-```clojure
-(def store (rooted-store (lmdb-store "path/to/db")))
+A rooted store adds one mutable cell holding a root hash (or *none*, before anything has been stored). The root is manipulated through a small, language-neutral set of operations:
 
-@store
-;; => nil, or a 4-long hash vector (the current root)
+| Operation | Meaning |
+|---|---|
+| `root(store)` | Read the current root hash, or *none*. |
+| `cas-root(store, expected, new)` | Atomically set the root to `new` **iff** it currently equals `expected`. Return whether it succeeded. |
+| `set-root(store, new)` | Unconditionally set the root. A convenience for the uncontended case (e.g. initialization). |
+| `update-root(store, f)` | Read-modify-write: read the root, compute `f(old)`, `cas-root`, and retry until it succeeds. |
+| `watch-root(store, key, cb)` / `unwatch-root(store, key)` | Observe root transitions; `cb` receives `(old, new)`. |
 
-;; Install a new root by hash
-(reset! store root-hash)
+`cas-root` is the primitive; the rest are conveniences over it or ways to observe it. Note the deliberate minimalism: there is exactly **one** moving value — a hash — no matter how large the tree beneath it.
 
-;; Transform the current root hash
-(swap! store (fn [old-root] (compute-new-root old-root)))
+> The root holds a **hash**, not a materialized value. `root(store)` returns a hash; to see the value it names, hand that hash to the value layer (Chapter 3). Keeping the mutable surface to a single hash is precisely what makes remote roots and synchronization tractable — you coordinate on 32 bytes, not on a whole tree.
+
+## 4.2 Compare-and-Set Is the Core Update
+
+Why single out `cas-root` instead of a plain "set the root"? Because an unconditional set loses updates whenever the root is contended.
+
+Consider two writers that both read root `R`, each build a successor, and each install it:
+
+```mermaid
+sequenceDiagram
+  participant A as Writer A
+  participant S as Root (= R)
+  participant B as Writer B
+  A->>S: root() → R
+  B->>S: root() → R
+  A->>S: set-root(R1)
+  Note over S: root = R1
+  B->>S: set-root(R2)
+  Note over S: root = R2 — A's change is lost
 ```
 
-The crucial point: a rooted store is a **ref of a root hash**, not a ref of a Clojure map. `@store` gives you a hash; to see the value it names you hand that hash to the value layer. This keeps the mutable surface tiny — a single hash — no matter how large the value tree beneath it.
+Whoever writes last wins, and the other writer's change vanishes silently. `cas-root` prevents this: each writer installs `new` only if the root is still the `expected` value it built upon. The loser's CAS fails — the root has already moved — so it must **rebuild on the new root and retry**:
 
-## 4.2 Root-Centric Operation
-
-All evolution of a rooted store flows through its root:
-
-```clojure
-;; Read the current root
-(def root @store)
-
-;; Build a successor value, then point the root at it
-(swap! store (fn [old-root]
-               (let [m  (get-value store old-root)      ; Chapter 3: rehydrate the value
-                     m' (assoc m "count" 42)]           ; structural edit, new nodes stored
-                 (dacite-hash m'))))                     ; return the new root hash
+```
+update-root(store, f):
+    loop:
+        old = root(store)
+        new = f(old)                     # build a successor value; store its nodes
+        if cas-root(store, old, new):
+            return new                   # success
+        # else: someone moved the root — loop, re-read, rebuild on the new old
 ```
 
-Because the value layer stores every node it builds into the wrapped content store, by the time `swap!` returns the new root hash, all the nodes that hash reaches are already durably present. Installing the root is the last, atomic step — it never leaves the store pointing at content that isn't there.
+This read-modify-write-retry loop is the *only* safe way to evolve a shared root. `set-root` is merely the degenerate case where you know there is no contention (a fresh store, a single writer, initialization). Everything else — concurrent local writers, and especially **remote** stores — goes through CAS.
 
-Replacing the root does not delete the old tree. The previous root and any nodes unique to it simply become unreferenced (see §4.5).
+For a **remote** store, `root` is a network read and `cas-root` is an operation the **server performs atomically** against its authoritative root: the client sends `(expected, new)`, the server compares and swaps under its own lock, and reports success or a conflict. The correctness of the whole distributed picture rests on that single server-side compare-and-set. An unconditional remote "set root" cannot be made safe under concurrency; it is not offered as the primitive for that reason.
 
-## 4.3 Watches and Validators
+## 4.3 Building a Successor
 
-Because the root is a proper ref, you can observe and constrain its transitions:
+"Changing" data means computing a new immutable value and moving the root to it. Expressed with `update-root`:
 
-```clojure
-;; Fire a callback whenever the root changes
-(add-watch store ::sync
-           (fn [_key _store old-root new-root]
-             (println "root moved" old-root "->" new-root)))
-
-;; Reject invalid roots
-(set-validator! store (fn [root] (or (nil? root) (valid-root? root))))
+```
+update-root(store, fn(old):
+    m  = value-at(store, old)       # Chapter 3: rehydrate the value at the root
+    m' = assoc(m, "count", 42)      # structural edit — new nodes stored, unchanged nodes shared
+    return hash-of(m'))             # the successor root hash
 ```
 
-Watches are the hook that makes a rooted store *reactive*: a change to the root can drive a re-render, a log entry, or a push to a peer (§4.6). The reference passed to a watch is the rooted store itself, so a single watcher can inspect the store it fired on.
+Because the value layer stores every node it builds *before* returning the successor hash, by the time `cas-root` runs, all nodes the new root reaches are already present in the content store. Installing the root is the final, atomic step — the store never points at content that isn't there.
 
-## 4.4 Durability: the Root Cell
+Replacing the root does not delete the old tree; nodes unique to it become detached (§4.6). And if a concurrent writer moved the root first, the CAS fails and the whole function re-runs against the new root — automatically rebasing the edit onto the latest state.
 
-The root must outlive the process. A rooted store persists it through a small abstraction, the **root cell**, which knows how to load and store a single hash:
+## 4.4 Observing Changes
 
-- **`mem-root-cell`** — an atom; ephemeral, for tests and REPL use.
-- **`lmdb-root-cell`** — persists the root in the LMDB meta database, reusing the same environment as an LMDB content store.
+Because the root is a single observable cell, others can react to its transitions:
 
-```clojure
-;; Ephemeral root (default)
-(rooted-store content-store)
+- **Locally**, register a callback that fires on each successful root change with `(old, new)`.
+- **Remotely**, subscribe to the server's root stream; the server notifies subscribers whenever its root moves (for example, over server-sent events).
 
-;; Durable root persisted alongside LMDB content
-(def lmdb (lmdb-store "path/to/db"))
-(rooted-store lmdb (lmdb-root-cell lmdb))
+```
+watch-root(store, :sync, fn(old, new):
+    log("root moved", old, "->", new))
 ```
 
-On construction the rooted store seeds its in-memory root from the cell; on every successful mutation it flushes the new root back to the cell. Restarting the process and reopening the store recovers the last root.
+Observation is what makes a rooted store *reactive*: a root move can drive a re-render, a log entry, or a push to a peer (§4.7). A store may also guard transitions with a **validator** — a predicate consulted before a new root is installed, rejecting ones that fail it.
 
-Note the clean separation: the **content store** persists nodes; the **root cell** persists the one hash that says which node is current. They can share a backend (LMDB) but are distinct responsibilities.
+## 4.5 Durability: the Root Cell
 
-## 4.5 Detached Nodes and Garbage Collection
+The root must outlive the process. A rooted store persists it through a small abstraction, the **root cell**, which knows only how to load and store a single hash:
+
+- **memory root cell** — holds the hash in memory; ephemeral, for tests and REPL use.
+- **LMDB root cell** — persists the hash in the LMDB meta database, reusing the same environment as an LMDB content store.
+
+```
+rooted-store(content-store)                       # ephemeral root (default)
+rooted-store(content-store, lmdb-root-cell(lmdb)) # durable root beside LMDB content
+```
+
+On construction the store seeds its in-memory root from the cell; on every successful update it flushes the new root back to the cell. Reopening the store recovers the last root.
+
+Note the clean separation of responsibilities: the **content store** persists nodes; the **root cell** persists the one hash that says which node is current. They may share a backend (LMDB), but they are distinct concerns.
+
+## 4.6 Detached Nodes and Garbage Collection
 
 Any entry reachable from the current root is **live**. Entries that were reachable under a previous root but are not part of the current tree are **detached**. They remain in the content store until garbage collection removes them.
 
-GC is fundamentally a value-aware traversal, and it needs both halves of this layering: the **root** (Chapter 4) as the starting point, and the **value model** (Chapter 3) to deserialize a node and discover its child references. Starting from `@store`, mark every reachable node; anything unmarked is detached and may be reclaimed. The content store itself knows nothing about reachability — it only maps hashes to values — which is exactly why GC lives up here with roots and values rather than down in the content store.
+GC is fundamentally a value-aware traversal, and it needs both halves of this layering: the **root** (this chapter) as the starting point, and the **value model** (Chapter 3) to deserialize a node and discover its child references. Starting from `root(store)`, mark every reachable node; anything unmarked is detached and may be reclaimed. The content store itself knows nothing about reachability — it only maps hashes to values — which is exactly why GC lives up here with roots and values rather than down in the content store.
 
-## 4.6 Ref Push and Sync
+## 4.7 Sync Between Stores
 
-The root ref is the primitive for synchronization between stores. **Push** copies one store's root onto another:
+Synchronization copies one store's root onto another. Framed in terms of §4.2, moving `target` to `source`'s root is a **compare-and-set on the target**:
 
-```clojure
-(push-ref source target)
+```
+push(source, target):
+    cas-root(target, root(target), root(source))
 ```
 
-After a push, `target`'s root is `reset!` to `@source`, and `target`'s watches fire. Push deliberately sends only a **hash** — it assumes the underlying content is already present in the target or is synced separately. Deciding when and where to push, and how to move the content that a new root depends on, are application concerns; the rooted store provides only the mechanism.
+Because the target may itself be changing, a push can lose the CAS and need to be reconciled just like any other update — there is no privileged "force set" for a shared target. Push deliberately transfers only a **hash**; the underlying content must already be present at the target or be synced separately. Deciding when to push, and how to move the content a new root depends on, are application concerns; the rooted store provides only the atomic root move.
 
-This is the seam through which peers communicate state changes: a source computes a new value, installs it as its root, and pushes that hash; watchers on the target react to the new root and fetch whatever content they don't yet have.
+This is the seam through which peers coordinate: a source installs a new root (via CAS), then pushes that hash; subscribers on the target observe the new root and fetch whatever content they lack.
 
-## 4.7 What This Layer Provides
+## 4.8 What This Layer Provides
 
-1. A single, well-defined mutable **root** per store, accessed via `deref` / `reset!` / `swap!`.
-2. **Watches and validators** on root transitions — the basis for reactive behavior.
-3. **Durable roots** via a root cell (memory or LMDB), separate from content persistence.
-4. **`IStore` delegation**, so a rooted store is a drop-in content store that also has a root.
-5. **`push-ref`** as a minimal sync primitive between stores.
+1. A single mutable **root** — one hash — over an immutable content store.
+2. **Compare-and-set** as the core update, with a read-modify-write retry loop for safe concurrent and remote evolution.
+3. **Observation** of root transitions (local callbacks or remote subscriptions), plus optional validators.
+4. **Durable roots** via a root cell, kept separate from content persistence.
+5. **Content-store delegation**, so a rooted store is a drop-in content store that also has a root.
+6. **Push** as an atomic, CAS-based sync primitive between stores.
 
-With this, Dacite has both halves of its model: an immutable world of content-addressed values, and one mutable pointer that lets that world evolve and be shared. Future work (see the roadmap) builds distribution and event flows on exactly this root-and-push foundation.
+With this, Dacite has both halves of its model: an immutable world of content-addressed values, and one mutable pointer — governed by compare-and-set — that lets that world evolve and be shared. Future work (see the roadmap) builds distribution and event flows on exactly this root-and-CAS foundation.
+
+## Reference Implementation (Clojure)
+
+The abstract operations above are language-neutral; a port to any language need only provide them. The Clojure reference implementation happens to surface them through Clojure's standard reference protocols, so a rooted store behaves like an idiomatic mutable reference:
+
+| Concept (§4.1) | Clojure surface |
+|---|---|
+| `root(store)` | `@store` / `(deref store)` — `IDeref` |
+| `cas-root(store, expected, new)` | `(compare-and-set! store expected new)` — `IAtom` |
+| `set-root(store, new)` | `(reset! store new)` — `IAtom` |
+| `update-root(store, f)` | `(swap! store f)` — `IAtom`, a CAS retry loop |
+| `watch-root` / `unwatch-root` | `(add-watch store k cb)` / `(remove-watch store k)` — `IRef` |
+| validator | `(set-validator! store pred)` — `IRef` |
+
+Implementing `IDeref`, `IRef`, and `IAtom2` on the rooted store gives Clojure callers the whole set for free: `compare-and-set!` *is* the primitive of §4.2, and `swap!` *is* its read-modify-write retry loop. The value never escapes being a single root hash, so these interfaces stay a thin, faithful skin over the language-neutral contract — not a dependency of it.
