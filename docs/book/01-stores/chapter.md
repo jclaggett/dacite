@@ -1,154 +1,114 @@
-# Chapter 1: Stores
+# Chapter 1: Content Stores
 
-This chapter introduces **stores** — the persistence layer at the bottom of Dacite. A store is two things at once:
+This chapter introduces the **content store** — the persistence layer at the bottom of Dacite. A content store is a single, simple thing:
 
-1. A **content-addressed map** from 256-bit hashes to byte arrays
-2. A **mutable root** (via Clojure's `IRef`) that points at one hash in that map
+> An immutable, content-addressed dictionary: `hash → value`.
 
-Each entry in a store is a pair: `hash → bytes`. The store knows nothing about the structure or meaning of the bytes — it simply maps hashes to opaque values.
+Each entry maps a 256-bit content hash to a stored value. The store knows nothing about the structure or meaning of what it holds — it maps hashes to opaque payloads and nothing more. It has no notion of a "current" value, no mutable state, and no root; it only ever grows as new entries are added.
 
-Chapter 2 explains how hashes are computed. Chapter 3 defines the value model built on top of stores. Here we stay at the persistence layer: the `IStore` protocol, implementations, and sync.
+That deliberate simplicity is what the rest of Dacite builds on. Chapter 2 explains how hashes are computed. Chapter 3 defines the value model — trees of nodes that live as entries in a content store. Chapter 4 adds a single mutable **root** on top of a content store, turning this immutable dictionary into something that can evolve and synchronize over time. Here we stay at the immutable persistence layer: the `IStore` protocol, its implementations, and content addressing.
 
 ## 1.1 Store Entries
 
-Every entry in a store has the same structure:
+Every entry in a content store has the same shape:
 
 ```
-hash → bytes
+hash → value
 ```
 
-- **hash**: A 256-bit content hash (4 × 64-bit integers)
-- **bytes**: An opaque byte array. The store neither knows nor interprets its structure.
+- **hash**: A 256-bit content hash (4 × 64-bit integers). How it is derived from the content is Chapter 2's subject.
+- **value**: An opaque serialized payload. The store neither knows nor interprets its structure.
 
-The store is a pure key/value mapping. All interpretation of the stored bytes happens in higher layers (Chapter 3).
+The store is a pure key/value mapping. All interpretation of a stored entry happens in higher layers (Chapter 3). Because the key is a hash *of* the value, entries are **immutable**: a given hash always maps to the same content, so writing the same content twice is idempotent and two callers that produce the same content share one entry.
 
-## 1.2 Store as Ref
+> **Representation note.** Conceptually an entry's value is opaque bytes. The reference implementation currently stores serialized Dacite node values (EDN), and the LMDB backend keeps the bytes of that serialization. A true opaque byte-array representation is a later refinement tied to the serialization format (see the serialization appendix); it does not change the content-store contract described here.
 
-A store implements `clojure.lang.IRef`. You use `deref`, `swap!`, and `reset!` to read and update the current root hash:
+## 1.2 The Store Protocol
 
-```clojure
-(def store (dacite/store {:backend (dacite/lmdb "path/to/db")}))
-
-@store
-;; => nil or a 4-long hash vector (the current root)
-
-;; Install a new root by hash
-(reset! store root-hash)
-
-;; Transform the current root hash
-(swap! store (fn [h] (compute-new-root h)))
-```
-
-The store is a **ref of a root hash**, not a ref of a Clojure map. Higher-level APIs (Chapter 3) wrap this: they build nodes, store them via `IStore`, and return hashes you can install as the root. Applications needing multiple named roots build that layer themselves.
-
-## 1.3 Store Protocol
-
-Underneath the ref interface, every store implements `IStore` for content-addressed access:
+Every content store implements `IStore`:
 
 ```clojure
 (defprotocol IStore
-  (s-get [store hash] "Return bytes or nil")
-  (s-put [store hash bytes] "Store bytes at hash, return store")
+  (s-get [store hash]  "Return the stored value, or nil")
+  (s-put [store hash value] "Store value at hash, return the store")
   (s-has? [store hash] "Check if hash exists")
-  (s-snapshot [store] "Return map of all {hash → bytes}")
-  (s-merge [store m] "Merge {hash → bytes} into store")
+  (s-snapshot [store] "Return a map of all {hash → value}")
+  (s-merge [store m] "Merge {hash → value} into the store")
   (s-reset [store] "Clear all entries"))
 ```
 
 Typical usage at this layer:
 
 ```clojure
-;; Store a value
-(def h (hash-of-value))
-(s-put store h some-bytes)
+;; Store a value at its hash
+(s-put store h node)
 
-;; Fetch back
-(s-get store h)   ;; => some-bytes
+;; Fetch it back
+(s-get store h)   ;; => node, or nil if absent
 (s-has? store h)  ;; => true
 ```
 
-Application code usually works through `@store`, `swap!`, and `reset!` on the root, or through value constructors (Chapter 3) that call `store` internally. The public value API always takes `store` as its first argument so persistence stays explicit.
+Application code rarely calls `s-get` / `s-put` directly. Instead it uses the value constructors of Chapter 3, which persist nodes into a store on your behalf. The public value API always takes a store (implicitly via a current-store binding, or explicitly as the first argument) so that persistence stays visible rather than hidden.
 
-## 1.4 Root-Centric Operation
+## 1.3 Content Addressing
 
-All interaction with a store flows through its root hash:
+Because a store is addressed by content hash, it has two useful properties for free:
+
+- **Deduplication.** Identical content produces an identical hash, which maps to a single entry. Storing the same node from two places costs one entry, not two.
+- **Idempotent writes.** `s-put` of content that is already present is a no-op in effect — the hash and value are unchanged.
 
 ```clojure
-;; Read current root
-(def root @store)
-
-;; Replace root entirely
-(reset! store new-root-hash)
-
-;; Transform root (e.g. after building a successor node)
-(swap! store (fn [old-root] (build-successor store old-root)))
+(s-put store h node)
+(s-put store h node)   ;; same hash, same value — still one entry
 ```
 
-The root entry lives in the backing map at the root hash, just like any other entry. Updating the root does not delete old entries immediately — they become detached until GC runs.
+This is the foundation that lets higher layers share structure aggressively: an edited collection reuses every unchanged node, because unchanged nodes hash the same and therefore *are* the same entry.
 
-## 1.5 Detached Nodes and Garbage Collection
+## 1.4 Implementations
 
-Any entry reachable from the current root is **live**. Entries that were previously reachable but are no longer part of the root tree are **detached**. They remain in the backing storage until garbage collection runs.
-
-GC is a Chapter 3 concern: given a hash, the value layer knows how to deserialize the bytes, discover child references, and recurse. The store itself knows nothing about structure.
-
-## 1.6 Store Implementations
+All content stores implement `IStore`, so they are interchangeable. Each has its own constructor function — there is no single unified wrapper; you pick a backend by calling its constructor.
 
 ### Memory Store
-An atom-backed store. Fast, ephemeral, ideal for testing and construction.
+An atom-backed store. Fast, ephemeral, ideal for testing and for building values before they are persisted elsewhere.
 
 ```clojure
-(def store (dacite/store {:backend (dacite/memory)}))
+(def s (store/mem-store))
+```
+
+### File Store
+Filesystem persistence, one file per entry, with two levels of directory sharding by hash prefix to keep directories small. Survives restarts.
+
+```clojure
+(def s (store/file-store "path/to/dir"))
 ```
 
 ### LMDB Store
-Persistent store using LMDB. The root hash is kept in a small meta database; content lives in the primary data database. Survives restarts.
+Persistent store backed by LMDB. Content entries live in the primary database. (A small meta database is also created; rooted stores in Chapter 4 use it to persist a root hash — the content store itself never touches it.)
 
 ```clojure
-(def store (dacite/store {:backend (dacite/lmdb "path/to/db")}))
+(def s (store/lmdb-store "path/to/db"))
 ```
 
 ### Layered Store
-Composes multiple stores as a stack. Reads check layers top-down; writes go to all layers by default. Provides transparent caching without changing the ref-based API.
+Composes several stores into a stack, fastest first (e.g. memory in front of LMDB). It provides transparent caching without changing the `IStore` API.
 
 ```clojure
-(def store (dacite/store {:backend [(dacite/memory)
-                                    (dacite/lmdb "path/to/db")]
-                          :write-policy :push-all}))
+(def s (store/layered-store (store/mem-store)
+                            (store/lmdb-store "path/to/db")))
 ```
 
-**Read**: walk down until found  
-**Write** (`swap!`, `reset!`): policy-dependent
+- **Read** (`s-get`): walk layers front to back until a layer has the entry. On a hit in a slower layer, the entry is **read through** — backfilled into the faster layers it was missing from — so repeat reads are fast.
+- **Write** (`s-put`, `s-merge`): write to **all** layers. This keeps the durable back layer authoritative and the fast front layer warm.
 
-#### Write Policies
+A single write policy (write-to-all) is intentional at this layer; richer per-layer policies are out of scope for the content store.
 
-| Policy | Behavior |
-|--------|----------|
-| `:push-all` | Write to all layers (default) |
-| `:top-only` | Write only to top layer (overlay/COW semantics) |
-| custom fn | `(fn [root-hash layers] ...)` returns updated layers |
+## 1.5 What This Layer Provides
 
-Two stores are **compatible** if they share the same protocol identifier for hashing (Chapter 2).
+1. An immutable, content-addressed dictionary: `hash → value`.
+2. A minimal protocol — `s-get` / `s-put` / `s-has?` / `s-snapshot` / `s-merge` / `s-reset`.
+3. Content addressing, and with it free deduplication and idempotent writes.
+4. Composable backends: memory, file, LMDB, and layered caching — all interchangeable.
 
-## 1.7 Ref Push and Sync
+There is deliberately **no** mutable state here: no current value, no root. That single moving part is added in Chapter 4.
 
-Stores push their root ref to other stores. This is the primitive for asynchronous behavior and synchronization:
-
-```clojure
-;; Explicit push
-(dacite/push-ref source-store target-store)
-```
-
-After a push, the target store's root is `reset!` to the source's current root hash. The underlying storage must already contain the objects (or be synced separately).
-
-Push is intentionally simple: it sends a hash. Applications decide when and where to push. Ref management is an application concern, not a store concern.
-
-## 1.8 What This Layer Provides
-
-1. A single, well-defined root per store, accessed via `IRef`
-2. Opaque entries: `hash → bytes`
-3. Content-addressed `s-get` / `s-put` / `s-has?` / `s-snapshot` / `s-merge` / `s-reset`
-4. Composable implementations (memory, disk, layered)
-5. Ref push as a sync primitive
-
-Chapter 2 defines how hashes are formed. Chapter 3 builds the value model on top of this layer. Chapter 4 adds authorization on top of the root model.
+Chapter 2 defines how the hashes that key this dictionary are formed. Chapter 3 builds the value model whose nodes live as entries in a content store. Chapter 4 wraps a content store with a mutable root to make it evolve and synchronize.

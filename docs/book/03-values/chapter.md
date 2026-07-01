@@ -1,8 +1,8 @@
 # Chapter 3: Values
 
-Chapter 1 gave us **stores** — a content-addressed map and a mutable
-root ref. Chapter 2 gave us **fuse** and three guarantees: content
-identity, tree-shape independence, and decomposability. This chapter
+Chapter 1 gave us the **content store** — an immutable content-addressed
+map from hashes to values. Chapter 2 gave us **fuse** and three guarantees:
+content identity, tree-shape independence, and decomposability. This chapter
 builds the **value model** on both foundations: a closed set of six
 user value kinds — scalars, vectors, strings, blobs, maps, and sets —
 together with the internal primitives that implement them.
@@ -55,7 +55,7 @@ every operation — values know where they belong.
 
 This also means **values are tied to their store**. A value created in
 store A cannot be directly inserted into store B; you must first migrate
-the underlying content (or use ref push — see Chapter 1).
+the underlying content (or use ref push — see Chapter 4).
 
 ## 3.2 A Closed Set of User Values
 
@@ -616,7 +616,7 @@ or for construction in the common case.
 - `union(complement(A), A)` = universal set (negative empty)
 - `intersect(A, complement(A))` = empty set
 
-This layer depends on Chapter 2 (hash fusion) and Chapter 1 (stores). No I/O required for
+This layer depends on Chapter 2 (hash fusion) and Chapter 1 (content stores). No I/O required for
 pure operations, though values carry a store reference for transparent
 persistence when mutated. All primitive functions are pure.
 
@@ -639,5 +639,6 @@ The value layer gives the rest of Dacite:
 6. **Store-aware** — values know their store, enabling transparent
    persistence on mutation.
 
-The next chapter adds **authorization** on top of stores: proof of
-possession before fetch or store.
+The next chapter adds a single mutable **root** on top of the content
+store, turning this immutable world of values into one that evolves over
+time and synchronizes between peers.

@@ -1,7 +1,7 @@
 # Chapter 2: Hash Fusion
 
-Chapter 1 introduced **stores** — a map from content hashes to serialized
-bytes, plus a mutable root. Every node in that map is keyed by its hash.
+Chapter 1 introduced **content stores** — an immutable map from content
+hashes to serialized values. Every node in that map is keyed by its hash.
 This chapter defines how those hashes are formed.
 
 Everything in Dacite's composite structures is built on a single

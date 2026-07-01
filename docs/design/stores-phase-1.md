@@ -114,12 +114,22 @@ Extend `store_test.clj`:
 
 ### 7. Documentation (`docs`)
 
-Update `docs/book/01-stores/chapter.md`:
+**Done (book restructure, ahead of code):** Chapter 1 was split into two
+chapters so the book mirrors the two-layer design:
 
-- Describe the content/caching vs rooted split
-- Document `FileStore`
-- **Rewrite constructor section to match code** (per-store fns, not unified wrapper)
-- Reconcile "opaque bytes" wording (entries are serialized Dacite values / EDN today); flag true byte-array representation as a separate Chapter 2/3 effort
+- `docs/book/01-stores/chapter.md` — now **Content Stores** only: immutable
+  `hash → value` dictionary, `IStore`, per-store constructors (`mem-store`,
+  `file-store`, `lmdb-store`, `layered-store`), layered read-through +
+  write-to-all, softened "opaque bytes" wording.
+- `docs/book/04-rooted-stores/chapter.md` — new **Rooted Stores** chapter:
+  root ref (`deref`/`reset!`/`swap!`), watches/validators, root cell
+  durability, detached-nodes/GC, `push-ref`. Describes the target API from
+  work items 2–4.
+- Preface + `PLAN.md` updated to the four-chapter structure.
+
+**Remaining:** once the code lands, reconcile the Ch 1 / Ch 4 prose against
+the final constructor names and signatures, and confirm the "opaque bytes"
+representation note still matches the serialization appendix.
 
 ---
 
