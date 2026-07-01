@@ -1,7 +1,7 @@
-(ns example.client
+(ns examples.client
   "Example Dacite HTTP client.
 
-   A simple client that talks to the example.server. Demonstrates
+   A simple client that talks to examples.server. Demonstrates
    the full flow: login, read from the main store, write with session
    store proxy.
 

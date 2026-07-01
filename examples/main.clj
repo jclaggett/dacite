@@ -10,7 +10,7 @@
   (:require [dacite.hash :as hash]
             [dacite.service :as svc]
             [dacite.store :as store]
-            [example.server :as server]))
+            [examples.server :as server]))
 
 (defn- parse-args [args]
   (loop [args (seq args)

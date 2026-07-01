@@ -1,4 +1,4 @@
-(ns example.server
+(ns examples.server
   "Example Dacite HTTP server.
 
    A thin HTTP layer over dacite.service. Demonstrates how a Dacite
@@ -18,7 +18,7 @@
      POST /root               {token, root-hash: hex} → {ok, nodes-pulled, root-hash}
      GET  /root               {token} → {root-hash}
 
-   Run with: (example.server/start! service-atom port)"
+   Run with: (examples.server/start! service-atom port)"
   (:require [cheshire.core :as che]
             [clojure.edn :as edn]
             [clojure.string :as str]

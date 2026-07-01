@@ -17,7 +17,7 @@
             [dacite.core :as d]
             [dacite.store :as store]
             [dacite.value.types :as types]
-            [example.client :as client]))
+            [examples.client :as client]))
 
 (def ^:private default-url "http://localhost:8421")
 
