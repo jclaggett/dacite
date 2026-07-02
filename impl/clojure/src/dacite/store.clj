@@ -275,12 +275,13 @@
   ;; layers is a vector of stores, first = fastest (e.g. mem), last = most durable
   IStore
   (s-get [_ h]
-    (loop [[layer & rest] layers]
+    (loop [seen []
+           [layer & more] layers]
       (when layer
         (if-let [v (s-get layer h)]
-          ;; TODO: populate faster layers on read-through
-          v
-          (recur rest)))))
+          (do (doseq [faster seen] (s-put faster h v))
+              v)
+          (recur (conj seen layer) more)))))
 
   (s-put [this h value]
     ;; Write to all layers

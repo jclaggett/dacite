@@ -140,6 +140,14 @@
       ;; Not in fast, found in slow
       (is (= :from-slow (store/s-get s [1 2 3 4]))))))
 
+(deftest layered-store-read-through-backfill-test
+  (testing "slow-layer hit backfills faster layers"
+    (let [fast (store/mem-store)
+          slow (store/mem-store {[1 2 3 4] :from-slow})
+          s (store/layered-store fast slow)]
+      (is (= :from-slow (store/s-get s [1 2 3 4])))
+      (is (= :from-slow (store/s-get fast [1 2 3 4]))))))
+
 (deftest layered-store-write-all-test
   (testing "writes go to all layers"
     (let [fast (store/mem-store)
