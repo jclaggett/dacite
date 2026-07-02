@@ -14,17 +14,23 @@ Because a root may be **shared** — several writers, and often across a network
 
 ## 4.1 The Root and Its Operations
 
-A rooted store adds one mutable cell holding a root hash (or *none*, before anything has been stored). The root is manipulated through a small, language-neutral set of operations:
+A rooted store adds one mutable cell holding a root hash (or *none*, before anything has been stored). Two operations form the **required core** — the entire portable contract, and all that even a remote store must implement:
 
-| Operation | Meaning |
+| Core operation | Meaning |
 |---|---|
 | `root(store)` | Read the current root hash, or *none*. |
 | `cas-root(store, expected, new)` | Atomically set the root to `new` **iff** it currently equals `expected`. Return whether it succeeded. |
-| `set-root(store, new)` | Unconditionally set the root. A convenience for the uncontended case (e.g. initialization). |
-| `update-root(store, f)` | Read-modify-write: read the root, compute `f(old)`, `cas-root`, and retry until it succeeds. |
-| `watch-root(store, key, cb)` / `unwatch-root(store, key)` | Observe root transitions; `cb` receives `(old, new)`. |
 
-`cas-root` is the primitive; the rest are conveniences over it or ways to observe it. Note the deliberate minimalism: there is exactly **one** moving value — a hash — no matter how large the tree beneath it.
+`root` is the read; `cas-root` is the one update primitive. Everything else is an **optional convenience** — available on a local store, but constrained or absent for a remote one:
+
+| Optional operation | Meaning | Remote status |
+|---|---|---|
+| `update-root(store, f)` | Read-modify-write retry loop around `root` + `cas-root`. | **Client-side.** The loop and `f` run on the client using only the two core ops; no new server capability is needed. A *server-side* apply would require shipping `f` to the server to evaluate — a future capability, not offered now. |
+| `set-root(store, new)` | Unconditionally set the root. | **Local only.** Unconditional overwrite is unsafe under sharing, so it is deliberately not offered for remote stores. |
+| `watch-root(store, key, cb)` / `unwatch-root(store, key)` | Observe root transitions; `cb` receives `(old, new)`. | **Local via callbacks.** A remote implementation needs a push transport (long polling, websockets, SSE) and is therefore protocol-specific and optional. |
+| validator | A predicate consulted before a new root is installed. | **Local only.** Enforcing it remotely means evaluating the predicate on the server — the same future code-as-data capability — so it is not offered now. |
+
+Note the deliberate minimalism: there is exactly **one** moving value — a hash — and only **two** operations you must implement to have a working rooted store, remote included.
 
 > The root holds a **hash**, not a materialized value. `root(store)` returns a hash; to see the value it names, hand that hash to the value layer (Chapter 3). Keeping the mutable surface to a single hash is precisely what makes remote roots and synchronization tractable — you coordinate on 32 bytes, not on a whole tree.
 
@@ -59,7 +65,7 @@ update-root(store, f):
         # else: someone moved the root — loop, re-read, rebuild on the new old
 ```
 
-This read-modify-write-retry loop is the *only* safe way to evolve a shared root. `set-root` is merely the degenerate case where you know there is no contention (a fresh store, a single writer, initialization). Everything else — concurrent local writers, and especially **remote** stores — goes through CAS.
+This read-modify-write-retry loop touches only the two core operations — `root` and `cas-root` — so `update-root` is a client-side convenience, not a capability the store (or a server) must provide specially. It is also the *only* safe way to evolve a shared root. `set-root` is merely the degenerate case where you know there is no contention (a fresh store, a single writer, initialization); it is a local convenience and is not offered for remote stores. Everything else — concurrent local writers, and especially **remote** stores — goes through CAS.
 
 For a **remote** store, `root` is a network read and `cas-root` is an operation the **server performs atomically** against its authoritative root: the client sends `(expected, new)`, the server compares and swaps under its own lock, and reports success or a conflict. The correctness of the whole distributed picture rests on that single server-side compare-and-set. An unconditional remote "set root" cannot be made safe under concurrency; it is not offered as the primitive for that reason.
 
@@ -83,14 +89,16 @@ Replacing the root does not delete the old tree; nodes unique to it become detac
 Because the root is a single observable cell, others can react to its transitions:
 
 - **Locally**, register a callback that fires on each successful root change with `(old, new)`.
-- **Remotely**, subscribe to the server's root stream; the server notifies subscribers whenever its root moves (for example, over server-sent events).
+- **Remotely**, subscribe to the server's root stream — an optional capability whose exact shape depends on the transport (long polling, websockets, server-sent events).
 
 ```
 watch-root(store, :sync, fn(old, new):
     log("root moved", old, "->", new))
 ```
 
-Observation is what makes a rooted store *reactive*: a root move can drive a re-render, a log entry, or a push to a peer (§4.7). A store may also guard transitions with a **validator** — a predicate consulted before a new root is installed, rejecting ones that fail it.
+Observation is what makes a rooted store *reactive*: a root move can drive a re-render, a log entry, or a push to a peer (§4.7). Both observation forms are optional — local callbacks come for free, while remote subscription is protocol-specific.
+
+A store may also guard transitions with a **validator** — a predicate consulted before a new root is installed, rejecting ones that fail it. A validator runs wherever the commit is decided, so it is a **local-only** convenience for now; enforcing one on a remote store would mean evaluating the predicate server-side, a future code-as-data capability.
 
 ## 4.5 Durability: the Root Cell
 
@@ -130,8 +138,8 @@ This is the seam through which peers coordinate: a source installs a new root (v
 ## 4.8 What This Layer Provides
 
 1. A single mutable **root** — one hash — over an immutable content store.
-2. **Compare-and-set** as the core update, with a read-modify-write retry loop for safe concurrent and remote evolution.
-3. **Observation** of root transitions (local callbacks or remote subscriptions), plus optional validators.
+2. A **two-operation portable core** — `root` and `cas-root` — sufficient for any store, local or remote; `cas-root` is the one update primitive.
+3. Optional conveniences over the core: `update-root` (a client-side retry loop), `set-root` (local, uncontended), observation via `watch-root` (local callbacks; remote is transport-specific), and validators (local for now).
 4. **Durable roots** via a root cell, kept separate from content persistence.
 5. **Content-store delegation**, so a rooted store is a drop-in content store that also has a root.
 6. **Push** as an atomic, CAS-based sync primitive between stores.
@@ -140,15 +148,15 @@ With this, Dacite has both halves of its model: an immutable world of content-ad
 
 ## Reference Implementation (Clojure)
 
-The abstract operations above are language-neutral; a port to any language need only provide them. The Clojure reference implementation happens to surface them through Clojure's standard reference protocols, so a rooted store behaves like an idiomatic mutable reference:
+The abstract operations above are language-neutral; a port to any language need only provide the **core** two. The Clojure reference implementation surfaces the operations through Clojure's standard reference protocols, so a *local* rooted store behaves like an idiomatic mutable reference:
 
-| Concept (§4.1) | Clojure surface |
-|---|---|
-| `root(store)` | `@store` / `(deref store)` — `IDeref` |
-| `cas-root(store, expected, new)` | `(compare-and-set! store expected new)` — `IAtom` |
-| `set-root(store, new)` | `(reset! store new)` — `IAtom` |
-| `update-root(store, f)` | `(swap! store f)` — `IAtom`, a CAS retry loop |
-| `watch-root` / `unwatch-root` | `(add-watch store k cb)` / `(remove-watch store k)` — `IRef` |
-| validator | `(set-validator! store pred)` — `IRef` |
+| Concept (§4.1) | Clojure surface | Tier |
+|---|---|---|
+| `root(store)` | `@store` / `(deref store)` — `IDeref` | **core** |
+| `cas-root(store, expected, new)` | `(compare-and-set! store expected new)` — `IAtom` | **core** |
+| `update-root(store, f)` | `(swap! store f)` — `IAtom`, a CAS retry loop | optional (client-side) |
+| `set-root(store, new)` | `(reset! store new)` — `IAtom` | optional (local) |
+| `watch-root` / `unwatch-root` | `(add-watch store k cb)` / `(remove-watch store k)` — `IRef` | optional (local; remote = transport) |
+| validator | `(set-validator! store pred)` — `IRef` | optional (local) |
 
-Implementing `IDeref`, `IRef`, and `IAtom2` on the rooted store gives Clojure callers the whole set for free: `compare-and-set!` *is* the primitive of §4.2, and `swap!` *is* its read-modify-write retry loop. The value never escapes being a single root hash, so these interfaces stay a thin, faithful skin over the language-neutral contract — not a dependency of it.
+A **local** rooted store implements the whole set (`IDeref`, `IRef`, `IAtom2`) for free — `compare-and-set!` *is* the core primitive of §4.2 and `swap!` *is* its retry loop. A **remote** rooted store need implement only the core two (`deref` and `compare-and-set!`); it does not offer `reset!` (`set-root`) or validators, realizes `swap!` (`update-root`) as a client-side loop over the core, and exposes watches only if its transport supports them. The value never escapes being a single root hash, so these interfaces stay a thin, faithful skin over the language-neutral contract — not a dependency of it.

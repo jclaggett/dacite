@@ -77,10 +77,18 @@ Seed the in-memory root atom from the cell on construction; flush to the cell on
 
 New namespace `dacite.rooted-store` (holds the root cell, rooted store, and push).
 
-**Compare-and-set is the core update** (book Ch 4 §4.2). The language-neutral
-contract is `root` / `cas-root` / `set-root` / `update-root` / `watch-root`;
-`cas-root` is primitive, `update-root` is its read-modify-write retry loop,
-`set-root` is the uncontended degenerate case.
+**Compare-and-set is the core update** (book Ch 4 §4.2). The **portable core is
+just two operations**: `root` (read) and `cas-root` (the one update primitive) —
+all a remote store must ever implement. The rest are **optional** conveniences:
+`update-root` (a client-side CAS retry loop over the core), `set-root`
+(unconditional; local-only, not offered remotely), `watch-root` (local
+callbacks; remote is transport-specific), and validators (local-only). See Ch 4
+§4.1 for the core-vs-optional split and remote status.
+
+The **local** `RootedStore` still implements the full `IDeref`/`IRef`/`IAtom2`
+surface (all of the above). A future **remote** rooted store implements only the
+core two (`deref` + `compare-and-set!`), realizes `swap!` as a client-side loop,
+and omits `reset!`/validators.
 
 ```clojure
 (ns dacite.rooted-store
