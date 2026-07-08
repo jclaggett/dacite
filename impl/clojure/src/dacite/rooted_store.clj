@@ -6,7 +6,8 @@
    store include `reset!`, `swap!`, watches, and validators.
 
    See docs/book/04-rooted-stores/chapter.md."
-  (:require [dacite.store :as store]))
+  (:require [dacite.gc :as gc]
+            [dacite.store :as store]))
 
 ;; =============================================================================
 ;; Root cell — durable root persistence
@@ -86,6 +87,9 @@
     (store/s-put content h value)
     this)
   (s-has? [_ h] (store/s-has? content h))
+  (s-delete [this h]
+    (store/s-delete content h)
+    this)
   (s-snapshot [_] (store/s-snapshot content))
   (s-merge [this m]
     (store/s-merge content m)
@@ -158,3 +162,11 @@
    Content must already be present at target or synced separately."
   [source target]
   (compare-and-set! target @target @source))
+
+(defn collect-garbage!
+  "Remove content-store entries not reachable from the current root.
+   Returns {:removed n :kept n}."
+  ([rooted-store]
+   (collect-garbage! rooted-store @rooted-store))
+  ([rooted-store root-hash]
+   (gc/collect-garbage! (:content rooted-store) root-hash)))
