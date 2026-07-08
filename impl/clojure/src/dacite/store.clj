@@ -9,6 +9,9 @@
    Built-in implementations:
    - mem-store: In-memory atom-backed store (default)
    - file-store: Filesystem persistence with directory sharding
+   - lmdb-store: LMDB persistence (Closeable)
+   - lru-store: Bounded in-memory store with LRU eviction (dacite.lru-store)
+   - remote-store: HTTP-backed store (dacite.remote-store)
    - layered-store: Compose stores with read-through / write-through
 
    Global store management:
@@ -39,6 +42,7 @@
   (s-get [this h] "Retrieve value by hash. Returns nil if not found.")
   (s-put [this h value] "Store value at hash. Returns the store (or this for mutable stores).")
   (s-has? [this h] "Check if hash exists.")
+  (s-delete [this h] "Remove entry at hash. Returns the store.")
   (s-snapshot [this] "Return the current contents as a plain map. Used for bulk reads during construction.")
   (s-merge [this m] "Merge a map of {hash value} pairs into the store.")
   (s-reset [this] "Clear all entries. Returns the store."))
@@ -52,6 +56,7 @@
   (s-get [_ h] (get @data h))
   (s-put [this h value] (swap! data assoc h value) this)
   (s-has? [_ h] (contains? @data h))
+  (s-delete [this h] (swap! data dissoc h) this)
   (s-snapshot [_] @data)
   (s-merge [this m] (swap! data merge m) this)
   (s-reset [this] (reset! data {}) this))
@@ -94,6 +99,12 @@
 
   (s-has? [_ h]
     (.exists (hash->path base-dir h)))
+
+  (s-delete [this h]
+    (let [f (hash->path base-dir h)]
+      (when (.exists f)
+        (.delete f)))
+    this)
 
   (s-snapshot [this]
     ;; Expensive: reads all files into memory. Use sparingly.
@@ -183,6 +194,12 @@
   (s-has? [_ h]
     (with-open [txn (.txnRead env)]
       (some? (.get db txn (hash->lmdb-key h)))))
+
+  (s-delete [this h]
+    (with-open [txn (.txnWrite env)]
+      (.delete db txn (hash->lmdb-key h))
+      (.commit txn))
+    this)
 
   (s-snapshot [_]
     (with-open [txn (.txnRead env)]
@@ -293,6 +310,11 @@
 
   (s-has? [_ h]
     (some #(s-has? % h) layers))
+
+  (s-delete [this h]
+    (doseq [layer layers]
+      (s-delete layer h))
+    this)
 
   (s-snapshot [_]
     ;; Merge all layers, first layer wins on conflicts
