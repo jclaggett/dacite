@@ -164,6 +164,8 @@
     (edn/read-string (String. bs "UTF-8"))))
 
 (defrecord LmdbStore [^Env env ^Dbi db]
+  java.io.Closeable
+  (close [_] (.close env))
   IStore
   (s-get [_ h]
     (with-open [txn (.txnRead env)]
@@ -265,7 +267,7 @@
 (defn lmdb-close
   "Close an LMDB store environment. Must be called when done."
   [store]
-  (.close ^Env (:env store)))
+  (.close ^java.io.Closeable store))
 
 ;; =============================================================================
 ;; Layered store
