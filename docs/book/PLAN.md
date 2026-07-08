@@ -61,14 +61,14 @@ content stores ───┘        └──────────┘
 
 Values combine hashing with content-store-backed nodes. Rooted stores add the one mutable root on top.
 
-The book introduces content stores before hash for pedagogy; in code, `dacite.store` and `dacite.hash` are peers at the bottom of the stack. Both the content store and the rooted store live in `dacite.store`.
+The book introduces content stores before hash for pedagogy; in code, `dacite.store` and `dacite.hash` are peers at the bottom of the stack. Rooted stores live in `dacite.rooted-store`.
 
 | Book ch. | Topic | Library |
 |----------|-------|---------|
 | 1 | Content stores | `dacite.store` (foundational) |
 | 2 | Hash fusion | `dacite.hash` (foundational) |
 | 3 | Values | `dacite.value.*` (→ hash + content stores) |
-| 4 | Rooted stores | `dacite.store` (rooted store → values for GC) |
+| 4 | Rooted stores | `dacite.rooted-store` (→ values for GC) |
 
 ## Writing Approach
 

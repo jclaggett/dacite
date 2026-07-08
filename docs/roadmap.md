@@ -1,145 +1,114 @@
 # Dacite Roadmap
 
-## Current Direction (2026-06-05)
+*Last updated: 2026-07-08*
 
-**Architecture shift:** Dacite service provides **dedicated stores per user** (not a shared multi-user store). This eliminates the need for Proof of Possession, authorization, and sharing layers entirely. User isolation by architecture, not convention.
+## Current Direction
 
-**Value model shift:** All Dacite Values now explicitly carry their Store. Constructors take store as first parameter and return `[store' hash]`. Values are effectively `[store hash]` pairs — you cannot operate on a value without knowing which store it lives in. This is analogous to how in-memory data structures implicitly have access to RAM.
+**Architecture:** Dacite service provides **dedicated stores per user** (not a shared multi-user store). User isolation by architecture, not convention. Authorization and sharing chapters are archived; see [book/archive/](book/archive/).
 
-## 0. Value Model Rework (IN PROGRESS)
+**Value model:** Store-aware values — every Dacite value carries its store and hash. Constructors persist into a bound store (`dacite.store/*store*` or `-with-store` variants).
 
-Reimplementing values with store-awareness and type information.
+## Completed
 
-**Status:**
-- [x] Core observation: values need stores (like RAM for data structures)
-- [x] `value/` namespace tree started (`primitive.clj`, `scalar.clj`, `types.clj`)
-- [ ] **Type information design** — how should types be captured? (current topic)
-- [ ] Seq primitive (finger tree of hashes) — needed for `[type-hash data-hash]` tuples
-- [ ] Map primitive (HAMT of hash→hash)
-- [ ] Port collection types to new model
-- [ ] Port `dac->clj` / `clj->dac` conversion
-- [ ] Port test suite
+### Value layer (Chapter 3)
 
-## 1. Core Data Structures
+- [x] Store-aware value protocol (`IDaciteValue`, `realize`, `dacite-hash`)
+- [x] Scalars, strings, blobs, vectors, maps, sets
+- [x] Finger-tree and HAMT internal nodes with `child-hashes` for graph walks
+- [x] `dac->clj` / `clj->dac` conversion
+- [x] Lazy deep `realize` for partial availability
 
-**Have (in old model):** scalar types, strings, vectors, maps, blobs, sets
+### Content stores (Chapter 1)
 
-**Need (in new model):**
-- [ ] All collection types rebuilt on `value` primitives
-- [ ] `size-bytes` via finger tree measures (port from old model)
-- [ ] Set as `{x x}` maps (port from old model)
-- [ ] Negative sets (cofinite sets via `neg` sentinel)
+- [x] `IStore` protocol (`s-get`, `s-put`, `s-has?`, `s-snapshot`, `s-merge`, `s-reset`, `s-delete`)
+- [x] Mem, file, LMDB stores
+- [x] Layered store with read-through backfill
+- [x] LMDB `Closeable` for `with-open`
 
-**Explicitly not implementing:**
-- [x] ~~Sorted map/set~~ — requires comparator-as-data; complexity disproportionate to value
+### Hash fusion (Chapter 2)
 
-## 2. Store Protocol
+- [x] `dacite.hash` — fuse, byte table, low-entropy rejection
 
-**Have:** `IStore` protocol with `s-get`, `s-put`, `s-has?`, `s-snapshot`, `s-merge`, `s-reset`
+### Rooted stores (Chapter 4) — Phase 1 done
 
-**Status:**
-- [x] IStore protocol
-- [x] Mem store
-- [x] File store (content-addressed filesystem with directory sharding)
-- [x] Layered store (compose with read-through; writes to all layers)
-- [ ] **LRU cache store** — bounded memory with eviction
-- [ ] **Remote store** — `IStore` backed by network endpoint. Primary transfer mechanism for cloud service. Lazy `s-get` fetches on demand via store layering.
-- [ ] **Read-through / write-through policies** — configurable per layer
+- [x] `dacite.rooted-store` — `RootedStore`, `IRootCell`, CAS, watches, validators
+- [x] `mem-root-cell`, `lmdb-root-cell`
+- [x] `push-ref` sync primitive
+- [x] Examples: [cards.clj](../examples/cards.clj) (LMDB), [config.clj](../examples/config.clj) (mem)
 
-**For cloud service:** Remote store is the key unlock. Each user gets a dedicated store on the server, accessed via remote `IStore` implementation.
+See [design/stores-phase-1.md](design/stores-phase-1.md).
 
-## 3. Serialization
+### Documentation
 
-**Have:** `dacite.serial` with binary format for all node types (spec v0.4.0-draft)
+- [x] Book chapters 1–4 (content stores, hash, values, rooted stores)
+- [x] Archived superseded auth/sharing chapters
 
-**Status:**
-- [x] Binary format (scalars, seq nodes, map nodes, collections)
-- [x] Scalar encoding
-- [ ] **Remote store serialization** — wire format for `s-get`/`s-put` over network
-- [ ] **Guarded walk** — explicit opt-in transitive closure with safety bounds (depth, byte budget, hash count). For export/import, not default path.
-- [ ] Content negotiation
+## In Progress — Phase 2
 
-## 4. Cloud Service
+See [design/stores-phase-2.md](design/stores-phase-2.md).
 
-**Goal:** Dacite service providing dedicated cloud-based Dacite Stores.
+| Item | Status |
+|------|--------|
+| Doc reconciliation | Done |
+| Value-aware GC | Done |
+| Service design doc | Done |
+| Remote `IStore` (HTTP) | Done |
+| LRU cache store | Done |
+| Service MVP rewrite | Planned |
+| Content sync helper (copy reachable subgraph) | Planned |
+| Root slot in content map | Planned |
+| True opaque-byte storage in stores | Planned |
 
-**Not needed (architecturally eliminated):**
-- [x] ~~Proof of Possession~~ — no shared store, no need to prove key ownership
-- [x] ~~Authorization layer~~ — dedicated stores per user
-- [x] ~~Sharing mechanisms~~ — out of scope for core; handle at higher protocol level
+## Store protocol — remaining
+
+- [ ] Configurable layered write policies (`:push-all`, `:top-only`)
+- [ ] Remote root watches (SSE/WebSocket) — transport-specific
+
+## Serialization
+
+- [x] `dacite.serial` binary format (spec v0.4.0-draft)
+- [ ] Wire format aligned with remote store HTTP API
+- [ ] Guarded walk for bulk export/import
+- [ ] Spec update to v0.5
+
+## Cloud service
+
+**Not needed (eliminated by dedicated stores):**
+
+- [x] ~~Proof of Possession~~
+- [x] ~~Authorization layer~~
+- [x] ~~Sharing mechanisms~~
 
 **Need:**
+
 - [ ] User account management
 - [ ] Store provisioning (one store per user)
-- [ ] Remote store protocol (HTTP/gRPC/WebSocket?)
-- [ ] Authentication (who owns this store?)
-- [ ] Store persistence/backup
+- [ ] Authentication (Bearer token / mTLS)
+- [ ] Store persistence/backup on server
 
-## 5. Documentation & Spec
+See [design/service.md](design/service.md).
 
-**Have:** Spec v0.4.0-draft, development dialogue, README, book chapters 1-3
+## Examples (future)
 
-**Need:**
-- [ ] **Spec update to v0.5** — reflect new value model (store-aware, type system)
-- [ ] **Book chapter rewrite** — chapters 1-3 updated for new model
-- [ ] API docs
-- [ ] Architecture guide (store layering, "hashes as pointers", dedicated stores)
-- [ ] Tutorial
+- [ ] Event log (append-only vector)
+- [ ] Version-controlled document
+- [ ] Config management with remote store
+- [ ] File sync (directory tree as maps/blobs)
 
-**Archived:**
-- [x] ~~Chapters 4 (authorization) & 5 (sharing)~~ — superseded by dedicated store model. See `docs/book/archive/`.
+## Long horizon
 
-## 6. Example Use Cases
+- User types ([design/future/user-types.md](design/future/user-types.md)) — design only
+- Negative sets (cofinite)
+- Sorted map/set (comparator-as-data)
+- Benchmarks, richer REPL printing, `IReduce`
 
-- [ ] Version-controlled document (map tracking history via hash chains)
-- [ ] Event log (append-only vector with hash references)
-- [ ] Config management (nested maps with diff/merge)
-- [ ] File sync (directory tree as nested maps/blobs)
+## Test coverage (2026-07-08)
 
-## Open Questions / Future Work
+318 tests, 1285 assertions, 0 failures (`clojure -M:dev:test` from `impl/clojure`).
 
-### User Types (Open Type System)
-
-See `docs/design/future/user-types.md` for full vision.
-
-Brief: future open type system where users define types via shape+operation specs,
-both stored as Dacite values. Types themselves have hashes. Core primitive types
-are well-known entries in the type registry. Requires current type implementation
-to use hash-based type identifiers and dispatch-based encoding/decoding.
-
-**Status:** Design only, not scheduled.
-
-### Other Future Work
-
-- [ ] Sorted map/set (requires comparator-as-data)
-- [ ] CRDT-style collaboration examples
-
-- [ ] Memoize scalar constructors (singleton hashes for `null`, `true`, `false`)
-- [ ] Benchmarks (construction, lookup, `dac->clj`, `size-bytes`)
-- [ ] Print methods for readable REPL output
-- [ ] Error messages for store misses
-- [ ] `IReduce` / `IKVReduce` interfaces
-
-## Test Coverage (as of 2026-03-19)
-
-345 tests, 1413 assertions, 0 failures.
-
-| Namespace          | Forms  | Lines  |
-|--------------------|--------|--------|
-| dacite.core        | ~98%   | 100%   |
-| dacite.finger-tree | 100%   | 100%   |
-| dacite.hamt        | ~96%   | ~99%   |
-| dacite.hash        | ~99%   | ~99%   |
-| dacite.serial      | —      | —      |
-| dacite.store       | ~88%   | 100%   |
-| dacite.types       | 100%   | 100%   |
-| **ALL FILES**      | **96.72%** | **99.55%** |
-
-**Note:** Test numbers are for old model. Will need rebuild for value.
-
-## Suggested Order
+## Suggested order
 
 ```
-type information design → seq/map primitives → port collections →
-port tests → remote store → cloud service MVP
+Phase 2: GC + remote store + LRU → service MVP → content sync → root slot
+         → opaque bytes → spec v0.5
 ```
