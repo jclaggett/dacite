@@ -2,7 +2,7 @@
 
 **Status:** DRAFT — defines the HTTP protocol for remote stores and the service MVP.
 
-**Supersedes:** archived `dacite.server` + `dacite.service` root semantics (those used ad-hoc meta-db roots; new service uses `dacite.rooted-store`).
+**Supersedes:** archived `dacite.server` + `dacite.service` root semantics (those used ad-hoc meta-db roots; new service uses `dacite.rooted`).
 
 ## Architecture
 
@@ -31,7 +31,7 @@ Implementation-defined for MVP tests (static token → single test store).
 
 ## Wire format
 
-**Content-Type:** `application/edn` for MVP (matches current store serialization). Binary (`application/octet-stream` via `dacite.serial`) is a later refinement.
+**Content-Type:** `application/edn` for MVP (matches current store serialization). Binary (`application/octet-stream` via `dacite.value.serial`) is a later refinement.
 
 **Hash encoding:** 64-character lowercase hex (256-bit, 4 × 64-bit words), as produced by `dacite.store/hash->hex`.
 

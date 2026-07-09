@@ -1,7 +1,7 @@
-(ns dacite.rooted-store-test
+(ns dacite.rooted-test
   "Tests for rooted stores and root cells."
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [dacite.rooted-store :as rs]
+            [dacite.rooted :as rs]
             [dacite.store :as store]
             [clojure.java.io :as io]))
 

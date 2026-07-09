@@ -1,4 +1,4 @@
-(ns dacite.gc
+(ns dacite.rooted.gc
   "Garbage collection for content stores (Chapter 4 §4.6).
 
    Walks from a root hash, marks reachable nodes via types/child-hashes,

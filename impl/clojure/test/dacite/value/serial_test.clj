@@ -1,7 +1,7 @@
-(ns dacite.serial-test
+(ns dacite.value.serial-test
   "Tests for Dacite binary serialization."
   (:require [clojure.test :refer [deftest is testing]]
-            [dacite.serial :as serial]))
+            [dacite.value.serial :as serial]))
 
 ;; =============================================================================
 ;; Scalar round-trips

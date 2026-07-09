@@ -4,7 +4,7 @@
   Goal: Demonstrate a small client that works against a local in-memory
   store today, and can later be pointed at a remote store with minimal
   (ideally zero) changes to the client logic."
-  (:require [dacite.rooted-store :as rs]
+  (:require [dacite.rooted :as rs]
             [dacite.store :as store]
             [dacite.core :as d]
             [dacite.value :as v]

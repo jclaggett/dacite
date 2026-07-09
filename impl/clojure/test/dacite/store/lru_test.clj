@@ -1,6 +1,6 @@
-(ns dacite.lru-store-test
+(ns dacite.store.lru-test
   (:require [clojure.test :refer [deftest testing is]]
-            [dacite.lru-store :as lru]
+            [dacite.store.lru :as lru]
             [dacite.store :as store]))
 
 (deftest lru-eviction-test

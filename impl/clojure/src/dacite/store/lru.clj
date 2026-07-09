@@ -1,4 +1,4 @@
-(ns dacite.lru-store
+(ns dacite.store.lru
   "Bounded in-memory content store with LRU eviction."
   (:require [dacite.store :as store]))
 

@@ -25,14 +25,18 @@ Goal: Break up `core.clj` (the god namespace) into focused modules while keeping
 ```
 dacite.hash           Pure hashing (fuse, SHA-256, byte tables)
 dacite.types          IDaciteHash, type system (sizes, encoding, hashing)
-dacite.store          IStore protocol, implementations, *store* management
+dacite.store          IStore protocol, core implementations, *store* management
+dacite.store.lru      LRU-bounded in-memory cache store
+dacite.store.remote   HTTP-backed remote store
+dacite.rooted         RootedStore, IRootCell, CAS, watches, push-ref
+dacite.rooted.gc      Value-aware garbage collection from root
 dacite.scalar         DaciteScalar + scalar constructors
 dacite.collections    DaciteString/Blob/Vector/Map + collection constructors
 dacite.convert        dac->clj, clj->dac boundary crossing
 dacite.core           Thin re-exports (public API)
 dacite.finger-tree    Finger tree internals
 dacite.hamt           HAMT internals
-dacite.serial         Binary serialization
+dacite.value.serial   Binary serialization for value nodes
 ```
 
 ## Notes

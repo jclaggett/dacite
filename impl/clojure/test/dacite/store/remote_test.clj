@@ -1,9 +1,9 @@
-(ns dacite.remote-store-test
+(ns dacite.store.remote-test
   (:require [clojure.edn :as edn]
             [clojure.test :refer [deftest testing is use-fixtures]]
-            [dacite.remote-store :as remote]
+            [dacite.store.remote :as remote]
             [dacite.store :as store]
-            [dacite.lru-store :as lru])
+            [dacite.store.lru :as lru])
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange]
            [java.net InetSocketAddress]))
 

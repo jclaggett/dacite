@@ -18,13 +18,13 @@ Split Stores into two layers, aligning implementation with the book
 [Ch 4 Rooted Stores](../book/04-rooted-stores/chapter.md)):
 
 1. **Content / caching store** (`dacite.store`) — immutable `hash → value` dictionary (`IStore`). Cache-only fronts never use a root.
-2. **Rooted store** (`dacite.rooted-store`, new namespace) — wraps a content store and adds one mutable root hash, updated via **compare-and-set** (the primitive; `update-root`/`swap!` is its retry loop), for communicating state changes to peers/clients via watches + push. Kept in its own namespace so consumers (a future `dacite.service`) depend on `dacite.rooted-store`, not the content store.
+2. **Rooted store** (`dacite.rooted`, new namespace) — wraps a content store and adds one mutable root hash, updated via **compare-and-set** (the primitive; `update-root`/`swap!` is its retry loop), for communicating state changes to peers/clients via watches + push. Kept in its own namespace so consumers (a future `dacite.service`) depend on `dacite.rooted`, not the content store.
 
-Previously the "root" lived in `service.clj` (`:root-hash` atom + `load-root` / `save-root!` over the LMDB meta-db), not in the store layer. Phase 1 moves root semantics into a first-class `RootedStore` (`dacite.rooted-store`). `dacite.service` has been archived (see item 5) pending a service design doc; a future service will consume `dacite.rooted-store`.
+Previously the "root" lived in `service.clj` (`:root-hash` atom + `load-root` / `save-root!` over the LMDB meta-db), not in the store layer. Phase 1 moves root semantics into a first-class `RootedStore` (`dacite.rooted`). `dacite.service` has been archived (see item 5) pending a service design doc; a future service will consume `dacite.rooted`.
 
 ```mermaid
 graph TD
-  subgraph rooted [Rooted Store - dacite.rooted-store]
+  subgraph rooted [Rooted Store - dacite.rooted]
     Root["mutable root hash: root / cas-root (primitive) / update-root / set-root / watch-root"]
     Push["push-ref sync primitive"]
   end
@@ -39,7 +39,7 @@ graph TD
   Push --> Root
 ```
 
-A `RootedStore` also implements `IStore` (delegating to its inner content store), so it is drop-in wherever a store is expected (`store/*store*`). `dacite.rooted-store` requires `dacite.store`, not vice-versa.
+A `RootedStore` also implements `IStore` (delegating to its inner content store), so it is drop-in wherever a store is expected (`store/*store*`). `dacite.rooted` requires `dacite.store`, not vice-versa.
 
 ---
 
@@ -61,7 +61,7 @@ Keep `IStore` and `mem` / `file` / `lmdb` as-is. Make the caching layer real:
 
 ### 2. Root cell abstraction (`root-cell`) — **done**
 
-Lives in the new `dacite.rooted-store` namespace (with the rooted store and push).
+Lives in the new `dacite.rooted` namespace (with the rooted store and push).
 
 ```clojure
 ;; IRootCell — durable root persistence behind the rooted store's atom
@@ -75,7 +75,7 @@ Seed the in-memory root atom from the cell on construction; flush to the cell on
 
 ### 3. Rooted store (`rooted-store`) — **done**
 
-New namespace `dacite.rooted-store` (holds the root cell, rooted store, and push).
+New namespace `dacite.rooted` (holds the root cell, rooted store, and push).
 
 **Compare-and-set is the core update** (book Ch 4 §4.2). The **portable core is
 just two operations**: `root` (read) and `cas-root` (the one update primitive) —
@@ -91,7 +91,7 @@ core two (`deref` + `compare-and-set!`), realizes `swap!` as a client-side loop,
 and omits `reset!`/validators.
 
 ```clojure
-(ns dacite.rooted-store
+(ns dacite.rooted
   (:require [dacite.store :as store]))
 
 (defrecord RootedStore [content root-atom cell watches validator]  ; content: IStore, root-atom: atom of hash, cell: IRootCell
@@ -139,8 +139,8 @@ definition of what a Dacite "service" is (design doc TBD). Until then, archive i
 - **Done:** moved `src/dacite/service.clj` → `archive/service.clj` and
   `test/dacite/service_test.clj` → `archive/service_test.clj`.
 - The current `service/update-root` uses a non-atomic read-then-swap; the CAS
-  semantics that would fix it now belong to `dacite.rooted-store` (item 3). A
-  future `dacite.service` will **depend on `dacite.rooted-store`** and drive the
+  semantics that would fix it now belong to `dacite.rooted` (item 3). A
+  future `dacite.service` will **depend on `dacite.rooted`** and drive the
   root via `cas-root` / `update-root`, returning a conflict result on CAS failure
   so a remote client can rebuild and retry.
 - **Fallout (resolved):** the networked example stack was archived alongside
@@ -153,7 +153,7 @@ definition of what a Dacite "service" is (design doc TBD). Until then, archive i
 > performs the compare-and-set **server-side** against its authoritative root
 > and reports success or conflict. Unconditional remote "set root" is unsafe and
 > is not offered. (Remote store impl is future work; Phase 1 lands the local CAS
-> surface in `dacite.rooted-store` that a service and remote client build on.)
+> surface in `dacite.rooted` that a service and remote client build on.)
 
 ### 6. Tests (`stores-tests`) — **done**
 
@@ -191,7 +191,7 @@ chapters so the book mirrors the two-layer design:
 
 | Book | Code today |
 |---|---|
-| Rooted store: root via CAS (`compare-and-set!` / `swap!` / `@store`) | `dacite.rooted-store` — **done** |
+| Rooted store: root via CAS (`compare-and-set!` / `swap!` / `@store`) | `dacite.rooted` — **done** |
 | Per-store constructors (Ch 1) | Matches: `mem-store`, `file-store`, `lmdb-store`, `layered-store` |
 | Layered read-through (Ch 1) | **Done** — slower-layer hits backfill faster layers |
 | Opaque byte entries (Ch 1, softened) | EDN-serialized Clojure data (LMDB stores bytes of that) |
@@ -210,9 +210,9 @@ chapters so the book mirrors the two-layer design:
 ## Suggested execution order
 
 1. `layered-cache` — read-through in `LayeredStore` (`dacite.store`)
-2. `root-cell` — `IRootCell` + mem/lmdb implementations (`dacite.rooted-store`)
-3. `rooted-store` — `RootedStore` record + constructors (`dacite.rooted-store`)
-4. `push-ref` — sync primitive (`dacite.rooted-store`)
+2. `root-cell` — `IRootCell` + mem/lmdb implementations (`dacite.rooted`)
+3. `rooted-store` — `RootedStore` record + constructors (`dacite.rooted`)
+4. `push-ref` — sync primitive (`dacite.rooted`)
 5. `stores-tests` — green
 6. `service-archive` — archive `dacite.service` (**done**); rewrite deferred until a service design doc exists
 7. `docs` — reconcile Ch 1 / Ch 4 prose with final code

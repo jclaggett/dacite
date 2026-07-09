@@ -1,4 +1,4 @@
-(ns dacite.serial
+(ns dacite.value.serial
   "Binary serialization for Dacite nodes.
 
    Serializes and deserializes individual store entries to/from the

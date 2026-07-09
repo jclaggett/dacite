@@ -1,4 +1,4 @@
-(ns dacite.remote-store
+(ns dacite.store.remote
   "HTTP-backed IStore for remote node access.
 
    Implements the node endpoints from docs/design/service.md.

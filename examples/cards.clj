@@ -11,7 +11,7 @@
 
    Run from impl/clojure:
      clojure -M:cards"
-  (:require [dacite.rooted-store :as rs]
+  (:require [dacite.rooted :as rs]
             [dacite.store :as store]
             [dacite.value :as v]
             [dacite.value.types :as types]))

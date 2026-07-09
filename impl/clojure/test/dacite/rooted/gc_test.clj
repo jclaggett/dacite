@@ -1,7 +1,7 @@
-(ns dacite.gc-test
+(ns dacite.rooted.gc-test
   (:require [clojure.test :refer [deftest testing is]]
-            [dacite.gc :as gc]
-            [dacite.rooted-store :as rs]
+            [dacite.rooted.gc :as gc]
+            [dacite.rooted :as rs]
             [dacite.store :as store]
             [dacite.value :as v]))
 

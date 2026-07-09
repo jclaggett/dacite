@@ -31,7 +31,7 @@
 
 ### Rooted stores (Chapter 4) — Phase 1 done
 
-- [x] `dacite.rooted-store` — `RootedStore`, `IRootCell`, CAS, watches, validators
+- [x] `dacite.rooted` — `RootedStore`, `IRootCell`, CAS, watches, validators
 - [x] `mem-root-cell`, `lmdb-root-cell`
 - [x] `push-ref` sync primitive
 - [x] Examples: [cards.clj](../examples/cards.clj) (LMDB), [config.clj](../examples/config.clj) (mem)
@@ -66,7 +66,7 @@ See [design/stores-phase-2.md](design/stores-phase-2.md).
 
 ## Serialization
 
-- [x] `dacite.serial` binary format (spec v0.4.0-draft)
+- [x] `dacite.value.serial` binary format (spec v0.4.0-draft)
 - [ ] Wire format aligned with remote store HTTP API
 - [ ] Guarded walk for bulk export/import
 - [ ] Spec update to v0.5

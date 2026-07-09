@@ -1,4 +1,4 @@
-(ns dacite.rooted-store
+(ns dacite.rooted
   "Rooted store — a content store plus a single mutable root hash.
 
    The portable core is two operations: read the root (`@store`) and
@@ -6,7 +6,7 @@
    store include `reset!`, `swap!`, watches, and validators.
 
    See docs/book/04-rooted-stores/chapter.md."
-  (:require [dacite.gc :as gc]
+  (:require [dacite.rooted.gc :as gc]
             [dacite.store :as store]))
 
 ;; =============================================================================

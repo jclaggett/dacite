@@ -10,8 +10,8 @@
    - mem-store: In-memory atom-backed store (default)
    - file-store: Filesystem persistence with directory sharding
    - lmdb-store: LMDB persistence (Closeable)
-   - lru-store: Bounded in-memory store with LRU eviction (dacite.lru-store)
-   - remote-store: HTTP-backed store (dacite.remote-store)
+   - lru-store: Bounded in-memory store with LRU eviction (dacite.store.lru)
+   - remote-store: HTTP-backed store (dacite.store.remote)
    - layered-store: Compose stores with read-through / write-through
 
    Global store management:
