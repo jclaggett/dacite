@@ -1,0 +1,19 @@
+[book]
+title = "The Dacite Book"
+authors = ["Jonathan Laggett"]
+description = "Content stores, hash fusion, values, and rooted stores."
+language = "en"
+src = "."
+
+[build]
+build-dir = "../../target/site/book"
+
+[output.html]
+site-url = "/book/"
+git-repository-url = "https://github.com/jclaggett/dacite"
+edit-url-template = "https://github.com/jclaggett/dacite/edit/main/docs/book/{path}"
+default-theme = "light"
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"

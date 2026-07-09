@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dacite — immutable values, efficient stores</title>
+  <meta name="description" content="Dacite lets applications work with immutable Values functionally while Stores hold and transmit data efficiently.">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1><a href="/">Dacite</a></h1>
+      <nav>
+        <a href="/book/">The Book</a>
+        <a href="https://github.com/jclaggett/dacite">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <p class="tagline">Data citing with fused hashing.</p>
+      <h2>Work with values. Rely on stores.</h2>
+      <p class="lead">
+        Dacite separates <strong>what your application reasons about</strong> from
+        <strong>how data is stored and moved</strong>. You manipulate
+        <em>Dacite Values</em> — immutable, content-addressed structures with lazy,
+        functional access — while <em>Dacite Stores</em> handle persistence,
+        caching, and transmission as efficient hash→node dictionaries.
+      </p>
+      <p class="cta">
+        <a class="button" href="/book/">Read the book</a>
+        <a class="button secondary" href="https://github.com/jclaggett/dacite/tree/main/impl/clojure">Clojure reference impl</a>
+      </p>
+    </section>
+
+    <section class="grid">
+      <article>
+        <h3>Values for application logic</h3>
+        <p>
+          Vectors, maps, strings, and scalars are first-class
+          <strong>store-aware values</strong>. Every value knows its hash and owning
+          store. Updates return new values that share unchanged nodes with the old
+          ones — structural sharing by construction, not convention.
+        </p>
+        <p>
+          Access is <strong>lazy</strong>: realize only the subtree you need, which
+          makes partial sync and incremental fetch natural when data lives across
+          a network.
+        </p>
+      </article>
+
+      <article>
+        <h3>Stores for persistence and sync</h3>
+        <p>
+          Content stores are simple immutable maps from <code>hash → node</code>.
+          Mem, file, and LMDB backends share one protocol; layered, LRU, and remote
+          stores compose for caching and distribution without changing application code.
+        </p>
+        <p>
+          A <strong>rooted store</strong> adds a single mutable root hash on top —
+          compare-and-set, watches, and push — so peers coordinate on 32 bytes while
+          the graph underneath stays immutable and cacheable forever.
+        </p>
+      </article>
+    </section>
+
+    <section class="layers">
+      <h3>Four layers</h3>
+      <ol>
+        <li><strong>Content stores</strong> — immutable persistence</li>
+        <li><strong>Hash fusion</strong> — content identity and tree independence</li>
+        <li><strong>Values</strong> — the data model your code uses</li>
+        <li><strong>Rooted stores</strong> — mutable application state and sync</li>
+      </ol>
+      <p>The <a href="/book/">Dacite Book</a> walks through each layer with intuition, API, and guarantees.</p>
+    </section>
+
+    <section class="status">
+      <h3>Status</h3>
+      <p>
+        The <strong>Clojure reference implementation</strong> covers hash fusion,
+        content stores, values, rooted stores, garbage collection, LRU cache, and
+        remote store — 318+ tests. Service and distribution layers are in progress.
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>
+        <em>Dacite</em> — an obscure volcanic rock. Also: <strong>Da</strong>ta
+        <strong>Cite</strong>ation. Apache 2.0.
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

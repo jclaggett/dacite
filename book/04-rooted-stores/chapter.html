@@ -1,0 +1,377 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Rooted Stores - The Dacite Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Content stores, hash fusion, values, and rooted stores.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-7f146547.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-5f744fa6.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Dacite Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/jclaggett/dacite" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/jclaggett/dacite/edit/main/docs/book/./04-rooted-stores/chapter.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="chapter-4-rooted-stores"><a class="header" href="#chapter-4-rooted-stores">Chapter 4: Rooted Stores</a></h1>
+<p>The first three chapters describe an entirely immutable world. A content store (Chapter 1) is a dictionary that only grows; hash fusion (Chapter 2) gives every piece of content a permanent identity; values (Chapter 3) are trees of nodes stored under those hashes. Nothing there ever changes — a value, once stored, is stored forever.</p>
+<p>But useful systems change over time. A configuration is edited, a document is revised, a peer learns that “the current state” is now something new. Dacite expresses all of that with <strong>one</strong> mutable cell layered on top of the immutable world:</p>
+<blockquote>
+<p>A <strong>rooted store</strong> wraps a content store and adds a single mutable <strong>root</strong> — a reference to one hash in the store.</p>
+</blockquote>
+<p>Everything underneath stays immutable. The root is the only thing that moves. “Changing” the data means computing a new value (a new tree of immutable nodes, sharing all the unchanged ones) and then moving the root to its hash.</p>
+<p>A rooted store is also a content store: it answers all the content operations of Chapter 1 by delegating to the store it wraps. So it is a drop-in wherever a content store is expected, while additionally exposing the root.</p>
+<p>Because a root may be <strong>shared</strong> — several writers, and often across a network — its update contract is the heart of this chapter. That contract is <strong>compare-and-set</strong>.</p>
+<h2 id="41-the-root-and-its-operations"><a class="header" href="#41-the-root-and-its-operations">4.1 The Root and Its Operations</a></h2>
+<p>A rooted store adds one mutable cell holding a root hash (or <em>none</em>, before anything has been stored). Two operations form the <strong>required core</strong> — the entire portable contract, and all that even a remote store must implement:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Core operation</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>root(store)</code></td><td>Read the current root hash, or <em>none</em>.</td></tr>
+<tr><td><code>cas-root(store, expected, new)</code></td><td>Atomically set the root to <code>new</code> <strong>iff</strong> it currently equals <code>expected</code>. Return whether it succeeded.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>root</code> is the read; <code>cas-root</code> is the one update primitive. Everything else is an <strong>optional convenience</strong> — available on a local store, but constrained or absent for a remote one:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Optional operation</th><th>Meaning</th><th>Remote status</th></tr>
+</thead>
+<tbody>
+<tr><td><code>update-root(store, f)</code></td><td>Read-modify-write retry loop around <code>root</code> + <code>cas-root</code>.</td><td><strong>Client-side.</strong> The loop and <code>f</code> run on the client using only the two core ops; no new server capability is needed. A <em>server-side</em> apply would require shipping <code>f</code> to the server to evaluate — a future capability, not offered now.</td></tr>
+<tr><td><code>set-root(store, new)</code></td><td>Unconditionally set the root.</td><td><strong>Local only.</strong> Unconditional overwrite is unsafe under sharing, so it is deliberately not offered for remote stores.</td></tr>
+<tr><td><code>watch-root(store, key, cb)</code> / <code>unwatch-root(store, key)</code></td><td>Observe root transitions; <code>cb</code> receives <code>(old, new)</code>.</td><td><strong>Local via callbacks.</strong> A remote implementation needs a push transport (long polling, websockets, SSE) and is therefore protocol-specific and optional.</td></tr>
+<tr><td>validator</td><td>A predicate consulted before a new root is installed.</td><td><strong>Local only.</strong> Enforcing it remotely means evaluating the predicate on the server — the same future code-as-data capability — so it is not offered now.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Note the deliberate minimalism: there is exactly <strong>one</strong> moving value — a hash — and only <strong>two</strong> operations you must implement to have a working rooted store, remote included.</p>
+<blockquote>
+<p>The root holds a <strong>hash</strong>, not a materialized value. <code>root(store)</code> returns a hash; to see the value it names, hand that hash to the value layer (Chapter 3). Keeping the mutable surface to a single hash is precisely what makes remote roots and synchronization tractable — you coordinate on 32 bytes, not on a whole tree.</p>
+</blockquote>
+<h2 id="42-compare-and-set-is-the-core-update"><a class="header" href="#42-compare-and-set-is-the-core-update">4.2 Compare-and-Set Is the Core Update</a></h2>
+<p>Why single out <code>cas-root</code> instead of a plain “set the root”? Because an unconditional set loses updates whenever the root is contended.</p>
+<p>Consider two writers that both read root <code>R</code>, each build a successor, and each install it:</p>
+<pre class="mermaid">sequenceDiagram
+  participant A as Writer A
+  participant S as Root (= R)
+  participant B as Writer B
+  A-&gt;&gt;S: root() → R
+  B-&gt;&gt;S: root() → R
+  A-&gt;&gt;S: set-root(R1)
+  Note over S: root = R1
+  B-&gt;&gt;S: set-root(R2)
+  Note over S: root = R2 — A's change is lost
+</pre>
+
+<p>Whoever writes last wins, and the other writer’s change vanishes silently. <code>cas-root</code> prevents this: each writer installs <code>new</code> only if the root is still the <code>expected</code> value it built upon. The loser’s CAS fails — the root has already moved — so it must <strong>rebuild on the new root and retry</strong>:</p>
+<pre><code>update-root(store, f):
+    loop:
+        old = root(store)
+        new = f(old)                     # build a successor value; store its nodes
+        if cas-root(store, old, new):
+            return new                   # success
+        # else: someone moved the root — loop, re-read, rebuild on the new old
+</code></pre>
+<p>This read-modify-write-retry loop touches only the two core operations — <code>root</code> and <code>cas-root</code> — so <code>update-root</code> is a client-side convenience, not a capability the store (or a server) must provide specially. It is also the <em>only</em> safe way to evolve a shared root. <code>set-root</code> is merely the degenerate case where you know there is no contention (a fresh store, a single writer, initialization); it is a local convenience and is not offered for remote stores. Everything else — concurrent local writers, and especially <strong>remote</strong> stores — goes through CAS.</p>
+<p>For a <strong>remote</strong> store, <code>root</code> is a network read and <code>cas-root</code> is an operation the <strong>server performs atomically</strong> against its authoritative root: the client sends <code>(expected, new)</code>, the server compares and swaps under its own lock, and reports success or a conflict. The correctness of the whole distributed picture rests on that single server-side compare-and-set. An unconditional remote “set root” cannot be made safe under concurrency; it is not offered as the primitive for that reason.</p>
+<h2 id="43-building-a-successor"><a class="header" href="#43-building-a-successor">4.3 Building a Successor</a></h2>
+<p>“Changing” data means computing a new immutable value and moving the root to it. Expressed with <code>update-root</code>:</p>
+<pre><code>update-root(store, fn(old):
+    m  = value-at(store, old)       # Chapter 3: rehydrate the value at the root
+    m' = assoc(m, "count", 42)      # structural edit — new nodes stored, unchanged nodes shared
+    return hash-of(m'))             # the successor root hash
+</code></pre>
+<p>Because the value layer stores every node it builds <em>before</em> returning the successor hash, by the time <code>cas-root</code> runs, all nodes the new root reaches are already present in the content store. Installing the root is the final, atomic step — the store never points at content that isn’t there.</p>
+<p>Replacing the root does not delete the old tree; nodes unique to it become detached (§4.6). And if a concurrent writer moved the root first, the CAS fails and the whole function re-runs against the new root — automatically rebasing the edit onto the latest state.</p>
+<h2 id="44-observing-changes"><a class="header" href="#44-observing-changes">4.4 Observing Changes</a></h2>
+<p>Because the root is a single observable cell, others can react to its transitions:</p>
+<ul>
+<li><strong>Locally</strong>, register a callback that fires on each successful root change with <code>(old, new)</code>.</li>
+<li><strong>Remotely</strong>, subscribe to the server’s root stream — an optional capability whose exact shape depends on the transport (long polling, websockets, server-sent events).</li>
+</ul>
+<pre><code>watch-root(store, :sync, fn(old, new):
+    log("root moved", old, "-&gt;", new))
+</code></pre>
+<p>Observation is what makes a rooted store <em>reactive</em>: a root move can drive a re-render, a log entry, or a push to a peer (§4.7). Both observation forms are optional — local callbacks come for free, while remote subscription is protocol-specific.</p>
+<p>A store may also guard transitions with a <strong>validator</strong> — a predicate consulted before a new root is installed, rejecting ones that fail it. A validator runs wherever the commit is decided, so it is a <strong>local-only</strong> convenience for now; enforcing one on a remote store would mean evaluating the predicate server-side, a future code-as-data capability.</p>
+<h2 id="45-durability-the-root-cell"><a class="header" href="#45-durability-the-root-cell">4.5 Durability: the Root Cell</a></h2>
+<p>The root must outlive the process. A rooted store persists it through a small abstraction, the <strong>root cell</strong>, which knows only how to load and store a single hash:</p>
+<ul>
+<li><strong>memory root cell</strong> — holds the hash in memory; ephemeral, for tests and REPL use.</li>
+<li><strong>LMDB root cell</strong> — persists the hash in the LMDB meta database, reusing the same environment as an LMDB content store.</li>
+</ul>
+<pre><code>rooted-store(content-store)                       # ephemeral root (default)
+rooted-store(content-store, lmdb-root-cell(lmdb)) # durable root beside LMDB content
+</code></pre>
+<p>On construction the store seeds its in-memory root from the cell; on every successful update it flushes the new root back to the cell. Reopening the store recovers the last root.</p>
+<p>Note the clean separation of responsibilities: the <strong>content store</strong> persists nodes; the <strong>root cell</strong> persists the one hash that says which node is current. They may share a backend (LMDB), but they are distinct concerns.</p>
+<h2 id="46-detached-nodes-and-garbage-collection"><a class="header" href="#46-detached-nodes-and-garbage-collection">4.6 Detached Nodes and Garbage Collection</a></h2>
+<p>Any entry reachable from the current root is <strong>live</strong>. Entries that were reachable under a previous root but are not part of the current tree are <strong>detached</strong>. They remain in the content store until garbage collection removes them.</p>
+<p>GC is fundamentally a value-aware traversal, and it needs both halves of this layering: the <strong>root</strong> (this chapter) as the starting point, and the <strong>value model</strong> (Chapter 3) to deserialize a node and discover its child references. Starting from <code>root(store)</code>, mark every reachable node; anything unmarked is detached and may be reclaimed. The content store itself knows nothing about reachability — it only maps hashes to values — which is exactly why GC lives up here with roots and values rather than down in the content store.</p>
+<h2 id="47-sync-between-stores"><a class="header" href="#47-sync-between-stores">4.7 Sync Between Stores</a></h2>
+<p>Synchronization copies one store’s root onto another. Framed in terms of §4.2, moving <code>target</code> to <code>source</code>’s root is a <strong>compare-and-set on the target</strong>:</p>
+<pre><code>push(source, target):
+    cas-root(target, root(target), root(source))
+</code></pre>
+<p>Because the target may itself be changing, a push can lose the CAS and need to be reconciled just like any other update — there is no privileged “force set” for a shared target. Push deliberately transfers only a <strong>hash</strong>; the underlying content must already be present at the target or be synced separately. Deciding when to push, and how to move the content a new root depends on, are application concerns; the rooted store provides only the atomic root move.</p>
+<p>This is the seam through which peers coordinate: a source installs a new root (via CAS), then pushes that hash; subscribers on the target observe the new root and fetch whatever content they lack.</p>
+<h2 id="48-what-this-layer-provides"><a class="header" href="#48-what-this-layer-provides">4.8 What This Layer Provides</a></h2>
+<ol>
+<li>A single mutable <strong>root</strong> — one hash — over an immutable content store.</li>
+<li>A <strong>two-operation portable core</strong> — <code>root</code> and <code>cas-root</code> — sufficient for any store, local or remote; <code>cas-root</code> is the one update primitive.</li>
+<li>Optional conveniences over the core: <code>update-root</code> (a client-side retry loop), <code>set-root</code> (local, uncontended), observation via <code>watch-root</code> (local callbacks; remote is transport-specific), and validators (local for now).</li>
+<li><strong>Durable roots</strong> via a root cell, kept separate from content persistence.</li>
+<li><strong>Content-store delegation</strong>, so a rooted store is a drop-in content store that also has a root.</li>
+<li><strong>Push</strong> as an atomic, CAS-based sync primitive between stores.</li>
+</ol>
+<p>With this, Dacite has both halves of its model: an immutable world of content-addressed values, and one mutable pointer — governed by compare-and-set — that lets that world evolve and be shared. Future work (see the roadmap) builds distribution and event flows on exactly this root-and-CAS foundation.</p>
+<h2 id="reference-implementation-clojure"><a class="header" href="#reference-implementation-clojure">Reference Implementation (Clojure)</a></h2>
+<p>The abstract operations above are language-neutral; a port to any language need only provide the <strong>core</strong> two. The Clojure reference implementation surfaces the operations through Clojure’s standard reference protocols, so a <em>local</em> rooted store behaves like an idiomatic mutable reference:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Concept (§4.1)</th><th>Clojure surface</th><th>Tier</th></tr>
+</thead>
+<tbody>
+<tr><td><code>root(store)</code></td><td><code>@store</code> / <code>(deref store)</code> — <code>IDeref</code></td><td><strong>core</strong></td></tr>
+<tr><td><code>cas-root(store, expected, new)</code></td><td><code>(compare-and-set! store expected new)</code> — <code>IAtom</code></td><td><strong>core</strong></td></tr>
+<tr><td><code>update-root(store, f)</code></td><td><code>(swap! store f)</code> — <code>IAtom</code>, a CAS retry loop</td><td>optional (client-side)</td></tr>
+<tr><td><code>set-root(store, new)</code></td><td><code>(reset! store new)</code> — <code>IAtom</code></td><td>optional (local)</td></tr>
+<tr><td><code>watch-root</code> / <code>unwatch-root</code></td><td><code>(add-watch store k cb)</code> / <code>(remove-watch store k)</code> — <code>IRef</code></td><td>optional (local; remote = transport)</td></tr>
+<tr><td>validator</td><td><code>(set-validator! store pred)</code> — <code>IRef</code></td><td>optional (local)</td></tr>
+</tbody>
+</table>
+</div>
+<p>A <strong>local</strong> rooted store implements the whole set (<code>IDeref</code>, <code>IRef</code>, <code>IAtom2</code>) for free — <code>compare-and-set!</code> <em>is</em> the core primitive of §4.2 and <code>swap!</code> <em>is</em> its retry loop. A <strong>remote</strong> rooted store need implement only the core two (<code>deref</code> and <code>compare-and-set!</code>); it does not offer <code>reset!</code> (<code>set-root</code>) or validators, realizes <code>swap!</code> (<code>update-root</code>) as a client-side loop over the core, and exposes watches only if its transport supports them. The value never escapes being a single root hash, so these interfaces stay a thin, faithful skin over the language-neutral contract — not a dependency of it.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../03-values/chapter.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../appendices/serialization.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../03-values/chapter.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../appendices/serialization.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid-eefea253.min.js"></script>
+        <script src="../mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

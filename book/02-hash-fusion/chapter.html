@@ -1,0 +1,577 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Hash Fusion - The Dacite Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Content stores, hash fusion, values, and rooted stores.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-7f146547.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-5f744fa6.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Dacite Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/jclaggett/dacite" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/jclaggett/dacite/edit/main/docs/book/./02-hash-fusion/chapter.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="chapter-2-hash-fusion"><a class="header" href="#chapter-2-hash-fusion">Chapter 2: Hash Fusion</a></h1>
+<p>Chapter 1 introduced <strong>content stores</strong> — an immutable map from content
+hashes to serialized values. Every node in that map is keyed by its hash.
+This chapter defines how those hashes are formed.</p>
+<p>Everything in Dacite’s composite structures is built on a single
+operation: <strong>fuse</strong>. It combines two 256-bit hashes into a new 256-bit
+hash using nothing more than integer arithmetic. No SHA-256 at runtime,
+no hash function calls in the critical path — just six additions and a
+multiplication.</p>
+<p>The idea originates from an HP Labs white paper on using upper
+triangular matrix multiplication to combine hashes associatively:</p>
+<blockquote>
+<p>Haber, S. et al. (2017). <em>Efficient and Secure Hash-Based Timestamps.</em>
+HPE-2017-08. https://www.labs.hpe.com/techreports/2017/HPE-2017-08.pdf</p>
+</blockquote>
+<p>The paper proposes representing hashes as upper triangular matrices and
+multiplying them. Matrix multiplication is associative but not
+commutative — exactly the properties needed for tree-shape-independent
+hashing. Dacite’s contribution is the specific 4×4 matrix over 64-bit
+cells, chosen based on empirical testing of degeneration behavior (see
+§2.8).</p>
+<p>This chapter introduces fuse, its algebraic properties, and how it
+turns raw bytes into content addresses. Chapter 3 applies these ideas to
+the value model: scalars, plus the vectors, strings, blobs, maps, and
+sets built on them.</p>
+<h2 id="21-hashes-as-four-words"><a class="header" href="#21-hashes-as-four-words">2.1 Hashes as Four Words</a></h2>
+<p>A Dacite hash is 256 bits, represented as four 64-bit unsigned integers
+in big-endian word order:</p>
+<pre><code>hash = [c0, c1, c2, c3]
+</code></pre>
+<p>Word <code>c0</code> holds the most mixed bits (from fuse) and is used first for
+HAMT navigation. Word <code>c3</code> holds the least mixed bits.</p>
+<h2 id="22-the-fuse-operation"><a class="header" href="#22-the-fuse-operation">2.2 The Fuse Operation</a></h2>
+<p>Fuse takes two hashes and produces a third:</p>
+<pre><code>Input:  a = [a0, a1, a2, a3]
+        b = [b0, b1, b2, b3]
+
+Output: c = [c0, c1, c2, c3]
+
+c0 = a0 + a3*b2 + b0    ← most bit mixing (single multiply)
+c1 = a1 + b1
+c2 = a2 + b2
+c3 = a3 + b3             ← least bit mixing (simple addition)
+</code></pre>
+<p>All arithmetic wraps at 2^64. The total cost: 6 additions, 1
+multiplication.</p>
+<h3 id="properties"><a class="header" href="#properties">Properties</a></h3>
+<p>These properties are not incidental — the entire system depends on them:</p>
+<ul>
+<li><strong>Associative</strong> — <code>fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)</code>.
+This means tree shape doesn’t affect the hash. A balanced tree and
+a left-degenerate tree over the same leaf sequence produce the same
+root hash.</li>
+<li><strong>Non-commutative</strong> — <code>fuse(a, b) ≠ fuse(b, a)</code> (for a ≠ b).
+Order matters. <code>[x, y]</code> and <code>[y, x]</code> have different hashes.</li>
+<li><strong>Identity</strong> — <code>[0, 0, 0, 0]</code> is a two-sided identity.
+<code>fuse(a, 0) = fuse(0, a) = a</code>. Empty sequences hash to the identity.</li>
+<li><strong>Fast</strong> — no hash function calls, just integer arithmetic. This
+matters when every node in a tree computes a fuse on construction.</li>
+</ul>
+<h3 id="why-associativity-matters"><a class="header" href="#why-associativity-matters">Why Associativity Matters</a></h3>
+<p>Associativity is the foundation of structural sharing. Consider a
+sequence <code>[a, b, c, d]</code>. Its hash is:</p>
+<pre><code>fuse(fuse(fuse(a, b), c), d)
+</code></pre>
+<p>But because fuse is associative, any parenthesization gives the same
+result:</p>
+<pre><code>fuse(fuse(a, b), fuse(c, d))    — balanced tree
+fuse(a, fuse(b, fuse(c, d)))    — right-degenerate tree
+</code></pre>
+<p>This means two stores can organize the same data differently (different
+tree shapes for performance) and still agree on the root hash.</p>
+<pre class="mermaid">graph TD
+    subgraph "Left-degenerate tree"
+        L1["fuse"] --&gt; L2["fuse"]
+        L1 --&gt; Ld["d"]
+        L2 --&gt; L3["fuse"]
+        L2 --&gt; Lc["c"]
+        L3 --&gt; La["a"]
+        L3 --&gt; Lb["b"]
+    end
+
+    subgraph "Balanced tree"
+        B1["fuse"] --&gt; B2["fuse"]
+        B1 --&gt; B3["fuse"]
+        B2 --&gt; Ba["a"]
+        B2 --&gt; Bb["b"]
+        B3 --&gt; Bc["c"]
+        B3 --&gt; Bd["d"]
+    end
+
+    R["Same root hash"] -.-&gt; L1
+    R -.-&gt; B1
+
+    style R fill:#4a9,stroke:#333,color:#fff
+</pre>
+
+<p>Different tree shapes, same root hash. This is what makes finger trees
+possible — internal rebalancing never changes the identity of the
+sequence.</p>
+<h3 id="why-non-commutativity-matters"><a class="header" href="#why-non-commutativity-matters">Why Non-Commutativity Matters</a></h3>
+<p>If fuse were commutative, <code>[a, b]</code> and <code>[b, a]</code> would hash the same.
+Sequences would be indistinguishable from sets. Order-sensitive data
+structures (vectors, strings) require that <code>fuse(a, b) ≠ fuse(b, a)</code>.</p>
+<pre class="mermaid">graph LR
+    subgraph "fuse(a, b)"
+        AB["fuse"] --&gt; A1["a"]
+        AB --&gt; B1["b"]
+    end
+
+    subgraph "fuse(b, a)"
+        BA["fuse"] --&gt; B2["b"]
+        BA --&gt; A2["a"]
+    end
+
+    AB -. "≠" .-&gt; BA
+
+    style AB fill:#4a9,stroke:#333,color:#fff
+    style BA fill:#a44,stroke:#333,color:#fff
+</pre>
+
+<p>Order matters: <code>[a, b]</code> and <code>[b, a]</code> produce different hashes.</p>
+<h2 id="23-group-structure"><a class="header" href="#23-group-structure">2.3 Group Structure</a></h2>
+<p>Fuse forms a <strong>group</strong> over (ℤ/2^64)^4. Every hash has a unique
+inverse:</p>
+<pre><code>inv([a0, a1, a2, a3]) = [a3*a2 - a0, -a1, -a2, -a3]
+</code></pre>
+<p>Such that <code>fuse(inv(a), a) = fuse(a, inv(a)) = [0, 0, 0, 0]</code>.</p>
+<p>Cost: 1 multiply + 4 negations.</p>
+<h3 id="unfuse"><a class="header" href="#unfuse">Unfuse</a></h3>
+<p>Given <code>fused = fuse(a, b)</code>, if you know <code>b</code>, you can recover <code>a</code>:</p>
+<pre><code>unfuse(fused, b) = fuse(fused, inv(b)) = a
+</code></pre>
+<p>Strip from the left: <code>fuse(inv(a), fused) = b</code>.</p>
+<h3 id="what-the-group-enables"><a class="header" href="#what-the-group-enables">What the Group Enables</a></h3>
+<ul>
+<li><strong>Cross-type equality</strong> — strip a type hash to compare the underlying
+content (see Chapter 3, Cross-Type Equality).</li>
+<li><strong>Hash recovery</strong> — recover one component of a fused pair when the
+other is known.</li>
+<li><strong>Incremental re-hashing</strong> — update a fused chain without recomputing
+from scratch. Replace an element by unfusing the old and fusing the new.</li>
+</ul>
+<h2 id="24-the-byte-hash-table"><a class="header" href="#24-the-byte-hash-table">2.4 The Byte Hash Table</a></h2>
+<p>Dacite doesn’t hash bytes directly with fuse. Instead, it uses a
+precomputed lookup table mapping each byte value (0–255) to a 256-bit
+hash:</p>
+<pre><code>byte_hash: byte → Hash    (256 entries)
+</code></pre>
+<p>The default table is seeded using SHA-256:
+<code>byte_hash[i] = sha256(byte_array([i]))</code>. But any set of 256 distinct,
+high-quality 32-byte values works. This decouples Dacite from any
+specific hash function at runtime — SHA-256 is used once at build time
+to generate the table, never again.</p>
+<h3 id="hashing-bytes-and-strings"><a class="header" href="#hashing-bytes-and-strings">Hashing Bytes and Strings</a></h3>
+<p>All data hashing reduces to table lookups and fuses:</p>
+<pre><code>fuse_bytes(bs) = reduce(unchecked_fuse, [0,0,0,0], map(byte_hash, bs))
+fuse_str(s)    = fuse_bytes(utf8_bytes(s))
+</code></pre>
+<p>Because fuse is associative:
+<code>fuse(fuse_str(a), fuse_str(b)) = fuse_str(a ++ b)</code></p>
+<p>Composing fused results is equivalent to fusing the concatenation.
+This is both a feature (tree nodes can combine child hashes) and a
+constraint (a domain separator is needed between a value’s type and its
+data — see Chapter 3).</p>
+<h2 id="25-protocol-id"><a class="header" href="#25-protocol-id">2.5 Protocol ID</a></h2>
+<p>The byte hash table is a <strong>build-time constant</strong>, not stored inside the
+content-addressed space. The table’s own hash serves as a protocol
+identifier:</p>
+<pre><code>protocol_id = fuse_bytes(concat(table[0], table[1], ..., table[255]))
+</code></pre>
+<p>The table hashes itself: each row is 32 bytes, concatenated into 8,192
+bytes, and <code>fuse_bytes</code> (which uses the table) produces the ID.</p>
+<p>Two stores are compatible if and only if they share the same protocol
+ID. Implementations check this on first contact.</p>
+<h2 id="26-low-entropy-rejection"><a class="header" href="#26-low-entropy-rejection">2.6 Low-Entropy Rejection</a></h2>
+<p>Fuse must reject inputs and outputs where the lower 32 bits are zero
+in all four words:</p>
+<pre><code>low_entropy?(h) =
+  (h[0] &amp; 0xFFFFFFFF) == 0 AND
+  (h[1] &amp; 0xFFFFFFFF) == 0 AND
+  (h[2] &amp; 0xFFFFFFFF) == 0 AND
+  (h[3] &amp; 0xFFFFFFFF) == 0
+</code></pre>
+<p>The checked fuse:</p>
+<pre><code>fuse(a, b):
+  REJECT if low_entropy?(a)
+  REJECT if low_entropy?(b)
+  result = unchecked_fuse(a, b)
+  REJECT if low_entropy?(result)
+  return result
+</code></pre>
+<p>An unchecked variant exists for internal use where inputs are known
+valid.</p>
+<h2 id="27-why-44-with-64-bit-cells"><a class="header" href="#27-why-44-with-64-bit-cells">2.7 Why 4×4 with 64-bit Cells</a></h2>
+<p>The HP paper describes hash fusing using upper triangular matrices
+in general terms. The same 256-bit hash can be packed into matrices
+of different sizes depending on cell width:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Cell size</th><th>Matrix size</th><th>Cells above diagonal</th></tr>
+</thead>
+<tbody>
+<tr><td>8-bit</td><td>9×9</td><td>36 (of which 32 used)</td></tr>
+<tr><td>16-bit</td><td>7×7</td><td>21 (of which 16 used)</td></tr>
+<tr><td>32-bit</td><td>5×5</td><td>10 (of which 8 used)</td></tr>
+<tr><td>64-bit</td><td>4×4</td><td>6 (of which 4 used)</td></tr>
+</tbody>
+</table>
+</div>
+<p>The HP paper’s specific implementation used <strong>8-bit cells in a 9×9
+matrix</strong>. Larger cells mean fewer cells in the matrix, but each cell
+participates in more bit-mixing per multiply. This tradeoff matters
+for degeneration resistance — and as the experiments below show, the
+8-bit choice degenerates surprisingly quickly.</p>
+<h3 id="the-folding-experiment"><a class="header" href="#the-folding-experiment">The Folding Experiment</a></h3>
+<p>Empirical testing (published at
+<a href="https://clojurecivitas.org/math/hashing/hashfusing.html">Clojure Civitas</a>)
+revealed a critical difference between cell sizes. The test: take a
+hash h, fuse it with itself (“fold”), then fold the result with itself,
+and repeat. Each fold <em>squares</em> the hash: fold 1 = h², fold 2 = h⁴,
+fold n = h^(2^n). This measures resistance to the worst case — long
+runs of identical values.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Cell size</th><th>Folds to zero (approx.)</th><th>Equivalent repeated fuses</th></tr>
+</thead>
+<tbody>
+<tr><td>8-bit</td><td>~8</td><td>~2^8 = 256</td></tr>
+<tr><td>16-bit</td><td>~16</td><td>~2^16 = 65,536</td></tr>
+<tr><td>32-bit</td><td>~32</td><td>~2^32 ≈ 4.3 billion</td></tr>
+<tr><td>64-bit</td><td>~64</td><td>~2^64 ≈ 1.8 × 10^19</td></tr>
+</tbody>
+</table>
+</div>
+<p>The exact fold count varies with the starting hash, but the
+relationship is statistical: folds to zero tracks the cell size in
+bits. Smaller samples showed values within a few folds of the cell
+size; a larger sample would pin down the distribution more precisely.</p>
+<p>With 8-bit cells — the HP paper’s implementation choice — repeating
+the same hash roughly 256 times causes complete degeneration. With
+64-bit cells, you’d need approximately 2^64 repetitions — far beyond
+any realistic data.</p>
+<pre class="mermaid">graph LR
+    H["h"] --&gt;|"fold 1"| H2["h² = fuse(h,h)"]
+    H2 --&gt;|"fold 2"| H4["h⁴ = fuse(h²,h²)"]
+    H4 --&gt;|"fold 3"| H8["h⁸ = fuse(h⁴,h⁴)"]
+    H8 --&gt;|"..."| HN["h^(2^n)"]
+    HN --&gt;|"fold n"| Z["zero (degenerated)"]
+    style Z fill:#a44,stroke:#333,color:#fff
+</pre>
+
+<p>A separate experiment with <strong>random fuses</strong> (alternating between two
+random hashes) showed zero collisions across millions of fuses for all
+cell sizes. Degeneration is specific to low-entropy data — repeated
+fusing of the same value.</p>
+<h3 id="the-decision"><a class="header" href="#the-decision">The Decision</a></h3>
+<p>The 4×4 matrix with 64-bit cells won on all axes:</p>
+<ul>
+<li><strong>Degeneration resistance</strong> — ~2^64 repeated fuses vs ~2^8 for
+the HP paper’s 8-bit cells</li>
+<li><strong>Performance</strong> — smallest matrix means fewest operations per fuse
+(6 additions + 1 multiplication vs. dozens for 9×9)</li>
+<li><strong>Simplicity</strong> — 4 words map naturally to 256 bits; no packing tricks</li>
+<li><strong>Hardware fit</strong> — 64-bit integers are native on modern CPUs</li>
+</ul>
+<p>The low-entropy rejection check (§2.6) checks the lower 32 bits of
+each word. This means fuse rejects degenerate hashes after
+approximately 2^32 repeated fuses of the same value — well within
+the 64-bit cell’s ~2^64 capacity, providing a conservative safety
+margin that catches degeneration long before it reaches the
+theoretical limit.</p>
+<h2 id="28-api-surface"><a class="header" href="#28-api-surface">2.8 API Surface</a></h2>
+<h3 id="primitives"><a class="header" href="#primitives">Primitives</a></h3>
+<p>The irreducible core — everything else derives from these:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fuse</code></td><td><code>(Hash, Hash) → Hash</code></td><td>Combine two hashes (checked)</td></tr>
+<tr><td><code>unchecked-fuse</code></td><td><code>(Hash, Hash) → Hash</code></td><td>Combine without low-entropy check</td></tr>
+<tr><td><code>inv</code></td><td><code>Hash → Hash</code></td><td>Compute the group inverse</td></tr>
+<tr><td><code>fuse-bytes</code></td><td><code>bytes → Hash</code></td><td>Hash a byte sequence via table lookup</td></tr>
+<tr><td><code>byte-hash-table</code></td><td><code>byte → Hash</code></td><td>The 256-entry lookup table</td></tr>
+<tr><td><code>low-entropy?</code></td><td><code>Hash → bool</code></td><td>Check if lower 32 bits are all zero</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="derived"><a class="header" href="#derived">Derived</a></h3>
+<p>Convenience functions that compose from the primitives:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Derivation</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>unfuse</code></td><td><code>fuse(a, inv(b))</code></td><td>Strip right: recover left operand</td></tr>
+<tr><td><code>fuse-str</code></td><td><code>fuse-bytes(utf8-encode(s))</code></td><td>Hash a UTF-8 string</td></tr>
+<tr><td><code>protocol-id</code></td><td><code>fuse-bytes(concat(table[0..255]))</code></td><td>The table’s self-hash</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="properties-1"><a class="header" href="#properties-1">Properties</a></h3>
+<ul>
+<li><code>fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)</code> — associativity</li>
+<li><code>fuse(a, b) ≠ fuse(b, a)</code> for a ≠ b — non-commutativity</li>
+<li><code>fuse(a, [0,0,0,0]) = a</code> — right identity</li>
+<li><code>fuse([0,0,0,0], a) = a</code> — left identity</li>
+<li><code>fuse(a, inv(a)) = [0,0,0,0]</code> — right inverse</li>
+<li><code>fuse(inv(a), a) = [0,0,0,0]</code> — left inverse</li>
+<li><code>fuse(a, inv(b)) = unfuse(a, b)</code> — unfuse is derived</li>
+<li><code>fuse(inv(a), fuse(a, b)) = b</code> — left recovery</li>
+<li><code>fuse-bytes(a ++ b) = fuse(fuse-bytes(a), fuse-bytes(b))</code> — composability</li>
+<li><code>fuse</code> rejects when <code>low-entropy?</code> is true for input or output</li>
+</ul>
+<p><strong>This layer has zero dependencies</strong> — no I/O, no state, just integer
+arithmetic and a lookup table. It is the natural starting point for
+porting Dacite to a new language.</p>
+<h2 id="29-what-this-layer-provides"><a class="header" href="#29-what-this-layer-provides">2.9 What This Layer Provides</a></h2>
+<p>Hash fusion gives the rest of Dacite three guarantees:</p>
+<ol>
+<li><strong>Content identity</strong> — any value, at any scale, reduces to a 256-bit
+hash. Same content → same hash, always.</li>
+<li><strong>Tree-shape independence</strong> — associativity means the hash captures
+<em>what</em> is stored, not <em>how</em> it’s organized.</li>
+<li><strong>Decomposability</strong> — the group structure means hashes can be taken
+apart, not just composed. This enables typed values, incremental
+updates, and cross-type comparisons.</li>
+</ol>
+<p>The next chapter builds the value model — scalars, plus the vectors,
+strings, blobs, maps, and sets built on them — on this foundation.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../01-stores/chapter.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../03-values/chapter.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../01-stores/chapter.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../03-values/chapter.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid-eefea253.min.js"></script>
+        <script src="../mermaid-init-ccf746f1.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

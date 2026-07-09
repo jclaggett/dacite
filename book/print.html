@@ -1,0 +1,1857 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>The Dacite Book</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Content stores, hash fusion, values, and rooted stores.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-7f146547.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-5f744fa6.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Dacite Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/jclaggett/dacite" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="preface"><a class="header" href="#preface">Preface</a></h1>
+<p>Dacite: distributed immutable data with content-addressed nodes.</p>
+<h2 id="chapters-four-layers"><a class="header" href="#chapters-four-layers">Chapters (Four Layers)</a></h2>
+<ol>
+<li><strong>Content Stores</strong> — immutable content-addressed map, backends, caching.</li>
+<li><strong>Hash Fusion</strong> — fuse primitive and content identity.</li>
+<li><strong>Values</strong> — scalar/seq/map + types.</li>
+<li><strong>Rooted Stores</strong> — mutable root ref, watches, durability, push/sync, GC.</li>
+</ol>
+<p>Stop after 1 (persistence), 2 (hashing), 3 (structs), 4 (mutable state + sync).</p>
+<h2 id="reading"><a class="header" href="#reading">Reading</a></h2>
+<p>Sequential; SPEC.md for precision.</p>
+<h2 id="for"><a class="header" href="#for">For</a></h2>
+<p>Users, implementors, designers.</p>
+<p><em>Jonathan &amp; Gorm, 2026</em></p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="chapter-1-content-stores"><a class="header" href="#chapter-1-content-stores">Chapter 1: Content Stores</a></h1>
+<p>This chapter introduces the <strong>content store</strong> — the persistence layer at the bottom of Dacite. A content store is a single, simple thing:</p>
+<blockquote>
+<p>An immutable, content-addressed dictionary: <code>hash → value</code>.</p>
+</blockquote>
+<p>Each entry maps a 256-bit content hash to a stored value. The store knows nothing about the structure or meaning of what it holds — it maps hashes to opaque payloads and nothing more. It has no notion of a “current” value, no mutable state, and no root; it only ever grows as new entries are added.</p>
+<p>That deliberate simplicity is what the rest of Dacite builds on. Chapter 2 explains how hashes are computed. Chapter 3 defines the value model — trees of nodes that live as entries in a content store. Chapter 4 adds a single mutable <strong>root</strong> on top of a content store, turning this immutable dictionary into something that can evolve and synchronize over time. Here we stay at the immutable persistence layer: the <code>IStore</code> protocol, its implementations, and content addressing.</p>
+<h2 id="11-store-entries"><a class="header" href="#11-store-entries">1.1 Store Entries</a></h2>
+<p>Every entry in a content store has the same shape:</p>
+<pre><code>hash → value
+</code></pre>
+<ul>
+<li><strong>hash</strong>: A 256-bit content hash (4 × 64-bit integers). How it is derived from the content is Chapter 2’s subject.</li>
+<li><strong>value</strong>: An opaque serialized payload. The store neither knows nor interprets its structure.</li>
+</ul>
+<p>The store is a pure key/value mapping. All interpretation of a stored entry happens in higher layers (Chapter 3). Because the key is a hash <em>of</em> the value, entries are <strong>immutable</strong>: a given hash always maps to the same content, so writing the same content twice is idempotent and two callers that produce the same content share one entry.</p>
+<blockquote>
+<p><strong>Representation note.</strong> Conceptually an entry’s value is opaque bytes. The reference implementation currently stores serialized Dacite node values (EDN), and the LMDB backend keeps the bytes of that serialization. A true opaque byte-array representation is a later refinement tied to the serialization format (see the serialization appendix); it does not change the content-store contract described here.</p>
+</blockquote>
+<h2 id="12-the-store-protocol"><a class="header" href="#12-the-store-protocol">1.2 The Store Protocol</a></h2>
+<p>Every content store implements <code>IStore</code>:</p>
+<pre><code class="language-clojure">(defprotocol IStore
+  (s-get [store hash]  "Return the stored value, or nil")
+  (s-put [store hash value] "Store value at hash, return the store")
+  (s-has? [store hash] "Check if hash exists")
+  (s-snapshot [store] "Return a map of all {hash → value}")
+  (s-merge [store m] "Merge {hash → value} into the store")
+  (s-reset [store] "Clear all entries"))
+</code></pre>
+<p>Typical usage at this layer:</p>
+<pre><code class="language-clojure">;; Store a value at its hash
+(s-put store h node)
+
+;; Fetch it back
+(s-get store h)   ;; =&gt; node, or nil if absent
+(s-has? store h)  ;; =&gt; true
+</code></pre>
+<p>Application code rarely calls <code>s-get</code> / <code>s-put</code> directly. Instead it uses the value constructors of Chapter 3, which persist nodes into a store on your behalf. The public value API always takes a store (implicitly via a current-store binding, or explicitly as the first argument) so that persistence stays visible rather than hidden.</p>
+<h2 id="13-content-addressing"><a class="header" href="#13-content-addressing">1.3 Content Addressing</a></h2>
+<p>Because a store is addressed by content hash, it has two useful properties for free:</p>
+<ul>
+<li><strong>Deduplication.</strong> Identical content produces an identical hash, which maps to a single entry. Storing the same node from two places costs one entry, not two.</li>
+<li><strong>Idempotent writes.</strong> <code>s-put</code> of content that is already present is a no-op in effect — the hash and value are unchanged.</li>
+</ul>
+<pre><code class="language-clojure">(s-put store h node)
+(s-put store h node)   ;; same hash, same value — still one entry
+</code></pre>
+<p>This is the foundation that lets higher layers share structure aggressively: an edited collection reuses every unchanged node, because unchanged nodes hash the same and therefore <em>are</em> the same entry.</p>
+<h2 id="14-implementations"><a class="header" href="#14-implementations">1.4 Implementations</a></h2>
+<p>All content stores implement <code>IStore</code>, so they are interchangeable. Each has its own constructor function — there is no single unified wrapper; you pick a backend by calling its constructor.</p>
+<h3 id="memory-store"><a class="header" href="#memory-store">Memory Store</a></h3>
+<p>An atom-backed store. Fast, ephemeral, ideal for testing and for building values before they are persisted elsewhere.</p>
+<pre><code class="language-clojure">(def s (store/mem-store))
+</code></pre>
+<h3 id="file-store"><a class="header" href="#file-store">File Store</a></h3>
+<p>Filesystem persistence, one file per entry, with two levels of directory sharding by hash prefix to keep directories small. Survives restarts.</p>
+<pre><code class="language-clojure">(def s (store/file-store "path/to/dir"))
+</code></pre>
+<h3 id="lmdb-store"><a class="header" href="#lmdb-store">LMDB Store</a></h3>
+<p>Persistent store backed by LMDB. Content entries live in the primary database. (A small meta database is also created; rooted stores in Chapter 4 use it to persist a root hash — the content store itself never touches it.)</p>
+<pre><code class="language-clojure">(def s (store/lmdb-store "path/to/db"))
+</code></pre>
+<h3 id="layered-store"><a class="header" href="#layered-store">Layered Store</a></h3>
+<p>Composes several stores into a stack, fastest first (e.g. memory in front of LMDB). It provides transparent caching without changing the <code>IStore</code> API.</p>
+<pre><code class="language-clojure">(def s (store/layered-store (store/mem-store)
+                            (store/lmdb-store "path/to/db")))
+</code></pre>
+<ul>
+<li><strong>Read</strong> (<code>s-get</code>): walk layers front to back until a layer has the entry. On a hit in a slower layer, the entry is <strong>read through</strong> — backfilled into the faster layers it was missing from — so repeat reads are fast.</li>
+<li><strong>Write</strong> (<code>s-put</code>, <code>s-merge</code>): write to <strong>all</strong> layers. This keeps the durable back layer authoritative and the fast front layer warm.</li>
+</ul>
+<p>A single write policy (write-to-all) is intentional at this layer; richer per-layer policies are out of scope for the content store.</p>
+<h2 id="15-what-this-layer-provides"><a class="header" href="#15-what-this-layer-provides">1.5 What This Layer Provides</a></h2>
+<ol>
+<li>An immutable, content-addressed dictionary: <code>hash → value</code>.</li>
+<li>A minimal protocol — <code>s-get</code> / <code>s-put</code> / <code>s-has?</code> / <code>s-snapshot</code> / <code>s-merge</code> / <code>s-reset</code>.</li>
+<li>Content addressing, and with it free deduplication and idempotent writes.</li>
+<li>Composable backends: memory, file, LMDB, and layered caching — all interchangeable.</li>
+</ol>
+<p>There is deliberately <strong>no</strong> mutable state here: no current value, no root. That single moving part is added in Chapter 4.</p>
+<p>Chapter 2 defines how the hashes that key this dictionary are formed. Chapter 3 builds the value model whose nodes live as entries in a content store. Chapter 4 wraps a content store with a mutable root to make it evolve and synchronize.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="chapter-2-hash-fusion"><a class="header" href="#chapter-2-hash-fusion">Chapter 2: Hash Fusion</a></h1>
+<p>Chapter 1 introduced <strong>content stores</strong> — an immutable map from content
+hashes to serialized values. Every node in that map is keyed by its hash.
+This chapter defines how those hashes are formed.</p>
+<p>Everything in Dacite’s composite structures is built on a single
+operation: <strong>fuse</strong>. It combines two 256-bit hashes into a new 256-bit
+hash using nothing more than integer arithmetic. No SHA-256 at runtime,
+no hash function calls in the critical path — just six additions and a
+multiplication.</p>
+<p>The idea originates from an HP Labs white paper on using upper
+triangular matrix multiplication to combine hashes associatively:</p>
+<blockquote>
+<p>Haber, S. et al. (2017). <em>Efficient and Secure Hash-Based Timestamps.</em>
+HPE-2017-08. https://www.labs.hpe.com/techreports/2017/HPE-2017-08.pdf</p>
+</blockquote>
+<p>The paper proposes representing hashes as upper triangular matrices and
+multiplying them. Matrix multiplication is associative but not
+commutative — exactly the properties needed for tree-shape-independent
+hashing. Dacite’s contribution is the specific 4×4 matrix over 64-bit
+cells, chosen based on empirical testing of degeneration behavior (see
+§2.8).</p>
+<p>This chapter introduces fuse, its algebraic properties, and how it
+turns raw bytes into content addresses. Chapter 3 applies these ideas to
+the value model: scalars, plus the vectors, strings, blobs, maps, and
+sets built on them.</p>
+<h2 id="21-hashes-as-four-words"><a class="header" href="#21-hashes-as-four-words">2.1 Hashes as Four Words</a></h2>
+<p>A Dacite hash is 256 bits, represented as four 64-bit unsigned integers
+in big-endian word order:</p>
+<pre><code>hash = [c0, c1, c2, c3]
+</code></pre>
+<p>Word <code>c0</code> holds the most mixed bits (from fuse) and is used first for
+HAMT navigation. Word <code>c3</code> holds the least mixed bits.</p>
+<h2 id="22-the-fuse-operation"><a class="header" href="#22-the-fuse-operation">2.2 The Fuse Operation</a></h2>
+<p>Fuse takes two hashes and produces a third:</p>
+<pre><code>Input:  a = [a0, a1, a2, a3]
+        b = [b0, b1, b2, b3]
+
+Output: c = [c0, c1, c2, c3]
+
+c0 = a0 + a3*b2 + b0    ← most bit mixing (single multiply)
+c1 = a1 + b1
+c2 = a2 + b2
+c3 = a3 + b3             ← least bit mixing (simple addition)
+</code></pre>
+<p>All arithmetic wraps at 2^64. The total cost: 6 additions, 1
+multiplication.</p>
+<h3 id="properties"><a class="header" href="#properties">Properties</a></h3>
+<p>These properties are not incidental — the entire system depends on them:</p>
+<ul>
+<li><strong>Associative</strong> — <code>fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)</code>.
+This means tree shape doesn’t affect the hash. A balanced tree and
+a left-degenerate tree over the same leaf sequence produce the same
+root hash.</li>
+<li><strong>Non-commutative</strong> — <code>fuse(a, b) ≠ fuse(b, a)</code> (for a ≠ b).
+Order matters. <code>[x, y]</code> and <code>[y, x]</code> have different hashes.</li>
+<li><strong>Identity</strong> — <code>[0, 0, 0, 0]</code> is a two-sided identity.
+<code>fuse(a, 0) = fuse(0, a) = a</code>. Empty sequences hash to the identity.</li>
+<li><strong>Fast</strong> — no hash function calls, just integer arithmetic. This
+matters when every node in a tree computes a fuse on construction.</li>
+</ul>
+<h3 id="why-associativity-matters"><a class="header" href="#why-associativity-matters">Why Associativity Matters</a></h3>
+<p>Associativity is the foundation of structural sharing. Consider a
+sequence <code>[a, b, c, d]</code>. Its hash is:</p>
+<pre><code>fuse(fuse(fuse(a, b), c), d)
+</code></pre>
+<p>But because fuse is associative, any parenthesization gives the same
+result:</p>
+<pre><code>fuse(fuse(a, b), fuse(c, d))    — balanced tree
+fuse(a, fuse(b, fuse(c, d)))    — right-degenerate tree
+</code></pre>
+<p>This means two stores can organize the same data differently (different
+tree shapes for performance) and still agree on the root hash.</p>
+<pre class="mermaid">graph TD
+    subgraph "Left-degenerate tree"
+        L1["fuse"] --&gt; L2["fuse"]
+        L1 --&gt; Ld["d"]
+        L2 --&gt; L3["fuse"]
+        L2 --&gt; Lc["c"]
+        L3 --&gt; La["a"]
+        L3 --&gt; Lb["b"]
+    end
+
+    subgraph "Balanced tree"
+        B1["fuse"] --&gt; B2["fuse"]
+        B1 --&gt; B3["fuse"]
+        B2 --&gt; Ba["a"]
+        B2 --&gt; Bb["b"]
+        B3 --&gt; Bc["c"]
+        B3 --&gt; Bd["d"]
+    end
+
+    R["Same root hash"] -.-&gt; L1
+    R -.-&gt; B1
+
+    style R fill:#4a9,stroke:#333,color:#fff
+</pre>
+
+<p>Different tree shapes, same root hash. This is what makes finger trees
+possible — internal rebalancing never changes the identity of the
+sequence.</p>
+<h3 id="why-non-commutativity-matters"><a class="header" href="#why-non-commutativity-matters">Why Non-Commutativity Matters</a></h3>
+<p>If fuse were commutative, <code>[a, b]</code> and <code>[b, a]</code> would hash the same.
+Sequences would be indistinguishable from sets. Order-sensitive data
+structures (vectors, strings) require that <code>fuse(a, b) ≠ fuse(b, a)</code>.</p>
+<pre class="mermaid">graph LR
+    subgraph "fuse(a, b)"
+        AB["fuse"] --&gt; A1["a"]
+        AB --&gt; B1["b"]
+    end
+
+    subgraph "fuse(b, a)"
+        BA["fuse"] --&gt; B2["b"]
+        BA --&gt; A2["a"]
+    end
+
+    AB -. "≠" .-&gt; BA
+
+    style AB fill:#4a9,stroke:#333,color:#fff
+    style BA fill:#a44,stroke:#333,color:#fff
+</pre>
+
+<p>Order matters: <code>[a, b]</code> and <code>[b, a]</code> produce different hashes.</p>
+<h2 id="23-group-structure"><a class="header" href="#23-group-structure">2.3 Group Structure</a></h2>
+<p>Fuse forms a <strong>group</strong> over (ℤ/2^64)^4. Every hash has a unique
+inverse:</p>
+<pre><code>inv([a0, a1, a2, a3]) = [a3*a2 - a0, -a1, -a2, -a3]
+</code></pre>
+<p>Such that <code>fuse(inv(a), a) = fuse(a, inv(a)) = [0, 0, 0, 0]</code>.</p>
+<p>Cost: 1 multiply + 4 negations.</p>
+<h3 id="unfuse"><a class="header" href="#unfuse">Unfuse</a></h3>
+<p>Given <code>fused = fuse(a, b)</code>, if you know <code>b</code>, you can recover <code>a</code>:</p>
+<pre><code>unfuse(fused, b) = fuse(fused, inv(b)) = a
+</code></pre>
+<p>Strip from the left: <code>fuse(inv(a), fused) = b</code>.</p>
+<h3 id="what-the-group-enables"><a class="header" href="#what-the-group-enables">What the Group Enables</a></h3>
+<ul>
+<li><strong>Cross-type equality</strong> — strip a type hash to compare the underlying
+content (see Chapter 3, Cross-Type Equality).</li>
+<li><strong>Hash recovery</strong> — recover one component of a fused pair when the
+other is known.</li>
+<li><strong>Incremental re-hashing</strong> — update a fused chain without recomputing
+from scratch. Replace an element by unfusing the old and fusing the new.</li>
+</ul>
+<h2 id="24-the-byte-hash-table"><a class="header" href="#24-the-byte-hash-table">2.4 The Byte Hash Table</a></h2>
+<p>Dacite doesn’t hash bytes directly with fuse. Instead, it uses a
+precomputed lookup table mapping each byte value (0–255) to a 256-bit
+hash:</p>
+<pre><code>byte_hash: byte → Hash    (256 entries)
+</code></pre>
+<p>The default table is seeded using SHA-256:
+<code>byte_hash[i] = sha256(byte_array([i]))</code>. But any set of 256 distinct,
+high-quality 32-byte values works. This decouples Dacite from any
+specific hash function at runtime — SHA-256 is used once at build time
+to generate the table, never again.</p>
+<h3 id="hashing-bytes-and-strings"><a class="header" href="#hashing-bytes-and-strings">Hashing Bytes and Strings</a></h3>
+<p>All data hashing reduces to table lookups and fuses:</p>
+<pre><code>fuse_bytes(bs) = reduce(unchecked_fuse, [0,0,0,0], map(byte_hash, bs))
+fuse_str(s)    = fuse_bytes(utf8_bytes(s))
+</code></pre>
+<p>Because fuse is associative:
+<code>fuse(fuse_str(a), fuse_str(b)) = fuse_str(a ++ b)</code></p>
+<p>Composing fused results is equivalent to fusing the concatenation.
+This is both a feature (tree nodes can combine child hashes) and a
+constraint (a domain separator is needed between a value’s type and its
+data — see Chapter 3).</p>
+<h2 id="25-protocol-id"><a class="header" href="#25-protocol-id">2.5 Protocol ID</a></h2>
+<p>The byte hash table is a <strong>build-time constant</strong>, not stored inside the
+content-addressed space. The table’s own hash serves as a protocol
+identifier:</p>
+<pre><code>protocol_id = fuse_bytes(concat(table[0], table[1], ..., table[255]))
+</code></pre>
+<p>The table hashes itself: each row is 32 bytes, concatenated into 8,192
+bytes, and <code>fuse_bytes</code> (which uses the table) produces the ID.</p>
+<p>Two stores are compatible if and only if they share the same protocol
+ID. Implementations check this on first contact.</p>
+<h2 id="26-low-entropy-rejection"><a class="header" href="#26-low-entropy-rejection">2.6 Low-Entropy Rejection</a></h2>
+<p>Fuse must reject inputs and outputs where the lower 32 bits are zero
+in all four words:</p>
+<pre><code>low_entropy?(h) =
+  (h[0] &amp; 0xFFFFFFFF) == 0 AND
+  (h[1] &amp; 0xFFFFFFFF) == 0 AND
+  (h[2] &amp; 0xFFFFFFFF) == 0 AND
+  (h[3] &amp; 0xFFFFFFFF) == 0
+</code></pre>
+<p>The checked fuse:</p>
+<pre><code>fuse(a, b):
+  REJECT if low_entropy?(a)
+  REJECT if low_entropy?(b)
+  result = unchecked_fuse(a, b)
+  REJECT if low_entropy?(result)
+  return result
+</code></pre>
+<p>An unchecked variant exists for internal use where inputs are known
+valid.</p>
+<h2 id="27-why-44-with-64-bit-cells"><a class="header" href="#27-why-44-with-64-bit-cells">2.7 Why 4×4 with 64-bit Cells</a></h2>
+<p>The HP paper describes hash fusing using upper triangular matrices
+in general terms. The same 256-bit hash can be packed into matrices
+of different sizes depending on cell width:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Cell size</th><th>Matrix size</th><th>Cells above diagonal</th></tr>
+</thead>
+<tbody>
+<tr><td>8-bit</td><td>9×9</td><td>36 (of which 32 used)</td></tr>
+<tr><td>16-bit</td><td>7×7</td><td>21 (of which 16 used)</td></tr>
+<tr><td>32-bit</td><td>5×5</td><td>10 (of which 8 used)</td></tr>
+<tr><td>64-bit</td><td>4×4</td><td>6 (of which 4 used)</td></tr>
+</tbody>
+</table>
+</div>
+<p>The HP paper’s specific implementation used <strong>8-bit cells in a 9×9
+matrix</strong>. Larger cells mean fewer cells in the matrix, but each cell
+participates in more bit-mixing per multiply. This tradeoff matters
+for degeneration resistance — and as the experiments below show, the
+8-bit choice degenerates surprisingly quickly.</p>
+<h3 id="the-folding-experiment"><a class="header" href="#the-folding-experiment">The Folding Experiment</a></h3>
+<p>Empirical testing (published at
+<a href="https://clojurecivitas.org/math/hashing/hashfusing.html">Clojure Civitas</a>)
+revealed a critical difference between cell sizes. The test: take a
+hash h, fuse it with itself (“fold”), then fold the result with itself,
+and repeat. Each fold <em>squares</em> the hash: fold 1 = h², fold 2 = h⁴,
+fold n = h^(2^n). This measures resistance to the worst case — long
+runs of identical values.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Cell size</th><th>Folds to zero (approx.)</th><th>Equivalent repeated fuses</th></tr>
+</thead>
+<tbody>
+<tr><td>8-bit</td><td>~8</td><td>~2^8 = 256</td></tr>
+<tr><td>16-bit</td><td>~16</td><td>~2^16 = 65,536</td></tr>
+<tr><td>32-bit</td><td>~32</td><td>~2^32 ≈ 4.3 billion</td></tr>
+<tr><td>64-bit</td><td>~64</td><td>~2^64 ≈ 1.8 × 10^19</td></tr>
+</tbody>
+</table>
+</div>
+<p>The exact fold count varies with the starting hash, but the
+relationship is statistical: folds to zero tracks the cell size in
+bits. Smaller samples showed values within a few folds of the cell
+size; a larger sample would pin down the distribution more precisely.</p>
+<p>With 8-bit cells — the HP paper’s implementation choice — repeating
+the same hash roughly 256 times causes complete degeneration. With
+64-bit cells, you’d need approximately 2^64 repetitions — far beyond
+any realistic data.</p>
+<pre class="mermaid">graph LR
+    H["h"] --&gt;|"fold 1"| H2["h² = fuse(h,h)"]
+    H2 --&gt;|"fold 2"| H4["h⁴ = fuse(h²,h²)"]
+    H4 --&gt;|"fold 3"| H8["h⁸ = fuse(h⁴,h⁴)"]
+    H8 --&gt;|"..."| HN["h^(2^n)"]
+    HN --&gt;|"fold n"| Z["zero (degenerated)"]
+    style Z fill:#a44,stroke:#333,color:#fff
+</pre>
+
+<p>A separate experiment with <strong>random fuses</strong> (alternating between two
+random hashes) showed zero collisions across millions of fuses for all
+cell sizes. Degeneration is specific to low-entropy data — repeated
+fusing of the same value.</p>
+<h3 id="the-decision"><a class="header" href="#the-decision">The Decision</a></h3>
+<p>The 4×4 matrix with 64-bit cells won on all axes:</p>
+<ul>
+<li><strong>Degeneration resistance</strong> — ~2^64 repeated fuses vs ~2^8 for
+the HP paper’s 8-bit cells</li>
+<li><strong>Performance</strong> — smallest matrix means fewest operations per fuse
+(6 additions + 1 multiplication vs. dozens for 9×9)</li>
+<li><strong>Simplicity</strong> — 4 words map naturally to 256 bits; no packing tricks</li>
+<li><strong>Hardware fit</strong> — 64-bit integers are native on modern CPUs</li>
+</ul>
+<p>The low-entropy rejection check (§2.6) checks the lower 32 bits of
+each word. This means fuse rejects degenerate hashes after
+approximately 2^32 repeated fuses of the same value — well within
+the 64-bit cell’s ~2^64 capacity, providing a conservative safety
+margin that catches degeneration long before it reaches the
+theoretical limit.</p>
+<h2 id="28-api-surface"><a class="header" href="#28-api-surface">2.8 API Surface</a></h2>
+<h3 id="primitives"><a class="header" href="#primitives">Primitives</a></h3>
+<p>The irreducible core — everything else derives from these:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fuse</code></td><td><code>(Hash, Hash) → Hash</code></td><td>Combine two hashes (checked)</td></tr>
+<tr><td><code>unchecked-fuse</code></td><td><code>(Hash, Hash) → Hash</code></td><td>Combine without low-entropy check</td></tr>
+<tr><td><code>inv</code></td><td><code>Hash → Hash</code></td><td>Compute the group inverse</td></tr>
+<tr><td><code>fuse-bytes</code></td><td><code>bytes → Hash</code></td><td>Hash a byte sequence via table lookup</td></tr>
+<tr><td><code>byte-hash-table</code></td><td><code>byte → Hash</code></td><td>The 256-entry lookup table</td></tr>
+<tr><td><code>low-entropy?</code></td><td><code>Hash → bool</code></td><td>Check if lower 32 bits are all zero</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="derived"><a class="header" href="#derived">Derived</a></h3>
+<p>Convenience functions that compose from the primitives:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Derivation</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>unfuse</code></td><td><code>fuse(a, inv(b))</code></td><td>Strip right: recover left operand</td></tr>
+<tr><td><code>fuse-str</code></td><td><code>fuse-bytes(utf8-encode(s))</code></td><td>Hash a UTF-8 string</td></tr>
+<tr><td><code>protocol-id</code></td><td><code>fuse-bytes(concat(table[0..255]))</code></td><td>The table’s self-hash</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="properties-1"><a class="header" href="#properties-1">Properties</a></h3>
+<ul>
+<li><code>fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)</code> — associativity</li>
+<li><code>fuse(a, b) ≠ fuse(b, a)</code> for a ≠ b — non-commutativity</li>
+<li><code>fuse(a, [0,0,0,0]) = a</code> — right identity</li>
+<li><code>fuse([0,0,0,0], a) = a</code> — left identity</li>
+<li><code>fuse(a, inv(a)) = [0,0,0,0]</code> — right inverse</li>
+<li><code>fuse(inv(a), a) = [0,0,0,0]</code> — left inverse</li>
+<li><code>fuse(a, inv(b)) = unfuse(a, b)</code> — unfuse is derived</li>
+<li><code>fuse(inv(a), fuse(a, b)) = b</code> — left recovery</li>
+<li><code>fuse-bytes(a ++ b) = fuse(fuse-bytes(a), fuse-bytes(b))</code> — composability</li>
+<li><code>fuse</code> rejects when <code>low-entropy?</code> is true for input or output</li>
+</ul>
+<p><strong>This layer has zero dependencies</strong> — no I/O, no state, just integer
+arithmetic and a lookup table. It is the natural starting point for
+porting Dacite to a new language.</p>
+<h2 id="29-what-this-layer-provides"><a class="header" href="#29-what-this-layer-provides">2.9 What This Layer Provides</a></h2>
+<p>Hash fusion gives the rest of Dacite three guarantees:</p>
+<ol>
+<li><strong>Content identity</strong> — any value, at any scale, reduces to a 256-bit
+hash. Same content → same hash, always.</li>
+<li><strong>Tree-shape independence</strong> — associativity means the hash captures
+<em>what</em> is stored, not <em>how</em> it’s organized.</li>
+<li><strong>Decomposability</strong> — the group structure means hashes can be taken
+apart, not just composed. This enables typed values, incremental
+updates, and cross-type comparisons.</li>
+</ol>
+<p>The next chapter builds the value model — scalars, plus the vectors,
+strings, blobs, maps, and sets built on them — on this foundation.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="chapter-3-values"><a class="header" href="#chapter-3-values">Chapter 3: Values</a></h1>
+<p>Chapter 1 gave us the <strong>content store</strong> — an immutable content-addressed
+map from hashes to values. Chapter 2 gave us <strong>fuse</strong> and three guarantees:
+content identity, tree-shape independence, and decomposability. This chapter
+builds the <strong>value model</strong> on both foundations: a closed set of six
+user value kinds — scalars, vectors, strings, blobs, maps, and sets —
+together with the internal primitives that implement them.</p>
+<h2 id="31-values-know-their-store-hash-type-and-content"><a class="header" href="#31-values-know-their-store-hash-type-and-content">3.1 Values Know Their Store, Hash, Type, and Content</a></h2>
+<p>Every Dacite value carries four pieces of data:</p>
+<ul>
+<li><strong>store</strong> — the store that created and persists it</li>
+<li><strong>hash</strong> — its content-addressed identity (via <code>dacite-hash</code>)</li>
+<li><strong>type</strong> — a string identifying its kind (e.g. <code>"i64"</code>, <code>"vector"</code>)</li>
+<li><strong>content</strong> — the value itself, exposed in the host language via
+an explicit call (<code>realize</code> in the reference implementation). A
+scalar yields its native value; a collection yields a
+<em>lazy iterable</em> of realized elements (a map yields realized
+<code>[key value]</code> pairs), so sub-collections become nested lazy iterables.
+Laziness keeps access compatible with partial availability — only the
+part you consume is fetched.</li>
+</ul>
+<pre><code class="language-clojure">(def v (dacite/vector 1 2 3))
+
+(dacite-hash v)
+;; =&gt; [c0 c1 c2 c3]  ; the 4-long hash
+
+(dacite-store v)
+;; =&gt; #&lt;DaciteStore ...&gt;  ; the store that owns this value
+
+(dacite-type v)
+;; =&gt; "vector"  ; the value's type name
+</code></pre>
+<p>Most work happens in the context of a <strong>current store</strong> — a dynamic binding
+(<code>*store*</code> in the reference implementation) that defaults to an in-memory
+store for REPL use. Constructors such as <code>(dacite/vector 1 2 3)</code> persist
+into that store; the resulting value remembers which store created it.
+When you need a specific store — tests, migration, multiple stores — use
+the explicit <code>-with-store</code> variants:</p>
+<pre><code class="language-clojure">(dacite/vector-with-store store 1 2 3)
+</code></pre>
+<p>Use <code>with-store</code> to bind an isolated store for a block of code (see §3.9).</p>
+<p>The store reference enables transparent persistence: when you <code>assoc</code>
+a Dacite map or <code>conj</code> a Dacite vector, the new value is automatically
+stored in the same backing storage. You don’t thread the store through
+every operation — values know where they belong.</p>
+<p>This also means <strong>values are tied to their store</strong>. A value created in
+store A cannot be directly inserted into store B; you must first migrate
+the underlying content (or use ref push — see Chapter 4).</p>
+<h2 id="32-a-closed-set-of-user-values"><a class="header" href="#32-a-closed-set-of-user-values">3.2 A Closed Set of User Values</a></h2>
+<p>Dacite exposes a <strong>closed set</strong> of six user value kinds:</p>
+<ul>
+<li><strong>scalar</strong> — an atomic, typed value: a number, character, boolean, or null</li>
+<li><strong>vector</strong> — an ordered collection of values</li>
+<li><strong>string</strong> — text: an ordered collection of characters</li>
+<li><strong>blob</strong> — binary data: an ordered collection of bytes</li>
+<li><strong>map</strong> — an associative collection of key/value pairs</li>
+<li><strong>set</strong> — an unordered collection of distinct values</li>
+</ul>
+<p>Scalars are atomic. The other five are collections, and they are not
+primitive all the way down — they are assembled from <strong>internal value
+primitives</strong>:</p>
+<ul>
+<li><strong>Finger-tree nodes</strong> implement the sequence types: vector, string,
+and blob (§3.6).</li>
+<li><strong>HAMT nodes</strong> implement the associative types: map and set (§3.7).</li>
+</ul>
+<p>Internal nodes are real content-addressed values with their own type
+names and hashes, but they are never handed to users directly. They
+exist only to give the user types their shape and performance.</p>
+<p>The set of user types is fixed, but it is not special-cased in the
+storage layer: a type is just a string of characters (§3.3). The
+vocabulary could grow in the future without changing any of the
+machinery below.</p>
+<h2 id="33-how-every-value-is-hashed"><a class="header" href="#33-how-every-value-is-hashed">3.3 How Every Value Is Hashed</a></h2>
+<p>Every Dacite value — user-facing or internal — is hashed by the same
+rule:</p>
+<pre><code>value_hash = fuse(type_hash, data_hash)
+</code></pre>
+<h3 id="the-type-hash"><a class="header" href="#the-type-hash">The Type Hash</a></h3>
+<p>The <strong>type hash</strong> identifies the kind of value. It is the fuse of the
+type name’s characters followed by a terminating <code>0x00</code> byte:</p>
+<pre><code>type_hash = fuse_bytes(type_name ++ [0x00])
+</code></pre>
+<p>Type names are ordinary character strings — <code>"i64"</code>, <code>"vector"</code>,
+<code>"ft/node"</code>. Because type names never contain a null byte, the trailing
+<code>0x00</code> cleanly separates the type from the data that follows. Without a
+boundary marker, type <code>"i64"</code> with data <code>"2"</code> could collide with type
+<code>"i6"</code> and data <code>"42"</code> (fuse composes over concatenation). The <code>0x00</code>
+makes the boundary unambiguous.</p>
+<p>This is also what makes types self-describing: given any value, read its
+type name to discover its interpretation. No registry, no schema
+negotiation.</p>
+<h3 id="the-data-hash"><a class="header" href="#the-data-hash">The Data Hash</a></h3>
+<p>The <strong>data hash</strong> captures the value’s content. How it is computed
+depends on the kind of value:</p>
+<ul>
+<li><strong>Scalar</strong> — the fuse of its canonical bytes:</li>
+</ul>
+<pre><code>data_hash = fuse_bytes(canonical_bytes)
+</code></pre>
+<ul>
+<li><strong>Collection</strong> — the fuse of all <strong>leaf</strong> element hashes, in sequence
+order (vector, string, blob) or ascending key-hash order (map, set):</li>
+</ul>
+<pre><code>data_hash = fuse(fuse(fuse(e0, e1), e2), ..., en)
+</code></pre>
+<p>For collections, the data hash is built from the leaves <strong>only</strong>. The
+internal node type hashes (<code>ft/node</code>, <code>hamt/bitmap</code>, …) never enter it.
+This is deliberate — it is what makes the data hash <strong>shape-independent</strong>.</p>
+<h3 id="shape-independence"><a class="header" href="#shape-independence">Shape Independence</a></h3>
+<p>Because internal type hashes are excluded, two collections with the same
+leaves but different internal tree shapes produce the same data hash, and
+therefore the same value hash. A balanced finger tree and a degenerate
+one holding the same elements in the same order are indistinguishable by
+hash. This is what lets a store reorganize a collection for performance
+without changing its identity.</p>
+<p>(There is exactly one exception — HAMT bitmap nodes — explained in §3.7.)</p>
+<h3 id="cross-type-equality"><a class="header" href="#cross-type-equality">Cross-Type Equality</a></h3>
+<p>Here is where Chapter 2’s group structure pays off. Since
+<code>value_hash = fuse(type_hash, data_hash)</code>, the type hash can be stripped
+back off with the group inverse:</p>
+<pre><code>content_hash(v) = fuse(inv(type_hash), value_hash) = data_hash
+</code></pre>
+<p>Two values with different types but the same underlying data have the
+same content hash, computed in <strong>O(1)</strong>. A <code>"string"</code> and a <code>"vector"</code>
+holding the same characters share a data hash — because their leaves are
+literally the same content-addressed values — even though their full
+hashes differ by the type tag.</p>
+<h2 id="34-the-user-value-types"><a class="header" href="#34-the-user-value-types">3.4 The User Value Types</a></h2>
+<p>The six user value kinds divide into atomic scalars and collections.</p>
+<p><strong>Scalar types</strong> — an atomic value with a canonical byte encoding:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type Name</th><th>Bytes</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>"null"</code></td><td>0 bytes</td><td>Unit type</td></tr>
+<tr><td><code>"bool"</code></td><td>1 byte</td><td><code>0x00</code> = false, <code>0x01</code> = true</td></tr>
+<tr><td><code>"i8"</code> … <code>"i256"</code></td><td>1–32 bytes big-endian signed</td><td>Signed integers</td></tr>
+<tr><td><code>"u8"</code> … <code>"u256"</code></td><td>1–32 bytes big-endian unsigned</td><td>Unsigned integers</td></tr>
+<tr><td><code>"f32"</code>, <code>"f64"</code></td><td>4 or 8 bytes IEEE 754</td><td>Floating point</td></tr>
+<tr><td><code>"char"</code></td><td>1–4 bytes UTF-8</td><td>Unicode character</td></tr>
+<tr><td><code>"negative"</code></td><td>0 bytes</td><td>Sentinel for negative sets (§3.5)</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Collection types</strong> — a type hash over a tree of leaves:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type Name</th><th>Leaves</th><th>Backed by</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>"string"</code></td><td>char scalars</td><td>finger tree</td><td>UTF-8 string</td></tr>
+<tr><td><code>"blob"</code></td><td>byte scalars</td><td>finger tree</td><td>Binary data</td></tr>
+<tr><td><code>"vector"</code></td><td>arbitrary values</td><td>finger tree</td><td>Ordered collection</td></tr>
+<tr><td><code>"map"</code></td><td>key/value pairs</td><td>HAMT</td><td>Associative collection</td></tr>
+<tr><td><code>"set"</code></td><td>distinct values</td><td>HAMT</td><td>Set (positive or negative)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Scalar types are atomic. Collection types are backed by internal
+finger-tree or HAMT primitives (§3.6, §3.7); the type hash is what
+distinguishes, say, a vector from a set even when their leaves coincide.</p>
+<h3 id="strings-blobs-and-vectors"><a class="header" href="#strings-blobs-and-vectors">Strings, Blobs, and Vectors</a></h3>
+<p>Strings, blobs, and vectors are all sequences over a finger tree; they
+differ only in their type name and the kind of leaves they hold. A
+string is a sequence of <code>char</code> scalars, a blob a sequence of <code>u8</code>
+scalars, a vector a sequence of arbitrary values.</p>
+<p>The type hash keeps them distinct even when their bytes coincide: the
+string <code>"A"</code> (UTF-8 <code>0x41</code>) and a one-byte blob containing <code>0x41</code> have
+the same leaves but different type hashes, and therefore different value
+hashes. Internally they share the same finger-tree machinery; only the
+type hash differs.</p>
+<h2 id="35-sets-and-negative-sets"><a class="header" href="#35-sets-and-negative-sets">3.5 Sets and Negative Sets</a></h2>
+<h3 id="the-set-type"><a class="header" href="#the-set-type">The Set Type</a></h3>
+<p>A <code>"set"</code> is a user value backed by a <strong>self-map</strong> — a HAMT in which
+every key maps to itself:</p>
+<pre><code>set({a, b, c})  →  type "set" over self-map {a: a, b: b, c: c}
+</code></pre>
+<p>Content addressing means the key and value point to the same hash —
+zero additional storage for the “duplicate” reference.</p>
+<p>Membership test: <code>get(self-map, x) != nil</code>.</p>
+<h3 id="the-negative-sentinel"><a class="header" href="#the-negative-sentinel">The Negative Sentinel</a></h3>
+<p>The built-in scalar type <code>"negative"</code> is a sentinel used to denote
+negative (cofinite) sets — sets that represent “everything except
+these elements”:</p>
+<pre><code>negative  →  scalar of type "negative" (empty data)
+</code></pre>
+<p>A <strong>negative set</strong> is a <code>"set"</code> whose self-map includes the <code>negative</code>
+sentinel as an element:</p>
+<pre><code>negative_set({a, b})  →  type "set" over self-map {negative, a, b}
+</code></pre>
+<p>Membership is inverted: <code>x</code> is a member if <code>get(self-map, x) == nil</code>
+(and <code>x</code> is not the <code>negative</code> sentinel itself).</p>
+<p>For a thorough treatment of negative sets — including proofs that
+the sentinel flows correctly through all set operations using only
+map primitives — see
+<a href="https://clojurecivitas.org/math/sets/negative_sets.html">Negative Sets as Data</a>.</p>
+<h3 id="set-operations"><a class="header" href="#set-operations">Set Operations</a></h3>
+<p>The <code>negative</code> sentinel flows through ordinary map operations. Because
+it’s just another element in the self-map, no special set machinery is
+needed — only the three map primitives:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>A</th><th>B</th><th>union (A ∪ B)</th><th>intersect (A ∩ B)</th><th>difference (A \ B)</th></tr>
+</thead>
+<tbody>
+<tr><td>pos</td><td>pos</td><td>merge(A, B)</td><td>keep(A, B)</td><td>remove(A, B)</td></tr>
+<tr><td>neg</td><td>neg</td><td>keep(A, B)</td><td>merge(A, B)</td><td>remove(B, A)</td></tr>
+<tr><td>pos</td><td>neg</td><td>remove(B, A)</td><td>remove(A, B)</td><td>keep(A, B)</td></tr>
+<tr><td>neg</td><td>pos</td><td>remove(A, B)</td><td>remove(B, A)</td><td>merge(A, B)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Where:</p>
+<ul>
+<li><code>merge(A, B)</code> — add B’s elements not already in A</li>
+<li><code>keep(A, B)</code> — keep only A’s elements that are also in B</li>
+<li><code>remove(A, B)</code> — remove A’s elements that are also in B</li>
+</ul>
+<p>Complement is toggling the <code>negative</code> element:
+<code>complement(A)</code> = add <code>negative</code> if absent, remove if present.</p>
+<p>The <code>negative</code> sentinel participates in these operations like any other
+element, which is what makes the pos/neg operation table work — the
+sentinel’s presence or absence propagates correctly through merge, keep,
+and remove without special cases.</p>
+<h2 id="36-inside-seqs-finger-trees"><a class="header" href="#36-inside-seqs-finger-trees">3.6 Inside Seqs: Finger Trees</a></h2>
+<p>Seqs are implemented as finger trees — a persistent data structure
+that provides O(1) amortized access to both ends and O(log n) random
+access. The key insight for Dacite: finger trees are <em>parameterized
+by a monoid</em>, and fuse is a monoid (actually a group). The tree
+accumulates fused hashes as its measure.</p>
+<h3 id="structure"><a class="header" href="#structure">Structure</a></h3>
+<pre class="mermaid">graph TD
+    D["Deep"] --&gt; L["Left digit (1-32)"]
+    D --&gt; S["Spine (recursive)"]
+    D --&gt; R["Right digit (1-32)"]
+
+    L --&gt; L1["elem"]
+    L --&gt; L2["elem"]
+    L --&gt; L3["..."]
+
+    S --&gt; N1["node (2-32)"]
+    S --&gt; N2["node (2-32)"]
+
+    R --&gt; R1["elem"]
+    R --&gt; R2["elem"]
+</pre>
+
+<p>A deep finger tree has three parts:</p>
+<ul>
+<li><strong>Left digit</strong> — 1 to 32 elements, directly accessible</li>
+<li><strong>Spine</strong> — a recursive finger tree of internal nodes</li>
+<li><strong>Right digit</strong> — 1 to 32 elements, directly accessible</li>
+</ul>
+<p>The classic finger tree uses 1–4 elements per digit and 2–3 children
+per node. Dacite widens both to 1–32 and 2–32, trading the classic
+amortized O(1) push/pop proof for <strong>shallower trees</strong>. A tree of 1M
+elements is only ~4 levels deep. In a distributed setting, fewer
+levels means fewer network round trips — and that’s the dominant cost.</p>
+<h3 id="node-types"><a class="header" href="#node-types">Node Types</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Node</th><th>Description</th><th>Children</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ft/empty</code></td><td>Empty seq</td><td>0</td></tr>
+<tr><td><code>ft/single</code></td><td>One element</td><td>1</td></tr>
+<tr><td><code>ft/digit</code></td><td>Finger (end access)</td><td>1–32</td></tr>
+<tr><td><code>ft/node</code></td><td>Internal node</td><td>2–32</td></tr>
+<tr><td><code>ft/deep</code></td><td>Full tree</td><td>3 (left, spine, right)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Every node is stored in the content-addressed store as its own entry.
+Children are hash references — no node ever contains inline data.
+This means every node has <strong>bounded size</strong> regardless of collection
+size: at most 32 × 32 = 1024 bytes of child hashes, plus ~48 bytes
+of measure metadata.</p>
+<h3 id="the-measure-monoid"><a class="header" href="#the-measure-monoid">The Measure Monoid</a></h3>
+<p>Every node caches a <strong>measure</strong> of its subtree:</p>
+<pre><code>Measure = {
+  count:          u64,   // number of leaf elements
+  size_bytes:     u64,   // total byte size of leaf scalars
+  elements_fuse:  Hash   // running fuse of all element hashes
+}
+</code></pre>
+<p>Measures combine as a monoid:</p>
+<pre><code>combine(m1, m2) = {
+  count:         m1.count + m2.count,
+  size_bytes:    m1.size_bytes + m2.size_bytes,
+  elements_fuse: unchecked_fuse(m1.elements_fuse, m2.elements_fuse)
+}
+
+identity = { count: 0, size_bytes: 0, elements_fuse: [0, 0, 0, 0] }
+</code></pre>
+<p>The <code>elements_fuse</code> uses <code>unchecked_fuse</code> because the identity
+<code>[0, 0, 0, 0]</code> would fail the low-entropy check — this is safe since
+measures are internal bookkeeping, not user-facing hashes.</p>
+<p>The root’s measure gives <strong>O(1)</strong> access to:</p>
+<ul>
+<li><code>count</code> — how many elements</li>
+<li><code>size_bytes</code> — total materialized size</li>
+<li><code>elements_fuse</code> — the seq’s data hash</li>
+</ul>
+<h3 id="node-hashing"><a class="header" href="#node-hashing">Node Hashing</a></h3>
+<p>Internal nodes are hashed using their type name and semantic content,
+the same <code>type_hash</code> rule as every other value (§3.3):</p>
+<pre><code>node_hash = fuse(fuse_str(node_type_name ++ "\0"), node.measure.elements_fuse)
+</code></pre>
+<p>The null byte terminates the type name. Nodes with the same type and the
+same logical elements produce the same hash — different tree shapes
+normalize to a single hash in the store. This is correct because nodes
+with the same elements are functionally interchangeable.</p>
+<p>The <code>elements_fuse</code> a node caches is exactly the <strong>data hash</strong> a user
+sequence wraps. A <code>"vector"</code> value’s hash is
+<code>fuse(type_hash("vector"), root.measure.elements_fuse)</code> — its type hash
+fused with the leaf fuse of its root node. The internal node’s own type
+hash (<code>ft/node</code>, etc.) never reaches the vector’s hash, which is
+precisely why the vector hash is shape-independent (§3.3).</p>
+<h2 id="37-inside-maps-hamt"><a class="header" href="#37-inside-maps-hamt">3.7 Inside Maps: HAMT</a></h2>
+<p>Maps are implemented as a Hash Array Mapped Trie — a persistent hash
+map that provides O(log₃₂ n) lookup, insert, and delete.</p>
+<h3 id="hash-navigation"><a class="header" href="#hash-navigation">Hash Navigation</a></h3>
+<p>The key’s hash is consumed 5 bits at a time, from most significant
+to least:</p>
+<pre><code>Level 0: bits 255–251  (upper 5 bits of c0)
+Level 1: bits 250–246
+...
+Level 51: bits 4–0     (lower 5 bits of c3)
+</code></pre>
+<p>Each 5-bit chunk selects one of 32 possible child positions.</p>
+<p>Because <code>c0</code> has the most mixed bits (from the fuse multiply), the
+first levels of the HAMT navigate using the highest-quality entropy.</p>
+<h3 id="bitmap-indexing"><a class="header" href="#bitmap-indexing">Bitmap Indexing</a></h3>
+<p>Internal nodes use a 32-bit bitmap to mark occupied positions:</p>
+<pre><code>child_index = popcount(bitmap &amp; ((1 &lt;&lt; chunk) - 1))
+</code></pre>
+<p>The children array is compressed — only occupied positions have
+entries. A bitmap node with 5 children stores exactly 5 hashes,
+not 32.</p>
+<h3 id="node-types-1"><a class="header" href="#node-types-1">Node Types</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Node</th><th>Description</th><th>Key Fields</th></tr>
+</thead>
+<tbody>
+<tr><td><code>hamt/empty</code></td><td>Empty map</td><td>measure</td></tr>
+<tr><td><code>hamt/entry</code></td><td>Single key-value pair</td><td>key_hash, key_ref, val_ref, measure</td></tr>
+<tr><td><code>hamt/bitmap</code></td><td>Sparse internal node</td><td>bitmap, children, measure</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="traversal-order"><a class="header" href="#traversal-order">Traversal Order</a></h3>
+<p>HAMT traversal visits children in ascending bitmap order, which
+corresponds to ascending key hash order. This makes <code>elements_fuse</code>
+deterministic regardless of insertion order — two maps with the same
+entries always have the same data hash.</p>
+<h3 id="hamt-bitmap-node-hashing"><a class="header" href="#hamt-bitmap-node-hashing">HAMT Bitmap Node Hashing</a></h3>
+<p>Bitmap nodes include the bitmap value in their hash:</p>
+<pre><code>hamt_bitmap_hash = fuse(node_hash, fuse_bytes(bitmap_as_8_bytes))
+</code></pre>
+<p>This is the only exception to the shape-independence rule of §3.3.
+It’s necessary because two bitmap nodes at different HAMT levels could
+have the same elements and element fuse but different bitmaps — meaning
+they route lookups differently and are <strong>not</strong> interchangeable. Without
+the bitmap in the hash, these nodes would collide, creating
+self-referential loops in the store. The exception is confined to
+internal bitmap nodes; a map’s own data hash — the fuse of its leaf
+entries — remains shape-independent.</p>
+<h2 id="38-collision-resistance"><a class="header" href="#38-collision-resistance">3.8 Collision Resistance</a></h2>
+<p>Fuse-based hashes have ~2^96 birthday-bound collision resistance,
+from the additive structure of components c1–c3. This is weaker than
+SHA-256’s ~2^128 but far beyond practical attack.</p>
+<h3 id="threat-model"><a class="header" href="#threat-model">Threat Model</a></h3>
+<p>Fuse hashes are designed for <strong>cooperative environments</strong> where
+participants are trusted to produce honest data. In adversarial
+contexts — where untrusted peers contribute data — fuse hashes alone
+should not be relied upon for integrity.</p>
+<p>For trust boundaries, pair dacite hashes with a cryptographic hash:</p>
+<pre><code>verification_pair = { dacite_hash, sha256 }
+</code></pre>
+<p>Verify the cryptographic hash on ingest; use the dacite hash for
+internal navigation. The fuse hash gives you speed and algebraic
+structure; the cryptographic hash gives you adversarial resistance.</p>
+<h2 id="39-api-surface"><a class="header" href="#39-api-surface">3.9 API Surface</a></h2>
+<h3 id="primitives-1"><a class="header" href="#primitives-1">Primitives</a></h3>
+<p>The irreducible core of the value layer — scalars plus the internal
+tree primitives the collection types are built from:</p>
+<p><strong>Scalar</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>scalar</code></td><td><code>(String, bytes) → Scalar</code></td><td>Create a typed scalar. Value hash = <code>fuse(type_hash, fuse_bytes(bytes))</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Seq (Finger Tree)</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ft-empty</code></td><td><code>→ Seq</code></td><td>Empty finger tree</td></tr>
+<tr><td><code>ft-conj-right</code></td><td><code>(Seq, Hash) → Seq</code></td><td>Append to right end</td></tr>
+<tr><td><code>ft-conj-left</code></td><td><code>(Hash, Seq) → Seq</code></td><td>Prepend to left end</td></tr>
+<tr><td><code>ft-first</code></td><td><code>Seq → Hash</code></td><td>Peek at left end</td></tr>
+<tr><td><code>ft-last</code></td><td><code>Seq → Hash</code></td><td>Peek at right end</td></tr>
+<tr><td><code>ft-rest</code></td><td><code>Seq → Seq</code></td><td>Remove from left</td></tr>
+<tr><td><code>ft-butlast</code></td><td><code>Seq → Seq</code></td><td>Remove from right</td></tr>
+<tr><td><code>ft-nth</code></td><td><code>(Seq, int) → Hash</code></td><td>Random access by index</td></tr>
+<tr><td><code>ft-split</code></td><td><code>(Seq, int) → (Seq, Seq)</code></td><td>Split at index</td></tr>
+<tr><td><code>ft-concat</code></td><td><code>(Seq, Seq) → Seq</code></td><td>Concatenate two seqs</td></tr>
+<tr><td><code>ft-measure</code></td><td><code>Seq → Measure</code></td><td>Root measure (count, size, fuse)</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Map (HAMT)</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>hamt-empty</code></td><td><code>→ Map</code></td><td>Empty HAMT</td></tr>
+<tr><td><code>hamt-get</code></td><td><code>(Map, Hash) → Hash | nil</code></td><td>Lookup by key hash</td></tr>
+<tr><td><code>hamt-assoc</code></td><td><code>(Map, Hash, Hash) → Map</code></td><td>Insert or update</td></tr>
+<tr><td><code>hamt-dissoc</code></td><td><code>(Map, Hash) → Map</code></td><td>Remove by key hash</td></tr>
+<tr><td><code>hamt-measure</code></td><td><code>Map → Measure</code></td><td>Root measure (count, size, fuse)</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Measure</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>measure-combine</code></td><td><code>(Measure, Measure) → Measure</code></td><td>Monoid combine</td></tr>
+<tr><td><code>measure-identity</code></td><td><code>→ Measure</code></td><td><code>{0, 0, [0,0,0,0]}</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="derived-1"><a class="header" href="#derived-1">Derived</a></h3>
+<p>Convenience functions that compose from the primitives:</p>
+<p><strong>From seq primitives</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Derivation</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ft-count</code></td><td><code>(ft-measure s).count</code></td><td>Element count, O(1)</td></tr>
+<tr><td><code>ft-size-bytes</code></td><td><code>(ft-measure s).size_bytes</code></td><td>Total byte size, O(1)</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>From map primitives</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Derivation</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>hamt-count</code></td><td><code>(hamt-measure m).count</code></td><td>Entry count, O(1)</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>User value constructors</strong> — implicit forms use the current store; explicit
+<code>-with-store</code> forms take a store as the first argument. Implicit constructors
+are the primary API; most application code never passes a store explicitly.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Implicit signature</th><th>Explicit signature</th><th>Kind</th></tr>
+</thead>
+<tbody>
+<tr><td><code>null</code></td><td><code>() → Value</code></td><td><code>(store) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>bool</code></td><td><code>(boolean) → Value</code></td><td><code>(store, boolean) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>i64</code>, <code>f64</code>, …</td><td><code>(data) → Value</code></td><td><code>(store, data) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>char</code></td><td><code>(char) → Value</code></td><td><code>(store, char) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>negative</code></td><td><code>() → Value</code></td><td><code>(store) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>string</code></td><td><code>(string) → Value</code></td><td><code>(store, string) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>blob</code></td><td><code>(bytes) → Value</code></td><td><code>(store, bytes) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>vector</code></td><td><code>(values...) → Value</code></td><td><code>(store, values...) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>set</code></td><td><code>(values...) → Value</code></td><td><code>(store, values...) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>map</code></td><td><code>(kvs...) → Value</code></td><td><code>(store, kvs...) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>get-value</code></td><td><code>(hash) → Value | nil</code></td><td><code>(store, hash) → Value | nil</code></td><td>Lookup</td></tr>
+</tbody>
+</table>
+</div>
+<p>Examples:</p>
+<pre><code class="language-clojure">;; implicit — uses *store* (default or bound)
+(dacite/i64 42)
+(dacite/vector 1 2 3)
+(dacite/hash-map "a" 1 "b" 2)
+
+;; explicit — when the store matters
+(dacite/i64-with-store store 42)
+(dacite/vector-with-store store 1 2 3)
+
+;; isolated context (testing, transactions)
+(store/with-store [s (store/mem-store)]
+  (dacite/vector 1 2 3))
+</code></pre>
+<p>The <code>-with-store</code> suffix avoids the varargs ambiguity that would arise if
+store were an optional first argument to the same function — <code>(vector 1)</code> must
+mean a one-element vector, not an empty vector in store <code>1</code>.</p>
+<p><strong>Value accessors</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dacite-hash</code></td><td><code>Value → Hash</code></td><td>Content-addressed identity (4-long hash)</td></tr>
+<tr><td><code>dacite-store</code></td><td><code>Value → Store</code></td><td>The store that created and persists this value</td></tr>
+<tr><td><code>dacite-type</code></td><td><code>Value → String</code></td><td>The value’s type name</td></tr>
+<tr><td><code>realize</code></td><td><code>Value → native</code></td><td>Expose content (explicit; values are not references). Scalar → native value; collection → lazy iterable of realized elements (map → <code>[k v]</code> pairs); empty → nil. Lazy, so partial-availability-friendly</td></tr>
+</tbody>
+</table>
+</div>
+<p>The store reference enables transparent persistence. When you <code>assoc</code>
+a map or <code>conj</code> a vector, the resulting value is automatically stored
+in the same backing storage — no store parameter needed for operations
+or for construction in the common case.</p>
+<p><strong>Set operations</strong> — derived from HAMT primitives + <code>dac-negative</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Derivation</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>set-member?</code></td><td><code>hamt-get</code> + check for <code>negative</code></td><td>Membership (pos/neg aware)</td></tr>
+<tr><td><code>set-complement</code></td><td>Toggle <code>negative</code> via <code>hamt-assoc</code>/<code>hamt-dissoc</code></td><td>Complement</td></tr>
+<tr><td><code>set-union</code></td><td>Dispatch to <code>merge</code>/<code>keep</code>/<code>remove</code> on pos/neg</td><td>Union</td></tr>
+<tr><td><code>set-intersect</code></td><td>Dispatch to <code>merge</code>/<code>keep</code>/<code>remove</code> on pos/neg</td><td>Intersection</td></tr>
+<tr><td><code>set-difference</code></td><td>Dispatch to <code>merge</code>/<code>keep</code>/<code>remove</code> on pos/neg</td><td>Difference</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Cross-type</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Derivation</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>content-hash</code></td><td><code>fuse(inv(type-hash), value-hash)</code></td><td>Strip type tag, recover data hash</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="properties-2"><a class="header" href="#properties-2">Properties</a></h3>
+<ul>
+<li>All values round-trip: construct → hash → reconstruct yields
+the same hash</li>
+<li><code>content-hash(string("abc"))</code> = <code>content-hash(vector(['a','b','c']))</code></li>
+<li><code>count(conj-right(t, x))</code> = <code>count(t) + 1</code></li>
+<li><code>nth(conj-right(empty, x), 0)</code> = <code>x</code></li>
+<li><code>measure(concat(a, b))</code> = <code>combine(measure(a), measure(b))</code></li>
+<li><code>get(assoc(m, k, v), k)</code> = <code>v</code></li>
+<li><code>get(dissoc(m, k), k)</code> = <code>nil</code></li>
+<li>Insertion order doesn’t affect map hash (deterministic traversal)</li>
+<li><code>union(complement(A), A)</code> = universal set (negative empty)</li>
+<li><code>intersect(A, complement(A))</code> = empty set</li>
+</ul>
+<p>This layer depends on Chapter 2 (hash fusion) and Chapter 1 (content stores). No I/O required for
+pure operations, though values carry a store reference for transparent
+persistence when mutated. All primitive functions are pure.</p>
+<h2 id="310-what-this-layer-provides"><a class="header" href="#310-what-this-layer-provides">3.10 What This Layer Provides</a></h2>
+<p>The value layer gives the rest of Dacite:</p>
+<ol>
+<li><strong>A closed data model</strong> — six user value kinds — scalars, vectors,
+strings, blobs, maps, and sets — compose into arbitrarily complex
+structures, all content-addressed.</li>
+<li><strong>Self-describing types</strong> — every value names its own type, and a
+type is just a string of characters. The user set is closed, but the
+vocabulary can grow without new machinery.</li>
+<li><strong>O(1) metadata</strong> — count, size, and data hash are always
+available at the root, without traversal.</li>
+<li><strong>Bounded nodes</strong> — every node in every tree fits in ~1 KB. No
+node is ever “too big to fetch.”</li>
+<li><strong>Shape independence</strong> — two collections with the same leaves have
+the same hash, regardless of internal tree organization.</li>
+<li><strong>Store-aware</strong> — values know their store, enabling transparent
+persistence on mutation.</li>
+</ol>
+<p>The next chapter adds a single mutable <strong>root</strong> on top of the content
+store, turning this immutable world of values into one that evolves over
+time and synchronizes between peers.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="chapter-4-rooted-stores"><a class="header" href="#chapter-4-rooted-stores">Chapter 4: Rooted Stores</a></h1>
+<p>The first three chapters describe an entirely immutable world. A content store (Chapter 1) is a dictionary that only grows; hash fusion (Chapter 2) gives every piece of content a permanent identity; values (Chapter 3) are trees of nodes stored under those hashes. Nothing there ever changes — a value, once stored, is stored forever.</p>
+<p>But useful systems change over time. A configuration is edited, a document is revised, a peer learns that “the current state” is now something new. Dacite expresses all of that with <strong>one</strong> mutable cell layered on top of the immutable world:</p>
+<blockquote>
+<p>A <strong>rooted store</strong> wraps a content store and adds a single mutable <strong>root</strong> — a reference to one hash in the store.</p>
+</blockquote>
+<p>Everything underneath stays immutable. The root is the only thing that moves. “Changing” the data means computing a new value (a new tree of immutable nodes, sharing all the unchanged ones) and then moving the root to its hash.</p>
+<p>A rooted store is also a content store: it answers all the content operations of Chapter 1 by delegating to the store it wraps. So it is a drop-in wherever a content store is expected, while additionally exposing the root.</p>
+<p>Because a root may be <strong>shared</strong> — several writers, and often across a network — its update contract is the heart of this chapter. That contract is <strong>compare-and-set</strong>.</p>
+<h2 id="41-the-root-and-its-operations"><a class="header" href="#41-the-root-and-its-operations">4.1 The Root and Its Operations</a></h2>
+<p>A rooted store adds one mutable cell holding a root hash (or <em>none</em>, before anything has been stored). Two operations form the <strong>required core</strong> — the entire portable contract, and all that even a remote store must implement:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Core operation</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>root(store)</code></td><td>Read the current root hash, or <em>none</em>.</td></tr>
+<tr><td><code>cas-root(store, expected, new)</code></td><td>Atomically set the root to <code>new</code> <strong>iff</strong> it currently equals <code>expected</code>. Return whether it succeeded.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>root</code> is the read; <code>cas-root</code> is the one update primitive. Everything else is an <strong>optional convenience</strong> — available on a local store, but constrained or absent for a remote one:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Optional operation</th><th>Meaning</th><th>Remote status</th></tr>
+</thead>
+<tbody>
+<tr><td><code>update-root(store, f)</code></td><td>Read-modify-write retry loop around <code>root</code> + <code>cas-root</code>.</td><td><strong>Client-side.</strong> The loop and <code>f</code> run on the client using only the two core ops; no new server capability is needed. A <em>server-side</em> apply would require shipping <code>f</code> to the server to evaluate — a future capability, not offered now.</td></tr>
+<tr><td><code>set-root(store, new)</code></td><td>Unconditionally set the root.</td><td><strong>Local only.</strong> Unconditional overwrite is unsafe under sharing, so it is deliberately not offered for remote stores.</td></tr>
+<tr><td><code>watch-root(store, key, cb)</code> / <code>unwatch-root(store, key)</code></td><td>Observe root transitions; <code>cb</code> receives <code>(old, new)</code>.</td><td><strong>Local via callbacks.</strong> A remote implementation needs a push transport (long polling, websockets, SSE) and is therefore protocol-specific and optional.</td></tr>
+<tr><td>validator</td><td>A predicate consulted before a new root is installed.</td><td><strong>Local only.</strong> Enforcing it remotely means evaluating the predicate on the server — the same future code-as-data capability — so it is not offered now.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Note the deliberate minimalism: there is exactly <strong>one</strong> moving value — a hash — and only <strong>two</strong> operations you must implement to have a working rooted store, remote included.</p>
+<blockquote>
+<p>The root holds a <strong>hash</strong>, not a materialized value. <code>root(store)</code> returns a hash; to see the value it names, hand that hash to the value layer (Chapter 3). Keeping the mutable surface to a single hash is precisely what makes remote roots and synchronization tractable — you coordinate on 32 bytes, not on a whole tree.</p>
+</blockquote>
+<h2 id="42-compare-and-set-is-the-core-update"><a class="header" href="#42-compare-and-set-is-the-core-update">4.2 Compare-and-Set Is the Core Update</a></h2>
+<p>Why single out <code>cas-root</code> instead of a plain “set the root”? Because an unconditional set loses updates whenever the root is contended.</p>
+<p>Consider two writers that both read root <code>R</code>, each build a successor, and each install it:</p>
+<pre class="mermaid">sequenceDiagram
+  participant A as Writer A
+  participant S as Root (= R)
+  participant B as Writer B
+  A-&gt;&gt;S: root() → R
+  B-&gt;&gt;S: root() → R
+  A-&gt;&gt;S: set-root(R1)
+  Note over S: root = R1
+  B-&gt;&gt;S: set-root(R2)
+  Note over S: root = R2 — A's change is lost
+</pre>
+
+<p>Whoever writes last wins, and the other writer’s change vanishes silently. <code>cas-root</code> prevents this: each writer installs <code>new</code> only if the root is still the <code>expected</code> value it built upon. The loser’s CAS fails — the root has already moved — so it must <strong>rebuild on the new root and retry</strong>:</p>
+<pre><code>update-root(store, f):
+    loop:
+        old = root(store)
+        new = f(old)                     # build a successor value; store its nodes
+        if cas-root(store, old, new):
+            return new                   # success
+        # else: someone moved the root — loop, re-read, rebuild on the new old
+</code></pre>
+<p>This read-modify-write-retry loop touches only the two core operations — <code>root</code> and <code>cas-root</code> — so <code>update-root</code> is a client-side convenience, not a capability the store (or a server) must provide specially. It is also the <em>only</em> safe way to evolve a shared root. <code>set-root</code> is merely the degenerate case where you know there is no contention (a fresh store, a single writer, initialization); it is a local convenience and is not offered for remote stores. Everything else — concurrent local writers, and especially <strong>remote</strong> stores — goes through CAS.</p>
+<p>For a <strong>remote</strong> store, <code>root</code> is a network read and <code>cas-root</code> is an operation the <strong>server performs atomically</strong> against its authoritative root: the client sends <code>(expected, new)</code>, the server compares and swaps under its own lock, and reports success or a conflict. The correctness of the whole distributed picture rests on that single server-side compare-and-set. An unconditional remote “set root” cannot be made safe under concurrency; it is not offered as the primitive for that reason.</p>
+<h2 id="43-building-a-successor"><a class="header" href="#43-building-a-successor">4.3 Building a Successor</a></h2>
+<p>“Changing” data means computing a new immutable value and moving the root to it. Expressed with <code>update-root</code>:</p>
+<pre><code>update-root(store, fn(old):
+    m  = value-at(store, old)       # Chapter 3: rehydrate the value at the root
+    m' = assoc(m, "count", 42)      # structural edit — new nodes stored, unchanged nodes shared
+    return hash-of(m'))             # the successor root hash
+</code></pre>
+<p>Because the value layer stores every node it builds <em>before</em> returning the successor hash, by the time <code>cas-root</code> runs, all nodes the new root reaches are already present in the content store. Installing the root is the final, atomic step — the store never points at content that isn’t there.</p>
+<p>Replacing the root does not delete the old tree; nodes unique to it become detached (§4.6). And if a concurrent writer moved the root first, the CAS fails and the whole function re-runs against the new root — automatically rebasing the edit onto the latest state.</p>
+<h2 id="44-observing-changes"><a class="header" href="#44-observing-changes">4.4 Observing Changes</a></h2>
+<p>Because the root is a single observable cell, others can react to its transitions:</p>
+<ul>
+<li><strong>Locally</strong>, register a callback that fires on each successful root change with <code>(old, new)</code>.</li>
+<li><strong>Remotely</strong>, subscribe to the server’s root stream — an optional capability whose exact shape depends on the transport (long polling, websockets, server-sent events).</li>
+</ul>
+<pre><code>watch-root(store, :sync, fn(old, new):
+    log("root moved", old, "-&gt;", new))
+</code></pre>
+<p>Observation is what makes a rooted store <em>reactive</em>: a root move can drive a re-render, a log entry, or a push to a peer (§4.7). Both observation forms are optional — local callbacks come for free, while remote subscription is protocol-specific.</p>
+<p>A store may also guard transitions with a <strong>validator</strong> — a predicate consulted before a new root is installed, rejecting ones that fail it. A validator runs wherever the commit is decided, so it is a <strong>local-only</strong> convenience for now; enforcing one on a remote store would mean evaluating the predicate server-side, a future code-as-data capability.</p>
+<h2 id="45-durability-the-root-cell"><a class="header" href="#45-durability-the-root-cell">4.5 Durability: the Root Cell</a></h2>
+<p>The root must outlive the process. A rooted store persists it through a small abstraction, the <strong>root cell</strong>, which knows only how to load and store a single hash:</p>
+<ul>
+<li><strong>memory root cell</strong> — holds the hash in memory; ephemeral, for tests and REPL use.</li>
+<li><strong>LMDB root cell</strong> — persists the hash in the LMDB meta database, reusing the same environment as an LMDB content store.</li>
+</ul>
+<pre><code>rooted-store(content-store)                       # ephemeral root (default)
+rooted-store(content-store, lmdb-root-cell(lmdb)) # durable root beside LMDB content
+</code></pre>
+<p>On construction the store seeds its in-memory root from the cell; on every successful update it flushes the new root back to the cell. Reopening the store recovers the last root.</p>
+<p>Note the clean separation of responsibilities: the <strong>content store</strong> persists nodes; the <strong>root cell</strong> persists the one hash that says which node is current. They may share a backend (LMDB), but they are distinct concerns.</p>
+<h2 id="46-detached-nodes-and-garbage-collection"><a class="header" href="#46-detached-nodes-and-garbage-collection">4.6 Detached Nodes and Garbage Collection</a></h2>
+<p>Any entry reachable from the current root is <strong>live</strong>. Entries that were reachable under a previous root but are not part of the current tree are <strong>detached</strong>. They remain in the content store until garbage collection removes them.</p>
+<p>GC is fundamentally a value-aware traversal, and it needs both halves of this layering: the <strong>root</strong> (this chapter) as the starting point, and the <strong>value model</strong> (Chapter 3) to deserialize a node and discover its child references. Starting from <code>root(store)</code>, mark every reachable node; anything unmarked is detached and may be reclaimed. The content store itself knows nothing about reachability — it only maps hashes to values — which is exactly why GC lives up here with roots and values rather than down in the content store.</p>
+<h2 id="47-sync-between-stores"><a class="header" href="#47-sync-between-stores">4.7 Sync Between Stores</a></h2>
+<p>Synchronization copies one store’s root onto another. Framed in terms of §4.2, moving <code>target</code> to <code>source</code>’s root is a <strong>compare-and-set on the target</strong>:</p>
+<pre><code>push(source, target):
+    cas-root(target, root(target), root(source))
+</code></pre>
+<p>Because the target may itself be changing, a push can lose the CAS and need to be reconciled just like any other update — there is no privileged “force set” for a shared target. Push deliberately transfers only a <strong>hash</strong>; the underlying content must already be present at the target or be synced separately. Deciding when to push, and how to move the content a new root depends on, are application concerns; the rooted store provides only the atomic root move.</p>
+<p>This is the seam through which peers coordinate: a source installs a new root (via CAS), then pushes that hash; subscribers on the target observe the new root and fetch whatever content they lack.</p>
+<h2 id="48-what-this-layer-provides"><a class="header" href="#48-what-this-layer-provides">4.8 What This Layer Provides</a></h2>
+<ol>
+<li>A single mutable <strong>root</strong> — one hash — over an immutable content store.</li>
+<li>A <strong>two-operation portable core</strong> — <code>root</code> and <code>cas-root</code> — sufficient for any store, local or remote; <code>cas-root</code> is the one update primitive.</li>
+<li>Optional conveniences over the core: <code>update-root</code> (a client-side retry loop), <code>set-root</code> (local, uncontended), observation via <code>watch-root</code> (local callbacks; remote is transport-specific), and validators (local for now).</li>
+<li><strong>Durable roots</strong> via a root cell, kept separate from content persistence.</li>
+<li><strong>Content-store delegation</strong>, so a rooted store is a drop-in content store that also has a root.</li>
+<li><strong>Push</strong> as an atomic, CAS-based sync primitive between stores.</li>
+</ol>
+<p>With this, Dacite has both halves of its model: an immutable world of content-addressed values, and one mutable pointer — governed by compare-and-set — that lets that world evolve and be shared. Future work (see the roadmap) builds distribution and event flows on exactly this root-and-CAS foundation.</p>
+<h2 id="reference-implementation-clojure"><a class="header" href="#reference-implementation-clojure">Reference Implementation (Clojure)</a></h2>
+<p>The abstract operations above are language-neutral; a port to any language need only provide the <strong>core</strong> two. The Clojure reference implementation surfaces the operations through Clojure’s standard reference protocols, so a <em>local</em> rooted store behaves like an idiomatic mutable reference:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Concept (§4.1)</th><th>Clojure surface</th><th>Tier</th></tr>
+</thead>
+<tbody>
+<tr><td><code>root(store)</code></td><td><code>@store</code> / <code>(deref store)</code> — <code>IDeref</code></td><td><strong>core</strong></td></tr>
+<tr><td><code>cas-root(store, expected, new)</code></td><td><code>(compare-and-set! store expected new)</code> — <code>IAtom</code></td><td><strong>core</strong></td></tr>
+<tr><td><code>update-root(store, f)</code></td><td><code>(swap! store f)</code> — <code>IAtom</code>, a CAS retry loop</td><td>optional (client-side)</td></tr>
+<tr><td><code>set-root(store, new)</code></td><td><code>(reset! store new)</code> — <code>IAtom</code></td><td>optional (local)</td></tr>
+<tr><td><code>watch-root</code> / <code>unwatch-root</code></td><td><code>(add-watch store k cb)</code> / <code>(remove-watch store k)</code> — <code>IRef</code></td><td>optional (local; remote = transport)</td></tr>
+<tr><td>validator</td><td><code>(set-validator! store pred)</code> — <code>IRef</code></td><td>optional (local)</td></tr>
+</tbody>
+</table>
+</div>
+<p>A <strong>local</strong> rooted store implements the whole set (<code>IDeref</code>, <code>IRef</code>, <code>IAtom2</code>) for free — <code>compare-and-set!</code> <em>is</em> the core primitive of §4.2 and <code>swap!</code> <em>is</em> its retry loop. A <strong>remote</strong> rooted store need implement only the core two (<code>deref</code> and <code>compare-and-set!</code>); it does not offer <code>reset!</code> (<code>set-root</code>) or validators, realizes <code>swap!</code> (<code>update-root</code>) as a client-side loop over the core, and exposes watches only if its transport supports them. The value never escapes being a single root hash, so these interfaces stay a thin, faithful skin over the language-neutral contract — not a dependency of it.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="appendix-serialization"><a class="header" href="#appendix-serialization">Appendix: Serialization</a></h1>
+<p>This appendix defines the canonical binary format used for storage and network transfer in Dacite. It is intentionally low-level and reference-oriented.</p>
+<h2 id="binary-format"><a class="header" href="#binary-format">Binary Format</a></h2>
+<p>Every serialized node begins with a 1-byte <strong>kind tag</strong>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Tag</th><th>Kind</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td>0x00</td><td>Scalar</td><td>Raw bytes (atomic value)</td></tr>
+<tr><td>0x01</td><td>Seq node</td><td>Finger tree internal node</td></tr>
+<tr><td>0x02</td><td>Map node</td><td>HAMT internal node</td></tr>
+<tr><td>0x03</td><td>Collection</td><td>Top-level typed collection header</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="scalar"><a class="header" href="#scalar">Scalar</a></h3>
+<pre><code>scalar = 0x00 ++ u8(len) ++ bytes[len]
+</code></pre>
+<p>Max size: 255 bytes. Hash = <code>fuse_bytes(raw bytes)</code> (framing is <em>not</em> part of the hash).</p>
+<h3 id="measure-common"><a class="header" href="#measure-common">Measure (common)</a></h3>
+<p>Appears in seq and map nodes:</p>
+<pre><code>measure = u64(count) ++ u64(size_bytes) ++ hash(elements_fuse)
+</code></pre>
+<p>(8 + 8 + 32 = 48 bytes)</p>
+<h3 id="seq-nodes-kind-0x01"><a class="header" href="#seq-nodes-kind-0x01">Seq Nodes (kind 0x01)</a></h3>
+<pre><code>seq_node = 0x01
+        ++ u8(subtype)
+        ++ measure
+        ++ u8(n_children)
+        ++ hash[n_children]
+</code></pre>
+<p><strong>Subtypes:</strong></p>
+<ul>
+<li>0x00: empty</li>
+<li>0x01: single</li>
+<li>0x02: digit (1–32 children)</li>
+<li>0x03: internal node (2–32 children)</li>
+<li>0x04: deep (left, spine, right)</li>
+</ul>
+<h3 id="map-nodes-kind-0x02"><a class="header" href="#map-nodes-kind-0x02">Map Nodes (kind 0x02)</a></h3>
+<pre><code>map_node = 0x02
+        ++ u8(subtype)
+        ++ measure
+        ++ ... (type specific)
+</code></pre>
+<p><strong>Subtypes:</strong></p>
+<ul>
+<li>0x00: empty</li>
+<li>0x01: entry (<code>key_hash ++ key_ref ++ val_ref</code>)</li>
+<li>0x02: bitmap (<code>u32(bitmap) ++ u8(n) ++ hash[n]</code>)</li>
+</ul>
+<h3 id="collections-kind-0x03"><a class="header" href="#collections-kind-0x03">Collections (kind 0x03)</a></h3>
+<pre><code>collection = 0x03
+          ++ u8(collection_type)
+          ++ hash(root)
+          ++ u64(count)
+          ++ u64(size_bytes)
+</code></pre>
+<p><strong>Collection types:</strong></p>
+<ul>
+<li>0x00: vector</li>
+<li>0x01: string</li>
+<li>0x02: blob</li>
+<li>0x03: map</li>
+</ul>
+<p>The collection header is always exactly 50 bytes.</p>
+<h2 id="json-format-for-debugging-and-interop"><a class="header" href="#json-format-for-debugging-and-interop">JSON Format (for debugging and interop)</a></h2>
+<p><strong>Structural mode</strong> (hash references):</p>
+<ul>
+<li>Uses <code>"kind"</code>, <code>"hash"</code>, and child hashes.</li>
+</ul>
+<p><strong>Materialized mode</strong> (fully inlined):</p>
+<ul>
+<li>Produces familiar nested objects with <code>"type"</code> and <code>"value"</code>.</li>
+</ul>
+<p><strong>Hybrid mode</strong>: Combines both using an <code>inline_under</code> threshold.</p>
+<p>See the old <code>SPEC.md</code> for full JSON examples and schemas if needed.</p>
+<hr>
+<p><em>Extracted and adapted from old SPEC.md (as of 2026-02-27). This is the new canonical reference for the binary wire/storage format.</em></p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="archived-chapters"><a class="header" href="#archived-chapters">Archived Chapters</a></h1>
+<p>These chapters document the <strong>authorization and sharing model</strong> that was designed
+for a <strong>shared multi-user store</strong>. They are archived because the architecture has
+shifted to <strong>dedicated stores per user</strong>, which removes the need for Proof of
+Possession and sharing mechanisms entirely.</p>
+<h2 id="contents"><a class="header" href="#contents">Contents</a></h2>
+<ul>
+<li><code>04-authorization/</code> — Proof of Possession, GET/PUT, auth stores, garbage collection</li>
+<li><code>05-sharing/</code> — Shares map, claim mechanism, conventions</li>
+</ul>
+<h2 id="why-archived"><a class="header" href="#why-archived">Why Archived</a></h2>
+<p><strong>New direction (2026-06-05):</strong> Each user has their own dedicated store.</p>
+<p>Key implications:</p>
+<ul>
+<li><strong>No shared store</strong> → No need for Proof of Possession (PoP)</li>
+<li><strong>No PoP</strong> → No authorization layer to gate access</li>
+<li><strong>No authorization</strong> → No sharing mechanisms (shares map, claim, etc.)</li>
+<li><strong>Dedicated stores</strong> → User isolation by architecture, not by convention</li>
+</ul>
+<p>This is a fundamental simplification: instead of building access control on top
+of a shared content-addressed store, we give each user their own store and let
+higher-level protocols handle cross-user interactions.</p>
+<h2 id="salvageable-ideas"><a class="header" href="#salvageable-ideas">Salvageable Ideas</a></h2>
+<p>Some concepts may be useful in future designs:</p>
+<ul>
+<li>Content-addressed root management</li>
+<li>Store backend abstractions</li>
+<li>Delegation concepts (may map to cross-store protocols)</li>
+</ul>
+<hr>
+<p><em>Archived 2026-06-05</em></p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="chapter-4-authorized-stores"><a class="header" href="#chapter-4-authorized-stores">Chapter 4: Authorized Stores</a></h1>
+<p>Chapter 1 gave us stores — persistence and distribution across machines. Every store has a root. But Chapter 1’s stores are <strong>unauthorized</strong>: anyone with access can fetch any hash. In a single-user system, that’s fine. In a multi-user system, it’s “knowing a hash is authorization.”</p>
+<p>Dacite rejects this. This chapter introduces <strong>authorized stores</strong> — stores that require <strong>proof of possession</strong> before they will fetch or store a node. The mechanism is structural proofs over the DAG: data proofs and chain proofs. Together they give secure access control without ACLs or capabilities — just roots and the paths between them.</p>
+<p>The authorized store protocol builds directly on the unauthorized store from Chapter 1. The difference is that <code>fetch</code> and <code>store</code> now require proof. All interaction still flows through <code>get-root</code> and <code>set-root</code>, but the store verifies that every accessed node is structurally reachable from an authorized root.</p>
+<h2 id="41-the-authorization-challenge"><a class="header" href="#41-the-authorization-challenge">4.1 The Authorization Challenge</a></h2>
+<p>In a conventional operating system, memory protection is relatively straightforward. The kernel allocates regions of RAM to a process and uses hardware memory management units (MMUs) to prevent that process from reading or writing addresses outside its allocation. A memory address is only meaningful <em>within</em> a protected context.</p>
+<pre class="mermaid">graph TD
+    subgraph OS [Traditional OS]
+        Kernel[Kernel\nMemory Protection]
+        ProcessA[Process A\nAllocated Range]
+        ProcessB[Process B\nAllocated Range]
+        Kernel --- ProcessA
+        Kernel --- ProcessB
+    end
+    style Kernel fill:#4a9,stroke:#333,color:#fff
+</pre>
+
+<p>Dacite faces a fundamentally harder problem.</p>
+<p>All data is <strong>content-addressed</strong>. A hash is not a private location granted by a central authority — it is a globally unique, publicly shareable pointer into an immutable DAG that may be referenced by many users simultaneously. Knowing a hash gives you an address, but there is no kernel standing behind it to enforce ownership.</p>
+<pre class="mermaid">graph TD
+    subgraph Dacite [Dacite Content-Addressed DAG]
+        RootA[User A Root #RA]
+        RootB[User B Root #RB]
+        Shared[Shared Subtree #S]
+        RootA --&gt; Shared
+        RootB --&gt; Shared
+    end
+    style Shared fill:#a84,stroke:#333,color:#fff
+</pre>
+
+<p>Sharing is intentional and valuable. The danger is that any party who merely learns a hash can fetch its value — there is no kernel or access control list standing behind a content address. We must prove <strong>legitimate structural possession</strong> — that a requester can demonstrate they are authorized to access a value from <em>their own</em> authorized root.</p>
+<p>This chapter introduces the mechanisms Dacite uses to solve this problem: proof chains, authenticated stores, and the GET/PUT protocols built on structural proofs.</p>
+<h2 id="42-core-principle"><a class="header" href="#42-core-principle">4.2 Core Principle</a></h2>
+<p><strong>Knowing a hash does not authorize access to its value.</strong></p>
+<p>Hashes leak — in logs, URLs, errors. A hash is an <em>address</em>, not a <em>key</em>.
+Dacite’s authorization is <strong>structural</strong>: prove you <em>possess</em> the data.</p>
+<h2 id="43-proof-of-possession"><a class="header" href="#43-proof-of-possession">4.3 Proof of Possession</a></h2>
+<p>Every access in Dacite requires a proof of legitimate possession. There are two fundamental forms of proof:</p>
+<h3 id="data-proof"><a class="header" href="#data-proof">Data Proof</a></h3>
+<p>The client sends the raw bytes. The server hashes them and confirms the hash matches the requested address. This is the most direct form of proof — the client is demonstrating it physically holds the data.</p>
+<h3 id="chain-proof-structural-possession"><a class="header" href="#chain-proof-structural-possession">Chain Proof (Structural Possession)</a></h3>
+<p>When the client does not want to send the full data (or the data is very large), it can send a <strong>chain proof</strong> — an ordered list of hashes from an authorized root down to the target value.</p>
+<p>A chain proof has the form:</p>
+<p><code>[#R, #h1, #h2, ..., #target]</code></p>
+<p>For each consecutive pair in the chain, the server verifies that the parent node <em>actually contains</em> the child hash. This proves the target is reachable from the root through a valid path in the DAG.</p>
+<p><strong>Example Chain Proof</strong></p>
+<pre class="mermaid">graph TD
+    R["map (root) #R"] --&gt; E1["entry #E1\n'name' → 'Alice'"]
+    R --&gt; E2["entry #E2\n'scores' → vector"]
+    E2 --&gt; V2["vector #V2"]
+    V2 --&gt; S1["10"]
+    V2 --&gt; S2["20"]
+    V2 --&gt; S3["30 #S3"]
+    style R fill:#4a9,stroke:#333,color:#fff
+    style S3 fill:#49a,stroke:#333,color:#fff
+</pre>
+
+<p>A client wanting value <code>#S3</code> can send the chain <code>[#R, #E2, #V2, #S3]</code>. The server performs three lookups to confirm each link is valid.</p>
+<p><strong>Chain proofs</strong> allow efficient verification without sending large subtrees. Together with <strong>data proofs</strong>, they form the foundation of both reading and writing in Dacite.</p>
+<h2 id="44-reading-get"><a class="header" href="#44-reading-get">4.4 Reading (GET)</a></h2>
+<p>Reading is the simpler case. A client authenticates and receives its current root hash. To read a value, it sends a proof chain from that root to the desired target.</p>
+<pre class="mermaid">sequenceDiagram
+    participant C as Client
+    participant S as Server
+
+    C-&gt;&gt;S: authenticate
+    S--&gt;&gt;C: session token + current root hash #R
+
+    C-&gt;&gt;S: GET #S3 with proof chain [#R → #E2 → #V2 → #S3]
+    Note over S: Verify each link in the chain
+    S--&gt;&gt;C: Value at #S3
+</pre>
+
+<p>The server only needs to validate the chain — it does not need to trust the client beyond that. This gives strong, stateless authorization.</p>
+<h2 id="45-writing-put--root-update"><a class="header" href="#45-writing-put--root-update">4.5 Writing (PUT / Root Update)</a></h2>
+<p>Writing is expressed as a <strong>root replacement</strong>. The client does not send a separate “new root” declaration. Instead, it begins a proof stream whose <em>first proof</em> is for the new root itself.</p>
+<ul>
+<li>If the first proof is a <strong>chain proof</strong>, the last hash in the chain becomes the new root.</li>
+<li>If the first proof is a <strong>data proof</strong>, the hash of that node becomes the new root.</li>
+</ul>
+<p>The client then walks the <em>new</em> tree in deterministic DFS order (via <code>child-hashes</code>). For each node encountered, it sends either:</p>
+<ul>
+<li>A <strong>data proof</strong> for newly created or modified nodes, or</li>
+<li>A <strong>chain proof</strong> from the <em>old</em> authorized root for unchanged subtrees.</li>
+</ul>
+<p>The server validates each proof as it arrives. When the DFS traversal completes (the stack is empty), the server atomically updates the user’s root to the new hash.</p>
+<p>This approach eliminates a round-trip and removes special-case logic. Because every node in the new tree must be proven from either new data or a valid chain from the client’s <em>current</em> root, hash-capture attacks are prevented.</p>
+<pre class="mermaid">sequenceDiagram
+    participant C as Client
+    participant S as Server
+
+    C-&gt;&gt;S: Begin PUT proof stream (first proof = new root)
+
+    Note over C,S: Client walks new tree in DFS order
+
+    C-&gt;&gt;S: Proof for new root (chain or data)
+    Note over S: Validates. New root hash = resolved hash.
+    S--&gt;&gt;C: OK
+
+    C-&gt;&gt;S: Next proof in DFS order...
+    S--&gt;&gt;C: OK
+
+    Note over S: DFS stack empty — transition complete
+    S--&gt;&gt;C: Root updated
+</pre>
+
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Client sends</th><th>Server action</th></tr>
+</thead>
+<tbody>
+<tr><td>Data proof</td><td>Verify hash, store node, push children onto stack</td></tr>
+<tr><td>Chain proof</td><td>Verify chain from old root, skip subtree</td></tr>
+</tbody>
+</table>
+</div>
+<p>GET is a strict subset of this PUT protocol.</p>
+<h2 id="46-client-side-proof-caching"><a class="header" href="#46-client-side-proof-caching">4.6 Client-Side Proof Caching</a></h2>
+<p>The GET and PUT protocols place the burden of proof on the client. The server is stateless: it validates proofs but does not track paths or sessions. This section describes how clients efficiently generate the chain proofs required by these protocols.</p>
+<h3 id="chain-proofs-as-cached-path-information"><a class="header" href="#chain-proofs-as-cached-path-information">Chain Proofs as Cached Path Information</a></h3>
+<p>A chain proof is a Dacite Vector of hashes <code>[#R, #h1, ..., #target]</code> representing a path from an authorized root to a target node. During normal operation, clients build and cache these proofs naturally:</p>
+<p><strong>During GET:</strong> A client requests node <code>#A</code> with chain proof <code>Ac = [#R, ..., #A]</code>. The server returns the value. The client now knows that every child hash of <code>A</code> is reachable via <code>(conj Ac child-hash)</code>. These extended proofs can be cached for future use.</p>
+<p><strong>During PUT:</strong> A client constructs new node <code>#B</code> that reuses child <code>#c</code> from a previous GET. Rather than rebuilding a path from scratch, the client looks up <code>#c</code> in its cache, finds its chain proof, and emits it directly.</p>
+<h3 id="the-cache-structure"><a class="header" href="#the-cache-structure">The Cache Structure</a></h3>
+<p>The client maintains a map from hash to chain proof:</p>
+<pre><code class="language-clojure">;; hash → [root-hash ... target-hash]
+{hash-a [root-hash mid1 hash-a]
+ hash-b [root-hash mid1 mid2 hash-b]}
+</code></pre>
+<ul>
+<li><strong>Population:</strong> Lazily, during GET responses. Each fetched node extends its proof with its children.</li>
+<li><strong>Lookup:</strong> O(1) for any cached hash. A chain proof for a child is <code>(conj parent-proof child-hash)</code>.</li>
+<li><strong>Growth:</strong> Bounded by the set of nodes the client has fetched in its current session.</li>
+</ul>
+<h3 id="root-changes-and-invalidation"><a class="header" href="#root-changes-and-invalidation">Root Changes and Invalidation</a></h3>
+<p>When the client’s primary root is successfully updated via PUT, chain proofs based on the old root become invalid for future GETs and PUTs. However:</p>
+<ol>
+<li>The client just walked the new tree during the PUT protocol. It knows the new structure.</li>
+<li>For unchanged subtrees, the client can re-derive chain proofs by following the same paths under the new root.</li>
+<li>Chain proofs based on <strong>shared roots</strong> (read-only, see Chapter 5) remain valid across primary root updates.</li>
+</ol>
+<p>The client must track which root each cached chain proof is based on (primary vs. shared) and invalidate accordingly.</p>
+<h3 id="the-inverted-clientserver-relationship"><a class="header" href="#the-inverted-clientserver-relationship">The Inverted Client/Server Relationship</a></h3>
+<p>Because chain proofs are represented as Dacite Vectors, they are themselves storable values. During a PUT, the client provides the server with an <strong>unauthorized store</strong> containing just the chain proofs it wishes to use. The server fetches these proofs as ordinary Dacite values to verify them.</p>
+<p>This is not a new mechanism — it is a natural consequence of the client’s existing cache. The same chain proofs the client builds for its own efficient operation are precisely what the server needs to verify. The client cache serves dual purpose: it enables fast chain proof generation for the client’s own use, and it provides the proofs the server needs during PUT verification.</p>
+<h3 id="design-notes"><a class="header" href="#design-notes">Design Notes</a></h3>
+<ul>
+<li><strong>Deferred:</strong> Cache size bounds and eviction policies are left for future work. For now, the cache is session-scoped and unbounded.</li>
+<li><strong>Required for PUT:</strong> The client’s chain proof cache is not merely an optimization — it is the mechanism by which the server verifies PUT requests. The client must provide chain proofs as Dacite Vectors for the server to fetch and validate.</li>
+</ul>
+<h2 id="47-garbage-collection-future"><a class="header" href="#47-garbage-collection-future">4.7 Garbage Collection (Future)</a></h2>
+<blockquote>
+<p><strong>Not yet implemented.</strong> This section describes the target design.</p>
+</blockquote>
+<p>Liveness is defined as reachability from any authorized root.</p>
+<p>We plan to use a semi-space collector with two equivalent strategies:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Strategy</th><th>Mark</th><th>Dead</th><th>Reclaim</th></tr>
+</thead>
+<tbody>
+<tr><td>Migration</td><td>Copy to space B</td><td>Absent from B</td><td>Discard space A</td></tr>
+<tr><td>Color Mark</td><td>Current color</td><td>Old color</td><td>Delete old color</td></tr>
+</tbody>
+</table>
+</div>
+<p>The collector runs online, cost is proportional to live data, and structural sharing is preserved.</p>
+<h2 id="48-api-surface"><a class="header" href="#48-api-surface">4.8 API Surface</a></h2>
+<h3 id="implemented"><a class="header" href="#implemented">Implemented</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>build-proof-chain</code></td><td><code>(Store, root, target) -&gt; [Hash] or nil</code></td><td>BFS path from root to target</td></tr>
+<tr><td><code>verify-proof-chain</code></td><td><code>(Store, [Hash]) -&gt; bool</code></td><td>Link-by-link chain verification</td></tr>
+<tr><td><code>dedicated-store</code></td><td><code>(Store, [Hash]) -&gt; Store</code></td><td>Scoped store with only chain nodes</td></tr>
+<tr><td><code>validate-proof</code></td><td><code>(Store, valid-roots, hash, Proof) -&gt; Value?</code></td><td>Verify one proof (chain or data)</td></tr>
+<tr><td><code>verify-transition</code></td><td><code>(Store, valid-roots, prover) -&gt; Result</code></td><td>DFS walk validating proofs</td></tr>
+<tr><td><code>apply-transition</code></td><td><code>(Store, valid-roots, prover) -&gt; Result</code></td><td>Verify + merge new nodes and update root</td></tr>
+</tbody>
+</table>
+</div>
+<p>The <code>prover</code> is a function <code>(fn [hash] -&gt; {:type :chain, :chain [...]} | {:type :data, :value ...})</code>.</p>
+<h3 id="supporting-layer-2"><a class="header" href="#supporting-layer-2">Supporting (Layer 2)</a></h3>
+<ul>
+<li><code>child-hashes</code> — returns ordered vector of child hash references for any node type.</li>
+</ul>
+<h3 id="key-properties"><a class="header" href="#key-properties">Key Properties</a></h3>
+<ul>
+<li>Proof chains verify structural reachability</li>
+<li>PUT requires full possession (data or chain from current root)</li>
+<li>Server maintains invariant: it holds all data reachable from authorized roots</li>
+<li>DFS order is deterministic based on <code>child-hashes</code></li>
+<li>Garbage collection will be based on root reachability</li>
+</ul>
+<p><strong>Depends on Layers 1–3.</strong> All verification logic is built on top of the store abstraction.</p>
+<h2 id="49-what-this-layer-provides"><a class="header" href="#49-what-this-layer-provides">4.9 What This Layer Provides</a></h2>
+<ol>
+<li><strong>Secure stores</strong> — proof of possession prevents “hash-as-capability” attacks</li>
+<li><strong>Stateless authorization</strong> — roots + chains, no server-side session state required</li>
+<li><strong>Uniform proof model</strong> — GET, PUT, and future GC all derive from the same concept</li>
+<li><strong>Peer-ready</strong> — the same proof protocol works in both directions</li>
+<li><strong>Client-driven</strong> — the server validates; the client controls proof ordering and tree shape</li>
+</ol>
+<p>Chapter 5 builds on this foundation by introducing sharing conventions (shares map, groups, and delegation) layered atop authorized stores.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="chapter-5-sharing"><a class="header" href="#chapter-5-sharing">Chapter 5: Sharing</a></h1>
+<p>Chapter 4 gave us authorized stores. Every user has their own root, and access to any node must be proven from that root. This works well for private data. But it creates a practical question: how does Alice give Bob read access to just one subtree without handing over her entire root?</p>
+<p>The answer is surprisingly simple. We do not add new primitives to the store or the authorization protocol. Instead, we establish a convention inside every root and a small <code>claim</code> protocol that lets one user ask the server for access to a subtree that someone else has offered. Users share with users, and the server shares with users, all through the same mechanism.</p>
+<h2 id="51-claim-protocol"><a class="header" href="#51-claim-protocol">5.1 Claim Protocol</a></h2>
+<p>Let us walk through a concrete example. Alice has a collection of photos stored under her root. She wants to share just that collection with Bob, but she does not want to give him access to anything else she owns.</p>
+<p>First, Alice updates her root to record the offer. She adds an entry in a <code>shares</code> map that says, in effect, “I am offering the subtree at hash <code>#T</code> to Bob.” She does this with a normal PUT, the same operation she uses for any other change to her data.</p>
+<p>Next, Alice tells Bob about the offer through some out-of-band channel. She might send him a message that says, “claim the photos share from me.” Bob does not yet have the hash <code>#T</code>. He only knows the name Alice gave the share.</p>
+<p>Bob now contacts the server and says, “I would like to claim the share named <code>photos</code> from Alice.” The server looks up Alice’s current root, finds the <code>shares</code> entry for <code>photos</code>, checks whether Bob is in the authorized set, and if so, adds the target hash <code>#T</code> to Bob’s session-scoped set of claimed roots. From that moment on, Bob can issue GET requests against <code>#T</code> (and any subtree under it) using the normal proof chain mechanism. His access is strictly read-only: he may not replace the value at <code>#T</code> itself. He may, however, create new values under his own primary root that reference or incorporate content reachable from <code>#T</code>.</p>
+<pre class="mermaid">sequenceDiagram
+    participant A as Alice
+    participant B as Bob
+    participant S as Server
+
+    A-&gt;&gt;S: PUT root (add shares["photos"] = {#T, #{bob}})
+    S--&gt;&gt;A: OK (new root hash)
+
+    A-&gt;&gt;B: out-of-band: "claim 'photos' from me"
+    B-&gt;&gt;S: CLAIM "photos" from Alice
+    Note over S: look up Alice's root&lt;br/&gt;find shares["photos"]&lt;br/&gt;check bob ∈ authorized ✓&lt;br/&gt;add #T to Bob's claimed roots
+    S--&gt;&gt;B: OK
+
+    B-&gt;&gt;S: GET #T (with proof from claimed root)
+    S--&gt;&gt;B: Value at #T
+</pre>
+
+<p>The sequence is straightforward once you see it in action. Alice offers. Bob claims. The server validates the claim against Alice’s current root and grants Bob an additional valid root for the duration of his session. No special server state is required beyond what is already stored in Alice’s root. The set of claimed roots lasts only for the current session. Bob must re-claim any shared roots in each new session. This keeps the server stateless with respect to long-lived claims.</p>
+<p>A subtle but important point: Alice is sharing a specific value (the immutable content reachable from <code>#T</code>), not an ongoing pointer to a location that might change. Because Dacite values are content-addressed and immutable, once Bob receives <code>#T</code> he has permanent access to that exact value and everything it contains. If Alice later wants Bob to see an updated version of the photos, she must create a new value at a new hash and either update the target in her existing share or create a fresh share entry. There is no way for her to retroactively alter what Bob already received.</p>
+<p>One alternative design would have been to record claimed roots persistently in a <code>claims</code> map inside Bob’s root, similar to how <code>shares</code> records offers. This would let Bob work with only a single root and would make shared access survive across sessions. However, it would require the server (or the client convention) to decide where received shares live in the user’s tree. An inbox? A Downloads-style directory? A special <code>received</code> subtree? Different applications would naturally want different organizations, and enforcing one canonical location would make the sharing layer more opinionated than necessary. By keeping claimed roots session-scoped, the mechanism stays lightweight and the client is free to incorporate shared data into its own tree however it chooses.</p>
+<h2 id="52-root-structure-convention"><a class="header" href="#52-root-structure-convention">5.2 Root Structure Convention</a></h2>
+<p>The <code>shares</code> map lives inside the root alongside the user’s actual application data. A typical root looks like this:</p>
+<pre><code>root = {
+  "value": &lt;app data&gt;,
+  "shares": {name: {target: #H, authorized: Set}, ...},
+  "groups": {name: Set, ...}
+}
+</code></pre>
+<p>The <code>value</code> field holds whatever the application cares about. The <code>shares</code> field records offers the user has made to others. The <code>groups</code> field lets the user define named sets of identities so that a single share can be offered to an entire group without listing every member.</p>
+<p>All of this is ordinary data. Alice modifies her shares map the same way she modifies any other part of her tree. The server never interprets the contents of <code>value</code>. It only looks at <code>shares</code> and <code>groups</code> when processing a claim request.</p>
+<h2 id="53-server-uses-shares"><a class="header" href="#53-server-uses-shares">5.3 Server Uses Shares</a></h2>
+<p>The server participates in the same sharing model. When a user first authenticates, the server looks up that user’s entry in its own root’s <code>shares</code> map. That entry contains the user’s root hash and the set of identities authorized to claim it. The user is effectively claiming their own identity from the server.</p>
+<p>This uniformity is deliberate. There is no special server-side session table or capability list. The server root is just another Dacite root, and the same claim protocol that lets Bob access Alice’s photos also lets Alice access her own data after authentication.</p>
+<pre><code>server-root.shares = {
+  "alice": {#RA, #{alice}},
+  "team": {#TP, #{alice,bob}}
+}
+</code></pre>
+<p>In this example, Alice can claim <code>#RA</code> for herself, and both Alice and Bob can claim the team root <code>#TP</code>. The server does not need to maintain any additional state beyond its own root.</p>
+<pre class="mermaid">graph TD
+    SR["Server Root"] --&gt; SV["value: config"]
+    SR --&gt; SS["shares"]
+    SS --&gt; SA["'alice': {#RA, #{alice}}"]
+    SS --&gt; SB["'bob': {#RB, #{bob}}"]
+    SS --&gt; ST["'team': {#TP, #{alice,bob,carol}}"]
+    SA --&gt; RA["Alice's tree"]
+    SB --&gt; RB["Bob's tree"]
+    ST --&gt; TP["Team tree"]
+    style SR fill:#4a9,stroke:#333,color:#fff
+</pre>
+
+<h2 id="54-read-only-access-and-write-back"><a class="header" href="#54-read-only-access-and-write-back">5.4 Read-Only Access and Write-Back</a></h2>
+<p>When Bob claims a share from Alice, he receives a read-only view. He can traverse the subtree at <code>#T</code> and he can incorporate any of its contents into his own tree, but he cannot modify Alice’s data directly. If he wants to propose changes, the natural pattern is for him to create his own version of the subtree and then share that version back to Alice. Alice can then review the changes and merge them if she chooses.</p>
+<p>This keeps the protocol simple. There is no write-back delegation or complex merge negotiation at the store level. Users collaborate by sharing data, modifying it in their own trees, and sharing the results back.</p>
+<h2 id="55-named-groups"><a class="header" href="#55-named-groups">5.5 Named Groups</a></h2>
+<p>The <code>groups</code> map inside a root lets a user define named sets of identities. Instead of listing every member in the <code>authorized</code> set of a share, Alice can write <code>authorized: "team"</code>. The server resolves that name against Alice’s <code>groups</code> map at claim time.</p>
+<p>Updating the group updates access everywhere the group name is used. This is ordinary data manipulation, not a special administrative operation.</p>
+<p>Public sharing is also supported through a convention. The set <code>#{neg}</code> means “everyone except the listed members.” A share with <code>authorized: #{neg}</code> is effectively public. The cofinite set convention was introduced in Chapter 3 as part of the set type and is reused here without any new machinery.</p>
+<h2 id="56-share-types"><a class="header" href="#56-share-types">5.6 Share Types</a></h2>
+<p>The same <code>shares</code> structure supports several common patterns:</p>
+<ul>
+<li><strong>Private</strong>: <code>#{me}</code> — only the owner can claim it.</li>
+<li><strong>Direct</strong>: <code>#{me, bob}</code> — the owner plus one other party.</li>
+<li><strong>Shared</strong>: <code>#{team}</code> — any member of a named group.</li>
+<li><strong>Public</strong>: <code>#{neg}</code> — anyone at all.</li>
+</ul>
+<p>Because the <code>authorized</code> field is just a set, any of these patterns is expressed the same way. The server does not treat them differently.</p>
+<h2 id="57-named-refs-and-revocation"><a class="header" href="#57-named-refs-and-revocation">5.7 Named Refs and Revocation</a></h2>
+<p>A share records a target hash. If Alice later updates the content behind that hash, Bob will still see the old version unless he re-claims the share. This gives Alice a natural way to publish updates: she changes the target in her <code>shares</code> entry, and anyone who re-claims receives the new hash.</p>
+<p>Revocation is similarly straightforward. Alice can remove Bob from the <code>authorized</code> set, or she can remove the share entry entirely. The next time Bob attempts to claim, the server will refuse. There is no need for a separate revocation list or lifecycle protocol. The share simply ceases to exist or ceases to include Bob.</p>
+<h2 id="58-common-patterns"><a class="header" href="#58-common-patterns">5.8 Common Patterns</a></h2>
+<p>Several usage patterns emerge naturally from this model.</p>
+<p>For a photo album, Alice keeps the target hash up to date. When she adds new photos, she updates the subtree and changes the share target. Bob re-claims to see the latest version.</p>
+<p>For collaborative editing, Bob reads Alice’s subtree, makes changes in his own tree, and shares the modified subtree back to Alice. Alice reviews the changes and can merge them into her version if she wishes.</p>
+<p>For a team workspace, the team root is shared with a group. Any member can read and, if they have write permission on the share, can also update the shared content. The group membership is managed in one place, the owner’s <code>groups</code> map.</p>
+<h2 id="59-cross-user-sharing-and-deduplication"><a class="header" href="#59-cross-user-sharing-and-deduplication">5.9 Cross-User Sharing and Deduplication</a></h2>
+<p>When multiple users share the same subtree, they all reference the same content hashes. Dacite’s content addressing means the underlying nodes are stored only once. The sharing mechanism does not create copies. It simply gives multiple roots permission to reach the same nodes.</p>
+<pre class="mermaid">graph TD
+    AE["Alice's tree"] --&gt; SM["Shared subtree #SM"]
+    BE["Bob's tree"] --&gt; SM
+    SM --&gt; N1["shared nodes"]
+    SM --&gt; N2["shared nodes"]
+    style SM fill:#aa4,stroke:#333,color:#fff
+</pre>
+
+<p>This is the same structural sharing that Dacite provides within a single tree, extended across users.</p>
+<h2 id="510-audit"><a class="header" href="#510-audit">5.10 Audit</a></h2>
+<p>Every access is accompanied by a proof chain. The server can record which root was used for each request, and the chain itself shows the path from that root to the accessed node. This provides a natural audit trail without any additional logging mechanism.</p>
+<h2 id="511-eliminated-concepts"><a class="header" href="#511-eliminated-concepts">5.11 Eliminated Concepts</a></h2>
+<p>The sharing design removes several ideas that were considered earlier:</p>
+<ul>
+<li>Grants with explicit lifecycles are replaced by ordinary shares that live in the data.</li>
+<li>Gift queues and pending offers are replaced by the claim-time lookup against the current root.</li>
+<li>A special service root or capability table is replaced by the server’s own use of the shares map.</li>
+</ul>
+<p>All of these simplifications follow from the same principle: keep the protocol uniform and let the data carry the policy.</p>
+<h2 id="512-api-surface"><a class="header" href="#512-api-surface">5.12 API Surface</a></h2>
+<p>The new operations are minimal.</p>
+<h3 id="primitives-2"><a class="header" href="#primitives-2">Primitives</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Fn</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>claim</code></td><td><code>(Server, id, sharer, name) → #H</code></td><td>Attempt to claim a named share</td></tr>
+<tr><td><code>authorized?</code></td><td><code>(Root, name, id) → bool</code></td><td>Check whether an identity may claim</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="derived-operations"><a class="header" href="#derived-operations">Derived Operations</a></h3>
+<p>The functions <code>share</code>, <code>unshare</code>, and <code>add-group</code> are ordinary HAMT operations on the root map. They require no special protocol support.</p>
+<p>Zero new primitives are added to the store or authorization layers. Sharing is a convention built on top of Chapter 4.</p>
+<h2 id="513-what-this-provides"><a class="header" href="#513-what-this-provides">5.13 What This Provides</a></h2>
+<ol>
+<li><strong>Subtree sharing</strong> — Access is scoped by construction to whatever the sharer puts under the target hash.</li>
+<li><strong>Uniform mechanism</strong> — The server and ordinary users participate in the same protocol.</li>
+<li><strong>Mutable references</strong> — The target of a share can be updated through normal PUT operations.</li>
+<li><strong>Composability</strong> — A user can re-share data they received from someone else, creating chains of delegation without any special support.</li>
+</ol>
+<p>The top of the stack is now complete: stores, hash fusion, values, authorized stores, and sharing conventions. Each layer adds capability without introducing new primitives at the layers below.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="mermaid-eefea253.min.js"></script>
+        <script src="mermaid-init-ccf746f1.js"></script>
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>
