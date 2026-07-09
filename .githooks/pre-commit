@@ -72,7 +72,41 @@ run_test_check() {
     echo "✅ All unit tests passed."
 }
 
+run_book_build() {
+    local staged_files
+    staged_files=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null \
+        | grep -E '^(docs/book/|docs/site/|scripts/build-site\.sh|\.github/workflows/pages\.yml)' || true)
+
+    if [ -z "$staged_files" ]; then
+        return 0
+    fi
+
+    echo ""
+    echo "Building site (book + landing)..."
+
+    local script_bin="$REPO_ROOT/scripts/bin"
+    if [ -d "$script_bin" ]; then
+        export PATH="$script_bin:$PATH"
+    fi
+
+    if ! command -v mdbook >/dev/null 2>&1 || ! command -v mdbook-mermaid >/dev/null 2>&1; then
+        echo "❌ mdbook and mdbook-mermaid are required when book/site files change."
+        echo "   Install: cargo install mdbook mdbook-mermaid"
+        echo "   Or:      brew install mdbook && cargo install mdbook-mermaid"
+        return 1
+    fi
+
+    if ! bash "$REPO_ROOT/scripts/build-site.sh"; then
+        echo ""
+        echo "❌ Site build failed. Fix book errors before committing."
+        return 1
+    fi
+
+    echo "✅ Site build passed."
+}
+
 # Run checks
 run_fmt_check &&
     run_lint_check &&
-    run_test_check
+    run_test_check &&
+    run_book_build

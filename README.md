@@ -2,7 +2,9 @@
 
 > Data citing with fused hashing.
 
-Dacite is a system for **distributed immutable data structures** with content-addressed nodes.
+**Website:** [dacite.io](https://dacite.io) — overview and [The Dacite Book](https://dacite.io/book/) as navigable HTML.
+
+Dacite lets applications work with **immutable Values** functionally while **Stores** hold and transmit data efficiently. Values give you structural sharing and lazy access; stores give you content-addressed persistence, caching, and sync.
 
 ## Features
 
@@ -13,24 +15,23 @@ Dacite is a system for **distributed immutable data structures** with content-ad
 
 ## Status
 
-**Reference implementation (Clojure)** — hash fusion, content stores, values, and rooted stores are implemented with 307+ tests. Remote store and service layers are in progress. See [docs/roadmap.md](docs/roadmap.md).
+**Reference implementation (Clojure)** — hash fusion, content stores, values, and rooted stores are implemented with 318+ tests. Remote store and service layers are in progress. See [docs/roadmap.md](docs/roadmap.md).
 
 ## Documentation
 
-**The Dacite Book** (primary living documentation):
+- **[The Dacite Book](https://dacite.io/book/)** — primary living documentation (also under [docs/book/](docs/book/))
+- **[Development dialogue](docs/development-dialogue.md)** — design history
+- **[Design docs](docs/design/)** — phase plans and service design
 
-- [00 — Preface](docs/book/00-preface.md)
-- [01 — Content Stores](docs/book/01-stores/chapter.md)
-- [02 — Hash Fusion](docs/book/02-hash-fusion/chapter.md)
-- [03 — Values](docs/book/03-values/chapter.md)
-- [04 — Rooted Stores](docs/book/04-rooted-stores/chapter.md)
+Build the site locally:
 
-Historical chapters (authorization, sharing) are archived under [docs/book/archive/](docs/book/archive/).
+```bash
+# requires mdbook + mdbook-mermaid (cargo install mdbook mdbook-mermaid)
+bash scripts/build-site.sh
+open target/site/index.html
+```
 
-**Development Dialogue** — chronological record of the design process:  
-[docs/development-dialogue.md](docs/development-dialogue.md)
-
-**Design docs:** [docs/design/](docs/design/)
+GitHub Actions deploys `target/site/` to the `gh-pages` branch on push to `main`. Configure Pages to serve from that branch (root).
 
 ## Implementations
 
