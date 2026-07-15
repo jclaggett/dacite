@@ -19,7 +19,8 @@
    encoding/size multimethods, and the wrap-entry / coerce-and-store!
    dispatch tables (extended in scalar and collections). Store-aware
    entry points live in dacite.value."
-  (:require [dacite.hash :as hash]))
+  (:require [dacite.hash :as hash]
+            [dacite.host :as host]))
 
 ;; =============================================================================
 ;; Value protocol
@@ -64,9 +65,9 @@
 ;; Type / value / node / content hashing
 ;; =============================================================================
 
-(def ^:private ^bytes null-separator
-  "Domain separator (0x00) terminating a type name."
-  (byte-array [0]))
+(def ^:private null-separator
+  "Domain separator (0x00) terminating a type name (portable bytes)."
+  [0])
 
 (def ^:private null-separator-hash
   (hash/fuse-bytes null-separator))
@@ -82,7 +83,7 @@
   [type-name]
   (or (@type-hash-cache type-name)
       (let [h (hash/unchecked-fuse
-               (hash/fuse-bytes (.getBytes ^String type-name "UTF-8"))
+               (hash/fuse-bytes (host/utf8-bytes type-name))
                null-separator-hash)]
         (swap! type-hash-cache assoc type-name h)
         h)))
@@ -116,13 +117,14 @@
 ;; =============================================================================
 
 (defmulti encode-value
-  "Canonical bytes for a scalar [type data]. Each scalar type has a
-   fixed-width, big-endian, language-agnostic encoding. Collections are
-   hashed via their elements_fuse measure, never through encode-value."
+  "Canonical bytes (a vector of ints 0..255) for a scalar [type data]. Each
+   scalar type has a fixed-width, big-endian, language-agnostic encoding.
+   Collections are hashed via their elements_fuse measure, never through
+   encode-value."
   entry-type)
 
 (defmethod encode-value :default [[_ data]]
-  (.getBytes (pr-str data) "UTF-8"))
+  (host/utf8-bytes (pr-str data)))
 
 (defn scalar-data-hash
   "data_hash for a scalar = fuse_bytes(canonical_bytes)."
@@ -148,7 +150,7 @@
     (:size-bytes m)
     (if-let [sb (:size-bytes data)]
       sb
-      (count (.getBytes (pr-str data) "UTF-8")))))
+      (count (host/utf8-bytes (pr-str data))))))
 
 ;; Backward-compatible alias for callers that name the scalar value hash
 ;; `typed-value-hash` (e.g. hashing tests).
@@ -194,25 +196,37 @@
    store entry; dacite.value/wrap-hash performs that lookup."
   (fn [type-name _store _h] type-name))
 
+(defn coerce-kind
+  "Classify a plain host value into a Dacite coercion kind keyword. The
+   host-specific predicates (Boolean, char, float/double, byte arrays) are
+   only meaningful on the JVM; ClojureScript maps its numeric tower onto
+   i64/f64."
+  [x]
+  (cond
+    (nil? x)        :null
+    (string? x)     :string
+    (integer? x)    :i64
+    (vector? x)     :vector
+    (set? x)        :set
+    (map? x)        :map
+    #?@(:clj
+        [(instance? Boolean x) :bool
+         (char? x)             :char
+         (float? x)            :f64
+         (double? x)           :double
+         (bytes? x)            :blob
+         (sequential? x)       :sequential]
+        :cljs
+        [(boolean? x)          :bool
+         (number? x)           :f64
+         (sequential? x)       :sequential])
+    :else :unsupported))
+
 (defmulti coerce-and-store!
   "Coerce a plain Clojure value into the store, returning its hash.
    Scalar coercions register in dacite.value.scalar; collections in
    dacite.value.collections."
-  (fn [_store x]
-    (cond
-      (nil? x) :null
-      (instance? Boolean x) :bool
-      (char? x) :char
-      (integer? x) :i64
-      (float? x) :f64
-      (double? x) :double
-      (string? x) :string
-      (vector? x) :vector
-      (set? x) :set
-      (map? x) :map
-      (bytes? x) :blob
-      (sequential? x) :sequential
-      :else :unsupported)))
+  (fn [_store x] (coerce-kind x)))
 
 (defmethod coerce-and-store! :unsupported [_ x]
   (throw (ex-info "Cannot coerce to dacite value" {:value x :type (type x)})))

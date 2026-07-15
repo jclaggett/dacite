@@ -20,6 +20,7 @@
    Digits hold 1-32 children and nodes 2-32 — wider than the classic
    finger tree, trading the amortized O(1) proof for shallower trees."
   (:require [dacite.hash :as hash]
+            [dacite.host :as host]
             [dacite.store :as store]
             [dacite.value.types :as types]))
 
@@ -28,7 +29,7 @@
 ;; =============================================================================
 
 (def measure-identity
-  {:count 0 :size-bytes 0 :elements-fuse [0 0 0 0]})
+  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash})
 
 (defn- measure-combine [m1 m2]
   {:count (+ (:count m1) (:count m2))
@@ -382,8 +383,8 @@
   [store root idx]
   (let [cnt (:count (get-measure store root))]
     (when (or (neg? idx) (>= idx cnt))
-      (throw (IndexOutOfBoundsException.
-              (str "Index " idx " out of bounds for count " cnt))))
+      (throw (ex-info (str "Index " idx " out of bounds for count " cnt)
+                      {:index idx :count cnt})))
     (tree-nth* store root idx)))
 
 (defn ft-seq

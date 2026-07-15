@@ -189,14 +189,17 @@
 
 (defn- serialize-scalar
   "Serialize a scalar typed value to bytes.
-   Format: 0x00 + u8(len) + canonical-bytes"
+   Format: 0x00 + u8(len) + canonical-bytes.
+
+   encode-value returns portable bytes (a vector of ints 0..255, or a host
+   byte array for u256); bridge to a Java byte array for the buffer."
   [typed-value]
-  (let [data-bytes (types/encode-value typed-value)
+  (let [^bytes data-bytes (byte-array (map unchecked-byte (types/encode-value typed-value)))
         len (alength data-bytes)
         buf (ByteBuffer/allocate (+ 2 len))]
     (write-u8 buf kind-scalar)
     (write-u8 buf len)
-    (.put buf ^bytes data-bytes)
+    (.put buf data-bytes)
     (.array buf)))
 
 (defn serialize

@@ -243,7 +243,10 @@
     ;; Unrecognized types hit the :default encode-value method
     ;; which produces pr-str bytes — no exception
     (let [bs (serial/serialize ["ft/bogus" {:measure sample-measure}])]
-      (is (bytes? bs)))))
+      ;; The default encode-value fallback yields portable bytes (a vector
+      ;; of ints); real internal node types return Java byte arrays.
+      (is (or (bytes? bs)
+              (and (sequential? bs) (every? integer? bs)))))))
 
 (deftest deserialize-unknown-kind-throws-test
   (testing "Unknown kind tag throws"

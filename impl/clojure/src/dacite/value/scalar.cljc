@@ -6,13 +6,29 @@
    where value_hash = fuse(type_hash, fuse_bytes(canonical_bytes)).
 
    DaciteScalar is a store-aware wrapper of [store, hash]: it carries the
-   store that created it, so deref and accessors need no global state."
-  (:require [dacite.hash :as hash]
+   store that created it, so deref and accessors need no global state.
+
+   Portable core: the value protocol, encodings (via dacite.host), and
+   coercions work on every host. The native clojure.lang.* interfaces
+   (hasheq/equals/toString) are a JVM-only adapter guarded by reader
+   conditionals; SCI hosts use dacite.value.api for equality etc."
+  (:require [dacite.host :as host]
             [dacite.store :as store]
             [dacite.value.types :as types]
-            [dacite.value.render :as render])
-  (:import [clojure.lang IHashEq]
-           [java.nio ByteBuffer]))
+            #?@(:bb [] :clj [[dacite.hash :as hash]
+                             [dacite.value.render :as render]]))
+  #?@(:bb [] :clj [(:import [clojure.lang IHashEq])]))
+
+;; =============================================================================
+;; Host numeric casts (portable no-ops on JS; native casts on JVM)
+;; =============================================================================
+
+(defn- as-i8 [n] #?(:clj (byte n) :cljs n))
+(defn- as-i16 [n] #?(:clj (short n) :cljs n))
+(defn- as-i32 [n] #?(:clj (int n) :cljs n))
+(defn- as-i64 [n] #?(:clj (long n) :cljs n))
+(defn- as-f32 [n] #?(:clj (float n) :cljs n))
+(defn- as-f64 [n] #?(:clj (double n) :cljs n))
 
 ;; =============================================================================
 ;; Low-level store helper
@@ -30,7 +46,7 @@
 ;; DaciteScalar
 ;; =============================================================================
 
-(def ^:const negative-sentinel
+(def negative-sentinel
   "Host-language value returned by `realize` for the `\"negative\"` scalar sentinel."
   :dacite/negative)
 
@@ -45,15 +61,17 @@
         negative-sentinel
         (types/entry-data entry))))
 
-  IHashEq
-  (hasheq [_] (hash/hash->int _hash))
+  #?@(:bb []
+      :clj
+      [IHashEq
+       (hasheq [_] (hash/hash->int _hash))
 
-  Object
-  (hashCode [_] (hash/hash->int _hash))
-  (equals [_ other]
-    (and (instance? DaciteScalar other)
-         (= _hash (.-_hash ^DaciteScalar other))))
-  (toString [_] (pr-str (store/s-get store _hash))))
+       Object
+       (hashCode [_] (hash/hash->int _hash))
+       (equals [_ other]
+               (and (instance? DaciteScalar other)
+                    (= _hash (.-_hash ^DaciteScalar other))))
+       (toString [_] (pr-str (store/s-get store _hash)))]))
 
 (defn wrap-scalar
   "Wrap a raw hash (already in store) as a DaciteScalar."
@@ -78,15 +96,15 @@
 
 (defmethod types/coerce-and-store! :i64
   [store x]
-  (put-scalar! store "i64" (long x)))
+  (put-scalar! store "i64" (as-i64 x)))
 
 (defmethod types/coerce-and-store! :f64
   [store x]
-  (put-scalar! store "f64" (double x)))
+  (put-scalar! store "f64" (as-f64 x)))
 
 (defmethod types/coerce-and-store! :double
   [store x]
-  (put-scalar! store "f64" (double x)))
+  (put-scalar! store "f64" (as-f64 x)))
 
 ;; =============================================================================
 ;; Constructors — explicit (-with-store) and implicit (*store*)
@@ -115,16 +133,16 @@
 (defn bool-with-store [store b] (scalar-with-store store "bool" b))
 (defn bool [b] (bool-with-store store/*store* b))
 
-(defn i8-with-store  [store n] (scalar-with-store store "i8" (byte n)))
+(defn i8-with-store  [store n] (scalar-with-store store "i8" (as-i8 n)))
 (defn i8  [n] (i8-with-store store/*store* n))
 
-(defn i16-with-store [store n] (scalar-with-store store "i16" (short n)))
+(defn i16-with-store [store n] (scalar-with-store store "i16" (as-i16 n)))
 (defn i16 [n] (i16-with-store store/*store* n))
 
-(defn i32-with-store [store n] (scalar-with-store store "i32" (int n)))
+(defn i32-with-store [store n] (scalar-with-store store "i32" (as-i32 n)))
 (defn i32 [n] (i32-with-store store/*store* n))
 
-(defn i64-with-store [store n] (scalar-with-store store "i64" (long n)))
+(defn i64-with-store [store n] (scalar-with-store store "i64" (as-i64 n)))
 (defn i64 [n] (i64-with-store store/*store* n))
 
 (defn u8-with-store  [store n] {:pre [(<= 0 n 255)]}        (scalar-with-store store "u8" n))
@@ -140,29 +158,29 @@
 (defn u64 [n] {:pre [(<= 0 n)]}            (u64-with-store store/*store* n))
 
 (defn u256-with-store
-  [store ^bytes data]
+  [store data]
   {:pre [(= 32 (alength data))]}
   (scalar-with-store store "u256" data))
 
 (defn u256
-  [^bytes data]
+  [data]
   {:pre [(= 32 (alength data))]}
   (u256-with-store store/*store* data))
 
-(defn f32-with-store [store n] (scalar-with-store store "f32" (float n)))
+(defn f32-with-store [store n] (scalar-with-store store "f32" (as-f32 n)))
 (defn f32 [n] (f32-with-store store/*store* n))
 
-(defn f64-with-store [store n] (scalar-with-store store "f64" (double n)))
+(defn f64-with-store [store n] (scalar-with-store store "f64" (as-f64 n)))
 (defn f64 [n] (f64-with-store store/*store* n))
 
 (defn dacite-char-with-store
   [store c]
-  {:pre [(char? c)]}
+  {:pre [#?(:clj (char? c) :cljs (string? c))]}
   (scalar-with-store store "char" c))
 
 (defn dacite-char
   [c]
-  {:pre [(char? c)]}
+  {:pre [#?(:clj (char? c) :cljs (string? c))]}
   (dacite-char-with-store store/*store* c))
 
 (defn negative-with-store
@@ -176,53 +194,31 @@
   (negative-with-store store/*store*))
 
 ;; =============================================================================
-;; Canonical encoding (multimethod)
+;; Canonical encoding (multimethod) — portable bytes (vectors of ints 0..255)
 ;; =============================================================================
 
-(defmethod types/encode-value "null" [_]
-  (byte-array 0))
+(defmethod types/encode-value "null" [_] [])
 
-(defmethod types/encode-value "bool" [[_ b]]
-  (byte-array [(if b (byte 1) (byte 0))]))
+(defmethod types/encode-value "bool" [[_ b]] [(if b 1 0)])
 
-(defmethod types/encode-value "i8" [[_ n]]
-  (byte-array [(unchecked-byte n)]))
+(defmethod types/encode-value "i8"  [[_ n]] (host/int->bytes-be n 1))
+(defmethod types/encode-value "i16" [[_ n]] (host/int->bytes-be n 2))
+(defmethod types/encode-value "i32" [[_ n]] (host/int->bytes-be n 4))
+(defmethod types/encode-value "i64" [[_ n]] (host/int->bytes-be n 8))
 
-(defmethod types/encode-value "i16" [[_ n]]
-  (let [buf (ByteBuffer/allocate 2)] (.putShort buf (short n)) (.array buf)))
+(defmethod types/encode-value "u8"  [[_ n]] (host/int->bytes-be n 1))
+(defmethod types/encode-value "u16" [[_ n]] (host/int->bytes-be n 2))
+(defmethod types/encode-value "u32" [[_ n]] (host/int->bytes-be n 4))
+(defmethod types/encode-value "u64" [[_ n]] (host/int->bytes-be n 8))
 
-(defmethod types/encode-value "i32" [[_ n]]
-  (let [buf (ByteBuffer/allocate 4)] (.putInt buf (int n)) (.array buf)))
+(defmethod types/encode-value "u256" [[_ data]] data)
 
-(defmethod types/encode-value "i64" [[_ n]]
-  (let [buf (ByteBuffer/allocate 8)] (.putLong buf (long n)) (.array buf)))
+(defmethod types/encode-value "f32" [[_ n]] (host/f32->bytes n))
+(defmethod types/encode-value "f64" [[_ n]] (host/f64->bytes n))
 
-(defmethod types/encode-value "u8" [[_ n]]
-  (byte-array [(unchecked-byte n)]))
+(defmethod types/encode-value "char" [[_ ch]] (host/utf8-bytes (str ch)))
 
-(defmethod types/encode-value "u16" [[_ n]]
-  (let [buf (ByteBuffer/allocate 2)] (.putShort buf (unchecked-short n)) (.array buf)))
-
-(defmethod types/encode-value "u32" [[_ n]]
-  (let [buf (ByteBuffer/allocate 4)] (.putInt buf (unchecked-int n)) (.array buf)))
-
-(defmethod types/encode-value "u64" [[_ n]]
-  (let [buf (ByteBuffer/allocate 8)] (.putLong buf (unchecked-long n)) (.array buf)))
-
-(defmethod types/encode-value "u256" [[_ ^bytes data]]
-  data)
-
-(defmethod types/encode-value "f32" [[_ n]]
-  (let [buf (ByteBuffer/allocate 4)] (.putFloat buf (float n)) (.array buf)))
-
-(defmethod types/encode-value "f64" [[_ n]]
-  (let [buf (ByteBuffer/allocate 8)] (.putDouble buf (double n)) (.array buf)))
-
-(defmethod types/encode-value "char" [[_ ch]]
-  (.getBytes (str ch) "UTF-8"))
-
-(defmethod types/encode-value "negative" [_]
-  (byte-array 0))
+(defmethod types/encode-value "negative" [_] [])
 
 ;; =============================================================================
 ;; Sizes (multimethod)
@@ -245,7 +241,9 @@
 (defmethod types/dacite-size "f32" [_] 4)
 (defmethod types/dacite-size "f64" [_] 8)
 (defmethod types/dacite-size "char" [[_ ch]]
-  (count (.getBytes (str ch) "UTF-8")))
+  (count (host/utf8-bytes (str ch))))
 (defmethod types/dacite-size "negative" [_] 0)
 
-(defmethod print-method DaciteScalar [v w] (render/print-dacite-value v w))
+#?(:bb nil
+   :clj
+   (defmethod print-method DaciteScalar [v w] (render/print-dacite-value v w)))
