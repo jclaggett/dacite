@@ -16,3 +16,7 @@ docs/book/mermaid-init.js
 
 # clojure lsp files
 .lsp
+
+# SCI tooling
+node_modules/
+.bin/

@@ -94,11 +94,6 @@
 ;; Property tests
 ;; =============================================================================
 
-(defspec sha256-determinism 100
-  (prop/for-all [data (gen/not-empty gen/bytes)]
-                (= (hash/sha256 data)
-                   (hash/sha256 data))))
-
 (defspec fuse-determinism 100
   (prop/for-all [a gen-hash
                  b gen-hash]
@@ -167,23 +162,23 @@
 
 (deftest test-fuse-basic
   (testing "fuse produces vector of 4 longs"
-    (let [a (hash/sha256-str "hello")
-          b (hash/sha256-str "world")
+    (let [a (hash/fuse-str "hello")
+          b (hash/fuse-str "world")
           c (hash/fuse a b)]
       (is (vector? c))
       (is (= 4 (count c)))))
 
   (testing "fuse with same input twice"
-    (let [a (hash/sha256-str "test")
+    (let [a (hash/fuse-str "test")
           c (hash/fuse a a)]
       (is (= 4 (count c)))
       ;; fuse(a,a) should still be different from a
       (is (not= c a))))
 
   (testing "fuse is associative"
-    (let [a (hash/sha256-str "one")
-          b (hash/sha256-str "two")
-          c (hash/sha256-str "three")
+    (let [a (hash/fuse-str "one")
+          b (hash/fuse-str "two")
+          c (hash/fuse-str "three")
           ;; fuse(a, fuse(b, c)) should equal fuse(fuse(a, b), c)
           left (hash/fuse a (hash/fuse b c))
           right (hash/fuse (hash/fuse a b) c)]
@@ -193,7 +188,7 @@
   (testing "different type names produce unique hashes"
     (let [type-names ["dacite.core/i64" "dacite.core/i32" "dacite.core/bool"
                       "dacite.core/null" "dacite.core/string"]
-          hashes (map hash/sha256-str type-names)]
+          hashes (map hash/fuse-str type-names)]
       (is (= (count hashes) (count (set hashes)))))))
 
 (deftest test-null-hashing
@@ -210,7 +205,7 @@
 
 (deftest test-low-entropy-detection
   (testing "normal hashes are not low-entropy"
-    (let [h (hash/sha256-str "normal data")]
+    (let [h (hash/fuse-str "normal data")]
       (is (not (hash/low-entropy? h)))))
 
   (testing "hash with zeros in lower 32 bits is low-entropy"
@@ -224,7 +219,7 @@
   (testing "fuse throws on low-entropy input (via repeated self-fuse)"
     ;; Fusing a hash with itself ~65 times converges to low-entropy
     ;; After ~64 iterations, the hash becomes low-entropy and next fuse rejects it
-    (let [start (hash/sha256-str "trigger low entropy")]
+    (let [start (hash/fuse-str "trigger low entropy")]
       (is (thrown-with-msg?
            clojure.lang.ExceptionInfo
            #"Low-entropy"
@@ -233,7 +228,7 @@
                    (range 65))))))
 
   (testing "fuse throws on explicitly low-entropy input"
-    (let [good-hash (hash/sha256-str "normal")
+    (let [good-hash (hash/fuse-str "normal")
           bad-hash [(unchecked-long 0x1234567800000000)
                     (unchecked-long 0xABCDEF0000000000)
                     (unchecked-long 0x9876543200000000)
@@ -249,7 +244,7 @@
 
   (testing "unchecked-fuse allows low-entropy (no exception)"
     ;; Use unchecked version to verify low-entropy actually occurs
-    (let [start (hash/sha256-str "any value")
+    (let [start (hash/fuse-str "any value")
           result (reduce (fn [h _] (hash/unchecked-fuse h h))
                          start
                          (range 65))]
@@ -258,19 +253,8 @@
 
 (deftest test-hex-conversion
   (testing "round-trip through hex"
-    (let [h (hash/sha256-str "test")]
+    (let [h (hash/fuse-str "test")]
       (is (= h (hash/hex->hash (hash/hash->hex h)))))))
-
-(deftest test-sha256-bytes
-  (testing "sha256-bytes returns 32-byte array"
-    (let [result (hash/sha256-bytes (.getBytes "hello" "UTF-8"))]
-      (is (bytes? result))
-      (is (= 32 (count result)))))
-  (testing "sha256-bytes is deterministic"
-    (let [data (.getBytes "test" "UTF-8")]
-      (is (java.util.Arrays/equals
-           (hash/sha256-bytes data)
-           (hash/sha256-bytes data))))))
 
 (deftest test-bytes-longs-conversion
   (testing "bytes->longs converts 32 bytes to 4 longs"
@@ -278,40 +262,46 @@
           longs (hash/bytes->longs bytes)]
       (is (vector? longs))
       (is (= 4 (count longs)))))
-  (testing "longs->bytes converts 4 longs to 32 bytes"
+  (testing "longs->bytes converts 4 longs to 32 portable bytes"
     (let [longs [1 2 3 4]
           bytes (hash/longs->bytes longs)]
-      (is (bytes? bytes))
-      (is (= 32 (count bytes)))))
+      (is (vector? bytes))
+      (is (= 32 (count bytes)))
+      (is (every? #(<= 0 % 255) bytes))))
   (testing "round-trip preserves data"
     (let [original [12345 -67890 111111 -222222]
           round-tripped (hash/bytes->longs (hash/longs->bytes original))]
       (is (= original round-tripped)))))
 
+(defn- ->bytes
+  "Bridge portable encode-value bytes (vector of ints 0..255, or a host
+   byte array for u256) to a Java byte array for JVM assertions."
+  [bs]
+  (byte-array (map unchecked-byte bs)))
+
 (deftest test-encode-value
   (testing "null encodes to 0 bytes"
-    (let [result (types/encode-value ["null" nil])]
-      (is (bytes? result))
-      (is (= 0 (alength result)))))
+    (is (= [] (vec (types/encode-value ["null" nil])))))
   (testing "bool encodes to 1 byte"
     (is (= [1] (vec (types/encode-value ["bool" true]))))
     (is (= [0] (vec (types/encode-value ["bool" false])))))
   (testing "i64 encodes to 8 big-endian bytes"
     (let [result (types/encode-value ["i64" 42])]
-      (is (= 8 (alength result)))
-      (is (= 42 (.getLong (java.nio.ByteBuffer/wrap result))))))
+      (is (= 8 (count result)))
+      (is (= 42 (.getLong (java.nio.ByteBuffer/wrap (->bytes result)))))))
   (testing "f64 encodes to 8 IEEE 754 bytes"
     (let [result (types/encode-value ["f64" 3.14])]
-      (is (= 8 (alength result)))
-      (is (= 3.14 (.getDouble (java.nio.ByteBuffer/wrap result))))))
+      (is (= 8 (count result)))
+      (is (= 3.14 (.getDouble (java.nio.ByteBuffer/wrap (->bytes result)))))))
   (testing "char encodes to UTF-8"
     (let [result (types/encode-value ["char" \a])]
-      (is (= "a" (String. result "UTF-8")))))
+      (is (= "a" (String. (->bytes result) "UTF-8")))))
   (testing "u8 encodes to 1 byte"
     (is (= [42] (vec (types/encode-value ["u8" 42])))))
   (testing "default falls back to pr-str for unknown types"
     (let [result (types/encode-value ["custom" {:x 1}])]
-      (is (bytes? result)))))
+      (is (every? #(<= 0 % 255) result))
+      (is (= "{:x 1}" (String. (->bytes result) "UTF-8"))))))
 
 (deftest test-typed-value-hash-string-type
   (testing "typed-value-hash handles string type name"
@@ -357,10 +347,9 @@
   (testing "byte->hash has 256 entries"
     (is (= 256 (count hash/byte->hash))))
   (testing "all byte values produce distinct hashes"
-    (let [hashes (vals hash/byte->hash)]
-      (is (= 256 (count (set hashes))))))
+    (is (= 256 (count (set hash/byte->hash)))))
   (testing "each hash is a vector of 4 longs"
-    (doseq [[_ h] hash/byte->hash]
+    (doseq [h hash/byte->hash]
       (is (vector? h))
       (is (= 4 (count h))))))
 
@@ -368,8 +357,7 @@
   (testing "fuse-bytes of empty array is identity"
     (is (= [0 0 0 0] (hash/fuse-bytes (byte-array 0)))))
   (testing "fuse-bytes of single byte matches byte->hash"
-    (let [b (byte 65)]
-      (is (= (hash/byte->hash b) (hash/fuse-bytes (byte-array [b]))))))
+    (is (= (nth hash/byte->hash 65) (hash/fuse-bytes [65]))))
   (testing "fuse-bytes is deterministic"
     (let [bs (.getBytes "hello" "UTF-8")]
       (is (= (hash/fuse-bytes bs) (hash/fuse-bytes bs))))))
@@ -399,11 +387,11 @@
       (is (vector? h))
       (is (= 4 (count h)))))
   (testing "different node types produce different hashes"
-    (let [ef (hash/sha256-str "some-content")]
+    (let [ef (hash/fuse-str "some-content")]
       (is (not= (types/node-hash "ft/deep" ef)
                 (types/node-hash "ft/digit" ef)))))
   (testing "same type + same elements-fuse = same hash"
-    (let [ef (hash/sha256-str "content")]
+    (let [ef (hash/fuse-str "content")]
       (is (= (types/node-hash "ft/deep" ef)
              (types/node-hash "ft/deep" ef))))))
 
@@ -413,27 +401,27 @@
 
 (deftest test-fuse-inverse-basic
   (testing "fuse(inv(a), a) = identity"
-    (let [a (hash/sha256-str "test")]
+    (let [a (hash/fuse-str "test")]
       (is (= [0 0 0 0] (hash/unchecked-fuse (hash/fuse-inverse a) a)))))
   (testing "fuse(a, inv(a)) = identity"
-    (let [a (hash/sha256-str "test")]
+    (let [a (hash/fuse-str "test")]
       (is (= [0 0 0 0] (hash/unchecked-fuse a (hash/fuse-inverse a)))))))
 
 (defspec fuse-inverse-left-identity 100
   (prop/for-all [s gen/string-alphanumeric]
-                (let [a (hash/sha256-str s)]
+                (let [a (hash/fuse-str s)]
                   (= [0 0 0 0] (hash/unchecked-fuse (hash/fuse-inverse a) a)))))
 
 (defspec fuse-inverse-right-identity 100
   (prop/for-all [s gen/string-alphanumeric]
-                (let [a (hash/sha256-str s)]
+                (let [a (hash/fuse-str s)]
                   (= [0 0 0 0] (hash/unchecked-fuse a (hash/fuse-inverse a))))))
 
 (defspec fuse-inverse-recovers-b 100
   (prop/for-all [s1 gen/string-alphanumeric
                  s2 gen/string-alphanumeric]
-                (let [a (hash/sha256-str s1)
-                      b (hash/sha256-str s2)
+                (let [a (hash/fuse-str s1)
+                      b (hash/fuse-str s2)
                       fused (hash/unchecked-fuse a b)
                       recovered (hash/unchecked-fuse (hash/fuse-inverse a) fused)]
                   (= b recovered))))
@@ -448,21 +436,21 @@
 
 (deftest test-unfuse-basic
   (testing "unfuse(fuse(a, b), b) = a"
-    (let [a (hash/sha256-str "hello")
-          b (hash/sha256-str "world")
+    (let [a (hash/fuse-str "hello")
+          b (hash/fuse-str "world")
           fused (hash/unchecked-fuse a b)]
       (is (= a (hash/unfuse fused b)))))
   (testing "unfuse from the left: fuse(inv(a), fuse(a, b)) = b"
-    (let [a (hash/sha256-str "hello")
-          b (hash/sha256-str "world")
+    (let [a (hash/fuse-str "hello")
+          b (hash/fuse-str "world")
           fused (hash/unchecked-fuse a b)]
       (is (= b (hash/unchecked-fuse (hash/fuse-inverse a) fused))))))
 
 (defspec unfuse-recovers-a 100
   (prop/for-all [s1 gen/string-alphanumeric
                  s2 gen/string-alphanumeric]
-                (let [a (hash/sha256-str s1)
-                      b (hash/sha256-str s2)
+                (let [a (hash/fuse-str s1)
+                      b (hash/fuse-str s2)
                       fused (hash/unchecked-fuse a b)]
                   (= a (hash/unfuse fused b)))))
 

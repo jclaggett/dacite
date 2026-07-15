@@ -55,7 +55,7 @@
 
 (deftest u256-test
   (testing "u256 for hash-as-data"
-    (let [data (hash/longs->bytes [1 2 3 4])
+    (let [data (byte-array (map unchecked-byte (hash/longs->bytes [1 2 3 4])))
           v (d/u256 data)]
       (is (= "u256" (value-type v)))
       (is (= 32 (alength ^bytes (d/realize v)))))))
