@@ -2,6 +2,7 @@
   "Tests for Dacite content-addressed storage."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [dacite.store :as store]
+            [dacite.store.jvm :as sj]
             [clojure.java.io :as io]))
 
 ;; =============================================================================
@@ -86,7 +87,7 @@
 
 (deftest file-store-basic-test
   (testing "basic file store operations"
-    (let [s (store/file-store (str *temp-dir*))
+    (let [s (sj/file-store (str *temp-dir*))
           h [1 2 3 4]
           v {:data "test"}]
       (is (not (store/s-has? s h)))
@@ -99,12 +100,12 @@
     (let [path (str *temp-dir*)
           h [1 2 3 4]
           v {:data "persistent"}]
-      (store/s-put (store/file-store path) h v)
-      (is (= v (store/s-get (store/file-store path) h))))))
+      (store/s-put (sj/file-store path) h v)
+      (is (= v (store/s-get (sj/file-store path) h))))))
 
 (deftest file-store-sharding-test
   (testing "file store creates sharded directories"
-    (let [s (store/file-store (str *temp-dir*))
+    (let [s (sj/file-store (str *temp-dir*))
           h [1 2 3 4]
           v {:data 123}]
       (store/s-put s h v)
@@ -115,7 +116,7 @@
 
 (deftest file-store-snapshot-test
   (testing "snapshot reads all files"
-    (let [s (store/file-store (str *temp-dir*))]
+    (let [s (sj/file-store (str *temp-dir*))]
       (store/s-put s [1 2 3 4] :a)
       (store/s-put s [5 6 7 8] :b)
       (let [snap (store/s-snapshot s)]
@@ -123,7 +124,7 @@
 
 (deftest file-store-reset-test
   (testing "reset deletes all files"
-    (let [s (store/file-store (str *temp-dir*))]
+    (let [s (sj/file-store (str *temp-dir*))]
       (store/s-put s [1 2 3 4] :a)
       (store/s-reset s)
       (is (nil? (store/s-get s [1 2 3 4]))))))
@@ -184,7 +185,7 @@
 (deftest layered-store-with-file-test
   (testing "mem + file layered store"
     (let [mem (store/mem-store)
-          file (store/file-store (str *temp-dir*))
+          file (sj/file-store (str *temp-dir*))
           s (store/layered-store mem file)]
       (store/s-put s [1 2 3 4] {:data "layered"})
       ;; Both have it
@@ -196,7 +197,7 @@
 
 (deftest file-store-merge-test
   (testing "merge adds multiple entries to file store"
-    (let [s (store/file-store (str *temp-dir*))]
+    (let [s (sj/file-store (str *temp-dir*))]
       (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b})
       (is (= :a (store/s-get s [1 2 3 4])))
       (is (= :b (store/s-get s [5 6 7 8]))))))
@@ -204,7 +205,7 @@
 (deftest file-store-creates-dir-test
   (testing "file-store creates directory if it doesn't exist"
     (let [path (str *temp-dir* "/nested/subdir")
-          s (store/file-store path)]
+          s (sj/file-store path)]
       (is (.exists (io/file path)))
       (store/s-put s [1 2 3 4] :v)
       (is (= :v (store/s-get s [1 2 3 4]))))))
@@ -233,7 +234,7 @@
 
 (deftest lmdb-store-basic-test
   (testing "basic LMDB get/put/has?"
-    (let [s (store/lmdb-store (str *temp-dir* "/lmdb"))
+    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb"))
           h [1 2 3 4]
           v ["i64" 42]]
       (try
@@ -243,28 +244,28 @@
         (is (store/s-has? s h))
         (is (= v (store/s-get s h)))
         (finally
-          (store/lmdb-close s))))))
+          (sj/lmdb-close s))))))
 
 (deftest lmdb-store-persistence-test
   (testing "LMDB persists across instances"
     (let [path (str *temp-dir* "/lmdb-persist")
           h [1 2 3 4]
           v ["i64" 99]]
-      (let [s (store/lmdb-store path)]
+      (let [s (sj/lmdb-store path)]
         (try
           (store/s-put s h v)
           (finally
-            (store/lmdb-close s))))
+            (sj/lmdb-close s))))
       ;; New instance, same path
-      (let [s (store/lmdb-store path)]
+      (let [s (sj/lmdb-store path)]
         (try
           (is (= v (store/s-get s h)))
           (finally
-            (store/lmdb-close s)))))))
+            (sj/lmdb-close s)))))))
 
 (deftest lmdb-store-snapshot-test
   (testing "LMDB snapshot returns all entries"
-    (let [s (store/lmdb-store (str *temp-dir* "/lmdb-snap"))]
+    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-snap"))]
       (try
         (store/s-put s [1 2 3 4] ["i64" 1])
         (store/s-put s [5 6 7 8] ["i64" 2])
@@ -273,32 +274,32 @@
           (is (= ["i64" 1] (get snap [1 2 3 4])))
           (is (= ["i64" 2] (get snap [5 6 7 8]))))
         (finally
-          (store/lmdb-close s))))))
+          (sj/lmdb-close s))))))
 
 (deftest lmdb-store-merge-test
   (testing "LMDB merge writes multiple entries in single txn"
-    (let [s (store/lmdb-store (str *temp-dir* "/lmdb-merge"))]
+    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-merge"))]
       (try
         (store/s-merge s {[1 2 3 4] ["i64" 10] [5 6 7 8] ["i64" 20]})
         (is (= ["i64" 10] (store/s-get s [1 2 3 4])))
         (is (= ["i64" 20] (store/s-get s [5 6 7 8])))
         (finally
-          (store/lmdb-close s))))))
+          (sj/lmdb-close s))))))
 
 (deftest lmdb-store-reset-test
   (testing "LMDB reset clears all entries"
-    (let [s (store/lmdb-store (str *temp-dir* "/lmdb-reset"))]
+    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-reset"))]
       (try
         (store/s-put s [1 2 3 4] ["i64" 1])
         (store/s-reset s)
         (is (nil? (store/s-get s [1 2 3 4])))
         (is (= {} (store/s-snapshot s)))
         (finally
-          (store/lmdb-close s))))))
+          (sj/lmdb-close s))))))
 
 (deftest lmdb-store-complex-values-test
   (testing "LMDB handles all node types"
-    (let [s (store/lmdb-store (str *temp-dir* "/lmdb-complex"))]
+    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-complex"))]
       (try
         ;; Scalar
         (store/s-put s [1 0 0 0] ["i64" 42])
@@ -331,12 +332,12 @@
           (is (= "hamt/entry" (first v)))
           (is (= [6 6 6 6] (:key-ref (second v)))))
         (finally
-          (store/lmdb-close s))))))
+          (sj/lmdb-close s))))))
 
 (deftest lmdb-store-with-layered-test
   (testing "LMDB as backend in layered store"
     (let [mem (store/mem-store)
-          lmdb (store/lmdb-store (str *temp-dir* "/lmdb-layered"))]
+          lmdb (sj/lmdb-store (str *temp-dir* "/lmdb-layered"))]
       (try
         (let [s (store/layered-store mem lmdb)]
           (store/s-put s [1 2 3 4] ["i64" 42])
@@ -347,7 +348,7 @@
           (let [s2 (store/layered-store (store/mem-store) lmdb)]
             (is (= ["i64" 42] (store/s-get s2 [1 2 3 4])))))
         (finally
-          (store/lmdb-close lmdb))))))
+          (sj/lmdb-close lmdb))))))
 
 ;; =============================================================================
 ;; Content addressing

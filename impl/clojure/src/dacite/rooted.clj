@@ -7,7 +7,8 @@
 
    See docs/book/04-rooted-stores/chapter.md."
   (:require [dacite.rooted.gc :as gc]
-            [dacite.store :as store]))
+            [dacite.store :as store]
+            [dacite.store.jvm :as sjvm]))
 
 ;; =============================================================================
 ;; Root cell — durable root persistence
@@ -31,9 +32,9 @@
 
 (defrecord LmdbRootCell [lmdb k]
   IRootCell
-  (rc-get [_] (store/lmdb-get-meta lmdb k))
+  (rc-get [_] (sjvm/lmdb-get-meta lmdb k))
   (rc-put! [this h]
-    (store/lmdb-put-meta! lmdb k h)
+    (sjvm/lmdb-put-meta! lmdb k h)
     this))
 
 (defn lmdb-root-cell

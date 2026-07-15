@@ -13,6 +13,7 @@
      clojure -M:cards"
   (:require [dacite.rooted :as rs]
             [dacite.store :as store]
+            [dacite.store.jvm :as sj]
             [dacite.value :as v]
             [dacite.value.types :as types]))
 
@@ -140,7 +141,7 @@
   [& _]
   (println "=== Dacite cards (value) ===")
   (println)
-  (with-open [lmdb (store/lmdb-store default-lmdb-path)]
+  (with-open [lmdb (sj/lmdb-store default-lmdb-path)]
     (let [store (make-cards-store lmdb)
           [_ final-game]
           (v/with-store [_ store]
@@ -174,7 +175,7 @@
 
 (comment
   ;; Primary entry point: clojure -M:cards (from impl/clojure)
-  (with-open [lmdb (store/lmdb-store default-lmdb-path)]
+  (with-open [lmdb (sj/lmdb-store default-lmdb-path)]
     (let [store (make-cards-store lmdb)]
       (v/with-store [_ store]
         (let [game (-> (load-or-init-game! store)

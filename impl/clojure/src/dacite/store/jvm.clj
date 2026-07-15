@@ -1,70 +1,17 @@
-(ns dacite.store
-  "Content-addressed storage for Dacite values.
+(ns dacite.store.jvm
+  "Host-backed content stores for the JVM (and babashka): filesystem and
+   LMDB persistence, plus the LMDB meta database used for durable roots.
 
-   The Store protocol defines the minimal interface for value storage.
-   All Dacite operations go through this protocol, allowing stores to
-   be swapped, layered, or backed by different media (memory, disk,
-   network) without changing application code.
-
-   Built-in implementations:
-   - mem-store: In-memory atom-backed store (default)
-   - file-store: Filesystem persistence with directory sharding
-   - lmdb-store: LMDB persistence (Closeable)
-   - lru-store: Bounded in-memory store with LRU eviction (dacite.store.lru)
-   - remote-store: HTTP-backed store (dacite.store.remote)
-   - layered-store: Compose stores with read-through / write-through
-
-   Global store management:
-   - *store*: Dynamic var holding the current store
-   - with-store: Execute body with an isolated store
-   - reset-store!: Clear the global store
-   - set-store!: Replace the global store"
-  (:require [dacite.hash :as hash]
+   These are intentionally kept out of the portable dacite.store core so
+   that core can load under SCI hosts (nbb/ClojureScript) that have no
+   java.io / java.nio / LMDB. Callers that need durability on the JVM
+   require this namespace directly."
+  (:require [dacite.store :as store]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
   (:import [java.io File]
            [java.nio ByteBuffer]
            [org.lmdbjava Env EnvFlags Dbi DbiFlags PutFlags]))
-
-;; =============================================================================
-;; Hash utilities (re-exported from dacite.hash)
-;; =============================================================================
-
-(def hash->hex hash/hash->hex)
-(def hex->hash hash/hex->hash)
-
-;; =============================================================================
-;; Store protocol
-;; =============================================================================
-
-(defprotocol IStore
-  "Protocol for content-addressed storage."
-  (s-get [this h] "Retrieve value by hash. Returns nil if not found.")
-  (s-put [this h value] "Store value at hash. Returns the store (or this for mutable stores).")
-  (s-has? [this h] "Check if hash exists.")
-  (s-delete [this h] "Remove entry at hash. Returns the store.")
-  (s-snapshot [this] "Return the current contents as a plain map. Used for bulk reads during construction.")
-  (s-merge [this m] "Merge a map of {hash value} pairs into the store.")
-  (s-reset [this] "Clear all entries. Returns the store."))
-
-;; =============================================================================
-;; In-memory store
-;; =============================================================================
-
-(defrecord MemStore [data]
-  IStore
-  (s-get [_ h] (get @data h))
-  (s-put [this h value] (swap! data assoc h value) this)
-  (s-has? [_ h] (contains? @data h))
-  (s-delete [this h] (swap! data dissoc h) this)
-  (s-snapshot [_] @data)
-  (s-merge [this m] (swap! data merge m) this)
-  (s-reset [this] (reset! data {}) this))
-
-(defn mem-store
-  "Create an in-memory content-addressed store."
-  ([] (->MemStore (atom {})))
-  ([init] (->MemStore (atom init))))
 
 ;; =============================================================================
 ;; Filesystem store
@@ -73,7 +20,7 @@
 (defn- hash->path
   "Convert hash to file path with directory sharding."
   [^File base-dir h]
-  (let [hex (hash->hex h)
+  (let [hex (store/hash->hex h)
         dir1 (subs hex 0 2)
         dir2 (subs hex 2 4)
         filename (str hex ".edn")]
@@ -85,7 +32,7 @@
       (.mkdirs parent))))
 
 (defrecord FileStore [base-dir]
-  IStore
+  store/IStore
   (s-get [_ h]
     (let [f (hash->path base-dir h)]
       (when (.exists f)
@@ -106,8 +53,7 @@
         (.delete f)))
     this)
 
-  (s-snapshot [this]
-    ;; Expensive: reads all files into memory. Use sparingly.
+  (s-snapshot [_]
     (let [files (file-seq base-dir)]
       (into {}
             (comp
@@ -115,18 +61,17 @@
              (filter #(.endsWith (.getName ^File %) ".edn"))
              (map (fn [^File f]
                     (let [hex (subs (.getName f) 0 64)
-                          h (hex->hash hex)
+                          h (store/hex->hash hex)
                           v (edn/read-string (slurp f))]
                       [h v]))))
             files)))
 
   (s-merge [this m]
     (doseq [[h v] m]
-      (s-put this h v))
+      (store/s-put this h v))
     this)
 
   (s-reset [this]
-    ;; Delete all .edn files
     (doseq [^File f (file-seq base-dir)
             :when (and (.isFile f) (.endsWith (.getName f) ".edn"))]
       (.delete f))
@@ -177,7 +122,7 @@
 (defrecord LmdbStore [^Env env ^Dbi db]
   java.io.Closeable
   (close [_] (.close env))
-  IStore
+  store/IStore
   (s-get [_ h]
     (with-open [txn (.txnRead env)]
       (when-let [buf (.get db txn (hash->lmdb-key h))]
@@ -285,116 +230,3 @@
   "Close an LMDB store environment. Must be called when done."
   [store]
   (.close ^java.io.Closeable store))
-
-;; =============================================================================
-;; Layered store
-;; =============================================================================
-
-(defrecord LayeredStore [layers]
-  ;; layers is a vector of stores, first = fastest (e.g. mem), last = most durable
-  IStore
-  (s-get [_ h]
-    (loop [seen []
-           [layer & more] layers]
-      (when layer
-        (if-let [v (s-get layer h)]
-          (do (doseq [faster seen] (s-put faster h v))
-              v)
-          (recur (conj seen layer) more)))))
-
-  (s-put [this h value]
-    ;; Write to all layers
-    (doseq [layer layers]
-      (s-put layer h value))
-    this)
-
-  (s-has? [_ h]
-    (some #(s-has? % h) layers))
-
-  (s-delete [this h]
-    (doseq [layer layers]
-      (s-delete layer h))
-    this)
-
-  (s-snapshot [_]
-    ;; Merge all layers, first layer wins on conflicts
-    (reduce (fn [acc layer]
-              (merge acc (s-snapshot layer)))
-            {}
-            (reverse layers)))
-
-  (s-merge [this m]
-    (doseq [layer layers]
-      (s-merge layer m))
-    this)
-
-  (s-reset [this]
-    (doseq [layer layers]
-      (s-reset layer))
-    this))
-
-(defn layered-store
-  "Create a layered store. Reads fall through from first to last.
-   Writes go to all layers.
-
-   Example: (layered-store (mem-store) (file-store \"/tmp/dacite\"))"
-  [& layers]
-  (->LayeredStore (clojure.core/vec layers)))
-
-;; =============================================================================
-;; Current store management
-;; =============================================================================
-
-(def ^:dynamic *store*
-  "Dynamic var holding the current IStore. Initialized with an in-memory
-   store so constructors work without an explicit with-store."
-  (mem-store))
-
-(defn reset-store!
-  "Reset the current store to empty."
-  []
-  (s-reset *store*))
-
-(defn set-store!
-  "Replace the current store with a new IStore implementation."
-  [new-store]
-  (alter-var-root #'*store* (constantly new-store)))
-
-(defn get-store
-  "Get a value by hash from the current store. Returns nil if absent."
-  [h]
-  (s-get *store* h))
-
-(defn put-store!
-  "Store a value at hash in the current store."
-  [h value]
-  (s-put *store* h value))
-
-(defn snapshot-store
-  "Return a plain {hash value} map snapshot of the current store."
-  []
-  (s-snapshot *store*))
-
-(defn merge-store!
-  "Merge a map of {hash value} pairs into the current store."
-  [m]
-  (s-merge *store* m))
-
-(defmacro bind-store
-  "Bind *store* to the given store for the duration of body."
-  [store & body]
-  `(binding [*store* ~store]
-     ~@body))
-
-(defmacro with-store
-  "Execute body with an isolated store. init can be an IStore or a map
-   (which will be wrapped in a mem-store). Returns [snapshot last-value]."
-  [[sym init] & body]
-  `(let [store# (let [i# ~init]
-                  (if (satisfies? IStore i#)
-                    i#
-                    (mem-store i#)))
-         ~sym store#]
-     (bind-store store#
-                 (let [result# (do ~@body)]
-                   [(s-snapshot store#) result#]))))

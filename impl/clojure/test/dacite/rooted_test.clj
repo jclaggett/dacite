@@ -3,6 +3,7 @@
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [dacite.rooted :as rs]
             [dacite.store :as store]
+            [dacite.store.jvm :as sj]
             [clojure.java.io :as io]))
 
 ;; =============================================================================
@@ -38,13 +39,13 @@
 (deftest lmdb-root-cell-test
   (testing "lmdb root cell persists across instances"
     (let [path (str *temp-dir* "/lmdb-root-cell")
-          lmdb (store/lmdb-store path)
+          lmdb (sj/lmdb-store path)
           cell (rs/lmdb-root-cell lmdb)]
       (try
         (rs/rc-put! cell [1 2 3 4])
         (is (= [1 2 3 4] (rs/rc-get (rs/lmdb-root-cell lmdb))))
         (finally
-          (store/lmdb-close lmdb))))))
+          (sj/lmdb-close lmdb))))))
 
 ;; =============================================================================
 ;; Rooted store — core ref operations
@@ -115,7 +116,7 @@
 (deftest rooted-store-durability-test
   (testing "root survives reopen via lmdb root cell"
     (let [path (str *temp-dir* "/lmdb-durable")
-          lmdb (store/lmdb-store path)
+          lmdb (sj/lmdb-store path)
           cell (rs/lmdb-root-cell lmdb)]
       (try
         (let [s1 (rs/rooted-store (store/mem-store) cell)]
@@ -123,7 +124,7 @@
         (let [s2 (rs/rooted-store (store/mem-store) cell)]
           (is (= [1 2 3 4] @s2)))
         (finally
-          (store/lmdb-close lmdb))))))
+          (sj/lmdb-close lmdb))))))
 
 ;; =============================================================================
 ;; IStore delegation
