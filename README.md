@@ -22,6 +22,7 @@ Dacite lets applications work with **immutable Values** functionally while **Sto
 - **[The Dacite Book](https://dacite.io/book/)** — primary living documentation (also under [docs/book/](docs/book/))
 - **[Development dialogue](docs/development-dialogue.md)** — design history
 - **[Design docs](docs/design/)** — phase plans and service design
+- **[Portable core & host compatibility](docs/design/portable-core.md)** — running on JVM/babashka/nbb and the porting contract
 
 Build the site locally:
 
@@ -37,9 +38,10 @@ GitHub Actions deploys `target/site/` to the `gh-pages` branch on push to `main`
 
 | Language | Status | Location |
 |----------|--------|----------|
-| Clojure | Reference implementation | [impl/clojure](impl/clojure) |
-| Node.js | Planned | — |
-| C++ | Planned | — |
+| Clojure (JVM) | Reference implementation | [impl/clojure](impl/clojure) |
+| SCI (babashka + nbb) | Runs the portable core from the same `.cljc` source | [docs/design/portable-core.md](docs/design/portable-core.md) |
+| Python | Planned | — |
+| C / C++ | Planned | — |
 
 ## Examples
 
@@ -50,6 +52,14 @@ clojure -M:cards    # durable LMDB rooted-store card game
 ```
 
 See [examples/](examples/) for `cards.clj` and `config.clj`.
+
+Portable examples run identically on every host (JVM, babashka, nbb):
+
+```bash
+bb todo                        # babashka
+npx nbb -m dacite.examples.todo  # nbb
+bin/hash-parity.sh             # assert identical root hash on all hosts
+```
 
 ## Use Cases
 
