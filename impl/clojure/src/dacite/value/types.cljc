@@ -14,13 +14,14 @@
    separates the type from the data that follows (fuse composes over
    concatenation, so a boundary marker is required).
 
-   This namespace is store-free: it knows nothing about live store I/O.
-   Here we define the hashing algebra, the value protocol, per-type
+   Defines the hashing algebra, the value protocol, per-type
    encoding/size multimethods, and the wrap-entry / coerce-and-store!
-   dispatch tables (extended in scalar and collections). Store-aware
-   entry points live in dacite.value."
+   dispatch tables (extended in scalar and collections). `extract-hash`
+   may copy a value's subgraph into a target store when the value was
+   created elsewhere (cross-store / async *store* safety)."
   (:require [dacite.hash :as hash]
-            [dacite.host :as host]))
+            [dacite.host :as host]
+            [dacite.store :as store]))
 
 ;; =============================================================================
 ;; Value protocol
@@ -231,9 +232,33 @@
 (defmethod coerce-and-store! :unsupported [_ x]
   (throw (ex-info "Cannot coerce to dacite value" {:value x :type (type x)})))
 
+(defn ensure-in-store!
+  "Copy hash h and all nodes reachable via child-hashes from src into dst
+   if missing. Idempotent. Used when a Dacite value is introduced into a
+   different store (e.g. conj of a map built while *store* pointed elsewhere,
+   or after an async UI dropped a dynamic bind-store)."
+  [src dst h]
+  (when (and h (not (store/s-has? dst h)))
+    (if-let [node (store/s-get src h)]
+      (do (store/s-put dst h node)
+          (doseq [ch (or (child-hashes node) [])]
+            (ensure-in-store! src dst ch)))
+      (throw (ex-info "Cannot ensure hash in store: missing from source"
+                      {:hash h}))))
+  h)
+
 (defn extract-hash
-  "Hash of a Dacite value, or coerce-and-store a plain Clojure value."
+  "Hash of a Dacite value, or coerce-and-store a plain Clojure value.
+
+   When x is already a Dacite value, its content hash is returned. If that
+   value's nodes are not yet present in `store` (different store instance,
+   or only written to an ephemeral *store*), the reachable subgraph is
+   copied into `store` first so the hash is never a dangling reference."
   [store x]
   (if (satisfies? IDaciteValue x)
-    (dacite-hash x)
+    (let [h (dacite-hash x)
+          src (dacite-store x)]
+      (when-not (store/s-has? store h)
+        (ensure-in-store! src store h))
+      h)
     (coerce-and-store! store x)))

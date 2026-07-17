@@ -5,7 +5,12 @@
   "description": "Run the portable Dacite core under nbb (SCI on Node).",
   "scripts": {
     "parity": "nbb -m dacite.examples.parity",
-    "todo": "nbb -m dacite.examples.todo"
+    "todo": "nbb -m dacite.examples.todo-ui",
+    "todo:batch": "nbb -m dacite.examples.todo"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "prompts": "^2.4.2"
   },
   "devDependencies": {
     "nbb": "^1.3.196"

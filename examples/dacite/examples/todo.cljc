@@ -1,21 +1,24 @@
 (ns dacite.examples.todo
-  "A tiny durable todo app on the portable Dacite surface.
+  "A durable todo app on the portable Dacite surface.
+
+   Domain + store lifecycle are host-agnostic (JVM / babashka / nbb).
+   Interactive CLI with color and prompts lives in dacite.examples.todo-ui
+   (nbb + npm packages: chalk, prompts).
 
    Uses:
      - dacite.value.api  — functional collection ops + get-value
      - dacite.rooted     — root / set-root! (portable fn API)
      - host file store   — JVM/bb: store.file; nbb: store.nbb
-     - file-root-cell    — {base}/ROOT hex file (same on both hosts)
+     - file-root-cell    — {base}/ROOT hex file
 
-   The same source runs on the JVM, babashka, and nbb. First run seeds
-   sample todos and commits the root; later runs resume and apply one
-   demo mutation so durability is visible.
-
-   Run:
+   Run (batch / non-interactive):
      npx nbb -m dacite.examples.todo
-     npx nbb -m dacite.examples.todo -- --reset
      bb todo
-     clojure -Sdeps '{:paths [\"impl/clojure/src\" \"examples\"]}' -M -m dacite.examples.todo"
+     bb todo /tmp/my-todos --reset
+
+   Run (interactive, nbb — colored + toggleable):
+     npm run todo
+     npx nbb -m dacite.examples.todo-ui"
   (:require [dacite.store :as store]
             [dacite.rooted :as rs]
             [dacite.value.collections :as coll]
@@ -25,71 +28,140 @@
             #?@(:cljs [[dacite.store.nbb :as host-store]]
                 :default [[dacite.store.file :as host-store]])))
 
-(def ^:private default-path
+(def default-path
   "target/dacite-todo")
 
 ;; =============================================================================
 ;; Domain
 ;; =============================================================================
 
+(defn- todos-store
+  "Content store carried by a todos value (never rely on *store* alone —
+   async UIs drop dynamic bindings after the first await)."
+  [todos]
+  (types/dacite-store todos))
+
+(defn todo-entry?
+  "True if x looks like a {title, done} todo map value."
+  [x]
+  (and (d/dacite-value? x)
+       (= "map" (d/value-type x))
+       (some? (d/get x "title"))))
+
 (defn add-todo
-  "Return a new todos vector with {title, done} appended."
-  [todos title done?]
-  (d/conj todos (coll/hash-map "title" title "done" done?)))
+  "Return a new todos vector with {title, done} appended.
+
+   New map nodes are written into the same store as `todos` (not whatever
+   *store* happens to be bound — critical for nbb async prompts)."
+  ([todos title] (add-todo todos title false))
+  ([todos title done?]
+   (let [st (todos-store todos)]
+     (d/conj todos (coll/hash-map-with-store st "title" title "done" done?)))))
+
+(defn- field-native
+  "Native host value for map field k, or nil. Never throws on missing/corrupt."
+  [todo k]
+  (try
+    (when (todo-entry? todo)
+      (let [v (d/get todo k)]
+        (cond
+          (nil? v) nil
+          (d/dacite-value? v) (types/realize v)
+          :else v)))
+    (catch #?(:clj Throwable :cljs :default) _
+      nil)))
 
 (defn title-str
   "The title of a todo entry as a native string."
   [todo]
-  (apply str (types/realize (d/get todo "title"))))
+  (if-let [v (field-native todo "title")]
+    (if (string? v) v (apply str v))
+    "<?>"))
 
 (defn done?
   [todo]
-  (boolean (types/realize (d/get todo "done"))))
-
+  (boolean (field-native todo "done")))
 (defn set-done
   "Return a new todo entry with done flag set."
   [todo done?]
   (d/assoc todo "done" done?))
 
-(defn toggle-first-open
-  "Toggle the first incomplete todo to done; if all done, leave as-is."
+(defn toggle-at
+  "Toggle done flag of the todo at index i."
+  [todos i]
+  (let [t (d/nth todos i)]
+    (if (todo-entry? t)
+      (d/assoc todos i (set-done t (not (done? t))))
+      todos)))
+
+(defn remove-at
+  "Remove the todo at index i (rebuild vector; portable API has no disj-by-index)."
+  [todos i]
+  (let [st (todos-store todos)
+        n (d/count todos)]
+    (loop [j 0
+           acc (coll/vector-with-store st)]
+      (if (>= j n)
+        acc
+        (recur (inc j)
+               (if (= j i)
+                 acc
+                 (d/conj acc (d/nth todos j))))))))
+
+(defn todo-count [todos]
+  (d/count todos))
+
+(defn todo-nth [todos i]
+  (d/nth todos i))
+
+(defn todo-seq [todos]
+  (d/seq todos))
+
+(defn todos-hash [todos]
+  (d/dacite-hash todos))
+
+(defn open-count
+  "Number of incomplete todos."
   [todos]
-  (let [n (d/count todos)]
-    (loop [i 0]
-      (if (>= i n)
-        todos
-        (let [t (d/nth todos i)]
-          (if (done? t)
-            (recur (inc i))
-            (d/assoc todos i (set-done t true))))))))
+  (count (filter (fn [t] (and (todo-entry? t) (not (done? t))))
+                 (or (todo-seq todos) ()))))
 
 (defn build
-  "Build a todos vector in the bound store from a seq of [title done?] pairs."
-  [items]
-  (reduce (fn [todos [title done?]] (add-todo todos title done?))
-          (coll/vector)
-          items))
+  "Build a todos vector in st from a seq of [title done?] pairs."
+  ([items] (build store/*store* items))
+  ([st items]
+   (reduce (fn [todos [title done?]] (add-todo todos title done?))
+           (coll/vector-with-store st)
+           items)))
 
 (defn render
-  "A plain-text listing of the todos."
+  "A plain-text listing of the todos (no ANSI)."
   [todos]
-  (str "todos (" (d/count todos) "):\n"
+  (str "todos (" (todo-count todos) ", "
+       (open-count todos) " open):\n"
        (apply str
-              (map (fn [t]
-                     (str "  [" (if (done? t) "x" " ") "] " (title-str t) "\n"))
-                   (d/seq todos)))
-       "root: " (hash/hash->hex (d/dacite-hash todos))))
+              (map-indexed
+               (fn [i t]
+                 (str "  " i ". [" (if (done? t) "x" " ") "] " (title-str t) "\n"))
+               (todo-seq todos)))
+       "root: " (hash/hash->hex (todos-hash todos))))
 
 ;; =============================================================================
 ;; Store lifecycle
 ;; =============================================================================
 
 (defn open-store
-  "Open a durable rooted store at path (content files + ROOT)."
+  "Open a durable rooted store at path (content files + ROOT).
+
+   Also installs the store as store/*store* for the process so constructors
+   that use the dynamic var (and nbb async callbacks) write into the same
+   durable store. Prefer value-local stores (add-todo) when possible."
   [path]
   (let [content (host-store/file-store path)
-        cell (rs/file-root-cell path)]
-    (rs/rooted-store content cell)))
+        cell (rs/file-root-cell path)
+        rs (rs/rooted-store content cell)]
+    (store/set-store! rs)
+    rs))
 
 (defn load-todos
   "Load the current todos vector from the rooted store, or nil."
@@ -100,7 +172,7 @@
 (defn commit-todos!
   "Persist todos as the store root. Returns todos."
   [rs todos]
-  (rs/set-root! rs (d/dacite-hash todos))
+  (rs/set-root! rs (todos-hash todos))
   todos)
 
 (defn seed-items
@@ -112,6 +184,14 @@
    ["run under nbb" false]
    ["durable todo root" false]])
 
+(defn load-or-seed!
+  "Load todos from rs, or seed sample items and commit. Returns [todos seeded?]."
+  [rs]
+  (if-let [prior (load-todos rs)]
+    [prior false]
+    (let [t (build rs (seed-items))]
+      (commit-todos! rs t)
+      [t true])))
 (defn reset-store-dir!
   "Wipe content + root under path (for --reset demos)."
   [path]
@@ -121,10 +201,12 @@
     nil))
 
 ;; =============================================================================
-;; Main
+;; Main (batch — all hosts)
 ;; =============================================================================
 
-(defn- parse-args [args]
+(defn parse-args
+  "Parse [path] [--reset|-r] from CLI args."
+  [args]
   (let [args (->> args (map str) (remove #{"--"}))
         reset? (some #{"--reset" "-r"} args)
         path (or (first (remove #{"--reset" "-r"} args))
@@ -137,17 +219,10 @@
     (when reset?
       (reset-store-dir! path)
       (println "reset store at" path))
-    (let [rs (open-store path)]
-      (store/bind-store rs
-                        (let [prior (load-todos rs)
-                              todos (if prior
-                                      (let [t' (toggle-first-open prior)]
-                                        (println "resumed from" path)
-                                        (commit-todos! rs t')
-                                        t')
-                                      (let [t (build (seed-items))]
-                                        (println "seeded new store at" path)
-                                        (commit-todos! rs t)
-                                        t))]
-                          (println (render todos))
-                          (println "(re-run to resume; pass --reset to wipe)"))))))
+    (let [rs (open-store path)
+          [todos seeded?] (load-or-seed! rs)]
+      (println (if seeded?
+                 (str "seeded new store at " path)
+                 (str "loaded store at " path)))
+      (println (render todos))
+      (println "interactive (nbb): npm run todo"))))
