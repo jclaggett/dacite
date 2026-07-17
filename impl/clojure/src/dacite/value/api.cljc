@@ -17,7 +17,10 @@
   (:refer-clojure :exclude [count nth get assoc conj seq peek pop keys vals
                             contains? dissoc empty?])
   (:require [dacite.value.types :as types]
-            [dacite.value.collections :as coll]))
+            [dacite.value.collections :as coll]
+            [dacite.store :as store]
+            ;; Register scalar wrap-entry methods used by get-value
+            [dacite.value.scalar]))
 
 (defn- s [v] (types/dacite-store v))
 (defn- h [v] (types/dacite-hash v))
@@ -35,6 +38,22 @@
 (def realize
   "Recover a Dacite value's content in the host language."
   types/realize)
+
+(def dacite-hash
+  "Content hash of a Dacite value."
+  types/dacite-hash)
+
+(defn get-value
+  "Look up a hash in a content store and return the corresponding Dacite
+   value, or nil if absent.
+
+   One-arg form uses the bound store/*store*. This is the portable way to
+   rehydrate a root (or any) hash after restart — the contract a language
+   port must provide alongside the collection API."
+  ([h] (get-value store/*store* h))
+  ([st h]
+   (when-let [entry (store/s-get st h)]
+     (types/wrap-entry (types/entry-type entry) st h))))
 
 (defn count
   "Number of elements/entries in a Dacite collection, O(1)."

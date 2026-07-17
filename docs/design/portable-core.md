@@ -49,13 +49,20 @@ flowchart TB
     api["dacite.value.api - functional get/assoc/conj/nth/count/seq"]
     values["dacite.value.scalar / .collections - IDaciteValue"]
   end
+  subgraph hostbackends [Host durability backends]
+    direction TB
+    filejvm["dacite.store.file — java.io (JVM/bb)"]
+    filenbb["dacite.store.nbb — Node fs"]
+    lmdb["dacite.store.jvm — LMDB + lmdb-root-cell"]
+    remote["dacite.store.remote — HTTP client"]
+  end
   subgraph jvmonly [JVM-only adapters]
     direction TB
     native["native clojure.lang.* interface impls on deftypes"]
-    backends["dacite.store.jvm: FileStore / LmdbStore / RemoteStore, serial, cheshire"]
     print["print-method / render"]
   end
   host --> core
+  core --> hostbackends
   core --> jvmonly
 ```
 
@@ -63,10 +70,12 @@ Three layers:
 
 - **Host layer** (`dacite.host`) — the *only* place platform interop lives.
 - **Portable core** — plain `.cljc` built entirely on `dacite.host`; no
-  `java.*`, no `js/*`, no host interop.
-- **JVM-only adapters** — native collection interfaces, durable stores,
-  serialization, printing. Guarded by reader conditionals so SCI never loads
-  them.
+  `java.*`, no `js/*`, no host interop. Includes `IStore` + mem/layered/lru,
+  values, **rooted stores** (`root` / `cas-root!` / `set-root!`), and
+  `file-root-cell` (host fs behind reader conditionals).
+- **Host durability + JVM adapters** — file/LMDB/remote backends, native
+  collection interfaces, printing. SCI loads only the backends it needs
+  (e.g. nbb loads `store.nbb`, never LMDB).
 
 ---
 
@@ -139,12 +148,20 @@ future port — uses this API:
 ```
 count  empty?  seq  nth  get  contains?
 assoc  dissoc  conj  peek  pop  keys  vals
-realize  value-type  dacite-value?
+realize  value-type  dacite-value?  dacite-hash  get-value
 ```
 
 Each takes a Dacite value first and dispatches on its `value-type` (`"vector"`,
 `"map"`, `"set"`, `"string"`, `"blob"`). Accessors return **wrapped** Dacite
-values; call `realize` to recover native content.
+values; call `realize` to recover native content. `get-value` rehydrates a
+hash from a store (used after loading a rooted-store root).
+
+Rooted stores expose a matching portable surface (the contract a Python/C
+port implements alongside the collection API):
+
+```
+root  cas-root!  set-root!  update-root!
+```
 
 ```clojure
 (require '[dacite.value.api :as d]
@@ -165,8 +182,19 @@ the functional API only.
 `IStore` is the portable storage interface: `s-get`, `s-put`, `s-has?`,
 `s-delete`, `s-snapshot`, `s-merge`, `s-reset`. The portable core ships
 `MemStore` (atom-backed), `LayeredStore`, and `LruStore` (`dacite.store.lru`).
-Durable backends (`FileStore`, `LmdbStore`, `RemoteStore`) live in
-`dacite.store.jvm` / `dacite.store.remote` and are never loaded on SCI.
+Durable backends live outside the pure core:
+
+| Backend | Namespace | Hosts |
+|---------|-----------|-------|
+| File store | `dacite.store.file` | JVM, babashka |
+| File store | `dacite.store.nbb` | nbb (Node `fs`) |
+| LMDB | `dacite.store.jvm` | JVM (+ native lib) |
+| Remote HTTP | `dacite.store.remote` | JVM |
+
+Rooted stores (`dacite.rooted`) are portable: the contract is `root`,
+`cas-root!`, and `set-root!` (local). `file-root-cell` persists the root as
+hex in `{base}/ROOT` on every host; `lmdb-root-cell` is JVM-only. Load a
+committed root with `dacite.value.api/get-value`.
 
 > **Note on map keys:** on the JVM a hash is a vector of `long`s and is used
 > directly as the `MemStore` map key. On ClojureScript a hash is a vector of
@@ -216,7 +244,9 @@ npx nbb -m dacite.examples.todo
 ```
 
 Portable examples live in [`examples/dacite/examples/`](../../examples/dacite/examples):
-`todo.cljc` (functional API + mem-store) and `parity.cljc` (canonical root hash).
+`todo.cljc` (durable file store + rooted commit/resume) and `parity.cljc`
+(canonical root hash). Todo writes under `target/dacite-todo/` by default;
+pass `--reset` to wipe.
 
 ---
 
@@ -251,7 +281,11 @@ To interoperate with the Clojure reference implementation, a port must:
 4. Implement the canonical **scalar encodings** (big-endian ints, IEEE-754
    floats, UTF-8) and the **value hashing** rules in `dacite.value.types`.
 5. Expose the **functional API** surface (`get`/`assoc`/`conj`/`nth`/`count`/
-   `seq`/…) and an **`IStore`**-equivalent with at least an in-memory backend.
+   `seq`/`get-value`/…) and an **`IStore`**-equivalent with at least an
+   in-memory backend.
+6. Expose the **rooted-store** surface (`root` / `cas-root!` / `set-root!`)
+   over a content store + root cell. Durability backends (files, LMDB, HTTP)
+   are host-specific and not part of the pure core.
 
 If steps 1–4 match, the port's root hashes will match the reference
 implementation's — which is exactly what `bin/hash-parity.sh` verifies across

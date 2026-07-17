@@ -67,3 +67,13 @@
       (is (= (types/dacite-hash (nth v 1)) (types/dacite-hash (d/nth v 1))))
       (is (= (types/dacite-hash (get m "x")) (types/dacite-hash (d/get m "x"))))
       (is (= (types/dacite-hash (conj v 8)) (types/dacite-hash (d/conj v 8)))))))
+
+(deftest get-value-test
+  (testing "rehydrate a collection from its content hash"
+    (let [v (coll/vector 1 2 3)
+          h (types/dacite-hash v)
+          v' (d/get-value h)]
+      (is (some? v'))
+      (is (= h (d/dacite-hash v')))
+      (is (= [1 2 3] (map realized (d/seq v'))))
+      (is (nil? (d/get-value (store/hex->hash (apply str (repeat 64 "0")))))))))

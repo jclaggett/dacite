@@ -1,89 +1,23 @@
 (ns dacite.store.jvm
-  "Host-backed content stores for the JVM (and babashka): filesystem and
-   LMDB persistence, plus the LMDB meta database used for durable roots.
+  "Host-backed content stores for the JVM: LMDB persistence plus the
+   LMDB meta database used for durable roots.
 
-   These are intentionally kept out of the portable dacite.store core so
-   that core can load under SCI hosts (nbb/ClojureScript) that have no
-   java.io / java.nio / LMDB. Callers that need durability on the JVM
-   require this namespace directly."
+   Filesystem store lives in dacite.store.file (no native deps; works on
+   babashka). This namespace re-exports file-store for backcompat.
+
+   Intentionally out of the pure portable core so SCI/nbb never loads
+   java.nio / LMDB."
   (:require [dacite.store :as store]
+            [dacite.store.file :as file]
+            [dacite.rooted :as rooted]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
-  (:import [java.io File]
-           [java.nio ByteBuffer]
+  (:import [java.nio ByteBuffer]
            [org.lmdbjava Env EnvFlags Dbi DbiFlags PutFlags]))
 
-;; =============================================================================
-;; Filesystem store
-;; =============================================================================
-
-(defn- hash->path
-  "Convert hash to file path with directory sharding."
-  [^File base-dir h]
-  (let [hex (store/hash->hex h)
-        dir1 (subs hex 0 2)
-        dir2 (subs hex 2 4)
-        filename (str hex ".edn")]
-    (io/file base-dir dir1 dir2 filename)))
-
-(defn- ensure-parent-dirs [^File f]
-  (let [parent (.getParentFile f)]
-    (when-not (.exists parent)
-      (.mkdirs parent))))
-
-(defrecord FileStore [base-dir]
-  store/IStore
-  (s-get [_ h]
-    (let [f (hash->path base-dir h)]
-      (when (.exists f)
-        (edn/read-string (slurp f)))))
-
-  (s-put [this h value]
-    (let [f (hash->path base-dir h)]
-      (ensure-parent-dirs f)
-      (spit f (pr-str value))
-      this))
-
-  (s-has? [_ h]
-    (.exists (hash->path base-dir h)))
-
-  (s-delete [this h]
-    (let [f (hash->path base-dir h)]
-      (when (.exists f)
-        (.delete f)))
-    this)
-
-  (s-snapshot [_]
-    (let [files (file-seq base-dir)]
-      (into {}
-            (comp
-             (filter #(.isFile ^File %))
-             (filter #(.endsWith (.getName ^File %) ".edn"))
-             (map (fn [^File f]
-                    (let [hex (subs (.getName f) 0 64)
-                          h (store/hex->hash hex)
-                          v (edn/read-string (slurp f))]
-                      [h v]))))
-            files)))
-
-  (s-merge [this m]
-    (doseq [[h v] m]
-      (store/s-put this h v))
-    this)
-
-  (s-reset [this]
-    (doseq [^File f (file-seq base-dir)
-            :when (and (.isFile f) (.endsWith (.getName f) ".edn"))]
-      (.delete f))
-    this))
-
-(defn file-store
-  "Create a file-based content-addressed store."
-  [path]
-  (let [dir (io/file path)]
-    (when-not (.exists dir)
-      (.mkdirs dir))
-    (->FileStore dir)))
+(def file-store
+  "Re-export of dacite.store.file/file-store for backcompat."
+  file/file-store)
 
 ;; =============================================================================
 ;; LMDB store
@@ -230,3 +164,19 @@
   "Close an LMDB store environment. Must be called when done."
   [store]
   (.close ^java.io.Closeable store))
+
+;; =============================================================================
+;; LMDB root cell (IRootCell) — kept here so dacite.rooted stays free of LMDB
+;; =============================================================================
+
+(defrecord LmdbRootCell [lmdb k]
+  rooted/IRootCell
+  (rc-get [_] (lmdb-get-meta lmdb k))
+  (rc-put! [this h]
+    (lmdb-put-meta! lmdb k h)
+    this))
+
+(defn lmdb-root-cell
+  "Durable root cell backed by an LMDB store's meta database."
+  ([lmdb] (lmdb-root-cell lmdb "root"))
+  ([lmdb k] (->LmdbRootCell lmdb k)))

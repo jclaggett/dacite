@@ -12,8 +12,11 @@
    - lru-store:     bounded in-memory store (dacite.store.lru)
 
    Host-backed implementations live outside the portable core:
-   - file-store, lmdb-store: dacite.store.jvm (JVM/babashka only)
-   - remote-store:            dacite.store.remote (JVM only for now)
+   - file-store:     dacite.store.file (JVM + babashka; java.io)
+   - file-store:     dacite.store.nbb (nbb / Node fs)
+   - lmdb-store:     dacite.store.jvm (JVM + native LMDB)
+   - remote-store:   dacite.store.remote (JVM only for now)
+   - file-root-cell: dacite.rooted (all hosts; hex in {base}/ROOT)
 
    Global store management:
    - *store*:      dynamic var holding the current store

@@ -1,8 +1,8 @@
 {:paths ["impl/clojure/src" "examples"]
  :tasks
- {todo    {:doc "Run the portable todo example under babashka"
+ {todo    {:doc "Run the durable todo example under babashka (args: [path] [--reset])"
            :requires ([dacite.examples.todo :as todo])
-           :task (todo/-main)}
+           :task (apply todo/-main *command-line-args*)}
   parity  {:doc "Print the canonical root hash (for cross-host parity)"
            :requires ([dacite.examples.parity :as parity])
-           :task (parity/-main)}}}
+           :task (apply parity/-main *command-line-args*)}}}

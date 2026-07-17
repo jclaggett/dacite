@@ -4,6 +4,7 @@
             [dacite.rooted :as rs]
             [dacite.store :as store]
             [dacite.store.jvm :as sj]
+            [dacite.store.file :as sf]
             [clojure.java.io :as io]))
 
 ;; =============================================================================
@@ -40,10 +41,10 @@
   (testing "lmdb root cell persists across instances"
     (let [path (str *temp-dir* "/lmdb-root-cell")
           lmdb (sj/lmdb-store path)
-          cell (rs/lmdb-root-cell lmdb)]
+          cell (sj/lmdb-root-cell lmdb)]
       (try
         (rs/rc-put! cell [1 2 3 4])
-        (is (= [1 2 3 4] (rs/rc-get (rs/lmdb-root-cell lmdb))))
+        (is (= [1 2 3 4] (rs/rc-get (sj/lmdb-root-cell lmdb))))
         (finally
           (sj/lmdb-close lmdb))))))
 
@@ -117,7 +118,7 @@
   (testing "root survives reopen via lmdb root cell"
     (let [path (str *temp-dir* "/lmdb-durable")
           lmdb (sj/lmdb-store path)
-          cell (rs/lmdb-root-cell lmdb)]
+          cell (sj/lmdb-root-cell lmdb)]
       (try
         (let [s1 (rs/rooted-store (store/mem-store) cell)]
           (reset! s1 [1 2 3 4]))
@@ -125,6 +126,29 @@
           (is (= [1 2 3 4] @s2)))
         (finally
           (sj/lmdb-close lmdb))))))
+
+(deftest file-root-cell-durability-test
+  (testing "file root cell persists hex across instances"
+    (let [path (str *temp-dir* "/file-root")
+          cell1 (rs/file-root-cell path)]
+      (rs/rc-put! cell1 [1 2 3 4])
+      (is (= [1 2 3 4] (rs/rc-get (rs/file-root-cell path))))
+      (let [s1 (rs/rooted-store (sf/file-store path) (rs/file-root-cell path))]
+        (rs/set-root! s1 [5 6 7 8])
+        (is (= [5 6 7 8] (rs/root s1)))
+        (is (= [5 6 7 8]
+               (rs/root (rs/rooted-store (sf/file-store path)
+                                         (rs/file-root-cell path)))))))))
+
+(deftest portable-root-api-test
+  (testing "root / cas-root! / set-root! / update-root!"
+    (let [s (rs/rooted-store (store/mem-store))]
+      (is (nil? (rs/root s)))
+      (is (= [1 2 3 4] (rs/set-root! s [1 2 3 4])))
+      (is (true? (rs/cas-root! s [1 2 3 4] [5 6 7 8])))
+      (is (= [5 6 7 8] (rs/root s)))
+      (is (false? (rs/cas-root! s [0 0 0 0] [9 9 9 9])))
+      (is (= [6 7 8 9] (rs/update-root! s (fn [h] (mapv inc h))))))))
 
 ;; =============================================================================
 ;; IStore delegation

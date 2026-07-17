@@ -53,12 +53,14 @@ clojure -M:cards    # durable LMDB rooted-store card game
 
 See [examples/](examples/) for `cards.clj` and `config.clj`.
 
-Portable examples run identically on every host (JVM, babashka, nbb):
+Portable examples run on every host (JVM, babashka, nbb). Todo is a **durable**
+rooted-store app (file content + `ROOT`); re-run to resume, `--reset` to wipe:
 
 ```bash
-bb todo                        # babashka
-npx nbb -m dacite.examples.todo  # nbb
-bin/hash-parity.sh             # assert identical root hash on all hosts
+npx nbb -m dacite.examples.todo    # nbb (Node file store)
+npx nbb -m dacite.examples.todo -- --reset
+bb todo                            # babashka (java.io file store)
+bin/hash-parity.sh                 # assert identical root hash on all hosts
 ```
 
 ## Use Cases

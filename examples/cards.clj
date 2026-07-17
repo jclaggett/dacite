@@ -107,7 +107,7 @@
 (defn make-cards-store
   "Wrap an open LMDB store as a rooted store (content + root cell)."
   [lmdb]
-  (rs/rooted-store lmdb (rs/lmdb-root-cell lmdb)))
+  (rs/rooted-store lmdb (sj/lmdb-root-cell lmdb)))
 
 (defn get-game
   "Load the current game from the rooted store, or nil if root is unset."
