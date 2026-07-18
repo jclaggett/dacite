@@ -1,24 +1,22 @@
 (ns dacite.examples.todo
-  "A durable todo app on the portable Dacite surface.
+  "Durable todo app on the portable Dacite surface.
 
-   Domain + store lifecycle are host-agnostic (JVM / babashka / nbb).
-   Interactive CLI with color and prompts lives in dacite.examples.todo-ui
-   (nbb + npm packages: chalk, prompts).
+   App recipe (single-writer local store):
+     1. open-store     — file content store + file root cell
+     2. mutate         — build new values; always construct into the
+                         receiver's store via *-with-store
+     3. commit-todos!  — set-root! to the value's content hash
 
-   Uses:
-     - dacite.value.api  — functional collection ops + get-value
-     - dacite.rooted     — root / set-root! (portable fn API)
-     - host file store   — JVM/bb: store.file; nbb: store.nbb
-     - file-root-cell    — {base}/ROOT hex file
+   Domain + lifecycle are host-agnostic (JVM / babashka / nbb).
+   Interactive UI: dacite.examples.todo-ui (nbb + chalk + prompts).
 
-   Run (batch / non-interactive):
+   Run (batch):
      npx nbb -m dacite.examples.todo
      bb todo
      bb todo /tmp/my-todos --reset
 
-   Run (interactive, nbb — colored + toggleable):
-     npm run todo
-     npx nbb -m dacite.examples.todo-ui"
+   Run (interactive nbb):
+     npm run todo"
   (:require [dacite.store :as store]
             [dacite.rooted :as rs]
             [dacite.value.collections :as coll]
@@ -36,30 +34,27 @@
 ;; =============================================================================
 
 (defn- todos-store
-  "Content store carried by a todos value (never rely on *store* alone —
-   async UIs drop dynamic bindings after the first await)."
+  "Store carried by a todos value. Prefer this over store/*store* so async
+   UIs (which drop dynamic bindings) still write into the durable store."
   [todos]
   (types/dacite-store todos))
 
 (defn todo-entry?
-  "True if x looks like a {title, done} todo map value."
+  "True if x looks like a {title, done} todo map."
   [x]
   (and (d/dacite-value? x)
        (= "map" (d/value-type x))
        (some? (d/get x "title"))))
 
 (defn add-todo
-  "Return a new todos vector with {title, done} appended.
-
-   New map nodes are written into the same store as `todos` (not whatever
-   *store* happens to be bound — critical for nbb async prompts)."
+  "Append {title, done} to todos. New nodes go into todos' store."
   ([todos title] (add-todo todos title false))
   ([todos title done?]
    (let [st (todos-store todos)]
      (d/conj todos (coll/hash-map-with-store st "title" title "done" done?)))))
 
 (defn- field-native
-  "Native host value for map field k, or nil. Never throws on missing/corrupt."
+  "Native host value for map field k, or nil."
   [todo k]
   (try
     (when (todo-entry? todo)
@@ -72,7 +67,7 @@
       nil)))
 
 (defn title-str
-  "The title of a todo entry as a native string."
+  "Title of a todo entry as a native string."
   [todo]
   (if-let [v (field-native todo "title")]
     (if (string? v) v (apply str v))
@@ -81,13 +76,14 @@
 (defn done?
   [todo]
   (boolean (field-native todo "done")))
+
 (defn set-done
   "Return a new todo entry with done flag set."
   [todo done?]
   (d/assoc todo "done" done?))
 
 (defn toggle-at
-  "Toggle done flag of the todo at index i."
+  "Toggle done at index i."
   [todos i]
   (let [t (d/nth todos i)]
     (if (todo-entry? t)
@@ -95,7 +91,10 @@
       todos)))
 
 (defn remove-at
-  "Remove the todo at index i (rebuild vector; portable API has no disj-by-index)."
+  "Remove index i.
+
+   Library gap: value.api has no remove-nth yet, so rebuild the vector
+   in the same store."
   [todos i]
   (let [st (todos-store todos)
         n (d/count todos)]
@@ -108,71 +107,56 @@
                  acc
                  (d/conj acc (d/nth todos j))))))))
 
-(defn todo-count [todos]
-  (d/count todos))
-
-(defn todo-nth [todos i]
-  (d/nth todos i))
-
-(defn todo-seq [todos]
-  (d/seq todos))
-
-(defn todos-hash [todos]
-  (d/dacite-hash todos))
-
 (defn open-count
   "Number of incomplete todos."
   [todos]
   (count (filter (fn [t] (and (todo-entry? t) (not (done? t))))
-                 (or (todo-seq todos) ()))))
+                 (or (d/seq todos) ()))))
 
 (defn build
   "Build a todos vector in st from a seq of [title done?] pairs."
-  ([items] (build store/*store* items))
-  ([st items]
-   (reduce (fn [todos [title done?]] (add-todo todos title done?))
-           (coll/vector-with-store st)
-           items)))
+  [st items]
+  (reduce (fn [todos [title done?]] (add-todo todos title done?))
+          (coll/vector-with-store st)
+          items))
 
 (defn render
-  "A plain-text listing of the todos (no ANSI)."
+  "Plain-text listing (no ANSI)."
   [todos]
-  (str "todos (" (todo-count todos) ", "
+  (str "todos (" (d/count todos) ", "
        (open-count todos) " open):\n"
        (apply str
               (map-indexed
                (fn [i t]
                  (str "  " i ". [" (if (done? t) "x" " ") "] " (title-str t) "\n"))
-               (todo-seq todos)))
-       "root: " (hash/hash->hex (todos-hash todos))))
+               (d/seq todos)))
+       "root: " (hash/hash->hex (d/dacite-hash todos))))
 
 ;; =============================================================================
 ;; Store lifecycle
 ;; =============================================================================
 
 (defn open-store
-  "Open a durable rooted store at path (content files + ROOT).
+  "Open a durable rooted store at path (sharded .edn content + ROOT file).
 
-   Also installs the store as store/*store* for the process so constructors
-   that use the dynamic var (and nbb async callbacks) write into the same
-   durable store. Prefer value-local stores (add-todo) when possible."
+   Does not touch store/*store*. All construction uses an explicit store
+   (build) or the store on existing values (add-todo / remove-at)."
   [path]
-  (let [content (host-store/file-store path)
-        cell (rs/file-root-cell path)
-        rs (rs/rooted-store content cell)]
-    (store/set-store! rs)
-    rs))
+  (rs/rooted-store (host-store/file-store path)
+                   (rs/file-root-cell path)))
 
 (defn load-todos
-  "Load the current todos vector from the rooted store, or nil."
+  "Current todos vector from the rooted store, or nil if root unset."
   [rs]
   (when-let [h (rs/root rs)]
     (d/get-value rs h)))
 
 (defn commit-todos!
-  "Persist todos as the store root. Returns todos."
+  "Persist todos as the store root (single-writer: set-root!).
+
+   Multi-writer / remote: prefer cas-root! or update-root! instead."
   [rs todos]
-  (rs/set-root! rs (todos-hash todos))
+  (rs/set-root! rs (d/dacite-hash todos))
   todos)
 
 (defn seed-items
@@ -185,13 +169,14 @@
    ["durable todo root" false]])
 
 (defn load-or-seed!
-  "Load todos from rs, or seed sample items and commit. Returns [todos seeded?]."
+  "Load todos from rs, or seed samples and commit. Returns [todos seeded?]."
   [rs]
   (if-let [prior (load-todos rs)]
     [prior false]
     (let [t (build rs (seed-items))]
       (commit-todos! rs t)
       [t true])))
+
 (defn reset-store-dir!
   "Wipe content + root under path (for --reset demos)."
   [path]

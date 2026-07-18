@@ -10,6 +10,7 @@
      npx nbb -m dacite.examples.todo-ui -- /tmp/my-todos"
   (:require [clojure.string :as str]
             [dacite.examples.todo :as todo]
+            [dacite.value.api :as d]
             [dacite.hash :as hash]
             [promesa.core :as p]))
 
@@ -56,9 +57,9 @@
 (defn- print-list!
   [path todos]
   (try
-    (let [n (todo/todo-count todos)
+    (let [n (d/count todos)
           open (todo/open-count todos)
-          root-hex (hash/hash->hex (todo/todos-hash todos))]
+          root-hex (hash/hash->hex (d/dacite-hash todos))]
       (println)
       (println (c "bold.white" "Dacite todos")
                (c "dim" (str "  " path)))
@@ -67,11 +68,12 @@
       (println)
       (if (zero? n)
         (println (c "yellow" "  (empty — add a todo)"))
-        (doseq [[i t] (map-indexed vector (todo/todo-seq todos))]
+        (doseq [[i t] (map-indexed vector (d/seq todos))]
           (println (line-for i t))))
       (println))
     (catch :default e
       (println (c "red" (str "Failed to render list: " (.-message e)))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Actions (each returns updated todos; already committed when needed)
 ;; ---------------------------------------------------------------------------
@@ -83,11 +85,11 @@
          (fn [i t]
            {:title (str (if (todo/done? t) "[x] " "[ ] ") (todo/title-str t))
             :value i}))
-        (todo/todo-seq todos)))
+        (d/seq todos)))
 
 (defn- action-toggle!
   [rs todos]
-  (if (zero? (todo/todo-count todos))
+  (if (zero? (d/count todos))
     (do (println (c "yellow" "Nothing to toggle."))
         (p/resolved todos))
     (p/let [{:keys [index]}
@@ -123,9 +125,10 @@
           (catch :default e
             (println (c "red" (str "Add failed: " (.-message e))))
             todos))))))
+
 (defn- action-remove!
   [rs todos]
-  (if (zero? (todo/todo-count todos))
+  (if (zero? (d/count todos))
     (do (println (c "yellow" "Nothing to remove."))
         (p/resolved todos))
     (p/let [{:keys [index]}
@@ -139,7 +142,7 @@
                 (ask {:type "confirm"
                       :name "ok"
                       :message (str "Delete \""
-                                    (todo/title-str (todo/todo-nth todos index))
+                                    (todo/title-str (d/nth todos index))
                                     "\"?")
                       :initial false})]
           (if ok
@@ -172,7 +175,7 @@
       (case action
         "quit"
         (do (println (c "dim" "Saved. Bye."))
-            (println (c "dim" (str "root " (hash/hash->hex (todo/todos-hash todos)))))
+            (println (c "dim" (str "root " (hash/hash->hex (d/dacite-hash todos)))))
             nil)
 
         "refresh"
@@ -203,8 +206,8 @@
     (when reset?
       (todo/reset-store-dir! path)
       (println (c "yellow" (str "reset store at " path))))
-    ;; open-store sets store/*store* for the process — needed because
-    ;; prompts are async and dynamic bind-store does not survive await.
+    ;; No set-store! / bind-store: domain constructors use the receiver's store
+    ;; (and extract-hash deep-copies if needed), so async prompts are safe.
     (let [rs (todo/open-store path)
           [todos seeded?] (todo/load-or-seed! rs)]
       (when seeded?

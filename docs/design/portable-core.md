@@ -73,9 +73,10 @@ Three layers:
   `java.*`, no `js/*`, no host interop. Includes `IStore` + mem/layered/lru,
   values, **rooted stores** (`root` / `cas-root!` / `set-root!`), and
   `file-root-cell` (host fs behind reader conditionals).
-- **Host durability + JVM adapters** — file/LMDB/remote backends, native
-  collection interfaces, printing. SCI loads only the backends it needs
-  (e.g. nbb loads `store.nbb`, never LMDB).
+- **Host durability + host adapters** — file/LMDB/remote backends, native
+  collection interfaces (JVM) / cljs.core protocols (compiled CLJS; planned),
+  printing. SCI loads only the backends it needs (e.g. nbb loads `store.nbb`,
+  never LMDB). See [host-collection-adapters.md](host-collection-adapters.md).
 
 ---
 
@@ -172,8 +173,11 @@ root  cas-root!  set-root!  update-root!
   (d/realize (d/nth xs 0)))  ; => 1
 ```
 
-The native `clojure.lang.*` integration is a **JVM-only adapter**; ports expose
-the functional API only.
+Host collection adapters (`clojure.lang.*` on the JVM; `cljs.core` protocols
+on compiled ClojureScript) are **optional sugar** so idiomatic `count` /
+`conj` / `get` work on hosts that support them. They are specified in
+[host-collection-adapters.md](host-collection-adapters.md). SCI hosts
+(babashka, nbb) and non-Clojure ports use the functional API only.
 
 ---
 
