@@ -10,7 +10,6 @@
             [dacite.store.browser :as remote]
             [dacite.value.api :as d]
             [dacite.value.types :as types]
-            [dacite.value.collections :as coll]
             [dacite.examples.todo :as todo]
             [dacite.hash :as hash]))
 
@@ -19,7 +18,10 @@
          :todos nil
          :root nil
          :error nil
-         :status "loading"}))
+         :status "loading"
+         :bw-totals nil
+         :bw-last nil
+         :bw-last-label nil}))
 
 (defn- by-id [id]
   (.getElementById js/document id))
@@ -35,8 +37,29 @@
       (str/replace ">" "&gt;")
       (str/replace "\"" "&quot;")))
 
+(defn- note-bw!
+  "Record measure result into !state and refresh bandwidth line."
+  [{:keys [delta totals]} label]
+  (swap! !state assoc
+         :bw-totals totals
+         :bw-last delta
+         :bw-last-label label)
+  (when-let [el (by-id "bandwidth")]
+    (set! (.-textContent el)
+          (str "bw · "
+               (remote/format-stats totals)
+               (when delta
+                 (str " · last " (remote/format-delta delta label)))))))
+
+(defn- with-bw
+  "Run f under bandwidth measure; label for last-action display."
+  [label f]
+  (let [m (remote/measure f)]
+    (note-bw! m label)
+    (:result m)))
+
 (defn- render-list! []
-  (let [{:keys [todos root error status]} @!state
+  (let [{:keys [todos root error status bw-totals bw-last bw-last-label]} @!state
         root-hex (when root (hash/hash->hex root))
         status-el (by-id "status")]
     (when status-el
@@ -45,6 +68,14 @@
                 (str status
                      (when root-hex (str " · root " (subs root-hex 0 12) "…"))
                      (when todos (str " · " (d/count todos) " items"))))))
+    (when-let [el (by-id "bandwidth")]
+      (if bw-totals
+        (set! (.-textContent el)
+              (str "bw · "
+                   (remote/format-stats bw-totals)
+                   (when bw-last
+                     (str " · last " (remote/format-delta bw-last bw-last-label)))))
+        (set! (.-textContent el) "bw · (no store traffic yet)")))
     (if-not todos
       (set-html! "todo-list" "<li class=\"muted\">(no todos loaded)</li>")
       (let [items (map-indexed
@@ -75,35 +106,48 @@
           false))))
 
 (defn- load-or-seed! []
-  (let [remote (:remote @!state)
-        server-root (remote/remote-get-root remote)]
-    (if server-root
-      (let [todos (d/get-value remote server-root)]
-        (swap! !state assoc :todos todos :root server-root :status "loaded" :error nil)
-        (render-list!))
-      (let [seeded (todo/build remote (todo/seed-items))
-            h (types/dacite-hash seeded)]
-        (if (remote/remote-cas-root! remote nil h)
-          (do (swap! !state assoc :todos seeded :root h :status "seeded" :error nil)
-              (render-list!))
-          (do (swap! !state assoc :error "Failed to seed root" :status "error")
-              (render-list!)))))))
+  (with-bw "load/seed"
+    (fn []
+      (let [remote (:remote @!state)
+            server-root (remote/remote-get-root remote)]
+        (if server-root
+          (let [todos (d/get-value remote server-root)]
+            (swap! !state assoc :todos todos :root server-root :status "loaded" :error nil)
+            (render-list!)
+            :loaded)
+          (let [seeded (todo/build remote (todo/seed-items))
+                h (types/dacite-hash seeded)]
+            (if (remote/remote-cas-root! remote nil h)
+              (do (swap! !state assoc :todos seeded :root h :status "seeded" :error nil)
+                  (render-list!)
+                  :seeded)
+              (do (swap! !state assoc :error "Failed to seed root" :status "error")
+                  (render-list!)
+                  :error))))))))
 
 (defn- on-add! []
   (let [input (by-id "new-title")
         title (when input (str/trim (.-value input)))]
     (when (and title (seq title) (:todos @!state))
-      (let [todos' (todo/add-todo (:todos @!state) title false)]
-        (when (commit! todos')
-          (set! (.-value input) ""))))))
+      (with-bw "add"
+        (fn []
+          (let [todos' (todo/add-todo (:todos @!state) title false)
+                ok (commit! todos')]
+            (when ok
+              (set! (.-value input) ""))
+            ok))))))
 
 (defn- on-toggle! [i]
   (when-let [todos (:todos @!state)]
-    (commit! (todo/toggle-at todos i))))
+    (with-bw "toggle"
+      (fn []
+        (commit! (todo/toggle-at todos i))))))
 
 (defn- on-remove! [i]
   (when-let [todos (:todos @!state)]
-    (commit! (todo/remove-at todos i))))
+    (with-bw "remove"
+      (fn []
+        (commit! (todo/remove-at todos i))))))
 
 (defn- on-list-click! [e]
   (let [t (.-target e)
@@ -119,7 +163,9 @@
 (defn ^:export init! []
   (let [base (or (.-DACITE_API_BASE js/window) "")
         remote (remote/remote-store base)]
-    (swap! !state assoc :remote remote :status "connecting")
+    (remote/reset-stats!)
+    (swap! !state assoc :remote remote :status "connecting"
+           :bw-totals nil :bw-last nil :bw-last-label nil)
     (render-list!)
     (try
       (load-or-seed!)

@@ -45,6 +45,18 @@ header h1 {
   word-break: break-all;
 }
 
+.bandwidth {
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--panel);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+
 .add-row {
   display: flex;
   gap: 0.5rem;

@@ -32,6 +32,22 @@ Open **http://127.0.0.1:8080/app/** in a browser.
    root advanced with CAS. Reload re-reads the root and materializes the same
    values.
 
+## Bandwidth display
+
+The UI shows a **bw** line for **store-protocol** traffic only
+(`GET/PUT/HEAD/DELETE /node/*`, `GET /root`, `POST /root/cas`):
+
+- session totals: request count, body bytes sent (↑), received (↓), sum (Σ)
+- **last** action: cost of the most recent load/seed, add, toggle, remove, or reload
+
+Static assets (`/app/` HTML/JS/CSS) are **not** counted. Sizes are request and
+response **body** string lengths (≈ UTF-8 bytes for ASCII EDN).
+
+This is meant to make content-addressed transfer cost visible so we can later
+optimize (for example: small scalars may be cheaper as inline literals than as
+separate hash/content nodes — `"Hello World"` is smaller than a 32-byte hash
+reference plus node fetch).
+
 ## Wire format
 
 Node bodies are EDN. 64-bit hash words that would lose precision as JSON

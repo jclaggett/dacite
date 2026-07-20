@@ -36,16 +36,7 @@
   ;;   cd impl/clojure && clojure -M:cljs-web
   :cljs-web {:extra-paths ["../../examples"]
              :extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}
-             :main-opts ["-e"
-                         "(require '[cljs.build.api :as b])
-                          (b/build (b/inputs \"src\" \"../../examples\")
-                            {:main 'dacite.examples.todo-web
-                             :output-to \"../../examples/web/js/main.js\"
-                             :output-dir \"../../examples/web/js/out\"
-                             :asset-path \"/app/js/out\"
-                             :optimizations :whitespace
-                             :pretty-print true})
-                          (println \"Wrote examples/web/js/main.js\")"]}
+             :main-opts ["-e" "(require '[cljs.build.api :as b]) (b/build (b/inputs \"src\" \"../../examples\") {:main 'dacite.examples.todo-web :output-to \"../../examples/web/js/main.js\" :output-dir \"../../examples/web/js/out\" :asset-path \"/app/js/out\" :optimizations :whitespace :pretty-print true}) (println \"Wrote examples/web/js/main.js\")"]}
   
   :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}}
           :ns-default build}
