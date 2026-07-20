@@ -23,9 +23,11 @@
             [dacite.value.api :as d]
             [dacite.value.types :as types]
             [dacite.hash :as hash]
-            ;; Node nbb → store.nbb; JVM → store.file; browser cljs → neither
-            #?@(:nbb [[dacite.store.nbb :as host-store]]
-                :clj [[dacite.store.file :as host-store]])))
+            ;; nbb enables :org.babashka/nbb and :cljs; pure browser only :cljs.
+            ;; Put nbb first so Node keeps the file store; browser pulls no host-store.
+            #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]]
+                :cljs []
+                :default [[dacite.store.file :as host-store]])))
 
 (def default-path
   "target/dacite-todo")
@@ -137,18 +139,9 @@
 ;; Store lifecycle
 ;; =============================================================================
 
-#?(:nbb
+#?(:org.babashka/nbb
    (defn open-store
      "Open a durable rooted store at path (Node file store + ROOT)."
-     [path]
-     (rs/rooted-store (host-store/file-store path)
-                      (rs/file-root-cell path)))
-   :clj
-   (defn open-store
-     "Open a durable rooted store at path (sharded .edn content + ROOT file).
-
-   Does not touch store/*store*. All construction uses an explicit store
-   (build) or the store on existing values (add-todo / remove-at)."
      [path]
      (rs/rooted-store (host-store/file-store path)
                       (rs/file-root-cell path)))
@@ -156,17 +149,18 @@
    (defn open-store
      "Not available in the browser — use HTTP remote store (todo-web)."
      [_path]
-     (throw (js/Error. "todo/open-store is for JVM/nbb file backends only"))))
+     (throw (js/Error. "todo/open-store is for JVM/nbb file backends only")))
+   :default
+   (defn open-store
+     "Open a durable rooted store at path (sharded .edn content + ROOT file).
 
-#?(:nbb
-   (defn reset-store-dir!
-     "Wipe content + root under path (for --reset demos)."
+   Does not touch store/*store*. All construction uses an explicit store
+   (build) or the store on existing values (add-todo / remove-at)."
      [path]
-     (let [content (host-store/file-store path)]
-       (store/s-reset content)
-       (rs/rc-put! (rs/file-root-cell path) nil)
-       nil))
-   :clj
+     (rs/rooted-store (host-store/file-store path)
+                      (rs/file-root-cell path))))
+
+#?(:org.babashka/nbb
    (defn reset-store-dir!
      "Wipe content + root under path (for --reset demos)."
      [path]
@@ -175,7 +169,15 @@
        (rs/rc-put! (rs/file-root-cell path) nil)
        nil))
    :cljs
-   (defn reset-store-dir! [_path] nil))
+   (defn reset-store-dir! [_path] nil)
+   :default
+   (defn reset-store-dir!
+     "Wipe content + root under path (for --reset demos)."
+     [path]
+     (let [content (host-store/file-store path)]
+       (store/s-reset content)
+       (rs/rc-put! (rs/file-root-cell path) nil)
+       nil)))
 
 (defn load-todos
   "Current todos vector from the rooted store, or nil if root unset."
