@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dacite Todo (web demo)</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>Dacite Todo</h1>
+      <p class="tagline">Browser UI over content-addressed Dacite values via HTTP store + root CAS</p>
+      <p id="status" class="status">loading…</p>
+    </header>
+
+    <section class="add-row">
+      <input id="new-title" type="text" placeholder="New todo title" autocomplete="off"/>
+      <button id="add-btn" type="button">Add</button>
+      <button id="reload-btn" type="button" class="secondary">Reload</button>
+    </section>
+
+    <ul id="todo-list" class="todo-list"></ul>
+
+    <footer>
+      <p>Nodes: <code>GET/PUT /node/{hex}</code> · Root: <code>GET /root</code>, <code>POST /root/cas</code></p>
+      <p>List is a Dacite vector of maps; mutations use the portable value API; persistence is the server root.</p>
+    </footer>
+  </main>
+  <script>
+    // same-origin API when served by dacite.service
+    window.DACITE_API_BASE = window.DACITE_API_BASE || "";
+  </script>
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,9 +1,9 @@
 (ns dacite.store.remote-test
-  (:require [clojure.edn :as edn]
-            [clojure.test :refer [deftest testing is use-fixtures]]
+  (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [dacite.store.remote :as remote]
             [dacite.store :as store]
-            [dacite.store.lru :as lru])
+            [dacite.store.lru :as lru]
+            [dacite.wire :as wire])
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange]
            [java.net InetSocketAddress]))
 
@@ -11,14 +11,14 @@
 (def ^:dynamic *base-url* nil)
 
 (defn- send-edn [^HttpExchange ex status body]
-  (let [bytes (.getBytes (pr-str body) "UTF-8")]
+  (let [bytes (.getBytes (wire/write-edn body) "UTF-8")]
     (.getResponseHeaders ex)
     (.sendResponseHeaders ex status (count bytes))
     (with-open [os (.getResponseBody ex)]
       (.write os bytes))))
 
 (defn- read-edn-body [^HttpExchange ex]
-  (edn/read-string (String. (.readAllBytes (.getRequestBody ex)) "UTF-8")))
+  (wire/read-edn (String. (.readAllBytes (.getRequestBody ex)) "UTF-8")))
 
 (defn start-test-server!
   "Start a minimal service.md-compatible server backed by store atom."
@@ -54,7 +54,7 @@
                      h (store/hex->hash hex)
                      node (store/s-get (:content @state) h)]
                  (if node
-                   (let [bytes (.getBytes (pr-str node) "UTF-8")]
+                   (let [bytes (.getBytes (wire/write-edn node) "UTF-8")]
                      (.sendResponseHeaders exchange 200 (count bytes))
                      (with-open [os (.getResponseBody exchange)]
                        (.write os bytes)))

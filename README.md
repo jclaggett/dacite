@@ -15,7 +15,7 @@ Dacite lets applications work with **immutable Values** functionally while **Sto
 
 ## Status
 
-**Reference implementation (Clojure)** — hash fusion, content stores, values, and rooted stores are implemented with 318+ tests. Remote store and service layers are in progress. See [docs/roadmap.md](docs/roadmap.md).
+**Reference implementation (Clojure)** — hash fusion, content stores, values, and rooted stores are implemented with 318+ tests. An HTTP content-store service and browser todo demo show Dacite values running in the web. See [docs/roadmap.md](docs/roadmap.md).
 
 ## Documentation
 
@@ -64,6 +64,19 @@ npx nbb -m dacite.examples.todo-ui -- --reset
 bb todo                            # babashka batch (java.io file store)
 bin/hash-parity.sh                 # assert identical root hash on all hosts
 ```
+
+### Browser demo (HTTP service + Dacite values in the browser)
+
+```bash
+cd impl/clojure
+clojure -M:cljs-web                # build examples/web/js/main.js (first time)
+clojure -M:service --port 8080 --mem
+# open http://127.0.0.1:8080/app/
+```
+
+See [examples/web/README.md](examples/web/README.md). The UI loads Dacite
+collections in the browser and persists via `GET/PUT /node/{hex}` and
+`GET /root` + `POST /root/cas`.
 
 ## Use Cases
 

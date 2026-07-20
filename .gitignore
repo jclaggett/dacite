@@ -20,3 +20,6 @@ docs/book/mermaid-init.js
 # SCI tooling
 node_modules/
 .bin/
+
+# cljs intermediate (whitespace bundle is examples/web/js/main.js)
+examples/web/js/out/

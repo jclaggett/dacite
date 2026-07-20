@@ -2,10 +2,11 @@
   "HTTP-backed IStore for remote node access.
 
    Implements the node endpoints from docs/design/service.md.
-   Compose with layered-store and lru-store for caching."
-  (:require [clojure.edn :as edn]
-            [clojure.string :as str]
-            [dacite.store :as store])
+   Compose with layered-store and lru-store for caching.
+   Bodies use dacite.wire so #dacite/u64 hash words round-trip."
+  (:require [clojure.string :as str]
+            [dacite.store :as store]
+            [dacite.wire :as wire])
   (:import [java.net URI]
            [java.net.http HttpClient HttpRequest HttpResponse HttpRequest$BodyPublishers HttpResponse$BodyHandlers]
            [java.time Duration]))
@@ -30,22 +31,22 @@
      :body (.body resp)}))
 
 (defn- edn-request [client method url body headers]
-  (let [^bytes bs (when body (.getBytes (pr-str body) "UTF-8"))
+  (let [^bytes bs (when body (.getBytes (wire/write-edn body) "UTF-8"))
         {:keys [status body]} (request client method url bs headers)]
     {:status status
      :data (when (pos? (alength body))
-             (edn/read-string (String. body "UTF-8")))}))
+             (wire/read-edn (String. body "UTF-8")))}))
 
 (defrecord RemoteStore [base-url client headers]
   store/IStore
   (s-get [_ h]
     (let [{:keys [status body]} (request client "GET" (node-url base-url h) nil headers)]
       (when (= 200 status)
-        (edn/read-string (String. body "UTF-8")))))
+        (wire/read-edn (String. body "UTF-8")))))
 
   (s-put [_ h value]
     (let [{:keys [status]} (request client "PUT" (node-url base-url h)
-                                    (.getBytes (pr-str value) "UTF-8")
+                                    (.getBytes (wire/write-edn value) "UTF-8")
                                     (assoc headers "Content-Type" "application/edn"))]
       (when (not= 204 status)
         (throw (ex-info "Remote s-put failed" {:status status :hash h}))))

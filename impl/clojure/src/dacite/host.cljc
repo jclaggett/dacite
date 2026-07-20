@@ -33,7 +33,11 @@
 #?(:cljs (def ^:private ZERO (js/BigInt 0)))
 #?(:cljs (def ^:private ONE (js/BigInt 1)))
 #?(:cljs (def ^:private BYTE-MASK (js/BigInt 0xFF)))
-#?(:cljs (defn ^:private u64 [x] (.asUintN js/BigInt 64 x)))
+#?(:cljs (defn ^:private as-bi
+           "Coerce Number or BigInt to BigInt (avoids mixed-arithmetic throws)."
+           [x]
+           (if (= (type x) js/BigInt) x (js/BigInt x))))
+#?(:cljs (defn ^:private u64 [x] (.asUintN js/BigInt 64 (as-bi x))))
 
 ;; =============================================================================
 ;; Typed zero (a 64-bit word / a four-word hash)
@@ -62,36 +66,36 @@
 ;; =============================================================================
 
 (defn add64 [a b]
-  #?(:clj (unchecked-add (long a) (long b)) :cljs (u64 (+ a b))))
+  #?(:clj (unchecked-add (long a) (long b)) :cljs (u64 (+ (as-bi a) (as-bi b)))))
 
 (defn sub64 [a b]
-  #?(:clj (unchecked-subtract (long a) (long b)) :cljs (u64 (- a b))))
+  #?(:clj (unchecked-subtract (long a) (long b)) :cljs (u64 (- (as-bi a) (as-bi b)))))
 
 (defn mul64 [a b]
-  #?(:clj (unchecked-multiply (long a) (long b)) :cljs (u64 (* a b))))
+  #?(:clj (unchecked-multiply (long a) (long b)) :cljs (u64 (* (as-bi a) (as-bi b)))))
 
 (defn neg64 [a]
-  #?(:clj (unchecked-negate (long a)) :cljs (u64 (- a))))
+  #?(:clj (unchecked-negate (long a)) :cljs (u64 (- (as-bi a)))))
 
 ;; =============================================================================
 ;; 64-bit bit operations (used by hash navigation)
 ;; =============================================================================
 
 (defn band64 [a b]
-  #?(:clj (bit-and (long a) (long b)) :cljs (u64 (bit-and a b))))
+  #?(:clj (bit-and (long a) (long b)) :cljs (u64 (bit-and (as-bi a) (as-bi b)))))
 
 (defn bor64 [a b]
-  #?(:clj (bit-or (long a) (long b)) :cljs (u64 (bit-or a b))))
+  #?(:clj (bit-or (long a) (long b)) :cljs (u64 (bit-or (as-bi a) (as-bi b)))))
 
 (defn bxor64 [a b]
-  #?(:clj (bit-xor (long a) (long b)) :cljs (u64 (bit-xor a b))))
+  #?(:clj (bit-xor (long a) (long b)) :cljs (u64 (bit-xor (as-bi a) (as-bi b)))))
 
 (defn bnot64 [a]
-  #?(:clj (bit-not (long a)) :cljs (u64 (bit-not a))))
+  #?(:clj (bit-not (long a)) :cljs (u64 (bit-not (as-bi a)))))
 
 (defn shl64 [a n]
   #?(:clj (bit-shift-left (long a) (int n))
-     :cljs (u64 (bit-shift-left a (js/BigInt n)))))
+     :cljs (u64 (bit-shift-left (as-bi a) (js/BigInt n)))))
 
 (defn ushr64 [a n]
   #?(:clj (unsigned-bit-shift-right (long a) (int n))

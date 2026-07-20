@@ -23,8 +23,9 @@
             [dacite.value.api :as d]
             [dacite.value.types :as types]
             [dacite.hash :as hash]
-            #?@(:cljs [[dacite.store.nbb :as host-store]]
-                :default [[dacite.store.file :as host-store]])))
+            ;; Node nbb → store.nbb; JVM → store.file; browser cljs → neither
+            #?@(:nbb [[dacite.store.nbb :as host-store]]
+                :clj [[dacite.store.file :as host-store]])))
 
 (def default-path
   "target/dacite-todo")
@@ -69,9 +70,22 @@
 (defn title-str
   "Title of a todo entry as a native string."
   [todo]
-  (if-let [v (field-native todo "title")]
-    (if (string? v) v (apply str v))
-    "<?>"))
+  (try
+    (when-not (and (d/dacite-value? todo) (= "map" (d/value-type todo)))
+      (throw (ex-info "not a todo map" {:type (when (d/dacite-value? todo)
+                                                (d/value-type todo))})))
+    (let [v (d/get todo "title")]
+      (cond
+        (nil? v) "<?no-title?>"
+        (not (d/dacite-value? v)) (str v)
+        :else
+        (let [r (types/realize v)]
+          (cond
+            (string? r) r
+            (nil? r) "<?empty?>"
+            :else (apply str r)))))
+    (catch #?(:clj Throwable :cljs :default) e
+      (str "<?" #?(:clj (.getMessage e) :cljs (.-message e)) "?>"))))
 
 (defn done?
   [todo]
@@ -123,14 +137,45 @@
 ;; Store lifecycle
 ;; =============================================================================
 
-(defn open-store
-  "Open a durable rooted store at path (sharded .edn content + ROOT file).
+#?(:nbb
+   (defn open-store
+     "Open a durable rooted store at path (Node file store + ROOT)."
+     [path]
+     (rs/rooted-store (host-store/file-store path)
+                      (rs/file-root-cell path)))
+   :clj
+   (defn open-store
+     "Open a durable rooted store at path (sharded .edn content + ROOT file).
 
    Does not touch store/*store*. All construction uses an explicit store
    (build) or the store on existing values (add-todo / remove-at)."
-  [path]
-  (rs/rooted-store (host-store/file-store path)
-                   (rs/file-root-cell path)))
+     [path]
+     (rs/rooted-store (host-store/file-store path)
+                      (rs/file-root-cell path)))
+   :cljs
+   (defn open-store
+     "Not available in the browser — use HTTP remote store (todo-web)."
+     [_path]
+     (throw (js/Error. "todo/open-store is for JVM/nbb file backends only"))))
+
+#?(:nbb
+   (defn reset-store-dir!
+     "Wipe content + root under path (for --reset demos)."
+     [path]
+     (let [content (host-store/file-store path)]
+       (store/s-reset content)
+       (rs/rc-put! (rs/file-root-cell path) nil)
+       nil))
+   :clj
+   (defn reset-store-dir!
+     "Wipe content + root under path (for --reset demos)."
+     [path]
+     (let [content (host-store/file-store path)]
+       (store/s-reset content)
+       (rs/rc-put! (rs/file-root-cell path) nil)
+       nil))
+   :cljs
+   (defn reset-store-dir! [_path] nil))
 
 (defn load-todos
   "Current todos vector from the rooted store, or nil if root unset."
@@ -163,14 +208,6 @@
     (let [t (build rs (seed-items))]
       (commit-todos! rs t)
       [t true])))
-
-(defn reset-store-dir!
-  "Wipe content + root under path (for --reset demos)."
-  [path]
-  (let [content (host-store/file-store path)]
-    (store/s-reset content)
-    (rs/rc-put! (rs/file-root-cell path) nil)
-    nil))
 
 ;; =============================================================================
 ;; Main (batch — all hosts)
