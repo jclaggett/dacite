@@ -143,6 +143,14 @@
   [v]
   (coll/vec-pop (s v) (h v)))
 
+(defn remove-nth
+  "Remove the element at index i from a sequence collection (vector, string,
+   or blob). Returns a new Dacite value of the same type."
+  [v i]
+  (case (value-type v)
+    ("vector" "string" "blob") (coll/seq-remove-nth (s v) (h v) i)
+    (throw (ex-info "remove-nth unsupported for type" {:type (value-type v)}))))
+
 (defn keys
   "Wrapped keys of a map, or nil if empty."
   [v]

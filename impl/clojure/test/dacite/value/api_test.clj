@@ -33,8 +33,15 @@
       (is (= 99 (realized (d/nth (d/assoc v 0 99) 0))))
       (is (= 3 (realized (d/peek v))))
       (is (= 2 (d/count (d/pop v))))
-      (is (d/empty? (d/pop (d/pop (d/pop v))))))))
-
+      (is (d/empty? (d/pop (d/pop (d/pop v)))))))
+  (testing "remove-nth"
+    (let [v (coll/vector 1 2 3 4 5)]
+      (is (= [1 2 4 5] (map realized (d/seq (d/remove-nth v 2)))))
+      (is (= [2 3 4 5] (map realized (d/seq (d/remove-nth v 0)))))
+      (is (= [1 2 3 4] (map realized (d/seq (d/remove-nth v 4)))))
+      (is (= [1 2 3 4 5] (map realized (d/seq v))))
+      (is (thrown? Exception (d/remove-nth v 5)))
+      (is (thrown? Exception (d/remove-nth v -1))))))
 (deftest map-api-test
   (testing "get / contains? / assoc / dissoc / keys / vals"
     (let [m (coll/hash-map "a" 1 "b" 2)]

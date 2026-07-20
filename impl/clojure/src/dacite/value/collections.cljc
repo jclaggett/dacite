@@ -144,6 +144,20 @@
       (throw (ex-info "Can't pop empty vector" {})))
     (->DaciteVector store (store-seq-node! store "vector" (ft/ft-butlast store root)))))
 
+(defn seq-remove-nth
+  "Remove element at index i from a sequence collection (vector/string/blob).
+   Returns a new Dacite value of the same type."
+  [store h i]
+  (let [type-name (types/entry-type (store/s-get store h))
+        nr (ft/ft-remove-nth store (node-root store h) i)
+        new-h (store-seq-node! store type-name nr)]
+    (types/wrap-entry type-name store new-h)))
+
+(defn vec-remove-nth
+  "Remove element at index i from a vector, returning a new DaciteVector."
+  [store h i]
+  (seq-remove-nth store h i))
+
 (defn map-get
   "Look up key k in a map (wrapped value), or not-found."
   [store h k not-found]

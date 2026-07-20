@@ -91,22 +91,9 @@
       todos)))
 
 (defn remove-at
-  "Remove index i.
-
-   Library gap: value.api has no remove-nth yet, so rebuild the vector
-   in the same store."
+  "Remove index i from the todos vector."
   [todos i]
-  (let [st (todos-store todos)
-        n (d/count todos)]
-    (loop [j 0
-           acc (coll/vector-with-store st)]
-      (if (>= j n)
-        acc
-        (recur (inc j)
-               (if (= j i)
-                 acc
-                 (d/conj acc (d/nth todos j))))))))
-
+  (d/remove-nth todos i))
 (defn open-count
   "Number of incomplete todos."
   [todos]

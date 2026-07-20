@@ -311,6 +311,113 @@
                              (- spine-idx spine-count)))))))))
 
 ;; =============================================================================
+;; Remove at index (structural)
+;; =============================================================================
+
+(declare tree-remove-nth*)
+
+(defn- remove-at-children!
+  "Remove the leaf at local index idx from a vector of child node hashes.
+   Returns a vector of remaining/replaced child hashes (may be empty)."
+  [store children idx]
+  (loop [i 0 remaining idx]
+    (when (>= i (count children))
+      (throw (ex-info "Index out of range while removing from children"
+                      {:index idx :child-count (count children)})))
+    (let [c (nth children i)
+          c-count (:count (get-measure store c))]
+      (if (< remaining c-count)
+        (let [c' (tree-remove-nth* store c remaining)
+              left (subvec children 0 i)
+              right (subvec children (inc i))]
+          (if c'
+            (into (conj left c') right)
+            (into left right)))
+        (recur (inc i) (- remaining c-count))))))
+
+(defn- tree-remove-nth*
+  "Remove the leaf at idx under root. Returns the new root hash, or nil when
+   the subtree becomes empty (caller promotes or rebalances)."
+  [store root idx]
+  (let [node (lookup store root)]
+    (case (node-type node)
+      "ft/empty"
+      (throw (ex-info "Cannot remove from empty tree" {:index idx}))
+
+      "ft/single"
+      (if (zero? idx)
+        nil
+        (throw (ex-info "Index out of range for single"
+                        {:index idx})))
+
+      "ft/digit"
+      (let [nc (remove-at-children! store (get-children store root) idx)]
+        (when (seq nc)
+          (make-digit! store nc (mapv #(get-measure store %) nc))))
+
+      "ft/node"
+      (let [nc (remove-at-children! store (get-children store root) idx)]
+        (case (count nc)
+          0 nil
+          ;; Nodes require 2–32 children; promote a lone survivor.
+          1 (first nc)
+          (make-node! store nc (mapv #(get-measure store %) nc))))
+
+      "ft/deep"
+      (let [{:keys [left spine right]} (node-data node)
+            left-m (get-measure store left)
+            spine-m (get-measure store spine)
+            right-m (get-measure store right)
+            left-count (:count left-m)
+            spine-count (:count spine-m)]
+        (cond
+          (< idx left-count)
+          (let [nc (remove-at-children! store (get-children store left) idx)]
+            (if (seq nc)
+              (let [new-left (make-digit! store nc (mapv #(get-measure store %) nc))]
+                (make-deep! store new-left spine right
+                            (get-measure store new-left) spine-m right-m))
+              (if (empty-node? store spine)
+                (to-tree-from-digit! store right)
+                (let [spine-first (tree-first* store spine)
+                      new-spine (tree-rest* store spine)
+                      nch (get-children store spine-first)
+                      new-left' (make-digit! store nch
+                                             (mapv #(get-measure store %) nch))]
+                  (make-deep! store new-left' new-spine right
+                              (get-measure store new-left')
+                              (get-measure store new-spine)
+                              right-m)))))
+
+          (< idx (+ left-count spine-count))
+          (let [spine-idx (- idx left-count)
+                new-spine (tree-remove-nth* store spine spine-idx)]
+            (if new-spine
+              (make-deep! store left new-spine right
+                          left-m (get-measure store new-spine) right-m)
+              (make-deep! store left (make-empty! store) right
+                          left-m measure-identity right-m)))
+
+          :else
+          (let [right-idx (- idx left-count spine-count)
+                nc (remove-at-children! store (get-children store right) right-idx)]
+            (if (seq nc)
+              (let [new-right (make-digit! store nc (mapv #(get-measure store %) nc))]
+                (make-deep! store left spine new-right
+                            left-m spine-m (get-measure store new-right)))
+              (if (empty-node? store spine)
+                (to-tree-from-digit! store left)
+                (let [spine-last (tree-last* store spine)
+                      new-spine (tree-butlast* store spine)
+                      nch (get-children store spine-last)
+                      new-right' (make-digit! store nch
+                                              (mapv #(get-measure store %) nch))]
+                  (make-deep! store left new-spine new-right'
+                              left-m
+                              (get-measure store new-spine)
+                              (get-measure store new-right')))))))))))
+
+;; =============================================================================
 ;; Public API
 ;; =============================================================================
 
@@ -386,6 +493,17 @@
       (throw (ex-info (str "Index " idx " out of bounds for count " cnt)
                       {:index idx :count cnt})))
     (tree-nth* store root idx)))
+
+(defn ft-remove-nth
+  "Remove the element at idx (0-indexed). Returns the new root hash.
+   Structural O(log n) update. Throws if out of range."
+  [store root idx]
+  (let [cnt (:count (get-measure store root))]
+    (when (or (neg? idx) (>= idx cnt))
+      (throw (ex-info (str "Index " idx " out of bounds for count " cnt)
+                      {:index idx :count cnt})))
+    (or (tree-remove-nth* store root idx)
+        (make-empty! store))))
 
 (defn ft-seq
   "Lazy sequence of element value hashes."

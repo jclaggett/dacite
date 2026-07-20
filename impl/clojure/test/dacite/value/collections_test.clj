@@ -3,8 +3,8 @@
   (:require [clojure.test :refer [deftest is testing]]
             [dacite.store :as store]
             [dacite.value :as v2]
+            [dacite.value.collections :as coll]
             [dacite.value.render :as render]))
-
 (defn- realize-each
   "Realize every element of a seqable Dacite collection to Clojure values."
   [coll]
@@ -46,13 +46,43 @@
     (is (= 3 (v2/realize (peek v))))
     (is (= [1 2] (realize-each (pop v))))))
 
-(deftest vector-empty-and-wrap
+(deftest vector-remove-nth
   (let [s (store/mem-store)
-        v (v2/vector-with-store s 1 2 3)
-        w (v2/wrap-hash s (v2/dacite-hash v))]
-    (is (= "vector" (v2/dacite-type w)))
-    (is (= [1 2 3] (realize-each w)))
-    (is (zero? (count (empty v))))))
+        v (v2/vector-with-store s 0 1 2 3 4 5 6 7 8 9)
+        remove-nth (fn [vv i]
+                     (coll/vec-remove-nth s (v2/dacite-hash vv) i))]
+    (testing "remove middle / ends"
+      (let [v' (remove-nth v 4)]
+        (is (= [0 1 2 3 5 6 7 8 9] (realize-each v')))
+        (is (identical? s (v2/dacite-store v'))))
+      (is (= [1 2 3 4 5 6 7 8 9] (realize-each (remove-nth v 0))))
+      (is (= [0 1 2 3 4 5 6 7 8] (realize-each (remove-nth v 9)))))
+    (testing "original unchanged"
+      (is (= (range 10) (realize-each v))))
+    (testing "out of bounds"
+      (is (thrown? Exception (remove-nth v 10)))
+      (is (thrown? Exception (remove-nth v -1))))
+    (testing "remove until empty matches successive drop from left"
+      (loop [cur v expected (vec (range 10))]
+        (if (zero? (count cur))
+          (is (empty? expected))
+          (let [cur' (remove-nth cur 0)]
+            (is (= (subvec expected 1) (realize-each cur')))
+            (recur cur' (subvec expected 1))))))
+    (testing "large vector structural removes"
+      (let [n 200
+            big (apply v2/vector-with-store s (range n))
+            ;; remove odd indices from the end so remaining indices stay valid
+            after (reduce (fn [vv i] (remove-nth vv i))
+                          big
+                          (range (dec n) -1 -2))]
+        (is (= (vec (range 0 n 2)) (realize-each after))))))) (deftest vector-empty-and-wrap
+                                                                (let [s (store/mem-store)
+                                                                      v (v2/vector-with-store s 1 2 3)
+                                                                      w (v2/wrap-hash s (v2/dacite-hash v))]
+                                                                  (is (= "vector" (v2/dacite-type w)))
+                                                                  (is (= [1 2 3] (realize-each w)))
+                                                                  (is (zero? (count (empty v))))))
 
 ;; =============================================================================
 ;; Strings & blobs

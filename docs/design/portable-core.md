@@ -148,7 +148,7 @@ future port — uses this API:
 
 ```
 count  empty?  seq  nth  get  contains?
-assoc  dissoc  conj  peek  pop  keys  vals
+assoc  dissoc  conj  peek  pop  remove-nth  keys  vals
 realize  value-type  dacite-value?  dacite-hash  get-value
 ```
 
