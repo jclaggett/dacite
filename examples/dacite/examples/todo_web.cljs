@@ -162,7 +162,8 @@
 
 (defn ^:export init! []
   (let [base (or (.-DACITE_API_BASE js/window) "")
-        remote (remote/remote-store base)]
+        ;; :write-back — local mem; upload only root-reachable nodes on CAS
+        remote (remote/cached-remote-store base {:policy :write-back})]
     (remote/reset-stats!)
     (swap! !state assoc :remote remote :status "connecting"
            :bw-totals nil :bw-last nil :bw-last-label nil)

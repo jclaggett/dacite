@@ -22,12 +22,13 @@
    defined here."
   (:refer-clojure :exclude [vector hash-map])
   (:require [dacite.store :as store]
+            [dacite.host :as host]
+            [dacite.hash :as hash]
             [dacite.value.types :as types]
             [dacite.value.scalar :as scalar]
             [dacite.value.finger-tree :as ft]
             [dacite.value.hamt :as hamt]
-            #?@(:bb [] :clj [[dacite.hash :as hash]
-                             [dacite.value.render :as render]]))
+            #?@(:bb [] :clj [[dacite.value.render :as render]]))
   #?@(:bb []
       :clj [(:import [clojure.lang IHashEq Counted Seqable ILookup
                       IPersistentCollection Indexed IPersistentStack
@@ -47,9 +48,35 @@
 ;; =============================================================================
 
 (defn- node-root
-  "Root tree hash of a stored collection node."
+  "Root tree hash of a stored collection node (nil for inline forms)."
   [store h]
   (:root (types/entry-data (store/s-get store h))))
+
+(defn- inline-string-data?
+  "True when a string entry stores host text inline (no finger-tree root)."
+  [data]
+  (contains? data :inline))
+
+(defn- inline-vector-data?
+  "True when a vector stores element hashes inline (no finger-tree root)."
+  [data]
+  (contains? data :inline-refs))
+
+(defn- string-elements-fuse
+  "elements_fuse for a host string — matches finger-tree-of-chars fuse
+   without persisting char nodes."
+  [s]
+  (let [hs (map (fn [ch] (types/scalar-value-hash ["char" ch])) (seq s))]
+    (if (empty? hs)
+      host/zero-hash
+      (reduce hash/unchecked-fuse hs))))
+
+(defn- refs-elements-fuse
+  "elements_fuse for an ordered seq of element hashes (matches FT fuse)."
+  [refs]
+  (if (empty? refs)
+    host/zero-hash
+    (reduce hash/unchecked-fuse refs)))
 
 (defn- wrap-hash
   "Wrap a raw hash in the appropriate Dacite value (internal helper)."
@@ -102,24 +129,59 @@
   [store h]
   (:count (types/entry-data (store/s-get store h))))
 
+(defn- vector-refs
+  "Element hashes of a vector (inline or finger-tree)."
+  [store h]
+  (let [data (types/entry-data (store/s-get store h))]
+    (if (inline-vector-data? data)
+      (vec (:inline-refs data))
+      (clojure.core/vec (ft/ft-seq store (:root data))))))
+
 (defn seq-vals
   "Wrapped elements of a sequence collection (string/blob/vector), or nil
    if empty."
   [store h]
-  (when (pos? (coll-count store h))
-    (map #(wrap-hash store %) (ft/ft-seq store (node-root store h)))))
+  (let [entry (store/s-get store h)
+        typ (types/entry-type entry)
+        data (types/entry-data entry)]
+    (when (pos? (:count data 0))
+      (cond
+        (and (= "string" typ) (inline-string-data? data))
+        (map (fn [ch]
+               (scalar/wrap-scalar store
+                                   (scalar/put-scalar! store "char" ch)))
+             (seq (:inline data)))
+        (and (= "vector" typ) (inline-vector-data? data))
+        (map #(wrap-hash store %) (:inline-refs data))
+        :else
+        (map #(wrap-hash store %) (ft/ft-seq store (:root data)))))))
 
 (defn seq-nth
   "Wrapped element at index i of a sequence collection."
   [store h i]
-  (wrap-hash store (ft/ft-nth store (node-root store h) i)))
+  (let [entry (store/s-get store h)
+        typ (types/entry-type entry)
+        data (types/entry-data entry)]
+    (cond
+      (and (= "string" typ) (inline-string-data? data))
+      (scalar/wrap-scalar store
+                          (scalar/put-scalar! store "char" (nth (seq (:inline data)) i)))
+      (and (= "vector" typ) (inline-vector-data? data))
+      (wrap-hash store (nth (:inline-refs data) i))
+      :else
+      (wrap-hash store (ft/ft-nth store (:root data) i)))))
+
+(declare vec-of-refs-with-store)
 
 (defn vec-conj
   "Append val to a vector, returning a new DaciteVector."
   [store h val]
   (let [vh (types/extract-hash store val)
-        nr (ft/ft-conj-right store (node-root store h) vh)]
-    (->DaciteVector store (store-seq-node! store "vector" nr))))
+        data (types/entry-data (store/s-get store h))]
+    (if (inline-vector-data? data)
+      (vec-of-refs-with-store store (conj (vec (:inline-refs data)) vh))
+      (let [nr (ft/ft-conj-right store (:root data) vh)]
+        (->DaciteVector store (store-seq-node! store "vector" nr))))))
 
 (defn vec-assoc
   "Assoc index k to v in a vector, returning a new DaciteVector."
@@ -127,31 +189,38 @@
   (when-not (integer? k)
     (throw (ex-info "Vector key must be an integer" {:key k})))
   (let [vh (types/extract-hash store v)
-        refs (assoc (clojure.core/vec (ft/ft-seq store (node-root store h))) k vh)]
-    (->DaciteVector store (store-seq-node! store "vector" (ft-build! store refs)))))
+        refs (assoc (vector-refs store h) k vh)]
+    (vec-of-refs-with-store store refs)))
 
 (defn vec-peek
   "Last element of a vector (wrapped), or nil if empty."
   [store h]
-  (when-let [vh (ft/ft-last store (node-root store h))]
-    (wrap-hash store vh)))
+  (let [refs (vector-refs store h)]
+    (when (clojure.core/seq refs)
+      (wrap-hash store (peek refs)))))
 
 (defn vec-pop
   "Drop the last element of a vector, returning a new DaciteVector."
   [store h]
-  (let [root (node-root store h)]
-    (when (ft/ft-empty? store root)
-      (throw (ex-info "Can't pop empty vector" {})))
-    (->DaciteVector store (store-seq-node! store "vector" (ft/ft-butlast store root)))))
+  (let [refs (vector-refs store h)]
+    (when (empty? refs)
+      (throw #?(:clj (IllegalStateException. "Can't pop empty vector")
+                :cljs (js/Error. "Can't pop empty vector"))))
+    (vec-of-refs-with-store store (pop refs))))
 
 (defn seq-remove-nth
   "Remove element at index i from a sequence collection (vector/string/blob).
    Returns a new Dacite value of the same type."
   [store h i]
   (let [type-name (types/entry-type (store/s-get store h))
-        nr (ft/ft-remove-nth store (node-root store h) i)
-        new-h (store-seq-node! store type-name nr)]
-    (types/wrap-entry type-name store new-h)))
+        data (types/entry-data (store/s-get store h))]
+    (if (and (= "vector" type-name) (inline-vector-data? data))
+      (let [refs (vec (:inline-refs data))
+            refs' (into (subvec refs 0 i) (subvec refs (inc i)))]
+        (vec-of-refs-with-store store refs'))
+      (let [nr (ft/ft-remove-nth store (:root data) i)
+            new-h (store-seq-node! store type-name nr)]
+        (types/wrap-entry type-name store new-h)))))
 
 (defn vec-remove-nth
   "Remove element at index i from a vector, returning a new DaciteVector."
@@ -225,9 +294,15 @@
   (dacite-store [_] store)
   (dacite-type [_] "string")
   (realize [_]
-    (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
-      (when (pos? count)
-        (realize-hashes store (ft/ft-seq store root)))))
+    (let [data (types/entry-data (store/s-get store _hash))]
+      (cond
+        ;; Match FT form: lazy seq of char values (apply str rebuilds the String)
+        (inline-string-data? data)
+        (when (pos? (:count data 0))
+          (seq (:inline data)))
+        (pos? (:count data 0))
+        (realize-hashes store (ft/ft-seq store (:root data)))
+        :else nil)))
 
   #?@(:bb []
       :clj
@@ -240,18 +315,31 @@
        Seqable
        (seq [this]
             (when (pos? (.count this))
-              (map #(wrap-hash store %) (ft/ft-seq store (node-root store _hash)))))
+              (let [data (types/entry-data (store/s-get store _hash))]
+                (if (inline-string-data? data)
+                  (map (fn [ch]
+                         (scalar/wrap-scalar store
+                                             (scalar/put-scalar! store "char" ch)))
+                       (seq (:inline data)))
+                  (map #(wrap-hash store %) (ft/ft-seq store (:root data)))))))
 
        CharSequence
        (length [this] (.count this))
        (charAt [_ i]
-               (types/entry-data (store/s-get store (ft/ft-nth store (node-root store _hash) i))))
+               (let [data (types/entry-data (store/s-get store _hash))]
+                 (if (inline-string-data? data)
+                   (nth (seq (:inline data)) i)
+                   (types/entry-data
+                    (store/s-get store (ft/ft-nth store (:root data) i))))))
        (subSequence [_ start end]
-                    (apply clojure.core/str
-                           (map #(types/entry-data (store/s-get store %))
-                                (->> (ft/ft-seq store (node-root store _hash))
-                                     (drop start)
-                                     (take (- end start))))))
+                    (let [data (types/entry-data (store/s-get store _hash))]
+                      (if (inline-string-data? data)
+                        (subs (:inline data) start end)
+                        (apply clojure.core/str
+                               (map #(types/entry-data (store/s-get store %))
+                                    (->> (ft/ft-seq store (:root data))
+                                         (drop start)
+                                         (take (- end start))))))))
 
        Object
        (hashCode [_] (hash/hash->int _hash))
@@ -304,9 +392,9 @@
   (dacite-store [_] store)
   (dacite-type [_] "vector")
   (realize [_]
-    (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
-      (when (pos? count)
-        (realize-hashes store (ft/ft-seq store root)))))
+    (let [refs (vector-refs store _hash)]
+      (when (clojure.core/seq refs)
+        (realize-hashes store refs))))
 
   #?@(:bb []
       :clj
@@ -319,43 +407,37 @@
        Seqable
        (seq [this]
             (when (pos? (.count this))
-              (map #(wrap-hash store %) (ft/ft-seq store (node-root store _hash)))))
+              (map #(wrap-hash store %) (vector-refs store _hash))))
 
        ILookup
        (valAt [this k] (.valAt this k nil))
        (valAt [this k not-found]
               (if (and (integer? k) (<= 0 k) (< k (.count this)))
-                (wrap-hash store (ft/ft-nth store (node-root store _hash) k))
+                (wrap-hash store (nth (vector-refs store _hash) k))
                 not-found))
 
        Indexed
        (nth [_ i]
-            (wrap-hash store (ft/ft-nth store (node-root store _hash) i)))
+            (wrap-hash store (nth (vector-refs store _hash) i)))
        (nth [this i not-found]
             (if (and (<= 0 i) (< i (.count this)))
-              (wrap-hash store (ft/ft-nth store (node-root store _hash) i))
+              (wrap-hash store (nth (vector-refs store _hash) i))
               not-found))
 
        IPersistentCollection
        (empty [_]
-              (->DaciteVector store (store-seq-node! store "vector" (ft/ft-empty store))))
+              (vec-of-refs-with-store store []))
        (cons [_ val]
-             (let [vh (types/extract-hash store val)
-                   nr (ft/ft-conj-right store (node-root store _hash) vh)]
-               (->DaciteVector store (store-seq-node! store "vector" nr))))
+             (vec-conj store _hash val))
        (equiv [_ other]
               (and (instance? DaciteVector other)
                    (= _hash (.-_hash ^DaciteVector other))))
 
        IPersistentStack
        (peek [_]
-             (when-let [vh (ft/ft-last store (node-root store _hash))]
-               (wrap-hash store vh)))
+             (vec-peek store _hash))
        (pop [_]
-            (let [root (node-root store _hash)]
-              (when (ft/ft-empty? store root)
-                (throw (IllegalStateException. "Can't pop empty vector")))
-              (->DaciteVector store (store-seq-node! store "vector" (ft/ft-butlast store root)))))
+            (vec-pop store _hash))
 
        Associative
        (containsKey [this k]
@@ -363,9 +445,7 @@
        (assoc [this k v]
               (when-not (integer? k)
                 (throw (IllegalArgumentException. "Key must be integer")))
-              (let [vh (types/extract-hash store v)
-                    refs (assoc (clojure.core/vec (ft/ft-seq store (node-root store _hash))) k vh)]
-                (->DaciteVector store (store-seq-node! store "vector" (ft-build! store refs)))))
+              (vec-assoc store _hash k v))
        (entryAt [this k]
                 (when (and (integer? k) (<= 0 k) (< k (.count this)))
                   (clojure.lang.MapEntry/create k (.nth ^Indexed this k))))
@@ -570,11 +650,30 @@
 ;; Constructors — explicit (-with-store) and implicit (*store*)
 ;; =============================================================================
 
+(def ^:dynamic *compact-strings*
+  "When true, short strings (≤256 chars) are one store node with :inline text
+   (same value hash as finger-tree-of-chars). Toggle for bandwidth benches."
+  true)
+
 (defn string-with-store
-  "Create a Dacite string from a host string in an explicit store."
+  "Create a Dacite string from a host string in an explicit store.
+
+   When *compact-strings* is true (default), short strings are a single
+   inline node with the same value hash as the finger-tree-of-chars form."
   [store s]
-  (let [refs (mapv #(scalar/put-scalar! store "char" %) (seq s))]
-    (->DaciteString store (store-seq-node! store "string" (ft-build! store refs)))))
+  (let [s (str s)
+        n (count s)
+        size-bytes #?(:clj (alength (.getBytes s "UTF-8"))
+                      :cljs (.-length s))]
+    (if (and *compact-strings* (<= n 256))
+      (let [ef (string-elements-fuse s)
+            h (types/value-hash "string" ef)]
+        (store/s-put store h ["string" {:inline s
+                                        :count n
+                                        :size-bytes size-bytes}])
+        (->DaciteString store h))
+      (let [refs (mapv #(scalar/put-scalar! store "char" %) (seq s))]
+        (->DaciteString store (store-seq-node! store "string" (ft-build! store refs)))))))
 
 (defmethod types/coerce-and-store! :string
   [store x]
@@ -599,10 +698,32 @@
   [bs]
   (blob-with-store store/*store* bs))
 
+(def ^:dynamic *compact-vectors*
+  "When true, small vectors (≤32 elems) store element hashes inline."
+  true)
+
+(defn- refs-size-bytes
+  "Sum of dacite-size for each element hash (for compact vector metadata)."
+  [store refs]
+  (reduce (fn [acc rh]
+            (+ acc (or (types/dacite-size (store/s-get store rh)) 0)))
+          0
+          refs))
+
 (defn vec-of-refs-with-store
   "Create a Dacite vector from raw hashes already in an explicit store."
   [store refs]
-  (->DaciteVector store (store-seq-node! store "vector" (ft-build! store refs))))
+  (let [refs (clojure.core/vec refs)
+        n (count refs)]
+    (if (and *compact-vectors* (<= n 32))
+      (let [ef (refs-elements-fuse refs)
+            size-bytes (refs-size-bytes store refs)
+            h (types/value-hash "vector" ef)]
+        (store/s-put store h ["vector" {:inline-refs refs
+                                        :count n
+                                        :size-bytes size-bytes}])
+        (->DaciteVector store h))
+      (->DaciteVector store (store-seq-node! store "vector" (ft-build! store refs))))))
 
 (defn vector-with-store
   "Create a Dacite vector from values in an explicit store."

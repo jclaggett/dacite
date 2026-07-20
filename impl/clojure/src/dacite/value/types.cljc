@@ -181,8 +181,22 @@
 
 (defmethod child-hashes :default [_] [])
 
-(doseq [t ["vector" "string" "blob" "map" "set"]]
+(doseq [t ["blob" "map" "set"]]
   (defmethod child-hashes t [[_ data]]
+    [(:root data)]))
+
+(defmethod child-hashes "string"
+  [[_ data]]
+  ;; Compact inline strings (:inline host text) have no child nodes.
+  (if (contains? data :inline)
+    []
+    [(:root data)]))
+
+(defmethod child-hashes "vector"
+  [[_ data]]
+  ;; Compact small vectors store element hashes in :inline-refs (no FT root).
+  (if (contains? data :inline-refs)
+    (vec (:inline-refs data))
     [(:root data)]))
 
 ;; =============================================================================

@@ -2,10 +2,14 @@
   "HTTP-backed IStore for remote node access.
 
    Implements the node endpoints from docs/design/service.md.
-   Compose with layered-store and lru-store for caching.
-   Bodies use dacite.wire so #dacite/u64 hash words round-trip."
+   Compose with layered-store, client-cache, and lru-store for caching.
+   Bodies use dacite.wire so #dacite/u64 hash words round-trip.
+
+   Store-protocol body sizes are recorded in dacite.store.stats."
   (:require [clojure.string :as str]
             [dacite.store :as store]
+            [dacite.store.stats :as stats]
+            [dacite.store.client-cache :as client-cache]
             [dacite.wire :as wire])
   (:import [java.net URI]
            [java.net.http HttpClient HttpRequest HttpResponse HttpRequest$BodyPublishers HttpResponse$BodyHandlers]
@@ -26,15 +30,19 @@
                         builder
                         headers)
         ^HttpRequest req (.build builder)
-        ^HttpResponse resp (.send client req (HttpResponse$BodyHandlers/ofByteArray))]
+        ^HttpResponse resp (.send client req (HttpResponse$BodyHandlers/ofByteArray))
+        ^bytes resp-body (.body resp)
+        sent (if body (alength body) 0)
+        recv (if resp-body (alength resp-body) 0)]
+    (stats/record! (stats/classify-url method url) sent recv)
     {:status (.statusCode resp)
-     :body (.body resp)}))
+     :body resp-body}))
 
 (defn- edn-request [client method url body headers]
   (let [^bytes bs (when body (.getBytes (wire/write-edn body) "UTF-8"))
         {:keys [status body]} (request client method url bs headers)]
     {:status status
-     :data (when (pos? (alength body))
+     :data (when (and body (pos? (alength body)))
              (wire/read-edn (String. body "UTF-8")))}))
 
 (defrecord RemoteStore [base-url client headers]
@@ -85,22 +93,45 @@
                                         (connectTimeout (Duration/ofSeconds 10)))))
                  headers))
 
+(defn- unwrap-remote
+  "Peel client-cache / layered wrappers to the underlying RemoteStore."
+  [remote]
+  (loop [r remote]
+    (cond
+      (instance? RemoteStore r) r
+      (and (record? r) (contains? r :remote)) (recur (:remote r))
+      (and (record? r) (contains? r :layers)) (recur (last (:layers r)))
+      :else r)))
+
+(defn- client-cache-write-back? [remote]
+  (client-cache/write-back-store? remote))
+
+(defn- client-cache-flush! [remote root-h]
+  (client-cache/flush-reachable! remote root-h))
+
 (defn remote-get-root
   "Fetch the server's current root hash. Returns hash vector or nil."
   [remote]
-  (let [url (str (str/replace (:base-url remote) #"/$" "") "/root")
-        {:keys [status data]} (edn-request (:client remote) "GET" url nil (:headers remote))]
+  (let [rs (unwrap-remote remote)
+        url (str (str/replace (:base-url rs) #"/$" "") "/root")
+        {:keys [status data]} (edn-request (:client rs) "GET" url nil (:headers rs))]
     (when (= 200 status)
       (when-let [hex (:root data)]
         (store/hex->hash hex)))))
 
 (defn remote-cas-root!
-  "Compare-and-set root on the server. Returns true on success."
+  "Compare-and-set root on the server. Returns true on success.
+
+   When remote is wrapped in a write-back client cache, flushes nodes
+   reachable from new-root to the network store before CAS."
   [remote expected new-root]
-  (let [url (str (str/replace (:base-url remote) #"/$" "") "/root/cas")
+  (when (client-cache-write-back? remote)
+    (client-cache-flush! remote new-root))
+  (let [rs (unwrap-remote remote)
+        url (str (str/replace (:base-url rs) #"/$" "") "/root/cas")
         body {:expected (when expected (store/hash->hex expected))
               :new (store/hash->hex new-root)}
-        {:keys [status data]} (edn-request (:client remote) "POST" url body (:headers remote))]
+        {:keys [status data]} (edn-request (:client rs) "POST" url body (:headers rs))]
     (cond
       (= 200 status) (true? (:ok data))
       (= 409 status) false

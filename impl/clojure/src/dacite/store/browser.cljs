@@ -8,139 +8,24 @@
    browser. Not for production (main-thread blocking).
 
    Bandwidth: every store-protocol XHR records request/response body sizes
-   (string length ≈ UTF-8 bytes for ASCII EDN). Static /app assets are not
-   counted. See get-stats / measure / format-stats."
+   via dacite.store.stats. Static /app assets are not counted.
+
+   Prefer (client-cache/wrap (remote-store base) :smart-put) for the demo."
   (:require [clojure.string :as str]
             [dacite.store :as store]
+            [dacite.store.stats :as stats]
+            [dacite.store.client-cache :as client-cache]
             [dacite.wire :as wire]))
 
-;; =============================================================================
-;; Bandwidth accounting (store protocol only)
-;; =============================================================================
-
-(defn empty-stats
-  "Zeroed counters for store-protocol XHR bodies."
-  []
-  {:requests 0
-   :bytes-sent 0
-   :bytes-recv 0
-   :by-kind {}})
-
-(defonce ^:private !stats (atom (empty-stats)))
-
-(defn- body-size
-  "Approx wire size of a body string (JS string length; fine for ASCII EDN)."
-  [s]
-  (if (nil? s)
-    0
-    (count (str s))))
-
-(defn- classify-url
-  "Keyword for by-kind bucket from method + URL path."
-  [method url]
-  (let [path (or (second (re-find #"(?:https?://[^/]+)?(/[^?]*)" (str url)))
-                 (str url))
-        m (str/upper-case (str method))]
-    (cond
-      (str/includes? path "/root/cas") :root-cas
-      (str/includes? path "/root") :root-get
-      (str/includes? path "/node/")
-      (case m
-        "GET" :node-get
-        "PUT" :node-put
-        "HEAD" :node-head
-        "DELETE" :node-delete
-        :node-other)
-      :else :other)))
-
-(defn- record-xhr!
-  [method url req-body resp-body]
-  (let [sent (body-size req-body)
-        recv (body-size resp-body)
-        kind (classify-url method url)]
-    (swap! !stats
-           (fn [s]
-             (-> s
-                 (update :requests inc)
-                 (update :bytes-sent + sent)
-                 (update :bytes-recv + recv)
-                 (update-in [:by-kind kind] (fnil + 0) 1))))
-    nil))
-
-(defn get-stats
-  "Snapshot of cumulative store-protocol bandwidth stats."
-  []
-  @!stats)
-
-(defn reset-stats!
-  "Clear cumulative stats (e.g. for demos/tests)."
-  []
-  (reset! !stats (empty-stats)))
-
-(defn- kind-diff
-  [before-kinds after-kinds]
-  (let [keys* (into (set (keys after-kinds)) (keys before-kinds))]
-    (reduce (fn [m k]
-              (let [d (- (get after-kinds k 0) (get before-kinds k 0))]
-                (if (pos? d) (assoc m k d) m)))
-            {}
-            keys*)))
-
-(defn stats-diff
-  "Delta between two stats snapshots (after − before)."
-  [before after]
-  {:requests (- (:requests after 0) (:requests before 0))
-   :bytes-sent (- (:bytes-sent after 0) (:bytes-sent before 0))
-   :bytes-recv (- (:bytes-recv after 0) (:bytes-recv before 0))
-   :by-kind (kind-diff (:by-kind before {}) (:by-kind after {}))})
-
-(defn measure
-  "Run f, return {:result … :delta stats-diff :totals snapshot}."
-  [f]
-  (let [before (get-stats)
-        result (f)
-        after (get-stats)]
-    {:result result
-     :delta (stats-diff before after)
-     :totals after}))
-
-(defn format-bytes
-  "Human-readable size (B or KB)."
-  [n]
-  (let [n (long (or n 0))]
-    (if (< n 1024)
-      (str n " B")
-      (str (.toFixed (/ n 1024.0) 1) " KB"))))
-
-(defn format-stats
-  "One-line summary: req · ↑ · ↓ · Σ."
-  ([stats] (format-stats stats nil))
-  ([stats label]
-   (let [up (:bytes-sent stats 0)
-         down (:bytes-recv stats 0)
-         total (+ up down)
-         base (str (:requests stats 0) " req · ↑ " (format-bytes up)
-                   " · ↓ " (format-bytes down)
-                   " · Σ " (format-bytes total))]
-     (if label
-       (str base " · last " (format-bytes total) " (" label ")")
-       base))))
-
-(defn format-delta
-  "One-line last-action cost."
-  [delta label]
-  (let [up (:bytes-sent delta 0)
-        down (:bytes-recv delta 0)
-        total (+ up down)]
-    (str (format-bytes total)
-         " (" (:requests delta 0) " req ↑" (format-bytes up)
-         " ↓" (format-bytes down)
-         (when label (str " · " label))
-         ")")))
-
-;; =============================================================================
-;; HTTP
-;; =============================================================================
+;; Re-export stats API for todo-web and demos
+(def empty-stats stats/empty-stats)
+(def get-stats stats/get-stats)
+(def reset-stats! stats/reset-stats!)
+(def stats-diff stats/stats-diff)
+(def measure stats/measure)
+(def format-bytes stats/format-bytes)
+(def format-stats stats/format-stats)
+(def format-delta stats/format-delta)
 
 (defn- trim-base [base-url]
   (str/replace base-url #"/$" ""))
@@ -157,8 +42,10 @@
     (doseq [[k v] headers]
       (.setRequestHeader x (name k) (str v)))
     (.send x (when body body))
-    (let [resp (.-responseText x)]
-      (record-xhr! method url body resp)
+    (let [resp (.-responseText x)
+          sent (if body (count (str body)) 0)
+          recv (if resp (count (str resp)) 0)]
+      (stats/record! (stats/classify-url method url) sent recv)
       {:status (.-status x)
        :body resp})))
 
@@ -203,23 +90,43 @@
   [base-url & [{:keys [headers] :or {headers {}}}]]
   (->BrowserRemoteStore (or base-url "") headers))
 
+(defn cached-remote-store
+  "Remote store with client cache (default :write-back)."
+  [base-url & [{:keys [headers policy]
+                :or {headers {}
+                     policy :write-back}}]]
+  (client-cache/wrap (remote-store base-url {:headers headers}) policy))
+
+(defn- unwrap-remote [remote]
+  (loop [r remote]
+    (cond
+      (instance? BrowserRemoteStore r) r
+      (and (record? r) (contains? r :remote)) (recur (:remote r))
+      (and (record? r) (contains? r :layers)) (recur (last (:layers r)))
+      :else r)))
+
 (defn remote-get-root
   "Server root hash vector or nil."
   [remote]
-  (let [url (str (trim-base (:base-url remote)) "/root")
-        {:keys [status body]} (xhr "GET" url nil (:headers remote))]
+  (let [rs (unwrap-remote remote)
+        url (str (trim-base (:base-url rs)) "/root")
+        {:keys [status body]} (xhr "GET" url nil (:headers rs))]
     (when (= 200 status)
       (when-let [hex (:root (edn-body body))]
         (store/hex->hash hex)))))
 
 (defn remote-cas-root!
-  "CAS root on server. Returns true on success, false on 409."
+  "CAS root on server. Returns true on success, false on 409.
+   Write-back caches flush reachable nodes before CAS."
   [remote expected new-root]
-  (let [url (str (trim-base (:base-url remote)) "/root/cas")
+  (when (client-cache/write-back-store? remote)
+    (client-cache/flush-reachable! remote new-root))
+  (let [rs (unwrap-remote remote)
+        url (str (trim-base (:base-url rs)) "/root/cas")
         payload {:expected (when expected (store/hash->hex expected))
                  :new (store/hash->hex new-root)}
         {:keys [status body]} (xhr "POST" url (wire/write-edn payload)
-                                   (assoc (:headers remote)
+                                   (assoc (:headers rs)
                                           "Content-Type" "application/edn"))]
     (cond
       (= 200 status) (true? (:ok (edn-body body)))

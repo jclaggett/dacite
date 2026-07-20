@@ -19,6 +19,7 @@
      npm run todo"
   (:require [dacite.store :as store]
             [dacite.rooted :as rs]
+            [dacite.host :as host]
             [dacite.value.collections :as coll]
             [dacite.value.api :as d]
             [dacite.value.types :as types]
@@ -36,56 +37,132 @@
 ;; Domain
 ;; =============================================================================
 
+(def ^:dynamic *compact-todo-entries*
+  "When true, each todo is one store node [\"todo-entry\" {:title s :done b}]
+   instead of a Dacite map of string/bool leaves (fewer network nodes)."
+  true)
+
 (defn- todos-store
   "Store carried by a todos value. Prefer this over store/*store* so async
    UIs (which drop dynamic bindings) still write into the durable store."
   [todos]
   (types/dacite-store todos))
 
+(declare ->TodoEntry)
+
+(def ^:private todo-entry-type
+  "Short type name for compact wire encoding."
+  "te")
+
+(deftype TodoEntry [store _hash]
+  types/IDaciteValue
+  (dacite-hash [_] _hash)
+  (dacite-store [_] store)
+  (dacite-type [_] todo-entry-type)
+  (realize [_]
+    (types/entry-data (store/s-get store _hash))))
+
+(defmethod types/wrap-entry "te"
+  [_type store h]
+  (->TodoEntry store h))
+
+(defmethod types/wrap-entry "todo-entry"
+  [_type store h]
+  (->TodoEntry store h))
+
+(defmethod types/child-hashes "te"
+  [_]
+  [])
+
+(defmethod types/child-hashes "todo-entry"
+  [_]
+  [])
+
+(defn- put-todo-entry!
+  "Persist a compact todo-entry node; return its hash.
+   Payload is [title done?] (shorter than a keyword map on the wire)."
+  [st title done?]
+  (let [data [(str title) (boolean done?)]
+        payload (host/utf8-bytes (pr-str data))
+        h (types/value-hash todo-entry-type (hash/fuse-bytes payload))]
+    (store/s-put st h [todo-entry-type data])
+    h))
+
+(defn- wrap-todo-entry [st h]
+  (->TodoEntry st h))
+
 (defn todo-entry?
-  "True if x looks like a {title, done} todo map."
+  "True if x is a todo map or compact todo-entry."
   [x]
   (and (d/dacite-value? x)
-       (= "map" (d/value-type x))
-       (some? (d/get x "title"))))
+       (or (and (= "map" (d/value-type x))
+                (some? (d/get x "title")))
+           (#{"te" "todo-entry"} (d/value-type x)))))
 
 (defn add-todo
   "Append {title, done} to todos. New nodes go into todos' store."
   ([todos title] (add-todo todos title false))
   ([todos title done?]
    (let [st (todos-store todos)]
-     (d/conj todos (coll/hash-map-with-store st "title" title "done" done?)))))
+     (if *compact-todo-entries*
+       (d/conj todos (wrap-todo-entry st (put-todo-entry! st title done?)))
+       (d/conj todos (coll/hash-map-with-store st "title" title "done" done?))))))
 
 (defn- field-native
   "Native host value for map field k, or nil."
   [todo k]
   (try
     (when (todo-entry? todo)
-      (let [v (d/get todo k)]
-        (cond
-          (nil? v) nil
-          (d/dacite-value? v) (types/realize v)
-          :else v)))
+      (if (#{"te" "todo-entry"} (d/value-type todo))
+        (let [data (types/realize todo)]
+          (cond
+            (vector? data)
+            (case k "title" (nth data 0 nil) "done" (nth data 1 nil) nil)
+            (map? data)
+            (case k
+              "title" (or (:t data) (:title data))
+              "done" (if (contains? data :d) (:d data) (:done data))
+              nil)
+            :else nil))
+        (let [v (d/get todo k)]
+          (cond
+            (nil? v) nil
+            (d/dacite-value? v) (types/realize v)
+            :else v))))
     (catch #?(:clj Throwable :cljs :default) _
       nil)))
+
+(defn- compact-title [data]
+  (cond
+    (vector? data) (nth data 0 nil)
+    (map? data) (or (:t data) (:title data))
+    :else nil))
+
+(defn- compact-done [data]
+  (cond
+    (vector? data) (nth data 1 nil)
+    (map? data) (if (contains? data :d) (:d data) (:done data))
+    :else nil))
 
 (defn title-str
   "Title of a todo entry as a native string."
   [todo]
   (try
-    (when-not (and (d/dacite-value? todo) (= "map" (d/value-type todo)))
-      (throw (ex-info "not a todo map" {:type (when (d/dacite-value? todo)
-                                                (d/value-type todo))})))
-    (let [v (d/get todo "title")]
-      (cond
-        (nil? v) "<?no-title?>"
-        (not (d/dacite-value? v)) (str v)
-        :else
-        (let [r (types/realize v)]
-          (cond
-            (string? r) r
-            (nil? r) "<?empty?>"
-            :else (apply str r)))))
+    (when-not (todo-entry? todo)
+      (throw (ex-info "not a todo entry" {:type (when (d/dacite-value? todo)
+                                                  (d/value-type todo))})))
+    (if (#{"te" "todo-entry"} (d/value-type todo))
+      (or (compact-title (types/realize todo)) "<?no-title?>")
+      (let [v (d/get todo "title")]
+        (cond
+          (nil? v) "<?no-title?>"
+          (not (d/dacite-value? v)) (str v)
+          :else
+          (let [r (types/realize v)]
+            (cond
+              (string? r) r
+              (nil? r) "<?empty?>"
+              :else (apply str r))))))
     (catch #?(:clj Throwable :cljs :default) e
       (str "<?" #?(:clj (.getMessage e) :cljs (.-message e)) "?>"))))
 
@@ -96,7 +173,12 @@
 (defn set-done
   "Return a new todo entry with done flag set."
   [todo done?]
-  (d/assoc todo "done" done?))
+  (if (#{"te" "todo-entry"} (d/value-type todo))
+    (let [st (types/dacite-store todo)
+          data (types/realize todo)
+          title (compact-title data)]
+      (wrap-todo-entry st (put-todo-entry! st title done?)))
+    (d/assoc todo "done" done?)))
 
 (defn toggle-at
   "Toggle done at index i."

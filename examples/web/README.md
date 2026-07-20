@@ -43,10 +43,20 @@ The UI shows a **bw** line for **store-protocol** traffic only
 Static assets (`/app/` HTML/JS/CSS) are **not** counted. Sizes are request and
 response **body** string lengths (≈ UTF-8 bytes for ASCII EDN).
 
-This is meant to make content-addressed transfer cost visible so we can later
-optimize (for example: small scalars may be cheaper as inline literals than as
-separate hash/content nodes — `"Hello World"` is smaller than a 32-byte hash
-reference plus node fetch).
+This is meant to make content-addressed transfer cost visible. Client defaults
+use a **write-back cache** plus compact strings/vectors/todo-entry nodes so a
+seed is a handful of PUTs rather than thousands of round-trips.
+
+### Benchmarks
+
+```bash
+cd impl/clojure
+clojure -M:dev -m dacite.bench.todo-bw --policy write-back
+clojure -M:dev:test -n dacite.bench.todo-bw-test
+```
+
+Scenarios: `seed-cold`, `add-warm`, `reload-cold`. Metrics: requests, bytes-sent,
+bytes-recv (store protocol only).
 
 ## Wire format
 
