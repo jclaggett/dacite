@@ -17,10 +17,10 @@
    - [\"ft/node\"   {:children [h...] :measure m}]
    - [\"ft/deep\"   {:left h :spine h :right h :measure m}]
 
-   Dual-read (ft-single elision, PR1): digit/node children and 1-element
-   roots may be either a legacy ft/single or a bare value hash (any
-   non-ft/* entry). Structural cells remain ft/empty|digit|node|deep.
-   Writers still emit ft/single until PR2. See docs/design/ft-single-elision.md.
+   Leaf elision: digit/node children and 1-element roots are bare value
+   hashes (any non-ft/* entry). Legacy ft/single is still dual-read.
+   Structural cells remain ft/empty|digit|node|deep.
+   See docs/design/ft-single-elision.md.
 
    Digits hold 1-32 children and nodes 2-32 — wider than the classic
    finger tree, trading the amortized O(1) proof for shallower trees."
@@ -483,19 +483,15 @@
 
 (defn ft-conj-right
   "Append a value (by its hash, already in the store) to the right end.
-   Returns the new root hash."
+   Returns the new root hash. Stores the leaf hash directly (no ft/single)."
   [store root value-hash]
-  (let [sb (types/dacite-size (lookup store value-hash))
-        single (make-single! store value-hash sb)]
-    (tree-conj-right! store root single)))
+  (tree-conj-right! store root value-hash))
 
 (defn ft-conj-left
   "Prepend a value (by its hash, already in the store) to the left end.
-   Returns the new root hash."
+   Returns the new root hash. Stores the leaf hash directly (no ft/single)."
   [store root value-hash]
-  (let [sb (types/dacite-size (lookup store value-hash))
-        single (make-single! store value-hash sb)]
-    (tree-conj-left! store root single)))
+  (tree-conj-left! store root value-hash))
 
 (defn ft-first
   "Hash of the first element, or nil if empty."
@@ -598,19 +594,19 @@
           value-hashes))
 
 (defn ft-digit-from-value-hashes
-  "Build an ft/digit of ft/singles for ordered leaf value hashes.
+  "Build an ft/digit whose children are bare leaf value hashes.
 
-   Matches intermediate digit nodes whose children are singles of those
-   leaves (the common packing case)."
+   Matches intermediate digit nodes under the leaf-elision encoding.
+   Dual-read still accepts legacy digits of ft/singles."
   [store value-hashes]
-  (let [vhs (vec value-hashes)
-        singles (mapv (fn [vh]
-                        (make-single! store vh (types/dacite-size (lookup store vh))))
-                      vhs)]
-    (make-digit! store singles (mapv #(measure-of store %) singles))))
+  (let [vhs (vec value-hashes)]
+    (make-digit! store vhs (mapv #(measure-of store %) vhs))))
 
 (defn ft-single-from-value-hash
-  "Build an ft/single wrapping one leaf value hash."
+  "Build a legacy ft/single wrapping one leaf value hash.
+
+   Retained for dual-read tests and materializing old pack payloads.
+   New trees do not write singles."
   [store value-hash]
   (make-single! store value-hash (types/dacite-size (lookup store value-hash))))
 

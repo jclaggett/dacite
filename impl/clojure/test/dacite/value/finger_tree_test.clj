@@ -46,7 +46,7 @@
     (is (nil? (ft/ft-first st root)))
     (is (empty? (ft/ft-seq st root)))))
 
-(deftest conj-still-writes-singles-pr1
+(deftest conj-does-not-write-singles
   (let [st (store/mem-store)
         a (put-i64 st 1)
         b (put-i64 st 2)
@@ -56,6 +56,7 @@
         snap (store/s-snapshot st)
         singles (filter (fn [[_ e]] (= "ft/single" (types/entry-type e))) snap)]
     (is (= 1 (ft/ft-count st r1)))
+    (is (= r1 a) "1-elem root is the bare value hash")
     (is (= 2 (ft/ft-count st r2)))
     (is (= [a] (vec (ft/ft-seq st r1))))
     (is (= [a b] (vec (ft/ft-seq st r2))))
@@ -63,7 +64,20 @@
     (is (= b (ft/ft-last st r2)))
     (is (= a (ft/ft-nth st r2 0)))
     (is (= b (ft/ft-nth st r2 1)))
-    (is (seq singles) "PR1 writers still emit ft/single")))
+    (is (empty? singles) "PR2: fresh trees write no ft/single")))
+
+(deftest vector-value-hash-stable-without-singles
+  ;; Collection value hash depends only on leaf elements_fuse, not spine adapters.
+  (let [st (store/mem-store)
+        vec-v (v/vector-with-store st 1 2 3)
+        h (v/dacite-hash vec-v)
+        ;; Rebuild via FT of the same leaf hashes — same collection hash
+        leaves (mapv #(put-i64 st %) [1 2 3])
+        root (ft/ft-from-value-hashes st leaves)
+        h2 (types/value-hash "vector" (ft/ft-elements-fuse st root))]
+    (is (= h h2))
+    (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
+                        (store/s-snapshot st))))))
 
 (deftest dual-read-bare-leaf-root
   (testing "1-element tree root is a bare value hash"

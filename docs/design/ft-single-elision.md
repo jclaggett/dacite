@@ -2,8 +2,8 @@
 
 ## Status
 
-**PR1 in progress:** dual-read of legacy `ft/single` and bare value hashes.
-Writers still emit `ft/single` until PR2.
+**PR1 done:** dual-read of legacy `ft/single` and bare value hashes.  
+**PR2 done:** writers emit bare leaf hashes (no new `ft/single`).
 
 ## Goal
 

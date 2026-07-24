@@ -273,8 +273,8 @@ content** (value literals), not the raw child-hash spine:
 | Type | Body | Rebuild |
 |------|------|---------|
 | `ft/empty` | `[]` | `ft-empty` |
-| `ft/single` | `[leaf-lit]` | single of leaf |
-| `ft/digit` | leaf lits | digit of singles |
+| `ft/single` | `[leaf-lit]` | single of leaf (legacy dual-read) |
+| `ft/digit` | leaf lits | digit of bare leaf hashes |
 | `ft/deep` (and try `ft/node`) | leaf lits | `ft-from-value-hashes` (conj-right) |
 | `hamt/empty` | `[]` | empty |
 | `hamt/entry` | `[k-lit v-lit]` | entry node |
