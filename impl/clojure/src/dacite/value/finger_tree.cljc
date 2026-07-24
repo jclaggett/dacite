@@ -12,14 +12,14 @@
 
    Node types (stored as [type-name data]):
    - [\"ft/empty\"  {:measure m}]
-   - [\"ft/single\" {:value-hash h :measure m}]  ; legacy leaf adapter
    - [\"ft/digit\"  {:children [h...] :measure m}]
    - [\"ft/node\"   {:children [h...] :measure m}]
    - [\"ft/deep\"   {:left h :spine h :right h :measure m}]
 
    Leaf elision: digit/node children and 1-element roots are bare value
-   hashes (any non-ft/* entry). Legacy ft/single is still dual-read.
-   Structural cells remain ft/empty|digit|node|deep.
+   hashes (any non-ft/* entry — implicit singles). Structural cells are
+   only ft/empty|digit|node|deep. Nested collections must be public
+   collection nodes (vector/string/blob/…), never a bare ft/* spine.
    See docs/design/ft-single-elision.md.
 
    Digits hold 1-32 children and nodes 2-32 — wider than the classic
@@ -65,12 +65,12 @@
 (defn- node-data [node] (second node))
 
 (defn- ft-type?
-  "True when type-name is a finger-tree structural (or legacy single) type."
+  "True when type-name is a finger-tree structural type (ft/*)."
   [type-name]
   (str/starts-with? (str type-name) "ft/"))
 
 (defn- measure-of
-  "Measure of an FT cell, legacy ft/single, or implicit leaf (non-ft/*).
+  "Measure of an FT cell or implicit leaf (non-ft/*).
 
    Leaf measure is synthesized: count 1, size-bytes from the entry,
    elements-fuse = the leaf hash itself."
@@ -84,21 +84,26 @@
        :elements-fuse h})))
 
 (defn- as-leaf-hash
-  "Resolve a leaf value hash: unwrap legacy ft/single, identity for non-ft
-   leaves. Throws if h names a structural FT cell (empty/digit/node/deep)."
+  "Leaf value hash (identity). Throws if h names a structural FT cell."
   [store h]
   (let [entry (lookup store h)
         t (node-type entry)]
-    (case t
-      "ft/single" (:value-hash (node-data entry))
-      ("ft/empty" "ft/digit" "ft/node" "ft/deep")
-      (throw (ex-info "expected leaf or ft/single"
+    (if (ft-type? t)
+      (throw (ex-info "expected leaf value hash, not ft/* cell"
                       {:type t :hash h}))
-      ;; non-ft/* (and any future non-structural name): already a leaf
       h)))
 
+(defn- assert-leaf-value!
+  "ft-conj may only take public value hashes, not structural ft/* cells."
+  [store h]
+  (let [entry (lookup store h)
+        t (node-type entry)]
+    (when (ft-type? t)
+      (throw (ex-info "ft-conj requires a leaf value hash, not an ft/* cell"
+                      {:type t :hash h})))
+    h))
+
 (defn- get-children [store h] (:children (node-data (lookup store h))))
-(defn- get-value-hash [store h] (:value-hash (node-data (lookup store h))))
 
 ;; =============================================================================
 ;; Node constructors (persist, return hash)
@@ -106,12 +111,6 @@
 
 (defn- make-empty! [store]
   (add-node! store ["ft/empty" {:measure measure-identity}]))
-
-(defn- make-single! [store value-hash size-bytes]
-  (add-node! store ["ft/single" {:value-hash value-hash
-                                 :measure {:count 1
-                                           :size-bytes size-bytes
-                                           :elements-fuse value-hash}}]))
 
 (defn- make-digit! [store child-hashes child-measures]
   (add-node! store ["ft/digit" {:children (vec child-hashes)
@@ -307,7 +306,7 @@
                     (measure-of store right))))))
 
 (defn- tree-to-seq*
-  "Sequence of element/single hashes in order."
+  "Sequence of leaf or spine-node hashes in order."
   [store root]
   (let [node (lookup store root)]
     (case (node-type node)
@@ -327,10 +326,9 @@
       (if (< remaining c-count)
         (let [t (node-type (lookup store c))]
           (case t
-            "ft/single" (get-value-hash store c)
             "ft/node" (recur (seq (get-children store c)) remaining)
             "ft/digit" (recur (seq (get-children store c)) remaining)
-            ;; bare leaf (non-ft/*) or unexpected — treat as 1-elem leaf
+            ;; bare leaf
             (as-leaf-hash store c)))
         (recur (next cs) (- remaining c-count))))))
 
@@ -338,7 +336,6 @@
   (let [node (lookup store root)
         t (node-type node)]
     (case t
-      "ft/single" (get-value-hash store root)
       "ft/node" (scan-children store (get-children store root) idx)
       "ft/digit" (scan-children store (get-children store root) idx)
       "ft/deep"
@@ -392,12 +389,6 @@
     (case t
       "ft/empty"
       (throw (ex-info "Cannot remove from empty tree" {:index idx}))
-
-      "ft/single"
-      (if (zero? idx)
-        nil
-        (throw (ex-info "Index out of range for single"
-                        {:index idx})))
 
       "ft/digit"
       (let [nc (remove-at-children! store (get-children store root) idx)]
@@ -483,14 +474,18 @@
 
 (defn ft-conj-right
   "Append a value (by its hash, already in the store) to the right end.
-   Returns the new root hash. Stores the leaf hash directly (no ft/single)."
+   Returns the new root hash. Stores the leaf hash directly (implicit single).
+   value-hash must be a non-ft/* leaf (scalar or public collection)."
   [store root value-hash]
+  (assert-leaf-value! store value-hash)
   (tree-conj-right! store root value-hash))
 
 (defn ft-conj-left
   "Prepend a value (by its hash, already in the store) to the left end.
-   Returns the new root hash. Stores the leaf hash directly (no ft/single)."
+   Returns the new root hash. Stores the leaf hash directly (implicit single).
+   value-hash must be a non-ft/* leaf (scalar or public collection)."
   [store root value-hash]
+  (assert-leaf-value! store value-hash)
   (tree-conj-left! store root value-hash))
 
 (defn ft-first
@@ -559,7 +554,7 @@
 
 (defn ft-seq
   "Lazy sequence of element value hashes under a tree root
-   (empty / single / bare leaf / deep)."
+   (empty / bare leaf / deep)."
   [store root]
   (map #(as-leaf-hash store %) (tree-to-seq* store root)))
 
@@ -574,7 +569,6 @@
         t (node-type node)]
     (case t
       "ft/empty" []
-      "ft/single" [(:value-hash (node-data node))]
       "ft/digit" (mapcat #(ft-leaves store %) (:children (node-data node)))
       "ft/node" (mapcat #(ft-leaves store %) (:children (node-data node)))
       "ft/deep" (ft-seq store h)
@@ -594,21 +588,11 @@
           value-hashes))
 
 (defn ft-digit-from-value-hashes
-  "Build an ft/digit whose children are bare leaf value hashes.
-
-   Matches intermediate digit nodes under the leaf-elision encoding.
-   Dual-read still accepts legacy digits of ft/singles."
+  "Build an ft/digit whose children are bare leaf value hashes."
   [store value-hashes]
   (let [vhs (vec value-hashes)]
+    (doseq [vh vhs] (assert-leaf-value! store vh))
     (make-digit! store vhs (mapv #(measure-of store %) vhs))))
-
-(defn ft-single-from-value-hash
-  "Build a legacy ft/single wrapping one leaf value hash.
-
-   Retained for dual-read tests and materializing old pack payloads.
-   New trees do not write singles."
-  [store value-hash]
-  (make-single! store value-hash (types/dacite-size (lookup store value-hash))))
 
 (defn ft-concat
   "Concatenate two trees in the same store. Returns the new root hash."
@@ -623,9 +607,6 @@
 ;; =============================================================================
 
 (defmethod types/child-hashes "ft/empty" [_] [])
-
-(defmethod types/child-hashes "ft/single" [[_ data]]
-  [(:value-hash data)])
 
 (defmethod types/child-hashes "ft/digit" [[_ data]]
   (:children data))

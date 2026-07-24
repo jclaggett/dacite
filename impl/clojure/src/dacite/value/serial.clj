@@ -78,9 +78,9 @@
 ;; =============================================================================
 
 (defn- encode-ft-node [subtype {:keys [measure] :as data}]
+  ;; Subtype tags: 0 empty, 1 reserved (was ft/single), 2 digit, 3 node, 4 deep
   (let [children (case (int subtype)
                    0 []
-                   1 [(:value-hash data)]
                    2 (:children data)
                    3 (:children data)
                    4 [(:left data) (:spine data) (:right data)])
@@ -96,9 +96,6 @@
 
 (defmethod types/encode-value "ft/empty" [[_ data]]
   (encode-ft-node 0 data))
-
-(defmethod types/encode-value "ft/single" [[_ data]]
-  (encode-ft-node 1 data))
 
 (defmethod types/encode-value "ft/digit" [[_ data]]
   (encode-ft-node 2 data))
@@ -219,14 +216,16 @@
 ;; =============================================================================
 
 (defn- subtype->seq-type
-  "Map binary subtype tag to seq node type name."
+  "Map binary subtype tag to seq node type name.
+   Tag 1 is reserved (former ft/single); no longer a valid type."
   [subtype]
   (case (int subtype)
     0 "ft/empty"
-    1 "ft/single"
     2 "ft/digit"
     3 "ft/node"
-    4 "ft/deep"))
+    4 "ft/deep"
+    (throw (ex-info "unsupported or removed ft subtype"
+                    {:subtype (int subtype)}))))
 
 (defn- subtype->map-type
   "Map binary subtype tag to map node type name."
@@ -256,8 +255,6 @@
         children (read-hashes buf n)]
     (case (int subtype)
       0 [type-name {:measure measure}]
-      1 [type-name {:value-hash (first children)
-                    :measure measure}]
       2 [type-name {:children children
                     :measure measure}]
       3 [type-name {:children children
@@ -265,7 +262,9 @@
       4 [type-name {:left (nth children 0)
                     :spine (nth children 1)
                     :right (nth children 2)
-                    :measure measure}])))
+                    :measure measure}]
+      (throw (ex-info "unsupported or removed ft subtype"
+                      {:subtype (int subtype)})))))
 
 (defn- deserialize-map-node
   "Deserialize a map node from buffer (kind tag already consumed)."

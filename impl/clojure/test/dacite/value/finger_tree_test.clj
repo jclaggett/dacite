@@ -1,8 +1,6 @@
 (ns dacite.value.finger-tree-test
-  "Dual-read and baseline tests for store-backed finger trees.
-
-   PR1 (ft-single elision): ops accept bare value hashes as 1-elem roots and
-   as digit children, while writers still emit ft/single."
+  "Tests for store-backed finger trees with implicit leaf singles
+   (bare value hashes as 1-elem roots and digit children)."
   (:require [clojure.test :refer [deftest is testing]]
             [dacite.hash :as hash]
             [dacite.host :as host]
@@ -25,7 +23,7 @@
   {:count 1 :size-bytes size-bytes :elements-fuse h})
 
 (defn- put-digit-of-leaves!
-  "Plant an ft/digit whose children are bare value hashes (no ft/single)."
+  "Plant an ft/digit whose children are bare value hashes."
   [st leaf-hs]
   (let [vhs (vec leaf-hs)
         ms (mapv (fn [h]
@@ -46,7 +44,7 @@
     (is (nil? (ft/ft-first st root)))
     (is (empty? (ft/ft-seq st root)))))
 
-(deftest conj-does-not-write-singles
+(deftest conj-bare-leaves-no-singles
   (let [st (store/mem-store)
         a (put-i64 st 1)
         b (put-i64 st 2)
@@ -64,14 +62,13 @@
     (is (= b (ft/ft-last st r2)))
     (is (= a (ft/ft-nth st r2 0)))
     (is (= b (ft/ft-nth st r2 1)))
-    (is (empty? singles) "PR2: fresh trees write no ft/single")))
+    (is (empty? singles) "no ft/single entries")))
 
 (deftest vector-value-hash-stable-without-singles
   ;; Collection value hash depends only on leaf elements_fuse, not spine adapters.
   (let [st (store/mem-store)
         vec-v (v/vector-with-store st 1 2 3)
         h (v/dacite-hash vec-v)
-        ;; Rebuild via FT of the same leaf hashes — same collection hash
         leaves (mapv #(put-i64 st %) [1 2 3])
         root (ft/ft-from-value-hashes st leaves)
         h2 (types/value-hash "vector" (ft/ft-elements-fuse st root))]
@@ -79,7 +76,7 @@
     (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
                         (store/s-snapshot st))))))
 
-(deftest dual-read-bare-leaf-root
+(deftest bare-leaf-root-ops
   (testing "1-element tree root is a bare value hash"
     (let [st (store/mem-store)
           vh (put-i64 st 42)]
@@ -99,31 +96,32 @@
         (is (= 2 (ft/ft-count st deep)))
         (is (= [vh b] (vec (ft/ft-seq st deep))))))))
 
-(deftest dual-read-digit-of-bare-leaves
-  (testing "ft/digit with bare value children (no singles)"
-    (let [st (store/mem-store)
-          a (put-i64 st 10)
-          b (put-i64 st 20)
-          c (put-i64 st 30)
-          dh (put-digit-of-leaves! st [a b c])]
-      (is (= [a b c] (vec (ft/ft-leaves st dh))))
-      ;; Build a deep tree whose left digit is bare-leaf digit by hand is heavy;
-      ;; exercise leaves + measure via digit alone and via from-value-hashes path.
-      (let [root (ft/ft-from-value-hashes st [a b c])]
-        (is (= [a b c] (vec (ft/ft-seq st root))))
-        (is (= a (ft/ft-nth st root 0)))
-        (is (= c (ft/ft-nth st root 2)))))))
-
-(deftest dual-read-legacy-single-still-works
+(deftest digit-of-bare-leaves
   (let [st (store/mem-store)
-        vh (put-i64 st 7)
-        single (ft/ft-single-from-value-hash st vh)]
-    (is (= 1 (ft/ft-count st single)))
-    (is (= vh (ft/ft-first st single)))
-    (is (= vh (ft/ft-nth st single 0)))
-    (is (= [vh] (vec (ft/ft-seq st single))))
-    (is (= [vh] (vec (ft/ft-leaves st single))))
-    (is (ft/ft-empty? st (ft/ft-remove-nth st single 0)))))
+        a (put-i64 st 10)
+        b (put-i64 st 20)
+        c (put-i64 st 30)
+        dh (put-digit-of-leaves! st [a b c])]
+    (is (= [a b c] (vec (ft/ft-leaves st dh))))
+    (let [root (ft/ft-from-value-hashes st [a b c])]
+      (is (= [a b c] (vec (ft/ft-seq st root))))
+      (is (= a (ft/ft-nth st root 0)))
+      (is (= c (ft/ft-nth st root 2))))))
+
+(deftest reject-structural-ft-as-leaf
+  (let [st (store/mem-store)
+        empty (ft/ft-empty st)
+        a (put-i64 st 1)]
+    (is (thrown-with-msg? Exception #"leaf value hash"
+                          (ft/ft-conj-right st empty empty)))
+    (is (thrown-with-msg? Exception #"leaf value hash"
+                          (ft/ft-conj-left st empty empty)))
+    ;; nesting a public vector is fine
+    (let [inner (v/dacite-hash (v/vector-with-store st 9))
+          root (ft/ft-conj-right st empty inner)]
+      (is (= 1 (ft/ft-count st root)))
+      (is (= inner (ft/ft-first st root))))
+    (is (= a a))))
 
 (deftest large-conj-and-nth
   (let [st (store/mem-store)
@@ -137,7 +135,9 @@
     (is (= (peek vhs) (ft/ft-last st root)))
     (doseq [i (range 0 n 7)]
       (is (= (nth vhs i) (ft/ft-nth st root i))))
-    (is (= vhs (vec (ft/ft-seq st root))))))
+    (is (= vhs (vec (ft/ft-seq st root))))
+    (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
+                        (store/s-snapshot st))))))
 
 (deftest concat-and-rest
   (let [st (store/mem-store)
@@ -157,3 +157,15 @@
         mid (ft/ft-remove-nth st root 4)]
     (is (= (concat (range 4) (range 5 10))
            (map (fn [h] (second (store/s-get st h))) (ft/ft-seq st mid))))))
+
+(deftest entry-density-no-single-per-element
+  ;; n leaf elements must not produce n ft/single nodes.
+  (let [st (store/mem-store)
+        n 50
+        vhs (mapv #(put-i64 st %) (range n))
+        _ (ft/ft-from-value-hashes st vhs)
+        snap (store/s-snapshot st)
+        by-type (frequencies (map (fn [[_ e]] (types/entry-type e)) snap))]
+    (is (nil? (get by-type "ft/single")))
+    (is (= n (get by-type "i64")))
+    (is (pos? (get by-type "ft/deep" 0)))))

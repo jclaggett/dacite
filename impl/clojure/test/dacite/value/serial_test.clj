@@ -92,16 +92,6 @@
       (is (= "ft/empty" (first result)))
       (is (= sample-measure (:measure (second result)))))))
 
-(deftest serialize-ft-single-test
-  (testing "ft/single round-trip"
-    (let [entry ["ft/single" {:value-hash sample-hash-a
-                              :measure sample-measure}]
-          bs (serial/serialize entry)
-          result (serial/deserialize bs)]
-      (is (= "ft/single" (first result)))
-      (is (= sample-hash-a (:value-hash (second result))))
-      (is (= sample-measure (:measure (second result)))))))
-
 (deftest serialize-ft-digit-test
   (testing "ft/digit round-trip with multiple children"
     (let [children [sample-hash-a sample-hash-b sample-hash-c]

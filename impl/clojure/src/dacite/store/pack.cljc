@@ -366,11 +366,7 @@
     (cond
       (= "ft/empty" type) (ft/ft-empty st)
 
-      (= "ft/single" type)
-      (do (when-not (= 1 (count leaf-hs))
-            (throw (ex-info "ft/single expects one leaf" {:n (count leaf-hs)})))
-          (ft/ft-single-from-value-hash st (first leaf-hs)))
-
+      ;; 1-elem tree root is a bare leaf hash (no ft/single type)
       (= "ft/digit" type)
       (ft/ft-digit-from-value-hashes st leaf-hs)
 

@@ -11,7 +11,6 @@
             [dacite.examples.todo :as todo]
             [dacite.value.types :as types]
             [dacite.value.collections :as coll]
-            [dacite.value.finger-tree :as ft]
             [dacite.value.scalar :as scalar]))
 
 (defn- round-trip-hash
@@ -435,20 +434,13 @@
         snap (store/s-snapshot st)
         singles (filter (fn [[_ e]] (= "ft/single" (types/entry-type e))) snap)
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)]
-    (is (empty? singles) "fresh vectors no longer store ft/single")
+    (is (empty? singles) "ft/single fully removed")
     (is (seq digits))
     (doseq [[fh _] (take 3 digits)]
       (let [[h1 h2 form] (round-trip-hash st fh)]
         (is (= "ft/digit" (:type form)))
         (is (vector? (:body form)))
-        (is (= h1 h2) "digit of bare leaves rebuilds to same hash"))))
-  (testing "legacy ft/single intermediate still round-trips"
-    (let [st (store/mem-store)
-          vh (types/dacite-hash (scalar/i64-with-store st 7))
-          sh (ft/ft-single-from-value-hash st vh)
-          [h1 h2 form] (round-trip-hash st sh)]
-      (is (= "ft/single" (:type form)))
-      (is (= h1 h2)))))
+        (is (= h1 h2) "digit of bare leaves rebuilds to same hash")))))
 
 (deftest intermediate-ft-deep-round-trip
   (let [st (store/mem-store)

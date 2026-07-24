@@ -316,16 +316,22 @@ levels means fewer network round trips — and that's the dominant cost.
 | Node | Description | Children |
 |------|-------------|----------|
 | `ft/empty` | Empty seq | 0 |
-| `ft/single` | One element | 1 |
-| `ft/digit` | Finger (end access) | 1–32 |
-| `ft/node` | Internal node | 2–32 |
+| `ft/digit` | Finger (end access) | 1–32 leaf or node hashes |
+| `ft/node` | Internal node | 2–32 children |
 | `ft/deep` | Full tree | 3 (left, spine, right) |
 
-Every node is stored in the content-addressed store as its own entry.
-Children are hash references — no node ever contains inline data.
-This means every node has **bounded size** regardless of collection
-size: at most 32 × 32 = 1024 bytes of child hashes, plus ~48 bytes
-of measure metadata.
+There is no `ft/single` adapter. A one-element sequence uses the **leaf
+value hash** as the tree root. Digit and node children are either bare
+leaf hashes (scalars or public collection nodes such as `vector`) or
+structural `ft/node` hashes on the spine. Discrimination: non-`ft/*` means
+implicit single; `ft/*` means structure. Nested collections must be wrapped
+in a public collection node — never a bare `ft/deep` as a user value.
+
+Every structural node is stored in the content-addressed store as its own
+entry. Children are hash references — no node ever contains inline data.
+This means every structural node has **bounded size** regardless of
+collection size: at most 32 × 32 = 1024 bytes of child hashes, plus ~48
+bytes of measure metadata.
 
 ### The Measure Monoid
 
