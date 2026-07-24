@@ -15,6 +15,16 @@
             [dacite.store.pack :as pack]
             [dacite.rooted.gc :as gc]))
 
+(defn- snapshot-entry->hash
+  "Normalize a snapshot map key to a hash vector.
+
+   Mem-store on CLJS keys by hex string (BigInt vectors are not map keys);
+   on JVM keys are hash vectors. s-put always expects a hash vector."
+  [k]
+  (if (string? k)
+    (store/hex->hash k)
+    k))
+
 (defn- absorb-remote-pack-cache!
   "Copy pack-local entries from a pack-aware remote into client local.
 
@@ -27,10 +37,11 @@
       (nil? r) nil
 
       (and (record? r) (contains? r :pack-local))
-      (doseq [[h v] (store/s-snapshot (:pack-local r))]
-        (store/s-put local h v)
-        (when flushed-atom
-          (swap! flushed-atom conj h)))
+      (doseq [[k v] (store/s-snapshot (:pack-local r))]
+        (let [h (snapshot-entry->hash k)]
+          (store/s-put local h v)
+          (when flushed-atom
+            (swap! flushed-atom conj h))))
 
       (and (record? r) (contains? r :remote))
       (recur (:remote r))

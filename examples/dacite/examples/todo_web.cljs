@@ -112,9 +112,19 @@
             server-root (remote/remote-get-root remote)]
         (if server-root
           (let [todos (d/get-value remote server-root)]
-            (swap! !state assoc :todos todos :root server-root :status "loaded" :error nil)
-            (render-list!)
-            :loaded)
+            (if-not todos
+              (do (swap! !state assoc
+                         :todos nil
+                         :root server-root
+                         :error (str "Root present but value missing/unloadable: "
+                                     (subs (hash/hash->hex server-root) 0 12) "…")
+                         :status "error")
+                  (render-list!)
+                  :error)
+              (do (swap! !state assoc :todos todos :root server-root
+                         :status "loaded" :error nil)
+                  (render-list!)
+                  :loaded)))
           (let [seeded (todo/build remote (todo/seed-items))
                 h (types/dacite-hash seeded)]
             (if (remote/remote-cas-root! remote nil h)
