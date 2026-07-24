@@ -222,9 +222,9 @@
    Scalars and small strings/vectors/maps/sets only; internal tree nodes
    always return nil.
 
-   Note: this is the 2b *semantic sugar* path only. Universal structural
-   recursive terms (ft/*, hamt/*, …) are design 2b′ —
-   see docs/design/leaf-chunking.md."
+   Note: 2b realized-value literals (host body + hash check). Full law:
+   every value node has a complete realized literal; FT/HAMT spine is
+   reconstructed on materialize — see docs/design/leaf-chunking.md."
   ([st h entry] (literal-payload st h entry default-budget))
   ([st h entry budget]
    (let [t (types/entry-type entry)

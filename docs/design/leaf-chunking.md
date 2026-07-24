@@ -1,165 +1,177 @@
 # Leaf-chunking (transport packing) design
 
-**Status:** DRAFT — design approved for 2a/2b shipping; **universal recursive literals** formalized below (not fully implemented; 2b is a partial semantic subset).
+**Status:** DRAFT — 2a/2b shipped; **realized-value literal law** clarified below
+(2b is a partial implementation of that law).
 
-**Related:** `docs/design/service.md` (HTTP store protocol), phase 1 commit removing `:inline` from `dacite.value.collections`.
+**Related:** `docs/design/service.md` (HTTP store protocol), phase 1 commit removing
+`:inline` from `dacite.value.collections`.
 
 ## Goal
 
-Cut HTTP **request count** and redundant bytes for remote stores **without** changing the durable Dacite value model. Collections remain finger trees / HAMTs in the store. Packing and literal encodings live only on the **wire**.
+Cut HTTP **request count** and redundant bytes for remote stores **without**
+changing the durable Dacite value model. Collections remain finger trees / HAMTs
+in the store. Packing and literal encodings live only on the **wire**.
 
 ---
 
-## Law: universal recursive node terms
+## Law: every value node has a realized literal
 
-**Claim:** Every durable Dacite store entry can be represented on the wire as a
-**recursive node term**, and packing is the policy of how deep to expand that
-term before falling back to hash references.
+**Claim:** Any first-class Dacite **value** node can be represented on the wire as a
+**literal**: the node’s type plus the **complete realized content** of that value.
+The receiver rebuilds the value through the normal constructor path so that
+**`hash(materialized) = claimed hash`**. Intermediate store nodes (finger-tree /
+HAMT spine) are **not** part of the literal; they are reconstructed as needed.
 
-This is a property of **nodes** (content-addressed `[type data]` entries), not
-of host language values. Host/`coerce-and-store!` forms are an optional sugar
-layer on top, not the law.
+This is a property of **Dacite values** (entries that are user-facing values:
+scalars, string, blob, vector, map, set — anything with a meaningful
+`realize`), not of host language convenience alone and not of internal tree
+layout.
 
-### Grammar
+### What a literal is
 
-A **term** is either a stop (hash only) or a typed node with recursive data:
+| Aspect | Requirement |
+|--------|-------------|
+| **Completeness** | The body is the full realized content under the node (recursively for nested values), not a partial range or a spine fragment. |
+| **Type** | The value’s type is carried (e.g. `vector` vs `string` vs `i64`) so materialize builds the right kind of value. |
+| **No intermediate nodes** | FT/HAMT layout (`ft/*`, `hamt/*`) is omitted. Materialize uses normal builders (`string-with-store`, `vector-with-store`, …); the receiver’s spine may differ in shape. |
+| **Hash fidelity** | After materialize, the content hash equals the claimed hash. Content-addressing + deterministic constructors make this hold for all core value types. |
 
-```
-Term      :=  {:ref Hex}                          ; stop expansion — peer must already have / will get this hash
-           |  {:node Type DataTerm}               ; expand this entry
-
-DataTerm  :=  the store entry's data, with every
-              child-hash *slot* replaced by a Term
-```
-
-Equivalently, as a compact EDN sketch (tags are illustrative):
+Illustrative wire shapes (tags optional; full type names are fine):
 
 ```clojure
-;; Fully expanded vector of two strings (semantic sugar — see below)
+;; Scalars
+[:i64 42]
+[:bool true]
+[:char \x]
+
+;; String / blob — full realized payload
+[:s "hello"]
+[:blob [104 105]]   ; or host bytes where the wire allows
+
+;; Collections — recursive realized elements (not FT/HAMT nodes)
+[:v [1 2 3]]
 [:v [[:s "hello"] [:s "world"]]]
-
-;; Same idea structurally (type names match the store):
-[:node "vector" {:root <ft-term> :count 2 :size-bytes …}]
-[:node "ft/deep" {:left <digit-term> :spine <term> :right <digit-term> :measure …}]
-[:node "ft/single" {:value-hash <char-or-value-term> :measure …}]
-[:node "char" \h]
-
-;; Truncation: expand the vector root but stop at the finger-tree root
-[:node "vector" {:root {:ref "a1b2…"} :count 2 :size-bytes …}]
+[:m {[:s "a"] 1, [:s "b"] 2}]
+[:set #{1 2 3}]
 ```
 
-**Child slots** are exactly the positions reported by `types/child-hashes` for
-that entry type (`:root` on collections; `:children` / `:left`/`:spine`/`:right`
-on FT nodes; HAMT fields; empty for scalars).
+**Recursive:** each nested value is itself a realized literal (or, under a future
+budget policy, a hash ref — see truncation). The outer literal still means
+“this whole value,” not “this one store cell’s raw `[type data]`.”
+
+### What a literal is not
+
+- Not a dump of the raw store entry with child **hashes** only (that is the
+  depth-0 **`:node`** encoding).
+- Not a recursive expansion of `ft/deep` / `hamt/bitmap` cells as if they were
+  the value (those are implementation spine; reconstruct on materialize).
+- Not a leaf-pack / byte-range of a large blob (out of scope; large values use
+  `:node` walk or stay over budget as a single item).
 
 ### Laws
 
 | # | Law | Meaning |
 |---|-----|---------|
-| **L1 Existence** | For every store `S` and hash `H` present in `S`, there exists at least one term `T` such that `materialize(T) = H`. | No node type is “literal-incapable.” Internals (`ft/*`, `hamt/*`) and core value types are included. |
-| **L2 Hash fidelity** | If `T` was produced from `(S, H)` by replacing child slots with either `{:ref child}` or a faithful term for that child, then `materialize(T) = H`. | Structural terms are not approximate: they rebuild the **same content hash**, not merely “similar” host data. |
-| **L3 Truncation** | Any child slot may be `{:ref Hex}` instead of a nested term. | Expansion depth is a **packing policy**, not a type-system limit. Depth 0 (all children refs) is exactly today’s simple node put. |
-| **L4 Coverage** | A fully expanded term for `H` covers `H` and every hash reachable by replacing nested terms; covered hashes need not be sent as separate items. | Write-back / pack walks use this to skip descendants already inline. |
-| **L5 Typed entries** | Every store type with a stable `[type data]` shape and `child-hashes` participates. | Encoding is dispatch on type name; structural terms do not require host coerce. |
+| **L1 Universality** | Every first-class value type supports `value → literal` and `literal → value` with hash fidelity. | No core value type is “literal-incapable.” |
+| **L2 Realized completeness** | A literal for hash `H` encodes the complete realized content of the value at `H`. | Nested values appear realized (recursively), not as bare child hashes, unless an explicit truncation/ref policy applies. |
+| **L3 Type fidelity** | The literal carries enough type information to materialize the same value kind. | e.g. string vs vector of chars are distinct. |
+| **L4 Spine freedom** | Materialize need not reproduce the sender’s intermediate FT/HAMT node hashes. | Only the **value** hash `H` must match; spine is reconstructed “as possible.” |
+| **L5 Coverage** | Shipping a literal for `H` covers `H` and all store nodes that materialize will create under `H`. | Pack/write-back need not also send those descendants as separate items. |
 
-**Not required:** the receiver’s intermediate spine to match the sender’s byte-for-byte when a *semantic* sugar form is used (see below).  
-**Required for structural terms:** identity hash `H` after materialize.
+### Intermediate store nodes (`ft/*`, `hamt/*`)
 
-### Structural term vs semantic sugar
+These entries exist in the durable store and may still move as depth-0 **`:node`**
+items when the pack walk descends (e.g. parent not literalized).
 
-| Kind | What it encodes | Round-trip | Status |
-|------|-----------------|------------|--------|
-| **Structural term** | Exact store `[type data]` shape; children are terms or refs | Always (L2) | **The law** — target for all node types |
-| **Semantic sugar** | Host-shaped shortcuts, e.g. `[:s "hello"]`, `[:v [1 2 3]]`, plain EDN maps | Only when `hash(rebuild) = H` | Optional compression; subset of terms |
+**MVP (value literals first):**
 
-Examples of sugar that desugar to structural terms:
+- When a parent **value** is sent as a literal, intermediates under it are
+  **skipped** (L5) and rebuilt on the receiver.
+- When a parent is sent as `:node`, intermediates appear as ordinary node puts
+  via `child-hashes` walk.
+- L1 for **value** types is the hard requirement for 2b / 2b′.
 
-```clojure
-[:s "hi"]
-;; → string node + ft spine + char scalars, same as string-with-store
+**Later: intermediate literals (optional, deferred):**
 
-[:v [[:s "hello"] [:s "world"]]]
-;; → vector root whose leaves are string value hashes, etc.
-```
+If an intermediate node’s content hash is determined by a **realized measure**
+(e.g. FT/HAMT `elements_fuse` over leaves) such that materializing “the
+complete realized content under this cell” rebuilds **some** valid spine with
+**the same hash**, then that intermediate may also ship as a literal.
 
-**2b (shipped)** implements only a **semantic** subset: scalars, string, blob,
-map/set/vector of host-roundtrippable data, via `coerce-and-store!`, with a
-dry-run hash check. It does **not** yet implement structural terms for `ft/*`,
-`hamt/*`, or domain types — those correctly stay `:node` until structural
-encode/materialize exists.
+| Why | Effect |
+|-----|--------|
+| Bottom out early | Pack walk can emit one compact literal for an `ft/deep` (or similar) as soon as its realized payload fits, instead of walking every child cell as `:node`. |
+| Same laws | Completeness + type + hash fidelity; spine under the intermediate need not match sender layout (L4 applied at that node). |
+| Gate | Only where reconstruction is **assured** (hash algebra + constructors). If not assured, keep depth-0 `:node`. |
+
+This is a **packing optimization**, not required for value-level L1. Schedule after
+value literals are solid (e.g. post‑2b′ / with 2c large-tree work). Do not block
+MVP on intermediate literals.
 
 ### Materialize (receiver)
 
 ```
-materialize(term):
-  if term is {:ref h}:
-    require h already in store (or schedule fetch); return h
-  if term is {:node type data-term}:
-    data' = map child slots: materialize(slot)
-    entry = [type data']
-    h = content_hash(entry)   ; same algebra as s-put path
-    s-put(h, entry)
-    return h
+materialize(literal):
+  case type:
+    scalar  → put-scalar!(type, data)
+    string  → string-with-store(realized-string)
+    blob    → blob-with-store(realized-bytes)
+    vector  → vector-with-store(map materialize elements)
+    map     → hash-map-with-store(…)
+    set     → dacite-set-with-store(…)
+  assert content_hash == claimed_hash   ; when strict
+  return hash
 ```
 
-For **semantic sugar**, expand to a structural term (or call the normal
-constructor path) first, then assert `h = claimed`.
+Constructors already allocate whatever FT/HAMT nodes they need. That is the
+only reconstruction required.
 
 ### Relation to Layer 1 encodings (wire items)
 
-| Item encoding | Interpretation |
-|---------------|----------------|
-| `:node` + body | Structural term at **depth 0**: body is the raw `[type data]` with child **hashes only** (no nested terms). |
-| `:literal` (2b) | Semantic sugar body + claimed hash; materialize via constructors / coerce. |
-| `:literal` (target) | Structural or sugar **term** + claimed hash; recursive materialize; L2. |
+| Item encoding | Meaning |
+|---------------|---------|
+| **`:node`** | Raw store entry `[type data]` with child hashes; `s-put` as today. Used for spine cells and for values not expanded to literals. |
+| **`:literal`** | Realized value form + claimed hash; materialize via constructors (L1–L5). |
 
-So “simple node” is not a different *kind* of value — it is the **minimum
-expansion** of the universal term.
+Packing **policy** chooses which needed hashes become literals vs nodes (budget,
+size, already-flushed set). The **law** is that every value *can* be a literal.
 
 ---
 
 ## Two layers
 
-### Layer 1 — Value representation (per needed hash)
+### Layer 1 — Per needed hash
 
-For each **hash** the peer needs, send **exactly one** item that installs that
-hash (and, if expanded, may install covered descendants):
-
-| Form | Wire | Receiver |
-|------|------|----------|
-| **Simple node** | hash + store content (`[type data]`, children as hashes) | `s-put(hash, content)` — depth-0 structural term |
-| **Literal / term** | hash + recursive term (structural or sugar) | `materialize(term)`; require result hash = claimed |
-
-**Decision rule (policy, not law):**
+For each hash the peer needs, send one item that installs it (a literal may also
+install covered descendants via materialize):
 
 ```
 for needed hash H with entry N = s-get(H):
-  if expand?(H, budget, …):
-    emit term item for H (structural preferred; sugar when smaller and L2 holds)
+  if value-node?(N) and fits-literal?(realized(N), budget):
+    emit { :encoding :literal, :hash H, :type …, :body realized… }
   else
-    emit depth-0 node item for H
+    emit { :encoding :node, :hash H, :body N }
 ```
 
-Default **budget = 1024** (tunable; also guides Layer 2). Prefer expansion when
-the term fits and coverage saves descendant sends.
+Default **budget = 1024** (tunable; also guides Layer 2). Prefer literal when the
+realized form fits and coverage saves descendant sends.
 
-**No leaf-packs / fragments.** Large values are handled by walking the tree and
-encoding **each needed node** as depth-0 or expanded term. Chunking batches
-those items. There is no separate “range of a blob” wire kind.
+**No leaf-packs / fragments.** Large values: walk with `:node` items, or one
+oversized literal if policy allows. No separate “range of a blob” wire kind in MVP.
 
 ### Layer 2 — Chunking (pool → ship)
 
-Layer 1 emits a **stream of items**. Layer 2 only batches them.
+Layer 1 emits a stream of items. Layer 2 only batches them.
 
 **Soft budget (MVP):**
 
-- Append items to an open chunk until **chunk size ≥ budget**, then **send** and start a new chunk.
-- Chunks may be up to about **2 × budget** (the item that crossed the threshold can nearly fill another budget).
-- When the transfer unit is done (e.g. write-back flush finished), **flush** the last partial chunk even if size &lt; budget.
-- A single oversized item ships alone (may exceed 2× budget only if one item is that large).
+- Append until estimated chunk size ≥ budget, then send and start a new chunk.
+- Chunks may be up to about **2 × budget**.
+- Flush the last partial chunk when the transfer unit finishes.
+- A single oversized item ships alone.
 
 ```
-needed hashes → Layer 1 encode (term depth policy) → items → Layer 2 pack (≥ budget → HTTP) → flush remainder
+needed hashes → Layer 1 (literal | node) → items → Layer 2 pack → HTTP
 ```
 
 **Envelope sketch (EDN):**
@@ -175,7 +187,7 @@ needed hashes → Layer 1 encode (term depth policy) → items → Layer 2 pack 
 | Role | Idea |
 |------|------|
 | Send | `POST /nodes` — one body = one chunk |
-| Fetch pack | `POST /nodes/get` `{:hashes […] :budget 1024}` → one or more chunks |
+| Fetch pack | `POST /nodes/get` `{:hashes […] :budget 1024}` → chunk(s) |
 | Compat | Keep `GET/PUT /node/{hex}` |
 
 ## Composition with write-back cache
@@ -183,42 +195,45 @@ needed hashes → Layer 1 encode (term depth policy) → items → Layer 2 pack 
 | Concern | Where |
 |---------|--------|
 | What is missing / what to flush | Client write-back / local cache |
-| Encode each hash as depth-0 node or expanded term | Layer 1 |
+| Encode each hash as `:literal` or `:node` | Layer 1 |
 | Batch until ≥ budget; flush remainder | Layer 2 |
-| Mark covered hashes flushed when a term expands | L4 |
+| Mark covered hashes flushed when a literal materializes a subgraph | L5 |
 
 ## Parameters
 
 | Name | Default | Role |
 |------|---------|------|
-| `chunk-size` | 1024 | Soft Layer 2 threshold; cue for Layer 1 expand vs depth-0 |
+| `chunk-size` | 1024 | Soft Layer 2 threshold; cue for literal vs node |
 | `pack-enabled?` | true on remote clients | Force single-node path for debugging |
 
-Sweep 256…4096 with `dacite.bench.todo-bw` (and later large-blob scenarios).
+Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
 
 ## Implementation order
 
 | Step | Scope |
 |------|--------|
-| **2a** | Layer 1 depth-0 `:node` only + Layer 2 soft-budget chunks. **Done.** |
-| **2b** | Semantic sugar literals for round-tripping host forms; hash check; write-back skip covered. **Done (partial vs law).** |
-| **2b′** | **Structural recursive terms** for every core type (`ft/*`, `hamt/*`, collections, scalars). L1–L5. Replace “can’t literal” gaps. |
-| **2c** | Large trees / blobs: expansion policy + mix of depth-0 and terms; measure. |
-| **2d** | Budget sweep; update `service.md` and this doc with measured defaults. |
-| **Sugar** | Compact tags (`:s`, `:v`, …) as pure encoders to structural terms when smaller. |
+| **2a** | `:node` only + soft-budget chunks. **Done.** |
+| **2b** | Realized literals for scalars / string / blob / map / set / vector (host-roundtrip + hash check); write-back coverage. **Done (core value types).** |
+| **2b′** | Close gaps vs L1–L5 for **value** types: systematic `to-literal` / `from-literal`, recursive nested literals, property tests per value type. |
+| **2c** | Large trees / blobs: when to refuse literal and walk `:node` instead; measure. |
+| **2c′** *(defer)* | **Intermediate literals** (`ft/*`, `hamt/*`) where realized content rebuilds to the same node hash — bottom out pack walks earlier. |
+| **2d** | Budget sweep; update `service.md` with measured defaults. |
 
-### 2b notes (shipped semantic subset)
+### 2b notes (shipped)
 
-- `encode-item` emits semantic `:literal` only when host body **round-trips** to the claimed hash (dry-run materialize).
-- Tree internals (`ft/*`, `hamt/*`) stay depth-0 `:node` until **2b′** (semantic sugar has no host form for them).
-- `encode-reachable` walks from the root; semantic literals cover local subgraphs when round-trip holds.
-- Receiver `apply-chunk!` materializes via `coerce-and-store!` / `put-scalar!` and asserts hash match when `*verify-literal-hash*` is true.
+- `encode-item` uses realized host bodies and dry-run hash check.
+- Nested values that already round-trip as host EDN work; recursive typed tags
+  (`[:v [[:s "a"] …]]`) are the clearer long-term wire form (2b′).
+- Spine types stay `:node` only when the walk reaches them; value literals skip them.
+- `*verify-literal-hash*` enforces L2 on receive when enabled.
 
-### 2b′ sketch (structural — next)
+### 2b′ sketch (finish the law)
 
-- `term-of(store, h, budget)`: build `{:node type data-term}` expanding children while under budget; otherwise `{:ref hex}` or depth-0 item.
-- `materialize-term!`: recursive install; no host coerce required for FT/HAMT.
-- Semantic sugar becomes an optimization that must prove L2 or desugar to structural first.
+- Multimethod or registry: `literal-of(store, h) → {:type :body}` for every
+  value type; body elements are literals (recursive) for nested values.
+- `materialize-literal!` dispatches on type; always constructor path; assert hash.
+- Property tests: for random values of each type, `materialize(literal-of(v)) = hash(v)`.
+- Pack walk: if literal fits budget, emit it and mark covered; else `:node` + children.
 
 ## Non-goals
 
@@ -226,18 +241,21 @@ Sweep 256…4096 with `dacite.bench.todo-bw` (and later large-blob scenarios).
 - Leaf-pack / fragment / conj-into-partial-root protocols
 - Hard budget (reject items that would exceed budget)
 - Binary wire as the first milestone (EDN envelopes OK for MVP)
-- Requiring semantic host forms for every type (structural terms are enough for L1)
+- Shipping intermediate FT/HAMT cells inside a value’s literal body
 
 ## Open questions (proposed defaults)
 
-1. Strict hash verification on receive: **yes in tests**, optional flag for demos.  
-2. Wire tag style: full type strings (`"ft/deep"`) vs short tags (`:ft/deep`, `:s`) — short tags as sugar only.  
-3. Measures inside FT/HAMT data: ship as stored (required for exact entry bytes) vs recompute on materialize (must match hash algebra). **Default: ship as stored in structural terms** so materialize is `s-put` shaped.  
-4. Claimed hash on the item vs recomputed-only: keep claimed hash + verify (detects bugs and hostile peers).
+1. Strict hash verification on receive: **yes in tests**, optional flag for demos.
+2. Wire tags: full type strings (`"vector"`) vs short (`:v`, `:s`) — either, as long as type fidelity (L3) holds.
+3. Truncation inside a large collection (some elements as `{:ref hex}`): **defer**; MVP is full realized or fall back to `:node` walk.
+4. Claimed hash on the item: **keep** + verify (bugs and hostile peers).
+5. Intermediate literals: which spine types have assured reconstruction today (likely those hashed only on `elements_fuse` + type)? Document per type before implementing 2c′.
 
 ## Relation to prior work
 
-- **Phase 1:** removed `:inline` / `:inline-refs` from `dacite.value` so collections stay pure FT/HAMT.  
-- **Bandwidth suite / write-back:** orthogonal client policy; chunking sits under remote flush/fetch.  
-- **Archived `inline_under`:** early GET expand idea; superseded by universal recursive terms + Layer 2 chunks.  
-- **2b semantic literals:** useful bandwidth win for host-shaped data; not a substitute for L1 on all node types.
+- **Phase 1:** removed value-layer `:inline` so collections stay pure FT/HAMT.
+- **Write-back / stats:** client policy; packing sits under remote flush/fetch.
+- **Archived `inline_under`:** superseded by realized literals + Layer 2 chunks.
+- **Earlier “structural recursive terms” sketch** (encode `ft/deep` as nested
+  terms): **superseded**. Literals are realized values; spine is reconstructed,
+  not mirrored on the wire.
