@@ -20,6 +20,10 @@ cd impl/clojure && clojure -M:service --port 8080 --mem
 
 Open **http://127.0.0.1:8080/app/** in a browser.
 
+After pulling server/client pack changes, recompile the UI (`clojure -M:cljs-web`)
+and **hard-refresh** the browser (cached `main.js` will break load/add if the
+server returns pack chunks but the client still expects bare nodes).
+
 ## What it does
 
 1. Browser loads compiled CLJS (`examples/web/js/main.js`) containing the

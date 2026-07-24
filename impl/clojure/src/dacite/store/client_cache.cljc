@@ -15,6 +15,28 @@
             [dacite.store.pack :as pack]
             [dacite.rooted.gc :as gc]))
 
+(defn- absorb-remote-pack-cache!
+  "Copy pack-local entries from a pack-aware remote into client local.
+
+   Pack-filled GET /node installs a neighborhood into the remote's pack-local
+   cache; client-cache layers must absorb that so subsequent ops (and
+   write-back flush) see the full subgraph without re-fetching."
+  [local remote flushed-atom]
+  (loop [r remote]
+    (cond
+      (nil? r) nil
+
+      (and (record? r) (contains? r :pack-local))
+      (doseq [[h v] (store/s-snapshot (:pack-local r))]
+        (store/s-put local h v)
+        (when flushed-atom
+          (swap! flushed-atom conj h)))
+
+      (and (record? r) (contains? r :remote))
+      (recur (:remote r))
+
+      :else nil)))
+
 (defrecord SmartCacheStore [local remote]
   store/IStore
   (s-get [_ h]
@@ -22,6 +44,7 @@
       v
       (when-let [v (store/s-get remote h)]
         (store/s-put local h v)
+        (absorb-remote-pack-cache! local remote nil)
         v)))
 
   (s-put [this h value]
@@ -61,6 +84,8 @@
       (when-let [v (store/s-get remote h)]
         (store/s-put local h v)
         (swap! flushed conj h)
+        ;; Absorb entire pack neighborhood (not only h) into write-back local
+        (absorb-remote-pack-cache! local remote flushed)
         v)))
 
   (s-put [this h value]
