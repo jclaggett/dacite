@@ -323,3 +323,85 @@
     (is (= h (second (round-trip-hash st h))))
     (let [{:keys [items]} (pack/encode-reachable st h)]
       (is (= 1 (count items)) "whole todo tree as one literal"))))
+
+;; ---------------------------------------------------------------------------
+;; 2c — large trees / blobs: refuse root literal, mix :node + child :literal
+;; ---------------------------------------------------------------------------
+
+(deftest large-string-refuses-literal-at-default-budget
+  (let [st (store/mem-store)
+        body (apply str (repeat 3000 "x"))
+        s (coll/string-with-store st body)
+        h (types/dacite-hash s)
+        entry (store/s-get st h)
+        item (pack/encode-item st h entry)
+        sum (pack/encode-summary st h)]
+    (is (pack/clearly-oversized? entry pack/default-budget))
+    (is (false? (boolean (pack/fits-literal? st h))))
+    (is (= :node (:encoding item)) "root string over budget is :node")
+    (is (pos? (:nodes sum)))
+    (is (pos? (:literals sum)) "shared char leaf still a literal")
+    (is (> (:items sum) 1) "walk expands FT spine under large string")))
+
+(deftest large-string-literal-when-budget-allows
+  (let [st (store/mem-store)
+        body (apply str (repeat 3000 "x"))
+        s (coll/string-with-store st body)
+        h (types/dacite-hash s)
+        item (pack/encode-item st h (store/s-get st h) 5000)
+        sum (pack/encode-summary st h 5000)]
+    (is (= :literal (:encoding item)))
+    (is (= 1 (:items sum)))
+    (is (= 1 (:literals sum)))))
+
+(deftest large-vector-mixed-node-and-child-literals
+  ;; size-bytes of 40 short strings exceeds a tight budget → root :node,
+  ;; each string child becomes its own :literal.
+  (let [st (store/mem-store)
+        v (apply coll/vector-with-store st (map #(str "item-" %) (range 40)))
+        h (types/dacite-hash v)
+        budget 200
+        entry (store/s-get st h)
+        root-item (pack/encode-item st h entry budget)
+        {:keys [items]} (pack/encode-reachable st h #{} budget)
+        sum (pack/summarize-items items)
+        string-lits (filter (fn [it]
+                              (and (= :literal (:encoding it))
+                                   (= "string" (:type it))))
+                            items)]
+    (is (pack/clearly-oversized? entry budget))
+    (is (= :node (:encoding root-item)))
+    (is (pos? (:nodes sum)))
+    (is (= 40 (count string-lits)) "each element string is a literal")
+    (is (> (:items sum) 40) "includes vector root + FT spine nodes")
+    ;; Receiver can apply all chunks and hold the root hash
+    (let [st2 (store/mem-store)
+          chunks (pack/pack-items items budget)]
+      (doseq [ch chunks]
+        (pack/apply-chunk! st2 ch))
+      (is (store/s-has? st2 h)))))
+
+(deftest wire-overhead-can-refuse-even-when-size-cue-fits
+  ;; Recursive typed body can exceed 2×budget while :size-bytes is still small.
+  (let [st (store/mem-store)
+        v (apply coll/vector-with-store st (map #(str "item-" %) (range 40)))
+        h (types/dacite-hash v)
+        entry (store/s-get st h)
+        ;; cue ~270; wire form ~1375 → refuse at budget 500 (2×=1000)
+        budget 500
+        item (pack/encode-item st h entry budget)
+        sum (pack/encode-summary st h budget)]
+    (is (<= (pack/size-cue entry) budget) "size cue alone would allow")
+    (is (= :node (:encoding item)) "wire form over 2×budget → :node")
+    (is (pos? (:literals sum)) "children still literalized")))
+
+(deftest encode-summary-reports-mixed-stats
+  (let [st (store/mem-store)
+        v (apply coll/vector-with-store st (map str (range 20)))
+        h (types/dacite-hash v)
+        sum (pack/encode-summary st h 100)]
+    (is (= 100 (:budget sum)))
+    (is (pos? (:items sum)))
+    (is (pos? (:chunks sum)))
+    (is (= (+ (:literals sum) (:nodes sum)) (:items sum)))
+    (is (pos? (:approx-bytes sum)))))

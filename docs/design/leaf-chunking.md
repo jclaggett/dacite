@@ -215,7 +215,7 @@ Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
 | **2a** | `:node` only + soft-budget chunks. **Done.** |
 | **2b** | Realized literals for scalars / string / blob / map / set / vector (host-roundtrip + hash check); write-back coverage. **Done (core value types).** |
 | **2b′** | Systematic `literal-of` / `materialize-literal!`, recursive nested `{:type :body}` forms, tests per value type + nested/empty/todo. **Done.** |
-| **2c** | Large trees / blobs: when to refuse literal and walk `:node` instead; measure. |
+| **2c** | Large trees / blobs: cheap size cue gate; refuse root literal and walk `:node` + child literals; `encode-summary`. **Done.** |
 | **2c′** *(defer)* | **Intermediate literals** (`ft/*`, `hamt/*`) where realized content rebuilds to the same node hash — bottom out pack walks earlier. |
 | **2d** | Budget sweep; update `service.md` with measured defaults. |
 
@@ -235,6 +235,29 @@ Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
   2b flat host bodies for wire compat.
 - `encode-item` / `encode-reachable` use `literal-of` + dry-run hash check + budget.
 - Spine types (`ft/*`, `hamt/*`) still return nil from `literal-of` (2c′).
+
+### 2c notes (shipped)
+
+**Refuse-literal policy** (`encode-item`):
+
+1. Spine / non-value → `:node`
+2. **`size-cue` (`:size-bytes`) > budget** → `:node` without building `literal-of` or dry-run
+3. Build realized form; if wire size > **2 × budget** → `:node` (typed overhead can exceed cue)
+4. Dry-run hash fail → `:node`
+5. Else `:literal` (covers whole subgraph)
+
+**Mixed walk:** large parent as `:node` → descend `child-hashes`; small children still `:literal`.
+
+**Helpers:** `clearly-oversized?`, `encode-summary` / `summarize-items` for benches.
+
+**Measured examples (default or tight budget):**
+
+| Case | Behavior |
+|------|----------|
+| 3000-char string @ 1024 | root `:node` + FT nodes + char literal(s) |
+| 40 short strings @ 200 | root `:node` + 40 string literals + spine nodes |
+| same vector @ 500 | size cue fits but recursive wire > 2×budget → mixed walk |
+| todo seed @ 1024 | still one root `:literal` |
 
 ## Non-goals (MVP)
 

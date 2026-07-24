@@ -3,8 +3,8 @@
 
    See docs/design/leaf-chunking.md.
    2a: :node only.
-   2b: realized :literal for value types (host bodies).
-   2b′: systematic recursive typed literals for every value type."
+   2b/2b′: realized recursive typed literals for value types.
+   2c: large values — cheap size gate; refuse literal and walk :node + children."
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.wire :as wire]
@@ -31,7 +31,7 @@
   "First-class value types that support realized literals (L1)."
   (into scalar-types #{"string" "blob" "vector" "map" "set"}))
 
-(declare materialize-literal! literal-of)
+(declare materialize-literal! literal-of literal-round-trips?)
 
 ;; =============================================================================
 ;; Chunk envelope (Layer 2 helpers)
@@ -115,11 +115,25 @@
   (contains? value-types (str t)))
 
 (defn- entry-payload-size
-  "Logical size cue for fits-literal? (prefer measure, else EDN length)."
+  "Logical size cue (prefer measure, else EDN length of raw entry)."
   [entry]
   (or (try (types/dacite-size entry)
            (catch #?(:clj Throwable :cljs :default) _ nil))
       (count (wire/write-edn entry))))
+
+(defn size-cue
+  "Cheap logical size from stored measures (:size-bytes) or entry fallback.
+   Used to refuse literals before building a full realized form (2c)."
+  [entry]
+  (let [data (types/entry-data entry)]
+    (long (or (when (map? data) (:size-bytes data))
+              (entry-payload-size entry)
+              0))))
+
+(defn clearly-oversized?
+  "True when the stored size cue alone exceeds budget — do not build a literal."
+  [entry budget]
+  (> (size-cue entry) (long budget)))
 
 (defn- host-string
   "Full host string via index access (avoids ft-seq truncation)."
@@ -229,19 +243,20 @@
   (count (wire/write-edn form)))
 
 (defn fits-literal?
-  "True if the realized literal for h is under budget (and is a value type)."
+  "True if h is a value type whose realized literal is under budget.
+
+   Uses a cheap size cue first (2c): if :size-bytes already exceeds budget,
+   returns false without building the recursive form or dry-running materialize."
   ([st h] (fits-literal? st h default-budget))
   ([st h budget]
-   (when-let [form (literal-of st h)]
-     (let [budget (long budget)
-           entry (store/s-get st h)
-           cue (or (when entry
-                     (let [data (types/entry-data entry)]
-                       (or (:size-bytes data)
-                           (entry-payload-size entry))))
-                   0)]
-       (and (<= cue budget)
-            (<= (literal-form-size form) (* 2 budget)))))))
+   (let [budget (long budget)
+         entry (store/s-get st h)]
+     (when (and entry
+                (value-type? (types/entry-type entry))
+                (not (clearly-oversized? entry budget)))
+       (when-let [form (literal-of st h)]
+         (and (<= (literal-form-size form) (* 2 budget))
+              (literal-round-trips? h (:type form) (:body form))))))))
 
 ;; =============================================================================
 ;; materialize-literal! (2b′)
@@ -347,21 +362,29 @@
 (defn encode-item
   "Layer 1: choose :literal or :node for store entry at h.
 
-   Emits :literal when the value has a realized form under budget that
-   rebuilds to the same content hash."
+   Policy (2c):
+   1. Spine / non-value → :node
+   2. Stored size cue > budget → :node (no full realize / dry-run)
+   3. Else build realized literal; if wire size > 2×budget or hash dry-run
+      fails → :node
+   4. Else :literal
+
+   When the pack walk gets :node for a large parent, children are visited
+   separately and may still become :literal (mixed encoding)."
   ([st h entry] (encode-item st h entry default-budget))
   ([st h entry budget]
    (let [budget (long (or budget default-budget))
          t (types/entry-type entry)]
-     (if (tree-internal-type? t)
+     (cond
+       (or (tree-internal-type? t)
+           (not (value-type? t))
+           (clearly-oversized? entry budget))
        (node-item h entry)
+
+       :else
        (if-let [{:keys [type body]} (literal-of st h)]
-         (let [item (literal-item h type body)
-               cue (or (:size-bytes (types/entry-data entry))
-                       (entry-payload-size entry)
-                       0)]
-           (if (and (<= cue budget)
-                    (<= (item-size item) (* 2 budget))
+         (let [item (literal-item h type body)]
+           (if (and (<= (item-size item) (* 2 budget))
                     (literal-round-trips? h type body))
              item
              (node-item h entry)))
@@ -371,9 +394,10 @@
   "Walk from root-h and Layer-1 encode each not-yet-skipped hash.
 
    Prefer :literal when it fits. When a hash is encoded as :literal, do not
-   descend into its children — the receiver materializes them. Returns
-   {:items [...] :covered #{hashes}} where covered is every hash that will
-   exist on the remote after apply (sent items plus full literal subgraphs)."
+   descend into its children — the receiver materializes them. Large parents
+   become :node and the walk continues into children (2c mixed encoding).
+   Returns {:items [...] :covered #{hashes}} where covered is every hash that
+   will exist on the remote after apply (sent items plus full literal subgraphs)."
   ([st root-h] (encode-reachable st root-h #{} default-budget))
   ([st root-h skip] (encode-reachable st root-h skip default-budget))
   ([st root-h skip budget]
@@ -400,6 +424,28 @@
          (walk root-h))
        {:items @items
         :covered @covered}))))
+
+(defn summarize-items
+  "Count encodings and approximate total wire bytes for a Layer-1 item seq."
+  [items]
+  (let [lits (filter #(= :literal (:encoding %)) items)
+        nodes (filter #(= :node (:encoding %)) items)]
+    {:items (count items)
+     :literals (count lits)
+     :nodes (count nodes)
+     :approx-bytes (reduce + 0 (map item-size items))}))
+
+(defn encode-summary
+  "encode-reachable + summarize-items + chunk count (for benches/tests)."
+  ([st root-h] (encode-summary st root-h default-budget))
+  ([st root-h budget]
+   (let [budget (long (or budget default-budget))
+         {:keys [items covered]} (encode-reachable st root-h #{} budget)
+         sum (summarize-items items)]
+     (assoc sum
+            :chunks (count (pack-items items budget))
+            :covered (count covered)
+            :budget budget))))
 
 ;; =============================================================================
 ;; Apply + transport
