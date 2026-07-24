@@ -12,17 +12,23 @@
 
    Node types (stored as [type-name data]):
    - [\"ft/empty\"  {:measure m}]
-   - [\"ft/single\" {:value-hash h :measure m}]
+   - [\"ft/single\" {:value-hash h :measure m}]  ; legacy leaf adapter
    - [\"ft/digit\"  {:children [h...] :measure m}]
    - [\"ft/node\"   {:children [h...] :measure m}]
    - [\"ft/deep\"   {:left h :spine h :right h :measure m}]
+
+   Dual-read (ft-single elision, PR1): digit/node children and 1-element
+   roots may be either a legacy ft/single or a bare value hash (any
+   non-ft/* entry). Structural cells remain ft/empty|digit|node|deep.
+   Writers still emit ft/single until PR2. See docs/design/ft-single-elision.md.
 
    Digits hold 1-32 children and nodes 2-32 — wider than the classic
    finger tree, trading the amortized O(1) proof for shallower trees."
   (:require [dacite.hash :as hash]
             [dacite.host :as host]
             [dacite.store :as store]
-            [dacite.value.types :as types]))
+            [dacite.value.types :as types]
+            [clojure.string :as str]))
 
 ;; =============================================================================
 ;; Measure (monoid)
@@ -57,7 +63,40 @@
 (defn- lookup [store h] (store/s-get store h))
 (defn- node-type [node] (first node))
 (defn- node-data [node] (second node))
-(defn- get-measure [store h] (:measure (node-data (lookup store h))))
+
+(defn- ft-type?
+  "True when type-name is a finger-tree structural (or legacy single) type."
+  [type-name]
+  (str/starts-with? (str type-name) "ft/"))
+
+(defn- measure-of
+  "Measure of an FT cell, legacy ft/single, or implicit leaf (non-ft/*).
+
+   Leaf measure is synthesized: count 1, size-bytes from the entry,
+   elements-fuse = the leaf hash itself."
+  [store h]
+  (let [entry (lookup store h)
+        t (node-type entry)]
+    (if (ft-type? t)
+      (:measure (node-data entry))
+      {:count 1
+       :size-bytes (types/dacite-size entry)
+       :elements-fuse h})))
+
+(defn- as-leaf-hash
+  "Resolve a leaf value hash: unwrap legacy ft/single, identity for non-ft
+   leaves. Throws if h names a structural FT cell (empty/digit/node/deep)."
+  [store h]
+  (let [entry (lookup store h)
+        t (node-type entry)]
+    (case t
+      "ft/single" (:value-hash (node-data entry))
+      ("ft/empty" "ft/digit" "ft/node" "ft/deep")
+      (throw (ex-info "expected leaf or ft/single"
+                      {:type t :hash h}))
+      ;; non-ft/* (and any future non-structural name): already a leaf
+      h)))
+
 (defn- get-children [store h] (:children (node-data (lookup store h))))
 (defn- get-value-hash [store h] (:value-hash (node-data (lookup store h))))
 
@@ -109,7 +148,7 @@
   (let [children (get-children store dh)]
     (when (> (count children) 1)
       (let [nc (subvec children 1)]
-        (make-digit! store nc (mapv #(get-measure store %) nc))))))
+        (make-digit! store nc (mapv #(measure-of store %) nc))))))
 
 (defn- digit-butlast!
   "Drop the last child. Returns the new digit hash, or nil if it would
@@ -118,15 +157,15 @@
   (let [children (get-children store dh)]
     (when (> (count children) 1)
       (let [nc (pop children)]
-        (make-digit! store nc (mapv #(get-measure store %) nc))))))
+        (make-digit! store nc (mapv #(measure-of store %) nc))))))
 
 (defn- digit-conj-left! [store dh elem]
   (let [nc (into [elem] (get-children store dh))]
-    (make-digit! store nc (mapv #(get-measure store %) nc))))
+    (make-digit! store nc (mapv #(measure-of store %) nc))))
 
 (defn- digit-conj-right! [store dh elem]
   (let [nc (conj (get-children store dh) elem)]
-    (make-digit! store nc (mapv #(get-measure store %) nc))))
+    (make-digit! store nc (mapv #(measure-of store %) nc))))
 
 ;; =============================================================================
 ;; Tree operations (internal — operate on element/single hashes)
@@ -164,19 +203,19 @@
             new-left (digit-rest! store left)]
         (if new-left
           (make-deep! store new-left spine right
-                      (get-measure store new-left)
-                      (get-measure store spine)
-                      (get-measure store right))
+                      (measure-of store new-left)
+                      (measure-of store spine)
+                      (measure-of store right))
           (if (empty-node? store spine)
             (to-tree-from-digit! store right)
             (let [spine-first (tree-first* store spine)
                   new-spine (tree-rest* store spine)
                   nch (get-children store spine-first)
-                  new-left' (make-digit! store nch (mapv #(get-measure store %) nch))]
+                  new-left' (make-digit! store nch (mapv #(measure-of store %) nch))]
               (make-deep! store new-left' new-spine right
-                          (get-measure store new-left')
-                          (get-measure store new-spine)
-                          (get-measure store right))))))
+                          (measure-of store new-left')
+                          (measure-of store new-spine)
+                          (measure-of store right))))))
       (make-empty! store))))
 
 (defn- tree-butlast* [store root]
@@ -188,19 +227,19 @@
             new-right (digit-butlast! store right)]
         (if new-right
           (make-deep! store left spine new-right
-                      (get-measure store left)
-                      (get-measure store spine)
-                      (get-measure store new-right))
+                      (measure-of store left)
+                      (measure-of store spine)
+                      (measure-of store new-right))
           (if (empty-node? store spine)
             (to-tree-from-digit! store left)
             (let [spine-last (tree-last* store spine)
                   new-spine (tree-butlast* store spine)
                   nch (get-children store spine-last)
-                  new-right' (make-digit! store nch (mapv #(get-measure store %) nch))]
+                  new-right' (make-digit! store nch (mapv #(measure-of store %) nch))]
               (make-deep! store left new-spine new-right'
-                          (get-measure store left)
-                          (get-measure store new-spine)
-                          (get-measure store new-right'))))))
+                          (measure-of store left)
+                          (measure-of store new-spine)
+                          (measure-of store new-right'))))))
       (make-empty! store))))
 
 (defn- tree-conj-left! [store root elem]
@@ -212,28 +251,28 @@
         (if (< (digit-count store left) 32)
           (let [new-left (digit-conj-left! store left elem)]
             (make-deep! store new-left spine right
-                        (get-measure store new-left)
-                        (get-measure store spine)
-                        (get-measure store right)))
+                        (measure-of store new-left)
+                        (measure-of store spine)
+                        (measure-of store right)))
           (let [lc (get-children store left)
                 new-left-children (into [elem] (subvec lc 0 7))
                 new-left (make-digit! store new-left-children
-                                      (mapv #(get-measure store %) new-left-children))
+                                      (mapv #(measure-of store %) new-left-children))
                 node-children (subvec lc 7 32)
                 new-node (make-node! store node-children
-                                     (mapv #(get-measure store %) node-children))
+                                     (mapv #(measure-of store %) node-children))
                 new-spine (tree-conj-left! store spine new-node)]
             (make-deep! store new-left new-spine right
-                        (get-measure store new-left)
-                        (get-measure store new-spine)
-                        (get-measure store right)))))
-      (let [left (make-digit! store [elem] [(get-measure store elem)])
+                        (measure-of store new-left)
+                        (measure-of store new-spine)
+                        (measure-of store right)))))
+      (let [left (make-digit! store [elem] [(measure-of store elem)])
             spine (make-empty! store)
-            right (make-digit! store [root] [(get-measure store root)])]
+            right (make-digit! store [root] [(measure-of store root)])]
         (make-deep! store left spine right
-                    (get-measure store left)
-                    (get-measure store spine)
-                    (get-measure store right))))))
+                    (measure-of store left)
+                    (measure-of store spine)
+                    (measure-of store right))))))
 
 (defn- tree-conj-right! [store root elem]
   (let [node (lookup store root)]
@@ -244,28 +283,28 @@
         (if (< (digit-count store right) 32)
           (let [new-right (digit-conj-right! store right elem)]
             (make-deep! store left spine new-right
-                        (get-measure store left)
-                        (get-measure store spine)
-                        (get-measure store new-right)))
+                        (measure-of store left)
+                        (measure-of store spine)
+                        (measure-of store new-right)))
           (let [rc (get-children store right)
                 node-children (subvec rc 0 24)
                 new-node (make-node! store node-children
-                                     (mapv #(get-measure store %) node-children))
+                                     (mapv #(measure-of store %) node-children))
                 new-spine (tree-conj-right! store spine new-node)
                 new-right-children (conj (subvec rc 24 32) elem)
                 new-right (make-digit! store new-right-children
-                                       (mapv #(get-measure store %) new-right-children))]
+                                       (mapv #(measure-of store %) new-right-children))]
             (make-deep! store left new-spine new-right
-                        (get-measure store left)
-                        (get-measure store new-spine)
-                        (get-measure store new-right)))))
-      (let [left (make-digit! store [root] [(get-measure store root)])
+                        (measure-of store left)
+                        (measure-of store new-spine)
+                        (measure-of store new-right)))))
+      (let [left (make-digit! store [root] [(measure-of store root)])
             spine (make-empty! store)
-            right (make-digit! store [elem] [(get-measure store elem)])]
+            right (make-digit! store [elem] [(measure-of store elem)])]
         (make-deep! store left spine right
-                    (get-measure store left)
-                    (get-measure store spine)
-                    (get-measure store right))))))
+                    (measure-of store left)
+                    (measure-of store spine)
+                    (measure-of store right))))))
 
 (defn- tree-to-seq*
   "Sequence of element/single hashes in order."
@@ -284,31 +323,40 @@
 (defn- scan-children [store children idx]
   (loop [cs (seq children) remaining idx]
     (let [c (first cs)
-          c-count (:count (get-measure store c))]
+          c-count (:count (measure-of store c))]
       (if (< remaining c-count)
-        (case (node-type (lookup store c))
-          "ft/single" (get-value-hash store c)
-          "ft/node" (recur (seq (get-children store c)) remaining)
-          "ft/digit" (recur (seq (get-children store c)) remaining))
+        (let [t (node-type (lookup store c))]
+          (case t
+            "ft/single" (get-value-hash store c)
+            "ft/node" (recur (seq (get-children store c)) remaining)
+            "ft/digit" (recur (seq (get-children store c)) remaining)
+            ;; bare leaf (non-ft/*) or unexpected — treat as 1-elem leaf
+            (as-leaf-hash store c)))
         (recur (next cs) (- remaining c-count))))))
 
 (defn- tree-nth* [store root idx]
-  (let [node (lookup store root)]
-    (case (node-type node)
+  (let [node (lookup store root)
+        t (node-type node)]
+    (case t
       "ft/single" (get-value-hash store root)
       "ft/node" (scan-children store (get-children store root) idx)
       "ft/digit" (scan-children store (get-children store root) idx)
       "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
-            left-count (:count (get-measure store left))]
+            left-count (:count (measure-of store left))]
         (if (< idx left-count)
           (scan-children store (get-children store left) idx)
-          (let [spine-count (:count (get-measure store spine))
+          (let [spine-count (:count (measure-of store spine))
                 spine-idx (- idx left-count)]
             (if (< spine-idx spine-count)
               (tree-nth* store spine spine-idx)
               (scan-children store (get-children store right)
-                             (- spine-idx spine-count)))))))))
+                             (- spine-idx spine-count))))))
+      ;; bare leaf as 1-element tree root
+      (if (zero? idx)
+        (as-leaf-hash store root)
+        (throw (ex-info "Index out of range for leaf root"
+                        {:index idx :type t}))))))
 
 ;; =============================================================================
 ;; Remove at index (structural)
@@ -325,7 +373,7 @@
       (throw (ex-info "Index out of range while removing from children"
                       {:index idx :child-count (count children)})))
     (let [c (nth children i)
-          c-count (:count (get-measure store c))]
+          c-count (:count (measure-of store c))]
       (if (< remaining c-count)
         (let [c' (tree-remove-nth* store c remaining)
               left (subvec children 0 i)
@@ -339,8 +387,9 @@
   "Remove the leaf at idx under root. Returns the new root hash, or nil when
    the subtree becomes empty (caller promotes or rebalances)."
   [store root idx]
-  (let [node (lookup store root)]
-    (case (node-type node)
+  (let [node (lookup store root)
+        t (node-type node)]
+    (case t
       "ft/empty"
       (throw (ex-info "Cannot remove from empty tree" {:index idx}))
 
@@ -353,7 +402,7 @@
       "ft/digit"
       (let [nc (remove-at-children! store (get-children store root) idx)]
         (when (seq nc)
-          (make-digit! store nc (mapv #(get-measure store %) nc))))
+          (make-digit! store nc (mapv #(measure-of store %) nc))))
 
       "ft/node"
       (let [nc (remove-at-children! store (get-children store root) idx)]
@@ -361,32 +410,32 @@
           0 nil
           ;; Nodes require 2–32 children; promote a lone survivor.
           1 (first nc)
-          (make-node! store nc (mapv #(get-measure store %) nc))))
+          (make-node! store nc (mapv #(measure-of store %) nc))))
 
       "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
-            left-m (get-measure store left)
-            spine-m (get-measure store spine)
-            right-m (get-measure store right)
+            left-m (measure-of store left)
+            spine-m (measure-of store spine)
+            right-m (measure-of store right)
             left-count (:count left-m)
             spine-count (:count spine-m)]
         (cond
           (< idx left-count)
           (let [nc (remove-at-children! store (get-children store left) idx)]
             (if (seq nc)
-              (let [new-left (make-digit! store nc (mapv #(get-measure store %) nc))]
+              (let [new-left (make-digit! store nc (mapv #(measure-of store %) nc))]
                 (make-deep! store new-left spine right
-                            (get-measure store new-left) spine-m right-m))
+                            (measure-of store new-left) spine-m right-m))
               (if (empty-node? store spine)
                 (to-tree-from-digit! store right)
                 (let [spine-first (tree-first* store spine)
                       new-spine (tree-rest* store spine)
                       nch (get-children store spine-first)
                       new-left' (make-digit! store nch
-                                             (mapv #(get-measure store %) nch))]
+                                             (mapv #(measure-of store %) nch))]
                   (make-deep! store new-left' new-spine right
-                              (get-measure store new-left')
-                              (get-measure store new-spine)
+                              (measure-of store new-left')
+                              (measure-of store new-spine)
                               right-m)))))
 
           (< idx (+ left-count spine-count))
@@ -394,7 +443,7 @@
                 new-spine (tree-remove-nth* store spine spine-idx)]
             (if new-spine
               (make-deep! store left new-spine right
-                          left-m (get-measure store new-spine) right-m)
+                          left-m (measure-of store new-spine) right-m)
               (make-deep! store left (make-empty! store) right
                           left-m measure-identity right-m)))
 
@@ -402,20 +451,26 @@
           (let [right-idx (- idx left-count spine-count)
                 nc (remove-at-children! store (get-children store right) right-idx)]
             (if (seq nc)
-              (let [new-right (make-digit! store nc (mapv #(get-measure store %) nc))]
+              (let [new-right (make-digit! store nc (mapv #(measure-of store %) nc))]
                 (make-deep! store left spine new-right
-                            left-m spine-m (get-measure store new-right)))
+                            left-m spine-m (measure-of store new-right)))
               (if (empty-node? store spine)
                 (to-tree-from-digit! store left)
                 (let [spine-last (tree-last* store spine)
                       new-spine (tree-butlast* store spine)
                       nch (get-children store spine-last)
                       new-right' (make-digit! store nch
-                                              (mapv #(get-measure store %) nch))]
+                                              (mapv #(measure-of store %) nch))]
                   (make-deep! store left new-spine new-right'
                               left-m
-                              (get-measure store new-spine)
-                              (get-measure store new-right')))))))))))
+                              (measure-of store new-spine)
+                              (measure-of store new-right'))))))))
+
+      ;; bare leaf as 1-element tree root
+      (if (zero? idx)
+        nil
+        (throw (ex-info "Index out of range for leaf root"
+                        {:index idx :type t}))))))
 
 ;; =============================================================================
 ;; Public API
@@ -446,13 +501,13 @@
   "Hash of the first element, or nil if empty."
   [store root]
   (when-let [s (tree-first* store root)]
-    (get-value-hash store s)))
+    (as-leaf-hash store s)))
 
 (defn ft-last
   "Hash of the last element, or nil if empty."
   [store root]
   (when-let [s (tree-last* store root)]
-    (get-value-hash store s)))
+    (as-leaf-hash store s)))
 
 (defn ft-rest
   "Remove the first element. Returns the new root hash."
@@ -465,30 +520,31 @@
   (tree-butlast* store root))
 
 (defn ft-empty? [store root]
-  (empty-node? store root))
+  (let [entry (lookup store root)]
+    (and entry (= "ft/empty" (node-type entry)))))
 
 (defn ft-measure [store root]
-  (get-measure store root))
+  (measure-of store root))
 
 (defn ft-count
-  "Number of elements, O(1) via cached measure."
+  "Number of elements, O(1) via cached measure (or synthesized for bare leaf roots)."
   [store root]
-  (:count (get-measure store root)))
+  (:count (measure-of store root)))
 
 (defn ft-size-bytes
-  "Total leaf byte size, O(1) via cached measure."
+  "Total leaf byte size, O(1) via cached measure (or synthesized for bare leaf roots)."
   [store root]
-  (:size-bytes (get-measure store root)))
+  (:size-bytes (measure-of store root)))
 
 (defn ft-elements-fuse
   "The seq's data hash: the running fuse of all element hashes, O(1)."
   [store root]
-  (:elements-fuse (get-measure store root)))
+  (:elements-fuse (measure-of store root)))
 
 (defn ft-nth
   "Hash of the element at idx (0-indexed), O(log n). Throws if out of range."
   [store root idx]
-  (let [cnt (:count (get-measure store root))]
+  (let [cnt (:count (measure-of store root))]
     (when (or (neg? idx) (>= idx cnt))
       (throw (ex-info (str "Index " idx " out of bounds for count " cnt)
                       {:index idx :count cnt})))
@@ -498,7 +554,7 @@
   "Remove the element at idx (0-indexed). Returns the new root hash.
    Structural O(log n) update. Throws if out of range."
   [store root idx]
-  (let [cnt (:count (get-measure store root))]
+  (let [cnt (:count (measure-of store root))]
     (when (or (neg? idx) (>= idx cnt))
       (throw (ex-info (str "Index " idx " out of bounds for count " cnt)
                       {:index idx :count cnt})))
@@ -506,24 +562,28 @@
         (make-empty! store))))
 
 (defn ft-seq
-  "Lazy sequence of element value hashes under a tree root (empty/single/deep)."
+  "Lazy sequence of element value hashes under a tree root
+   (empty / single / bare leaf / deep)."
   [store root]
-  (map #(get-value-hash store %) (tree-to-seq* store root)))
+  (map #(as-leaf-hash store %) (tree-to-seq* store root)))
 
 (defn ft-leaves
-  "Ordered leaf value hashes under any FT node type (including bare digit/node).
+  "Ordered leaf value hashes under any FT node type (including bare digit/node)
+   or a bare leaf hash (implicit single).
 
    Unlike ft-seq (tree roots only), this walks digit and node cells so pack
- intermediate literals can realize their full leaf payload."
+   intermediate literals can realize their full leaf payload."
   [store h]
-  (let [node (lookup store h)]
-    (case (node-type node)
+  (let [node (lookup store h)
+        t (node-type node)]
+    (case t
       "ft/empty" []
       "ft/single" [(:value-hash (node-data node))]
       "ft/digit" (mapcat #(ft-leaves store %) (:children (node-data node)))
       "ft/node" (mapcat #(ft-leaves store %) (:children (node-data node)))
       "ft/deep" (ft-seq store h)
-      (throw (ex-info "not a finger-tree node" {:type (node-type node)})))))
+      ;; non-ft/*: already a leaf value
+      [h])))
 
 (defn ft-from-value-hashes
   "Build a finger-tree root by conj-right of the given leaf value hashes
@@ -547,7 +607,7 @@
         singles (mapv (fn [vh]
                         (make-single! store vh (types/dacite-size (lookup store vh))))
                       vhs)]
-    (make-digit! store singles (mapv #(get-measure store %) singles))))
+    (make-digit! store singles (mapv #(measure-of store %) singles))))
 
 (defn ft-single-from-value-hash
   "Build an ft/single wrapping one leaf value hash."
@@ -557,9 +617,8 @@
 (defn ft-concat
   "Concatenate two trees in the same store. Returns the new root hash."
   [store root-a root-b]
-  (reduce (fn [h single]
-            (let [vh (:value-hash (node-data (lookup store single)))]
-              (ft-conj-right store h vh)))
+  (reduce (fn [h elem]
+            (ft-conj-right store h (as-leaf-hash store elem)))
           root-a
           (tree-to-seq* store root-b)))
 
