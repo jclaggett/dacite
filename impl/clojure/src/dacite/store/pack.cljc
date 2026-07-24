@@ -620,3 +620,57 @@
        (send-chunk! transport ch))
      {:chunks (count chunks)
       :items (count items)})))
+
+;; =============================================================================
+;; Pack fetch (read side) — server builds chunks for client apply-chunk!
+;; =============================================================================
+
+(defn- ->hash
+  "Coerce hex string or hash vector to hash vector."
+  [x]
+  (cond
+    (nil? x) nil
+    (string? x) (store/hex->hash x)
+    (vector? x) x
+    :else (throw (ex-info "expected hash hex or vector" {:value x}))))
+
+(defn pack-get
+  "Server-side pack for a fetch request.
+
+   req keys (all optional except that at least one root/hash is needed):
+     :roots   — seq of root hashes (hex or vector) to walk
+     :hashes  — additional start hashes to walk
+     :have    — hashes the client already has (skip set)
+     :budget  — soft budget (default default-budget)
+
+   Returns {:chunks [...] :items n :covered n :budget b}.
+   Empty when nothing to send."
+  [st req]
+  (let [budget (long (or (:budget req) default-budget))
+        have (into #{} (keep ->hash) (or (:have req) []))
+        starts (into [] (keep ->hash)
+                     (concat (or (:roots req) [])
+                             (or (:hashes req) [])))
+        {:keys [all-items all-covered]}
+        (loop [qs starts
+               skip have
+               acc-items []
+               acc-cov #{}]
+          (if-let [h (first qs)]
+            (let [{:keys [items covered]} (encode-reachable st h skip budget)]
+              (recur (next qs)
+                     (into skip covered)
+                     (into acc-items items)
+                     (into acc-cov covered)))
+            {:all-items acc-items :all-covered acc-cov}))
+        ;; Dedupe by hash hex keeping first encoding
+        items (vec (vals (reduce (fn [m it]
+                                   (let [hx (:hash it)]
+                                     (if (contains? m hx) m (assoc m hx it))))
+                                 {}
+                                 all-items)))
+        chunks (pack-items items budget)]
+    {:chunks chunks
+     :items (count items)
+     :covered (count all-covered)
+     :budget budget}))

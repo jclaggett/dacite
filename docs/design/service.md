@@ -17,6 +17,8 @@ Client                          Server
   +--- GET /node/{hex} --------->|  s-get
   +--- PUT /node/{hex} --------->|  s-put
   +--- HEAD /node/{hex} -------->|  s-has?
+  +--- POST /nodes -------------->|  apply pack chunk (write)
+  +--- POST /nodes/get ---------->|  pack-fetch reachable (read)
   +--- GET /root ---------------->|  @store (root hash or null)
   +--- POST /root/cas ------------>|  compare-and-set! on rooted store
 ```
@@ -72,6 +74,37 @@ Remove a node. Used when server runs GC or admin compaction.
 **Response 204:** Deleted (or already absent).
 
 MVP client may omit; `s-delete` on remote store uses this when present.
+
+### `POST /nodes` (pack write)
+
+Apply one leaf-chunking chunk (`:node` / `:literal` items). See
+`docs/design/leaf-chunking.md`.
+
+**Response 200:** `{:ok true :applied n :nodes n :literals n}`
+
+### `POST /nodes/get` (pack fetch / read)
+
+Server walks reachable hashes from the given roots (skipping `:have`), encodes
+with the same Layer 1/2 pack policy as writes, and returns one or more chunks
+for the client to `apply-chunk!` into a local store.
+
+**Request body (EDN):**
+
+```clojure
+{:roots  [hash-hex …]     ; start hashes (usually the current root)
+ :have   [hash-hex …]     ; optional — client already has these
+ :budget 1024}            ; optional soft pack budget
+```
+
+**Response 200:**
+
+```clojure
+{:ok true
+ :chunks [/* chunk-v1 envelopes */]
+ :items n
+ :covered n
+ :budget 1024}
+```
 
 ## Root endpoints (maps to rooted store)
 

@@ -109,6 +109,7 @@
     (cond
       (str/includes? path "/root/cas") :root-cas
       (str/includes? path "/root") :root-get
+      (str/includes? path "/nodes/get") :nodes-get
       (and (= "POST" m) (or (= path "/nodes") (.endsWith path "/nodes"))) :nodes-put
       (str/includes? path "/node/")
       (case m

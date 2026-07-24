@@ -482,6 +482,42 @@
         (is (= "hamt/entry" (:type form)))
         (is (= h1 h2))))))
 
+(deftest pack-get-and-fetch-reachable
+  (let [st (store/mem-store)
+        t (todo/build st (todo/seed-items))
+        h (types/dacite-hash t)
+        res (pack/pack-get st {:roots [h] :budget 1024})]
+    (is (true? (or (pos? (:items res)) true)))
+    (is (= 1 (:items res)))
+    (is (= 1 (count (:chunks res))))
+    (let [st2 (store/mem-store)]
+      (doseq [ch (:chunks res)]
+        (pack/apply-chunk! st2 ch))
+      (is (store/s-has? st2 h))))
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
+    (try
+      (let [raw (remote/remote-store base-url)
+            t (todo/build raw (todo/seed-items))
+            h (types/dacite-hash t)
+            _ (remote/remote-cas-root! raw nil h)
+            cold (client-cache/wrap (remote/remote-store base-url) :write-back)]
+        (stats/reset-stats!)
+        (let [before (stats/get-stats)
+              fr (remote/fetch-reachable! cold h)
+              after (stats/get-stats)
+              d (stats/stats-diff before after)
+              kinds (:by-kind after {})]
+          (is (pos? (:items fr)))
+          (is (pos? (:chunks fr)))
+          (is (pos? (get kinds :nodes-get 0)))
+          (is (< (get kinds :node-get 0) 5)
+              "pack-fetch should not issue many single-node GETs")
+          (is (< (:requests d) 10))
+          (is (store/s-has? (:local cold) h))))
+      (finally
+        (stop!)))))
+
 (deftest intermediate-hamt-bitmap-round-trip-when-assured
   (let [st (store/mem-store)
         m (apply coll/hash-map-with-store st

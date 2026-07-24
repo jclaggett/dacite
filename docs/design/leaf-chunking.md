@@ -187,8 +187,12 @@ needed hashes → Layer 1 (literal | node) → items → Layer 2 pack → HTTP
 | Role | Idea |
 |------|------|
 | Send | `POST /nodes` — one body = one chunk |
-| Fetch pack | `POST /nodes/get` `{:hashes […] :budget 1024}` → chunk(s) |
+| Fetch pack | `POST /nodes/get` `{:roots […] :have […] :budget 1024}` → `{:chunks […] …}` |
 | Compat | Keep `GET/PUT /node/{hex}` |
+
+**Read path (shipped):** server runs the same `encode-reachable` walk; client
+`fetch-reachable!` applies chunks into the local cache, then realizes from
+local-first stores. Reload uses pack-fetch instead of per-node GET.
 
 ## Composition with write-back cache
 

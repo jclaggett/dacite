@@ -6,7 +6,8 @@
      PUT  /node/{hex}   — s-put (EDN body), 204
      HEAD /node/{hex}   — s-has?
      DELETE /node/{hex} — s-delete (optional)
-     POST /nodes        — apply one pack chunk (leaf-chunking 2a)
+     POST /nodes        — apply one pack chunk (leaf-chunking write)
+     POST /nodes/get    — pack-fetch: encode reachable → chunks (read)
      GET  /root         — {:root hex-or-nil}
      POST /root/cas     — {:expected hex-or-nil :new hex} → 200/409
 
@@ -81,6 +82,20 @@
           {:status 409
            :content-type "application/edn; charset=utf-8"
            :body (wire/write-edn {:ok false})}))
+
+      (and (= "POST" method) (= path "/nodes/get"))
+      (try
+        (let [req (wire/read-edn body-str)
+              result (pack/pack-get rooted req)]
+          {:status 200
+           :content-type "application/edn; charset=utf-8"
+           :body (wire/write-edn (assoc result :ok true))})
+        (catch Exception e
+          {:status 400
+           :content-type "application/edn; charset=utf-8"
+           :body (wire/write-edn {:ok false
+                                  :error "malformed pack-get"
+                                  :detail (.getMessage e)})}))
 
       (and (= "POST" method) (= path "/nodes"))
       (try

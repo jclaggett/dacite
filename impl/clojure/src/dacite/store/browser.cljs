@@ -117,6 +117,61 @@
       (and (record? r) (contains? r :layers)) (recur (last (:layers r)))
       :else r)))
 
+(defn- local-dest [remote]
+  (cond
+    (client-cache/write-back-store? remote) (:local remote)
+    (and (record? remote) (contains? remote :local) (contains? remote :remote)
+         (not (instance? BrowserRemoteStore remote)))
+    (:local remote)
+    :else nil))
+
+(defn fetch-reachable!
+  "Pack-fetch subgraph from server into local dest (see dacite.store.remote)."
+  ([remote roots] (fetch-reachable! remote roots nil))
+  ([remote roots {:keys [budget have dest]}]
+   (let [rs (unwrap-remote remote)
+         dest (or dest (local-dest remote) (store/mem-store))
+         root-list (cond
+                     (nil? roots) []
+                     (and (sequential? roots)
+                          (string? (first roots)))
+                     (mapv store/hex->hash roots)
+                     (and (sequential? roots)
+                          (vector? (first roots)))
+                     (vec (remove nil? roots))
+                     :else [roots])
+         root-hexes (mapv store/hash->hex root-list)
+         have-set (or have
+                      (into #{}
+                            (map (fn [k]
+                                   (if (string? k) (store/hex->hash k) k))
+                                 (keys (or (store/s-snapshot dest) {})))))
+         have-hexes (mapv store/hash->hex have-set)
+         url (str (trim-base (:base-url rs)) "/nodes/get")
+         payload {:roots root-hexes
+                  :have have-hexes
+                  :budget (or budget pack/default-budget)}
+         {:keys [status body]} (xhr "POST" url (wire/write-edn payload)
+                                    (assoc (:headers rs)
+                                           "Content-Type" "application/edn"))]
+     (when-not (= 200 status)
+       (throw (ex-info "Browser pack-get failed" {:status status :body body})))
+     (let [data (edn-body body)
+           chunks (or (:chunks data) [])]
+       (doseq [ch chunks]
+         (pack/apply-chunk! dest ch))
+       (when (client-cache/write-back-store? remote)
+         ;; mark as flushed: avoid re-upload of just-fetched subgraph
+         (swap! (:flushed remote)
+                into
+                (map store/hex->hash
+                     (map :hash (mapcat :items chunks)))))
+       {:dest dest
+        :items (:items data 0)
+        :chunks (count chunks)
+        :covered (:covered data 0)
+        :budget (:budget data)}))))
+
 (defn remote-get-root
   "Server root hash vector or nil."
   [remote]
