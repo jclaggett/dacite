@@ -214,7 +214,7 @@ Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
 |------|--------|
 | **2a** | `:node` only + soft-budget chunks. **Done.** |
 | **2b** | Realized literals for scalars / string / blob / map / set / vector (host-roundtrip + hash check); write-back coverage. **Done (core value types).** |
-| **2b′** | Close gaps vs L1–L5 for **value** types: systematic `to-literal` / `from-literal`, recursive nested literals, property tests per value type. |
+| **2b′** | Systematic `literal-of` / `materialize-literal!`, recursive nested `{:type :body}` forms, tests per value type + nested/empty/todo. **Done.** |
 | **2c** | Large trees / blobs: when to refuse literal and walk `:node` instead; measure. |
 | **2c′** *(defer)* | **Intermediate literals** (`ft/*`, `hamt/*`) where realized content rebuilds to the same node hash — bottom out pack walks earlier. |
 | **2d** | Budget sweep; update `service.md` with measured defaults. |
@@ -227,21 +227,36 @@ Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
 - Spine types stay `:node` only when the walk reaches them; value literals skip them.
 - `*verify-literal-hash*` enforces L2 on receive when enabled.
 
-### 2b′ sketch (finish the law)
+### 2b′ notes (shipped)
 
-- Multimethod or registry: `literal-of(store, h) → {:type :body}` for every
-  value type; body elements are literals (recursive) for nested values.
-- `materialize-literal!` dispatches on type; always constructor path; assert hash.
-- Property tests: for random values of each type, `materialize(literal-of(v)) = hash(v)`.
-- Pack walk: if literal fits budget, emit it and mark covered; else `:node` + children.
+- `literal-of` returns `{:type t :body b}` for every value type; collection
+  bodies are recursive typed forms (not flat host EDN alone).
+- `materialize-literal!` always uses constructors; accepts recursive forms and
+  2b flat host bodies for wire compat.
+- `encode-item` / `encode-reachable` use `literal-of` + dry-run hash check + budget.
+- Spine types (`ft/*`, `hamt/*`) still return nil from `literal-of` (2c′).
 
-## Non-goals
+## Non-goals (MVP)
 
 - Reintroducing value-layer collection inlining (durable store stays pure FT/HAMT)
 - Leaf-pack / fragment / conj-into-partial-root protocols
 - Hard budget (reject items that would exceed budget)
 - Binary wire as the first milestone (EDN envelopes OK for MVP)
 - Shipping intermediate FT/HAMT cells inside a value’s literal body
+
+## Future: binary wire for literals
+
+EDN is fine for correctness and demos; a later **binary pack codec** can cut
+literal bytes without changing the value law (L1–L5) or store model.
+
+| Idea | Notes |
+|------|--------|
+| **Protobuf (or similar)** | Schema for chunk envelope + recursive typed literals (type tag + payload; nested messages for coll elements). |
+| **What shrinks** | Type strings → small enums/varints; hex hashes → 32 raw bytes; strings/blobs as length-delimited bytes; repeated elements without EDN map overhead. |
+| **What stays the same** | Realized completeness, type fidelity, hash check on materialize, soft-budget chunking policy. |
+| **Interop** | Keep EDN path for debug/tools; negotiate codec (e.g. `Content-Type`) on `POST /nodes`. |
+
+Not scheduled; pursue after 2c/2d once literal shapes and budgets are stable.
 
 ## Open questions (proposed defaults)
 

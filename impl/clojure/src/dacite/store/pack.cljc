@@ -2,7 +2,9 @@
   "Layer 1 encodings (:node | :literal) + Layer 2 soft-budget chunking.
 
    See docs/design/leaf-chunking.md.
-   2a: :node only. 2b: :literal for small rebuildable nodes (same root hash)."
+   2a: :node only.
+   2b: realized :literal for value types (host bodies).
+   2b′: systematic recursive typed literals for every value type."
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.wire :as wire]
@@ -10,6 +12,7 @@
             [dacite.value.scalar :as scalar]
             [dacite.value.collections :as coll]
             [dacite.rooted.gc :as gc]))
+
 (def default-budget
   "Default soft pack budget in bytes (logical EDN length)."
   1024)
@@ -24,7 +27,16 @@
     "u8" "u16" "u32" "u64"
     "f32" "f64" "negative"})
 
-(declare materialize-literal!)
+(def ^:private value-types
+  "First-class value types that support realized literals (L1)."
+  (into scalar-types #{"string" "blob" "vector" "map" "set"}))
+
+(declare materialize-literal! literal-of)
+
+;; =============================================================================
+;; Chunk envelope (Layer 2 helpers)
+;; =============================================================================
+
 (defn node-item
   "Layer-1 encoding: hash + store content."
   [h body]
@@ -33,7 +45,7 @@
    :body body})
 
 (defn literal-item
-  "Layer-1 encoding: hash + type + host/rebuild body."
+  "Layer-1 encoding: hash + type + realized recursive body."
   [h type body]
   {:encoding :literal
    :hash (store/hash->hex h)
@@ -88,11 +100,19 @@
        (or (true? (:dacite.wire/chunk-v1 m))
            (vector? (:items m)))))
 
+;; =============================================================================
+;; Realized extraction helpers
+;; =============================================================================
+
 (defn- tree-internal-type?
-  "Finger-tree / HAMT internal node types — always ship as :node."
+  "Finger-tree / HAMT internal node types — not value literals (2c′ later)."
   [t]
   (or (str/starts-with? (str t) "ft/")
       (str/starts-with? (str t) "hamt/")))
+
+(defn- value-type?
+  [t]
+  (contains? value-types (str t)))
 
 (defn- entry-payload-size
   "Logical size cue for fits-literal? (prefer measure, else EDN length)."
@@ -101,72 +121,8 @@
            (catch #?(:clj Throwable :cljs :default) _ nil))
       (count (wire/write-edn entry))))
 
-(defn- host-edn?
-  "True if x is a plain EDN-friendly host value (no Dacite wrappers)."
-  [x]
-  (cond
-    (nil? x) true
-    (boolean? x) true
-    (string? x) true
-    (number? x) true
-    (keyword? x) true
-    (symbol? x) true
-    (char? x) true
-    #?(:clj (bytes? x) :cljs false) true
-    (vector? x) (every? host-edn? x)
-    (set? x) (every? host-edn? x)
-    (map? x) (and (every? host-edn? (keys x))
-                  (every? host-edn? (vals x)))
-    ;; realized Dacite strings are LazySeq of chars — not yet host-edn
-    :else false))
-
-(declare host-string host-blob-vec host-collection)
-
-(defn- as-host
-  "Coerce a Dacite or host value to plain EDN-friendly data.
-
-   Prefer type-aware extraction for Dacite collections/strings so we do not
-   depend on ft-seq/realize spines for medium values."
-  [x]
-  (cond
-    (nil? x) nil
-    (boolean? x) x
-    (string? x) x
-    (number? x) x
-    (keyword? x) x
-    (symbol? x) x
-    (char? x) x
-    #?(:clj (bytes? x) :cljs false) x
-    (satisfies? types/IDaciteValue x)
-    (let [t (types/dacite-type x)
-          st (types/dacite-store x)
-          h (types/dacite-hash x)]
-      (cond
-        (contains? scalar-types t) (types/realize x)
-        (= "string" t) (host-string st h)
-        (= "blob" t) (host-blob-vec st h)
-        (#{"vector" "map" "set"} t) (host-collection st h t)
-        ;; Domain / unknown types: best-effort realize (may not round-trip)
-        :else (as-host (types/realize x))))
-    ;; realized non-empty string (LazySeq/seq of chars)
-    (and (sequential? x)
-         (not (vector? x))
-         (seq x)
-         (every? #(or (char? %) (string? %)) x))
-    (apply str x)
-    (map-entry? x)
-    [(as-host (key x)) (as-host (val x))]
-    (vector? x) (mapv as-host x)
-    (set? x) (into #{} (map as-host) x)
-    (map? x) (into {} (map (fn [[k v]] [(as-host k) (as-host v)])) x)
-    (sequential? x) (mapv as-host x)
-    :else x))
-
 (defn- host-string
-  "Realize a Dacite string entry to a host string.
-
-   Uses index access (not ft-seq/realize) so medium-length strings are not
-   truncated by known lazy spine walks."
+  "Full host string via index access (avoids ft-seq truncation)."
   [st h]
   (let [n (long (or (:count (types/entry-data (store/s-get st h))) 0))]
     (if (zero? n)
@@ -181,7 +137,7 @@
                   (range n))))))
 
 (defn- host-blob-vec
-  "Realize a blob as a vector of 0..255 ints (EDN-safe)."
+  "Blob as vector of 0..255 ints (EDN-safe)."
   [st h]
   (let [n (long (or (:count (types/entry-data (store/s-get st h))) 0))]
     (if (zero? n)
@@ -191,96 +147,226 @@
                 (bit-and (int r) 0xFF)))
             (range n)))))
 
-(defn- host-collection
-  "Realize vector/set/map to plain host data."
-  [st h t]
-  (case t
-    "vector"
-    (let [n (long (or (:count (types/entry-data (store/s-get st h))) 0))]
-      (mapv (fn [i] (as-host (coll/seq-nth st h i)))
-            (range n)))
+(defn- nested-literal
+  "Recursive typed literal for child value at eh, or nil if not a value type."
+  [st eh]
+  (when-let [entry (store/s-get st eh)]
+    (let [t (types/entry-type entry)]
+      (when (value-type? t)
+        (literal-of st eh)))))
 
-    "set"
-    (if-let [xs (coll/set-vals st h)]
-      (into #{} (map as-host) xs)
-      #{})
+;; =============================================================================
+;; literal-of (2b′) — complete realized typed form
+;; =============================================================================
 
-    "map"
-    (if-let [pairs (coll/map-entries st h)]
-      (into {}
-            (map (fn [[k v]]
-                   [(as-host k) (as-host v)]))
-            pairs)
-      {})
+(defn literal-of
+  "Return {:type t :body b} for the value at h, or nil if not a value type.
 
-    nil))
+   Body is the complete realized content. Nested values are themselves
+   {:type :body} maps (recursive). Spine types (ft/*, hamt/*) return nil."
+  [st h]
+  (when-let [entry (store/s-get st h)]
+    (let [t (types/entry-type entry)
+          data (types/entry-data entry)]
+      (cond
+        (tree-internal-type? t)
+        nil
 
-(defn literal-payload
-  "If entry at h can be sent as a host literal under budget, return
-   {:type t :body host}. Else nil.
+        (contains? scalar-types t)
+        {:type t :body data}
 
-   Scalars and small strings/vectors/maps/sets only; internal tree nodes
-   always return nil.
+        (= "string" t)
+        {:type "string" :body (host-string st h)}
 
-   Note: 2b realized-value literals (host body + hash check). Full law:
-   every value node has a complete realized literal; FT/HAMT spine is
-   reconstructed on materialize — see docs/design/leaf-chunking.md."
-  ([st h entry] (literal-payload st h entry default-budget))
-  ([st h entry budget]
-   (let [t (types/entry-type entry)
-         data (types/entry-data entry)
-         budget (long budget)]
-     (when-not (tree-internal-type? t)
-       (cond
-         (contains? scalar-types t)
-         (when (<= (entry-payload-size entry) budget)
-           {:type t :body data})
+        (= "blob" t)
+        {:type "blob" :body (host-blob-vec st h)}
 
-         (= "string" t)
-         (when (<= (or (:size-bytes data) (entry-payload-size entry)) budget)
-           (let [body (host-string st h)]
-             (when (host-edn? body)
-               {:type "string" :body body})))
+        (= "vector" t)
+        (let [n (long (or (:count data) 0))
+              els (mapv (fn [i]
+                          (let [el (coll/seq-nth st h i)
+                                eh (types/dacite-hash el)]
+                            (or (nested-literal st eh)
+                                (throw (ex-info "vector child is not a value type"
+                                                {:parent h :child eh
+                                                 :child-type (types/entry-type
+                                                              (store/s-get st eh))})))))
+                        (range n))]
+          {:type "vector" :body els})
 
-         (= "blob" t)
-         (when (<= (or (:size-bytes data) 0) budget)
-           (let [body (host-blob-vec st h)]
-             (when (host-edn? body)
-               {:type "blob" :body body})))
+        (= "set" t)
+        (let [els (if-let [xs (coll/set-vals st h)]
+                    (mapv (fn [el]
+                            (let [eh (types/dacite-hash el)]
+                              (or (nested-literal st eh)
+                                  (throw (ex-info "set child is not a value type"
+                                                  {:parent h :child eh})))))
+                          xs)
+                    [])]
+          {:type "set" :body els})
 
-         (#{"vector" "map" "set"} t)
-         (when (<= (or (:size-bytes data) (entry-payload-size entry)) budget)
-           (let [body (host-collection st h t)]
-             (when (and (some? body) (host-edn? body))
-               {:type t :body body})))
+        (= "map" t)
+        (let [pairs (if-let [ps (coll/map-entries st h)]
+                      (mapv (fn [[k v]]
+                              (let [kh (types/dacite-hash k)
+                                    vh (types/dacite-hash v)
+                                    kl (or (nested-literal st kh)
+                                           (throw (ex-info "map key is not a value type"
+                                                           {:parent h :key kh})))
+                                    vl (or (nested-literal st vh)
+                                           (throw (ex-info "map val is not a value type"
+                                                           {:parent h :val vh})))]
+                                [kl vl]))
+                            ps)
+                      [])]
+          {:type "map" :body pairs})
 
-         :else nil)))))
+        :else nil))))
+
+(defn- literal-form-size
+  "Approx EDN size of a {:type :body} form."
+  [form]
+  (count (wire/write-edn form)))
+
+(defn fits-literal?
+  "True if the realized literal for h is under budget (and is a value type)."
+  ([st h] (fits-literal? st h default-budget))
+  ([st h budget]
+   (when-let [form (literal-of st h)]
+     (let [budget (long budget)
+           entry (store/s-get st h)
+           cue (or (when entry
+                     (let [data (types/entry-data entry)]
+                       (or (:size-bytes data)
+                           (entry-payload-size entry))))
+                   0)]
+       (and (<= cue budget)
+            (<= (literal-form-size form) (* 2 budget)))))))
+
+;; =============================================================================
+;; materialize-literal! (2b′)
+;; =============================================================================
+
+(defn- blob-bytes
+  "Coerce a literal blob body (bytes or seq of 0..255) to host bytes."
+  [body]
+  #?(:clj
+     (cond
+       (bytes? body) body
+       (sequential? body) (byte-array (map #(unchecked-byte (bit-and (int %) 0xFF)) body))
+       :else body)
+     :cljs
+     (cond
+       (sequential? body) (clj->js (mapv #(bit-and (int %) 0xFF) body))
+       :else body)))
+
+(defn- typed-nested?
+  "True if x is a recursive {:type :body} literal form."
+  [x]
+  (and (map? x)
+       (contains? x :type)
+       (contains? x :body)
+       (not (contains? x :encoding))))
+
+(defn- materialize-nested!
+  "Materialize a nested form: typed {:type :body}, or 2b flat host value."
+  [st x]
+  (cond
+    (typed-nested? x)
+    (materialize-literal! st (:type x) (:body x))
+
+    ;; 2b flat host compatibility
+    :else
+    (types/extract-hash st x)))
+
+(defn materialize-literal!
+  "Install a realized literal into st; return the content hash.
+
+   Body is complete realized content. Nested collection elements are either
+   recursive {:type :body} maps (2b′) or flat host values (2b wire compat)."
+  [st type body]
+  (let [type (str type)]
+    (cond
+      (contains? scalar-types type)
+      (scalar/put-scalar! st type body)
+
+      (= "string" type)
+      (types/dacite-hash (coll/string-with-store st (str body)))
+
+      (= "blob" type)
+      (types/dacite-hash (coll/blob-with-store st (blob-bytes body)))
+
+      (= "vector" type)
+      (let [refs (mapv #(materialize-nested! st %) (or body []))]
+        (types/dacite-hash (coll/vec-of-refs-with-store st refs)))
+
+      (= "set" type)
+      (let [refs (mapv #(materialize-nested! st %) (or body []))]
+        ;; Build set from hashes by wrapping empty set and assoc… use constructor
+        (types/dacite-hash
+         (apply coll/dacite-set-with-store st
+                (map #(types/wrap-entry
+                       (types/entry-type (store/s-get st %))
+                       st %)
+                     refs))))
+
+      (= "map" type)
+      (let [pairs (cond
+                    (map? body) (seq body)
+                    (sequential? body) body
+                    :else [])
+            kvs (mapcat (fn [pair]
+                          (let [k (if (vector? pair) (nth pair 0) (key pair))
+                                v (if (vector? pair) (nth pair 1) (val pair))
+                                kh (materialize-nested! st k)
+                                vh (materialize-nested! st v)
+                                kw (types/wrap-entry
+                                    (types/entry-type (store/s-get st kh)) st kh)
+                                vw (types/wrap-entry
+                                    (types/entry-type (store/s-get st vh)) st vh)]
+                            [kw vw]))
+                        pairs)]
+        (types/dacite-hash (apply coll/hash-map-with-store st kvs)))
+
+      :else
+      (throw (ex-info "cannot materialize literal type"
+                      {:type type})))))
 
 (defn- literal-round-trips?
-  "True if materializing type/body in a fresh store yields exactly h.
-
-   Guards against host forms that look small (nested colls, domain types
-   that realize to plain data) but do not rebuild to the claimed hash."
+  "True if materializing form yields exactly h."
   [h type body]
   (try
     (= h (materialize-literal! (store/mem-store) type body))
     (catch #?(:clj Throwable :cljs :default) _
       false)))
 
+;; =============================================================================
+;; Layer 1 encode
+;; =============================================================================
+
 (defn encode-item
   "Layer 1: choose :literal or :node for store entry at h.
 
-   Emits :literal only when the host body rebuilds to the same content hash
-   (and the wire item is not far over budget)."
+   Emits :literal when the value has a realized form under budget that
+   rebuilds to the same content hash."
   ([st h entry] (encode-item st h entry default-budget))
   ([st h entry budget]
-   (if-let [{:keys [type body]} (literal-payload st h entry budget)]
-     (let [item (literal-item h type body)]
-       (if (and (<= (item-size item) (* 2 budget))
-                (literal-round-trips? h type body))
-         item
-         (node-item h entry)))
-     (node-item h entry))))
+   (let [budget (long (or budget default-budget))
+         t (types/entry-type entry)]
+     (if (tree-internal-type? t)
+       (node-item h entry)
+       (if-let [{:keys [type body]} (literal-of st h)]
+         (let [item (literal-item h type body)
+               cue (or (:size-bytes (types/entry-data entry))
+                       (entry-payload-size entry)
+                       0)]
+           (if (and (<= cue budget)
+                    (<= (item-size item) (* 2 budget))
+                    (literal-round-trips? h type body))
+             item
+             (node-item h entry)))
+         (node-item h entry))))))
+
 (defn encode-reachable
   "Walk from root-h and Layer-1 encode each not-yet-skipped hash.
 
@@ -315,45 +401,9 @@
        {:items @items
         :covered @covered}))))
 
-(defn- blob-bytes
-  "Coerce a literal blob body (bytes or seq of 0..255) to host bytes."
-  [body]
-  #?(:clj
-     (cond
-       (bytes? body) body
-       (sequential? body) (byte-array (map #(unchecked-byte (bit-and (int %) 0xFF)) body))
-       :else body)
-     :cljs
-     (cond
-       (sequential? body) (clj->js (mapv #(bit-and (int %) 0xFF) body))
-       :else body)))
-
-(defn materialize-literal!
-  "Install a literal into st; return the content hash of the result."
-  [st type body]
-  (let [type (str type)]
-    (cond
-      (contains? scalar-types type)
-      (scalar/put-scalar! st type body)
-
-      (= "string" type)
-      (types/coerce-and-store! st (str body))
-
-      (= "blob" type)
-      (types/coerce-and-store! st (blob-bytes body))
-
-      (= "vector" type)
-      (types/coerce-and-store! st (vec body))
-
-      (= "set" type)
-      (types/coerce-and-store! st (set body))
-
-      (= "map" type)
-      (types/coerce-and-store! st (into {} body))
-
-      :else
-      (throw (ex-info "cannot materialize literal type"
-                      {:type type})))))
+;; =============================================================================
+;; Apply + transport
+;; =============================================================================
 
 (defn apply-chunk!
   "Apply a chunk to an IStore. Returns {:applied n :literals n :nodes n}."
