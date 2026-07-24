@@ -39,8 +39,8 @@
         (stop!)))))
 
 (deftest smart-cache-reduces-add-warm-requests
-  (let [none (bench/run-with-server :none {:compact-todo-entries false})
-        smart (bench/run-with-server :smart-put {:compact-todo-entries false})
+  (let [none (bench/run-with-server :none)
+        smart (bench/run-with-server :smart-put)
         none-add (get-in none [:scenarios :add-warm :requests])
         smart-add (get-in smart [:scenarios :add-warm :requests])]
     (is (pos? none-add))
@@ -51,14 +51,13 @@
         "smart-put suite totals must not regress vs none")))
 
 (deftest write-back-beats-smart-put-on-suite-totals
-  (let [smart (bench/run-with-server :smart-put {:compact-todo-entries false})
-        wb (bench/run-with-server :write-back {:compact-todo-entries false})]
+  (let [smart (bench/run-with-server :smart-put)
+        wb (bench/run-with-server :write-back)]
     ;; Chunked flush may recv small POST responses; still fewer requests and sent bytes.
     (is (< (get-in wb [:totals :requests])
            (get-in smart [:totals :requests])))
     (is (<= (get-in wb [:totals :bytes-sent])
             (get-in smart [:totals :bytes-sent])))))
-
 (deftest suite-scenarios-present
   (let [r (bench/run-with-server :layered)]
     (doseq [sc bench/scenario-names]

@@ -44,10 +44,10 @@ Static assets (`/app/` HTML/JS/CSS) are **not** counted. Sizes are request and
 response **body** string lengths (≈ UTF-8 bytes for ASCII EDN).
 
 This is meant to make content-addressed transfer cost visible. Client defaults
-use a **write-back cache** (and optional domain compact todo-entry nodes) so
-seed/add do far fewer round-trips than a bare remote store. Value collections
-remain pure finger trees / HAMTs; chunking leaves for transport belongs at the
-HTTP/wire layer (phase 2), not in `dacite.value`.
+use a **write-back cache** so seed/add do far fewer round-trips than a bare
+remote store. Value collections remain pure finger trees / HAMTs; packing for
+transport belongs at the HTTP/wire layer (`dacite.store.pack`), not in
+`dacite.value`.
 
 ### Benchmarks
 

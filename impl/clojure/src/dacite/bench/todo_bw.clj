@@ -146,24 +146,15 @@
          (<= (:bytes-recv n) (:bytes-recv p)))))
 
 (defn run-with-server
-  "Start ephemeral mem service, run suite for policy, stop. Returns result map.
-
-   opts: {:compact-todo-entries true/false} — domain-level todo packing only
-   (value-layer string/vector inlining was removed; transport inlining is phase 2)."
+  "Start ephemeral mem service, run suite for policy, stop. Returns result map."
   ([policy] (run-with-server policy nil))
-  ([policy {:keys [compact-todo-entries]
-            :or {compact-todo-entries true}}]
+  ([policy _opts]
    (let [rooted (svc/make-demo-rooted)
          {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
      (try
-       ;; *compact-todo-entries* is defined dynamically in todo.cljc
-       #_{:clj-kondo/ignore [:unresolved-var]}
-       (binding [todo/*compact-todo-entries* compact-todo-entries]
-         (assoc (run-scenarios base-url policy)
-                :compact-todo-entries compact-todo-entries))
+       (run-scenarios base-url policy)
        (finally
          (stop!))))))
-
 (defn- parse-args [args]
   (loop [args args
          acc {:policy :none

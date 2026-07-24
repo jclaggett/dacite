@@ -96,33 +96,39 @@
 
 (defn flush-reachable!
   "Upload local nodes reachable from root-h that are not yet flushed.
-   Returns number of nodes uploaded. No-op if s is not WriteBackStore.
+   Returns number of items uploaded. No-op if s is not WriteBackStore.
 
-   When remote implements pack/IChunkTransport, nodes are packed into
-   soft-budget chunks (2a) instead of one HTTP PUT per hash."
+   When remote implements pack/IChunkTransport, Layer 1 chooses :node or
+   :literal and Layer 2 packs soft-budget chunks (POST /nodes). Literals
+   cover their descendant subgraph so those hashes are not re-sent."
   [s root-h]
   (if-not (write-back-store? s)
     0
     (let [local (:local s)
           remote (:remote s)
-          flushed (:flushed s)
-          live (gc/mark-reachable local root-h)
-          to-send (vec (remove @flushed live))
-          pairs (keep (fn [h]
-                        (when-let [v (store/s-get local h)]
-                          [h v]))
-                      to-send)]
-      (if (empty? pairs)
-        0
-        (do
-          (if (satisfies? pack/IChunkTransport remote)
-            (let [items (mapv (fn [[h v]] (pack/node-item h v)) pairs)]
-              (pack/put-items-chunked! remote items pack/default-budget))
-            (doseq [[h v] pairs]
-              (store/s-put remote h v)))
-          (swap! flushed into (map first pairs))
-          (count pairs))))))
-
+          flushed (:flushed s)]
+      (if (satisfies? pack/IChunkTransport remote)
+        (let [{:keys [items covered]} (pack/encode-reachable local root-h @flushed)]
+          (if (empty? items)
+            0
+            (do
+              (pack/put-items-chunked! remote items pack/default-budget)
+              (swap! flushed into covered)
+              (count items))))
+        ;; Non-chunk remotes: plain per-node PUT of every unflushed live hash.
+        (let [live (gc/mark-reachable local root-h)
+              to-send (vec (remove @flushed live))
+              pairs (keep (fn [h]
+                            (when-let [v (store/s-get local h)]
+                              [h v]))
+                          to-send)]
+          (if (empty? pairs)
+            0
+            (do
+              (doseq [[h v] pairs]
+                (store/s-put remote h v))
+              (swap! flushed into (map first pairs))
+              (count pairs))))))))
 (defn wrap
   "Wrap remote with client cache according to policy keyword.
 
