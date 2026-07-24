@@ -39,8 +39,8 @@
         (stop!)))))
 
 (deftest smart-cache-reduces-add-warm-requests
-  (let [none (bench/run-with-server :none {:compact-strings false})
-        smart (bench/run-with-server :smart-put {:compact-strings false})
+  (let [none (bench/run-with-server :none {:compact-todo-entries false})
+        smart (bench/run-with-server :smart-put {:compact-todo-entries false})
         none-add (get-in none [:scenarios :add-warm :requests])
         smart-add (get-in smart [:scenarios :add-warm :requests])]
     (is (pos? none-add))
@@ -51,24 +51,14 @@
         "smart-put suite totals must not regress vs none")))
 
 (deftest write-back-beats-smart-put-on-suite-totals
-  (let [smart (bench/run-with-server :smart-put {:compact-strings false})
-        wb (bench/run-with-server :write-back {:compact-strings false})]
+  (let [smart (bench/run-with-server :smart-put {:compact-todo-entries false})
+        wb (bench/run-with-server :write-back {:compact-todo-entries false})]
     (is (bench/no-regression? smart wb))
     (is (< (get-in wb [:totals :requests])
            (get-in smart [:totals :requests])))))
 
-(deftest compact-strings-reduce-seed-nodes
-  (let [fat (bench/run-with-server :write-back {:compact-strings false
-                                                :compact-todo-entries false
-                                                :compact-vectors false})
-        slim (bench/run-with-server :write-back {:compact-strings true
-                                                 :compact-todo-entries false
-                                                 :compact-vectors false})]
-    (is (< (get-in slim [:scenarios :seed-cold :requests])
-           (get-in fat [:scenarios :seed-cold :requests])))))
-
 (deftest suite-scenarios-present
-  (let [r (bench/run-with-server :layered {:compact-strings true})]
+  (let [r (bench/run-with-server :layered)]
     (doseq [sc bench/scenario-names]
       (is (contains? (:scenarios r) sc))
       (is (pos? (get-in r [:scenarios sc :requests]))))))

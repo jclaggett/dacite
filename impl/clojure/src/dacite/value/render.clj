@@ -48,27 +48,20 @@
 (defn- render-string [v]
   (let [store (types/dacite-store v)
         h (types/dacite-hash v)
-        data (types/entry-data (store/s-get store h))
         n (count v)
-        limit *to-string-char-limit*]
+        limit *to-string-char-limit*
+        root (node-root store h)]
     (cond
       (zero? n) ""
-      ;; Compact inline string node
-      (contains? data :inline)
-      (let [s (str (:inline data))]
-        (if (<= n limit)
-          s
-          (str "\"" (subs s 0 limit) "…\" (" n " chars)")))
+      (<= n limit)
+      (apply clojure.core/str
+             (map #(types/entry-data (store/s-get store %))
+                  (take n (ft/ft-seq store root))))
       :else
-      (let [root (:root data)]
-        (if (<= n limit)
-          (apply clojure.core/str
-                 (map #(types/entry-data (store/s-get store %))
-                      (take n (ft/ft-seq store root))))
-          (let [prefix (apply clojure.core/str
-                              (map #(types/entry-data (store/s-get store %))
-                                   (take limit (ft/ft-seq store root))))]
-            (str "\"" prefix "…\" (" n " chars)")))))))
+      (let [prefix (apply clojure.core/str
+                          (map #(types/entry-data (store/s-get store %))
+                               (take limit (ft/ft-seq store root))))]
+        (str "\"" prefix "…\" (" n " chars)")))))
 
 (defn- render-blob [v]
   (let [store (types/dacite-store v)

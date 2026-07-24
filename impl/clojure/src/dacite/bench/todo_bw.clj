@@ -16,7 +16,6 @@
             [dacite.store.stats :as stats]
             [dacite.store.remote :as remote]
             [dacite.store.client-cache :as client-cache]
-            [dacite.value.collections :as coll]
             [dacite.examples.todo :as todo]
             [dacite.value.api :as d]
             [dacite.value.types :as types])
@@ -149,24 +148,19 @@
 (defn run-with-server
   "Start ephemeral mem service, run suite for policy, stop. Returns result map.
 
-   opts: {:compact-strings true/false} — bind coll/*compact-strings* for the run."
+   opts: {:compact-todo-entries true/false} — domain-level todo packing only
+   (value-layer string/vector inlining was removed; transport inlining is phase 2)."
   ([policy] (run-with-server policy nil))
-  ([policy {:keys [compact-strings compact-todo-entries compact-vectors]
-            :or {compact-strings true
-                 compact-todo-entries true
-                 compact-vectors true}}]
+  ([policy {:keys [compact-todo-entries]
+            :or {compact-todo-entries true}}]
    (let [rooted (svc/make-demo-rooted)
          {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
      (try
        ;; *compact-todo-entries* is defined dynamically in todo.cljc
        #_{:clj-kondo/ignore [:unresolved-var]}
-       (binding [coll/*compact-strings* compact-strings
-                 coll/*compact-vectors* compact-vectors
-                 todo/*compact-todo-entries* compact-todo-entries]
+       (binding [todo/*compact-todo-entries* compact-todo-entries]
          (assoc (run-scenarios base-url policy)
-                :compact-strings compact-strings
-                :compact-todo-entries compact-todo-entries
-                :compact-vectors compact-vectors))
+                :compact-todo-entries compact-todo-entries))
        (finally
          (stop!))))))
 
