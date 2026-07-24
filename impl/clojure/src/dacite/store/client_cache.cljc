@@ -25,6 +25,11 @@
     (store/hex->hash k)
     k))
 
+(defn- flushed-conj!
+  "Add hash to flushed set using portable hex key (CLJS-safe)."
+  [flushed-atom h]
+  (swap! flushed-atom conj (gc/hash-key h)))
+
 (defn- absorb-remote-pack-cache!
   "Copy pack-local entries from a pack-aware remote into client local.
 
@@ -41,7 +46,7 @@
         (let [h (snapshot-entry->hash k)]
           (store/s-put local h v)
           (when flushed-atom
-            (swap! flushed-atom conj h))))
+            (flushed-conj! flushed-atom h))))
 
       (and (record? r) (contains? r :remote))
       (recur (:remote r))
@@ -87,14 +92,14 @@
     this))
 
 (defrecord WriteBackStore [local remote flushed]
-  ;; flushed — atom of hash-set of hashes already uploaded to remote
+  ;; flushed — atom of set of hex hash keys already uploaded to remote
   store/IStore
   (s-get [_ h]
     (if-let [v (store/s-get local h)]
       v
       (when-let [v (store/s-get remote h)]
         (store/s-put local h v)
-        (swap! flushed conj h)
+        (flushed-conj! flushed h)
         ;; Absorb entire pack neighborhood (not only h) into write-back local
         (absorb-remote-pack-cache! local remote flushed)
         v)))
@@ -110,7 +115,7 @@
   (s-delete [this h]
     (store/s-delete local h)
     (store/s-delete remote h)
-    (swap! flushed disj h)
+    (swap! flushed disj (gc/hash-key h))
     this)
 
   (s-snapshot [_]
@@ -152,18 +157,19 @@
               (swap! flushed into covered)
               (count items))))
         ;; Non-chunk remotes: plain per-node PUT of every unflushed live hash.
-        (let [live (gc/mark-reachable local root-h)
+        (let [live (gc/mark-reachable local root-h) ; hex keys
               to-send (vec (remove @flushed live))
-              pairs (keep (fn [h]
-                            (when-let [v (store/s-get local h)]
-                              [h v]))
+              pairs (keep (fn [hk]
+                            (let [h (gc/->hash hk)]
+                              (when-let [v (store/s-get local h)]
+                                [h v])))
                           to-send)]
           (if (empty? pairs)
             0
             (do
               (doseq [[h v] pairs]
                 (store/s-put remote h v))
-              (swap! flushed into (map first pairs))
+              (swap! flushed into (map (comp gc/hash-key first) pairs))
               (count pairs))))))))
 (defn wrap
   "Wrap remote with client cache according to policy keyword.

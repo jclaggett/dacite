@@ -11,7 +11,7 @@
       (v/with-store [st s]
         (let [val (v/i64 42)
               h (v/dacite-hash val)]
-          (is (= #{h} (gc/mark-reachable s h))))))))
+          (is (= #{(gc/hash-key h)} (gc/mark-reachable s h))))))))
 
 (deftest collect-garbage-scalar-test
   (testing "removes detached scalar nodes"

@@ -253,7 +253,7 @@
     (is (= :literal (:encoding (first items))))
     (is (= "ab" (:body (first items))))
     (is (>= (count covered) live))
-    (is (contains? covered h))))
+    (is (contains? covered (store/hash->hex h)))))
 
 (deftest ft-internal-nodes-may-be-intermediate-literals
   ;; 2c′: spine nodes with fitting leaf payloads can be :literal when rebuild matches.

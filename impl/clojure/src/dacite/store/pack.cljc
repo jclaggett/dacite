@@ -528,22 +528,24 @@
    (let [items (atom [])
          visited (atom #{})
          covered (atom #{})
-         skip (or skip #{})
+         ;; skip/visited/covered use hex keys (CLJS-safe; BigInt hash vecs cannot be set elems)
+         skip (into #{} (map gc/hash-key) (or skip #{}))
          budget (long (or budget default-budget))]
      (letfn [(walk [h]
-               (when (and h
-                          (not (contains? @visited h))
-                          (not (contains? skip h)))
-                 (swap! visited conj h)
-                 (when-let [entry (store/s-get st h)]
-                   (let [item (encode-item st h entry budget)]
-                     (swap! items conj item)
-                     (if (= :literal (:encoding item))
-                       (swap! covered into (gc/mark-reachable st h))
-                       (do
-                         (swap! covered conj h)
-                         (doseq [ch (or (types/child-hashes entry) [])]
-                           (walk ch))))))))]
+               (let [hk (gc/hash-key h)]
+                 (when (and h
+                            (not (contains? @visited hk))
+                            (not (contains? skip hk)))
+                   (swap! visited conj hk)
+                   (when-let [entry (store/s-get st h)]
+                     (let [item (encode-item st h entry budget)]
+                       (swap! items conj item)
+                       (if (= :literal (:encoding item))
+                         (swap! covered into (gc/mark-reachable st h))
+                         (do
+                           (swap! covered conj hk)
+                           (doseq [ch (or (types/child-hashes entry) [])]
+                             (walk ch)))))))))]
        (when root-h
          (walk root-h))
        {:items @items
@@ -585,21 +587,22 @@
   ([st h have budget]
    (when (and h (store/s-has? st h))
      (let [budget (long (or budget default-budget))
-           have (set (or have #{}))
-           items (atom [])
-           visited (atom have)]
-       ;; Portable FIFO: vector, take from front via next
+           ;; visited/have use hex keys (CLJS-safe)
+           visited (atom (into #{} (map gc/hash-key) (or have #{})))
+           items (atom [])]
+       ;; Portable FIFO: list, take from front
        (loop [q (list h)]
          (if-let [cur (first q)]
-           (let [q (next q)]
-             (if (contains? @visited cur)
+           (let [q (next q)
+                 ck (gc/hash-key cur)]
+             (if (contains? @visited ck)
                (recur q)
                (if-let [entry (store/s-get st cur)]
                  (let [item (encode-item st cur entry budget)
                        trial (conj @items item)
                        sz (chunk-size (make-chunk budget trial))]
                    (reset! items trial)
-                   (swap! visited conj cur)
+                   (swap! visited conj ck)
                    (let [literal? (= :literal (:encoding item))]
                      (when literal?
                        (swap! visited into (gc/mark-reachable st cur)))
@@ -610,9 +613,9 @@
                        (recur q)
                        :else
                        (let [chs (remove (fn [ch]
-                                           (or (nil? ch) (contains? @visited ch)))
+                                           (or (nil? ch)
+                                               (contains? @visited (gc/hash-key ch))))
                                          (or (types/child-hashes entry) []))]
-                         ;; append children for BFS (queue = front … back)
                          (recur (concat q chs))))))
                  (recur q))))
            nil))
@@ -695,7 +698,7 @@
    Empty when nothing to send."
   [st req]
   (let [budget (long (or (:budget req) default-budget))
-        have (into #{} (keep ->hash) (or (:have req) []))
+        have (into #{} (map gc/hash-key) (keep ->hash (or (:have req) [])))
         starts (into [] (keep ->hash)
                      (concat (or (:roots req) [])
                              (or (:hashes req) [])))

@@ -184,12 +184,11 @@
                      (vec (remove nil? roots))
                      :else [roots])
          root-hexes (mapv store/hash->hex root-list)
-         have-set (or have
-                      (into #{}
-                            (map (fn [k]
-                                   (if (string? k) (store/hex->hash k) k))
-                                 (keys (or (store/s-snapshot dest) {})))))
-         have-hexes (mapv store/hash->hex (or have-set #{}))
+         have-hexes (mapv store/hash->hex
+                          (or have
+                              (map (fn [k]
+                                     (if (string? k) (store/hex->hash k) k))
+                                   (keys (or (store/s-snapshot dest) {})))))
          url (str (str/replace (:base-url rs) #"/$" "") "/nodes/get")
          body {:roots root-hexes
                :have have-hexes
@@ -207,6 +206,7 @@
                               (into s (gc/mark-reachable dest h)))
                             #{}
                             root-list)]
+           ;; live is hex keys — flushed set is hex-keyed on all hosts
            (swap! (:flushed remote) into live)))
        {:dest dest
         :items (:items data 0)

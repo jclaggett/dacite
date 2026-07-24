@@ -163,12 +163,11 @@
                      (vec (remove nil? roots))
                      :else [roots])
          root-hexes (mapv store/hash->hex root-list)
-         have-set (or have
-                      (into #{}
-                            (map (fn [k]
-                                   (if (string? k) (store/hex->hash k) k))
-                                 (keys (or (store/s-snapshot dest) {})))))
-         have-hexes (mapv store/hash->hex have-set)
+         have-hexes (mapv store/hash->hex
+                          (or have
+                              (map (fn [k]
+                                     (if (string? k) (store/hex->hash k) k))
+                                   (keys (or (store/s-snapshot dest) {})))))
          url (str (trim-base (:base-url rs)) "/nodes/get")
          payload {:roots root-hexes
                   :have have-hexes
@@ -183,10 +182,10 @@
        (doseq [ch chunks]
          (pack/apply-chunk! dest ch))
        (when (client-cache/write-back-store? remote)
+         ;; flushed set uses hex keys (CLJS-safe)
          (swap! (:flushed remote)
                 into
-                (map store/hex->hash
-                     (map :hash (mapcat :items chunks)))))
+                (map :hash (mapcat :items chunks))))
        {:dest dest
         :items (:items data 0)
         :chunks (count chunks)
