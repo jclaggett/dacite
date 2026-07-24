@@ -1,6 +1,6 @@
 # Leaf-chunking (transport packing) design
 
-**Status:** DRAFT — approved direction for phase 2 after value-layer inlining was removed (phase 1).
+**Status:** DRAFT — design approved; **2a implemented** (`POST /nodes`, `dacite.store.pack`, write-back chunked flush).
 
 **Related:** `docs/design/service.md` (HTTP store protocol), phase 1 commit removing `:inline` from `dacite.value.collections`.
 

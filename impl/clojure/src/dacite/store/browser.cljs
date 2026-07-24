@@ -14,6 +14,7 @@
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.store.stats :as stats]
+            [dacite.store.pack :as pack]
             [dacite.store.client-cache :as client-cache]
             [dacite.wire :as wire]))
 
@@ -83,7 +84,18 @@
     (doseq [[h v] m]
       (store/s-put this h v))
     this)
-  (s-reset [this] this))
+  (s-reset [this] this)
+
+  pack/IChunkTransport
+  (send-chunk! [this chunk]
+    (let [url (str (trim-base base-url) "/nodes")
+          {:keys [status body]} (xhr "POST" url (wire/write-edn chunk)
+                                     (assoc headers "Content-Type" "application/edn"))]
+      (when-not (= 200 status)
+        (throw (ex-info "Browser send-chunk! failed"
+                        {:status status :body body})))
+      (when (and body (pos? (count body)))
+        (wire/read-edn body)))))
 
 (defn remote-store
   "HTTP-backed store for the browser. base-url e.g. \"\" (same origin) or full URL."

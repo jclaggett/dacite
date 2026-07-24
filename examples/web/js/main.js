@@ -41354,8 +41354,8 @@ dacite.store.stats.format_bytes = function dacite$store$stats$format_bytes(n) {
   }
 };
 dacite.store.stats.format_stats = function dacite$store$stats$format_stats(var_args) {
-  var G__1750 = arguments.length;
-  switch(G__1750) {
+  var G__1091 = arguments.length;
+  switch(G__1091) {
     case 1:
       return dacite.store.stats.format_stats.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -41403,1248 +41403,44 @@ dacite.store.stats.classify_url = function dacite$store$stats$classify_url(metho
     if (clojure.string.includes_QMARK_.call(null, path, "/root")) {
       return new cljs.core.Keyword(null, "root-get", "root-get", 1204341843);
     } else {
-      if (clojure.string.includes_QMARK_.call(null, path, "/node/")) {
-        var G__1752 = m;
-        switch(G__1752) {
-          case "GET":
-            return new cljs.core.Keyword(null, "node-get", "node-get", 627829598);
-            break;
-          case "PUT":
-            return new cljs.core.Keyword(null, "node-put", "node-put", 314474694);
-            break;
-          case "HEAD":
-            return new cljs.core.Keyword(null, "node-head", "node-head", -536909961);
-            break;
-          case "DELETE":
-            return new cljs.core.Keyword(null, "node-delete", "node-delete", -1295742444);
-            break;
-          default:
-            return new cljs.core.Keyword(null, "node-other", "node-other", -1800359215);
-        }
-      } else {
-        return new cljs.core.Keyword(null, "other", "other", 995793544);
-      }
-    }
-  }
-};
-goog.provide("dacite.value.types");
-goog.require("cljs.core");
-goog.require("dacite.hash");
-goog.require("dacite.host");
-goog.require("dacite.store");
-dacite.value.types.IDaciteValue = function() {
-};
-var dacite$value$types$IDaciteValue$dacite_hash$dyn_1176 = function(this$) {
-  var x__5350__auto__ = this$ == null ? null : this$;
-  var m__5351__auto__ = dacite.value.types.dacite_hash[goog.typeOf(x__5350__auto__)];
-  if (!(m__5351__auto__ == null)) {
-    return m__5351__auto__.call(null, this$);
-  } else {
-    var m__5349__auto__ = dacite.value.types.dacite_hash["_"];
-    if (!(m__5349__auto__ == null)) {
-      return m__5349__auto__.call(null, this$);
-    } else {
-      throw cljs.core.missing_protocol.call(null, "IDaciteValue.dacite-hash", this$);
-    }
-  }
-};
-dacite.value.types.dacite_hash = function dacite$value$types$dacite_hash(this$) {
-  if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$dacite_hash$arity$1 == null)) {
-    return this$.dacite$value$types$IDaciteValue$dacite_hash$arity$1(this$);
-  } else {
-    return dacite$value$types$IDaciteValue$dacite_hash$dyn_1176.call(null, this$);
-  }
-};
-var dacite$value$types$IDaciteValue$dacite_store$dyn_1177 = function(this$) {
-  var x__5350__auto__ = this$ == null ? null : this$;
-  var m__5351__auto__ = dacite.value.types.dacite_store[goog.typeOf(x__5350__auto__)];
-  if (!(m__5351__auto__ == null)) {
-    return m__5351__auto__.call(null, this$);
-  } else {
-    var m__5349__auto__ = dacite.value.types.dacite_store["_"];
-    if (!(m__5349__auto__ == null)) {
-      return m__5349__auto__.call(null, this$);
-    } else {
-      throw cljs.core.missing_protocol.call(null, "IDaciteValue.dacite-store", this$);
-    }
-  }
-};
-dacite.value.types.dacite_store = function dacite$value$types$dacite_store(this$) {
-  if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$dacite_store$arity$1 == null)) {
-    return this$.dacite$value$types$IDaciteValue$dacite_store$arity$1(this$);
-  } else {
-    return dacite$value$types$IDaciteValue$dacite_store$dyn_1177.call(null, this$);
-  }
-};
-var dacite$value$types$IDaciteValue$dacite_type$dyn_1178 = function(this$) {
-  var x__5350__auto__ = this$ == null ? null : this$;
-  var m__5351__auto__ = dacite.value.types.dacite_type[goog.typeOf(x__5350__auto__)];
-  if (!(m__5351__auto__ == null)) {
-    return m__5351__auto__.call(null, this$);
-  } else {
-    var m__5349__auto__ = dacite.value.types.dacite_type["_"];
-    if (!(m__5349__auto__ == null)) {
-      return m__5349__auto__.call(null, this$);
-    } else {
-      throw cljs.core.missing_protocol.call(null, "IDaciteValue.dacite-type", this$);
-    }
-  }
-};
-dacite.value.types.dacite_type = function dacite$value$types$dacite_type(this$) {
-  if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$dacite_type$arity$1 == null)) {
-    return this$.dacite$value$types$IDaciteValue$dacite_type$arity$1(this$);
-  } else {
-    return dacite$value$types$IDaciteValue$dacite_type$dyn_1178.call(null, this$);
-  }
-};
-var dacite$value$types$IDaciteValue$realize$dyn_1179 = function(this$) {
-  var x__5350__auto__ = this$ == null ? null : this$;
-  var m__5351__auto__ = dacite.value.types.realize[goog.typeOf(x__5350__auto__)];
-  if (!(m__5351__auto__ == null)) {
-    return m__5351__auto__.call(null, this$);
-  } else {
-    var m__5349__auto__ = dacite.value.types.realize["_"];
-    if (!(m__5349__auto__ == null)) {
-      return m__5349__auto__.call(null, this$);
-    } else {
-      throw cljs.core.missing_protocol.call(null, "IDaciteValue.realize", this$);
-    }
-  }
-};
-dacite.value.types.realize = function dacite$value$types$realize(this$) {
-  if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$realize$arity$1 == null)) {
-    return this$.dacite$value$types$IDaciteValue$realize$arity$1(this$);
-  } else {
-    return dacite$value$types$IDaciteValue$realize$dyn_1179.call(null, this$);
-  }
-};
-dacite.value.types.entry_type = function dacite$value$types$entry_type(p__1180) {
-  var vec__1181 = p__1180;
-  var type_name = cljs.core.nth.call(null, vec__1181, 0, null);
-  var _ = cljs.core.nth.call(null, vec__1181, 1, null);
-  return type_name;
-};
-dacite.value.types.entry_data = function dacite$value$types$entry_data(p__1184) {
-  var vec__1185 = p__1184;
-  var _ = cljs.core.nth.call(null, vec__1185, 0, null);
-  var data = cljs.core.nth.call(null, vec__1185, 1, null);
-  return data;
-};
-dacite.value.types.null_separator = new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [0], null);
-dacite.value.types.null_separator_hash = dacite.hash.fuse_bytes.call(null, dacite.value.types.null_separator);
-dacite.value.types.type_hash_cache = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-dacite.value.types.type_hash = function dacite$value$types$type_hash(type_name) {
-  var or__5002__auto__ = cljs.core.deref.call(null, dacite.value.types.type_hash_cache).call(null, type_name);
-  if (cljs.core.truth_(or__5002__auto__)) {
-    return or__5002__auto__;
-  } else {
-    var h = dacite.hash.unchecked_fuse.call(null, dacite.hash.fuse_bytes.call(null, dacite.host.utf8_bytes.call(null, type_name)), dacite.value.types.null_separator_hash);
-    cljs.core.swap_BANG_.call(null, dacite.value.types.type_hash_cache, cljs.core.assoc, type_name, h);
-    return h;
-  }
-};
-dacite.value.types.value_hash = function dacite$value$types$value_hash(type_name, data_hash) {
-  return dacite.hash.unchecked_fuse.call(null, dacite.value.types.type_hash.call(null, type_name), data_hash);
-};
-dacite.value.types.node_hash = dacite.value.types.value_hash;
-dacite.value.types.content_hash = function dacite$value$types$content_hash(type_name, value_hash_v) {
-  return dacite.hash.unchecked_fuse.call(null, dacite.hash.fuse_inverse.call(null, dacite.value.types.type_hash.call(null, type_name)), value_hash_v);
-};
-if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.encode_value !== "undefined") {
-} else {
-  dacite.value.types.encode_value = function() {
-    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
-    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "encode-value"), dacite.value.types.entry_type, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
-  }();
-}
-cljs.core._add_method.call(null, dacite.value.types.encode_value, new cljs.core.Keyword(null, "default", "default", -1987822328), function(p__1188) {
-  var vec__1189 = p__1188;
-  var _ = cljs.core.nth.call(null, vec__1189, 0, null);
-  var data = cljs.core.nth.call(null, vec__1189, 1, null);
-  return dacite.host.utf8_bytes.call(null, cljs.core.pr_str.call(null, data));
-});
-dacite.value.types.scalar_data_hash = function dacite$value$types$scalar_data_hash(typed_value) {
-  return dacite.hash.fuse_bytes.call(null, dacite.value.types.encode_value.call(null, typed_value));
-};
-dacite.value.types.scalar_value_hash = function dacite$value$types$scalar_value_hash(typed_value) {
-  return dacite.value.types.value_hash.call(null, dacite.value.types.entry_type.call(null, typed_value), dacite.value.types.scalar_data_hash.call(null, typed_value));
-};
-if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.dacite_size !== "undefined") {
-} else {
-  dacite.value.types.dacite_size = function() {
-    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
-    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "dacite-size"), dacite.value.types.entry_type, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
-  }();
-}
-cljs.core._add_method.call(null, dacite.value.types.dacite_size, new cljs.core.Keyword(null, "default", "default", -1987822328), function(p__1192) {
-  var vec__1193 = p__1192;
-  var _ = cljs.core.nth.call(null, vec__1193, 0, null);
-  var data = cljs.core.nth.call(null, vec__1193, 1, null);
-  var temp__5823__auto__ = (new cljs.core.Keyword(null, "measure", "measure", -1857519826)).cljs$core$IFn$_invoke$arity$1(data);
-  if (cljs.core.truth_(temp__5823__auto__)) {
-    var m = temp__5823__auto__;
-    return (new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324)).cljs$core$IFn$_invoke$arity$1(m);
-  } else {
-    var temp__5823__auto____$1 = (new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324)).cljs$core$IFn$_invoke$arity$1(data);
-    if (cljs.core.truth_(temp__5823__auto____$1)) {
-      var sb = temp__5823__auto____$1;
-      return sb;
-    } else {
-      return cljs.core.count.call(null, dacite.host.utf8_bytes.call(null, cljs.core.pr_str.call(null, data)));
-    }
-  }
-});
-dacite.value.types.typed_value_hash = dacite.value.types.scalar_value_hash;
-if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.child_hashes !== "undefined") {
-} else {
-  dacite.value.types.child_hashes = function() {
-    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
-    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "child-hashes"), function(node) {
-      if (cljs.core.vector_QMARK_.call(null, node) && cljs.core._EQ_.call(null, 2, cljs.core.count.call(null, node))) {
-        return cljs.core.first.call(null, node);
-      } else {
-        return null;
-      }
-    }, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
-  }();
-}
-cljs.core._add_method.call(null, dacite.value.types.child_hashes, null, function(_) {
-  return null;
-});
-cljs.core._add_method.call(null, dacite.value.types.child_hashes, new cljs.core.Keyword(null, "default", "default", -1987822328), function(_) {
-  return cljs.core.PersistentVector.EMPTY;
-});
-var seq__1196_1216 = cljs.core.seq.call(null, new cljs.core.PersistentVector(null, 5, 5, cljs.core.PersistentVector.EMPTY_NODE, ["vector", "string", "blob", "map", "set"], null));
-var chunk__1197_1217 = null;
-var count__1198_1218 = 0;
-var i__1199_1219 = 0;
-while (true) {
-  if (i__1199_1219 < count__1198_1218) {
-    var t_1220 = cljs.core._nth.call(null, chunk__1197_1217, i__1199_1219);
-    cljs.core._add_method.call(null, dacite.value.types.child_hashes, t_1220, function(seq__1196_1216, chunk__1197_1217, count__1198_1218, i__1199_1219, t_1220) {
-      return function(p__1208) {
-        var vec__1209 = p__1208;
-        var _ = cljs.core.nth.call(null, vec__1209, 0, null);
-        var data = cljs.core.nth.call(null, vec__1209, 1, null);
-        return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [(new cljs.core.Keyword(null, "root", "root", -448657453)).cljs$core$IFn$_invoke$arity$1(data)], null);
-      };
-    }(seq__1196_1216, chunk__1197_1217, count__1198_1218, i__1199_1219, t_1220));
-    var G__1221 = seq__1196_1216;
-    var G__1222 = chunk__1197_1217;
-    var G__1223 = count__1198_1218;
-    var G__1224 = i__1199_1219 + 1;
-    seq__1196_1216 = G__1221;
-    chunk__1197_1217 = G__1222;
-    count__1198_1218 = G__1223;
-    i__1199_1219 = G__1224;
-    continue;
-  } else {
-    var temp__5825__auto___1225 = cljs.core.seq.call(null, seq__1196_1216);
-    if (temp__5825__auto___1225) {
-      var seq__1196_1226__$1 = temp__5825__auto___1225;
-      if (cljs.core.chunked_seq_QMARK_.call(null, seq__1196_1226__$1)) {
-        var c__5525__auto___1227 = cljs.core.chunk_first.call(null, seq__1196_1226__$1);
-        var G__1228 = cljs.core.chunk_rest.call(null, seq__1196_1226__$1);
-        var G__1229 = c__5525__auto___1227;
-        var G__1230 = cljs.core.count.call(null, c__5525__auto___1227);
-        var G__1231 = 0;
-        seq__1196_1216 = G__1228;
-        chunk__1197_1217 = G__1229;
-        count__1198_1218 = G__1230;
-        i__1199_1219 = G__1231;
-        continue;
-      } else {
-        var t_1232 = cljs.core.first.call(null, seq__1196_1226__$1);
-        cljs.core._add_method.call(null, dacite.value.types.child_hashes, t_1232, function(seq__1196_1216, chunk__1197_1217, count__1198_1218, i__1199_1219, t_1232, seq__1196_1226__$1, temp__5825__auto___1225) {
-          return function(p__1212) {
-            var vec__1213 = p__1212;
-            var _ = cljs.core.nth.call(null, vec__1213, 0, null);
-            var data = cljs.core.nth.call(null, vec__1213, 1, null);
-            return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [(new cljs.core.Keyword(null, "root", "root", -448657453)).cljs$core$IFn$_invoke$arity$1(data)], null);
-          };
-        }(seq__1196_1216, chunk__1197_1217, count__1198_1218, i__1199_1219, t_1232, seq__1196_1226__$1, temp__5825__auto___1225));
-        var G__1233 = cljs.core.next.call(null, seq__1196_1226__$1);
-        var G__1234 = null;
-        var G__1235 = 0;
-        var G__1236 = 0;
-        seq__1196_1216 = G__1233;
-        chunk__1197_1217 = G__1234;
-        count__1198_1218 = G__1235;
-        i__1199_1219 = G__1236;
-        continue;
-      }
-    } else {
-    }
-  }
-  break;
-}
-if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.wrap_entry !== "undefined") {
-} else {
-  dacite.value.types.wrap_entry = function() {
-    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
-    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "wrap-entry"), function(type_name, _store, _h) {
-      return type_name;
-    }, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
-  }();
-}
-dacite.value.types.coerce_kind = function dacite$value$types$coerce_kind(x) {
-  if (x == null) {
-    return new cljs.core.Keyword(null, "null", "null", -180137709);
-  } else {
-    if (typeof x === "string") {
-      return new cljs.core.Keyword(null, "string", "string", -1989541586);
-    } else {
-      if (cljs.core.integer_QMARK_.call(null, x)) {
-        return new cljs.core.Keyword(null, "i64", "i64", -727308002);
-      } else {
-        if (cljs.core.vector_QMARK_.call(null, x)) {
-          return new cljs.core.Keyword(null, "vector", "vector", 1902966158);
-        } else {
-          if (cljs.core.set_QMARK_.call(null, x)) {
-            return new cljs.core.Keyword(null, "set", "set", 304602554);
+      if (cljs.core.truth_(function() {
+        var and__5000__auto__ = cljs.core._EQ_.call(null, "POST", m);
+        if (and__5000__auto__) {
+          var or__5002__auto__ = cljs.core._EQ_.call(null, path, "/nodes");
+          if (or__5002__auto__) {
+            return or__5002__auto__;
           } else {
-            if (cljs.core.map_QMARK_.call(null, x)) {
-              return new cljs.core.Keyword(null, "map", "map", 1371690461);
-            } else {
-              if (cljs.core.boolean_QMARK_.call(null, x)) {
-                return new cljs.core.Keyword(null, "bool", "bool", 1444635321);
-              } else {
-                if (typeof x === "number") {
-                  return new cljs.core.Keyword(null, "f64", "f64", 592090464);
-                } else {
-                  if (cljs.core.sequential_QMARK_.call(null, x)) {
-                    return new cljs.core.Keyword(null, "sequential", "sequential", -1082983960);
-                  } else {
-                    return new cljs.core.Keyword(null, "unsupported", "unsupported", -1045607016);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-};
-if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.coerce_and_store_BANG_ !== "undefined") {
-} else {
-  dacite.value.types.coerce_and_store_BANG_ = function() {
-    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
-    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
-    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "coerce-and-store!"), function(_store, x) {
-      return dacite.value.types.coerce_kind.call(null, x);
-    }, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
-  }();
-}
-cljs.core._add_method.call(null, dacite.value.types.coerce_and_store_BANG_, new cljs.core.Keyword(null, "unsupported", "unsupported", -1045607016), function(_, x) {
-  throw cljs.core.ex_info.call(null, "Cannot coerce to dacite value", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "value", "value", 305978217), x, new cljs.core.Keyword(null, "type", "type", 1174270348), cljs.core.type.call(null, x)], null));
-});
-dacite.value.types.ensure_in_store_BANG_ = function dacite$value$types$ensure_in_store_BANG_(src, dst, h) {
-  if (cljs.core.truth_(function() {
-    var and__5000__auto__ = h;
-    if (cljs.core.truth_(and__5000__auto__)) {
-      return cljs.core.not.call(null, dacite.store.s_has_QMARK_.call(null, dst, h));
-    } else {
-      return and__5000__auto__;
-    }
-  }())) {
-    var temp__5823__auto___1241 = dacite.store.s_get.call(null, src, h);
-    if (cljs.core.truth_(temp__5823__auto___1241)) {
-      var node_1242 = temp__5823__auto___1241;
-      dacite.store.s_put.call(null, dst, h, node_1242);
-      var seq__1237_1243 = cljs.core.seq.call(null, function() {
-        var or__5002__auto__ = dacite.value.types.child_hashes.call(null, node_1242);
-        if (cljs.core.truth_(or__5002__auto__)) {
-          return or__5002__auto__;
-        } else {
-          return cljs.core.PersistentVector.EMPTY;
-        }
-      }());
-      var chunk__1238_1244 = null;
-      var count__1239_1245 = 0;
-      var i__1240_1246 = 0;
-      while (true) {
-        if (i__1240_1246 < count__1239_1245) {
-          var ch_1247 = cljs.core._nth.call(null, chunk__1238_1244, i__1240_1246);
-          dacite.value.types.ensure_in_store_BANG_.call(null, src, dst, ch_1247);
-          var G__1248 = seq__1237_1243;
-          var G__1249 = chunk__1238_1244;
-          var G__1250 = count__1239_1245;
-          var G__1251 = i__1240_1246 + 1;
-          seq__1237_1243 = G__1248;
-          chunk__1238_1244 = G__1249;
-          count__1239_1245 = G__1250;
-          i__1240_1246 = G__1251;
-          continue;
-        } else {
-          var temp__5825__auto___1252 = cljs.core.seq.call(null, seq__1237_1243);
-          if (temp__5825__auto___1252) {
-            var seq__1237_1253__$1 = temp__5825__auto___1252;
-            if (cljs.core.chunked_seq_QMARK_.call(null, seq__1237_1253__$1)) {
-              var c__5525__auto___1254 = cljs.core.chunk_first.call(null, seq__1237_1253__$1);
-              var G__1255 = cljs.core.chunk_rest.call(null, seq__1237_1253__$1);
-              var G__1256 = c__5525__auto___1254;
-              var G__1257 = cljs.core.count.call(null, c__5525__auto___1254);
-              var G__1258 = 0;
-              seq__1237_1243 = G__1255;
-              chunk__1238_1244 = G__1256;
-              count__1239_1245 = G__1257;
-              i__1240_1246 = G__1258;
-              continue;
-            } else {
-              var ch_1259 = cljs.core.first.call(null, seq__1237_1253__$1);
-              dacite.value.types.ensure_in_store_BANG_.call(null, src, dst, ch_1259);
-              var G__1260 = cljs.core.next.call(null, seq__1237_1253__$1);
-              var G__1261 = null;
-              var G__1262 = 0;
-              var G__1263 = 0;
-              seq__1237_1243 = G__1260;
-              chunk__1238_1244 = G__1261;
-              count__1239_1245 = G__1262;
-              i__1240_1246 = G__1263;
-              continue;
-            }
-          } else {
-          }
-        }
-        break;
-      }
-    } else {
-      throw cljs.core.ex_info.call(null, "Cannot ensure hash in store: missing from source", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "hash", "hash", -13781596), h], null));
-    }
-  } else {
-  }
-  return h;
-};
-dacite.value.types.extract_hash = function dacite$value$types$extract_hash(store, x) {
-  if (!(x == null) ? false || cljs.core.PROTOCOL_SENTINEL === x.dacite$value$types$IDaciteValue$ ? true : !x.cljs$lang$protocol_mask$partition$ ? cljs.core.native_satisfies_QMARK_.call(null, dacite.value.types.IDaciteValue, x) : false : cljs.core.native_satisfies_QMARK_.call(null, dacite.value.types.IDaciteValue, x)) {
-    var h = dacite.value.types.dacite_hash.call(null, x);
-    var src = dacite.value.types.dacite_store.call(null, x);
-    if (cljs.core.truth_(dacite.store.s_has_QMARK_.call(null, store, h))) {
-    } else {
-      dacite.value.types.ensure_in_store_BANG_.call(null, src, store, h);
-    }
-    return h;
-  } else {
-    return dacite.value.types.coerce_and_store_BANG_.call(null, store, x);
-  }
-};
-goog.provide("dacite.rooted.gc");
-goog.require("cljs.core");
-goog.require("dacite.store");
-goog.require("dacite.value.types");
-dacite.rooted.gc.__GT_hash = function dacite$rooted$gc$__GT_hash(k) {
-  if (typeof k === "string") {
-    return dacite.store.hex__GT_hash.call(null, k);
-  } else {
-    return k;
-  }
-};
-dacite.rooted.gc.mark_reachable = function dacite$rooted$gc$mark_reachable(store, root_hash) {
-  if (root_hash == null) {
-    return cljs.core.PersistentHashSet.EMPTY;
-  } else {
-    var queue = new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [root_hash], null);
-    var live = cljs.core.PersistentHashSet.EMPTY;
-    while (true) {
-      if (cljs.core.empty_QMARK_.call(null, queue)) {
-        return live;
-      } else {
-        var h = cljs.core.nth.call(null, queue, 0);
-        var queue_SINGLEQUOTE_ = cljs.core.subvec.call(null, queue, 1);
-        if (cljs.core.contains_QMARK_.call(null, live, h)) {
-          var G__1550 = queue_SINGLEQUOTE_;
-          var G__1551 = live;
-          queue = G__1550;
-          live = G__1551;
-          continue;
-        } else {
-          var temp__5827__auto__ = dacite.store.s_get.call(null, store, h);
-          if (temp__5827__auto__ == null) {
-            var G__1552 = queue_SINGLEQUOTE_;
-            var G__1553 = live;
-            queue = G__1552;
-            live = G__1553;
-            continue;
-          } else {
-            var node = temp__5827__auto__;
-            var children = function() {
-              var or__5002__auto__ = dacite.value.types.child_hashes.call(null, node);
-              if (cljs.core.truth_(or__5002__auto__)) {
-                return or__5002__auto__;
-              } else {
-                return cljs.core.PersistentVector.EMPTY;
-              }
-            }();
-            var live_SINGLEQUOTE_ = cljs.core.conj.call(null, live, h);
-            var queue_SINGLEQUOTE__SINGLEQUOTE_ = cljs.core.into.call(null, queue_SINGLEQUOTE_, children);
-            var G__1554 = queue_SINGLEQUOTE__SINGLEQUOTE_;
-            var G__1555 = live_SINGLEQUOTE_;
-            queue = G__1554;
-            live = G__1555;
-            continue;
-          }
-        }
-      }
-      break;
-    }
-  }
-};
-dacite.rooted.gc.collect_garbage_BANG_ = function dacite$rooted$gc$collect_garbage_BANG_(store, root_hash) {
-  var live = dacite.rooted.gc.mark_reachable.call(null, store, root_hash);
-  var all_hashes = cljs.core.map.call(null, dacite.rooted.gc.__GT_hash, cljs.core.keys.call(null, dacite.store.s_snapshot.call(null, store)));
-  var detached = cljs.core.remove.call(null, live, all_hashes);
-  var removed = cljs.core.count.call(null, detached);
-  var seq__1556_1560 = cljs.core.seq.call(null, detached);
-  var chunk__1557_1561 = null;
-  var count__1558_1562 = 0;
-  var i__1559_1563 = 0;
-  while (true) {
-    if (i__1559_1563 < count__1558_1562) {
-      var h_1564 = cljs.core._nth.call(null, chunk__1557_1561, i__1559_1563);
-      dacite.store.s_delete.call(null, store, h_1564);
-      var G__1565 = seq__1556_1560;
-      var G__1566 = chunk__1557_1561;
-      var G__1567 = count__1558_1562;
-      var G__1568 = i__1559_1563 + 1;
-      seq__1556_1560 = G__1565;
-      chunk__1557_1561 = G__1566;
-      count__1558_1562 = G__1567;
-      i__1559_1563 = G__1568;
-      continue;
-    } else {
-      var temp__5825__auto___1569 = cljs.core.seq.call(null, seq__1556_1560);
-      if (temp__5825__auto___1569) {
-        var seq__1556_1570__$1 = temp__5825__auto___1569;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1556_1570__$1)) {
-          var c__5525__auto___1571 = cljs.core.chunk_first.call(null, seq__1556_1570__$1);
-          var G__1572 = cljs.core.chunk_rest.call(null, seq__1556_1570__$1);
-          var G__1573 = c__5525__auto___1571;
-          var G__1574 = cljs.core.count.call(null, c__5525__auto___1571);
-          var G__1575 = 0;
-          seq__1556_1560 = G__1572;
-          chunk__1557_1561 = G__1573;
-          count__1558_1562 = G__1574;
-          i__1559_1563 = G__1575;
-          continue;
-        } else {
-          var h_1576 = cljs.core.first.call(null, seq__1556_1570__$1);
-          dacite.store.s_delete.call(null, store, h_1576);
-          var G__1577 = cljs.core.next.call(null, seq__1556_1570__$1);
-          var G__1578 = null;
-          var G__1579 = 0;
-          var G__1580 = 0;
-          seq__1556_1560 = G__1577;
-          chunk__1557_1561 = G__1578;
-          count__1558_1562 = G__1579;
-          i__1559_1563 = G__1580;
-          continue;
-        }
-      } else {
-      }
-    }
-    break;
-  }
-  return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "removed", "removed", 609626430), removed, new cljs.core.Keyword(null, "kept", "kept", 1300991554), cljs.core.count.call(null, live)], null);
-};
-goog.provide("dacite.store.client_cache");
-goog.require("cljs.core");
-goog.require("dacite.store");
-goog.require("dacite.rooted.gc");
-dacite.store.client_cache.SmartCacheStore = function(local, remote, __meta, __extmap, __hash) {
-  this.local = local;
-  this.remote = remote;
-  this.__meta = __meta;
-  this.__extmap = __extmap;
-  this.__hash = __hash;
-  this.cljs$lang$protocol_mask$partition0$ = 2230716170;
-  this.cljs$lang$protocol_mask$partition1$ = 139264;
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ILookup$_lookup$arity$2 = function(this__5300__auto__, k__5301__auto__) {
-  var self__ = this;
-  var this__5300__auto____$1 = this;
-  return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k1743, else__5303__auto__) {
-  var self__ = this;
-  var this__5302__auto____$1 = this;
-  var G__1747 = k1743;
-  var G__1747__$1 = G__1747 instanceof cljs.core.Keyword ? G__1747.fqn : null;
-  switch(G__1747__$1) {
-    case "local":
-      return self__.local;
-      break;
-    case "remote":
-      return self__.remote;
-      break;
-    default:
-      return cljs.core.get.call(null, self__.__extmap, k1743, else__5303__auto__);
-  }
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
-  var self__ = this;
-  var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__1748) {
-    var vec__1749 = p__1748;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__1749, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__1749, 1, null);
-    return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
-  }, init__5322__auto__, this__5320__auto____$1);
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IPrintWithWriter$_pr_writer$arity$3 = function(this__5315__auto__, writer__5316__auto__, opts__5317__auto__) {
-  var self__ = this;
-  var this__5315__auto____$1 = this;
-  var pr_pair__5318__auto__ = function(keyval__5319__auto__) {
-    return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, cljs.core.pr_writer, "", " ", "", opts__5317__auto__, keyval__5319__auto__);
-  };
-  return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.client-cache.SmartCacheStore{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, 
-  [new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote], null)], null), self__.__extmap));
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__1742) {
-  var self__ = this;
-  var G__1742__$1 = this;
-  return new cljs.core.RecordIter(0, G__1742__$1, 2, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
-  var self__ = this;
-  var this__5298__auto____$1 = this;
-  return self__.__meta;
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ICloneable$_clone$arity$1 = function(this__5295__auto__) {
-  var self__ = this;
-  var this__5295__auto____$1 = this;
-  return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, self__.__meta, self__.__extmap, self__.__hash);
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ICounted$_count$arity$1 = function(this__5304__auto__) {
-  var self__ = this;
-  var this__5304__auto____$1 = this;
-  return 2 + cljs.core.count.call(null, self__.__extmap);
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IHash$_hash$arity$1 = function(this__5296__auto__) {
-  var self__ = this;
-  var this__5296__auto____$1 = this;
-  var h__5111__auto__ = self__.__hash;
-  if (!(h__5111__auto__ == null)) {
-    return h__5111__auto__;
-  } else {
-    var h__5111__auto____$1 = function(coll__5297__auto__) {
-      return 2134840560 ^ cljs.core.hash_unordered_coll.call(null, coll__5297__auto__);
-    }.call(null, this__5296__auto____$1);
-    self__.__hash = h__5111__auto____$1;
-    return h__5111__auto____$1;
-  }
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this1744, other1745) {
-  var self__ = this;
-  var this1744__$1 = this;
-  return !(other1745 == null) && (this1744__$1.constructor === other1745.constructor && (cljs.core._EQ_.call(null, this1744__$1.local, other1745.local) && (cljs.core._EQ_.call(null, this1744__$1.remote, other1745.remote) && cljs.core._EQ_.call(null, this1744__$1.__extmap, other1745.__extmap))));
-};
-dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
-dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
-  var self__ = this;
-  var ___$1 = this;
-  var temp__5823__auto__ = dacite.store.s_get.call(null, self__.local, h);
-  if (cljs.core.truth_(temp__5823__auto__)) {
-    var v = temp__5823__auto__;
-    return v;
-  } else {
-    var temp__5825__auto__ = dacite.store.s_get.call(null, self__.remote, h);
-    if (cljs.core.truth_(temp__5825__auto__)) {
-      var v = temp__5825__auto__;
-      dacite.store.s_put.call(null, self__.local, h, v);
-      return v;
-    } else {
-      return null;
-    }
-  }
-};
-dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_put$arity$3 = function(this$, h, value) {
-  var self__ = this;
-  var this$__$1 = this;
-  if (cljs.core.truth_(dacite.store.s_has_QMARK_.call(null, self__.local, h))) {
-    return this$__$1;
-  } else {
-    dacite.store.s_put.call(null, self__.local, h, value);
-    dacite.store.s_put.call(null, self__.remote, h, value);
-    return this$__$1;
-  }
-};
-dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_has_QMARK_$arity$2 = function(_, h) {
-  var self__ = this;
-  var ___$1 = this;
-  var or__5002__auto__ = dacite.store.s_has_QMARK_.call(null, self__.local, h);
-  if (cljs.core.truth_(or__5002__auto__)) {
-    return or__5002__auto__;
-  } else {
-    return dacite.store.s_has_QMARK_.call(null, self__.remote, h);
-  }
-};
-dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_delete$arity$2 = function(this$, h) {
-  var self__ = this;
-  var this$__$1 = this;
-  dacite.store.s_delete.call(null, self__.local, h);
-  dacite.store.s_delete.call(null, self__.remote, h);
-  return this$__$1;
-};
-dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_snapshot$arity$1 = function(_) {
-  var self__ = this;
-  var ___$1 = this;
-  return cljs.core.merge.call(null, dacite.store.s_snapshot.call(null, self__.remote), dacite.store.s_snapshot.call(null, self__.local));
-};
-dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_merge$arity$2 = function(this$, m) {
-  var self__ = this;
-  var this$__$1 = this;
-  var seq__1752_1774 = cljs.core.seq.call(null, m);
-  var chunk__1753_1775 = null;
-  var count__1754_1776 = 0;
-  var i__1755_1777 = 0;
-  while (true) {
-    if (i__1755_1777 < count__1754_1776) {
-      var vec__1762_1778 = cljs.core._nth.call(null, chunk__1753_1775, i__1755_1777);
-      var h_1779 = cljs.core.nth.call(null, vec__1762_1778, 0, null);
-      var v_1780 = cljs.core.nth.call(null, vec__1762_1778, 1, null);
-      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_1779, v_1780);
-      var G__1781 = seq__1752_1774;
-      var G__1782 = chunk__1753_1775;
-      var G__1783 = count__1754_1776;
-      var G__1784 = i__1755_1777 + 1;
-      seq__1752_1774 = G__1781;
-      chunk__1753_1775 = G__1782;
-      count__1754_1776 = G__1783;
-      i__1755_1777 = G__1784;
-      continue;
-    } else {
-      var temp__5825__auto___1785 = cljs.core.seq.call(null, seq__1752_1774);
-      if (temp__5825__auto___1785) {
-        var seq__1752_1786__$1 = temp__5825__auto___1785;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1752_1786__$1)) {
-          var c__5525__auto___1787 = cljs.core.chunk_first.call(null, seq__1752_1786__$1);
-          var G__1788 = cljs.core.chunk_rest.call(null, seq__1752_1786__$1);
-          var G__1789 = c__5525__auto___1787;
-          var G__1790 = cljs.core.count.call(null, c__5525__auto___1787);
-          var G__1791 = 0;
-          seq__1752_1774 = G__1788;
-          chunk__1753_1775 = G__1789;
-          count__1754_1776 = G__1790;
-          i__1755_1777 = G__1791;
-          continue;
-        } else {
-          var vec__1765_1792 = cljs.core.first.call(null, seq__1752_1786__$1);
-          var h_1793 = cljs.core.nth.call(null, vec__1765_1792, 0, null);
-          var v_1794 = cljs.core.nth.call(null, vec__1765_1792, 1, null);
-          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_1793, v_1794);
-          var G__1795 = cljs.core.next.call(null, seq__1752_1786__$1);
-          var G__1796 = null;
-          var G__1797 = 0;
-          var G__1798 = 0;
-          seq__1752_1774 = G__1795;
-          chunk__1753_1775 = G__1796;
-          count__1754_1776 = G__1797;
-          i__1755_1777 = G__1798;
-          continue;
-        }
-      } else {
-      }
-    }
-    break;
-  }
-  return this$__$1;
-};
-dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_reset$arity$1 = function(this$) {
-  var self__ = this;
-  var this$__$1 = this;
-  dacite.store.s_reset.call(null, self__.local);
-  return this$__$1;
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IMap$_dissoc$arity$2 = function(this__5310__auto__, k__5311__auto__) {
-  var self__ = this;
-  var this__5310__auto____$1 = this;
-  if (cljs.core.contains_QMARK_.call(null, new cljs.core.PersistentHashSet(null, new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "remote", "remote", -1593576576), null, new cljs.core.Keyword(null, "local", "local", -1497766724), null], null), null), k__5311__auto__)) {
-    return cljs.core.dissoc.call(null, cljs.core._with_meta.call(null, cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, this__5310__auto____$1), self__.__meta), k__5311__auto__);
-  } else {
-    return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
-  }
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k1743) {
-  var self__ = this;
-  var this__5307__auto____$1 = this;
-  var G__1768 = k1743;
-  var G__1768__$1 = G__1768 instanceof cljs.core.Keyword ? G__1768.fqn : null;
-  switch(G__1768__$1) {
-    case "local":
-    case "remote":
-      return true;
-      break;
-    default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k1743);
-  }
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__1742) {
-  var self__ = this;
-  var this__5308__auto____$1 = this;
-  var pred__1769 = cljs.core.keyword_identical_QMARK_;
-  var expr__1770 = k__5309__auto__;
-  if (cljs.core.truth_(pred__1769.call(null, new cljs.core.Keyword(null, "local", "local", -1497766724), expr__1770))) {
-    return new dacite.store.client_cache.SmartCacheStore(G__1742, self__.remote, self__.__meta, self__.__extmap, null);
-  } else {
-    if (cljs.core.truth_(pred__1769.call(null, new cljs.core.Keyword(null, "remote", "remote", -1593576576), expr__1770))) {
-      return new dacite.store.client_cache.SmartCacheStore(self__.local, G__1742, self__.__meta, self__.__extmap, null);
-    } else {
-      return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__1742), null);
-    }
-  }
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this__5313__auto__) {
-  var self__ = this;
-  var this__5313__auto____$1 = this;
-  return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote, null)], null), self__.__extmap));
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__1742) {
-  var self__ = this;
-  var this__5299__auto____$1 = this;
-  return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, G__1742, self__.__extmap, self__.__hash);
-};
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
-  var self__ = this;
-  var this__5305__auto____$1 = this;
-  if (cljs.core.vector_QMARK_.call(null, entry__5306__auto__)) {
-    return this__5305__auto____$1.cljs$core$IAssociative$_assoc$arity$3(null, cljs.core._nth.call(null, entry__5306__auto__, 0), cljs.core._nth.call(null, entry__5306__auto__, 1));
-  } else {
-    return cljs.core.reduce.call(null, cljs.core._conj, this__5305__auto____$1, entry__5306__auto__);
-  }
-};
-dacite.store.client_cache.SmartCacheStore.getBasis = function() {
-  return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Symbol(null, "local", "local", 142764803, null), new cljs.core.Symbol(null, "remote", "remote", 46954951, null)], null);
-};
-dacite.store.client_cache.SmartCacheStore.cljs$lang$type = true;
-dacite.store.client_cache.SmartCacheStore.cljs$lang$ctorPrSeq = function(this__5346__auto__) {
-  return new cljs.core.List(null, "dacite.store.client-cache/SmartCacheStore", null, 1, null);
-};
-dacite.store.client_cache.SmartCacheStore.cljs$lang$ctorPrWriter = function(this__5346__auto__, writer__5347__auto__) {
-  return cljs.core._write.call(null, writer__5347__auto__, "dacite.store.client-cache/SmartCacheStore");
-};
-dacite.store.client_cache.__GT_SmartCacheStore = function dacite$store$client_cache$__GT_SmartCacheStore(local, remote) {
-  return new dacite.store.client_cache.SmartCacheStore(local, remote, null, null, null);
-};
-dacite.store.client_cache.map__GT_SmartCacheStore = function dacite$store$client_cache$map__GT_SmartCacheStore(G__1746) {
-  var extmap__5342__auto__ = function() {
-    var G__1772 = cljs.core.dissoc.call(null, G__1746, new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576));
-    if (cljs.core.record_QMARK_.call(null, G__1746)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__1772);
-    } else {
-      return G__1772;
-    }
-  }();
-  return new dacite.store.client_cache.SmartCacheStore((new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(G__1746), (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(G__1746), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
-};
-dacite.store.client_cache.WriteBackStore = function(local, remote, flushed, __meta, __extmap, __hash) {
-  this.local = local;
-  this.remote = remote;
-  this.flushed = flushed;
-  this.__meta = __meta;
-  this.__extmap = __extmap;
-  this.__hash = __hash;
-  this.cljs$lang$protocol_mask$partition0$ = 2230716170;
-  this.cljs$lang$protocol_mask$partition1$ = 139264;
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ILookup$_lookup$arity$2 = function(this__5300__auto__, k__5301__auto__) {
-  var self__ = this;
-  var this__5300__auto____$1 = this;
-  return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k1801, else__5303__auto__) {
-  var self__ = this;
-  var this__5302__auto____$1 = this;
-  var G__1805 = k1801;
-  var G__1805__$1 = G__1805 instanceof cljs.core.Keyword ? G__1805.fqn : null;
-  switch(G__1805__$1) {
-    case "local":
-      return self__.local;
-      break;
-    case "remote":
-      return self__.remote;
-      break;
-    case "flushed":
-      return self__.flushed;
-      break;
-    default:
-      return cljs.core.get.call(null, self__.__extmap, k1801, else__5303__auto__);
-  }
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
-  var self__ = this;
-  var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__1806) {
-    var vec__1807 = p__1806;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__1807, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__1807, 1, null);
-    return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
-  }, init__5322__auto__, this__5320__auto____$1);
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IPrintWithWriter$_pr_writer$arity$3 = function(this__5315__auto__, writer__5316__auto__, opts__5317__auto__) {
-  var self__ = this;
-  var this__5315__auto____$1 = this;
-  var pr_pair__5318__auto__ = function(keyval__5319__auto__) {
-    return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, cljs.core.pr_writer, "", " ", "", opts__5317__auto__, keyval__5319__auto__);
-  };
-  return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.client-cache.WriteBackStore{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, 
-  [new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "flushed", "flushed", 44294838), self__.flushed], null)], null), self__.__extmap));
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__1800) {
-  var self__ = this;
-  var G__1800__$1 = this;
-  return new cljs.core.RecordIter(0, G__1800__$1, 3, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576), new cljs.core.Keyword(null, "flushed", "flushed", 44294838)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
-  var self__ = this;
-  var this__5298__auto____$1 = this;
-  return self__.__meta;
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ICloneable$_clone$arity$1 = function(this__5295__auto__) {
-  var self__ = this;
-  var this__5295__auto____$1 = this;
-  return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, self__.__meta, self__.__extmap, self__.__hash);
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ICounted$_count$arity$1 = function(this__5304__auto__) {
-  var self__ = this;
-  var this__5304__auto____$1 = this;
-  return 3 + cljs.core.count.call(null, self__.__extmap);
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IHash$_hash$arity$1 = function(this__5296__auto__) {
-  var self__ = this;
-  var this__5296__auto____$1 = this;
-  var h__5111__auto__ = self__.__hash;
-  if (!(h__5111__auto__ == null)) {
-    return h__5111__auto__;
-  } else {
-    var h__5111__auto____$1 = function(coll__5297__auto__) {
-      return -1777873170 ^ cljs.core.hash_unordered_coll.call(null, coll__5297__auto__);
-    }.call(null, this__5296__auto____$1);
-    self__.__hash = h__5111__auto____$1;
-    return h__5111__auto____$1;
-  }
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this1802, other1803) {
-  var self__ = this;
-  var this1802__$1 = this;
-  return !(other1803 == null) && (this1802__$1.constructor === other1803.constructor && (cljs.core._EQ_.call(null, this1802__$1.local, other1803.local) && (cljs.core._EQ_.call(null, this1802__$1.remote, other1803.remote) && (cljs.core._EQ_.call(null, this1802__$1.flushed, other1803.flushed) && cljs.core._EQ_.call(null, this1802__$1.__extmap, other1803.__extmap)))));
-};
-dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
-dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
-  var self__ = this;
-  var ___$1 = this;
-  var temp__5823__auto__ = dacite.store.s_get.call(null, self__.local, h);
-  if (cljs.core.truth_(temp__5823__auto__)) {
-    var v = temp__5823__auto__;
-    return v;
-  } else {
-    var temp__5825__auto__ = dacite.store.s_get.call(null, self__.remote, h);
-    if (cljs.core.truth_(temp__5825__auto__)) {
-      var v = temp__5825__auto__;
-      dacite.store.s_put.call(null, self__.local, h, v);
-      cljs.core.swap_BANG_.call(null, self__.flushed, cljs.core.conj, h);
-      return v;
-    } else {
-      return null;
-    }
-  }
-};
-dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_put$arity$3 = function(this$, h, value) {
-  var self__ = this;
-  var this$__$1 = this;
-  dacite.store.s_put.call(null, self__.local, h, value);
-  return this$__$1;
-};
-dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_has_QMARK_$arity$2 = function(_, h) {
-  var self__ = this;
-  var ___$1 = this;
-  var or__5002__auto__ = dacite.store.s_has_QMARK_.call(null, self__.local, h);
-  if (cljs.core.truth_(or__5002__auto__)) {
-    return or__5002__auto__;
-  } else {
-    return dacite.store.s_has_QMARK_.call(null, self__.remote, h);
-  }
-};
-dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_delete$arity$2 = function(this$, h) {
-  var self__ = this;
-  var this$__$1 = this;
-  dacite.store.s_delete.call(null, self__.local, h);
-  dacite.store.s_delete.call(null, self__.remote, h);
-  cljs.core.swap_BANG_.call(null, self__.flushed, cljs.core.disj, h);
-  return this$__$1;
-};
-dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_snapshot$arity$1 = function(_) {
-  var self__ = this;
-  var ___$1 = this;
-  return cljs.core.merge.call(null, dacite.store.s_snapshot.call(null, self__.remote), dacite.store.s_snapshot.call(null, self__.local));
-};
-dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_merge$arity$2 = function(this$, m) {
-  var self__ = this;
-  var this$__$1 = this;
-  var seq__1810_1832 = cljs.core.seq.call(null, m);
-  var chunk__1811_1833 = null;
-  var count__1812_1834 = 0;
-  var i__1813_1835 = 0;
-  while (true) {
-    if (i__1813_1835 < count__1812_1834) {
-      var vec__1820_1836 = cljs.core._nth.call(null, chunk__1811_1833, i__1813_1835);
-      var h_1837 = cljs.core.nth.call(null, vec__1820_1836, 0, null);
-      var v_1838 = cljs.core.nth.call(null, vec__1820_1836, 1, null);
-      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_1837, v_1838);
-      var G__1839 = seq__1810_1832;
-      var G__1840 = chunk__1811_1833;
-      var G__1841 = count__1812_1834;
-      var G__1842 = i__1813_1835 + 1;
-      seq__1810_1832 = G__1839;
-      chunk__1811_1833 = G__1840;
-      count__1812_1834 = G__1841;
-      i__1813_1835 = G__1842;
-      continue;
-    } else {
-      var temp__5825__auto___1843 = cljs.core.seq.call(null, seq__1810_1832);
-      if (temp__5825__auto___1843) {
-        var seq__1810_1844__$1 = temp__5825__auto___1843;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1810_1844__$1)) {
-          var c__5525__auto___1845 = cljs.core.chunk_first.call(null, seq__1810_1844__$1);
-          var G__1846 = cljs.core.chunk_rest.call(null, seq__1810_1844__$1);
-          var G__1847 = c__5525__auto___1845;
-          var G__1848 = cljs.core.count.call(null, c__5525__auto___1845);
-          var G__1849 = 0;
-          seq__1810_1832 = G__1846;
-          chunk__1811_1833 = G__1847;
-          count__1812_1834 = G__1848;
-          i__1813_1835 = G__1849;
-          continue;
-        } else {
-          var vec__1823_1850 = cljs.core.first.call(null, seq__1810_1844__$1);
-          var h_1851 = cljs.core.nth.call(null, vec__1823_1850, 0, null);
-          var v_1852 = cljs.core.nth.call(null, vec__1823_1850, 1, null);
-          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_1851, v_1852);
-          var G__1853 = cljs.core.next.call(null, seq__1810_1844__$1);
-          var G__1854 = null;
-          var G__1855 = 0;
-          var G__1856 = 0;
-          seq__1810_1832 = G__1853;
-          chunk__1811_1833 = G__1854;
-          count__1812_1834 = G__1855;
-          i__1813_1835 = G__1856;
-          continue;
-        }
-      } else {
-      }
-    }
-    break;
-  }
-  return this$__$1;
-};
-dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_reset$arity$1 = function(this$) {
-  var self__ = this;
-  var this$__$1 = this;
-  dacite.store.s_reset.call(null, self__.local);
-  cljs.core.reset_BANG_.call(null, self__.flushed, cljs.core.PersistentHashSet.EMPTY);
-  return this$__$1;
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IMap$_dissoc$arity$2 = function(this__5310__auto__, k__5311__auto__) {
-  var self__ = this;
-  var this__5310__auto____$1 = this;
-  if (cljs.core.contains_QMARK_.call(null, new cljs.core.PersistentHashSet(null, new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "remote", "remote", -1593576576), null, new cljs.core.Keyword(null, "flushed", "flushed", 44294838), null, new cljs.core.Keyword(null, "local", "local", -1497766724), null], null), null), k__5311__auto__)) {
-    return cljs.core.dissoc.call(null, cljs.core._with_meta.call(null, cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, this__5310__auto____$1), self__.__meta), k__5311__auto__);
-  } else {
-    return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
-  }
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k1801) {
-  var self__ = this;
-  var this__5307__auto____$1 = this;
-  var G__1826 = k1801;
-  var G__1826__$1 = G__1826 instanceof cljs.core.Keyword ? G__1826.fqn : null;
-  switch(G__1826__$1) {
-    case "local":
-    case "remote":
-    case "flushed":
-      return true;
-      break;
-    default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k1801);
-  }
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__1800) {
-  var self__ = this;
-  var this__5308__auto____$1 = this;
-  var pred__1827 = cljs.core.keyword_identical_QMARK_;
-  var expr__1828 = k__5309__auto__;
-  if (cljs.core.truth_(pred__1827.call(null, new cljs.core.Keyword(null, "local", "local", -1497766724), expr__1828))) {
-    return new dacite.store.client_cache.WriteBackStore(G__1800, self__.remote, self__.flushed, self__.__meta, self__.__extmap, null);
-  } else {
-    if (cljs.core.truth_(pred__1827.call(null, new cljs.core.Keyword(null, "remote", "remote", -1593576576), expr__1828))) {
-      return new dacite.store.client_cache.WriteBackStore(self__.local, G__1800, self__.flushed, self__.__meta, self__.__extmap, null);
-    } else {
-      if (cljs.core.truth_(pred__1827.call(null, new cljs.core.Keyword(null, "flushed", "flushed", 44294838), expr__1828))) {
-        return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, G__1800, self__.__meta, self__.__extmap, null);
-      } else {
-        return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__1800), null);
-      }
-    }
-  }
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this__5313__auto__) {
-  var self__ = this;
-  var this__5313__auto____$1 = this;
-  return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "flushed", "flushed", 44294838), self__.flushed, null)], null), self__.__extmap));
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__1800) {
-  var self__ = this;
-  var this__5299__auto____$1 = this;
-  return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, G__1800, self__.__extmap, self__.__hash);
-};
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
-  var self__ = this;
-  var this__5305__auto____$1 = this;
-  if (cljs.core.vector_QMARK_.call(null, entry__5306__auto__)) {
-    return this__5305__auto____$1.cljs$core$IAssociative$_assoc$arity$3(null, cljs.core._nth.call(null, entry__5306__auto__, 0), cljs.core._nth.call(null, entry__5306__auto__, 1));
-  } else {
-    return cljs.core.reduce.call(null, cljs.core._conj, this__5305__auto____$1, entry__5306__auto__);
-  }
-};
-dacite.store.client_cache.WriteBackStore.getBasis = function() {
-  return new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Symbol(null, "local", "local", 142764803, null), new cljs.core.Symbol(null, "remote", "remote", 46954951, null), new cljs.core.Symbol(null, "flushed", "flushed", 1684826365, null)], null);
-};
-dacite.store.client_cache.WriteBackStore.cljs$lang$type = true;
-dacite.store.client_cache.WriteBackStore.cljs$lang$ctorPrSeq = function(this__5346__auto__) {
-  return new cljs.core.List(null, "dacite.store.client-cache/WriteBackStore", null, 1, null);
-};
-dacite.store.client_cache.WriteBackStore.cljs$lang$ctorPrWriter = function(this__5346__auto__, writer__5347__auto__) {
-  return cljs.core._write.call(null, writer__5347__auto__, "dacite.store.client-cache/WriteBackStore");
-};
-dacite.store.client_cache.__GT_WriteBackStore = function dacite$store$client_cache$__GT_WriteBackStore(local, remote, flushed) {
-  return new dacite.store.client_cache.WriteBackStore(local, remote, flushed, null, null, null);
-};
-dacite.store.client_cache.map__GT_WriteBackStore = function dacite$store$client_cache$map__GT_WriteBackStore(G__1804) {
-  var extmap__5342__auto__ = function() {
-    var G__1830 = cljs.core.dissoc.call(null, G__1804, new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576), new cljs.core.Keyword(null, "flushed", "flushed", 44294838));
-    if (cljs.core.record_QMARK_.call(null, G__1804)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__1830);
-    } else {
-      return G__1830;
-    }
-  }();
-  return new dacite.store.client_cache.WriteBackStore((new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(G__1804), (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(G__1804), (new cljs.core.Keyword(null, "flushed", "flushed", 44294838)).cljs$core$IFn$_invoke$arity$1(G__1804), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
-};
-dacite.store.client_cache.write_back_store_QMARK_ = function dacite$store$client_cache$write_back_store_QMARK_(s) {
-  return s instanceof dacite.store.client_cache.WriteBackStore;
-};
-dacite.store.client_cache.flush_reachable_BANG_ = function dacite$store$client_cache$flush_reachable_BANG_(s, root_h) {
-  if (!dacite.store.client_cache.write_back_store_QMARK_.call(null, s)) {
-    return 0;
-  } else {
-    var local = (new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(s);
-    var remote = (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(s);
-    var flushed = (new cljs.core.Keyword(null, "flushed", "flushed", 44294838)).cljs$core$IFn$_invoke$arity$1(s);
-    var live = dacite.rooted.gc.mark_reachable.call(null, local, root_h);
-    var to_send = cljs.core.remove.call(null, cljs.core.deref.call(null, flushed), live);
-    var seq__1858_1862 = cljs.core.seq.call(null, to_send);
-    var chunk__1859_1863 = null;
-    var count__1860_1864 = 0;
-    var i__1861_1865 = 0;
-    while (true) {
-      if (i__1861_1865 < count__1860_1864) {
-        var h_1866 = cljs.core._nth.call(null, chunk__1859_1863, i__1861_1865);
-        var temp__5825__auto___1867 = dacite.store.s_get.call(null, local, h_1866);
-        if (cljs.core.truth_(temp__5825__auto___1867)) {
-          var v_1868 = temp__5825__auto___1867;
-          dacite.store.s_put.call(null, remote, h_1866, v_1868);
-          cljs.core.swap_BANG_.call(null, flushed, cljs.core.conj, h_1866);
-        } else {
-        }
-        var G__1869 = seq__1858_1862;
-        var G__1870 = chunk__1859_1863;
-        var G__1871 = count__1860_1864;
-        var G__1872 = i__1861_1865 + 1;
-        seq__1858_1862 = G__1869;
-        chunk__1859_1863 = G__1870;
-        count__1860_1864 = G__1871;
-        i__1861_1865 = G__1872;
-        continue;
-      } else {
-        var temp__5825__auto___1873 = cljs.core.seq.call(null, seq__1858_1862);
-        if (temp__5825__auto___1873) {
-          var seq__1858_1874__$1 = temp__5825__auto___1873;
-          if (cljs.core.chunked_seq_QMARK_.call(null, seq__1858_1874__$1)) {
-            var c__5525__auto___1875 = cljs.core.chunk_first.call(null, seq__1858_1874__$1);
-            var G__1876 = cljs.core.chunk_rest.call(null, seq__1858_1874__$1);
-            var G__1877 = c__5525__auto___1875;
-            var G__1878 = cljs.core.count.call(null, c__5525__auto___1875);
-            var G__1879 = 0;
-            seq__1858_1862 = G__1876;
-            chunk__1859_1863 = G__1877;
-            count__1860_1864 = G__1878;
-            i__1861_1865 = G__1879;
-            continue;
-          } else {
-            var h_1880 = cljs.core.first.call(null, seq__1858_1874__$1);
-            var temp__5825__auto___1881__$1 = dacite.store.s_get.call(null, local, h_1880);
-            if (cljs.core.truth_(temp__5825__auto___1881__$1)) {
-              var v_1882 = temp__5825__auto___1881__$1;
-              dacite.store.s_put.call(null, remote, h_1880, v_1882);
-              cljs.core.swap_BANG_.call(null, flushed, cljs.core.conj, h_1880);
-            } else {
-            }
-            var G__1883 = cljs.core.next.call(null, seq__1858_1874__$1);
-            var G__1884 = null;
-            var G__1885 = 0;
-            var G__1886 = 0;
-            seq__1858_1862 = G__1883;
-            chunk__1859_1863 = G__1884;
-            count__1860_1864 = G__1885;
-            i__1861_1865 = G__1886;
-            continue;
+            return path.endsWith("/nodes");
           }
         } else {
+          return and__5000__auto__;
+        }
+      }())) {
+        return new cljs.core.Keyword(null, "nodes-put", "nodes-put", -2020882048);
+      } else {
+        if (clojure.string.includes_QMARK_.call(null, path, "/node/")) {
+          var G__1093 = m;
+          switch(G__1093) {
+            case "GET":
+              return new cljs.core.Keyword(null, "node-get", "node-get", 627829598);
+              break;
+            case "PUT":
+              return new cljs.core.Keyword(null, "node-put", "node-put", 314474694);
+              break;
+            case "HEAD":
+              return new cljs.core.Keyword(null, "node-head", "node-head", -536909961);
+              break;
+            case "DELETE":
+              return new cljs.core.Keyword(null, "node-delete", "node-delete", -1295742444);
+              break;
+            default:
+              return new cljs.core.Keyword(null, "node-other", "node-other", -1800359215);
+          }
+        } else {
+          return new cljs.core.Keyword(null, "other", "other", 995793544);
         }
       }
-      break;
     }
-    return cljs.core.count.call(null, to_send);
-  }
-};
-dacite.store.client_cache.wrap = function dacite$store$client_cache$wrap(remote, policy) {
-  var G__1887 = policy;
-  var G__1887__$1 = G__1887 instanceof cljs.core.Keyword ? G__1887.fqn : null;
-  switch(G__1887__$1) {
-    case "none":
-      return remote;
-      break;
-    case "layered":
-      return dacite.store.layered_store.call(null, dacite.store.mem_store.call(null), remote);
-      break;
-    case "smart-put":
-    case "smart-full":
-      return dacite.store.client_cache.__GT_SmartCacheStore.call(null, dacite.store.mem_store.call(null), remote);
-      break;
-    case "write-back":
-      return dacite.store.client_cache.__GT_WriteBackStore.call(null, dacite.store.mem_store.call(null), remote, cljs.core.atom.call(null, cljs.core.PersistentHashSet.EMPTY));
-      break;
-    default:
-      throw cljs.core.ex_info.call(null, "unknown client-cache policy", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "policy", "policy", 902736495), policy], null));
   }
 };
 goog.provide("cljs.tools.reader.impl.utils");
@@ -47146,11 +45942,1509 @@ dacite.wire.read_edn = function dacite$wire$read_edn(s) {
 dacite.wire.write_edn = function dacite$wire$write_edn(x) {
   return cljs.core.pr_str.call(null, dacite.wire.encode.call(null, x));
 };
+goog.provide("dacite.store.pack");
+goog.require("cljs.core");
+goog.require("dacite.store");
+goog.require("dacite.wire");
+dacite.store.pack.default_budget = 1024;
+dacite.store.pack.node_item = function dacite$store$pack$node_item(h, body) {
+  return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "encoding", "encoding", 1728578272), new cljs.core.Keyword(null, "node", "node", 581201198), new cljs.core.Keyword(null, "hash", "hash", -13781596), dacite.store.hash__GT_hex.call(null, h), new cljs.core.Keyword(null, "body", "body", -2049205669), body], null);
+};
+dacite.store.pack.item_size = function dacite$store$pack$item_size(item) {
+  return dacite.wire.write_edn.call(null, item).length;
+};
+dacite.store.pack.chunk_size = function dacite$store$pack$chunk_size(chunk) {
+  return dacite.wire.write_edn.call(null, chunk).length;
+};
+dacite.store.pack.make_chunk = function dacite$store$pack$make_chunk(budget, items) {
+  return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword("dacite.wire", "chunk-v1", "dacite.wire/chunk-v1", -1158089781), true, new cljs.core.Keyword(null, "budget", "budget", -405386281), budget, new cljs.core.Keyword(null, "items", "items", 1031954938), cljs.core.vec.call(null, items)], null);
+};
+dacite.store.pack.pack_items = function dacite$store$pack$pack_items(var_args) {
+  var G__1614 = arguments.length;
+  switch(G__1614) {
+    case 1:
+      return dacite.store.pack.pack_items.cljs$core$IFn$_invoke$arity$1(arguments[0]);
+      break;
+    case 2:
+      return dacite.store.pack.pack_items.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
+      break;
+    default:
+      throw new Error(["Invalid arity: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(arguments.length)].join(""));
+  }
+};
+dacite.store.pack.pack_items.cljs$core$IFn$_invoke$arity$1 = function(items) {
+  return dacite.store.pack.pack_items.call(null, items, dacite.store.pack.default_budget);
+};
+dacite.store.pack.pack_items.cljs$core$IFn$_invoke$arity$2 = function(items, budget) {
+  var budget__$1 = cljs.core.long$.call(null, function() {
+    var or__5002__auto__ = budget;
+    if (cljs.core.truth_(or__5002__auto__)) {
+      return or__5002__auto__;
+    } else {
+      return dacite.store.pack.default_budget;
+    }
+  }());
+  if (cljs.core.empty_QMARK_.call(null, items)) {
+    return cljs.core.PersistentVector.EMPTY;
+  } else {
+    var remaining = cljs.core.seq.call(null, items);
+    var cur = cljs.core.PersistentVector.EMPTY;
+    var out = cljs.core.PersistentVector.EMPTY;
+    while (true) {
+      var temp__5823__auto__ = cljs.core.first.call(null, remaining);
+      if (cljs.core.truth_(temp__5823__auto__)) {
+        var item = temp__5823__auto__;
+        var cur_SINGLEQUOTE_ = cljs.core.conj.call(null, cur, item);
+        var ch = dacite.store.pack.make_chunk.call(null, budget__$1, cur_SINGLEQUOTE_);
+        var sz = dacite.store.pack.chunk_size.call(null, ch);
+        if (sz >= budget__$1) {
+          var G__1616 = cljs.core.next.call(null, remaining);
+          var G__1617 = cljs.core.PersistentVector.EMPTY;
+          var G__1618 = cljs.core.conj.call(null, out, ch);
+          remaining = G__1616;
+          cur = G__1617;
+          out = G__1618;
+          continue;
+        } else {
+          var G__1619 = cljs.core.next.call(null, remaining);
+          var G__1620 = cur_SINGLEQUOTE_;
+          var G__1621 = out;
+          remaining = G__1619;
+          cur = G__1620;
+          out = G__1621;
+          continue;
+        }
+      } else {
+        if (cljs.core.seq.call(null, cur)) {
+          return cljs.core.conj.call(null, out, dacite.store.pack.make_chunk.call(null, budget__$1, cur));
+        } else {
+          return out;
+        }
+      }
+      break;
+    }
+  }
+};
+dacite.store.pack.pack_items.cljs$lang$maxFixedArity = 2;
+dacite.store.pack.chunk_QMARK_ = function dacite$store$pack$chunk_QMARK_(m) {
+  return cljs.core.map_QMARK_.call(null, m) && ((new cljs.core.Keyword("dacite.wire", "chunk-v1", "dacite.wire/chunk-v1", -1158089781)).cljs$core$IFn$_invoke$arity$1(m) === true || cljs.core.vector_QMARK_.call(null, (new cljs.core.Keyword(null, "items", "items", 1031954938)).cljs$core$IFn$_invoke$arity$1(m)));
+};
+dacite.store.pack.apply_chunk_BANG_ = function dacite$store$pack$apply_chunk_BANG_(st, chunk) {
+  var items = (new cljs.core.Keyword(null, "items", "items", 1031954938)).cljs$core$IFn$_invoke$arity$1(chunk);
+  var n = cljs.core.atom.call(null, 0);
+  var seq__1622_1630 = cljs.core.seq.call(null, items);
+  var chunk__1623_1631 = null;
+  var count__1624_1632 = 0;
+  var i__1625_1633 = 0;
+  while (true) {
+    if (i__1625_1633 < count__1624_1632) {
+      var item_1634 = cljs.core._nth.call(null, chunk__1623_1631, i__1625_1633);
+      var enc_1635 = cljs.core.keyword.call(null, (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(item_1634));
+      var hex_1636 = (new cljs.core.Keyword(null, "hash", "hash", -13781596)).cljs$core$IFn$_invoke$arity$1(item_1634);
+      var h_1637 = dacite.store.hex__GT_hash.call(null, hex_1636);
+      var G__1628_1638 = enc_1635;
+      var G__1628_1639__$1 = G__1628_1638 instanceof cljs.core.Keyword ? G__1628_1638.fqn : null;
+      switch(G__1628_1639__$1) {
+        case "node":
+          dacite.store.s_put.call(null, st, h_1637, (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_1634));
+          cljs.core.swap_BANG_.call(null, n, cljs.core.inc);
+          break;
+        default:
+          throw cljs.core.ex_info.call(null, "unsupported chunk item encoding (2a supports :node only)", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "encoding", "encoding", 1728578272), enc_1635, new cljs.core.Keyword(null, "hash", "hash", -13781596), hex_1636], null));
+      }
+      var G__1641 = seq__1622_1630;
+      var G__1642 = chunk__1623_1631;
+      var G__1643 = count__1624_1632;
+      var G__1644 = i__1625_1633 + 1;
+      seq__1622_1630 = G__1641;
+      chunk__1623_1631 = G__1642;
+      count__1624_1632 = G__1643;
+      i__1625_1633 = G__1644;
+      continue;
+    } else {
+      var temp__5825__auto___1645 = cljs.core.seq.call(null, seq__1622_1630);
+      if (temp__5825__auto___1645) {
+        var seq__1622_1646__$1 = temp__5825__auto___1645;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1622_1646__$1)) {
+          var c__5525__auto___1647 = cljs.core.chunk_first.call(null, seq__1622_1646__$1);
+          var G__1648 = cljs.core.chunk_rest.call(null, seq__1622_1646__$1);
+          var G__1649 = c__5525__auto___1647;
+          var G__1650 = cljs.core.count.call(null, c__5525__auto___1647);
+          var G__1651 = 0;
+          seq__1622_1630 = G__1648;
+          chunk__1623_1631 = G__1649;
+          count__1624_1632 = G__1650;
+          i__1625_1633 = G__1651;
+          continue;
+        } else {
+          var item_1652 = cljs.core.first.call(null, seq__1622_1646__$1);
+          var enc_1653 = cljs.core.keyword.call(null, (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(item_1652));
+          var hex_1654 = (new cljs.core.Keyword(null, "hash", "hash", -13781596)).cljs$core$IFn$_invoke$arity$1(item_1652);
+          var h_1655 = dacite.store.hex__GT_hash.call(null, hex_1654);
+          var G__1629_1656 = enc_1653;
+          var G__1629_1657__$1 = G__1629_1656 instanceof cljs.core.Keyword ? G__1629_1656.fqn : null;
+          switch(G__1629_1657__$1) {
+            case "node":
+              dacite.store.s_put.call(null, st, h_1655, (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_1652));
+              cljs.core.swap_BANG_.call(null, n, cljs.core.inc);
+              break;
+            default:
+              throw cljs.core.ex_info.call(null, "unsupported chunk item encoding (2a supports :node only)", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "encoding", "encoding", 1728578272), enc_1653, new cljs.core.Keyword(null, "hash", "hash", -13781596), hex_1654], null));
+          }
+          var G__1659 = cljs.core.next.call(null, seq__1622_1646__$1);
+          var G__1660 = null;
+          var G__1661 = 0;
+          var G__1662 = 0;
+          seq__1622_1630 = G__1659;
+          chunk__1623_1631 = G__1660;
+          count__1624_1632 = G__1661;
+          i__1625_1633 = G__1662;
+          continue;
+        }
+      } else {
+      }
+    }
+    break;
+  }
+  return new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "applied", "applied", -1208896155), cljs.core.deref.call(null, n)], null);
+};
+dacite.store.pack.IChunkTransport = function() {
+};
+var dacite$store$pack$IChunkTransport$send_chunk_BANG_$dyn_1663 = function(this$, chunk) {
+  var x__5350__auto__ = this$ == null ? null : this$;
+  var m__5351__auto__ = dacite.store.pack.send_chunk_BANG_[goog.typeOf(x__5350__auto__)];
+  if (!(m__5351__auto__ == null)) {
+    return m__5351__auto__.call(null, this$, chunk);
+  } else {
+    var m__5349__auto__ = dacite.store.pack.send_chunk_BANG_["_"];
+    if (!(m__5349__auto__ == null)) {
+      return m__5349__auto__.call(null, this$, chunk);
+    } else {
+      throw cljs.core.missing_protocol.call(null, "IChunkTransport.send-chunk!", this$);
+    }
+  }
+};
+dacite.store.pack.send_chunk_BANG_ = function dacite$store$pack$send_chunk_BANG_(this$, chunk) {
+  if (!(this$ == null) && !(this$.dacite$store$pack$IChunkTransport$send_chunk_BANG_$arity$2 == null)) {
+    return this$.dacite$store$pack$IChunkTransport$send_chunk_BANG_$arity$2(this$, chunk);
+  } else {
+    return dacite$store$pack$IChunkTransport$send_chunk_BANG_$dyn_1663.call(null, this$, chunk);
+  }
+};
+dacite.store.pack.put_items_chunked_BANG_ = function dacite$store$pack$put_items_chunked_BANG_(var_args) {
+  var G__1665 = arguments.length;
+  switch(G__1665) {
+    case 2:
+      return dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
+      break;
+    case 3:
+      return dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$3(arguments[0], arguments[1], arguments[2]);
+      break;
+    default:
+      throw new Error(["Invalid arity: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(arguments.length)].join(""));
+  }
+};
+dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$2 = function(transport, items) {
+  return dacite.store.pack.put_items_chunked_BANG_.call(null, transport, items, dacite.store.pack.default_budget);
+};
+dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$3 = function(transport, items, budget) {
+  var chunks = dacite.store.pack.pack_items.call(null, items, budget);
+  var seq__1666_1671 = cljs.core.seq.call(null, chunks);
+  var chunk__1667_1672 = null;
+  var count__1668_1673 = 0;
+  var i__1669_1674 = 0;
+  while (true) {
+    if (i__1669_1674 < count__1668_1673) {
+      var ch_1675 = cljs.core._nth.call(null, chunk__1667_1672, i__1669_1674);
+      dacite.store.pack.send_chunk_BANG_.call(null, transport, ch_1675);
+      var G__1676 = seq__1666_1671;
+      var G__1677 = chunk__1667_1672;
+      var G__1678 = count__1668_1673;
+      var G__1679 = i__1669_1674 + 1;
+      seq__1666_1671 = G__1676;
+      chunk__1667_1672 = G__1677;
+      count__1668_1673 = G__1678;
+      i__1669_1674 = G__1679;
+      continue;
+    } else {
+      var temp__5825__auto___1680 = cljs.core.seq.call(null, seq__1666_1671);
+      if (temp__5825__auto___1680) {
+        var seq__1666_1681__$1 = temp__5825__auto___1680;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1666_1681__$1)) {
+          var c__5525__auto___1682 = cljs.core.chunk_first.call(null, seq__1666_1681__$1);
+          var G__1683 = cljs.core.chunk_rest.call(null, seq__1666_1681__$1);
+          var G__1684 = c__5525__auto___1682;
+          var G__1685 = cljs.core.count.call(null, c__5525__auto___1682);
+          var G__1686 = 0;
+          seq__1666_1671 = G__1683;
+          chunk__1667_1672 = G__1684;
+          count__1668_1673 = G__1685;
+          i__1669_1674 = G__1686;
+          continue;
+        } else {
+          var ch_1687 = cljs.core.first.call(null, seq__1666_1681__$1);
+          dacite.store.pack.send_chunk_BANG_.call(null, transport, ch_1687);
+          var G__1688 = cljs.core.next.call(null, seq__1666_1681__$1);
+          var G__1689 = null;
+          var G__1690 = 0;
+          var G__1691 = 0;
+          seq__1666_1671 = G__1688;
+          chunk__1667_1672 = G__1689;
+          count__1668_1673 = G__1690;
+          i__1669_1674 = G__1691;
+          continue;
+        }
+      } else {
+      }
+    }
+    break;
+  }
+  return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "chunks", "chunks", 83720431), cljs.core.count.call(null, chunks), new cljs.core.Keyword(null, "items", "items", 1031954938), cljs.core.count.call(null, items)], null);
+};
+dacite.store.pack.put_items_chunked_BANG_.cljs$lang$maxFixedArity = 3;
+goog.provide("dacite.value.types");
+goog.require("cljs.core");
+goog.require("dacite.hash");
+goog.require("dacite.host");
+goog.require("dacite.store");
+dacite.value.types.IDaciteValue = function() {
+};
+var dacite$value$types$IDaciteValue$dacite_hash$dyn_1176 = function(this$) {
+  var x__5350__auto__ = this$ == null ? null : this$;
+  var m__5351__auto__ = dacite.value.types.dacite_hash[goog.typeOf(x__5350__auto__)];
+  if (!(m__5351__auto__ == null)) {
+    return m__5351__auto__.call(null, this$);
+  } else {
+    var m__5349__auto__ = dacite.value.types.dacite_hash["_"];
+    if (!(m__5349__auto__ == null)) {
+      return m__5349__auto__.call(null, this$);
+    } else {
+      throw cljs.core.missing_protocol.call(null, "IDaciteValue.dacite-hash", this$);
+    }
+  }
+};
+dacite.value.types.dacite_hash = function dacite$value$types$dacite_hash(this$) {
+  if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$dacite_hash$arity$1 == null)) {
+    return this$.dacite$value$types$IDaciteValue$dacite_hash$arity$1(this$);
+  } else {
+    return dacite$value$types$IDaciteValue$dacite_hash$dyn_1176.call(null, this$);
+  }
+};
+var dacite$value$types$IDaciteValue$dacite_store$dyn_1177 = function(this$) {
+  var x__5350__auto__ = this$ == null ? null : this$;
+  var m__5351__auto__ = dacite.value.types.dacite_store[goog.typeOf(x__5350__auto__)];
+  if (!(m__5351__auto__ == null)) {
+    return m__5351__auto__.call(null, this$);
+  } else {
+    var m__5349__auto__ = dacite.value.types.dacite_store["_"];
+    if (!(m__5349__auto__ == null)) {
+      return m__5349__auto__.call(null, this$);
+    } else {
+      throw cljs.core.missing_protocol.call(null, "IDaciteValue.dacite-store", this$);
+    }
+  }
+};
+dacite.value.types.dacite_store = function dacite$value$types$dacite_store(this$) {
+  if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$dacite_store$arity$1 == null)) {
+    return this$.dacite$value$types$IDaciteValue$dacite_store$arity$1(this$);
+  } else {
+    return dacite$value$types$IDaciteValue$dacite_store$dyn_1177.call(null, this$);
+  }
+};
+var dacite$value$types$IDaciteValue$dacite_type$dyn_1178 = function(this$) {
+  var x__5350__auto__ = this$ == null ? null : this$;
+  var m__5351__auto__ = dacite.value.types.dacite_type[goog.typeOf(x__5350__auto__)];
+  if (!(m__5351__auto__ == null)) {
+    return m__5351__auto__.call(null, this$);
+  } else {
+    var m__5349__auto__ = dacite.value.types.dacite_type["_"];
+    if (!(m__5349__auto__ == null)) {
+      return m__5349__auto__.call(null, this$);
+    } else {
+      throw cljs.core.missing_protocol.call(null, "IDaciteValue.dacite-type", this$);
+    }
+  }
+};
+dacite.value.types.dacite_type = function dacite$value$types$dacite_type(this$) {
+  if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$dacite_type$arity$1 == null)) {
+    return this$.dacite$value$types$IDaciteValue$dacite_type$arity$1(this$);
+  } else {
+    return dacite$value$types$IDaciteValue$dacite_type$dyn_1178.call(null, this$);
+  }
+};
+var dacite$value$types$IDaciteValue$realize$dyn_1179 = function(this$) {
+  var x__5350__auto__ = this$ == null ? null : this$;
+  var m__5351__auto__ = dacite.value.types.realize[goog.typeOf(x__5350__auto__)];
+  if (!(m__5351__auto__ == null)) {
+    return m__5351__auto__.call(null, this$);
+  } else {
+    var m__5349__auto__ = dacite.value.types.realize["_"];
+    if (!(m__5349__auto__ == null)) {
+      return m__5349__auto__.call(null, this$);
+    } else {
+      throw cljs.core.missing_protocol.call(null, "IDaciteValue.realize", this$);
+    }
+  }
+};
+dacite.value.types.realize = function dacite$value$types$realize(this$) {
+  if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$realize$arity$1 == null)) {
+    return this$.dacite$value$types$IDaciteValue$realize$arity$1(this$);
+  } else {
+    return dacite$value$types$IDaciteValue$realize$dyn_1179.call(null, this$);
+  }
+};
+dacite.value.types.entry_type = function dacite$value$types$entry_type(p__1180) {
+  var vec__1181 = p__1180;
+  var type_name = cljs.core.nth.call(null, vec__1181, 0, null);
+  var _ = cljs.core.nth.call(null, vec__1181, 1, null);
+  return type_name;
+};
+dacite.value.types.entry_data = function dacite$value$types$entry_data(p__1184) {
+  var vec__1185 = p__1184;
+  var _ = cljs.core.nth.call(null, vec__1185, 0, null);
+  var data = cljs.core.nth.call(null, vec__1185, 1, null);
+  return data;
+};
+dacite.value.types.null_separator = new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [0], null);
+dacite.value.types.null_separator_hash = dacite.hash.fuse_bytes.call(null, dacite.value.types.null_separator);
+dacite.value.types.type_hash_cache = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+dacite.value.types.type_hash = function dacite$value$types$type_hash(type_name) {
+  var or__5002__auto__ = cljs.core.deref.call(null, dacite.value.types.type_hash_cache).call(null, type_name);
+  if (cljs.core.truth_(or__5002__auto__)) {
+    return or__5002__auto__;
+  } else {
+    var h = dacite.hash.unchecked_fuse.call(null, dacite.hash.fuse_bytes.call(null, dacite.host.utf8_bytes.call(null, type_name)), dacite.value.types.null_separator_hash);
+    cljs.core.swap_BANG_.call(null, dacite.value.types.type_hash_cache, cljs.core.assoc, type_name, h);
+    return h;
+  }
+};
+dacite.value.types.value_hash = function dacite$value$types$value_hash(type_name, data_hash) {
+  return dacite.hash.unchecked_fuse.call(null, dacite.value.types.type_hash.call(null, type_name), data_hash);
+};
+dacite.value.types.node_hash = dacite.value.types.value_hash;
+dacite.value.types.content_hash = function dacite$value$types$content_hash(type_name, value_hash_v) {
+  return dacite.hash.unchecked_fuse.call(null, dacite.hash.fuse_inverse.call(null, dacite.value.types.type_hash.call(null, type_name)), value_hash_v);
+};
+if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.encode_value !== "undefined") {
+} else {
+  dacite.value.types.encode_value = function() {
+    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
+    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "encode-value"), dacite.value.types.entry_type, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
+  }();
+}
+cljs.core._add_method.call(null, dacite.value.types.encode_value, new cljs.core.Keyword(null, "default", "default", -1987822328), function(p__1188) {
+  var vec__1189 = p__1188;
+  var _ = cljs.core.nth.call(null, vec__1189, 0, null);
+  var data = cljs.core.nth.call(null, vec__1189, 1, null);
+  return dacite.host.utf8_bytes.call(null, cljs.core.pr_str.call(null, data));
+});
+dacite.value.types.scalar_data_hash = function dacite$value$types$scalar_data_hash(typed_value) {
+  return dacite.hash.fuse_bytes.call(null, dacite.value.types.encode_value.call(null, typed_value));
+};
+dacite.value.types.scalar_value_hash = function dacite$value$types$scalar_value_hash(typed_value) {
+  return dacite.value.types.value_hash.call(null, dacite.value.types.entry_type.call(null, typed_value), dacite.value.types.scalar_data_hash.call(null, typed_value));
+};
+if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.dacite_size !== "undefined") {
+} else {
+  dacite.value.types.dacite_size = function() {
+    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
+    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "dacite-size"), dacite.value.types.entry_type, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
+  }();
+}
+cljs.core._add_method.call(null, dacite.value.types.dacite_size, new cljs.core.Keyword(null, "default", "default", -1987822328), function(p__1192) {
+  var vec__1193 = p__1192;
+  var _ = cljs.core.nth.call(null, vec__1193, 0, null);
+  var data = cljs.core.nth.call(null, vec__1193, 1, null);
+  var temp__5823__auto__ = (new cljs.core.Keyword(null, "measure", "measure", -1857519826)).cljs$core$IFn$_invoke$arity$1(data);
+  if (cljs.core.truth_(temp__5823__auto__)) {
+    var m = temp__5823__auto__;
+    return (new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324)).cljs$core$IFn$_invoke$arity$1(m);
+  } else {
+    var temp__5823__auto____$1 = (new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324)).cljs$core$IFn$_invoke$arity$1(data);
+    if (cljs.core.truth_(temp__5823__auto____$1)) {
+      var sb = temp__5823__auto____$1;
+      return sb;
+    } else {
+      return cljs.core.count.call(null, dacite.host.utf8_bytes.call(null, cljs.core.pr_str.call(null, data)));
+    }
+  }
+});
+dacite.value.types.typed_value_hash = dacite.value.types.scalar_value_hash;
+if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.child_hashes !== "undefined") {
+} else {
+  dacite.value.types.child_hashes = function() {
+    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
+    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "child-hashes"), function(node) {
+      if (cljs.core.vector_QMARK_.call(null, node) && cljs.core._EQ_.call(null, 2, cljs.core.count.call(null, node))) {
+        return cljs.core.first.call(null, node);
+      } else {
+        return null;
+      }
+    }, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
+  }();
+}
+cljs.core._add_method.call(null, dacite.value.types.child_hashes, null, function(_) {
+  return null;
+});
+cljs.core._add_method.call(null, dacite.value.types.child_hashes, new cljs.core.Keyword(null, "default", "default", -1987822328), function(_) {
+  return cljs.core.PersistentVector.EMPTY;
+});
+var seq__1196_1216 = cljs.core.seq.call(null, new cljs.core.PersistentVector(null, 5, 5, cljs.core.PersistentVector.EMPTY_NODE, ["vector", "string", "blob", "map", "set"], null));
+var chunk__1197_1217 = null;
+var count__1198_1218 = 0;
+var i__1199_1219 = 0;
+while (true) {
+  if (i__1199_1219 < count__1198_1218) {
+    var t_1220 = cljs.core._nth.call(null, chunk__1197_1217, i__1199_1219);
+    cljs.core._add_method.call(null, dacite.value.types.child_hashes, t_1220, function(seq__1196_1216, chunk__1197_1217, count__1198_1218, i__1199_1219, t_1220) {
+      return function(p__1208) {
+        var vec__1209 = p__1208;
+        var _ = cljs.core.nth.call(null, vec__1209, 0, null);
+        var data = cljs.core.nth.call(null, vec__1209, 1, null);
+        return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [(new cljs.core.Keyword(null, "root", "root", -448657453)).cljs$core$IFn$_invoke$arity$1(data)], null);
+      };
+    }(seq__1196_1216, chunk__1197_1217, count__1198_1218, i__1199_1219, t_1220));
+    var G__1221 = seq__1196_1216;
+    var G__1222 = chunk__1197_1217;
+    var G__1223 = count__1198_1218;
+    var G__1224 = i__1199_1219 + 1;
+    seq__1196_1216 = G__1221;
+    chunk__1197_1217 = G__1222;
+    count__1198_1218 = G__1223;
+    i__1199_1219 = G__1224;
+    continue;
+  } else {
+    var temp__5825__auto___1225 = cljs.core.seq.call(null, seq__1196_1216);
+    if (temp__5825__auto___1225) {
+      var seq__1196_1226__$1 = temp__5825__auto___1225;
+      if (cljs.core.chunked_seq_QMARK_.call(null, seq__1196_1226__$1)) {
+        var c__5525__auto___1227 = cljs.core.chunk_first.call(null, seq__1196_1226__$1);
+        var G__1228 = cljs.core.chunk_rest.call(null, seq__1196_1226__$1);
+        var G__1229 = c__5525__auto___1227;
+        var G__1230 = cljs.core.count.call(null, c__5525__auto___1227);
+        var G__1231 = 0;
+        seq__1196_1216 = G__1228;
+        chunk__1197_1217 = G__1229;
+        count__1198_1218 = G__1230;
+        i__1199_1219 = G__1231;
+        continue;
+      } else {
+        var t_1232 = cljs.core.first.call(null, seq__1196_1226__$1);
+        cljs.core._add_method.call(null, dacite.value.types.child_hashes, t_1232, function(seq__1196_1216, chunk__1197_1217, count__1198_1218, i__1199_1219, t_1232, seq__1196_1226__$1, temp__5825__auto___1225) {
+          return function(p__1212) {
+            var vec__1213 = p__1212;
+            var _ = cljs.core.nth.call(null, vec__1213, 0, null);
+            var data = cljs.core.nth.call(null, vec__1213, 1, null);
+            return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [(new cljs.core.Keyword(null, "root", "root", -448657453)).cljs$core$IFn$_invoke$arity$1(data)], null);
+          };
+        }(seq__1196_1216, chunk__1197_1217, count__1198_1218, i__1199_1219, t_1232, seq__1196_1226__$1, temp__5825__auto___1225));
+        var G__1233 = cljs.core.next.call(null, seq__1196_1226__$1);
+        var G__1234 = null;
+        var G__1235 = 0;
+        var G__1236 = 0;
+        seq__1196_1216 = G__1233;
+        chunk__1197_1217 = G__1234;
+        count__1198_1218 = G__1235;
+        i__1199_1219 = G__1236;
+        continue;
+      }
+    } else {
+    }
+  }
+  break;
+}
+if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.wrap_entry !== "undefined") {
+} else {
+  dacite.value.types.wrap_entry = function() {
+    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
+    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "wrap-entry"), function(type_name, _store, _h) {
+      return type_name;
+    }, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
+  }();
+}
+dacite.value.types.coerce_kind = function dacite$value$types$coerce_kind(x) {
+  if (x == null) {
+    return new cljs.core.Keyword(null, "null", "null", -180137709);
+  } else {
+    if (typeof x === "string") {
+      return new cljs.core.Keyword(null, "string", "string", -1989541586);
+    } else {
+      if (cljs.core.integer_QMARK_.call(null, x)) {
+        return new cljs.core.Keyword(null, "i64", "i64", -727308002);
+      } else {
+        if (cljs.core.vector_QMARK_.call(null, x)) {
+          return new cljs.core.Keyword(null, "vector", "vector", 1902966158);
+        } else {
+          if (cljs.core.set_QMARK_.call(null, x)) {
+            return new cljs.core.Keyword(null, "set", "set", 304602554);
+          } else {
+            if (cljs.core.map_QMARK_.call(null, x)) {
+              return new cljs.core.Keyword(null, "map", "map", 1371690461);
+            } else {
+              if (cljs.core.boolean_QMARK_.call(null, x)) {
+                return new cljs.core.Keyword(null, "bool", "bool", 1444635321);
+              } else {
+                if (typeof x === "number") {
+                  return new cljs.core.Keyword(null, "f64", "f64", 592090464);
+                } else {
+                  if (cljs.core.sequential_QMARK_.call(null, x)) {
+                    return new cljs.core.Keyword(null, "sequential", "sequential", -1082983960);
+                  } else {
+                    return new cljs.core.Keyword(null, "unsupported", "unsupported", -1045607016);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+};
+if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && typeof dacite.value.types !== "undefined" && typeof dacite.value.types.coerce_and_store_BANG_ !== "undefined") {
+} else {
+  dacite.value.types.coerce_and_store_BANG_ = function() {
+    var method_table__5599__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var prefer_table__5600__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var method_cache__5601__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var cached_hierarchy__5602__auto__ = cljs.core.atom.call(null, cljs.core.PersistentArrayMap.EMPTY);
+    var hierarchy__5603__auto__ = cljs.core.get.call(null, cljs.core.PersistentArrayMap.EMPTY, new cljs.core.Keyword(null, "hierarchy", "hierarchy", -1053470341), cljs.core.get_global_hierarchy.call(null));
+    return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "coerce-and-store!"), function(_store, x) {
+      return dacite.value.types.coerce_kind.call(null, x);
+    }, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
+  }();
+}
+cljs.core._add_method.call(null, dacite.value.types.coerce_and_store_BANG_, new cljs.core.Keyword(null, "unsupported", "unsupported", -1045607016), function(_, x) {
+  throw cljs.core.ex_info.call(null, "Cannot coerce to dacite value", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "value", "value", 305978217), x, new cljs.core.Keyword(null, "type", "type", 1174270348), cljs.core.type.call(null, x)], null));
+});
+dacite.value.types.ensure_in_store_BANG_ = function dacite$value$types$ensure_in_store_BANG_(src, dst, h) {
+  if (cljs.core.truth_(function() {
+    var and__5000__auto__ = h;
+    if (cljs.core.truth_(and__5000__auto__)) {
+      return cljs.core.not.call(null, dacite.store.s_has_QMARK_.call(null, dst, h));
+    } else {
+      return and__5000__auto__;
+    }
+  }())) {
+    var temp__5823__auto___1241 = dacite.store.s_get.call(null, src, h);
+    if (cljs.core.truth_(temp__5823__auto___1241)) {
+      var node_1242 = temp__5823__auto___1241;
+      dacite.store.s_put.call(null, dst, h, node_1242);
+      var seq__1237_1243 = cljs.core.seq.call(null, function() {
+        var or__5002__auto__ = dacite.value.types.child_hashes.call(null, node_1242);
+        if (cljs.core.truth_(or__5002__auto__)) {
+          return or__5002__auto__;
+        } else {
+          return cljs.core.PersistentVector.EMPTY;
+        }
+      }());
+      var chunk__1238_1244 = null;
+      var count__1239_1245 = 0;
+      var i__1240_1246 = 0;
+      while (true) {
+        if (i__1240_1246 < count__1239_1245) {
+          var ch_1247 = cljs.core._nth.call(null, chunk__1238_1244, i__1240_1246);
+          dacite.value.types.ensure_in_store_BANG_.call(null, src, dst, ch_1247);
+          var G__1248 = seq__1237_1243;
+          var G__1249 = chunk__1238_1244;
+          var G__1250 = count__1239_1245;
+          var G__1251 = i__1240_1246 + 1;
+          seq__1237_1243 = G__1248;
+          chunk__1238_1244 = G__1249;
+          count__1239_1245 = G__1250;
+          i__1240_1246 = G__1251;
+          continue;
+        } else {
+          var temp__5825__auto___1252 = cljs.core.seq.call(null, seq__1237_1243);
+          if (temp__5825__auto___1252) {
+            var seq__1237_1253__$1 = temp__5825__auto___1252;
+            if (cljs.core.chunked_seq_QMARK_.call(null, seq__1237_1253__$1)) {
+              var c__5525__auto___1254 = cljs.core.chunk_first.call(null, seq__1237_1253__$1);
+              var G__1255 = cljs.core.chunk_rest.call(null, seq__1237_1253__$1);
+              var G__1256 = c__5525__auto___1254;
+              var G__1257 = cljs.core.count.call(null, c__5525__auto___1254);
+              var G__1258 = 0;
+              seq__1237_1243 = G__1255;
+              chunk__1238_1244 = G__1256;
+              count__1239_1245 = G__1257;
+              i__1240_1246 = G__1258;
+              continue;
+            } else {
+              var ch_1259 = cljs.core.first.call(null, seq__1237_1253__$1);
+              dacite.value.types.ensure_in_store_BANG_.call(null, src, dst, ch_1259);
+              var G__1260 = cljs.core.next.call(null, seq__1237_1253__$1);
+              var G__1261 = null;
+              var G__1262 = 0;
+              var G__1263 = 0;
+              seq__1237_1243 = G__1260;
+              chunk__1238_1244 = G__1261;
+              count__1239_1245 = G__1262;
+              i__1240_1246 = G__1263;
+              continue;
+            }
+          } else {
+          }
+        }
+        break;
+      }
+    } else {
+      throw cljs.core.ex_info.call(null, "Cannot ensure hash in store: missing from source", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "hash", "hash", -13781596), h], null));
+    }
+  } else {
+  }
+  return h;
+};
+dacite.value.types.extract_hash = function dacite$value$types$extract_hash(store, x) {
+  if (!(x == null) ? false || cljs.core.PROTOCOL_SENTINEL === x.dacite$value$types$IDaciteValue$ ? true : !x.cljs$lang$protocol_mask$partition$ ? cljs.core.native_satisfies_QMARK_.call(null, dacite.value.types.IDaciteValue, x) : false : cljs.core.native_satisfies_QMARK_.call(null, dacite.value.types.IDaciteValue, x)) {
+    var h = dacite.value.types.dacite_hash.call(null, x);
+    var src = dacite.value.types.dacite_store.call(null, x);
+    if (cljs.core.truth_(dacite.store.s_has_QMARK_.call(null, store, h))) {
+    } else {
+      dacite.value.types.ensure_in_store_BANG_.call(null, src, store, h);
+    }
+    return h;
+  } else {
+    return dacite.value.types.coerce_and_store_BANG_.call(null, store, x);
+  }
+};
+goog.provide("dacite.rooted.gc");
+goog.require("cljs.core");
+goog.require("dacite.store");
+goog.require("dacite.value.types");
+dacite.rooted.gc.__GT_hash = function dacite$rooted$gc$__GT_hash(k) {
+  if (typeof k === "string") {
+    return dacite.store.hex__GT_hash.call(null, k);
+  } else {
+    return k;
+  }
+};
+dacite.rooted.gc.mark_reachable = function dacite$rooted$gc$mark_reachable(store, root_hash) {
+  if (root_hash == null) {
+    return cljs.core.PersistentHashSet.EMPTY;
+  } else {
+    var queue = new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [root_hash], null);
+    var live = cljs.core.PersistentHashSet.EMPTY;
+    while (true) {
+      if (cljs.core.empty_QMARK_.call(null, queue)) {
+        return live;
+      } else {
+        var h = cljs.core.nth.call(null, queue, 0);
+        var queue_SINGLEQUOTE_ = cljs.core.subvec.call(null, queue, 1);
+        if (cljs.core.contains_QMARK_.call(null, live, h)) {
+          var G__1550 = queue_SINGLEQUOTE_;
+          var G__1551 = live;
+          queue = G__1550;
+          live = G__1551;
+          continue;
+        } else {
+          var temp__5827__auto__ = dacite.store.s_get.call(null, store, h);
+          if (temp__5827__auto__ == null) {
+            var G__1552 = queue_SINGLEQUOTE_;
+            var G__1553 = live;
+            queue = G__1552;
+            live = G__1553;
+            continue;
+          } else {
+            var node = temp__5827__auto__;
+            var children = function() {
+              var or__5002__auto__ = dacite.value.types.child_hashes.call(null, node);
+              if (cljs.core.truth_(or__5002__auto__)) {
+                return or__5002__auto__;
+              } else {
+                return cljs.core.PersistentVector.EMPTY;
+              }
+            }();
+            var live_SINGLEQUOTE_ = cljs.core.conj.call(null, live, h);
+            var queue_SINGLEQUOTE__SINGLEQUOTE_ = cljs.core.into.call(null, queue_SINGLEQUOTE_, children);
+            var G__1554 = queue_SINGLEQUOTE__SINGLEQUOTE_;
+            var G__1555 = live_SINGLEQUOTE_;
+            queue = G__1554;
+            live = G__1555;
+            continue;
+          }
+        }
+      }
+      break;
+    }
+  }
+};
+dacite.rooted.gc.collect_garbage_BANG_ = function dacite$rooted$gc$collect_garbage_BANG_(store, root_hash) {
+  var live = dacite.rooted.gc.mark_reachable.call(null, store, root_hash);
+  var all_hashes = cljs.core.map.call(null, dacite.rooted.gc.__GT_hash, cljs.core.keys.call(null, dacite.store.s_snapshot.call(null, store)));
+  var detached = cljs.core.remove.call(null, live, all_hashes);
+  var removed = cljs.core.count.call(null, detached);
+  var seq__1556_1560 = cljs.core.seq.call(null, detached);
+  var chunk__1557_1561 = null;
+  var count__1558_1562 = 0;
+  var i__1559_1563 = 0;
+  while (true) {
+    if (i__1559_1563 < count__1558_1562) {
+      var h_1564 = cljs.core._nth.call(null, chunk__1557_1561, i__1559_1563);
+      dacite.store.s_delete.call(null, store, h_1564);
+      var G__1565 = seq__1556_1560;
+      var G__1566 = chunk__1557_1561;
+      var G__1567 = count__1558_1562;
+      var G__1568 = i__1559_1563 + 1;
+      seq__1556_1560 = G__1565;
+      chunk__1557_1561 = G__1566;
+      count__1558_1562 = G__1567;
+      i__1559_1563 = G__1568;
+      continue;
+    } else {
+      var temp__5825__auto___1569 = cljs.core.seq.call(null, seq__1556_1560);
+      if (temp__5825__auto___1569) {
+        var seq__1556_1570__$1 = temp__5825__auto___1569;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1556_1570__$1)) {
+          var c__5525__auto___1571 = cljs.core.chunk_first.call(null, seq__1556_1570__$1);
+          var G__1572 = cljs.core.chunk_rest.call(null, seq__1556_1570__$1);
+          var G__1573 = c__5525__auto___1571;
+          var G__1574 = cljs.core.count.call(null, c__5525__auto___1571);
+          var G__1575 = 0;
+          seq__1556_1560 = G__1572;
+          chunk__1557_1561 = G__1573;
+          count__1558_1562 = G__1574;
+          i__1559_1563 = G__1575;
+          continue;
+        } else {
+          var h_1576 = cljs.core.first.call(null, seq__1556_1570__$1);
+          dacite.store.s_delete.call(null, store, h_1576);
+          var G__1577 = cljs.core.next.call(null, seq__1556_1570__$1);
+          var G__1578 = null;
+          var G__1579 = 0;
+          var G__1580 = 0;
+          seq__1556_1560 = G__1577;
+          chunk__1557_1561 = G__1578;
+          count__1558_1562 = G__1579;
+          i__1559_1563 = G__1580;
+          continue;
+        }
+      } else {
+      }
+    }
+    break;
+  }
+  return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "removed", "removed", 609626430), removed, new cljs.core.Keyword(null, "kept", "kept", 1300991554), cljs.core.count.call(null, live)], null);
+};
+goog.provide("dacite.store.client_cache");
+goog.require("cljs.core");
+goog.require("dacite.store");
+goog.require("dacite.store.pack");
+goog.require("dacite.rooted.gc");
+dacite.store.client_cache.SmartCacheStore = function(local, remote, __meta, __extmap, __hash) {
+  this.local = local;
+  this.remote = remote;
+  this.__meta = __meta;
+  this.__extmap = __extmap;
+  this.__hash = __hash;
+  this.cljs$lang$protocol_mask$partition0$ = 2230716170;
+  this.cljs$lang$protocol_mask$partition1$ = 139264;
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ILookup$_lookup$arity$2 = function(this__5300__auto__, k__5301__auto__) {
+  var self__ = this;
+  var this__5300__auto____$1 = this;
+  return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k1740, else__5303__auto__) {
+  var self__ = this;
+  var this__5302__auto____$1 = this;
+  var G__1744 = k1740;
+  var G__1744__$1 = G__1744 instanceof cljs.core.Keyword ? G__1744.fqn : null;
+  switch(G__1744__$1) {
+    case "local":
+      return self__.local;
+      break;
+    case "remote":
+      return self__.remote;
+      break;
+    default:
+      return cljs.core.get.call(null, self__.__extmap, k1740, else__5303__auto__);
+  }
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
+  var self__ = this;
+  var this__5320__auto____$1 = this;
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__1745) {
+    var vec__1746 = p__1745;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__1746, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__1746, 1, null);
+    return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
+  }, init__5322__auto__, this__5320__auto____$1);
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IPrintWithWriter$_pr_writer$arity$3 = function(this__5315__auto__, writer__5316__auto__, opts__5317__auto__) {
+  var self__ = this;
+  var this__5315__auto____$1 = this;
+  var pr_pair__5318__auto__ = function(keyval__5319__auto__) {
+    return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, cljs.core.pr_writer, "", " ", "", opts__5317__auto__, keyval__5319__auto__);
+  };
+  return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.client-cache.SmartCacheStore{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, 
+  [new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote], null)], null), self__.__extmap));
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__1739) {
+  var self__ = this;
+  var G__1739__$1 = this;
+  return new cljs.core.RecordIter(0, G__1739__$1, 2, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
+  var self__ = this;
+  var this__5298__auto____$1 = this;
+  return self__.__meta;
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ICloneable$_clone$arity$1 = function(this__5295__auto__) {
+  var self__ = this;
+  var this__5295__auto____$1 = this;
+  return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, self__.__meta, self__.__extmap, self__.__hash);
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ICounted$_count$arity$1 = function(this__5304__auto__) {
+  var self__ = this;
+  var this__5304__auto____$1 = this;
+  return 2 + cljs.core.count.call(null, self__.__extmap);
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IHash$_hash$arity$1 = function(this__5296__auto__) {
+  var self__ = this;
+  var this__5296__auto____$1 = this;
+  var h__5111__auto__ = self__.__hash;
+  if (!(h__5111__auto__ == null)) {
+    return h__5111__auto__;
+  } else {
+    var h__5111__auto____$1 = function(coll__5297__auto__) {
+      return 2134840560 ^ cljs.core.hash_unordered_coll.call(null, coll__5297__auto__);
+    }.call(null, this__5296__auto____$1);
+    self__.__hash = h__5111__auto____$1;
+    return h__5111__auto____$1;
+  }
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this1741, other1742) {
+  var self__ = this;
+  var this1741__$1 = this;
+  return !(other1742 == null) && (this1741__$1.constructor === other1742.constructor && (cljs.core._EQ_.call(null, this1741__$1.local, other1742.local) && (cljs.core._EQ_.call(null, this1741__$1.remote, other1742.remote) && cljs.core._EQ_.call(null, this1741__$1.__extmap, other1742.__extmap))));
+};
+dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
+dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
+  var self__ = this;
+  var ___$1 = this;
+  var temp__5823__auto__ = dacite.store.s_get.call(null, self__.local, h);
+  if (cljs.core.truth_(temp__5823__auto__)) {
+    var v = temp__5823__auto__;
+    return v;
+  } else {
+    var temp__5825__auto__ = dacite.store.s_get.call(null, self__.remote, h);
+    if (cljs.core.truth_(temp__5825__auto__)) {
+      var v = temp__5825__auto__;
+      dacite.store.s_put.call(null, self__.local, h, v);
+      return v;
+    } else {
+      return null;
+    }
+  }
+};
+dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_put$arity$3 = function(this$, h, value) {
+  var self__ = this;
+  var this$__$1 = this;
+  if (cljs.core.truth_(dacite.store.s_has_QMARK_.call(null, self__.local, h))) {
+    return this$__$1;
+  } else {
+    dacite.store.s_put.call(null, self__.local, h, value);
+    dacite.store.s_put.call(null, self__.remote, h, value);
+    return this$__$1;
+  }
+};
+dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_has_QMARK_$arity$2 = function(_, h) {
+  var self__ = this;
+  var ___$1 = this;
+  var or__5002__auto__ = dacite.store.s_has_QMARK_.call(null, self__.local, h);
+  if (cljs.core.truth_(or__5002__auto__)) {
+    return or__5002__auto__;
+  } else {
+    return dacite.store.s_has_QMARK_.call(null, self__.remote, h);
+  }
+};
+dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_delete$arity$2 = function(this$, h) {
+  var self__ = this;
+  var this$__$1 = this;
+  dacite.store.s_delete.call(null, self__.local, h);
+  dacite.store.s_delete.call(null, self__.remote, h);
+  return this$__$1;
+};
+dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_snapshot$arity$1 = function(_) {
+  var self__ = this;
+  var ___$1 = this;
+  return cljs.core.merge.call(null, dacite.store.s_snapshot.call(null, self__.remote), dacite.store.s_snapshot.call(null, self__.local));
+};
+dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_merge$arity$2 = function(this$, m) {
+  var self__ = this;
+  var this$__$1 = this;
+  var seq__1749_1771 = cljs.core.seq.call(null, m);
+  var chunk__1750_1772 = null;
+  var count__1751_1773 = 0;
+  var i__1752_1774 = 0;
+  while (true) {
+    if (i__1752_1774 < count__1751_1773) {
+      var vec__1759_1775 = cljs.core._nth.call(null, chunk__1750_1772, i__1752_1774);
+      var h_1776 = cljs.core.nth.call(null, vec__1759_1775, 0, null);
+      var v_1777 = cljs.core.nth.call(null, vec__1759_1775, 1, null);
+      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_1776, v_1777);
+      var G__1778 = seq__1749_1771;
+      var G__1779 = chunk__1750_1772;
+      var G__1780 = count__1751_1773;
+      var G__1781 = i__1752_1774 + 1;
+      seq__1749_1771 = G__1778;
+      chunk__1750_1772 = G__1779;
+      count__1751_1773 = G__1780;
+      i__1752_1774 = G__1781;
+      continue;
+    } else {
+      var temp__5825__auto___1782 = cljs.core.seq.call(null, seq__1749_1771);
+      if (temp__5825__auto___1782) {
+        var seq__1749_1783__$1 = temp__5825__auto___1782;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1749_1783__$1)) {
+          var c__5525__auto___1784 = cljs.core.chunk_first.call(null, seq__1749_1783__$1);
+          var G__1785 = cljs.core.chunk_rest.call(null, seq__1749_1783__$1);
+          var G__1786 = c__5525__auto___1784;
+          var G__1787 = cljs.core.count.call(null, c__5525__auto___1784);
+          var G__1788 = 0;
+          seq__1749_1771 = G__1785;
+          chunk__1750_1772 = G__1786;
+          count__1751_1773 = G__1787;
+          i__1752_1774 = G__1788;
+          continue;
+        } else {
+          var vec__1762_1789 = cljs.core.first.call(null, seq__1749_1783__$1);
+          var h_1790 = cljs.core.nth.call(null, vec__1762_1789, 0, null);
+          var v_1791 = cljs.core.nth.call(null, vec__1762_1789, 1, null);
+          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_1790, v_1791);
+          var G__1792 = cljs.core.next.call(null, seq__1749_1783__$1);
+          var G__1793 = null;
+          var G__1794 = 0;
+          var G__1795 = 0;
+          seq__1749_1771 = G__1792;
+          chunk__1750_1772 = G__1793;
+          count__1751_1773 = G__1794;
+          i__1752_1774 = G__1795;
+          continue;
+        }
+      } else {
+      }
+    }
+    break;
+  }
+  return this$__$1;
+};
+dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_reset$arity$1 = function(this$) {
+  var self__ = this;
+  var this$__$1 = this;
+  dacite.store.s_reset.call(null, self__.local);
+  return this$__$1;
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IMap$_dissoc$arity$2 = function(this__5310__auto__, k__5311__auto__) {
+  var self__ = this;
+  var this__5310__auto____$1 = this;
+  if (cljs.core.contains_QMARK_.call(null, new cljs.core.PersistentHashSet(null, new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "remote", "remote", -1593576576), null, new cljs.core.Keyword(null, "local", "local", -1497766724), null], null), null), k__5311__auto__)) {
+    return cljs.core.dissoc.call(null, cljs.core._with_meta.call(null, cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, this__5310__auto____$1), self__.__meta), k__5311__auto__);
+  } else {
+    return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
+  }
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k1740) {
+  var self__ = this;
+  var this__5307__auto____$1 = this;
+  var G__1765 = k1740;
+  var G__1765__$1 = G__1765 instanceof cljs.core.Keyword ? G__1765.fqn : null;
+  switch(G__1765__$1) {
+    case "local":
+    case "remote":
+      return true;
+      break;
+    default:
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k1740);
+  }
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__1739) {
+  var self__ = this;
+  var this__5308__auto____$1 = this;
+  var pred__1766 = cljs.core.keyword_identical_QMARK_;
+  var expr__1767 = k__5309__auto__;
+  if (cljs.core.truth_(pred__1766.call(null, new cljs.core.Keyword(null, "local", "local", -1497766724), expr__1767))) {
+    return new dacite.store.client_cache.SmartCacheStore(G__1739, self__.remote, self__.__meta, self__.__extmap, null);
+  } else {
+    if (cljs.core.truth_(pred__1766.call(null, new cljs.core.Keyword(null, "remote", "remote", -1593576576), expr__1767))) {
+      return new dacite.store.client_cache.SmartCacheStore(self__.local, G__1739, self__.__meta, self__.__extmap, null);
+    } else {
+      return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__1739), null);
+    }
+  }
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this__5313__auto__) {
+  var self__ = this;
+  var this__5313__auto____$1 = this;
+  return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote, null)], null), self__.__extmap));
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__1739) {
+  var self__ = this;
+  var this__5299__auto____$1 = this;
+  return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, G__1739, self__.__extmap, self__.__hash);
+};
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
+  var self__ = this;
+  var this__5305__auto____$1 = this;
+  if (cljs.core.vector_QMARK_.call(null, entry__5306__auto__)) {
+    return this__5305__auto____$1.cljs$core$IAssociative$_assoc$arity$3(null, cljs.core._nth.call(null, entry__5306__auto__, 0), cljs.core._nth.call(null, entry__5306__auto__, 1));
+  } else {
+    return cljs.core.reduce.call(null, cljs.core._conj, this__5305__auto____$1, entry__5306__auto__);
+  }
+};
+dacite.store.client_cache.SmartCacheStore.getBasis = function() {
+  return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Symbol(null, "local", "local", 142764803, null), new cljs.core.Symbol(null, "remote", "remote", 46954951, null)], null);
+};
+dacite.store.client_cache.SmartCacheStore.cljs$lang$type = true;
+dacite.store.client_cache.SmartCacheStore.cljs$lang$ctorPrSeq = function(this__5346__auto__) {
+  return new cljs.core.List(null, "dacite.store.client-cache/SmartCacheStore", null, 1, null);
+};
+dacite.store.client_cache.SmartCacheStore.cljs$lang$ctorPrWriter = function(this__5346__auto__, writer__5347__auto__) {
+  return cljs.core._write.call(null, writer__5347__auto__, "dacite.store.client-cache/SmartCacheStore");
+};
+dacite.store.client_cache.__GT_SmartCacheStore = function dacite$store$client_cache$__GT_SmartCacheStore(local, remote) {
+  return new dacite.store.client_cache.SmartCacheStore(local, remote, null, null, null);
+};
+dacite.store.client_cache.map__GT_SmartCacheStore = function dacite$store$client_cache$map__GT_SmartCacheStore(G__1743) {
+  var extmap__5342__auto__ = function() {
+    var G__1769 = cljs.core.dissoc.call(null, G__1743, new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576));
+    if (cljs.core.record_QMARK_.call(null, G__1743)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__1769);
+    } else {
+      return G__1769;
+    }
+  }();
+  return new dacite.store.client_cache.SmartCacheStore((new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(G__1743), (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(G__1743), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+};
+dacite.store.client_cache.WriteBackStore = function(local, remote, flushed, __meta, __extmap, __hash) {
+  this.local = local;
+  this.remote = remote;
+  this.flushed = flushed;
+  this.__meta = __meta;
+  this.__extmap = __extmap;
+  this.__hash = __hash;
+  this.cljs$lang$protocol_mask$partition0$ = 2230716170;
+  this.cljs$lang$protocol_mask$partition1$ = 139264;
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ILookup$_lookup$arity$2 = function(this__5300__auto__, k__5301__auto__) {
+  var self__ = this;
+  var this__5300__auto____$1 = this;
+  return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k1798, else__5303__auto__) {
+  var self__ = this;
+  var this__5302__auto____$1 = this;
+  var G__1802 = k1798;
+  var G__1802__$1 = G__1802 instanceof cljs.core.Keyword ? G__1802.fqn : null;
+  switch(G__1802__$1) {
+    case "local":
+      return self__.local;
+      break;
+    case "remote":
+      return self__.remote;
+      break;
+    case "flushed":
+      return self__.flushed;
+      break;
+    default:
+      return cljs.core.get.call(null, self__.__extmap, k1798, else__5303__auto__);
+  }
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
+  var self__ = this;
+  var this__5320__auto____$1 = this;
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__1803) {
+    var vec__1804 = p__1803;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__1804, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__1804, 1, null);
+    return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
+  }, init__5322__auto__, this__5320__auto____$1);
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IPrintWithWriter$_pr_writer$arity$3 = function(this__5315__auto__, writer__5316__auto__, opts__5317__auto__) {
+  var self__ = this;
+  var this__5315__auto____$1 = this;
+  var pr_pair__5318__auto__ = function(keyval__5319__auto__) {
+    return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, cljs.core.pr_writer, "", " ", "", opts__5317__auto__, keyval__5319__auto__);
+  };
+  return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.client-cache.WriteBackStore{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, 
+  [new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "flushed", "flushed", 44294838), self__.flushed], null)], null), self__.__extmap));
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__1797) {
+  var self__ = this;
+  var G__1797__$1 = this;
+  return new cljs.core.RecordIter(0, G__1797__$1, 3, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576), new cljs.core.Keyword(null, "flushed", "flushed", 44294838)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
+  var self__ = this;
+  var this__5298__auto____$1 = this;
+  return self__.__meta;
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ICloneable$_clone$arity$1 = function(this__5295__auto__) {
+  var self__ = this;
+  var this__5295__auto____$1 = this;
+  return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, self__.__meta, self__.__extmap, self__.__hash);
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ICounted$_count$arity$1 = function(this__5304__auto__) {
+  var self__ = this;
+  var this__5304__auto____$1 = this;
+  return 3 + cljs.core.count.call(null, self__.__extmap);
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IHash$_hash$arity$1 = function(this__5296__auto__) {
+  var self__ = this;
+  var this__5296__auto____$1 = this;
+  var h__5111__auto__ = self__.__hash;
+  if (!(h__5111__auto__ == null)) {
+    return h__5111__auto__;
+  } else {
+    var h__5111__auto____$1 = function(coll__5297__auto__) {
+      return -1777873170 ^ cljs.core.hash_unordered_coll.call(null, coll__5297__auto__);
+    }.call(null, this__5296__auto____$1);
+    self__.__hash = h__5111__auto____$1;
+    return h__5111__auto____$1;
+  }
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this1799, other1800) {
+  var self__ = this;
+  var this1799__$1 = this;
+  return !(other1800 == null) && (this1799__$1.constructor === other1800.constructor && (cljs.core._EQ_.call(null, this1799__$1.local, other1800.local) && (cljs.core._EQ_.call(null, this1799__$1.remote, other1800.remote) && (cljs.core._EQ_.call(null, this1799__$1.flushed, other1800.flushed) && cljs.core._EQ_.call(null, this1799__$1.__extmap, other1800.__extmap)))));
+};
+dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
+dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
+  var self__ = this;
+  var ___$1 = this;
+  var temp__5823__auto__ = dacite.store.s_get.call(null, self__.local, h);
+  if (cljs.core.truth_(temp__5823__auto__)) {
+    var v = temp__5823__auto__;
+    return v;
+  } else {
+    var temp__5825__auto__ = dacite.store.s_get.call(null, self__.remote, h);
+    if (cljs.core.truth_(temp__5825__auto__)) {
+      var v = temp__5825__auto__;
+      dacite.store.s_put.call(null, self__.local, h, v);
+      cljs.core.swap_BANG_.call(null, self__.flushed, cljs.core.conj, h);
+      return v;
+    } else {
+      return null;
+    }
+  }
+};
+dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_put$arity$3 = function(this$, h, value) {
+  var self__ = this;
+  var this$__$1 = this;
+  dacite.store.s_put.call(null, self__.local, h, value);
+  return this$__$1;
+};
+dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_has_QMARK_$arity$2 = function(_, h) {
+  var self__ = this;
+  var ___$1 = this;
+  var or__5002__auto__ = dacite.store.s_has_QMARK_.call(null, self__.local, h);
+  if (cljs.core.truth_(or__5002__auto__)) {
+    return or__5002__auto__;
+  } else {
+    return dacite.store.s_has_QMARK_.call(null, self__.remote, h);
+  }
+};
+dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_delete$arity$2 = function(this$, h) {
+  var self__ = this;
+  var this$__$1 = this;
+  dacite.store.s_delete.call(null, self__.local, h);
+  dacite.store.s_delete.call(null, self__.remote, h);
+  cljs.core.swap_BANG_.call(null, self__.flushed, cljs.core.disj, h);
+  return this$__$1;
+};
+dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_snapshot$arity$1 = function(_) {
+  var self__ = this;
+  var ___$1 = this;
+  return cljs.core.merge.call(null, dacite.store.s_snapshot.call(null, self__.remote), dacite.store.s_snapshot.call(null, self__.local));
+};
+dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_merge$arity$2 = function(this$, m) {
+  var self__ = this;
+  var this$__$1 = this;
+  var seq__1807_1829 = cljs.core.seq.call(null, m);
+  var chunk__1808_1830 = null;
+  var count__1809_1831 = 0;
+  var i__1810_1832 = 0;
+  while (true) {
+    if (i__1810_1832 < count__1809_1831) {
+      var vec__1817_1833 = cljs.core._nth.call(null, chunk__1808_1830, i__1810_1832);
+      var h_1834 = cljs.core.nth.call(null, vec__1817_1833, 0, null);
+      var v_1835 = cljs.core.nth.call(null, vec__1817_1833, 1, null);
+      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_1834, v_1835);
+      var G__1836 = seq__1807_1829;
+      var G__1837 = chunk__1808_1830;
+      var G__1838 = count__1809_1831;
+      var G__1839 = i__1810_1832 + 1;
+      seq__1807_1829 = G__1836;
+      chunk__1808_1830 = G__1837;
+      count__1809_1831 = G__1838;
+      i__1810_1832 = G__1839;
+      continue;
+    } else {
+      var temp__5825__auto___1840 = cljs.core.seq.call(null, seq__1807_1829);
+      if (temp__5825__auto___1840) {
+        var seq__1807_1841__$1 = temp__5825__auto___1840;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1807_1841__$1)) {
+          var c__5525__auto___1842 = cljs.core.chunk_first.call(null, seq__1807_1841__$1);
+          var G__1843 = cljs.core.chunk_rest.call(null, seq__1807_1841__$1);
+          var G__1844 = c__5525__auto___1842;
+          var G__1845 = cljs.core.count.call(null, c__5525__auto___1842);
+          var G__1846 = 0;
+          seq__1807_1829 = G__1843;
+          chunk__1808_1830 = G__1844;
+          count__1809_1831 = G__1845;
+          i__1810_1832 = G__1846;
+          continue;
+        } else {
+          var vec__1820_1847 = cljs.core.first.call(null, seq__1807_1841__$1);
+          var h_1848 = cljs.core.nth.call(null, vec__1820_1847, 0, null);
+          var v_1849 = cljs.core.nth.call(null, vec__1820_1847, 1, null);
+          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_1848, v_1849);
+          var G__1850 = cljs.core.next.call(null, seq__1807_1841__$1);
+          var G__1851 = null;
+          var G__1852 = 0;
+          var G__1853 = 0;
+          seq__1807_1829 = G__1850;
+          chunk__1808_1830 = G__1851;
+          count__1809_1831 = G__1852;
+          i__1810_1832 = G__1853;
+          continue;
+        }
+      } else {
+      }
+    }
+    break;
+  }
+  return this$__$1;
+};
+dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_reset$arity$1 = function(this$) {
+  var self__ = this;
+  var this$__$1 = this;
+  dacite.store.s_reset.call(null, self__.local);
+  cljs.core.reset_BANG_.call(null, self__.flushed, cljs.core.PersistentHashSet.EMPTY);
+  return this$__$1;
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IMap$_dissoc$arity$2 = function(this__5310__auto__, k__5311__auto__) {
+  var self__ = this;
+  var this__5310__auto____$1 = this;
+  if (cljs.core.contains_QMARK_.call(null, new cljs.core.PersistentHashSet(null, new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "remote", "remote", -1593576576), null, new cljs.core.Keyword(null, "flushed", "flushed", 44294838), null, new cljs.core.Keyword(null, "local", "local", -1497766724), null], null), null), k__5311__auto__)) {
+    return cljs.core.dissoc.call(null, cljs.core._with_meta.call(null, cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, this__5310__auto____$1), self__.__meta), k__5311__auto__);
+  } else {
+    return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
+  }
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k1798) {
+  var self__ = this;
+  var this__5307__auto____$1 = this;
+  var G__1823 = k1798;
+  var G__1823__$1 = G__1823 instanceof cljs.core.Keyword ? G__1823.fqn : null;
+  switch(G__1823__$1) {
+    case "local":
+    case "remote":
+    case "flushed":
+      return true;
+      break;
+    default:
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k1798);
+  }
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__1797) {
+  var self__ = this;
+  var this__5308__auto____$1 = this;
+  var pred__1824 = cljs.core.keyword_identical_QMARK_;
+  var expr__1825 = k__5309__auto__;
+  if (cljs.core.truth_(pred__1824.call(null, new cljs.core.Keyword(null, "local", "local", -1497766724), expr__1825))) {
+    return new dacite.store.client_cache.WriteBackStore(G__1797, self__.remote, self__.flushed, self__.__meta, self__.__extmap, null);
+  } else {
+    if (cljs.core.truth_(pred__1824.call(null, new cljs.core.Keyword(null, "remote", "remote", -1593576576), expr__1825))) {
+      return new dacite.store.client_cache.WriteBackStore(self__.local, G__1797, self__.flushed, self__.__meta, self__.__extmap, null);
+    } else {
+      if (cljs.core.truth_(pred__1824.call(null, new cljs.core.Keyword(null, "flushed", "flushed", 44294838), expr__1825))) {
+        return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, G__1797, self__.__meta, self__.__extmap, null);
+      } else {
+        return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__1797), null);
+      }
+    }
+  }
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this__5313__auto__) {
+  var self__ = this;
+  var this__5313__auto____$1 = this;
+  return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "flushed", "flushed", 44294838), self__.flushed, null)], null), self__.__extmap));
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__1797) {
+  var self__ = this;
+  var this__5299__auto____$1 = this;
+  return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, G__1797, self__.__extmap, self__.__hash);
+};
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
+  var self__ = this;
+  var this__5305__auto____$1 = this;
+  if (cljs.core.vector_QMARK_.call(null, entry__5306__auto__)) {
+    return this__5305__auto____$1.cljs$core$IAssociative$_assoc$arity$3(null, cljs.core._nth.call(null, entry__5306__auto__, 0), cljs.core._nth.call(null, entry__5306__auto__, 1));
+  } else {
+    return cljs.core.reduce.call(null, cljs.core._conj, this__5305__auto____$1, entry__5306__auto__);
+  }
+};
+dacite.store.client_cache.WriteBackStore.getBasis = function() {
+  return new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Symbol(null, "local", "local", 142764803, null), new cljs.core.Symbol(null, "remote", "remote", 46954951, null), new cljs.core.Symbol(null, "flushed", "flushed", 1684826365, null)], null);
+};
+dacite.store.client_cache.WriteBackStore.cljs$lang$type = true;
+dacite.store.client_cache.WriteBackStore.cljs$lang$ctorPrSeq = function(this__5346__auto__) {
+  return new cljs.core.List(null, "dacite.store.client-cache/WriteBackStore", null, 1, null);
+};
+dacite.store.client_cache.WriteBackStore.cljs$lang$ctorPrWriter = function(this__5346__auto__, writer__5347__auto__) {
+  return cljs.core._write.call(null, writer__5347__auto__, "dacite.store.client-cache/WriteBackStore");
+};
+dacite.store.client_cache.__GT_WriteBackStore = function dacite$store$client_cache$__GT_WriteBackStore(local, remote, flushed) {
+  return new dacite.store.client_cache.WriteBackStore(local, remote, flushed, null, null, null);
+};
+dacite.store.client_cache.map__GT_WriteBackStore = function dacite$store$client_cache$map__GT_WriteBackStore(G__1801) {
+  var extmap__5342__auto__ = function() {
+    var G__1827 = cljs.core.dissoc.call(null, G__1801, new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576), new cljs.core.Keyword(null, "flushed", "flushed", 44294838));
+    if (cljs.core.record_QMARK_.call(null, G__1801)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__1827);
+    } else {
+      return G__1827;
+    }
+  }();
+  return new dacite.store.client_cache.WriteBackStore((new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(G__1801), (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(G__1801), (new cljs.core.Keyword(null, "flushed", "flushed", 44294838)).cljs$core$IFn$_invoke$arity$1(G__1801), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+};
+dacite.store.client_cache.write_back_store_QMARK_ = function dacite$store$client_cache$write_back_store_QMARK_(s) {
+  return s instanceof dacite.store.client_cache.WriteBackStore;
+};
+dacite.store.client_cache.flush_reachable_BANG_ = function dacite$store$client_cache$flush_reachable_BANG_(s, root_h) {
+  if (!dacite.store.client_cache.write_back_store_QMARK_.call(null, s)) {
+    return 0;
+  } else {
+    var local = (new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(s);
+    var remote = (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(s);
+    var flushed = (new cljs.core.Keyword(null, "flushed", "flushed", 44294838)).cljs$core$IFn$_invoke$arity$1(s);
+    var live = dacite.rooted.gc.mark_reachable.call(null, local, root_h);
+    var to_send = cljs.core.vec.call(null, cljs.core.remove.call(null, cljs.core.deref.call(null, flushed), live));
+    var pairs = cljs.core.keep.call(null, function(h) {
+      var temp__5825__auto__ = dacite.store.s_get.call(null, local, h);
+      if (cljs.core.truth_(temp__5825__auto__)) {
+        var v = temp__5825__auto__;
+        return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [h, v], null);
+      } else {
+        return null;
+      }
+    }, to_send);
+    if (cljs.core.empty_QMARK_.call(null, pairs)) {
+      return 0;
+    } else {
+      if (!(remote == null) ? false || cljs.core.PROTOCOL_SENTINEL === remote.dacite$store$pack$IChunkTransport$ ? true : !remote.cljs$lang$protocol_mask$partition$ ? cljs.core.native_satisfies_QMARK_.call(null, dacite.store.pack.IChunkTransport, remote) : false : cljs.core.native_satisfies_QMARK_.call(null, dacite.store.pack.IChunkTransport, remote)) {
+        var items_1876 = cljs.core.mapv.call(null, function(p__1856) {
+          var vec__1857 = p__1856;
+          var h = cljs.core.nth.call(null, vec__1857, 0, null);
+          var v = cljs.core.nth.call(null, vec__1857, 1, null);
+          return dacite.store.pack.node_item.call(null, h, v);
+        }, pairs);
+        dacite.store.pack.put_items_chunked_BANG_.call(null, remote, items_1876, dacite.store.pack.default_budget);
+      } else {
+        var seq__1860_1877 = cljs.core.seq.call(null, pairs);
+        var chunk__1861_1878 = null;
+        var count__1862_1879 = 0;
+        var i__1863_1880 = 0;
+        while (true) {
+          if (i__1863_1880 < count__1862_1879) {
+            var vec__1870_1881 = cljs.core._nth.call(null, chunk__1861_1878, i__1863_1880);
+            var h_1882 = cljs.core.nth.call(null, vec__1870_1881, 0, null);
+            var v_1883 = cljs.core.nth.call(null, vec__1870_1881, 1, null);
+            dacite.store.s_put.call(null, remote, h_1882, v_1883);
+            var G__1884 = seq__1860_1877;
+            var G__1885 = chunk__1861_1878;
+            var G__1886 = count__1862_1879;
+            var G__1887 = i__1863_1880 + 1;
+            seq__1860_1877 = G__1884;
+            chunk__1861_1878 = G__1885;
+            count__1862_1879 = G__1886;
+            i__1863_1880 = G__1887;
+            continue;
+          } else {
+            var temp__5825__auto___1888 = cljs.core.seq.call(null, seq__1860_1877);
+            if (temp__5825__auto___1888) {
+              var seq__1860_1889__$1 = temp__5825__auto___1888;
+              if (cljs.core.chunked_seq_QMARK_.call(null, seq__1860_1889__$1)) {
+                var c__5525__auto___1890 = cljs.core.chunk_first.call(null, seq__1860_1889__$1);
+                var G__1891 = cljs.core.chunk_rest.call(null, seq__1860_1889__$1);
+                var G__1892 = c__5525__auto___1890;
+                var G__1893 = cljs.core.count.call(null, c__5525__auto___1890);
+                var G__1894 = 0;
+                seq__1860_1877 = G__1891;
+                chunk__1861_1878 = G__1892;
+                count__1862_1879 = G__1893;
+                i__1863_1880 = G__1894;
+                continue;
+              } else {
+                var vec__1873_1895 = cljs.core.first.call(null, seq__1860_1889__$1);
+                var h_1896 = cljs.core.nth.call(null, vec__1873_1895, 0, null);
+                var v_1897 = cljs.core.nth.call(null, vec__1873_1895, 1, null);
+                dacite.store.s_put.call(null, remote, h_1896, v_1897);
+                var G__1898 = cljs.core.next.call(null, seq__1860_1889__$1);
+                var G__1899 = null;
+                var G__1900 = 0;
+                var G__1901 = 0;
+                seq__1860_1877 = G__1898;
+                chunk__1861_1878 = G__1899;
+                count__1862_1879 = G__1900;
+                i__1863_1880 = G__1901;
+                continue;
+              }
+            } else {
+            }
+          }
+          break;
+        }
+      }
+      cljs.core.swap_BANG_.call(null, flushed, cljs.core.into, cljs.core.map.call(null, cljs.core.first, pairs));
+      return cljs.core.count.call(null, pairs);
+    }
+  }
+};
+dacite.store.client_cache.wrap = function dacite$store$client_cache$wrap(remote, policy) {
+  var G__1902 = policy;
+  var G__1902__$1 = G__1902 instanceof cljs.core.Keyword ? G__1902.fqn : null;
+  switch(G__1902__$1) {
+    case "none":
+      return remote;
+      break;
+    case "layered":
+      return dacite.store.layered_store.call(null, dacite.store.mem_store.call(null), remote);
+      break;
+    case "smart-put":
+    case "smart-full":
+      return dacite.store.client_cache.__GT_SmartCacheStore.call(null, dacite.store.mem_store.call(null), remote);
+      break;
+    case "write-back":
+      return dacite.store.client_cache.__GT_WriteBackStore.call(null, dacite.store.mem_store.call(null), remote, cljs.core.atom.call(null, cljs.core.PersistentHashSet.EMPTY));
+      break;
+    default:
+      throw cljs.core.ex_info.call(null, "unknown client-cache policy", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "policy", "policy", 902736495), policy], null));
+  }
+};
 goog.provide("dacite.store.browser");
 goog.require("cljs.core");
 goog.require("clojure.string");
 goog.require("dacite.store");
 goog.require("dacite.store.stats");
+goog.require("dacite.store.pack");
 goog.require("dacite.store.client_cache");
 goog.require("dacite.wire");
 dacite.store.browser.empty_stats = dacite.store.stats.empty_stats;
@@ -47170,53 +47464,53 @@ dacite.store.browser.node_url = function dacite$store$browser$node_url(base_url,
 dacite.store.browser.xhr = function dacite$store$browser$xhr(method, url, body, headers) {
   var x = new XMLHttpRequest();
   x.open(method, url, false);
-  var seq__2312_2328 = cljs.core.seq.call(null, headers);
-  var chunk__2313_2329 = null;
-  var count__2314_2330 = 0;
-  var i__2315_2331 = 0;
+  var seq__1906_1922 = cljs.core.seq.call(null, headers);
+  var chunk__1907_1923 = null;
+  var count__1908_1924 = 0;
+  var i__1909_1925 = 0;
   while (true) {
-    if (i__2315_2331 < count__2314_2330) {
-      var vec__2322_2332 = cljs.core._nth.call(null, chunk__2313_2329, i__2315_2331);
-      var k_2333 = cljs.core.nth.call(null, vec__2322_2332, 0, null);
-      var v_2334 = cljs.core.nth.call(null, vec__2322_2332, 1, null);
-      x.setRequestHeader(cljs.core.name.call(null, k_2333), cljs.core.str.cljs$core$IFn$_invoke$arity$1(v_2334));
-      var G__2335 = seq__2312_2328;
-      var G__2336 = chunk__2313_2329;
-      var G__2337 = count__2314_2330;
-      var G__2338 = i__2315_2331 + 1;
-      seq__2312_2328 = G__2335;
-      chunk__2313_2329 = G__2336;
-      count__2314_2330 = G__2337;
-      i__2315_2331 = G__2338;
+    if (i__1909_1925 < count__1908_1924) {
+      var vec__1916_1926 = cljs.core._nth.call(null, chunk__1907_1923, i__1909_1925);
+      var k_1927 = cljs.core.nth.call(null, vec__1916_1926, 0, null);
+      var v_1928 = cljs.core.nth.call(null, vec__1916_1926, 1, null);
+      x.setRequestHeader(cljs.core.name.call(null, k_1927), cljs.core.str.cljs$core$IFn$_invoke$arity$1(v_1928));
+      var G__1929 = seq__1906_1922;
+      var G__1930 = chunk__1907_1923;
+      var G__1931 = count__1908_1924;
+      var G__1932 = i__1909_1925 + 1;
+      seq__1906_1922 = G__1929;
+      chunk__1907_1923 = G__1930;
+      count__1908_1924 = G__1931;
+      i__1909_1925 = G__1932;
       continue;
     } else {
-      var temp__5825__auto___2339 = cljs.core.seq.call(null, seq__2312_2328);
-      if (temp__5825__auto___2339) {
-        var seq__2312_2340__$1 = temp__5825__auto___2339;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2312_2340__$1)) {
-          var c__5525__auto___2341 = cljs.core.chunk_first.call(null, seq__2312_2340__$1);
-          var G__2342 = cljs.core.chunk_rest.call(null, seq__2312_2340__$1);
-          var G__2343 = c__5525__auto___2341;
-          var G__2344 = cljs.core.count.call(null, c__5525__auto___2341);
-          var G__2345 = 0;
-          seq__2312_2328 = G__2342;
-          chunk__2313_2329 = G__2343;
-          count__2314_2330 = G__2344;
-          i__2315_2331 = G__2345;
+      var temp__5825__auto___1933 = cljs.core.seq.call(null, seq__1906_1922);
+      if (temp__5825__auto___1933) {
+        var seq__1906_1934__$1 = temp__5825__auto___1933;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1906_1934__$1)) {
+          var c__5525__auto___1935 = cljs.core.chunk_first.call(null, seq__1906_1934__$1);
+          var G__1936 = cljs.core.chunk_rest.call(null, seq__1906_1934__$1);
+          var G__1937 = c__5525__auto___1935;
+          var G__1938 = cljs.core.count.call(null, c__5525__auto___1935);
+          var G__1939 = 0;
+          seq__1906_1922 = G__1936;
+          chunk__1907_1923 = G__1937;
+          count__1908_1924 = G__1938;
+          i__1909_1925 = G__1939;
           continue;
         } else {
-          var vec__2325_2346 = cljs.core.first.call(null, seq__2312_2340__$1);
-          var k_2347 = cljs.core.nth.call(null, vec__2325_2346, 0, null);
-          var v_2348 = cljs.core.nth.call(null, vec__2325_2346, 1, null);
-          x.setRequestHeader(cljs.core.name.call(null, k_2347), cljs.core.str.cljs$core$IFn$_invoke$arity$1(v_2348));
-          var G__2349 = cljs.core.next.call(null, seq__2312_2340__$1);
-          var G__2350 = null;
-          var G__2351 = 0;
-          var G__2352 = 0;
-          seq__2312_2328 = G__2349;
-          chunk__2313_2329 = G__2350;
-          count__2314_2330 = G__2351;
-          i__2315_2331 = G__2352;
+          var vec__1919_1940 = cljs.core.first.call(null, seq__1906_1934__$1);
+          var k_1941 = cljs.core.nth.call(null, vec__1919_1940, 0, null);
+          var v_1942 = cljs.core.nth.call(null, vec__1919_1940, 1, null);
+          x.setRequestHeader(cljs.core.name.call(null, k_1941), cljs.core.str.cljs$core$IFn$_invoke$arity$1(v_1942));
+          var G__1943 = cljs.core.next.call(null, seq__1906_1934__$1);
+          var G__1944 = null;
+          var G__1945 = 0;
+          var G__1946 = 0;
+          seq__1906_1922 = G__1943;
+          chunk__1907_1923 = G__1944;
+          count__1908_1924 = G__1945;
+          i__1909_1925 = G__1946;
           continue;
         }
       } else {
@@ -47259,12 +47553,12 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ILookup$_lookup$arit
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k2354, else__5303__auto__) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k1948, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__2358 = k2354;
-  var G__2358__$1 = G__2358 instanceof cljs.core.Keyword ? G__2358.fqn : null;
-  switch(G__2358__$1) {
+  var G__1952 = k1948;
+  var G__1952__$1 = G__1952 instanceof cljs.core.Keyword ? G__1952.fqn : null;
+  switch(G__1952__$1) {
     case "base-url":
       return self__.base_url;
       break;
@@ -47272,16 +47566,16 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ILookup$_lookup$arit
       return self__.headers;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k2354, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k1948, else__5303__auto__);
   }
 };
 dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__2359) {
-    var vec__2360 = p__2359;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__2360, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__2360, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__1953) {
+    var vec__1954 = p__1953;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__1954, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__1954, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -47294,10 +47588,10 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IPrintWithWriter$_pr
   return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.browser.BrowserRemoteStore{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "base-url", "base-url", 9540398), self__.base_url], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, 
   [new cljs.core.Keyword(null, "headers", "headers", -835030129), self__.headers], null)], null), self__.__extmap));
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__2353) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__1947) {
   var self__ = this;
-  var G__2353__$1 = this;
-  return new cljs.core.RecordIter(0, G__2353__$1, 2, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "base-url", "base-url", 9540398), new cljs.core.Keyword(null, "headers", "headers", -835030129)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+  var G__1947__$1 = this;
+  return new cljs.core.RecordIter(0, G__1947__$1, 2, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "base-url", "base-url", 9540398), new cljs.core.Keyword(null, "headers", "headers", -835030129)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
   var self__ = this;
@@ -47314,6 +47608,32 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ICounted$_count$arit
   var this__5304__auto____$1 = this;
   return 2 + cljs.core.count.call(null, self__.__extmap);
 };
+dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$pack$IChunkTransport$ = cljs.core.PROTOCOL_SENTINEL;
+dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$pack$IChunkTransport$send_chunk_BANG_$arity$2 = function(this$, chunk) {
+  var self__ = this;
+  var this$__$1 = this;
+  var url = [dacite.store.browser.trim_base.call(null, self__.base_url), "/nodes"].join("");
+  var map__1957 = dacite.store.browser.xhr.call(null, "POST", url, dacite.wire.write_edn.call(null, chunk), cljs.core.assoc.call(null, self__.headers, "Content-Type", "application/edn"));
+  var map__1957__$1 = cljs.core.__destructure_map.call(null, map__1957);
+  var status = cljs.core.get.call(null, map__1957__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var body = cljs.core.get.call(null, map__1957__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  if (cljs.core._EQ_.call(null, 200, status)) {
+  } else {
+    throw cljs.core.ex_info.call(null, "Browser send-chunk! failed", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "status", "status", -1997798413), status, new cljs.core.Keyword(null, "body", "body", -2049205669), body], null));
+  }
+  if (cljs.core.truth_(function() {
+    var and__5000__auto__ = body;
+    if (cljs.core.truth_(and__5000__auto__)) {
+      return cljs.core.count.call(null, body) > 0;
+    } else {
+      return and__5000__auto__;
+    }
+  }())) {
+    return dacite.wire.read_edn.call(null, body);
+  } else {
+    return null;
+  }
+};
 dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IHash$_hash$arity$1 = function(this__5296__auto__) {
   var self__ = this;
   var this__5296__auto____$1 = this;
@@ -47328,19 +47648,19 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IHash$_hash$arity$1 
     return h__5111__auto____$1;
   }
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this2355, other2356) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this1949, other1950) {
   var self__ = this;
-  var this2355__$1 = this;
-  return !(other2356 == null) && (this2355__$1.constructor === other2356.constructor && (cljs.core._EQ_.call(null, this2355__$1.base_url, other2356.base_url) && (cljs.core._EQ_.call(null, this2355__$1.headers, other2356.headers) && cljs.core._EQ_.call(null, this2355__$1.__extmap, other2356.__extmap))));
+  var this1949__$1 = this;
+  return !(other1950 == null) && (this1949__$1.constructor === other1950.constructor && (cljs.core._EQ_.call(null, this1949__$1.base_url, other1950.base_url) && (cljs.core._EQ_.call(null, this1949__$1.headers, other1950.headers) && cljs.core._EQ_.call(null, this1949__$1.__extmap, other1950.__extmap))));
 };
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
   var self__ = this;
   var ___$1 = this;
-  var map__2363 = dacite.store.browser.xhr.call(null, "GET", dacite.store.browser.node_url.call(null, self__.base_url, h), null, self__.headers);
-  var map__2363__$1 = cljs.core.__destructure_map.call(null, map__2363);
-  var status = cljs.core.get.call(null, map__2363__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var body = cljs.core.get.call(null, map__2363__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  var map__1958 = dacite.store.browser.xhr.call(null, "GET", dacite.store.browser.node_url.call(null, self__.base_url, h), null, self__.headers);
+  var map__1958__$1 = cljs.core.__destructure_map.call(null, map__1958);
+  var status = cljs.core.get.call(null, map__1958__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var body = cljs.core.get.call(null, map__1958__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
   if (cljs.core._EQ_.call(null, 200, status)) {
     return dacite.wire.read_edn.call(null, body);
   } else {
@@ -47350,12 +47670,12 @@ dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_get$arit
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_put$arity$3 = function(this$, h, value) {
   var self__ = this;
   var this$__$1 = this;
-  var map__2364_2388 = dacite.store.browser.xhr.call(null, "PUT", dacite.store.browser.node_url.call(null, self__.base_url, h), dacite.wire.write_edn.call(null, value), cljs.core.assoc.call(null, self__.headers, "Content-Type", "application/edn"));
-  var map__2364_2389__$1 = cljs.core.__destructure_map.call(null, map__2364_2388);
-  var status_2390 = cljs.core.get.call(null, map__2364_2389__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var body_2391 = cljs.core.get.call(null, map__2364_2389__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
-  if (cljs.core.not_EQ_.call(null, 204, status_2390)) {
-    throw cljs.core.ex_info.call(null, "Browser remote s-put failed", new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "status", "status", -1997798413), status_2390, new cljs.core.Keyword(null, "hash", "hash", -13781596), h, new cljs.core.Keyword(null, "body", "body", -2049205669), body_2391], null));
+  var map__1959_1983 = dacite.store.browser.xhr.call(null, "PUT", dacite.store.browser.node_url.call(null, self__.base_url, h), dacite.wire.write_edn.call(null, value), cljs.core.assoc.call(null, self__.headers, "Content-Type", "application/edn"));
+  var map__1959_1984__$1 = cljs.core.__destructure_map.call(null, map__1959_1983);
+  var status_1985 = cljs.core.get.call(null, map__1959_1984__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var body_1986 = cljs.core.get.call(null, map__1959_1984__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  if (cljs.core.not_EQ_.call(null, 204, status_1985)) {
+    throw cljs.core.ex_info.call(null, "Browser remote s-put failed", new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "status", "status", -1997798413), status_1985, new cljs.core.Keyword(null, "hash", "hash", -13781596), h, new cljs.core.Keyword(null, "body", "body", -2049205669), body_1986], null));
   } else {
   }
   return this$__$1;
@@ -47368,11 +47688,11 @@ dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_has_QMAR
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_delete$arity$2 = function(this$, h) {
   var self__ = this;
   var this$__$1 = this;
-  var map__2365_2392 = dacite.store.browser.xhr.call(null, "DELETE", dacite.store.browser.node_url.call(null, self__.base_url, h), null, self__.headers);
-  var map__2365_2393__$1 = cljs.core.__destructure_map.call(null, map__2365_2392);
-  var status_2394 = cljs.core.get.call(null, map__2365_2393__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  if (cljs.core.not_EQ_.call(null, 204, status_2394) && cljs.core.not_EQ_.call(null, 404, status_2394)) {
-    throw cljs.core.ex_info.call(null, "Browser remote s-delete failed", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "status", "status", -1997798413), status_2394, new cljs.core.Keyword(null, "hash", "hash", -13781596), h], null));
+  var map__1960_1987 = dacite.store.browser.xhr.call(null, "DELETE", dacite.store.browser.node_url.call(null, self__.base_url, h), null, self__.headers);
+  var map__1960_1988__$1 = cljs.core.__destructure_map.call(null, map__1960_1987);
+  var status_1989 = cljs.core.get.call(null, map__1960_1988__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  if (cljs.core.not_EQ_.call(null, 204, status_1989) && cljs.core.not_EQ_.call(null, 404, status_1989)) {
+    throw cljs.core.ex_info.call(null, "Browser remote s-delete failed", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "status", "status", -1997798413), status_1989, new cljs.core.Keyword(null, "hash", "hash", -13781596), h], null));
   } else {
   }
   return this$__$1;
@@ -47385,53 +47705,53 @@ dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_snapshot
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_merge$arity$2 = function(this$, m) {
   var self__ = this;
   var this$__$1 = this;
-  var seq__2366_2395 = cljs.core.seq.call(null, m);
-  var chunk__2367_2396 = null;
-  var count__2368_2397 = 0;
-  var i__2369_2398 = 0;
+  var seq__1961_1990 = cljs.core.seq.call(null, m);
+  var chunk__1962_1991 = null;
+  var count__1963_1992 = 0;
+  var i__1964_1993 = 0;
   while (true) {
-    if (i__2369_2398 < count__2368_2397) {
-      var vec__2376_2399 = cljs.core._nth.call(null, chunk__2367_2396, i__2369_2398);
-      var h_2400 = cljs.core.nth.call(null, vec__2376_2399, 0, null);
-      var v_2401 = cljs.core.nth.call(null, vec__2376_2399, 1, null);
-      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2400, v_2401);
-      var G__2402 = seq__2366_2395;
-      var G__2403 = chunk__2367_2396;
-      var G__2404 = count__2368_2397;
-      var G__2405 = i__2369_2398 + 1;
-      seq__2366_2395 = G__2402;
-      chunk__2367_2396 = G__2403;
-      count__2368_2397 = G__2404;
-      i__2369_2398 = G__2405;
+    if (i__1964_1993 < count__1963_1992) {
+      var vec__1971_1994 = cljs.core._nth.call(null, chunk__1962_1991, i__1964_1993);
+      var h_1995 = cljs.core.nth.call(null, vec__1971_1994, 0, null);
+      var v_1996 = cljs.core.nth.call(null, vec__1971_1994, 1, null);
+      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_1995, v_1996);
+      var G__1997 = seq__1961_1990;
+      var G__1998 = chunk__1962_1991;
+      var G__1999 = count__1963_1992;
+      var G__2000 = i__1964_1993 + 1;
+      seq__1961_1990 = G__1997;
+      chunk__1962_1991 = G__1998;
+      count__1963_1992 = G__1999;
+      i__1964_1993 = G__2000;
       continue;
     } else {
-      var temp__5825__auto___2406 = cljs.core.seq.call(null, seq__2366_2395);
-      if (temp__5825__auto___2406) {
-        var seq__2366_2407__$1 = temp__5825__auto___2406;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2366_2407__$1)) {
-          var c__5525__auto___2408 = cljs.core.chunk_first.call(null, seq__2366_2407__$1);
-          var G__2409 = cljs.core.chunk_rest.call(null, seq__2366_2407__$1);
-          var G__2410 = c__5525__auto___2408;
-          var G__2411 = cljs.core.count.call(null, c__5525__auto___2408);
-          var G__2412 = 0;
-          seq__2366_2395 = G__2409;
-          chunk__2367_2396 = G__2410;
-          count__2368_2397 = G__2411;
-          i__2369_2398 = G__2412;
+      var temp__5825__auto___2001 = cljs.core.seq.call(null, seq__1961_1990);
+      if (temp__5825__auto___2001) {
+        var seq__1961_2002__$1 = temp__5825__auto___2001;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1961_2002__$1)) {
+          var c__5525__auto___2003 = cljs.core.chunk_first.call(null, seq__1961_2002__$1);
+          var G__2004 = cljs.core.chunk_rest.call(null, seq__1961_2002__$1);
+          var G__2005 = c__5525__auto___2003;
+          var G__2006 = cljs.core.count.call(null, c__5525__auto___2003);
+          var G__2007 = 0;
+          seq__1961_1990 = G__2004;
+          chunk__1962_1991 = G__2005;
+          count__1963_1992 = G__2006;
+          i__1964_1993 = G__2007;
           continue;
         } else {
-          var vec__2379_2413 = cljs.core.first.call(null, seq__2366_2407__$1);
-          var h_2414 = cljs.core.nth.call(null, vec__2379_2413, 0, null);
-          var v_2415 = cljs.core.nth.call(null, vec__2379_2413, 1, null);
-          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2414, v_2415);
-          var G__2416 = cljs.core.next.call(null, seq__2366_2407__$1);
-          var G__2417 = null;
-          var G__2418 = 0;
-          var G__2419 = 0;
-          seq__2366_2395 = G__2416;
-          chunk__2367_2396 = G__2417;
-          count__2368_2397 = G__2418;
-          i__2369_2398 = G__2419;
+          var vec__1974_2008 = cljs.core.first.call(null, seq__1961_2002__$1);
+          var h_2009 = cljs.core.nth.call(null, vec__1974_2008, 0, null);
+          var v_2010 = cljs.core.nth.call(null, vec__1974_2008, 1, null);
+          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2009, v_2010);
+          var G__2011 = cljs.core.next.call(null, seq__1961_2002__$1);
+          var G__2012 = null;
+          var G__2013 = 0;
+          var G__2014 = 0;
+          seq__1961_1990 = G__2011;
+          chunk__1962_1991 = G__2012;
+          count__1963_1992 = G__2013;
+          i__1964_1993 = G__2014;
           continue;
         }
       } else {
@@ -47455,32 +47775,32 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IMap$_dissoc$arity$2
     return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k2354) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k1948) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__2382 = k2354;
-  var G__2382__$1 = G__2382 instanceof cljs.core.Keyword ? G__2382.fqn : null;
-  switch(G__2382__$1) {
+  var G__1977 = k1948;
+  var G__1977__$1 = G__1977 instanceof cljs.core.Keyword ? G__1977.fqn : null;
+  switch(G__1977__$1) {
     case "base-url":
     case "headers":
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k2354);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k1948);
   }
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__2353) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__1947) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__2383 = cljs.core.keyword_identical_QMARK_;
-  var expr__2384 = k__5309__auto__;
-  if (cljs.core.truth_(pred__2383.call(null, new cljs.core.Keyword(null, "base-url", "base-url", 9540398), expr__2384))) {
-    return new dacite.store.browser.BrowserRemoteStore(G__2353, self__.headers, self__.__meta, self__.__extmap, null);
+  var pred__1978 = cljs.core.keyword_identical_QMARK_;
+  var expr__1979 = k__5309__auto__;
+  if (cljs.core.truth_(pred__1978.call(null, new cljs.core.Keyword(null, "base-url", "base-url", 9540398), expr__1979))) {
+    return new dacite.store.browser.BrowserRemoteStore(G__1947, self__.headers, self__.__meta, self__.__extmap, null);
   } else {
-    if (cljs.core.truth_(pred__2383.call(null, new cljs.core.Keyword(null, "headers", "headers", -835030129), expr__2384))) {
-      return new dacite.store.browser.BrowserRemoteStore(self__.base_url, G__2353, self__.__meta, self__.__extmap, null);
+    if (cljs.core.truth_(pred__1978.call(null, new cljs.core.Keyword(null, "headers", "headers", -835030129), expr__1979))) {
+      return new dacite.store.browser.BrowserRemoteStore(self__.base_url, G__1947, self__.__meta, self__.__extmap, null);
     } else {
-      return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__2353), null);
+      return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__1947), null);
     }
   }
 };
@@ -47489,10 +47809,10 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ISeqable$_seq$arity$
   var this__5313__auto____$1 = this;
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "base-url", "base-url", 9540398), self__.base_url, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "headers", "headers", -835030129), self__.headers, null)], null), self__.__extmap));
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__2353) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__1947) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, G__2353, self__.__extmap, self__.__hash);
+  return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, G__1947, self__.__extmap, self__.__hash);
 };
 dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -47516,26 +47836,26 @@ dacite.store.browser.BrowserRemoteStore.cljs$lang$ctorPrWriter = function(this__
 dacite.store.browser.__GT_BrowserRemoteStore = function dacite$store$browser$__GT_BrowserRemoteStore(base_url, headers) {
   return new dacite.store.browser.BrowserRemoteStore(base_url, headers, null, null, null);
 };
-dacite.store.browser.map__GT_BrowserRemoteStore = function dacite$store$browser$map__GT_BrowserRemoteStore(G__2357) {
+dacite.store.browser.map__GT_BrowserRemoteStore = function dacite$store$browser$map__GT_BrowserRemoteStore(G__1951) {
   var extmap__5342__auto__ = function() {
-    var G__2386 = cljs.core.dissoc.call(null, G__2357, new cljs.core.Keyword(null, "base-url", "base-url", 9540398), new cljs.core.Keyword(null, "headers", "headers", -835030129));
-    if (cljs.core.record_QMARK_.call(null, G__2357)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__2386);
+    var G__1981 = cljs.core.dissoc.call(null, G__1951, new cljs.core.Keyword(null, "base-url", "base-url", 9540398), new cljs.core.Keyword(null, "headers", "headers", -835030129));
+    if (cljs.core.record_QMARK_.call(null, G__1951)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__1981);
     } else {
-      return G__2386;
+      return G__1981;
     }
   }();
-  return new dacite.store.browser.BrowserRemoteStore((new cljs.core.Keyword(null, "base-url", "base-url", 9540398)).cljs$core$IFn$_invoke$arity$1(G__2357), (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(G__2357), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.store.browser.BrowserRemoteStore((new cljs.core.Keyword(null, "base-url", "base-url", 9540398)).cljs$core$IFn$_invoke$arity$1(G__1951), (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(G__1951), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.store.browser.remote_store = function dacite$store$browser$remote_store(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___2428 = arguments.length;
-  var i__5727__auto___2429 = 0;
+  var len__5726__auto___2023 = arguments.length;
+  var i__5727__auto___2024 = 0;
   while (true) {
-    if (i__5727__auto___2429 < len__5726__auto___2428) {
-      args__5732__auto__.push(arguments[i__5727__auto___2429]);
-      var G__2430 = i__5727__auto___2429 + 1;
-      i__5727__auto___2429 = G__2430;
+    if (i__5727__auto___2024 < len__5726__auto___2023) {
+      args__5732__auto__.push(arguments[i__5727__auto___2024]);
+      var G__2025 = i__5727__auto___2024 + 1;
+      i__5727__auto___2024 = G__2025;
       continue;
     } else {
     }
@@ -47544,11 +47864,11 @@ dacite.store.browser.remote_store = function dacite$store$browser$remote_store(v
   var argseq__5733__auto__ = 1 < args__5732__auto__.length ? new cljs.core.IndexedSeq(args__5732__auto__.slice(1), 0, null) : null;
   return dacite.store.browser.remote_store.cljs$core$IFn$_invoke$arity$variadic(arguments[0], argseq__5733__auto__);
 };
-dacite.store.browser.remote_store.cljs$core$IFn$_invoke$arity$variadic = function(base_url, p__2423) {
-  var vec__2424 = p__2423;
-  var map__2427 = cljs.core.nth.call(null, vec__2424, 0, null);
-  var map__2427__$1 = cljs.core.__destructure_map.call(null, map__2427);
-  var headers = cljs.core.get.call(null, map__2427__$1, new cljs.core.Keyword(null, "headers", "headers", -835030129), cljs.core.PersistentArrayMap.EMPTY);
+dacite.store.browser.remote_store.cljs$core$IFn$_invoke$arity$variadic = function(base_url, p__2018) {
+  var vec__2019 = p__2018;
+  var map__2022 = cljs.core.nth.call(null, vec__2019, 0, null);
+  var map__2022__$1 = cljs.core.__destructure_map.call(null, map__2022);
+  var headers = cljs.core.get.call(null, map__2022__$1, new cljs.core.Keyword(null, "headers", "headers", -835030129), cljs.core.PersistentArrayMap.EMPTY);
   return dacite.store.browser.__GT_BrowserRemoteStore.call(null, function() {
     var or__5002__auto__ = base_url;
     if (cljs.core.truth_(or__5002__auto__)) {
@@ -47559,21 +47879,21 @@ dacite.store.browser.remote_store.cljs$core$IFn$_invoke$arity$variadic = functio
   }(), headers);
 };
 dacite.store.browser.remote_store.cljs$lang$maxFixedArity = 1;
-dacite.store.browser.remote_store.cljs$lang$applyTo = function(seq2421) {
-  var G__2422 = cljs.core.first.call(null, seq2421);
-  var seq2421__$1 = cljs.core.next.call(null, seq2421);
+dacite.store.browser.remote_store.cljs$lang$applyTo = function(seq2016) {
+  var G__2017 = cljs.core.first.call(null, seq2016);
+  var seq2016__$1 = cljs.core.next.call(null, seq2016);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__2422, seq2421__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__2017, seq2016__$1);
 };
 dacite.store.browser.cached_remote_store = function dacite$store$browser$cached_remote_store(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___2438 = arguments.length;
-  var i__5727__auto___2439 = 0;
+  var len__5726__auto___2033 = arguments.length;
+  var i__5727__auto___2034 = 0;
   while (true) {
-    if (i__5727__auto___2439 < len__5726__auto___2438) {
-      args__5732__auto__.push(arguments[i__5727__auto___2439]);
-      var G__2440 = i__5727__auto___2439 + 1;
-      i__5727__auto___2439 = G__2440;
+    if (i__5727__auto___2034 < len__5726__auto___2033) {
+      args__5732__auto__.push(arguments[i__5727__auto___2034]);
+      var G__2035 = i__5727__auto___2034 + 1;
+      i__5727__auto___2034 = G__2035;
       continue;
     } else {
     }
@@ -47582,20 +47902,20 @@ dacite.store.browser.cached_remote_store = function dacite$store$browser$cached_
   var argseq__5733__auto__ = 1 < args__5732__auto__.length ? new cljs.core.IndexedSeq(args__5732__auto__.slice(1), 0, null) : null;
   return dacite.store.browser.cached_remote_store.cljs$core$IFn$_invoke$arity$variadic(arguments[0], argseq__5733__auto__);
 };
-dacite.store.browser.cached_remote_store.cljs$core$IFn$_invoke$arity$variadic = function(base_url, p__2433) {
-  var vec__2434 = p__2433;
-  var map__2437 = cljs.core.nth.call(null, vec__2434, 0, null);
-  var map__2437__$1 = cljs.core.__destructure_map.call(null, map__2437);
-  var headers = cljs.core.get.call(null, map__2437__$1, new cljs.core.Keyword(null, "headers", "headers", -835030129), cljs.core.PersistentArrayMap.EMPTY);
-  var policy = cljs.core.get.call(null, map__2437__$1, new cljs.core.Keyword(null, "policy", "policy", 902736495), new cljs.core.Keyword(null, "write-back", "write-back", -821877224));
+dacite.store.browser.cached_remote_store.cljs$core$IFn$_invoke$arity$variadic = function(base_url, p__2028) {
+  var vec__2029 = p__2028;
+  var map__2032 = cljs.core.nth.call(null, vec__2029, 0, null);
+  var map__2032__$1 = cljs.core.__destructure_map.call(null, map__2032);
+  var headers = cljs.core.get.call(null, map__2032__$1, new cljs.core.Keyword(null, "headers", "headers", -835030129), cljs.core.PersistentArrayMap.EMPTY);
+  var policy = cljs.core.get.call(null, map__2032__$1, new cljs.core.Keyword(null, "policy", "policy", 902736495), new cljs.core.Keyword(null, "write-back", "write-back", -821877224));
   return dacite.store.client_cache.wrap.call(null, dacite.store.browser.remote_store.call(null, base_url, new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "headers", "headers", -835030129), headers], null)), policy);
 };
 dacite.store.browser.cached_remote_store.cljs$lang$maxFixedArity = 1;
-dacite.store.browser.cached_remote_store.cljs$lang$applyTo = function(seq2431) {
-  var G__2432 = cljs.core.first.call(null, seq2431);
-  var seq2431__$1 = cljs.core.next.call(null, seq2431);
+dacite.store.browser.cached_remote_store.cljs$lang$applyTo = function(seq2026) {
+  var G__2027 = cljs.core.first.call(null, seq2026);
+  var seq2026__$1 = cljs.core.next.call(null, seq2026);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__2432, seq2431__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__2027, seq2026__$1);
 };
 dacite.store.browser.unwrap_remote = function dacite$store$browser$unwrap_remote(remote) {
   var r = remote;
@@ -47604,13 +47924,13 @@ dacite.store.browser.unwrap_remote = function dacite$store$browser$unwrap_remote
       return r;
     } else {
       if (cljs.core.record_QMARK_.call(null, r) && cljs.core.contains_QMARK_.call(null, r, new cljs.core.Keyword(null, "remote", "remote", -1593576576))) {
-        var G__2441 = (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(r);
-        r = G__2441;
+        var G__2036 = (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(r);
+        r = G__2036;
         continue;
       } else {
         if (cljs.core.record_QMARK_.call(null, r) && cljs.core.contains_QMARK_.call(null, r, new cljs.core.Keyword(null, "layers", "layers", 1944875032))) {
-          var G__2442 = cljs.core.last.call(null, (new cljs.core.Keyword(null, "layers", "layers", 1944875032)).cljs$core$IFn$_invoke$arity$1(r));
-          r = G__2442;
+          var G__2037 = cljs.core.last.call(null, (new cljs.core.Keyword(null, "layers", "layers", 1944875032)).cljs$core$IFn$_invoke$arity$1(r));
+          r = G__2037;
           continue;
         } else {
           return r;
@@ -47623,10 +47943,10 @@ dacite.store.browser.unwrap_remote = function dacite$store$browser$unwrap_remote
 dacite.store.browser.remote_get_root = function dacite$store$browser$remote_get_root(remote) {
   var rs = dacite.store.browser.unwrap_remote.call(null, remote);
   var url = [dacite.store.browser.trim_base.call(null, (new cljs.core.Keyword(null, "base-url", "base-url", 9540398)).cljs$core$IFn$_invoke$arity$1(rs)), "/root"].join("");
-  var map__2443 = dacite.store.browser.xhr.call(null, "GET", url, null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs));
-  var map__2443__$1 = cljs.core.__destructure_map.call(null, map__2443);
-  var status = cljs.core.get.call(null, map__2443__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var body = cljs.core.get.call(null, map__2443__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  var map__2038 = dacite.store.browser.xhr.call(null, "GET", url, null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs));
+  var map__2038__$1 = cljs.core.__destructure_map.call(null, map__2038);
+  var status = cljs.core.get.call(null, map__2038__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var body = cljs.core.get.call(null, map__2038__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
   if (cljs.core._EQ_.call(null, 200, status)) {
     var temp__5825__auto__ = (new cljs.core.Keyword(null, "root", "root", -448657453)).cljs$core$IFn$_invoke$arity$1(dacite.store.browser.edn_body.call(null, body));
     if (cljs.core.truth_(temp__5825__auto__)) {
@@ -47647,10 +47967,10 @@ dacite.store.browser.remote_cas_root_BANG_ = function dacite$store$browser$remot
   var rs = dacite.store.browser.unwrap_remote.call(null, remote);
   var url = [dacite.store.browser.trim_base.call(null, (new cljs.core.Keyword(null, "base-url", "base-url", 9540398)).cljs$core$IFn$_invoke$arity$1(rs)), "/root/cas"].join("");
   var payload = new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), cljs.core.truth_(expected) ? dacite.store.hash__GT_hex.call(null, expected) : null, new cljs.core.Keyword(null, "new", "new", -2085437848), dacite.store.hash__GT_hex.call(null, new_root)], null);
-  var map__2444 = dacite.store.browser.xhr.call(null, "POST", url, dacite.wire.write_edn.call(null, payload), cljs.core.assoc.call(null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs), "Content-Type", "application/edn"));
-  var map__2444__$1 = cljs.core.__destructure_map.call(null, map__2444);
-  var status = cljs.core.get.call(null, map__2444__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var body = cljs.core.get.call(null, map__2444__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  var map__2039 = dacite.store.browser.xhr.call(null, "POST", url, dacite.wire.write_edn.call(null, payload), cljs.core.assoc.call(null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs), "Content-Type", "application/edn"));
+  var map__2039__$1 = cljs.core.__destructure_map.call(null, map__2039);
+  var status = cljs.core.get.call(null, map__2039__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var body = cljs.core.get.call(null, map__2039__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
   if (cljs.core._EQ_.call(null, 200, status)) {
     return (new cljs.core.Keyword(null, "ok", "ok", 967785236)).cljs$core$IFn$_invoke$arity$1(dacite.store.browser.edn_body.call(null, body)) === true;
   } else {
@@ -51223,11 +51543,11 @@ dacite.examples.todo_web.set_html_BANG_ = function dacite$examples$todo_web$set_
 dacite.examples.todo_web.escape_html = function dacite$examples$todo_web$escape_html(s) {
   return clojure.string.replace.call(null, clojure.string.replace.call(null, clojure.string.replace.call(null, clojure.string.replace.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(s), "\x26", "\x26amp;"), "\x3c", "\x26lt;"), "\x3e", "\x26gt;"), '"', "\x26quot;");
 };
-dacite.examples.todo_web.note_bw_BANG_ = function dacite$examples$todo_web$note_bw_BANG_(p__2447, label) {
-  var map__2448 = p__2447;
-  var map__2448__$1 = cljs.core.__destructure_map.call(null, map__2448);
-  var delta = cljs.core.get.call(null, map__2448__$1, new cljs.core.Keyword(null, "delta", "delta", 108939957));
-  var totals = cljs.core.get.call(null, map__2448__$1, new cljs.core.Keyword(null, "totals", "totals", 1978625999));
+dacite.examples.todo_web.note_bw_BANG_ = function dacite$examples$todo_web$note_bw_BANG_(p__2359, label) {
+  var map__2360 = p__2359;
+  var map__2360__$1 = cljs.core.__destructure_map.call(null, map__2360);
+  var delta = cljs.core.get.call(null, map__2360__$1, new cljs.core.Keyword(null, "delta", "delta", 108939957));
+  var totals = cljs.core.get.call(null, map__2360__$1, new cljs.core.Keyword(null, "totals", "totals", 1978625999));
   cljs.core.swap_BANG_.call(null, dacite.examples.todo_web._BANG_state, cljs.core.assoc, new cljs.core.Keyword(null, "bw-totals", "bw-totals", 1690490193), totals, new cljs.core.Keyword(null, "bw-last", "bw-last", 1394141010), delta, new cljs.core.Keyword(null, "bw-last-label", "bw-last-label", 1657233171), label);
   var temp__5825__auto__ = dacite.examples.todo_web.by_id.call(null, "bandwidth");
   if (cljs.core.truth_(temp__5825__auto__)) {
@@ -51243,15 +51563,15 @@ dacite.examples.todo_web.with_bw = function dacite$examples$todo_web$with_bw(lab
   return (new cljs.core.Keyword(null, "result", "result", 1415092211)).cljs$core$IFn$_invoke$arity$1(m);
 };
 dacite.examples.todo_web.render_list_BANG_ = function dacite$examples$todo_web$render_list_BANG_() {
-  var map__2449 = cljs.core.deref.call(null, dacite.examples.todo_web._BANG_state);
-  var map__2449__$1 = cljs.core.__destructure_map.call(null, map__2449);
-  var todos = cljs.core.get.call(null, map__2449__$1, new cljs.core.Keyword(null, "todos", "todos", 630308868));
-  var root = cljs.core.get.call(null, map__2449__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
-  var error = cljs.core.get.call(null, map__2449__$1, new cljs.core.Keyword(null, "error", "error", -978969032));
-  var status = cljs.core.get.call(null, map__2449__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var bw_totals = cljs.core.get.call(null, map__2449__$1, new cljs.core.Keyword(null, "bw-totals", "bw-totals", 1690490193));
-  var bw_last = cljs.core.get.call(null, map__2449__$1, new cljs.core.Keyword(null, "bw-last", "bw-last", 1394141010));
-  var bw_last_label = cljs.core.get.call(null, map__2449__$1, new cljs.core.Keyword(null, "bw-last-label", "bw-last-label", 1657233171));
+  var map__2361 = cljs.core.deref.call(null, dacite.examples.todo_web._BANG_state);
+  var map__2361__$1 = cljs.core.__destructure_map.call(null, map__2361);
+  var todos = cljs.core.get.call(null, map__2361__$1, new cljs.core.Keyword(null, "todos", "todos", 630308868));
+  var root = cljs.core.get.call(null, map__2361__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
+  var error = cljs.core.get.call(null, map__2361__$1, new cljs.core.Keyword(null, "error", "error", -978969032));
+  var status = cljs.core.get.call(null, map__2361__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var bw_totals = cljs.core.get.call(null, map__2361__$1, new cljs.core.Keyword(null, "bw-totals", "bw-totals", 1690490193));
+  var bw_last = cljs.core.get.call(null, map__2361__$1, new cljs.core.Keyword(null, "bw-last", "bw-last", 1394141010));
+  var bw_last_label = cljs.core.get.call(null, map__2361__$1, new cljs.core.Keyword(null, "bw-last-label", "bw-last-label", 1657233171));
   var root_hex = cljs.core.truth_(root) ? dacite.hash.hash__GT_hex.call(null, root) : null;
   var status_el = dacite.examples.todo_web.by_id.call(null, "status");
   if (cljs.core.truth_(status_el)) {
@@ -51265,13 +51585,13 @@ dacite.examples.todo_web.render_list_BANG_ = function dacite$examples$todo_web$r
     }();
   } else {
   }
-  var temp__5825__auto___2450 = dacite.examples.todo_web.by_id.call(null, "bandwidth");
-  if (cljs.core.truth_(temp__5825__auto___2450)) {
-    var el_2451 = temp__5825__auto___2450;
+  var temp__5825__auto___2362 = dacite.examples.todo_web.by_id.call(null, "bandwidth");
+  if (cljs.core.truth_(temp__5825__auto___2362)) {
+    var el_2363 = temp__5825__auto___2362;
     if (cljs.core.truth_(bw_totals)) {
-      el_2451.textContent = ["bw · ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(dacite.store.browser.format_stats.call(null, bw_totals)), cljs.core.truth_(bw_last) ? [" · last ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(dacite.store.browser.format_delta.call(null, bw_last, bw_last_label))].join("") : null].join("");
+      el_2363.textContent = ["bw · ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(dacite.store.browser.format_stats.call(null, bw_totals)), cljs.core.truth_(bw_last) ? [" · last ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(dacite.store.browser.format_delta.call(null, bw_last, bw_last_label))].join("") : null].join("");
     } else {
-      el_2451.textContent = "bw · (no store traffic yet)";
+      el_2363.textContent = "bw · (no store traffic yet)";
     }
   } else {
   }
@@ -51294,10 +51614,10 @@ dacite.examples.todo_web.render_list_BANG_ = function dacite$examples$todo_web$r
   }
 };
 dacite.examples.todo_web.commit_BANG_ = function dacite$examples$todo_web$commit_BANG_(todos) {
-  var map__2452 = cljs.core.deref.call(null, dacite.examples.todo_web._BANG_state);
-  var map__2452__$1 = cljs.core.__destructure_map.call(null, map__2452);
-  var remote = cljs.core.get.call(null, map__2452__$1, new cljs.core.Keyword(null, "remote", "remote", -1593576576));
-  var root = cljs.core.get.call(null, map__2452__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
+  var map__2364 = cljs.core.deref.call(null, dacite.examples.todo_web._BANG_state);
+  var map__2364__$1 = cljs.core.__destructure_map.call(null, map__2364);
+  var remote = cljs.core.get.call(null, map__2364__$1, new cljs.core.Keyword(null, "remote", "remote", -1593576576));
+  var root = cljs.core.get.call(null, map__2364__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
   var new_h = dacite.value.types.dacite_hash.call(null, todos);
   if (dacite.store.browser.remote_cas_root_BANG_.call(null, remote, root, new_h)) {
     cljs.core.swap_BANG_.call(null, dacite.examples.todo_web._BANG_state, cljs.core.assoc, new cljs.core.Keyword(null, "todos", "todos", 630308868), todos, new cljs.core.Keyword(null, "root", "root", -448657453), new_h, new cljs.core.Keyword(null, "error", "error", -978969032), null, new cljs.core.Keyword(null, "status", "status", -1997798413), "saved");
@@ -51397,8 +51717,8 @@ dacite.examples.todo_web.on_list_click_BANG_ = function dacite$examples$todo_web
       return and__5000__auto__;
     }
   }())) {
-    var G__2453 = action;
-    switch(G__2453) {
+    var G__2365 = action;
+    switch(G__2365) {
       case "toggle":
         return dacite.examples.todo_web.on_toggle_BANG_.call(null, i);
         break;
@@ -51427,23 +51747,23 @@ dacite.examples.todo_web.init_BANG_ = function dacite$examples$todo_web$init_BAN
   dacite.examples.todo_web.render_list_BANG_.call(null);
   try {
     dacite.examples.todo_web.load_or_seed_BANG_.call(null);
-  } catch (e2455) {
-    var e_2456 = e2455;
-    cljs.core.swap_BANG_.call(null, dacite.examples.todo_web._BANG_state, cljs.core.assoc, new cljs.core.Keyword(null, "error", "error", -978969032), ["Load failed: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(e_2456.message)].join(""), new cljs.core.Keyword(null, "status", "status", -1997798413), "error");
+  } catch (e2367) {
+    var e_2368 = e2367;
+    cljs.core.swap_BANG_.call(null, dacite.examples.todo_web._BANG_state, cljs.core.assoc, new cljs.core.Keyword(null, "error", "error", -978969032), ["Load failed: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(e_2368.message)].join(""), new cljs.core.Keyword(null, "status", "status", -1997798413), "error");
     dacite.examples.todo_web.render_list_BANG_.call(null);
   }
-  var temp__5825__auto___2457 = dacite.examples.todo_web.by_id.call(null, "add-btn");
-  if (cljs.core.truth_(temp__5825__auto___2457)) {
-    var btn_2458 = temp__5825__auto___2457;
-    btn_2458.addEventListener("click", function(_) {
+  var temp__5825__auto___2369 = dacite.examples.todo_web.by_id.call(null, "add-btn");
+  if (cljs.core.truth_(temp__5825__auto___2369)) {
+    var btn_2370 = temp__5825__auto___2369;
+    btn_2370.addEventListener("click", function(_) {
       return dacite.examples.todo_web.on_add_BANG_.call(null);
     });
   } else {
   }
-  var temp__5825__auto___2459 = dacite.examples.todo_web.by_id.call(null, "new-title");
-  if (cljs.core.truth_(temp__5825__auto___2459)) {
-    var input_2460 = temp__5825__auto___2459;
-    input_2460.addEventListener("keydown", function(e) {
+  var temp__5825__auto___2371 = dacite.examples.todo_web.by_id.call(null, "new-title");
+  if (cljs.core.truth_(temp__5825__auto___2371)) {
+    var input_2372 = temp__5825__auto___2371;
+    input_2372.addEventListener("keydown", function(e) {
       if (cljs.core._EQ_.call(null, "Enter", e.key)) {
         e.preventDefault();
         return dacite.examples.todo_web.on_add_BANG_.call(null);
@@ -51453,10 +51773,10 @@ dacite.examples.todo_web.init_BANG_ = function dacite$examples$todo_web$init_BAN
     });
   } else {
   }
-  var temp__5825__auto___2461 = dacite.examples.todo_web.by_id.call(null, "todo-list");
-  if (cljs.core.truth_(temp__5825__auto___2461)) {
-    var ul_2462 = temp__5825__auto___2461;
-    ul_2462.addEventListener("click", dacite.examples.todo_web.on_list_click_BANG_);
+  var temp__5825__auto___2373 = dacite.examples.todo_web.by_id.call(null, "todo-list");
+  if (cljs.core.truth_(temp__5825__auto___2373)) {
+    var ul_2374 = temp__5825__auto___2373;
+    ul_2374.addEventListener("click", dacite.examples.todo_web.on_list_click_BANG_);
   } else {
   }
   var temp__5825__auto__ = dacite.examples.todo_web.by_id.call(null, "reload-btn");

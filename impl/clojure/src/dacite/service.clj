@@ -6,6 +6,7 @@
      PUT  /node/{hex}   — s-put (EDN body), 204
      HEAD /node/{hex}   — s-has?
      DELETE /node/{hex} — s-delete (optional)
+     POST /nodes        — apply one pack chunk (leaf-chunking 2a)
      GET  /root         — {:root hex-or-nil}
      POST /root/cas     — {:expected hex-or-nil :new hex} → 200/409
 
@@ -13,6 +14,7 @@
   (:require [clojure.java.io :as io]
             [dacite.store :as store]
             [dacite.store.file :as file]
+            [dacite.store.pack :as pack]
             [dacite.rooted :as rs]
             [dacite.wire :as wire])
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange Headers]
@@ -79,6 +81,20 @@
           {:status 409
            :content-type "application/edn; charset=utf-8"
            :body (wire/write-edn {:ok false})}))
+
+      (and (= "POST" method) (= path "/nodes"))
+      (try
+        (let [chunk (wire/read-edn body-str)
+              result (pack/apply-chunk! rooted chunk)]
+          {:status 200
+           :content-type "application/edn; charset=utf-8"
+           :body (wire/write-edn (assoc result :ok true))})
+        (catch Exception e
+          {:status 400
+           :content-type "application/edn; charset=utf-8"
+           :body (wire/write-edn {:ok false
+                                  :error "malformed chunk"
+                                  :detail (.getMessage e)})}))
 
       (and (#{"GET" "PUT" "HEAD" "DELETE"} method) (parse-node-hex path))
       (let [hex (parse-node-hex path)

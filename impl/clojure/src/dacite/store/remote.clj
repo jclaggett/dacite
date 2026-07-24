@@ -9,6 +9,7 @@
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.store.stats :as stats]
+            [dacite.store.pack :as pack]
             [dacite.store.client-cache :as client-cache]
             [dacite.wire :as wire])
   (:import [java.net URI]
@@ -78,7 +79,34 @@
     this)
 
   (s-reset [this]
-    this))
+    this)
+
+  pack/IChunkTransport
+  (send-chunk! [this chunk]
+    (let [url (str (str/replace base-url #"/$" "") "/nodes")
+          {:keys [status data]} (edn-request client "POST" url chunk
+                                             (assoc headers "Content-Type" "application/edn"))]
+      (when-not (= 200 status)
+        (throw (ex-info "Remote send-chunk! failed"
+                        {:status status :data data})))
+      data)))
+
+(defn- unwrap-remote
+  "Peel client-cache / layered wrappers to the underlying RemoteStore."
+  [remote]
+  (loop [r remote]
+    (cond
+      (instance? RemoteStore r) r
+      (and (record? r) (contains? r :remote)) (recur (:remote r))
+      (and (record? r) (contains? r :layers)) (recur (last (:layers r)))
+      :else r)))
+
+(defn put-nodes-chunked!
+  "Pack Layer-1 node items and POST /nodes chunks (2a)."
+  ([remote items]
+   (pack/put-items-chunked! (unwrap-remote remote) items))
+  ([remote items budget]
+   (pack/put-items-chunked! (unwrap-remote remote) items budget)))
 
 (defn remote-store
   "Create an HTTP-backed remote store.
@@ -92,16 +120,6 @@
                  (or client (.build (.. (HttpClient/newBuilder)
                                         (connectTimeout (Duration/ofSeconds 10)))))
                  headers))
-
-(defn- unwrap-remote
-  "Peel client-cache / layered wrappers to the underlying RemoteStore."
-  [remote]
-  (loop [r remote]
-    (cond
-      (instance? RemoteStore r) r
-      (and (record? r) (contains? r :remote)) (recur (:remote r))
-      (and (record? r) (contains? r :layers)) (recur (last (:layers r)))
-      :else r)))
 
 (defn- client-cache-write-back? [remote]
   (client-cache/write-back-store? remote))

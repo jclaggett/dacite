@@ -12,6 +12,7 @@
 
    Instrument the remote leg with dacite.store.stats to measure network cost."
   (:require [dacite.store :as store]
+            [dacite.store.pack :as pack]
             [dacite.rooted.gc :as gc]))
 
 (defrecord SmartCacheStore [local remote]
@@ -95,7 +96,10 @@
 
 (defn flush-reachable!
   "Upload local nodes reachable from root-h that are not yet flushed.
-   Returns number of nodes uploaded. No-op if s is not WriteBackStore."
+   Returns number of nodes uploaded. No-op if s is not WriteBackStore.
+
+   When remote implements pack/IChunkTransport, nodes are packed into
+   soft-budget chunks (2a) instead of one HTTP PUT per hash."
   [s root-h]
   (if-not (write-back-store? s)
     0
@@ -103,12 +107,21 @@
           remote (:remote s)
           flushed (:flushed s)
           live (gc/mark-reachable local root-h)
-          to-send (remove @flushed live)]
-      (doseq [h to-send]
-        (when-let [v (store/s-get local h)]
-          (store/s-put remote h v)
-          (swap! flushed conj h)))
-      (count to-send))))
+          to-send (vec (remove @flushed live))
+          pairs (keep (fn [h]
+                        (when-let [v (store/s-get local h)]
+                          [h v]))
+                      to-send)]
+      (if (empty? pairs)
+        0
+        (do
+          (if (satisfies? pack/IChunkTransport remote)
+            (let [items (mapv (fn [[h v]] (pack/node-item h v)) pairs)]
+              (pack/put-items-chunked! remote items pack/default-budget))
+            (doseq [[h v] pairs]
+              (store/s-put remote h v)))
+          (swap! flushed into (map first pairs))
+          (count pairs))))))
 
 (defn wrap
   "Wrap remote with client cache according to policy keyword.

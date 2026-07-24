@@ -102,12 +102,36 @@ Compare-and-set root update — the portable core from Chapter 4.
 
 Unconditional `set-root` is **not** exposed remotely (per Chapter 4 — unsafe under sharing).
 
-## Bulk operations (deferred)
+## Bulk operations
 
-- `POST /nodes` — batch put
+### `POST /nodes` — pack chunk put (leaf-chunking 2a)
+
+Apply one **chunk envelope** (EDN). Layer‑1 items for 2a are `:node` only
+(hash + store content). See `docs/design/leaf-chunking.md`.
+
+**Request body:**
+
+```clojure
+{:dacite.wire/chunk-v1 true
+ :budget 1024
+ :items [{:encoding :node
+          :hash "64-hex"
+          :body [type-name data]}
+         …]}
+```
+
+**Response 200:** `{:ok true :applied n}`
+
+**Response 400:** malformed chunk.
+
+Clients pack until soft budget ≥ `budget` (chunks may approach 2× budget),
+then POST each chunk. Write-back flush uses this path when available.
+
+### Deferred
+
+- `POST /nodes/get` — batch / packed fetch
 - `GET /walk/{hash}` — guarded transitive fetch
-
-Use layered read-through + lazy `s-get` for MVP instead.
+- Layer‑1 `:literal` encodings (2b)
 
 ## Client composition
 
