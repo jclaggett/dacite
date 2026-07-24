@@ -506,9 +506,53 @@
         (make-empty! store))))
 
 (defn ft-seq
-  "Lazy sequence of element value hashes."
+  "Lazy sequence of element value hashes under a tree root (empty/single/deep)."
   [store root]
   (map #(get-value-hash store %) (tree-to-seq* store root)))
+
+(defn ft-leaves
+  "Ordered leaf value hashes under any FT node type (including bare digit/node).
+
+   Unlike ft-seq (tree roots only), this walks digit and node cells so pack
+ intermediate literals can realize their full leaf payload."
+  [store h]
+  (let [node (lookup store h)]
+    (case (node-type node)
+      "ft/empty" []
+      "ft/single" [(:value-hash (node-data node))]
+      "ft/digit" (mapcat #(ft-leaves store %) (:children (node-data node)))
+      "ft/node" (mapcat #(ft-leaves store %) (:children (node-data node)))
+      "ft/deep" (ft-seq store h)
+      (throw (ex-info "not a finger-tree node" {:type (node-type node)})))))
+
+(defn ft-from-value-hashes
+  "Build a finger-tree root by conj-right of the given leaf value hashes
+   (already in store). Same construction path as sequence collections.
+
+   Used for intermediate ft/deep (and similar) packing: the resulting root
+   hash is fuse(type, elements_fuse) and matches a sender node when types
+   and leaf multiset agree."
+  [store value-hashes]
+  (reduce (fn [root vh] (ft-conj-right store root vh))
+          (ft-empty store)
+          value-hashes))
+
+(defn ft-digit-from-value-hashes
+  "Build an ft/digit of ft/singles for ordered leaf value hashes.
+
+   Matches intermediate digit nodes whose children are singles of those
+   leaves (the common packing case)."
+  [store value-hashes]
+  (let [vhs (vec value-hashes)
+        singles (mapv (fn [vh]
+                        (make-single! store vh (types/dacite-size (lookup store vh))))
+                      vhs)]
+    (make-digit! store singles (mapv #(get-measure store %) singles))))
+
+(defn ft-single-from-value-hash
+  "Build an ft/single wrapping one leaf value hash."
+  [store value-hash]
+  (make-single! store value-hash (types/dacite-size (lookup store value-hash))))
 
 (defn ft-concat
   "Concatenate two trees in the same store. Returns the new root hash."

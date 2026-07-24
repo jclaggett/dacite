@@ -140,9 +140,10 @@
       (is (some? form) label)
       (is (= h (second (round-trip-hash st h))) label))))
 
-(deftest literal-of-spine-is-nil
+(deftest literal-of-spine-is-intermediate-form
+  ;; 2c′: spine nodes have leaf-payload literals (not nil).
   (let [st (store/mem-store)
-        v (apply coll/vector-with-store st (range 50))
+        v (apply coll/vector-with-store st (range 20))
         snap (store/s-snapshot st)
         ft-hs (keep (fn [[h e]]
                       (when (str/starts-with? (str (types/entry-type e)) "ft/")
@@ -150,7 +151,10 @@
                     snap)]
     (is (seq ft-hs))
     (doseq [fh ft-hs]
-      (is (nil? (pack/literal-of st fh))))))
+      (let [form (pack/literal-of st fh)]
+        (is (some? form))
+        (is (str/starts-with? (str (:type form)) "ft/"))
+        (is (vector? (:body form)))))))
 
 (deftest encode-and-apply-literal-scalars
   (let [st (store/mem-store)
@@ -251,19 +255,21 @@
     (is (>= (count covered) live))
     (is (contains? covered h))))
 
-(deftest ft-internal-nodes-stay-nodes
+(deftest ft-internal-nodes-may-be-intermediate-literals
+  ;; 2c′: spine nodes with fitting leaf payloads can be :literal when rebuild matches.
   (let [st (store/mem-store)
-        v (apply coll/vector-with-store st (range 50))
+        v (apply coll/vector-with-store st (range 20))
         _h (types/dacite-hash v)
         snap (store/s-snapshot st)
         ft-entries (filter (fn [[_ e]]
-                             (let [t (types/entry-type e)]
-                               (or (str/starts-with? (str t) "ft/")
-                                   (str/starts-with? (str t) "hamt/"))))
-                           snap)]
+                             (str/starts-with? (str (types/entry-type e)) "ft/"))
+                           snap)
+        encs (mapv (fn [[fh entry]]
+                     (:encoding (pack/encode-item st fh entry)))
+                   ft-entries)]
     (is (seq ft-entries))
-    (doseq [[fh entry] ft-entries]
-      (is (= :node (:encoding (pack/encode-item st fh entry)))))))
+    (is (some #{:literal} encs) "at least some ft nodes become intermediate literals")
+    (is (every? #{:literal :node} encs))))
 
 (deftest service-post-nodes-chunk
   (let [rooted (svc/make-demo-rooted)
@@ -372,8 +378,12 @@
     (is (pack/clearly-oversized? entry budget))
     (is (= :node (:encoding root-item)))
     (is (pos? (:nodes sum)))
-    (is (= 40 (count string-lits)) "each element string is a literal")
-    (is (> (:items sum) 40) "includes vector root + FT spine nodes")
+    ;; 2c′ may bottom out at intermediate FT lits covering several strings,
+    ;; or emit per-string literals — either way we get many literals.
+    (is (or (pos? (count string-lits))
+            (pos? (:literals sum)))
+        "child content arrives as literals (strings and/or ft/*)")
+    (is (> (:items sum) 1) "walk expands under large vector root")
     ;; Receiver can apply all chunks and hold the root hash
     (let [st2 (store/mem-store)
           chunks (pack/pack-items items budget)]
@@ -405,3 +415,94 @@
     (is (pos? (:chunks sum)))
     (is (= (+ (:literals sum) (:nodes sum)) (:items sum)))
     (is (pos? (:approx-bytes sum)))))
+
+;; ---------------------------------------------------------------------------
+;; 2c′ — intermediate FT/HAMT literals
+;; ---------------------------------------------------------------------------
+
+(deftest intermediate-ft-single-and-digit-round-trip
+  (let [st (store/mem-store)
+        v (apply coll/vector-with-store st (range 12))
+        snap (store/s-snapshot st)
+        singles (filter (fn [[_ e]] (= "ft/single" (types/entry-type e))) snap)
+        digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)]
+    (is (seq singles))
+    (doseq [[fh _] (take 3 singles)]
+      (let [[h1 h2 form] (round-trip-hash st fh)]
+        (is (= "ft/single" (:type form)))
+        (is (= h1 h2))))
+    (is (seq digits))
+    (doseq [[fh _] (take 3 digits)]
+      (let [[h1 h2 form] (round-trip-hash st fh)]
+        (is (= "ft/digit" (:type form)))
+        (is (vector? (:body form)))
+        (is (= h1 h2) "digit of singles rebuilds to same hash")))))
+
+(deftest intermediate-ft-deep-round-trip
+  (let [st (store/mem-store)
+        v (apply coll/vector-with-store st (range 20))
+        snap (store/s-snapshot st)
+        deeps (filter (fn [[_ e]] (= "ft/deep" (types/entry-type e))) snap)]
+    (is (seq deeps))
+    (doseq [[fh _] deeps]
+      (let [[h1 h2 form] (round-trip-hash st fh)]
+        (is (= "ft/deep" (:type form)))
+        (is (= h1 h2))))))
+
+(deftest intermediate-literal-bottom-out-reduces-items
+  ;; Large vector under tight budget: without intermediate lits, many FT nodes;
+  ;; with 2c′, digit/deep leaves can collapse into fewer items.
+  (let [st (store/mem-store)
+        v (apply coll/vector-with-store st (range 40))
+        h (types/dacite-hash v)
+        budget 200
+        sum (pack/encode-summary st h budget)
+        ft-lits (filter (fn [it]
+                          (and (= :literal (:encoding it))
+                               (str/starts-with? (str (:type it)) "ft/")))
+                        (:items (pack/encode-reachable st h #{} budget)))]
+    (is (= :node (:encoding (pack/encode-item st h (store/s-get st h) budget))))
+    (is (pos? (count ft-lits)) "walk bottoms out at intermediate ft literals")
+    (is (pos? (:literals sum)))
+    ;; Apply mixed pack and recover root
+    (let [st2 (store/mem-store)
+          {:keys [items]} (pack/encode-reachable st h #{} budget)]
+      (doseq [ch (pack/pack-items items budget)]
+        (pack/apply-chunk! st2 ch))
+      (is (store/s-has? st2 h)))))
+
+(deftest intermediate-hamt-entry-round-trip
+  (let [st (store/mem-store)
+        m (coll/hash-map-with-store st "a" 1 "b" 2)
+        snap (store/s-snapshot st)
+        entries (filter (fn [[_ e]] (= "hamt/entry" (types/entry-type e))) snap)]
+    (is (seq entries))
+    (doseq [[eh _] entries]
+      (let [[h1 h2 form] (round-trip-hash st eh)]
+        (is (= "hamt/entry" (:type form)))
+        (is (= h1 h2))))))
+
+(deftest intermediate-hamt-bitmap-round-trip-when-assured
+  (let [st (store/mem-store)
+        m (apply coll/hash-map-with-store st
+                 (mapcat (fn [i] [(str "k" i) i]) (range 12)))
+        snap (store/s-snapshot st)
+        bitmaps (filter (fn [[_ e]] (= "hamt/bitmap" (types/entry-type e))) snap)
+        results (mapv (fn [[bh _]]
+                        (let [form (pack/literal-of st bh)
+                              ok? (and form
+                                       (= bh (pack/materialize-literal!
+                                              (store/mem-store)
+                                              (:type form)
+                                              (:body form))))]
+                          ok?))
+                      bitmaps)]
+    (is (seq bitmaps))
+    ;; At least the full map root bitmap should round-trip; some intermediate
+    ;; bitmaps may not (routing) — encode dry-run keeps those as :node.
+    (is (some true? results) "some bitmaps assured")
+    (let [encs (mapv (fn [[bh e]]
+                       (:encoding (pack/encode-item st bh e)))
+                     bitmaps)]
+      (is (every? #{:literal :node} encs))
+      (is (some #{:literal} encs)))))

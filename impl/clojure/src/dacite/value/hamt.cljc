@@ -292,6 +292,28 @@
   [store root]
   (:elements-fuse (get-measure store root)))
 
+(defn hamt-from-entries
+  "Build a HAMT root by assoc of [key-hash key-ref val-ref] triples
+   (refs already in store). Same path as map construction.
+
+   Intermediate bitmap nodes only round-trip when their routing matches a
+   fresh root of the same entries (pack dry-run filters the rest)."
+  [store entries]
+  (reduce (fn [root [key-hash key-ref val-ref]]
+            (hamt-assoc store root key-hash key-ref val-ref))
+          (hamt-empty store)
+          entries))
+
+(defn hamt-entry-node
+  "Persist a single hamt/entry for key-hash / key-ref / val-ref; return hash."
+  [store key-hash key-ref val-ref]
+  (let [key-size (types/dacite-size (lookup store key-ref))
+        val-size (types/dacite-size (lookup store val-ref))
+        measure {:count 1
+                 :size-bytes (+ key-size val-size)
+                 :elements-fuse (hash/unchecked-fuse key-ref val-ref)}]
+    (make-entry! store key-hash key-ref val-ref measure)))
+
 ;; =============================================================================
 ;; child-hashes implementations for HAMT node types
 ;; =============================================================================

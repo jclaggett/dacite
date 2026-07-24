@@ -216,7 +216,7 @@ Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
 | **2b** | Realized literals for scalars / string / blob / map / set / vector (host-roundtrip + hash check); write-back coverage. **Done (core value types).** |
 | **2b′** | Systematic `literal-of` / `materialize-literal!`, recursive nested `{:type :body}` forms, tests per value type + nested/empty/todo. **Done.** |
 | **2c** | Large trees / blobs: cheap size cue gate; refuse root literal and walk `:node` + child literals; `encode-summary`. **Done.** |
-| **2c′** *(defer)* | **Intermediate literals** (`ft/*`, `hamt/*`) where realized content rebuilds to the same node hash — bottom out pack walks earlier. |
+| **2c′** | **Intermediate literals** (`ft/*`, `hamt/*`) as ordered leaf/entry payloads; rebuild + dry-run hash gate. **Done.** |
 | **2d** | Budget sweep; update `service.md` with measured defaults. |
 
 ### 2b notes (shipped)
@@ -234,7 +234,7 @@ Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
 - `materialize-literal!` always uses constructors; accepts recursive forms and
   2b flat host bodies for wire compat.
 - `encode-item` / `encode-reachable` use `literal-of` + dry-run hash check + budget.
-- Spine types (`ft/*`, `hamt/*`) still return nil from `literal-of` (2c′).
+- Spine types (`ft/*`, `hamt/*`) gain leaf-payload forms in 2c′ (dry-run gated).
 
 ### 2c notes (shipped)
 
@@ -258,6 +258,27 @@ Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
 | 40 short strings @ 200 | root `:node` + 40 string literals + spine nodes |
 | same vector @ 500 | size cue fits but recursive wire > 2×budget → mixed walk |
 | todo seed @ 1024 | still one root `:literal` |
+
+### 2c′ notes (shipped)
+
+Intermediate spine nodes may ship as literals whose **body is ordered leaf
+content** (value literals), not the raw child-hash spine:
+
+| Type | Body | Rebuild |
+|------|------|---------|
+| `ft/empty` | `[]` | `ft-empty` |
+| `ft/single` | `[leaf-lit]` | single of leaf |
+| `ft/digit` | leaf lits | digit of singles |
+| `ft/deep` (and try `ft/node`) | leaf lits | `ft-from-value-hashes` (conj-right) |
+| `hamt/empty` | `[]` | empty |
+| `hamt/entry` | `[k-lit v-lit]` | entry node |
+| `hamt/bitmap` | `[[k v]…]` | `hamt-from-entries` (only when routing matches) |
+
+**Gate:** same as values — budget + dry-run `materialize = claimed hash`. Bitmaps
+that do not round-trip stay `:node`.
+
+**Win:** large parent as `:node` → walk hits an `ft/digit` / `ft/deep` that fits
+→ one intermediate literal instead of many child cells.
 
 ## Non-goals (MVP)
 
@@ -287,7 +308,7 @@ Not scheduled; pursue after 2c/2d once literal shapes and budgets are stable.
 2. Wire tags: full type strings (`"vector"`) vs short (`:v`, `:s`) — either, as long as type fidelity (L3) holds.
 3. Truncation inside a large collection (some elements as `{:ref hex}`): **defer**; MVP is full realized or fall back to `:node` walk.
 4. Claimed hash on the item: **keep** + verify (bugs and hostile peers).
-5. Intermediate literals: which spine types have assured reconstruction today (likely those hashed only on `elements_fuse` + type)? Document per type before implementing 2c′.
+5. Intermediate literals (2c′): FT digit/single/deep and many hamt bitmaps assured via rebuild+dry-run; some bitmaps stay `:node` when routing differs.
 
 ## Relation to prior work
 

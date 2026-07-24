@@ -4,13 +4,16 @@
    See docs/design/leaf-chunking.md.
    2a: :node only.
    2b/2b′: realized recursive typed literals for value types.
-   2c: large values — cheap size gate; refuse literal and walk :node + children."
+   2c: large values — cheap size gate; refuse literal and walk :node + children.
+   2c′: intermediate ft/* / hamt/* literals when leaf rebuild matches hash."
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.wire :as wire]
             [dacite.value.types :as types]
             [dacite.value.scalar :as scalar]
             [dacite.value.collections :as coll]
+            [dacite.value.finger-tree :as ft]
+            [dacite.value.hamt :as hamt]
             [dacite.rooted.gc :as gc]))
 
 (def default-budget
@@ -105,7 +108,7 @@
 ;; =============================================================================
 
 (defn- tree-internal-type?
-  "Finger-tree / HAMT internal node types — not value literals (2c′ later)."
+  "Finger-tree / HAMT internal node types (2c′ intermediate literals)."
   [t]
   (or (str/starts-with? (str t) "ft/")
       (str/starts-with? (str t) "hamt/")))
@@ -123,10 +126,13 @@
 
 (defn size-cue
   "Cheap logical size from stored measures (:size-bytes) or entry fallback.
-   Used to refuse literals before building a full realized form (2c)."
+   Used to refuse literals before building a full realized form (2c).
+   FT/HAMT nodes keep size-bytes under :measure."
   [entry]
   (let [data (types/entry-data entry)]
-    (long (or (when (map? data) (:size-bytes data))
+    (long (or (when (map? data)
+                (or (:size-bytes data)
+                    (get-in data [:measure :size-bytes])))
               (entry-payload-size entry)
               0))))
 
@@ -173,18 +179,75 @@
 ;; literal-of (2b′) — complete realized typed form
 ;; =============================================================================
 
-(defn literal-of
-  "Return {:type t :body b} for the value at h, or nil if not a value type.
+(defn- leaf-literals
+  "Map ordered leaf value hashes to recursive value literals."
+  [st leaf-hs]
+  (mapv (fn [eh]
+          (or (nested-literal st eh)
+              (throw (ex-info "leaf is not a value type"
+                              {:leaf eh
+                               :type (when-let [e (store/s-get st eh)]
+                                       (types/entry-type e))}))))
+        leaf-hs))
 
-   Body is the complete realized content. Nested values are themselves
-   {:type :body} maps (recursive). Spine types (ft/*, hamt/*) return nil."
+(defn- intermediate-literal-of
+  "Realized-leaf literal for an ft/* or hamt/* node, or nil if unsupported.
+
+   Body is the complete ordered leaf content under the node (value literals).
+   Materialize rebuilds a spine with the same type+elements_fuse when possible;
+   encode dry-run rejects cases that do not round-trip (e.g. some hamt/bitmap)."
+  [st h entry]
+  (let [t (types/entry-type entry)]
+    (cond
+      (= "ft/empty" t)
+      {:type t :body []}
+
+      (str/starts-with? (str t) "ft/")
+      (let [leaves (vec (ft/ft-leaves st h))]
+        {:type t :body (leaf-literals st leaves)})
+
+      (= "hamt/empty" t)
+      {:type t :body []}
+
+      (= "hamt/entry" t)
+      (let [data (types/entry-data entry)
+            kr (:key-ref data)
+            vr (:val-ref data)
+            kl (or (nested-literal st kr)
+                   (throw (ex-info "hamt entry key not a value" {:h h})))
+            vl (or (nested-literal st vr)
+                   (throw (ex-info "hamt entry val not a value" {:h h})))]
+        {:type t :body [kl vl]})
+
+      (= "hamt/bitmap" t)
+      (let [pairs (mapv (fn [[kr vr]]
+                          [(or (nested-literal st kr)
+                               (throw (ex-info "hamt key not a value" {:h h})))
+                           (or (nested-literal st vr)
+                               (throw (ex-info "hamt val not a value" {:h h})))])
+                        (hamt/hamt-entries st h))]
+        {:type t :body pairs})
+
+      :else nil)))
+
+(defn literal-of
+  "Return {:type t :body b} for hash h, or nil if no realized form.
+
+   Value types (scalars, string, blob, vector, map, set): complete realized
+   content with recursive nested {:type :body} forms.
+
+   Intermediate spine types (ft/*, hamt/*) (2c′): ordered leaf value literals;
+   materialize + dry-run must match claimed hash to emit as :literal."
   [st h]
   (when-let [entry (store/s-get st h)]
     (let [t (types/entry-type entry)
           data (types/entry-data entry)]
       (cond
         (tree-internal-type? t)
-        nil
+        (try
+          (intermediate-literal-of st h entry)
+          (catch #?(:clj Throwable :cljs :default) _
+            nil))
 
         (contains? scalar-types t)
         {:type t :body data}
@@ -243,16 +306,17 @@
   (count (wire/write-edn form)))
 
 (defn fits-literal?
-  "True if h is a value type whose realized literal is under budget.
+  "True if h has a realized literal under budget (value or intermediate spine).
 
    Uses a cheap size cue first (2c): if :size-bytes already exceeds budget,
    returns false without building the recursive form or dry-running materialize."
   ([st h] (fits-literal? st h default-budget))
   ([st h budget]
    (let [budget (long budget)
-         entry (store/s-get st h)]
+         entry (store/s-get st h)
+         t (when entry (types/entry-type entry))]
      (when (and entry
-                (value-type? (types/entry-type entry))
+                (or (value-type? t) (tree-internal-type? t))
                 (not (clearly-oversized? entry budget)))
        (when-let [form (literal-of st h)]
          (and (<= (literal-form-size form) (* 2 budget))
@@ -294,11 +358,62 @@
     :else
     (types/extract-hash st x)))
 
+(defn- materialize-ft!
+  "Rebuild an FT node from ordered leaf value hashes."
+  [st type leaf-hs]
+  (let [type (str type)
+        leaf-hs (vec leaf-hs)]
+    (cond
+      (= "ft/empty" type) (ft/ft-empty st)
+
+      (= "ft/single" type)
+      (do (when-not (= 1 (count leaf-hs))
+            (throw (ex-info "ft/single expects one leaf" {:n (count leaf-hs)})))
+          (ft/ft-single-from-value-hash st (first leaf-hs)))
+
+      (= "ft/digit" type)
+      (ft/ft-digit-from-value-hashes st leaf-hs)
+
+      ;; deep / node: conj-right path (matches deep; node may fail dry-run)
+      (or (= "ft/deep" type) (= "ft/node" type))
+      (ft/ft-from-value-hashes st leaf-hs)
+
+      :else
+      (throw (ex-info "unsupported ft literal type" {:type type})))))
+
+(defn- materialize-hamt!
+  "Rebuild a HAMT node from entry pair literals or empty."
+  [st type body]
+  (let [type (str type)]
+    (cond
+      (= "hamt/empty" type) (hamt/hamt-empty st)
+
+      (= "hamt/entry" type)
+      (let [k (nth body 0)
+            v (nth body 1)
+            kh (materialize-nested! st k)
+            vh (materialize-nested! st v)]
+        (hamt/hamt-entry-node st kh kh vh))
+
+      (= "hamt/bitmap" type)
+      (let [entries (mapv (fn [pair]
+                            (let [k (nth pair 0)
+                                  v (nth pair 1)
+                                  kh (materialize-nested! st k)
+                                  vh (materialize-nested! st v)]
+                              [kh kh vh]))
+                          body)]
+        (hamt/hamt-from-entries st entries))
+
+      :else
+      (throw (ex-info "unsupported hamt literal type" {:type type})))))
+
 (defn materialize-literal!
   "Install a realized literal into st; return the content hash.
 
    Body is complete realized content. Nested collection elements are either
-   recursive {:type :body} maps (2b′) or flat host values (2b wire compat)."
+   recursive {:type :body} maps (2b′) or flat host values (2b wire compat).
+   Intermediate ft/* / hamt/* bodies are ordered leaf (or entry) literals (2c′)."
   [st type body]
   (let [type (str type)]
     (cond
@@ -317,7 +432,6 @@
 
       (= "set" type)
       (let [refs (mapv #(materialize-nested! st %) (or body []))]
-        ;; Build set from hashes by wrapping empty set and assoc… use constructor
         (types/dacite-hash
          (apply coll/dacite-set-with-store st
                 (map #(types/wrap-entry
@@ -343,6 +457,13 @@
                         pairs)]
         (types/dacite-hash (apply coll/hash-map-with-store st kvs)))
 
+      (str/starts-with? type "ft/")
+      (let [leaf-hs (mapv #(materialize-nested! st %) (or body []))]
+        (materialize-ft! st type leaf-hs))
+
+      (str/starts-with? type "hamt/")
+      (materialize-hamt! st type (or body []))
+
       :else
       (throw (ex-info "cannot materialize literal type"
                       {:type type})))))
@@ -362,23 +483,26 @@
 (defn encode-item
   "Layer 1: choose :literal or :node for store entry at h.
 
-   Policy (2c):
-   1. Spine / non-value → :node
+   Policy (2c / 2c′):
+   1. Unknown non-value, non-spine type → :node
    2. Stored size cue > budget → :node (no full realize / dry-run)
-   3. Else build realized literal; if wire size > 2×budget or hash dry-run
-      fails → :node
+   3. Else build realized literal (value or intermediate spine);
+      if wire size > 2×budget or hash dry-run fails → :node
    4. Else :literal
 
-   When the pack walk gets :node for a large parent, children are visited
-   separately and may still become :literal (mixed encoding)."
+   Intermediate ft/* / hamt/* may bottom out as leaf-literal payloads when
+   reconstruction matches the claimed hash (2c′). Otherwise the walk continues
+   into children."
   ([st h entry] (encode-item st h entry default-budget))
   ([st h entry budget]
    (let [budget (long (or budget default-budget))
          t (types/entry-type entry)]
      (cond
-       (or (tree-internal-type? t)
-           (not (value-type? t))
-           (clearly-oversized? entry budget))
+       (and (not (value-type? t))
+            (not (tree-internal-type? t)))
+       (node-item h entry)
+
+       (clearly-oversized? entry budget)
        (node-item h entry)
 
        :else
