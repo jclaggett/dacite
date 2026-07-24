@@ -18,8 +18,7 @@
             [dacite.store.client-cache :as client-cache]
             [dacite.examples.todo :as todo]
             [dacite.value.api :as d]
-            [dacite.value.types :as types]
-            [dacite.store :as store])
+            [dacite.value.types :as types])
   (:gen-class))
 
 (def scenario-names
@@ -93,7 +92,7 @@
                 todos'))))]
       (swap! results assoc :add-warm (primary delta)))
 
-    ;; --- reload-cold (fresh client, pack-fetch then realize) ---
+    ;; --- reload-cold (fresh client; pack-filled s-get via GET /node) ---
     (stats/reset-stats!)
     (let [cold (make-client base-url policy)
           root @!root
@@ -103,19 +102,10 @@
             (fn []
               (let [h (or (remote/remote-get-root cold)
                           (throw (ex-info "missing root" {})))
-                    ;; Pack-fetch into local cache (or fresh mem for :none)
-                    {:keys [dest]} (remote/fetch-reachable! cold h)
-                    ;; Prefer client-cache wrappers (local-first); else pack dest
-                    view (if (or (client-cache/write-back-store? cold)
-                                 (and (record? cold)
-                                      (contains? cold :local)
-                                      (contains? cold :remote)))
-                           cold
-                           dest)
-                    todos (d/get-value view h)]
+                    ;; Normal materialize: each miss pack-fills a neighborhood
+                    todos (d/get-value cold h)]
                 (when-not todos
-                  (throw (ex-info "pack-fetch did not install root"
-                                  {:hash h :dest-has? (store/s-has? dest h)})))
+                  (throw (ex-info "root missing after get" {:hash h})))
                 (realize-todos! todos)
                 todos))))]
       (swap! results assoc :reload-cold (primary delta)))

@@ -14,11 +14,11 @@ Client                          Server
   |  LayeredStore(mem, Remote)    |  RootedStore(LMDB content + root cell)
   |  RootedStore(remote, ...)     |
   |                               |
-  +--- GET /node/{hex} --------->|  s-get
+  +--- GET /node/{hex} --------->|  pack-filled get (default) or ?raw=1
   +--- PUT /node/{hex} --------->|  s-put
   +--- HEAD /node/{hex} -------->|  s-has?
   +--- POST /nodes -------------->|  apply pack chunk (write)
-  +--- POST /nodes/get ---------->|  pack-fetch reachable (read)
+  +--- POST /nodes/get ---------->|  bulk pack (demoted; admin/sync only)
   +--- GET /root ---------------->|  @store (root hash or null)
   +--- POST /root/cas ------------>|  compare-and-set! on rooted store
 ```
@@ -41,11 +41,20 @@ Implementation-defined for MVP tests (static token → single test store).
 
 ### `GET /node/{hash-hex}`
 
-Fetch a stored node.
+Fetch a stored node. **Pack mode is the default** (leaf-chunking read path):
 
-**Response 200:** EDN body — the raw store value (e.g. `["vector" {:root [...] :count 5 ...}]`).
+**Response 200 (default):** one `chunk-v1` envelope. The first/primary item
+installs `{hash-hex}`; further items are a **BFS** neighborhood under that
+hash until the soft pack budget seals the chunk. Client applies the chunk
+locally (`apply-chunk!`) then reads the requested hash.
+
+**Response 200 (`?raw=1`):** bare store node EDN (debug / simple tools).
 
 **Response 404:** Node not present.
+
+This keeps the unit of interaction content-addressed (**one hash asked**) while
+allowing opportunistic under-fill. It avoids a separate “download whole value
+tree” API as the primary path.
 
 ### `PUT /node/{hash-hex}`
 
@@ -82,29 +91,14 @@ Apply one leaf-chunking chunk (`:node` / `:literal` items). See
 
 **Response 200:** `{:ok true :applied n :nodes n :literals n}`
 
-### `POST /nodes/get` (pack fetch / read)
+### `POST /nodes/get` (bulk pack — demoted)
 
-Server walks reachable hashes from the given roots (skipping `:have`), encodes
-with the same Layer 1/2 pack policy as writes, and returns one or more chunks
-for the client to `apply-chunk!` into a local store.
+**Demoted.** Full-subgraph pack under roots can encourage full-value transfer
+and unbounded server work (DoS-shaped on large roots). Prefer pack-filled
+`GET /node/{hex}` for interactive clients.
 
-**Request body (EDN):**
-
-```clojure
-{:roots  [hash-hex …]     ; start hashes (usually the current root)
- :have   [hash-hex …]     ; optional — client already has these
- :budget 1024}            ; optional soft pack budget
-```
-
-**Response 200:**
-
-```clojure
-{:ok true
- :chunks [/* chunk-v1 envelopes */]
- :items n
- :covered n
- :budget 1024}
-```
+Kept for admin/sync/tools: same request/response as before
+(`:roots`, `:have`, `:budget` → `:chunks`).
 
 ## Root endpoints (maps to rooted store)
 

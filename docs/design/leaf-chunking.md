@@ -187,12 +187,14 @@ needed hashes → Layer 1 (literal | node) → items → Layer 2 pack → HTTP
 | Role | Idea |
 |------|------|
 | Send | `POST /nodes` — one body = one chunk |
-| Fetch pack | `POST /nodes/get` `{:roots […] :have […] :budget 1024}` → `{:chunks […] …}` |
-| Compat | Keep `GET/PUT /node/{hex}` |
+| Read (primary) | `GET /node/{hex}` → **one** chunk: encode `hex`, then **BFS** under it until soft budget seals |
+| Read (raw) | `GET /node/{hex}?raw=1` → bare node |
+| Bulk (demoted) | `POST /nodes/get` — full remaining subgraph; admin/sync only |
 
-**Read path (shipped):** server runs the same `encode-reachable` walk; client
-`fetch-reachable!` applies chunks into the local cache, then realizes from
-local-first stores. Reload uses pack-fetch instead of per-node GET.
+**Read path (shipped):** pack-filled single-node get. Client remote `s-get`
+applies the chunk into a pack-local cache, then returns the node. Further
+descendant misses pack-fill their own neighborhoods. Walk order is **BFS**
+(partial-value friendly); DFS may be offered later as a parameter.
 
 ## Composition with write-back cache
 

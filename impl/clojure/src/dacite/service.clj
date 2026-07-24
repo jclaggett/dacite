@@ -50,102 +50,130 @@
 (defn- send-empty! [^HttpExchange ex status]
   (send-bytes! ex status nil nil))
 
+(defn- split-path-query
+  "Return [path query-string-or-nil] from a path that may include ?query."
+  [path]
+  (let [i (when path (.indexOf ^String path (int \?)))]
+    (if (and i (not (neg? i)))
+      [(subs path 0 i) (subs path (inc i))]
+      [path nil])))
+
 (defn- parse-node-hex [path]
-  (when (and path (.startsWith path "/node/") (> (count path) 6))
-    (subs path 6)))
+  (let [[p _] (split-path-query path)]
+    (when (and p (.startsWith p "/node/") (> (count p) 6))
+      (subs p 6))))
+
+(defn- query-flag?
+  "True if query string contains key=1/true/yes (e.g. raw=1)."
+  [query key]
+  (when query
+    (boolean (re-find (re-pattern (str "(?i)(?:^|&)" key "=(?:1|true|yes)(?:&|$)"))
+                      query))))
 
 (defn handle-request
   "Pure-ish request handler against a rooted store.
    Returns {:status n :headers m? :body string-or-bytes-or-nil :content-type s?}
-   for testing without HttpExchange."
+   for testing without HttpExchange.
+
+   path may include ?query. GET /node/{hex} returns a pack chunk by default
+   (BFS neighborhood under the hash). Pass ?raw=1 for a bare store node."
   [rooted method path body-str]
   (try
-    (cond
-      (= "OPTIONS" method)
-      {:status 204}
+    (let [[path-only query] (split-path-query path)]
+      (cond
+        (= "OPTIONS" method)
+        {:status 204}
 
-      (and (= "GET" method) (= path "/root"))
-      (let [r (rs/root rooted)]
-        {:status 200
-         :content-type "application/edn; charset=utf-8"
-         :body (wire/write-edn {:root (when r (store/hash->hex r))})})
-
-      (and (= "POST" method) (= path "/root/cas"))
-      (let [data (wire/read-edn body-str)
-            expected (when-let [e (:expected data)]
-                       (when-not (nil? e) (store/hex->hash e)))
-            new-h (store/hex->hash (:new data))]
-        (if (rs/cas-root! rooted expected new-h)
+        (and (= "GET" method) (= path-only "/root"))
+        (let [r (rs/root rooted)]
           {:status 200
            :content-type "application/edn; charset=utf-8"
-           :body (wire/write-edn {:ok true})}
-          {:status 409
-           :content-type "application/edn; charset=utf-8"
-           :body (wire/write-edn {:ok false})}))
+           :body (wire/write-edn {:root (when r (store/hash->hex r))})})
 
-      (and (= "POST" method) (= path "/nodes/get"))
-      (try
-        (let [req (wire/read-edn body-str)
-              result (pack/pack-get rooted req)]
-          {:status 200
-           :content-type "application/edn; charset=utf-8"
-           :body (wire/write-edn (assoc result :ok true))})
-        (catch Exception e
-          {:status 400
-           :content-type "application/edn; charset=utf-8"
-           :body (wire/write-edn {:ok false
-                                  :error "malformed pack-get"
-                                  :detail (.getMessage e)})}))
-
-      (and (= "POST" method) (= path "/nodes"))
-      (try
-        (let [chunk (wire/read-edn body-str)
-              result (pack/apply-chunk! rooted chunk)]
-          {:status 200
-           :content-type "application/edn; charset=utf-8"
-           :body (wire/write-edn (assoc result :ok true))})
-        (catch Exception e
-          {:status 400
-           :content-type "application/edn; charset=utf-8"
-           :body (wire/write-edn {:ok false
-                                  :error "malformed chunk"
-                                  :detail (.getMessage e)})}))
-
-      (and (#{"GET" "PUT" "HEAD" "DELETE"} method) (parse-node-hex path))
-      (let [hex (parse-node-hex path)
-            h (store/hex->hash hex)]
-        (case method
-          "GET"
-          (if-let [node (store/s-get rooted h)]
+        (and (= "POST" method) (= path-only "/root/cas"))
+        (let [data (wire/read-edn body-str)
+              expected (when-let [e (:expected data)]
+                         (when-not (nil? e) (store/hex->hash e)))
+              new-h (store/hex->hash (:new data))]
+          (if (rs/cas-root! rooted expected new-h)
             {:status 200
              :content-type "application/edn; charset=utf-8"
-             :body (wire/write-edn node)}
-            {:status 404})
+             :body (wire/write-edn {:ok true})}
+            {:status 409
+             :content-type "application/edn; charset=utf-8"
+             :body (wire/write-edn {:ok false})}))
 
-          "PUT"
-          (try
-            (let [node (wire/read-edn body-str)]
-              (store/s-put rooted h node)
-              {:status 204})
-            (catch Exception e
-              {:status 400
-               :content-type "application/edn; charset=utf-8"
-               :body (wire/write-edn {:error "malformed body"
-                                      :detail (.getMessage e)})}))
+      ;; Bulk pack-get: demoted — admin/sync only; prefer pack-filled GET /node
+        (and (= "POST" method) (= path-only "/nodes/get"))
+        (try
+          (let [req (wire/read-edn body-str)
+                result (pack/pack-get rooted req)]
+            {:status 200
+             :content-type "application/edn; charset=utf-8"
+             :body (wire/write-edn (assoc result :ok true))})
+          (catch Exception e
+            {:status 400
+             :content-type "application/edn; charset=utf-8"
+             :body (wire/write-edn {:ok false
+                                    :error "malformed pack-get"
+                                    :detail (.getMessage e)})}))
 
-          "HEAD"
-          (if (store/s-has? rooted h)
-            {:status 200}
-            {:status 404})
+        (and (= "POST" method) (= path-only "/nodes"))
+        (try
+          (let [chunk (wire/read-edn body-str)
+                result (pack/apply-chunk! rooted chunk)]
+            {:status 200
+             :content-type "application/edn; charset=utf-8"
+             :body (wire/write-edn (assoc result :ok true))})
+          (catch Exception e
+            {:status 400
+             :content-type "application/edn; charset=utf-8"
+             :body (wire/write-edn {:ok false
+                                    :error "malformed chunk"
+                                    :detail (.getMessage e)})}))
 
-          "DELETE"
-          (do (store/s-delete rooted h)
-              {:status 204})))
+        (and (#{"GET" "PUT" "HEAD" "DELETE"} method) (parse-node-hex path-only))
+        (let [hex (parse-node-hex path-only)
+              h (store/hex->hash hex)
+              raw? (query-flag? query "raw")]
+          (case method
+            "GET"
+            (if raw?
+              (if-let [node (store/s-get rooted h)]
+                {:status 200
+                 :content-type "application/edn; charset=utf-8"
+                 :body (wire/write-edn node)}
+                {:status 404})
+              (if-let [chunk (pack/pack-under rooted h)]
+                {:status 200
+                 :content-type "application/edn; charset=utf-8"
+                 :body (wire/write-edn chunk)}
+                {:status 404}))
 
-      :else
-      {:status 404
-       :content-type "application/edn; charset=utf-8"
-       :body (wire/write-edn {:error "not found" :path path})})
+            "PUT"
+            (try
+              (let [node (wire/read-edn body-str)]
+                (store/s-put rooted h node)
+                {:status 204})
+              (catch Exception e
+                {:status 400
+                 :content-type "application/edn; charset=utf-8"
+                 :body (wire/write-edn {:error "malformed body"
+                                        :detail (.getMessage e)})}))
+
+            "HEAD"
+            (if (store/s-has? rooted h)
+              {:status 200}
+              {:status 404})
+
+            "DELETE"
+            (do (store/s-delete rooted h)
+                {:status 204})))
+
+        :else
+        {:status 404
+         :content-type "application/edn; charset=utf-8"
+         :body (wire/write-edn {:error "not found" :path path})}))
     (catch Exception e
       {:status 500
        :content-type "application/edn; charset=utf-8"
@@ -217,11 +245,14 @@
           (handle [_ exchange]
             (try
               (let [method (.getRequestMethod exchange)
-                    path (.getPath (.getRequestURI exchange))
+                    uri (.getRequestURI exchange)
+                    path (.getPath uri)
+                    q (.getQuery uri)
+                    path+q (if q (str path "?" q) path)
                     body (when (#{"PUT" "POST"} method) (read-body-str exchange))
                     resp (or (when (#{"GET" "HEAD"} method)
                                (handle-static static path))
-                             (handle-request rooted method path body))]
+                             (handle-request rooted method path+q body))]
                 (write-response! exchange resp))
               (catch Exception e
                 (try

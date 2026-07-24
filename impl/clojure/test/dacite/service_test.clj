@@ -17,9 +17,13 @@
         put (svc/handle-request rooted "PUT" (str "/node/" (store/hash->hex h))
                                 (wire/write-edn node))]
     (is (= 204 (:status put)))
-    (let [got (svc/handle-request rooted "GET" (str "/node/" (store/hash->hex h)) nil)]
+    (let [got (svc/handle-request rooted "GET" (str "/node/" (store/hash->hex h)) nil)
+          raw (svc/handle-request rooted "GET" (str "/node/" (store/hash->hex h) "?raw=1") nil)]
       (is (= 200 (:status got)))
-      (is (= node (wire/read-edn (:body got)))))
+      (is (true? (:dacite.wire/chunk-v1 (wire/read-edn (:body got))))
+          "GET /node pack mode returns a chunk envelope")
+      (is (= 200 (:status raw)))
+      (is (= node (wire/read-edn (:body raw)))))
     (let [miss (svc/handle-request rooted "GET"
                                    (str "/node/" (apply str (repeat 64 "b"))) nil)]
       (is (= 404 (:status miss))))

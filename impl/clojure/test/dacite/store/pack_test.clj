@@ -482,18 +482,26 @@
         (is (= "hamt/entry" (:type form)))
         (is (= h1 h2))))))
 
-(deftest pack-get-and-fetch-reachable
+(deftest pack-under-bfs-single-chunk
   (let [st (store/mem-store)
         t (todo/build st (todo/seed-items))
         h (types/dacite-hash t)
-        res (pack/pack-get st {:roots [h] :budget 1024})]
-    (is (true? (or (pos? (:items res)) true)))
-    (is (= 1 (:items res)))
-    (is (= 1 (count (:chunks res))))
+        ch (pack/pack-under st h #{} 1024)]
+    (is (true? (:dacite.wire/chunk-v1 ch)))
+    (is (= 1 (count (:items ch))) "small todo root is one literal chunk")
     (let [st2 (store/mem-store)]
-      (doseq [ch (:chunks res)]
-        (pack/apply-chunk! st2 ch))
+      (pack/apply-chunk! st2 ch)
       (is (store/s-has? st2 h))))
+  (let [st (store/mem-store)
+        s (coll/string-with-store st (apply str (repeat 3000 \x)))
+        h (types/dacite-hash s)
+        ch (pack/pack-under st h #{} 1024)]
+    (is (true? (:dacite.wire/chunk-v1 ch)))
+    (is (pos? (count (:items ch))))
+    (is (>= (pack/chunk-size ch) 1024)
+        "large string seals one soft-budget chunk without packing the whole DAG")))
+
+(deftest remote-s-get-pack-fill
   (let [rooted (svc/make-demo-rooted)
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
     (try
@@ -501,20 +509,22 @@
             t (todo/build raw (todo/seed-items))
             h (types/dacite-hash t)
             _ (remote/remote-cas-root! raw nil h)
-            cold (client-cache/wrap (remote/remote-store base-url) :write-back)]
+            cold (remote/remote-store base-url)]
         (stats/reset-stats!)
         (let [before (stats/get-stats)
-              fr (remote/fetch-reachable! cold h)
+              node (store/s-get cold h)
               after (stats/get-stats)
               d (stats/stats-diff before after)
               kinds (:by-kind after {})]
-          (is (pos? (:items fr)))
-          (is (pos? (:chunks fr)))
-          (is (pos? (get kinds :nodes-get 0)))
-          (is (< (get kinds :node-get 0) 5)
-              "pack-fetch should not issue many single-node GETs")
-          (is (< (:requests d) 10))
-          (is (store/s-has? (:local cold) h))))
+          (is (some? node))
+          (is (= "vector" (types/entry-type node)))
+          (is (pos? (get kinds :node-get 0)))
+          (is (< (:requests d) 5)
+              "pack-filled root get should not fan out many requests")
+          ;; Further access hits pack-local
+          (stats/reset-stats!)
+          (store/s-get cold h)
+          (is (zero? (:requests (stats/get-stats))))))
       (finally
         (stop!)))))
 

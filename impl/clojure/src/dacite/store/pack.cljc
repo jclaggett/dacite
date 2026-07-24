@@ -571,6 +571,54 @@
             :covered (count covered)
             :budget budget))))
 
+(defn pack-under
+  "Primary read packing: one chunk for hash h and a BFS neighborhood under it.
+
+   Always includes an encoding of h when present. Then BFS-expands descendants
+   (skipping `have`) with the same :literal/:node policy until soft budget
+   seals the chunk (include the item that crossed the threshold, then stop).
+   Does not start additional chunks — remainder is left for later node gets.
+
+   Returns a chunk-v1 map, or nil if h is missing from st."
+  ([st h] (pack-under st h #{} default-budget))
+  ([st h have] (pack-under st h have default-budget))
+  ([st h have budget]
+   (when (and h (store/s-has? st h))
+     (let [budget (long (or budget default-budget))
+           have (set (or have #{}))
+           items (atom [])
+           visited (atom have)]
+       ;; Portable FIFO: vector, take from front via next
+       (loop [q (list h)]
+         (if-let [cur (first q)]
+           (let [q (next q)]
+             (if (contains? @visited cur)
+               (recur q)
+               (if-let [entry (store/s-get st cur)]
+                 (let [item (encode-item st cur entry budget)
+                       trial (conj @items item)
+                       sz (chunk-size (make-chunk budget trial))]
+                   (reset! items trial)
+                   (swap! visited conj cur)
+                   (let [literal? (= :literal (:encoding item))]
+                     (when literal?
+                       (swap! visited into (gc/mark-reachable st cur)))
+                     (cond
+                       (>= sz budget)
+                       nil
+                       literal?
+                       (recur q)
+                       :else
+                       (let [chs (remove (fn [ch]
+                                           (or (nil? ch) (contains? @visited ch)))
+                                         (or (types/child-hashes entry) []))]
+                         ;; append children for BFS (queue = front … back)
+                         (recur (concat q chs))))))
+                 (recur q))))
+           nil))
+       (when (seq @items)
+         (make-chunk budget @items))))))
+
 ;; =============================================================================
 ;; Apply + transport
 ;; =============================================================================

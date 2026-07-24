@@ -5,6 +5,9 @@
    Compose with layered-store, client-cache, and lru-store for caching.
    Bodies use dacite.wire so #dacite/u64 hash words round-trip.
 
+   GET /node/{hex} returns a pack chunk by default (BFS under the hash).
+   s-get applies the chunk into a local pack cache, then returns the node.
+
    Store-protocol body sizes are recorded in dacite.store.stats."
   (:require [clojure.string :as str]
             [dacite.store :as store]
@@ -17,8 +20,12 @@
            [java.net.http HttpClient HttpRequest HttpResponse HttpRequest$BodyPublishers HttpResponse$BodyHandlers]
            [java.time Duration]))
 
-(defn- node-url [base-url h]
-  (str (str/replace base-url #"/$" "") "/node/" (store/hash->hex h)))
+(defn- node-url
+  ([base-url h] (node-url base-url h nil))
+  ([base-url h query]
+   (str (str/replace base-url #"/$" "")
+        "/node/" (store/hash->hex h)
+        (when query (str "?" query)))))
 
 (defn- request [client method url ^bytes body headers]
   (let [body-publisher (if body
@@ -47,32 +54,51 @@
      :data (when (and body (pos? (alength body)))
              (wire/read-edn (String. body "UTF-8")))}))
 
-(defrecord RemoteStore [base-url client headers]
+(defn- apply-get-body!
+  "Install GET /node body into pack-local (chunk or raw node). Return node at h."
+  [pack-local h data]
+  (cond
+    (pack/chunk? data)
+    (do (pack/apply-chunk! pack-local data)
+        (store/s-get pack-local h))
+
+    (some? data)
+    (do (store/s-put pack-local h data)
+        data)
+
+    :else nil))
+
+(defrecord RemoteStore [base-url client headers pack-local]
   store/IStore
   (s-get [_ h]
-    (let [{:keys [status body]} (request client "GET" (node-url base-url h) nil headers)]
-      (when (= 200 status)
-        (wire/read-edn (String. body "UTF-8")))))
+    (or (store/s-get pack-local h)
+        (let [{:keys [status body]} (request client "GET" (node-url base-url h) nil headers)]
+          (when (= 200 status)
+            (apply-get-body! pack-local h
+                             (wire/read-edn (String. body "UTF-8")))))))
 
   (s-put [_ h value]
     (let [{:keys [status]} (request client "PUT" (node-url base-url h)
                                     (.getBytes (wire/write-edn value) "UTF-8")
                                     (assoc headers "Content-Type" "application/edn"))]
       (when (not= 204 status)
-        (throw (ex-info "Remote s-put failed" {:status status :hash h}))))
+        (throw (ex-info "Remote s-put failed" {:status status :hash h})))
+      (store/s-put pack-local h value))
     _)
 
   (s-has? [_ h]
-    (= 200 (:status (request client "HEAD" (node-url base-url h) nil headers))))
+    (or (store/s-has? pack-local h)
+        (= 200 (:status (request client "HEAD" (node-url base-url h) nil headers)))))
 
   (s-delete [_ h]
     (let [{:keys [status]} (request client "DELETE" (node-url base-url h) nil headers)]
       (when (and (not= 204 status) (not= 404 status))
-        (throw (ex-info "Remote s-delete failed" {:status status :hash h}))))
+        (throw (ex-info "Remote s-delete failed" {:status status :hash h})))
+      (store/s-delete pack-local h))
     _)
 
   (s-snapshot [_]
-    {})
+    (store/s-snapshot pack-local))
 
   (s-merge [this m]
     (doseq [[h v] m]
@@ -80,6 +106,7 @@
     this)
 
   (s-reset [this]
+    (store/s-reset pack-local)
     this)
 
   pack/IChunkTransport
@@ -90,6 +117,7 @@
       (when-not (= 200 status)
         (throw (ex-info "Remote send-chunk! failed"
                         {:status status :data data})))
+      (pack/apply-chunk! pack-local chunk)
       data)))
 
 (defn- unwrap-remote
@@ -120,7 +148,8 @@
   (->RemoteStore base-url
                  (or client (.build (.. (HttpClient/newBuilder)
                                         (connectTimeout (Duration/ofSeconds 10)))))
-                 headers))
+                 headers
+                 (store/mem-store)))
 
 (defn- client-cache-write-back? [remote]
   (client-cache/write-back-store? remote))
@@ -139,30 +168,19 @@
     :else nil))
 
 (defn fetch-reachable!
-  "Pack-fetch subgraph(s) from the HTTP server into a local destination store.
+  "Bulk pack-fetch (demoted). Prefer normal s-get pack-fill for interactive use.
 
-   remote — remote or client-cache-wrapped store
-   roots  — one hash or seq of hashes to materialize
-   opts:
-     :budget — pack budget (default pack/default-budget)
-     :have   — collection of hashes already held (default: all keys in dest)
-     :dest   — IStore to apply chunks into (default: client local cache,
-               or a fresh mem-store which is returned)
-
-   Returns {:dest store :items n :chunks n :covered n}.
-   After success, values under roots can be realized from :dest (or remote
-   if it layers local-first)."
+   POST /nodes/get — full remaining subgraph under roots. Kept for admin/sync
+   and tests; can be expensive (DoS-shaped) on large roots."
   ([remote roots] (fetch-reachable! remote roots nil))
   ([remote roots {:keys [budget have dest]}]
    (let [rs (unwrap-remote remote)
-         dest (or dest (local-dest remote) (store/mem-store))
+         dest (or dest (local-dest remote) (:pack-local rs) (store/mem-store))
          root-list (cond
                      (nil? roots) []
-                     (and (sequential? roots) (not (vector? (first roots)))
-                          (string? (first roots)))
+                     (and (sequential? roots) (string? (first roots)))
                      (mapv store/hex->hash roots)
-                     (and (sequential? roots)
-                          (or (vector? (first roots)) (nil? (first roots))))
+                     (and (sequential? roots) (vector? (first roots)))
                      (vec (remove nil? roots))
                      :else [roots])
          root-hexes (mapv store/hash->hex root-list)
@@ -170,8 +188,7 @@
                       (into #{}
                             (map (fn [k]
                                    (if (string? k) (store/hex->hash k) k))
-                                 (keys (or (store/s-snapshot dest) {}))))
-                      #{})
+                                 (keys (or (store/s-snapshot dest) {})))))
          have-hexes (mapv store/hash->hex (or have-set #{}))
          url (str (str/replace (:base-url rs) #"/$" "") "/nodes/get")
          body {:roots root-hexes
@@ -185,7 +202,6 @@
      (let [chunks (or (:chunks data) [])]
        (doseq [ch chunks]
          (pack/apply-chunk! dest ch))
-       ;; Write-back: mark covered as already on server so we do not re-upload
        (when (client-cache/write-back-store? remote)
          (let [live (reduce (fn [s h]
                               (into s (gc/mark-reachable dest h)))
