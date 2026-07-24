@@ -78,10 +78,11 @@
                              (wire/read-edn (String. body "UTF-8")))))))
 
   (s-put [_ h value]
-    (let [{:keys [status]} (request client "PUT" (node-url base-url h)
-                                    (.getBytes (wire/write-edn value) "UTF-8")
-                                    (assoc headers "Content-Type" "application/edn"))]
-      (when (not= 204 status)
+    (let [{:keys [status body]} (request client "PUT" (node-url base-url h)
+                                         (.getBytes (wire/write-edn value) "UTF-8")
+                                         (assoc headers "Content-Type" "application/edn"))]
+      ;; 200 + novelty body (preferred); 204 legacy
+      (when-not (or (= 200 status) (= 204 status))
         (throw (ex-info "Remote s-put failed" {:status status :hash h})))
       (store/s-put pack-local h value))
     _)

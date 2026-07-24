@@ -83,7 +83,8 @@
     (let [{:keys [status body]} (xhr "PUT" (node-url base-url h)
                                      (wire/write-edn value)
                                      (assoc headers "Content-Type" "application/edn"))]
-      (when (not= 204 status)
+      ;; 200 + novelty body (preferred); 204 legacy
+      (when-not (or (= 200 status) (= 204 status))
         (throw (ex-info "Browser remote s-put failed"
                         {:status status :hash h :body body})))
       (store/s-put pack-local h value))

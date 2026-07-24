@@ -44,8 +44,16 @@
         chunk (pack/make-chunk 1024
                                [(pack/node-item h1 ["bool" true])
                                 (pack/node-item h2 ["i64" 7])])]
-    (is (= 2 (:applied (pack/apply-chunk! st chunk))))
-    (is (= 2 (:nodes (pack/apply-chunk! (store/mem-store) chunk))))
+    (let [r (pack/apply-chunk! st chunk)]
+      (is (= 2 (:applied r)))
+      (is (= 2 (:nodes r)))
+      (is (= :partial (:status r)))
+      (is (= 2 (count (:created r))))
+      (is (empty? (:exists r))))
+    (let [r2 (pack/apply-chunk! st chunk)]
+      (is (= :complete (:status r2)))
+      (is (empty? (:created r2)))
+      (is (= 2 (count (:exists r2)))))
     (is (= ["bool" true] (store/s-get st h1)))
     (is (= ["i64" 7] (store/s-get st h2)))))
 

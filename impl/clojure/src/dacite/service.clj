@@ -3,7 +3,7 @@
 
    Endpoints:
      GET  /node/{hex}   — s-get
-     PUT  /node/{hex}   — s-put (EDN body), 204
+     PUT  /node/{hex}   — s-put (EDN body) → 200 novelty
      HEAD /node/{hex}   — s-has?
      DELETE /node/{hex} — s-delete (optional)
      POST /nodes        — apply one pack chunk (leaf-chunking write)
@@ -152,9 +152,11 @@
 
             "PUT"
             (try
-              (let [node (wire/read-edn body-str)]
-                (store/s-put rooted h node)
-                {:status 204})
+              (let [node (wire/read-edn body-str)
+                    nov (pack/put-node! rooted h node)]
+                {:status 200
+                 :content-type "application/edn; charset=utf-8"
+                 :body (wire/write-edn (assoc nov :ok true))})
               (catch Exception e
                 {:status 400
                  :content-type "application/edn; charset=utf-8"

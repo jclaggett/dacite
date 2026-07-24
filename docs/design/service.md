@@ -62,7 +62,24 @@ Store a node. Idempotent — same hash + same content is a no-op.
 
 **Request body:** EDN-encoded store value.
 
-**Response 204:** Stored.
+**Response 200:** novelty body:
+
+```clojure
+{:ok true
+ :status :partial    ; newly stored
+ :created [hash-hex]
+ :exists []
+ :applied 1}
+;; or, if already present:
+{:ok true
+ :status :complete
+ :created []
+ :exists [hash-hex]
+ :applied 1}
+```
+
+- **`:partial`** — at least one key was new (here: this hash).
+- **`:complete`** — server already had every key in the request.
 
 **Response 400:** Malformed body.
 
@@ -89,7 +106,22 @@ MVP client may omit; `s-delete` on remote store uses this when present.
 Apply one leaf-chunking chunk (`:node` / `:literal` items). See
 `docs/design/leaf-chunking.md`.
 
-**Response 200:** `{:ok true :applied n :nodes n :literals n}`
+**Response 200:**
+
+```clojure
+{:ok true
+ :applied n
+ :nodes n
+ :literals n
+ :created [hex …]   ; newly installed
+ :exists  [hex …]   ; already present (idempotent)
+ :status  :partial  ; any created
+          ;|:complete ; all existed
+ }
+```
+
+Clients (e.g. write-back flush) can mark `:exists` roots’ local reachable
+subgraphs as already on the server and skip re-uploading them.
 
 ### `POST /nodes/get` (bulk pack — demoted)
 

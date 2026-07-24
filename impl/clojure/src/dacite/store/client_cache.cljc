@@ -152,9 +152,14 @@
         (let [{:keys [items covered]} (pack/encode-reachable local root-h @flushed)]
           (if (empty? items)
             0
-            (do
-              (pack/put-items-chunked! remote items pack/default-budget)
+            (let [nov (pack/put-items-chunked! remote items pack/default-budget)]
+              ;; Hashes we sent are on the server after apply
               (swap! flushed into covered)
+              ;; Server :exists → mark local reachable of those roots flushed
+              (doseq [hex (or (:exists nov) [])]
+                (let [hv (store/hex->hash hex)]
+                  (when (store/s-has? local hv)
+                    (swap! flushed into (gc/mark-reachable local hv)))))
               (count items))))
         ;; Non-chunk remotes: plain per-node PUT of every unflushed live hash.
         (let [live (gc/mark-reachable local root-h) ; hex keys
@@ -171,6 +176,7 @@
                 (store/s-put remote h v))
               (swap! flushed into (map (comp gc/hash-key first) pairs))
               (count pairs))))))))
+
 (defn wrap
   "Wrap remote with client cache according to policy keyword.
 

@@ -16,7 +16,13 @@
         node ["i64" 42]
         put (svc/handle-request rooted "PUT" (str "/node/" (store/hash->hex h))
                                 (wire/write-edn node))]
-    (is (= 204 (:status put)))
+    (is (= 200 (:status put)))
+    (is (= :partial (:status (wire/read-edn (:body put)))))
+    (let [put2 (svc/handle-request rooted "PUT" (str "/node/" (store/hash->hex h))
+                                   (wire/write-edn node))]
+      (is (= 200 (:status put2)))
+      (is (= :complete (:status (wire/read-edn (:body put2))))
+          "second PUT of same hash is complete (already exists)"))
     (let [got (svc/handle-request rooted "GET" (str "/node/" (store/hash->hex h)) nil)
           raw (svc/handle-request rooted "GET" (str "/node/" (store/hash->hex h) "?raw=1") nil)]
       (is (= 200 (:status got)))

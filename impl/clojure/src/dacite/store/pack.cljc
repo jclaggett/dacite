@@ -626,51 +626,108 @@
 ;; Apply + transport
 ;; =============================================================================
 
+(defn- novelty-status
+  "Rollup: :complete if nothing new, :partial if any created."
+  [created]
+  (if (seq created) :partial :complete))
+
+(defn put-node!
+  "Install one raw store node at h. Returns novelty map for a single key.
+
+   {:status :complete|:partial  ; complete = already present
+    :created [hex…] :exists [hex…]
+    :applied 1}"
+  [st h body]
+  (let [hex (if (string? h) h (store/hash->hex h))
+        hv (if (string? h) (store/hex->hash h) h)
+        existed? (store/s-has? st hv)]
+    (store/s-put st hv body)
+    (if existed?
+      {:status :complete :created [] :exists [hex] :applied 1}
+      {:status :partial :created [hex] :exists [] :applied 1})))
+
 (defn apply-chunk!
-  "Apply a chunk to an IStore. Returns {:applied n :literals n :nodes n}."
+  "Apply a chunk to an IStore.
+
+   Returns novelty + counts:
+     :applied   total items processed
+     :nodes     :node encodings
+     :literals  :literal encodings
+     :created   hex hashes newly installed
+     :exists    hex hashes already present (idempotent)
+     :status    :complete (all exists) | :partial (any created)"
   [st chunk]
   (let [items (:items chunk)
         nodes (atom 0)
-        lits (atom 0)]
+        lits (atom 0)
+        created (atom [])
+        exists (atom [])]
     (doseq [item items]
       (let [enc (keyword (:encoding item))
             hex (:hash item)
-            expected (store/hex->hash hex)]
+            expected (store/hex->hash hex)
+            had? (store/s-has? st expected)]
         (case enc
           :node
           (do (store/s-put st expected (:body item))
-              (swap! nodes inc))
+              (swap! nodes inc)
+              (if had?
+                (swap! exists conj hex)
+                (swap! created conj hex)))
 
           :literal
-          (let [got (materialize-literal! st (:type item) (:body item))]
-            (when (and *verify-literal-hash* (not= got expected))
-              (throw (ex-info "literal hash mismatch"
-                              {:expected hex
-                               :got (store/hash->hex got)
-                               :type (:type item)})))
+          (do
+            (if had?
+              (swap! exists conj hex)
+              (let [got (materialize-literal! st (:type item) (:body item))]
+                (when (and *verify-literal-hash* (not= got expected))
+                  (throw (ex-info "literal hash mismatch"
+                                  {:expected hex
+                                   :got (store/hash->hex got)
+                                   :type (:type item)})))
+                (swap! created conj hex)))
             (swap! lits inc))
 
           (throw (ex-info "unsupported chunk item encoding"
                           {:encoding enc :hash hex})))))
-    {:applied (+ @nodes @lits)
-     :nodes @nodes
-     :literals @lits}))
+    (let [cr @created
+          ex @exists]
+      {:applied (+ @nodes @lits)
+       :nodes @nodes
+       :literals @lits
+       :created cr
+       :exists ex
+       :status (novelty-status cr)})))
 
 (defprotocol IChunkTransport
   "HTTP (or other) sink for sealed chunks."
   (send-chunk! [this chunk]
-    "POST one chunk envelope. Throws on failure. Returns nil or response map."))
+    "POST one chunk envelope. Throws on failure. Returns response map
+     (may include :created :exists :status from the server)."))
 
 (defn put-items-chunked!
-  "Layer 2: pack items and send-chunk! each. Returns {:chunks n :items n}."
+  "Layer 2: pack items and send-chunk! each.
+
+   Returns {:chunks n :items n :created [hex…] :exists [hex…]
+            :status :complete|:partial}."
   ([transport items]
    (put-items-chunked! transport items default-budget))
   ([transport items budget]
-   (let [chunks (pack-items items budget)]
+   (let [chunks (pack-items items budget)
+         created (atom [])
+         exists (atom [])]
      (doseq [ch chunks]
-       (send-chunk! transport ch))
-     {:chunks (count chunks)
-      :items (count items)})))
+       (let [data (send-chunk! transport ch)]
+         (when (map? data)
+           (swap! created into (or (:created data) []))
+           (swap! exists into (or (:exists data) [])))))
+     (let [cr @created
+           ex @exists]
+       {:chunks (count chunks)
+        :items (count items)
+        :created cr
+        :exists ex
+        :status (novelty-status cr)}))))
 
 ;; =============================================================================
 ;; Pack fetch (read side) — server builds chunks for client apply-chunk!
