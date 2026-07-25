@@ -24,8 +24,8 @@
     <ul id="todo-list" class="todo-list"></ul>
 
     <footer>
-      <p>Nodes: <code>GET/PUT /node/{hex}</code> · Root: <code>GET /root</code>, <code>POST /root/cas</code></p>
-      <p>List is a Dacite vector of maps; mutations use the portable value API; persistence is the server root.</p>
+      <p><strong>Values</strong> — Dacite vector of maps; add/toggle/remove + root load/seed (storage-agnostic).</p>
+      <p><strong>Store</strong> — HTTP remote + write-back; pack-filled <code>GET /node</code>, <code>POST /nodes</code>, root CAS.</p>
     </footer>
   </main>
   <script>

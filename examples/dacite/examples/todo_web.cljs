@@ -1,5 +1,10 @@
 (ns dacite.examples.todo-web
-  "Browser todo UI over Dacite values + HTTP store (service.md protocol).
+  "Browser todo UI — Values vs Store kept separate (same split as todo.cljc).
+
+   **Store** — HTTP base URL, client-cache policy, root get/CAS helpers.
+   **Values** — seed/load/commit/mutate via dacite.examples.todo; store only
+   as a parameter (or the store carried by values).
+   **UI** — DOM only; calls Values and Store helpers.
 
    Compile from impl/clojure:
      clojure -M:cljs-web
@@ -7,14 +12,13 @@
    Serve:
      clojure -M:service"
   (:require [clojure.string :as str]
-            [dacite.store.browser :as remote]
+            [dacite.store.browser :as browser]
             [dacite.value.api :as d]
-            [dacite.value.types :as types]
             [dacite.examples.todo :as todo]
             [dacite.hash :as hash]))
 
 (defonce !state
-  (atom {:remote nil
+  (atom {:store nil
          :todos nil
          :root nil
          :error nil
@@ -22,6 +26,92 @@
          :bw-totals nil
          :bw-last nil
          :bw-last-label nil}))
+
+;; =============================================================================
+;; Store
+;;
+;; Transport and performance only: API base, write-back cache, root pointer
+;; ops, bandwidth stats. No seed titles, todo maps, or list mutations.
+;; =============================================================================
+
+(defn- api-base
+  "HTTP origin for the content-store service (empty = same origin)."
+  []
+  (or (.-DACITE_API_BASE js/window) ""))
+
+(def ^:private client-policy
+  "Client-cache policy for the demo remote (see dacite.store.client-cache)."
+  :write-back)
+
+(defn open-store
+  "HTTP remote store + client-cache. Soft pack budget is pack/default-budget
+   (1024) inside the pack layer — not configured here."
+  []
+  (browser/cached-remote-store (api-base) {:policy client-policy}))
+
+(defn get-root
+  "Current server root hash, or nil."
+  [store]
+  (browser/remote-get-root store))
+
+(defn cas-root!
+  "Compare-and-set root. Returns true on success."
+  [store expected new-hash]
+  (browser/remote-cas-root! store expected new-hash))
+
+(defn reset-bw-stats! []
+  (browser/reset-stats!))
+
+(defn measure-bw [f]
+  (browser/measure f))
+
+(defn format-bw-stats [totals]
+  (browser/format-stats totals))
+
+(defn format-bw-delta [delta label]
+  (browser/format-delta delta label))
+
+;; =============================================================================
+;; Values
+;;
+;; Domain + root value load/commit. `store` is only a parameter; policy/URL
+;; live in the Store section above.
+;; =============================================================================
+
+(defn load-todos
+  "Materialize todos at root-hash from store content."
+  [store root-hash]
+  (todo/load-todos store root-hash))
+
+(defn commit-todos!
+  "CAS root from `expected-root` to the hash of `todos`.
+   Returns new root hash on success, nil on conflict."
+  [store expected-root todos]
+  (let [new-h (todo/todos-hash todos)]
+    (when (cas-root! store expected-root new-h)
+      new-h)))
+
+(defn load-or-seed!
+  "If server root is set, load todos; else build seed items and CAS root.
+   Returns {:status :loaded|:seeded|:error :todos :root :error}."
+  [store]
+  (if-let [server-root (get-root store)]
+    (if-let [todos (load-todos store server-root)]
+      {:status :loaded :todos todos :root server-root :error nil}
+      {:status :error
+       :todos nil
+       :root server-root
+       :error (str "Root present but value missing/unloadable: "
+                   (subs (hash/hash->hex server-root) 0 12) "…")})
+    (let [seeded (todo/build store (todo/seed-items))
+          h (todo/todos-hash seeded)]
+      (if (cas-root! store nil h)
+        {:status :seeded :todos seeded :root h :error nil}
+        {:status :error :todos nil :root nil :error "Failed to seed root"}))))
+
+;; =============================================================================
+;; UI
+;; =============================================================================
 
 (defn- by-id [id]
   (.getElementById js/document id))
@@ -38,7 +128,6 @@
       (str/replace "\"" "&quot;")))
 
 (defn- note-bw!
-  "Record measure result into !state and refresh bandwidth line."
   [{:keys [delta totals]} label]
   (swap! !state assoc
          :bw-totals totals
@@ -47,14 +136,13 @@
   (when-let [el (by-id "bandwidth")]
     (set! (.-textContent el)
           (str "bw · "
-               (remote/format-stats totals)
+               (format-bw-stats totals)
                (when delta
-                 (str " · last " (remote/format-delta delta label)))))))
+                 (str " · last " (format-bw-delta delta label)))))))
 
 (defn- with-bw
-  "Run f under bandwidth measure; label for last-action display."
   [label f]
-  (let [m (remote/measure f)]
+  (let [m (measure-bw f)]
     (note-bw! m label)
     (:result m)))
 
@@ -72,9 +160,9 @@
       (if bw-totals
         (set! (.-textContent el)
               (str "bw · "
-                   (remote/format-stats bw-totals)
+                   (format-bw-stats bw-totals)
                    (when bw-last
-                     (str " · last " (remote/format-delta bw-last bw-last-label)))))
+                     (str " · last " (format-bw-delta bw-last bw-last-label)))))
         (set! (.-textContent el) "bw · (no store traffic yet)")))
     (if-not todos
       (set-html! "todo-list" "<li class=\"muted\">(no todos loaded)</li>")
@@ -93,11 +181,22 @@
                    (or (d/seq todos) ()))]
         (set-html! "todo-list" (apply str items))))))
 
-(defn- commit!
+(defn- apply-value-result!
+  "Update UI state from a Values load/seed or successful commit."
+  [{:keys [status todos root error]}]
+  (swap! !state assoc
+         :todos todos
+         :root root
+         :error error
+         :status (name status))
+  (render-list!))
+
+(defn- persist!
+  "Commit todos via CAS; update state on success."
   [todos]
-  (let [{:keys [remote root]} @!state
-        new-h (types/dacite-hash todos)]
-    (if (remote/remote-cas-root! remote root new-h)
+  (let [{:keys [store root]} @!state
+        new-h (commit-todos! store root todos)]
+    (if new-h
       (do (swap! !state assoc :todos todos :root new-h :error nil :status "saved")
           (render-list!)
           true)
@@ -105,35 +204,13 @@
           (render-list!)
           false))))
 
-(defn- load-or-seed! []
+(defn- do-load-or-seed! []
   (with-bw "load/seed"
     (fn []
-      (let [remote (:remote @!state)
-            server-root (remote/remote-get-root remote)]
-        (if server-root
-          (let [todos (d/get-value remote server-root)]
-            (if-not todos
-              (do (swap! !state assoc
-                         :todos nil
-                         :root server-root
-                         :error (str "Root present but value missing/unloadable: "
-                                     (subs (hash/hash->hex server-root) 0 12) "…")
-                         :status "error")
-                  (render-list!)
-                  :error)
-              (do (swap! !state assoc :todos todos :root server-root
-                         :status "loaded" :error nil)
-                  (render-list!)
-                  :loaded)))
-          (let [seeded (todo/build remote (todo/seed-items))
-                h (types/dacite-hash seeded)]
-            (if (remote/remote-cas-root! remote nil h)
-              (do (swap! !state assoc :todos seeded :root h :status "seeded" :error nil)
-                  (render-list!)
-                  :seeded)
-              (do (swap! !state assoc :error "Failed to seed root" :status "error")
-                  (render-list!)
-                  :error))))))))
+      (let [store (:store @!state)
+            result (load-or-seed! store)]
+        (apply-value-result! result)
+        (:status result)))))
 
 (defn- on-add! []
   (let [input (by-id "new-title")
@@ -142,7 +219,7 @@
       (with-bw "add"
         (fn []
           (let [todos' (todo/add-todo (:todos @!state) title false)
-                ok (commit! todos')]
+                ok (persist! todos')]
             (when ok
               (set! (.-value input) ""))
             ok))))))
@@ -151,13 +228,13 @@
   (when-let [todos (:todos @!state)]
     (with-bw "toggle"
       (fn []
-        (commit! (todo/toggle-at todos i))))))
+        (persist! (todo/toggle-at todos i))))))
 
 (defn- on-remove! [i]
   (when-let [todos (:todos @!state)]
     (with-bw "remove"
       (fn []
-        (commit! (todo/remove-at todos i))))))
+        (persist! (todo/remove-at todos i))))))
 
 (defn- on-list-click! [e]
   (let [t (.-target e)
@@ -171,15 +248,13 @@
         nil))))
 
 (defn ^:export init! []
-  (let [base (or (.-DACITE_API_BASE js/window) "")
-        ;; :write-back — local mem; upload only root-reachable nodes on CAS
-        remote (remote/cached-remote-store base {:policy :write-back})]
-    (remote/reset-stats!)
-    (swap! !state assoc :remote remote :status "connecting"
+  (let [store (open-store)]
+    (reset-bw-stats!)
+    (swap! !state assoc :store store :status "connecting"
            :bw-totals nil :bw-last nil :bw-last-label nil)
     (render-list!)
     (try
-      (load-or-seed!)
+      (do-load-or-seed!)
       (catch :default e
         (swap! !state assoc :error (str "Load failed: " (.-message e)) :status "error")
         (render-list!)))
@@ -194,9 +269,8 @@
     (when-let [ul (by-id "todo-list")]
       (.addEventListener ul "click" on-list-click!))
     (when-let [rel (by-id "reload-btn")]
-      (.addEventListener rel "click" (fn [_] (load-or-seed!))))))
+      (.addEventListener rel "click" (fn [_] (do-load-or-seed!))))))
 
-;; Auto-init when loaded as a script after DOM is ready
 (if (= "loading" (.-readyState js/document))
   (.addEventListener js/document "DOMContentLoaded" (fn [_] (init!)))
   (init!))

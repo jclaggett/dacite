@@ -1,8 +1,9 @@
 (ns dacite.examples.todo-ui
   "Interactive durable todo CLI for nbb.
 
-   Uses Node libraries (chalk for color, prompts for keyboard menus) on top
-   of the portable dacite.examples.todo domain + file-backed rooted store.
+   Wires **Store** (path / open-store) to **Values** (load-or-seed, domain
+   ops, commit-todos!) from dacite.examples.todo. UI only — no pack budgets
+   or seed data here.
 
    Run from repo root (after npm install):
      npm run todo
@@ -202,13 +203,13 @@
             nil)))))
 
 (defn -main [& args]
+  ;; Store: path + open/reset only
   (let [{:keys [reset? path]} (todo/parse-args args)]
     (when reset?
       (todo/reset-store-dir! path)
       (println (c "yellow" (str "reset store at " path))))
-    ;; No set-store! / bind-store: domain constructors use the receiver's store
-    ;; (and extract-hash deep-copies if needed), so async prompts are safe.
     (let [rs (todo/open-store path)
+          ;; Values: load root or seed; mutations use todos' carried store
           [todos seeded?] (todo/load-or-seed! rs)]
       (when seeded?
         (println (c "green" (str "seeded new store at " path))))

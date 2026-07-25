@@ -96,6 +96,20 @@ novelty (`:created` / `:exists`).
 cd impl/clojure && clojure -M:cljs-web
 ```
 
+## Code layout (Values vs Store)
+
+Demo code is split so **value logic** does not depend on path/HTTP/budget, and
+**store wiring** does not know the todo list shape.
+
+| Concern | Responsibility | Where |
+|---------|----------------|--------|
+| **Values** | Seed items, `build` / `add-todo` / …, load root value, commit root hash | `todo.cljc` (Values section); `todo_web.cljs` (Values section) |
+| **Store** | File path / HTTP base / write-back policy / root cell or CAS | `todo.cljc` (Store section); `todo_web.cljs` (Store section) |
+| **UI** | CLI prompts or DOM | `todo_ui.cljs`, `todo_web.cljs` (UI) |
+
+Portable batch/CLI: `open-store` → `load-or-seed!` → domain ops → `commit-todos!`.  
+Browser: `open-store` (HTTP + `:write-back`) → `load-or-seed!` (CAS) → same domain ops.
+
 ## Related sources
 
 | Piece | Path |
@@ -105,5 +119,6 @@ cd impl/clojure && clojure -M:cljs-web
 | Browser remote store | `impl/clojure/src/dacite/store/browser.cljs` |
 | JVM remote store | `impl/clojure/src/dacite/store/remote.clj` |
 | Wire EDN | `impl/clojure/src/dacite/wire.cljc` |
-| Todo domain (portable) | `examples/dacite/examples/todo.cljc` |
-| Web UI | `examples/dacite/examples/todo_web.cljs` |
+| Todo Values + file Store | `examples/dacite/examples/todo.cljc` |
+| Web UI (Store + Values + DOM) | `examples/dacite/examples/todo_web.cljs` |
+| nbb interactive UI | `examples/dacite/examples/todo_ui.cljs` |

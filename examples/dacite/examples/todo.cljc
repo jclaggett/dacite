@@ -1,14 +1,21 @@
 (ns dacite.examples.todo
-  "Durable todo app on the portable Dacite surface.
+  "Portable todo demo — two concerns, deliberately separated:
 
-   App recipe (single-writer local store):
-     1. open-store     — file content store + file root cell
-     2. mutate         — build new values; always construct into the
-                         receiver's store via *-with-store
-     3. commit-todos!  — set-root! to the value's content hash
+   **Values** — domain ops, seed data, read/write the root value. A store
+   appears only as a parameter (or as the store carried by a Dacite value).
+   This code does not care whether content lives in a file, mem, or HTTP
+   remote, or which cache/budget policy is used.
 
-   Domain + lifecycle are host-agnostic (JVM / babashka / nbb).
-   Interactive UI: dacite.examples.todo-ui (nbb + chalk + prompts).
+   **Store** — open and configure the durable (or remote) store: path, reset,
+   host backend. No todo shape, seed data, or domain mutations.
+
+   Local single-writer recipe:
+     1. (open-store path)                 ; Store section
+     2. (load-or-seed! rooted)            ; Values section
+     3. (add-todo / toggle-at / …) then (commit-todos! rooted todos)
+
+   Hosts: JVM / babashka / nbb (file store). Browser uses todo-web with an
+   HTTP store (same Values API, different Store wiring).
 
    Run (batch):
      npx nbb -m dacite.examples.todo
@@ -29,16 +36,17 @@
                 :cljs []
                 :default [[dacite.store.file :as host-store]])))
 
-(def default-path
-  "target/dacite-todo")
-
 ;; =============================================================================
-;; Domain — plain Dacite maps {"title" string, "done" bool} in a vector
+;; Values
+;;
+;; Todo list is a Dacite vector of maps {"title" string, "done" bool}.
+;; Construction always targets the store on the receiver value (or an explicit
+;; store parameter for empty/seed builds). Root load/commit take a store that
+;; can resolve hashes and (for local demos) a rooted root cell.
 ;; =============================================================================
 
 (defn- todos-store
-  "Store carried by a todos value. Prefer this over store/*store* so async
-   UIs (which drop dynamic bindings) still write into the durable store."
+  "Store carried by a todos value (prefer over *store* so async UIs stay durable)."
   [todos]
   (types/dacite-store todos))
 
@@ -116,12 +124,62 @@
   [todos]
   (count (filter (fn [t] (and (todo-entry? t) (not (done? t))))
                  (or (d/seq todos) ()))))
+
+(defn seed-items
+  "Initial sample list shape: seq of [title done?] pairs (not store-specific)."
+  []
+  [["write portable host layer" true]
+   ["split the store" true]
+   ["run under babashka" false]
+   ["run under nbb" false]
+   ["durable todo root" false]])
+
 (defn build
-  "Build a todos vector in st from a seq of [title done?] pairs."
-  [st items]
+  "Build a todos vector in `store` from a seq of [title done?] pairs.
+   `store` is only a place to allocate nodes — not a root cell."
+  [store items]
   (reduce (fn [todos [title done?]] (add-todo todos title done?))
-          (coll/vector-with-store st)
+          (coll/vector-with-store store)
           items))
+
+(defn empty-todos
+  "Empty todos vector allocated in `store`."
+  [store]
+  (coll/vector-with-store store))
+
+(defn load-todos
+  "Materialize the todos value at `root-hash` from `store`, or nil.
+   `store` is any content store (IStore / layered / remote). Does not
+   consult a root cell — pass the root hash from your store wiring."
+  [store root-hash]
+  (when root-hash
+    (d/get-value store root-hash)))
+
+(defn todos-hash
+  "Content hash of a todos value (for root pointers / CAS)."
+  [todos]
+  (d/dacite-hash todos))
+
+(defn commit-todos!
+  "Single-writer: set the rooted store's root to the hash of `todos`.
+
+   `rooted` is a RootedStore (content + root cell). Multi-writer remotes
+   should CAS instead (see todo-web store wiring)."
+  [rooted todos]
+  (rs/set-root! rooted (todos-hash todos))
+  todos)
+
+(defn load-or-seed!
+  "Load todos from a RootedStore root, or seed sample data and commit.
+
+   Returns [todos seeded?]. Uses only Values API + RootedStore root get/set —
+   no paths, budgets, or HTTP."
+  [rooted]
+  (if-let [prior (load-todos rooted (rs/root rooted))]
+    [prior false]
+    (let [t (build rooted (seed-items))]
+      (commit-todos! rooted t)
+      [t true])))
 
 (defn render
   "Plain-text listing (no ANSI)."
@@ -133,11 +191,18 @@
                (fn [i t]
                  (str "  " i ". [" (if (done? t) "x" " ") "] " (title-str t) "\n"))
                (d/seq todos)))
-       "root: " (hash/hash->hex (d/dacite-hash todos))))
+       "root: " (hash/hash->hex (todos-hash todos))))
 
 ;; =============================================================================
-;; Store lifecycle
+;; Store
+;;
+;; File-backed content + root cell. No todo maps, seed lists, or domain ops.
+;; Configuration: path on disk (and host-specific file-store implementation).
 ;; =============================================================================
+
+(def default-path
+  "Default directory for sharded content + ROOT file."
+  "target/dacite-todo")
 
 #?(:org.babashka/nbb
    (defn open-store
@@ -147,22 +212,19 @@
                       (rs/file-root-cell path)))
    :cljs
    (defn open-store
-     "Not available in the browser — use HTTP remote store (todo-web)."
+     "Not available in the browser — wire an HTTP store in todo-web."
      [_path]
      (throw (js/Error. "todo/open-store is for JVM/nbb file backends only")))
    :default
    (defn open-store
-     "Open a durable rooted store at path (sharded .edn content + ROOT file).
-
-   Does not touch store/*store*. All construction uses an explicit store
-   (build) or the store on existing values (add-todo / remove-at)."
+     "Open a durable rooted store at path (sharded .edn content + ROOT file)."
      [path]
      (rs/rooted-store (host-store/file-store path)
                       (rs/file-root-cell path))))
 
 #?(:org.babashka/nbb
    (defn reset-store-dir!
-     "Wipe content + root under path (for --reset demos)."
+     "Wipe content + root under path (demo --reset). No domain knowledge."
      [path]
      (let [content (host-store/file-store path)]
        (store/s-reset content)
@@ -172,51 +234,15 @@
    (defn reset-store-dir! [_path] nil)
    :default
    (defn reset-store-dir!
-     "Wipe content + root under path (for --reset demos)."
+     "Wipe content + root under path (demo --reset). No domain knowledge."
      [path]
      (let [content (host-store/file-store path)]
        (store/s-reset content)
        (rs/rc-put! (rs/file-root-cell path) nil)
        nil)))
 
-(defn load-todos
-  "Current todos vector from the rooted store, or nil if root unset."
-  [rs]
-  (when-let [h (rs/root rs)]
-    (d/get-value rs h)))
-
-(defn commit-todos!
-  "Persist todos as the store root (single-writer: set-root!).
-
-   Multi-writer / remote: prefer cas-root! or update-root! instead."
-  [rs todos]
-  (rs/set-root! rs (d/dacite-hash todos))
-  todos)
-
-(defn seed-items
-  "Initial sample list for a fresh store."
-  []
-  [["write portable host layer" true]
-   ["split the store" true]
-   ["run under babashka" false]
-   ["run under nbb" false]
-   ["durable todo root" false]])
-
-(defn load-or-seed!
-  "Load todos from rs, or seed samples and commit. Returns [todos seeded?]."
-  [rs]
-  (if-let [prior (load-todos rs)]
-    [prior false]
-    (let [t (build rs (seed-items))]
-      (commit-todos! rs t)
-      [t true])))
-
-;; =============================================================================
-;; Main (batch — all hosts)
-;; =============================================================================
-
 (defn parse-args
-  "Parse [path] [--reset|-r] from CLI args."
+  "CLI store options: [path] [--reset|-r]. Defaults path to default-path."
   [args]
   (let [args (->> args (map str) (remove #{"--"}))
         reset? (some #{"--reset" "-r"} args)
@@ -224,6 +250,10 @@
                  default-path)]
     {:reset? (boolean reset?)
      :path path}))
+
+;; =============================================================================
+;; Main (batch) — wires Store open to Values load-or-seed
+;; =============================================================================
 
 (defn -main [& args]
   (let [{:keys [reset? path]} (parse-args args)]
