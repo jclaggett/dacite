@@ -15,7 +15,10 @@ Dacite lets applications work with **immutable Values** functionally while **Sto
 
 ## Status
 
-**Reference implementation (Clojure)** — hash fusion, content stores, values, and rooted stores are implemented with 318+ tests. An HTTP content-store service and browser todo demo show Dacite values running in the web. See [docs/roadmap.md](docs/roadmap.md).
+**Reference implementation (Clojure)** — hash fusion, content stores, values,
+rooted stores, remote HTTP service, and leaf-chunking transport packing are
+implemented (**376+ tests**). Browser todo demo uses pack-filled gets and
+write-back flush. Soft pack budget default **1024**. See [docs/roadmap.md](docs/roadmap.md).
 
 ## Documentation
 

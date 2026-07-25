@@ -67,15 +67,26 @@ bytes-recv (store protocol only).
 
 ## Wire format
 
-Node bodies are EDN. 64-bit hash words that would lose precision as JSON
-numbers travel as `#dacite/u64 "…"` (`dacite.wire`). JVM and browser clients
-share that codec.
+Node bodies and pack chunks are EDN. Soft pack budget default **1024** bytes
+(leaf-chunking 2d). 64-bit hash words that would lose precision as JSON numbers
+travel as `#dacite/u64 "…"` (`dacite.wire`). JVM and browser clients share that
+codec.
+
+**Reads:** default `GET /node/{hex}` returns a pack-filled `chunk-v1` (BFS
+neighborhood under the hash); client applies then `s-get`s locally.
+
+**Writes (write-back):** flush posts soft-budget chunks to `POST /nodes` with
+novelty (`:created` / `:exists`).
 
 ## API (service.md)
 
 | Method | Path | Role |
 |--------|------|------|
-| GET/PUT/HEAD/DELETE | `/node/{64-hex}` | Content-addressed nodes |
+| GET | `/node/{64-hex}` | Pack-filled get (default); `?raw=1` bare node |
+| PUT | `/node/{64-hex}` | Single-node put → novelty body |
+| HEAD/DELETE | `/node/{64-hex}` | Existence / optional GC |
+| POST | `/nodes` | Apply pack chunk (write) |
+| POST | `/nodes/get` | Bulk pack (demoted; admin/sync) |
 | GET | `/root` | Current root hash hex or null |
 | POST | `/root/cas` | Body `{:expected hex-or-nil :new hex}` |
 

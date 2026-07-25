@@ -1,10 +1,10 @@
 # Leaf-chunking (transport packing) design
 
-**Status:** DRAFT — 2a/2b shipped; **realized-value literal law** clarified below
-(2b is a partial implementation of that law).
+**Status:** SHIPPED — 2a–2d done (default soft budget **1024**). Realized-value
+literal law below; intermediate FT/HAMT leaf-payloads (2c′) included.
 
-**Related:** `docs/design/service.md` (HTTP store protocol), phase 1 commit removing
-`:inline` from `dacite.value.collections`.
+**Related:** `docs/design/service.md` (HTTP store protocol),
+`docs/design/stores-phase-2.md`, phase 1 removal of value-layer `:inline`.
 
 ## Goal
 
@@ -91,7 +91,7 @@ items when the pack walk descends (e.g. parent not literalized).
   via `child-hashes` walk.
 - L1 for **value** types is the hard requirement for 2b / 2b′.
 
-**Later: intermediate literals (optional, deferred):**
+**Intermediate literals (2c′ — shipped):**
 
 If an intermediate node’s content hash is determined by a **realized measure**
 (e.g. FT/HAMT `elements_fuse` over leaves) such that materializing “the
@@ -102,11 +102,9 @@ complete realized content under this cell” rebuilds **some** valid spine with
 |-----|--------|
 | Bottom out early | Pack walk can emit one compact literal for an `ft/deep` (or similar) as soon as its realized payload fits, instead of walking every child cell as `:node`. |
 | Same laws | Completeness + type + hash fidelity; spine under the intermediate need not match sender layout (L4 applied at that node). |
-| Gate | Only where reconstruction is **assured** (hash algebra + constructors). If not assured, keep depth-0 `:node`. |
+| Gate | Only where reconstruction is **assured** (dry-run hash). If not assured, keep depth-0 `:node`. |
 
-This is a **packing optimization**, not required for value-level L1. Schedule after
-value literals are solid (e.g. post‑2b′ / with 2c large-tree work). Do not block
-MVP on intermediate literals.
+See §2c′ notes for type → body → rebuild table.
 
 ### Materialize (receiver)
 
