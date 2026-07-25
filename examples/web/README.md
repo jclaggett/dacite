@@ -58,6 +58,7 @@ transport belongs at the HTTP/wire layer (`dacite.store.pack`), not in
 ```bash
 cd impl/clojure
 clojure -M:dev -m dacite.bench.todo-bw --policy write-back
+clojure -M:dev -m dacite.bench.todo-bw --budget-sweep
 clojure -M:dev:test -n dacite.bench.todo-bw-test
 ```
 

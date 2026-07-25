@@ -17,7 +17,12 @@
             [dacite.rooted.gc :as gc]))
 
 (def default-budget
-  "Default soft pack budget in bytes (logical EDN length)."
+  "Default soft pack budget in bytes (logical EDN length).
+
+   Chosen by leaf-chunking 2d sweep (`dacite.bench.todo-bw --budget-sweep`):
+   1024 is the smallest budget that collapses the interactive todo suite to
+   minimal requests while still splitting clearly oversized values. See
+   docs/design/leaf-chunking.md §2d."
   1024)
 
 (def ^:dynamic *verify-literal-hash*

@@ -63,3 +63,24 @@
     (doseq [sc bench/scenario-names]
       (is (contains? (:scenarios r) sc))
       (is (pos? (get-in r [:scenarios sc :requests]))))))
+
+(deftest encode-sweep-covers-budget-ladder
+  (let [sw (bench/encode-sweep [256 1024])
+        rows (:rows sw)
+        by-fx (group-by :fixture rows)]
+    (is (= :encode-sweep (:kind sw)))
+    (is (= [256 1024] (:budgets sw)))
+    (is (contains? by-fx :todo-seed))
+    (is (contains? by-fx :string-3000))
+    ;; todo seed collapses to one literal by 1024
+    (let [todo-1k (first (filter #(and (= :todo-seed (:fixture %))
+                                       (= 1024 (:budget %)))
+                                 rows))]
+      (is (= 1 (:chunks todo-1k)))
+      (is (= 1 (:literals todo-1k)))
+      (is (zero? (:nodes todo-1k))))
+    ;; 256 fragments the same seed
+    (let [todo-256 (first (filter #(and (= :todo-seed (:fixture %))
+                                        (= 256 (:budget %)))
+                                  rows))]
+      (is (> (:chunks todo-256) 1)))))

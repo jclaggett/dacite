@@ -161,25 +161,42 @@ Compare-and-set root update — the portable core from Chapter 4.
 
 Unconditional `set-root` is **not** exposed remotely (per Chapter 4 — unsafe under sharing).
 
+## Soft pack budget (leaf-chunking 2d)
+
+**Default: 1024 bytes** (`dacite.store.pack/default-budget`).
+
+Used as the soft Layer‑2 threshold for:
+
+- write-side `pack-items` / write-back flush (`POST /nodes`)
+- read-side pack-filled `GET /node/{hex}` (`pack-under` BFS seal)
+- Layer‑1 literal vs node policy (size cue / 2× wire refuse)
+
+Measured with `clojure -M:dev -m dacite.bench.todo-bw --budget-sweep`
+(encode fixtures + live write-back suite over 256…4096). **1024** is the
+smallest budget that minifies interactive todo bandwidth (6 suite requests)
+while still splitting clearly oversized values into progressive chunks.
+See `docs/design/leaf-chunking.md` §2d for tables.
+
+Clients may pass a larger `:budget` for bulk sync; smaller budgets increase
+request count without helping the common interactive path.
+
 ## Bulk operations
 
-### `POST /nodes` — pack chunk put (leaf-chunking 2a)
+### `POST /nodes` — pack chunk put
 
-Apply one **chunk envelope** (EDN). Layer‑1 items for 2a are `:node` only
-(hash + store content). See `docs/design/leaf-chunking.md`.
+Apply one **chunk envelope** (EDN) with Layer‑1 `:node` and/or `:literal`
+items. See `docs/design/leaf-chunking.md`.
 
 **Request body:**
 
 ```clojure
 {:dacite.wire/chunk-v1 true
  :budget 1024
- :items [{:encoding :node
-          :hash "64-hex"
-          :body [type-name data]}
-         …]}
+ :items [/* :node and/or :literal items */]}
 ```
 
-**Response 200:** `{:ok true :applied n}`
+**Response 200:** novelty body (`:created`, `:exists`, `:status`, counts).
+See `POST /nodes` under node endpoints above.
 
 **Response 400:** malformed chunk.
 
@@ -188,9 +205,8 @@ then POST each chunk. Write-back flush uses this path when available.
 
 ### Deferred
 
-- `POST /nodes/get` — batch / packed fetch
 - `GET /walk/{hash}` — guarded transitive fetch
-- Layer‑1 `:literal` encodings (2b)
+- Binary wire for pack envelopes
 
 ## Client composition
 

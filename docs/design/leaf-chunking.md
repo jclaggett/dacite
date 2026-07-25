@@ -209,10 +209,10 @@ descendant misses pack-fill their own neighborhoods. Walk order is **BFS**
 
 | Name | Default | Role |
 |------|---------|------|
-| `chunk-size` | 1024 | Soft Layer 2 threshold; cue for literal vs node |
+| soft budget (`pack/default-budget`) | **1024** | Soft Layer 2 threshold; cue for literal vs node (2d) |
 | `pack-enabled?` | true on remote clients | Force single-node path for debugging |
 
-Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
+Reproduce: `cd impl/clojure && clojure -M:dev -m dacite.bench.todo-bw --budget-sweep`.
 
 ## Implementation order
 
@@ -223,7 +223,7 @@ Sweep 256…4096 with `dacite.bench.todo-bw` (and large-blob scenarios).
 | **2b′** | Systematic `literal-of` / `materialize-literal!`, recursive nested `{:type :body}` forms, tests per value type + nested/empty/todo. **Done.** |
 | **2c** | Large trees / blobs: cheap size cue gate; refuse root literal and walk `:node` + child literals; `encode-summary`. **Done.** |
 | **2c′** | **Intermediate literals** (`ft/*`, `hamt/*`) as ordered leaf/entry payloads; rebuild + dry-run hash gate. **Done.** |
-| **2d** | Budget sweep; update `service.md` with measured defaults. |
+| **2d** | Budget sweep; measured default **1024**. **Done.** |
 
 ### 2b notes (shipped)
 
@@ -285,6 +285,46 @@ that do not round-trip stay `:node`.
 **Win:** large parent as `:node` → walk hits an `ft/digit` / `ft/deep` that fits
 → one intermediate literal instead of many child cells.
 
+### 2d notes (shipped)
+
+**Default soft budget: 1024 bytes** (`pack/default-budget`).
+
+Measured with `dacite.bench.todo-bw --budget-sweep` (encode matrix + live
+write-back suite). Representative results:
+
+**Encode-side** (items / chunks / approx EDN bytes for full `encode-reachable`):
+
+| Fixture | 256 | 512 | **1024** | 2048 | 4096 |
+|---------|-----|-----|----------|------|------|
+| todo seed (5 items) | 9 it / 8 ch | **1 / 1** | **1 / 1** | 1 / 1 | 1 / 1 |
+| vector 40 strings | 44 / 24 | 29 / 9 | **1 / 1** | 1 / 1 | 1 / 1 |
+| string 3000 chars | 13 / 10 | 13 / 9 | 13 / 7 | 13 / 6 | **1 / 1** |
+| vector 200 i64 | 214 / 113 | 158 / 47 | 158 / 22 | 8 / 3 | **1 / 1** |
+
+**Live write-back** (todo suite totals: seed + add + reload):
+
+| Budget | requests | bytes-sent | bytes-recv |
+|--------|----------|------------|------------|
+| 256 | 24 | ~6500 | ~6100 |
+| 512 | 9 | ~3300 | ~3000 |
+| **1024** | **6** | **~2400** | **~1500** |
+| 2048 | 6 | ~2400 | ~1500 |
+| 4096 | 6 | ~2400 | ~1500 |
+
+**Why 1024 (not 512 or 4096):**
+
+- **256** — too fragmented: many small POSTs/GETs on interactive paths.
+- **512** — collapses todo seed encode, but still multi-chunk for mid-size
+  collections (e.g. 40 strings); live suite still pays extra vs 1024.
+- **1024** — first budget that minifies the **interactive todo suite** (6
+  requests) *and* collapses the 40-string vector to one root literal.
+- **2048 / 4096** — help large values (200-vector, 3k string) on pure encode,
+  but **no further win** on the live todo suite; larger per-request spikes.
+
+Larger budgets remain available per request (`:budget` on pack APIs). The
+default is tuned for small interactive values with progressive fill on large
+ones (2c refuse-literal + BFS pack-under).
+
 ## Non-goals (MVP)
 
 - Reintroducing value-layer collection inlining (durable store stays pure FT/HAMT)
@@ -305,7 +345,8 @@ literal bytes without changing the value law (L1–L5) or store model.
 | **What stays the same** | Realized completeness, type fidelity, hash check on materialize, soft-budget chunking policy. |
 | **Interop** | Keep EDN path for debug/tools; negotiate codec (e.g. `Content-Type`) on `POST /nodes`. |
 
-Not scheduled; pursue after 2c/2d once literal shapes and budgets are stable.
+Not scheduled; pursue once binary codec is prioritized (literal shapes and
+budgets are stable after 2d).
 
 ## Open questions (proposed defaults)
 

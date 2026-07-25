@@ -8,15 +8,22 @@
 
    Primary metrics: :requests :bytes-sent :bytes-recv (dacite.store.stats).
 
-   Run:
+   Leaf-chunking 2d — budget sweep:
+     clojure -M:dev -m dacite.bench.todo-bw --budget-sweep
+     clojure -M:dev -m dacite.bench.todo-bw --budget-sweep --out target/budget-sweep.edn
+
+   Other runs:
      cd impl/clojure && clojure -M:dev -m dacite.bench.todo-bw --policy none
      clojure -M:dev -m dacite.bench.todo-bw --policy smart-put --out results.edn"
   (:require [clojure.pprint :as pp]
             [dacite.service :as svc]
+            [dacite.store :as store]
+            [dacite.store.pack :as pack]
             [dacite.store.stats :as stats]
             [dacite.store.remote :as remote]
             [dacite.store.client-cache :as client-cache]
             [dacite.examples.todo :as todo]
+            [dacite.value :as v]
             [dacite.value.api :as d]
             [dacite.value.types :as types])
   (:gen-class))
@@ -158,22 +165,131 @@
        (run-scenarios base-url policy)
        (finally
          (stop!))))))
+
+;; =============================================================================
+;; 2d — soft-budget sweep (encode-side + live write-back)
+;; =============================================================================
+
+(def budget-ladder
+  "Budgets to measure for leaf-chunking 2d (bytes, soft Layer-2 threshold)."
+  [256 512 1024 2048 4096])
+
+(defn- fixture-todo-seed
+  "Local mem store + root hash of seed todo list."
+  []
+  (let [st (store/mem-store)
+        seeded (todo/build st (todo/seed-items))
+        h (types/dacite-hash seeded)]
+    {:name :todo-seed
+     :store st
+     :root h
+     :note "5-item sample list (browser demo seed)"}))
+
+(defn- fixture-large-string
+  []
+  (let [st (store/mem-store)
+        s (v/string-with-store st (apply str (repeat 3000 \x)))
+        h (types/dacite-hash s)]
+    {:name :string-3000
+     :store st
+     :root h
+     :note "3000-char string (size cue >> small budgets)"}))
+
+(defn- fixture-vector-40-strings
+  []
+  (let [st (store/mem-store)
+        xs (mapv #(str "item-" %) (range 40))
+        vec-v (apply v/vector-with-store st xs)
+        h (types/dacite-hash vec-v)]
+    {:name :vector-40-strings
+     :store st
+     :root h
+     :note "40 short strings under one vector"}))
+
+(defn- fixture-vector-200-i64
+  []
+  (let [st (store/mem-store)
+        vec-v (apply v/vector-with-store st (range 200))
+        h (types/dacite-hash vec-v)]
+    {:name :vector-200-i64
+     :store st
+     :root h
+     :note "200 i64 elements (post ft/single-elision spine)"}))
+
+(defn encode-fixture-at-budget
+  "encode-summary for one fixture root at budget."
+  [{:keys [store root]} budget]
+  (pack/encode-summary store root budget))
+
+(defn encode-sweep
+  "Local encode-side matrix: fixture × budget → encode-summary stats.
+
+   Does not hit the network. Good for literal/node mix and chunk counts."
+  ([] (encode-sweep budget-ladder))
+  ([budgets]
+   (let [fixtures [(fixture-todo-seed)
+                   (fixture-large-string)
+                   (fixture-vector-40-strings)
+                   (fixture-vector-200-i64)]]
+     {:kind :encode-sweep
+      :budgets (vec budgets)
+      :rows
+      (vec
+       (for [fx fixtures
+             b budgets]
+         (let [sum (encode-fixture-at-budget fx b)]
+           (merge {:fixture (:name fx)
+                   :note (:note fx)}
+                  (select-keys sum [:budget :items :literals :nodes
+                                    :chunks :approx-bytes :covered])))))})))
+
+(defn live-write-back-at-budget
+  "Run write-back suite with pack/default-budget rebound to b."
+  [b]
+  (with-redefs [pack/default-budget (long b)]
+    (let [r (run-with-server :write-back)]
+      {:budget (long b)
+       :policy :write-back
+       :scenarios (:scenarios r)
+       :totals (:totals r)})))
+
+(defn live-sweep
+  "Live write-back bandwidth matrix across budgets (ephemeral HTTP service)."
+  ([] (live-sweep budget-ladder))
+  ([budgets]
+   {:kind :live-write-back-sweep
+    :budgets (vec budgets)
+    :rows (mapv live-write-back-at-budget budgets)}))
+
+(defn budget-sweep
+  "Full 2d report: encode matrix + live write-back suite per budget."
+  ([] (budget-sweep budget-ladder))
+  ([budgets]
+   {:kind :budget-sweep-2d
+    :default-budget pack/default-budget
+    :encode (encode-sweep budgets)
+    :live (live-sweep budgets)}))
+
 (defn- parse-args [args]
   (loop [args args
          acc {:policy :none
               :out nil
-              :label "run"}]
+              :label "run"
+              :budget-sweep? false}]
     (if-let [a (first args)]
       (case a
         "--policy" (recur (nnext args) (assoc acc :policy (keyword (second args))))
         "--out" (recur (nnext args) (assoc acc :out (second args)))
         "--label" (recur (nnext args) (assoc acc :label (second args)))
+        "--budget-sweep" (recur (next args) (assoc acc :budget-sweep? true))
         (recur (next args) acc))
       acc)))
 
 (defn -main [& args]
-  (let [{:keys [policy out label]} (parse-args args)
-        result (assoc (run-with-server policy) :label label)
+  (let [{:keys [policy out label budget-sweep?]} (parse-args args)
+        result (if budget-sweep?
+                 (budget-sweep)
+                 (assoc (run-with-server policy) :label label))
         edn-str (with-out-str (pp/pprint result))]
     (print edn-str)
     (flush)
