@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7f146547.js";
+            window.path_to_searchindex_js = "../searchindex-6157ef97.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-5f744fa6.js"></script>
@@ -451,18 +451,23 @@ levels means fewer network round trips — and that’s the dominant cost.</p>
 </thead>
 <tbody>
 <tr><td><code>ft/empty</code></td><td>Empty seq</td><td>0</td></tr>
-<tr><td><code>ft/single</code></td><td>One element</td><td>1</td></tr>
-<tr><td><code>ft/digit</code></td><td>Finger (end access)</td><td>1–32</td></tr>
-<tr><td><code>ft/node</code></td><td>Internal node</td><td>2–32</td></tr>
+<tr><td><code>ft/digit</code></td><td>Finger (end access)</td><td>1–32 leaf or node hashes</td></tr>
+<tr><td><code>ft/node</code></td><td>Internal node</td><td>2–32 children</td></tr>
 <tr><td><code>ft/deep</code></td><td>Full tree</td><td>3 (left, spine, right)</td></tr>
 </tbody>
 </table>
 </div>
-<p>Every node is stored in the content-addressed store as its own entry.
-Children are hash references — no node ever contains inline data.
-This means every node has <strong>bounded size</strong> regardless of collection
-size: at most 32 × 32 = 1024 bytes of child hashes, plus ~48 bytes
-of measure metadata.</p>
+<p>There is no <code>ft/single</code> adapter. A one-element sequence uses the <strong>leaf
+value hash</strong> as the tree root. Digit and node children are either bare
+leaf hashes (scalars or public collection nodes such as <code>vector</code>) or
+structural <code>ft/node</code> hashes on the spine. Discrimination: non-<code>ft/*</code> means
+implicit single; <code>ft/*</code> means structure. Nested collections must be wrapped
+in a public collection node — never a bare <code>ft/deep</code> as a user value.</p>
+<p>Every structural node is stored in the content-addressed store as its own
+entry. Children are hash references — no node ever contains inline data.
+This means every structural node has <strong>bounded size</strong> regardless of
+collection size: at most 32 × 32 = 1024 bytes of child hashes, plus ~48
+bytes of measure metadata.</p>
 <h3 id="the-measure-monoid"><a class="header" href="#the-measure-monoid">The Measure Monoid</a></h3>
 <p>Every node caches a <strong>measure</strong> of its subtree:</p>
 <pre><code>Measure = {
