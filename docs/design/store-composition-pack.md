@@ -1,8 +1,8 @@
 # Store composition: packing (and future throttle)
 
-**Status:** IN PROGRESS — design + first composition APIs (`flush-from!`,
-`find-chunk-transport`). Rate limiting is **deferred** until composition is
-clean.
+**Status:** IN PROGRESS — composition APIs shipped (`flush-from!`,
+`find-chunk-transport`); client **rate-limit** on `send-chunk!` available
+(`dacite.store.rate-limit`).
 
 **Related:** [leaf-chunking.md](leaf-chunking.md) (Layer 1/2 laws, budget 1024),
 [service.md](service.md) (HTTP), [stores-phase-2.md](stores-phase-2.md).
@@ -291,9 +291,28 @@ orthogonal to client token-bucket under pack.
 | **P1** | `find-chunk-transport` / `as-chunk-transport`; chunk path does not unwrap past middleware — **done** |
 | **P2** | `flush-from!` (W2); write-back calls it; `wrap-chunk-transport` helper — **done** |
 | **P3** | Tests: todo-bw / pack parity; middleware sees every `send-chunk!` |
-| **P4** | Rate-limit store under pack (`send-chunk!` takes tokens, block on empty) |
+| **P4** | Rate-limit store under pack (`send-chunk!` takes tokens, block on empty) — **done** (`dacite.store.rate-limit`) |
 | **P5** | Optional W1 buffering pack store |
 | **Later** | Value-layer closure helpers / CAS-ready checks (not IStore) |
+
+### Rate-limit usage
+
+```clojure
+(require '[dacite.store.rate-limit :as rl]
+         '[dacite.store.client-cache :as cc]
+         '[dacite.store.remote :as remote])
+
+(def store
+  (cc/wrap
+   (rl/rate-limit-store
+    (remote/remote-store "http://localhost:8080")
+    {:capacity 20   ; burst
+     :rate 5.0})    ; chunks per second sustained
+   :write-back))
+```
+
+Only `send-chunk!` (pack packages) consumes tokens; local `s-put` / cache hits
+do not. Empty bucket blocks until refill.
 
 ---
 

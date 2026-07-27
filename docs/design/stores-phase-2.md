@@ -84,9 +84,9 @@ clojure -M:dev -m dacite.bench.todo-bw --budget-sweep
 ## Phase 2.5 / later (deferred)
 
 - **Pack as composable store middleware** — [store-composition-pack.md](store-composition-pack.md)
-  (literal → pack → [throttle] → HTTP; server unpack mirror; value completeness).
-  **Do this before client rate-limit.**
-- Rate-limit store (token bucket) under pack — 1 token ≈ 1 chunk; blocked when empty
+  (`flush-from!`, outermost `IChunkTransport`; server unpack mirror).
+- Rate-limit store (token bucket) under pack — **done** (`dacite.store.rate-limit`);
+  1 token ≈ 1 `send-chunk!`; block when empty
 - Root slot in content map (`[0,0,0,0]` or `type-hash("dacite/root")`)
 - Content sync helper (copy reachable nodes to target before `push-ref`)
 - True opaque-byte storage in stores

@@ -95,8 +95,8 @@ Primary write (write-back): chunked `POST /nodes` with novelty.
 
 | Priority | Item | Notes |
 |----------|------|--------|
-| High | **Pack composition under IStore** | [store-composition-pack.md](design/store-composition-pack.md): pack store middleware, no unwrap bypass, server unpack mirror, value completeness / stop-sending |
-| High | Rate-limit store (after pack composition) | Token bucket **below** packing; 1 token ≈ 1 chunk |
+| High | **Pack composition under IStore** | [store-composition-pack.md](design/store-composition-pack.md): `flush-from!`, outermost transport; value completeness stays above Store |
+| Done | Rate-limit store under pack | `dacite.store.rate-limit` — token bucket on `send-chunk!` |
 | Medium | Binary pack wire (optional codec) | EDN is correct; binary shrinks envelopes |
 | Medium | Content sync helper | Copy reachable subgraph before `push-ref` |
 | Medium | Remote root watches (SSE) | Design already sketched in service.md |
