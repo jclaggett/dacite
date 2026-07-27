@@ -139,28 +139,25 @@
   "Upload local nodes reachable from root-h that are not yet flushed.
    Returns number of items uploaded. No-op if s is not WriteBackStore.
 
-   When remote implements pack/IChunkTransport, Layer 1 chooses :node or
-   :literal and Layer 2 packs soft-budget chunks (POST /nodes). Literals
-   cover their descendant subgraph so those hashes are not re-sent."
+   When remote (or an outer middleware on it) implements IChunkTransport,
+   uses pack/flush-from! (Layer 1 encode + Layer 2 soft chunks). Otherwise
+   plain per-node s-put. Node presence novelty (:exists) updates the skip set;
+   value completeness is not a store concern."
   [s root-h]
   (if-not (write-back-store? s)
     0
     (let [local (:local s)
           remote (:remote s)
           flushed (:flushed s)]
-      (if (satisfies? pack/IChunkTransport remote)
-        (let [{:keys [items covered]} (pack/encode-reachable local root-h @flushed)]
-          (if (empty? items)
-            0
-            (let [nov (pack/put-items-chunked! remote items pack/default-budget)]
-              ;; Hashes we sent are on the server after apply
-              (swap! flushed into covered)
-              ;; Server :exists → mark local reachable of those roots flushed
-              (doseq [hex (or (:exists nov) [])]
-                (let [hv (store/hex->hash hex)]
-                  (when (store/s-has? local hv)
-                    (swap! flushed into (gc/mark-reachable local hv)))))
-              (count items))))
+      (if (pack/find-chunk-transport remote)
+        (let [result (pack/flush-from! remote local root-h @flushed)]
+          (when (pos? (:items result 0))
+            (swap! flushed into (or (:covered result) #{}))
+            (doseq [hex (or (:exists result) [])]
+              (let [hv (store/hex->hash hex)]
+                (when (store/s-has? local hv)
+                  (swap! flushed into (gc/mark-reachable local hv))))))
+          (long (:items result 0)))
         ;; Non-chunk remotes: plain per-node PUT of every unflushed live hash.
         (let [live (gc/mark-reachable local root-h) ; hex keys
               to-send (vec (remove @flushed live))

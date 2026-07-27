@@ -532,6 +532,64 @@
       (finally
         (stop!)))))
 
+(deftest find-chunk-transport-outermost-wins
+  (let [inner (reify pack/IChunkTransport
+                (send-chunk! [_ _] {:ok true :layer :inner}))
+        mid (pack/wrap-chunk-transport inner)
+        outer (pack/wrap-chunk-transport mid)]
+    (is (identical? outer (pack/find-chunk-transport outer)))
+    (is (= :inner (:layer (pack/send-chunk! outer {:dacite.wire/chunk-v1 true :items []})))
+        "delegating middleware forwards to real sink")))
+
+(defrecord CountingChunkTransport [inner counter]
+  pack/IChunkTransport
+  (send-chunk! [_ chunk]
+    (swap! counter inc)
+    (pack/send-chunk! inner chunk)))
+
+(deftest flush-from-and-middleware-see-every-chunk
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
+    (try
+      (let [raw (remote/remote-store base-url)
+            n (atom 0)
+            counted (->CountingChunkTransport raw n)
+            local (store/mem-store)
+            t (todo/build local (todo/seed-items))
+            h (types/dacite-hash t)
+            result (pack/flush-from! counted local h #{})]
+        (is (pos? (:items result)))
+        (is (pos? (:chunks result)))
+        (is (= (:chunks result) @n)
+            "every sealed chunk hits outermost send-chunk!")
+        (is (store/s-has? raw h))
+        ;; Second flush skips covered hashes
+        (reset! n 0)
+        (let [r2 (pack/flush-from! counted local h (:covered result))]
+          (is (zero? (:items r2)))
+          (is (zero? @n))))
+      (finally
+        (stop!)))))
+
+(deftest write-back-flush-uses-flush-from
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
+    (try
+      (let [raw (remote/remote-store base-url)
+            n (atom 0)
+            counted (->CountingChunkTransport raw n)
+            wb (client-cache/wrap counted :write-back)
+            t (todo/build wb (todo/seed-items))
+            h (types/dacite-hash t)
+            uploaded (client-cache/flush-reachable! wb h)]
+        (is (pos? uploaded))
+        (is (pos? @n) "write-back flush sends via IChunkTransport middleware")
+        (is (store/s-has? raw h))
+        (is (zero? (client-cache/flush-reachable! wb h))
+            "second flush is a no-op"))
+      (finally
+        (stop!)))))
+
 (deftest intermediate-hamt-bitmap-round-trip-when-assured
   (let [st (store/mem-store)
         m (apply coll/hash-map-with-store st

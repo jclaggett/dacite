@@ -701,24 +701,52 @@
        :status (novelty-status cr)})))
 
 (defprotocol IChunkTransport
-  "HTTP (or other) sink for sealed chunks."
+  "Sink for sealed chunks (HTTP POST /nodes or middleware that delegates).
+
+   Middleware above transport must implement send-chunk! by calling the inner
+   store — do not peel wrappers past a layer that implements this protocol."
   (send-chunk! [this chunk]
     "POST one chunk envelope. Throws on failure. Returns response map
      (may include :created :exists :status from the server)."))
 
+(defn find-chunk-transport
+  "Outermost store in a composition that implements IChunkTransport.
+
+   Walks inward only when the current store does not implement the protocol
+   (e.g. write-back → :remote). Never peels past a middleware that already
+   implements send-chunk!."
+  [s]
+  (cond
+    (nil? s) nil
+    (satisfies? IChunkTransport s) s
+    (and (record? s) (contains? s :remote)) (find-chunk-transport (:remote s))
+    (and (record? s) (contains? s :inner)) (find-chunk-transport (:inner s))
+    (and (record? s) (contains? s :layers))
+    (some find-chunk-transport (reverse (:layers s)))
+    :else nil))
+
+(defn- as-chunk-transport
+  "Resolve s to an IChunkTransport or throw."
+  [s]
+  (or (find-chunk-transport s)
+      (throw (ex-info "no IChunkTransport in store composition"
+                      {:store-type (type s)}))))
+
 (defn put-items-chunked!
-  "Layer 2: pack items and send-chunk! each.
+  "Layer 2: pack items and send-chunk! each via transport (or outermost
+   IChunkTransport found by walking inward past non-transport wrappers).
 
    Returns {:chunks n :items n :created [hex…] :exists [hex…]
             :status :complete|:partial}."
   ([transport items]
    (put-items-chunked! transport items default-budget))
   ([transport items budget]
-   (let [chunks (pack-items items budget)
+   (let [t (as-chunk-transport transport)
+         chunks (pack-items items budget)
          created (atom [])
          exists (atom [])]
      (doseq [ch chunks]
-       (let [data (send-chunk! transport ch)]
+       (let [data (send-chunk! t ch)]
          (when (map? data)
            (swap! created into (or (:created data) []))
            (swap! exists into (or (:exists data) [])))))
@@ -729,6 +757,47 @@
         :created cr
         :exists ex
         :status (novelty-status cr)}))))
+
+(defn flush-from!
+  "Pack composition flush (W2): encode reachable nodes from content-store
+   under root-h (skipping skip), soft-budget pack, send-chunk! each package.
+
+   transport — IChunkTransport or composition containing one (outermost wins)
+   content-store — IStore holding nodes to encode (e.g. write-back local)
+   root-h — value root to flush
+   skip — set of already-flushed hashes (hex or hash vectors)
+   budget — soft pack budget (default default-budget)
+
+   Returns {:items n :chunks n :covered #{hex-keys…} :created :exists :status}
+   with :items 0 when nothing to send. Does not interpret value completeness."
+  ([transport content-store root-h skip]
+   (flush-from! transport content-store root-h skip default-budget))
+  ([transport content-store root-h skip budget]
+   (let [budget (long (or budget default-budget))
+         {:keys [items covered]} (encode-reachable content-store root-h
+                                                   (or skip #{}) budget)]
+     (if (empty? items)
+       {:items 0
+        :chunks 0
+        :covered #{}
+        :created []
+        :exists []
+        :status :complete}
+       (let [nov (put-items-chunked! transport items budget)]
+         (assoc nov :covered covered))))))
+
+(defrecord DelegatingChunkTransport [inner]
+  ;; Middleware helper: IChunkTransport that only forwards send-chunk!.
+  ;; Use to wrap a remote with metering, logging, or (later) rate-limit.
+  IChunkTransport
+  (send-chunk! [_ chunk]
+    (send-chunk! (as-chunk-transport inner) chunk)))
+
+(defn wrap-chunk-transport
+  "Wrap inner so send-chunk! always goes through this record (for tests /
+   future throttle). inner may itself be a composition."
+  [inner]
+  (->DelegatingChunkTransport inner))
 
 ;; =============================================================================
 ;; Pack fetch (read side) — server builds chunks for client apply-chunk!

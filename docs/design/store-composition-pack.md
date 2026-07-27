@@ -1,8 +1,8 @@
 # Store composition: packing (and future throttle)
 
-**Status:** DRAFT — design for composing literal representation and packing as
-store middleware under `IStore`. Rate limiting is **deferred** until this
-composition is clean.
+**Status:** IN PROGRESS — design + first composition APIs (`flush-from!`,
+`find-chunk-transport`). Rate limiting is **deferred** until composition is
+clean.
 
 **Related:** [leaf-chunking.md](leaf-chunking.md) (Layer 1/2 laws, budget 1024),
 [service.md](service.md) (HTTP), [stores-phase-2.md](stores-phase-2.md).
@@ -287,10 +287,10 @@ orthogonal to client token-bucket under pack.
 
 | Phase | Deliverable |
 |-------|-------------|
-| **P0** | This design doc |
-| **P1** | `send-chunk!` delegation; stop data-path `unwrap-remote` past middleware |
-| **P2** | Pack store (W2): `flush-from!` = encode-reachable + pack-items + send-chunk; write-back calls it |
-| **P3** | Tests: todo-bw / pack parity; composition order |
+| **P0** | This design doc — **done** |
+| **P1** | `find-chunk-transport` / `as-chunk-transport`; chunk path does not unwrap past middleware — **done** |
+| **P2** | `flush-from!` (W2); write-back calls it; `wrap-chunk-transport` helper — **done** |
+| **P3** | Tests: todo-bw / pack parity; middleware sees every `send-chunk!` |
 | **P4** | Rate-limit store under pack (`send-chunk!` takes tokens, block on empty) |
 | **P5** | Optional W1 buffering pack store |
 | **Later** | Value-layer closure helpers / CAS-ready checks (not IStore) |

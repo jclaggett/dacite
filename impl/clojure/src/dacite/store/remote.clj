@@ -122,21 +122,25 @@
       data)))
 
 (defn- unwrap-remote
-  "Peel client-cache / layered wrappers to the underlying RemoteStore."
+  "Peel wrappers to the underlying RemoteStore for base-url / client fields.
+
+   Not used on the chunk send path — that uses pack/find-chunk-transport so
+   middleware implementing IChunkTransport is not bypassed."
   [remote]
   (loop [r remote]
     (cond
       (instance? RemoteStore r) r
       (and (record? r) (contains? r :remote)) (recur (:remote r))
+      (and (record? r) (contains? r :inner)) (recur (:inner r))
       (and (record? r) (contains? r :layers)) (recur (last (:layers r)))
       :else r)))
 
 (defn put-nodes-chunked!
-  "Pack Layer-1 node items and POST /nodes chunks (2a)."
+  "Pack Layer-1 items and POST /nodes via outermost IChunkTransport."
   ([remote items]
-   (pack/put-items-chunked! (unwrap-remote remote) items))
+   (pack/put-items-chunked! remote items))
   ([remote items budget]
-   (pack/put-items-chunked! (unwrap-remote remote) items budget)))
+   (pack/put-items-chunked! remote items budget)))
 
 (defn remote-store
   "Create an HTTP-backed remote store.

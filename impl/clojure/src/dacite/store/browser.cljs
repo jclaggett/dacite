@@ -134,11 +134,14 @@
                      policy :write-back}}]]
   (client-cache/wrap (remote-store base-url {:headers headers}) policy))
 
-(defn- unwrap-remote [remote]
+(defn- unwrap-remote
+  "Peel wrappers for base-url / headers only — not for send-chunk! path."
+  [remote]
   (loop [r remote]
     (cond
       (instance? BrowserRemoteStore r) r
       (and (record? r) (contains? r :remote)) (recur (:remote r))
+      (and (record? r) (contains? r :inner)) (recur (:inner r))
       (and (record? r) (contains? r :layers)) (recur (last (:layers r)))
       :else r)))
 
