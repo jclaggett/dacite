@@ -14,8 +14,9 @@ Make **literal encoding** and **packing** first-class, composable store layers s
 1. Write-back / domain code stay free of encode internals.
 2. Future layers (throttle, binary codec, compression) plug in at clear boundaries.
 3. The server can run a **mirrored** unpack pipeline into primitive `s-put`.
-4. The server can signal **completeness** so the client stops sending for a value
-   (back pressure / early termination).
+4. Transport feedback stays at the **node/chunk** grain; **value completeness**
+   (recursive materializability) stays a **value-layer** concern—not an `IStore`
+   feature.
 
 **Not in this doc:** implementing a token-bucket store (see §Throttle later).
 
@@ -175,106 +176,77 @@ later.
 
 ---
 
-## Completeness and back pressure
+## Presence vs completeness (layer boundary)
 
-### Problem
+### Suspicion (accepted)
 
-Without feedback, a client may keep packing and POSTing subgraph nodes the
-server already has, or continue a multi-chunk upload after the **logical value**
-the client cares about is fully present. That wastes tokens (when throttled) and
-bandwidth.
+**Value completeness** (can we fully realize / walk the value at `H`?) does
+**not** belong in the lower Store layer.
 
-### What we already have
+A store is a content-addressed **node map**. It answers:
 
-Novelty on `POST /nodes` and `PUT /node`:
+| Question | Store-native? |
+|----------|----------------|
+| Is entry `H` present? | Yes — `s-has?`, novelty `:exists` |
+| Did this put/chunk install anything new? | Yes — `:created` / `:status :partial\|:complete` |
+| Can realize(value at `H`) finish without more fetches? | **No** — needs type-aware walk / value laws |
+
+Recursive materializability depends on `child-hashes`, literal L5 coverage, and
+constructor graphs—that is **value-layer** (or rooted/sync policy above the
+content store), not `IStore`.
+
+Putting “closure bits” or `value-status` *inside* the store protocol would:
+
+- Couple media stores to value semantics  
+- Tempt partial indexes that drift from the node map  
+- Blur the Values vs Store split used in the todo demo  
+
+### What the Store / pack layer *does* provide
+
+**Node- and chunk-level transport feedback only:**
 
 ```clojure
 {:ok true
- :status :partial | :complete   ; any created vs all existed
+ :status :partial | :complete   ; this request’s items: any new vs all already present
  :created [hex …]
  :exists  [hex …]
  :applied n}
 ```
 
-Write-back already expands `flushed` from `:exists` via local `mark-reachable`.
-That is **hash-level** completeness for known roots, not “this client job is done.”
+- **`:exists`** — idempotent node presence (skip re-send of those hashes)  
+- **`:status :complete`** — every *item in this chunk/request* already existed  
+  (not “the whole value tree is ready”)  
+- Write-back may use `:exists` + local graph knowledge to grow a **client-side**
+  skip set; that set is a cache of presence, not a store feature  
 
-### Desired signals (design)
+**Throttle (later)** meters packages (`send-chunk!`); it does not decide value
+readiness.
 
-Three nested notions of “done”:
+### Where value completeness lives
 
-| Level | Meaning | Client action |
-|-------|---------|----------------|
-| **Item exists** | Server already had this hash (`:exists`) | Skip re-send; mark covered |
-| **Chunk complete** | Every item in the chunk was `:exists` (`:status :complete`) | Optional: backoff or stop related work |
-| **Value complete** | Server holds a full materializable value at root `H` (all nodes needed for `H`) | Stop packing under `H`; no more puts for that job |
+| Concern | Layer |
+|---------|--------|
+| Node present | Store / novelty |
+| Chunk items all existed | Store / novelty (`:status`) |
+| Subgraph closed for realize(`H`) | **Value** (walk / realize / optional helper above store) |
+| “Flush job done; safe to CAS root” | **Client policy** (write-back + value checks), not IStore |
+| Stop packing under `H` | **Client/value policy** using local intent + presence feedback |
 
-**Value complete** is the back-pressure signal that matters for large multi-chunk
-uploads.
+Optional later helpers (e.g. `value-closed? [store h]` that walks
+`child-hashes`) can live next to GC / value APIs—they **read** a store, they
+do not extend `IStore` with a completeness field.
 
-#### Option V1 — Client-driven (today + tighten)
+### Back pressure without store-level completeness
 
-Client tracks `covered` / `flushed` from novelty. When `encode-reachable`
-returns no items, value is complete **from the client’s view**. Server does not
-need a new message. Weakness: client must already know what it intended to send;
-server cannot say “I already have `H` fully—stop.”
+1. **Slow down** — token bucket under pack (future): pace `send-chunk!`.  
+2. **Skip nodes** — novelty `:exists` (store-native).  
+3. **Stop the job** — client/value policy: e.g. `encode-reachable` empty, or a
+   value-layer closure check *before* CAS—not a new store primitive.
 
-#### Option V2 — Server root-has / HEAD
-
-Before or during flush, client `HEAD`/`s-has?` root hash `H`. If present,
-**assume** value complete only if the server never stores partial values under a
-hash (true for content-addressing: `H` exists iff that node exists; nested
-missing children can still break realize). So **has?(H) is necessary but not
-sufficient** for “fully recursive value available” unless the server guarantees
-closed subgraphs on every put (hard) or tracks a **closure bit**.
-
-#### Option V3 — Closure / “value ready” bit (stronger)
-
-Server maintains, for selected hashes (e.g. flushed roots or CAS candidates):
-
-```clojure
-{:hash H :closure :complete | :partial | :unknown}
-```
-
-Updated when:
-
-- A literal for `H` is applied (L5 → complete for that materialize closure)
-- A `:node` put for `H` lands and all `child-hashes` are present transitively
-- Or an explicit verification walk succeeds
-
-Response extension (chunk or dedicated endpoint):
-
-```clojure
-{:ok true
- :status :partial
- :created […]
- :exists […]
- :value-status {H-hex :complete, …}}  ; optional map for roots client cares about
-```
-
-Client: if `value-status[H] = :complete`, mark entire reachable set flushed and
-**stop** further chunks for that flush job.
-
-#### Option V4 — Job / stream id
-
-Client opens an upload job `{:root H :have #{…}}`; server returns
-`{:remaining n}` or `{:complete true}` after each chunk. Heavier protocol;
-useful for multi-chunk progressive pack later.
-
-### Recommendation for composition phase
-
-1. **Keep and document** novelty `:exists` / `:complete` as the primary back
-   pressure for **items and chunks** (already partially wired in write-back).
-2. **Design** for **value-level** completeness next to pack-store flush:
-   - Prefer **V3** long-term (closure bit + optional `value-status` in novelty).
-   - Near-term: treat “literal applied for `H`” and “encode-reachable empty”
-     as complete; server may add `:value-status` without breaking clients that
-     ignore it.
-3. Throttle (later) uses the same stop condition: no more `send-chunk!` for a
-   completed root → no tokens spent.
-
-Back pressure is therefore not only “slow down,” but **stop when the server
-says the value is whole**.
+Server does not need to advertise “value complete” on the store protocol for
+composition of pack middleware. If a product later wants a ready-check API, it
+can be a **rooted/value service** endpoint (walk + answer), separate from
+`IStore`.
 
 ---
 
@@ -285,15 +257,14 @@ Conceptually, service `POST /nodes` becomes:
 ```text
 parse body → validate chunk envelope
   → (optional) admit / rate-limit inbound
-  → apply-chunk!   ; unliteralize + s-put into rooted content store
-  → compute novelty (+ optional value-status)
+  → apply-chunk!   ; unliteralize + s-put into content store
+  → compute novelty (created / exists / request status)
   → respond
 ```
 
-`apply-chunk!` should remain the **only** place that turns wire items into
-store entries (single implementation of unliteralize). Server-side “pack
-middleware” is then mostly: envelope handling, novelty accounting, closure
-updates—not a second materialize path.
+`apply-chunk!` remains the **only** place that turns wire items into store
+entries (single unliteralize implementation). No closure index in the durable
+store for MVP composition work.
 
 Inbound throttle (connections, body size, chunk rate) is **server policy**,
 orthogonal to client token-bucket under pack.
@@ -307,7 +278,7 @@ orthogonal to client token-bucket under pack.
 | 1 | W1 vs W2 for first pack store | **W2 first**, API-ready for W1 |
 | 2 | Who owns `flushed` / skip set? | Write-back atom; pack store accepts `skip` and returns `covered` + novelty |
 | 3 | Read pack-under location | Stay on remote/server for now |
-| 4 | Value completeness protocol | Novelty + optional `value-status` (V3); no job id yet |
+| 4 | Value completeness | **Out of Store layer** — client/value policy only; store keeps presence/novelty |
 | 5 | Protocol surface | `IChunkTransport` + `flush-from!` (or pack-store method); avoid growing core `IStore` until needed |
 
 ---
@@ -320,9 +291,9 @@ orthogonal to client token-bucket under pack.
 | **P1** | `send-chunk!` delegation; stop data-path `unwrap-remote` past middleware |
 | **P2** | Pack store (W2): `flush-from!` = encode-reachable + pack-items + send-chunk; write-back calls it |
 | **P3** | Tests: todo-bw / pack parity; composition order |
-| **P4** | Optional `value-status` / closure bit on server novelty |
-| **P5** | Rate-limit store under pack (`send-chunk!` takes tokens, block on empty) |
-| **P6** | Optional W1 buffering pack store |
+| **P4** | Rate-limit store under pack (`send-chunk!` takes tokens, block on empty) |
+| **P5** | Optional W1 buffering pack store |
+| **Later** | Value-layer closure helpers / CAS-ready checks (not IStore) |
 
 ---
 
@@ -331,7 +302,7 @@ orthogonal to client token-bucket under pack.
 - Documented client and **mirrored server** pipelines
 - Pack invocation centralized; write-back is cache policy + flush hook only
 - No unwrap that skips middleware on chunk send
-- Novelty / completeness story covers stop-sending (back pressure), not only slow-sending
+- Store layer limited to **node presence + chunk novelty**; no value-completeness API on `IStore`
 - Throttle has a clear insertion point **below** packing; not built yet
 
 ---
