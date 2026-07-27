@@ -4,7 +4,9 @@
 literal law below; intermediate FT/HAMT leaf-payloads (2c′) included.
 
 **Related:** `docs/design/service.md` (HTTP store protocol),
-`docs/design/stores-phase-2.md`, phase 1 removal of value-layer `:inline`.
+`docs/design/stores-phase-2.md`, `docs/design/store-composition-pack.md`
+(composing pack as store middleware; throttle deferred), phase 1 removal of
+value-layer `:inline`.
 
 ## Goal
 

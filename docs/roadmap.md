@@ -95,7 +95,9 @@ Primary write (write-back): chunked `POST /nodes` with novelty.
 
 | Priority | Item | Notes |
 |----------|------|--------|
-| High | Binary pack wire (optional codec) | EDN is correct; binary shrinks envelopes |
+| High | **Pack composition under IStore** | [store-composition-pack.md](design/store-composition-pack.md): pack store middleware, no unwrap bypass, server unpack mirror, value completeness / stop-sending |
+| High | Rate-limit store (after pack composition) | Token bucket **below** packing; 1 token ≈ 1 chunk |
+| Medium | Binary pack wire (optional codec) | EDN is correct; binary shrinks envelopes |
 | Medium | Content sync helper | Copy reachable subgraph before `push-ref` |
 | Medium | Remote root watches (SSE) | Design already sketched in service.md |
 | Medium | Opaque-byte store entries | Store body as bytes end-to-end |
@@ -158,7 +160,9 @@ See [design/service.md](design/service.md).
 ## Suggested order (from here)
 
 ```
-Phase 2.5: binary pack wire and/or content-sync helper
+Phase 2.5: pack composition (IStore middleware + server mirror + completeness)
+        → rate-limit under pack (token bucket on chunks)
+        → binary pack wire and/or content-sync helper
         → remote root watches (SSE)
         → opaque bytes + root slot
         → spec v0.5
