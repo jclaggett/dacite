@@ -333,20 +333,15 @@ ones (2c refuse-literal + BFS pack-under).
 - Binary wire as the first milestone (EDN envelopes OK for MVP)
 - Shipping intermediate FT/HAMT cells inside a value’s literal body
 
-## Future: binary wire for literals
+## Binary wire (interop)
 
-EDN is fine for correctness and demos; a later **binary pack codec** can cut
-literal bytes without changing the value law (L1–L5) or store model.
+Normative draft: **[docs/spec/wire-v1.md](../spec/wire-v1.md)**.
 
-| Idea | Notes |
-|------|--------|
-| **Protobuf (or similar)** | Schema for chunk envelope + recursive typed literals (type tag + payload; nested messages for coll elements). |
-| **What shrinks** | Type strings → small enums/varints; hex hashes → 32 raw bytes; strings/blobs as length-delimited bytes; repeated elements without EDN map overhead. |
-| **What stays the same** | Realized completeness, type fidelity, hash check on materialize, soft-budget chunking policy. |
-| **Interop** | Keep EDN path for debug/tools; negotiate codec (e.g. `Content-Type`) on `POST /nodes`. |
-
-Not scheduled; pursue once binary codec is prioritized (literal shapes and
-budgets are stable after 2d).
+- **Chunk-only** transport (no separate single-entry message type).
+- Items are **node** or **literal** (same Layer 1 laws as EDN packs).
+- Version once per chunk envelope; fixtures under `fixtures/wire-v1/`.
+- EDN remains debug / transition; multi-language ports should target wire-v1.
+- Legacy `dacite.value.serial` is directional only, not the port contract.
 
 ## Open questions (proposed defaults)
 

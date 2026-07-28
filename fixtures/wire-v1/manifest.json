@@ -1,0 +1,11 @@
+{
+  "format": "dacite-wire-v1",
+  "spec": "docs/spec/wire-v1.md",
+  "cases": [
+    {
+      "id": "chunk-literal-i64-42",
+      "path": "cases/chunk-literal-i64-42",
+      "notes": "One-item chunk: literal i64 42"
+    }
+  ]
+}

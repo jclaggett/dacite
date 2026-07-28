@@ -1,6 +1,11 @@
 # Appendix: Serialization
 
-This appendix defines the canonical binary format used for storage and network transfer in Dacite. It is intentionally low-level and reference-oriented.
+> **Status:** LEGACY reference. Multi-language interop and new work use
+> **[wire format v1](../../../spec/wire-v1.md)** (chunk-only binary).
+> `dacite.value.serial` remains directionally related but is not the port contract.
+
+This appendix describes the historical binary layout used in early Clojure work.
+It is intentionally low-level and reference-oriented.
 
 ## Binary Format
 

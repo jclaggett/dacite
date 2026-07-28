@@ -97,7 +97,7 @@ Primary write (write-back): chunked `POST /nodes` with novelty.
 |----------|------|--------|
 | High | **Pack composition under IStore** | [store-composition-pack.md](design/store-composition-pack.md): `flush-from!`, outermost transport; value completeness stays above Store |
 | Done | Rate-limit store under pack | `dacite.store.rate-limit` — token bucket on `send-chunk!` |
-| Medium | Binary pack wire (optional codec) | EDN is correct; binary shrinks envelopes |
+| High | **Binary wire v1** | [docs/spec/wire-v1.md](spec/wire-v1.md) + `fixtures/wire-v1/` — chunk-only; node+literal; then Clojure codec |
 | Medium | Content sync helper | Copy reachable subgraph before `push-ref` |
 | Medium | Remote root watches (SSE) | Design already sketched in service.md |
 | Medium | Opaque-byte store entries | Store body as bytes end-to-end |

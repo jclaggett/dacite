@@ -91,7 +91,7 @@ clojure -M:dev -m dacite.bench.todo-bw --budget-sweep
 - Content sync helper (copy reachable nodes to target before `push-ref`)
 - True opaque-byte storage in stores
 - Remote root watches (SSE)
-- Binary wire for pack envelopes (EDN is MVP)
+- Binary wire v1 ([wire-v1.md](../spec/wire-v1.md); EDN remains debug)
 - Configurable layered write policies (`:push-all`, `:top-only`)
 - Spec update to v0.5
 - User provisioning / multi-tenant auth beyond demo Bearer token
