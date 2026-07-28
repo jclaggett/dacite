@@ -1,8 +1,11 @@
 (ns dacite.value.serial
-  "Binary serialization for Dacite nodes.
+  "LEGACY binary serialization for Dacite nodes.
 
-   Serializes and deserializes individual store entries to/from the
-   canonical binary format defined in the Dacite spec.
+   Prefer docs/spec/wire-v1.md and dacite.wire.binary for interop.
+   This ns remains for older tests and directional layouts (ft/hamt/collection).
+
+   Serializes and deserializes individual store entries to/from an early
+   binary layout (no chunk envelope, no pack literals).
 
    Binary format overview:
    - Scalar:     0x00 + u8(len) + raw-bytes

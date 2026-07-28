@@ -366,6 +366,21 @@ and fixtures use wire-v1 only.
 | Piece | Status |
 |-------|--------|
 | This spec | Draft |
-| Fixtures | Scaffold / growing |
-| Clojure codec | Planned (`dacite.wire.binary` or similar) |
-| HTTP default binary | Planned after codec + fixtures green |
+| Fixtures | `fixtures/wire-v1/` (growing golden cases) |
+| Clojure codec | **`dacite.wire.binary`** — encode/decode chunk, node, literal; fixture tests |
+| HTTP default binary | Planned after more fixtures + dual Content-Type |
+
+## Clojure usage
+
+```clojure
+(require '[dacite.wire.binary :as bin])
+
+(bin/encode-chunk
+  {:budget 1024
+   :items [{:enc :literal
+            :hash h
+            :literal {:type "i64" :body 42}}]})
+
+(bin/decode-chunk-hex (slurp "fixtures/wire-v1/cases/.../message.hex"))
+(bin/apply-chunk-message! store (bin/decode-chunk bytes))
+```
