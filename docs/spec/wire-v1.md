@@ -268,6 +268,13 @@ variable sections use their own length fields.
 | `0x20` | `vector` | `u32 n` ++ `Lit` × n |
 | `0x21` | `map` | `u32 n` ++ (`Lit` key ++ `Lit` val) × n |
 | `0x22` | `set` | `u32 n` ++ `Lit` × n |
+| `0x30` | `ft/empty` | `u32 n` ++ `Lit` × n (usually n=0) |
+| `0x31` | `ft/digit` | ordered leaf lits |
+| `0x32` | `ft/node` | ordered leaf lits |
+| `0x33` | `ft/deep` | ordered leaf lits |
+| `0x40` | `hamt/empty` | ordered entry/leaf lits (usually n=0) |
+| `0x41` | `hamt/entry` | `Lit` key ++ `Lit` val |
+| `0x42` | `hamt/bitmap` | ordered entry pair lits or leaves per pack policy |
 | other | error | |
 
 **Order:**

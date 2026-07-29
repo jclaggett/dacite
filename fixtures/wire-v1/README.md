@@ -32,4 +32,15 @@ from the description and check in the hex.
 
 ## Status
 
-Scaffold + initial cases. Full suite grows with the Clojure codec (phase D3).
+Golden suite for wire-v1 (see `manifest.json`). Covers scalars, collections,
+FT nodes and intermediate FT literals, mixed node/literal chunks, and parts of
+a multi-chunk large-string pack. Ports should pass every case under `cases/`.
+
+## Categories
+
+| Prefix | Meaning |
+|--------|---------|
+| `chunk-literal-*` | Item(s) with `enc=literal` |
+| `chunk-node-*` | Item(s) with `enc=node` (store entry payload) |
+| `chunk-mixed-*` | Both encodings in one message |
+| `chunk-string-3000-part-*` | Soft-budget multi-chunk series (apply in order 0,1,2…) |
