@@ -32,9 +32,15 @@ from the description and check in the hex.
 
 ## Status
 
-Golden suite for wire-v1 (see `manifest.json`). Covers scalars, collections,
-FT nodes and intermediate FT literals, mixed node/literal chunks, and parts of
-a multi-chunk large-string pack. Ports should pass every case under `cases/`.
+Golden suite for wire-v1 (see `manifest.json`). Covers:
+
+- Scalars: null, bool T/F, char, i64, f64 (literal and some as node)
+- Collections: string/blob/vector/map/set including **empty** variants
+- Collection **headers as node** (empty headers + blob header)
+- FT nodes + intermediate FT literals; mixed encodings; multi-chunk string pack
+
+Ports should pass every case under `cases/`. Regenerate with
+`cd impl/clojure && clojure -M:dev -m gen-wire-fixtures` (extends suite).
 
 ## Categories
 
