@@ -3,7 +3,11 @@
 
    Implements the node endpoints from docs/design/service.md.
    Compose with layered-store, client-cache, and lru-store for caching.
-   Bodies use dacite.wire so #dacite/u64 hash words round-trip.
+
+   Wire:
+     :binary (default true) — pack GET and POST /nodes use wire-v1 binary
+       (application/vnd.dacite.chunk.v1). Novelty / root CAS stay EDN.
+     :binary false — EDN packs (legacy demos).
 
    GET /node/{hex} returns a pack chunk by default (BFS under the hash).
    s-get applies the chunk into a local pack cache, then returns the node.
@@ -15,7 +19,8 @@
             [dacite.store.pack :as pack]
             [dacite.store.client-cache :as client-cache]
             [dacite.rooted.gc :as gc]
-            [dacite.wire :as wire])
+            [dacite.wire :as wire]
+            [dacite.wire.binary :as bin])
   (:import [java.net URI]
            [java.net.http HttpClient HttpRequest HttpResponse HttpRequest$BodyPublishers HttpResponse$BodyHandlers]
            [java.time Duration]))
@@ -55,27 +60,44 @@
              (wire/read-edn (String. body "UTF-8")))}))
 
 (defn- apply-get-body!
-  "Install GET /node body into pack-local (chunk or raw node). Return node at h."
-  [pack-local h data]
-  (cond
-    (pack/chunk? data)
-    (do (pack/apply-chunk! pack-local data)
+  "Install GET /node body into pack-local (chunk or raw node). Return node at h.
+   body-bytes — response body; binary? — wire-v1 chunk when true."
+  [pack-local h ^bytes body-bytes binary?]
+  (when (and body-bytes (pos? (alength body-bytes)))
+    (cond
+      (or binary?
+          (and (>= (alength body-bytes) 4)
+               (= (aget body-bytes 0) (unchecked-byte 0x44))
+               (= (aget body-bytes 1) (unchecked-byte 0x41))
+               (= (aget body-bytes 2) (unchecked-byte 0x43))
+               (= (aget body-bytes 3) (unchecked-byte 0x31))))
+      (let [chunk (bin/decode-pack-edn body-bytes)]
+        (pack/apply-chunk! pack-local chunk)
         (store/s-get pack-local h))
 
-    (some? data)
-    (do (store/s-put pack-local h data)
-        data)
+      :else
+      (let [data (wire/read-edn (String. body-bytes "UTF-8"))]
+        (cond
+          (pack/chunk? data)
+          (do (pack/apply-chunk! pack-local data)
+              (store/s-get pack-local h))
 
-    :else nil))
+          (some? data)
+          (do (store/s-put pack-local h data)
+              data)
 
-(defrecord RemoteStore [base-url client headers pack-local]
+          :else nil)))))
+
+(defrecord RemoteStore [base-url client headers pack-local binary?]
   store/IStore
   (s-get [_ h]
     (or (store/s-get pack-local h)
-        (let [{:keys [status body]} (request client "GET" (node-url base-url h) nil headers)]
+        (let [hdrs (if binary?
+                     (assoc headers "Accept" bin/content-type-chunk-v1)
+                     (assoc headers "Accept" "application/edn"))
+              {:keys [status body]} (request client "GET" (node-url base-url h) nil hdrs)]
           (when (= 200 status)
-            (apply-get-body! pack-local h
-                             (wire/read-edn (String. body "UTF-8")))))))
+            (apply-get-body! pack-local h body binary?)))))
 
   (s-put [_ h value]
     (let [{:keys [status body]} (request client "PUT" (node-url base-url h)
@@ -113,11 +135,25 @@
   pack/IChunkTransport
   (send-chunk! [this chunk]
     (let [url (str (str/replace base-url #"/$" "") "/nodes")
-          {:keys [status data]} (edn-request client "POST" url chunk
-                                             (assoc headers "Content-Type" "application/edn"))]
-      (when-not (= 200 status)
-        (throw (ex-info "Remote send-chunk! failed"
-                        {:status status :data data})))
+          data
+          (if binary?
+            (let [{:keys [status body]}
+                  (request client "POST" url
+                           (bin/encode-pack-edn chunk)
+                           (assoc headers
+                                  "Content-Type" bin/content-type-chunk-v1
+                                  "Accept" "application/edn"))]
+              (when-not (= 200 status)
+                (throw (ex-info "Remote send-chunk! failed" {:status status})))
+              (when (and body (pos? (alength ^bytes body)))
+                (wire/read-edn (String. ^bytes body "UTF-8"))))
+            (let [{:keys [status data]}
+                  (edn-request client "POST" url chunk
+                               (assoc headers "Content-Type" "application/edn"))]
+              (when-not (= 200 status)
+                (throw (ex-info "Remote send-chunk! failed"
+                                {:status status :data data})))
+              data))]
       (pack/apply-chunk! pack-local chunk)
       data)))
 
@@ -146,15 +182,18 @@
   "Create an HTTP-backed remote store.
 
    base-url — server root, e.g. \"http://localhost:8080\"
-   opts — {:headers {\"Authorization\" \"Bearer ...\"}}
-            :client — optional HttpClient"
-  [base-url & [{:keys [headers client]
-                :or {headers {}}}]]
+   opts — {:headers {…}
+           :client HttpClient
+           :binary true|false  ; default true — wire-v1 for pack GET/POST}"
+  [base-url & [{:keys [headers client binary]
+                :or {headers {}
+                     binary true}}]]
   (->RemoteStore base-url
                  (or client (.build (.. (HttpClient/newBuilder)
                                         (connectTimeout (Duration/ofSeconds 10)))))
                  headers
-                 (store/mem-store)))
+                 (store/mem-store)
+                 (boolean binary)))
 
 (defn- client-cache-write-back? [remote]
   (client-cache/write-back-store? remote))

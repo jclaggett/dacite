@@ -366,9 +366,10 @@ and fixtures use wire-v1 only.
 | Piece | Status |
 |-------|--------|
 | This spec | Draft |
-| Fixtures | `fixtures/wire-v1/` (growing golden cases) |
-| Clojure codec | **`dacite.wire.binary`** — encode/decode chunk, node, literal; fixture tests |
-| HTTP default binary | Planned after more fixtures + dual Content-Type |
+| Fixtures | `fixtures/wire-v1/` (golden cases) |
+| Clojure codec | **`dacite.wire.binary`** — encode/decode; pack EDN bridge |
+| HTTP | Service dual Content-Type; JVM `remote-store` defaults `:binary true` |
+| Browser demo | Still EDN by default (Accept not set → EDN response) |
 
 ## Clojure usage
 

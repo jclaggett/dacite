@@ -34,7 +34,7 @@
 (def kind-hamt 0x02)
 (def kind-collection 0x03)
 
-;; Literal / scalar type ids (wire-v1.md)
+;; Literal / scalar type ids (wire-v1.md + intermediate spine literals 2c′)
 (def type-id->name
   {0x00 "null"
    0x01 "bool"
@@ -45,7 +45,15 @@
    0x11 "blob"
    0x20 "vector"
    0x21 "map"
-   0x22 "set"})
+   0x22 "set"
+   ;; Intermediate pack literals: body = ordered leaf lits (or entry pair)
+   0x30 "ft/empty"
+   0x31 "ft/digit"
+   0x32 "ft/node"
+   0x33 "ft/deep"
+   0x40 "hamt/empty"
+   0x41 "hamt/entry"
+   0x42 "hamt/bitmap"})
 
 (def name->type-id
   (into {} (map (fn [[k v]] [v k]) type-id->name)))
@@ -244,17 +252,11 @@
         (put-bytes buf bs)
         (.array buf))
 
-      "vector"
-      (let [children (mapv encode-lit-bytes body)
-            total (reduce + 5 (map alength children))
-            buf (bb total)]
-        (put-u8 buf tid)
-        (put-u32 buf (count children))
-        (doseq [c children] (put-bytes buf c))
-        (.array buf))
-
-      "set"
-      (let [children (mapv encode-lit-bytes body)
+      ("vector" "set" "ft/empty" "ft/digit" "ft/node" "ft/deep"
+                "hamt/empty" "hamt/bitmap")
+      ;; Ordered sequence of nested lits (ft/hamt leaf payloads share this shape)
+      (let [els (or body [])
+            children (mapv encode-lit-bytes els)
             total (reduce + 5 (map alength children))
             buf (bb total)]
         (put-u8 buf tid)
@@ -275,6 +277,16 @@
         (doseq [[k v] pairs]
           (put-bytes buf k)
           (put-bytes buf v))
+        (.array buf))
+
+      "hamt/entry"
+      ;; Body is [key-lit val-lit]
+      (let [kb (encode-lit-bytes (nth body 0))
+            vb (encode-lit-bytes (nth body 1))
+            buf (bb (+ 1 (alength kb) (alength vb)))]
+        (put-u8 buf tid)
+        (put-bytes buf kb)
+        (put-bytes buf vb)
         (.array buf))
 
       (throw (ex-info "unsupported literal type" {:type type :form form})))))
@@ -316,15 +328,11 @@
             bs (get-bytes buf n)]
         {:type "blob" :body (vec (map #(bit-and % 0xff) bs))})
 
-      "vector"
+      ("vector" "set" "ft/empty" "ft/digit" "ft/node" "ft/deep"
+                "hamt/empty" "hamt/bitmap")
       (let [n (int (get-u32 buf))
             kids (mapv (fn [_] (decode-lit buf)) (range n))]
-        {:type "vector" :body kids})
-
-      "set"
-      (let [n (int (get-u32 buf))
-            kids (mapv (fn [_] (decode-lit buf)) (range n))]
-        {:type "set" :body kids})
+        {:type tname :body kids})
 
       "map"
       (let [n (int (get-u32 buf))
@@ -332,6 +340,10 @@
                           [(decode-lit buf) (decode-lit buf)])
                         (range n))]
         {:type "map" :body pairs})
+
+      "hamt/entry"
+      {:type "hamt/entry"
+       :body [(decode-lit buf) (decode-lit buf)]}
 
       (throw (ex-info "unsupported literal type" {:type tname})))))
 
@@ -688,3 +700,83 @@
          (map #(.getName %))
          sort
          vec)))
+
+;; =============================================================================
+;; Pack EDN chunk bridge (leaf-chunking EDN maps ↔ wire-v1)
+;; =============================================================================
+
+(def content-type-chunk-v1
+  "application/vnd.dacite.chunk.v1")
+
+(defn binary-content-type?
+  "True if Content-Type / Accept prefers wire-v1 binary chunks."
+  [ct]
+  (when ct
+    (let [s (str/lower-case (str ct))]
+      (or (str/includes? s "vnd.dacite.chunk")
+          (str/includes? s "application/octet-stream")))))
+
+(defn edn-content-type?
+  [ct]
+  (when ct
+    (str/includes? (str/lower-case (str ct)) "edn")))
+
+(defn pack-item->wire-item
+  "Convert pack Layer-1 EDN item to wire encode-item map."
+  [item]
+  (let [h (store/hex->hash (:hash item))
+        enc (keyword (:encoding item))]
+    (case enc
+      :node {:enc :node :hash h :entry (:body item)}
+      :literal {:enc :literal
+                :hash h
+                :literal {:type (str (:type item)) :body (:body item)}}
+      (throw (ex-info "unknown pack item encoding" {:encoding enc})))))
+
+(defn wire-item->pack-item
+  "Convert wire item map to pack Layer-1 EDN item."
+  [{:keys [enc hash entry literal]}]
+  (case enc
+    :node {:encoding :node
+           :hash (store/hash->hex hash)
+           :body entry}
+    :literal {:encoding :literal
+              :hash (store/hash->hex hash)
+              :type (:type literal)
+              :body (:body literal)}
+    (throw (ex-info "unknown wire enc" {:enc enc}))))
+
+(defn pack-edn->wire-map
+  "EDN pack chunk map → wire encode-chunk map."
+  [chunk]
+  {:budget (long (or (:budget chunk) 0))
+   :items (mapv pack-item->wire-item (:items chunk))})
+
+(defn wire-map->pack-edn
+  "Wire decode-chunk map → EDN pack chunk map (for pack/apply-chunk!)."
+  [{:keys [budget items]}]
+  {:dacite.wire/chunk-v1 true
+   :budget (long (or budget 0))
+   :items (mapv wire-item->pack-item items)})
+
+(defn encode-pack-edn
+  "Serialize an EDN pack chunk to wire-v1 binary bytes."
+  [chunk]
+  (encode-chunk (pack-edn->wire-map chunk)))
+
+(defn decode-pack-edn
+  "Parse wire-v1 binary bytes to an EDN pack chunk map."
+  [^bytes bs]
+  (wire-map->pack-edn (decode-chunk bs)))
+
+(defn wants-binary?
+  "True if Accept header prefers binary chunks over EDN."
+  [accept]
+  (boolean
+   (when accept
+     (let [a (str/lower-case (str accept))]
+       (and (str/includes? a "vnd.dacite.chunk")
+            ;; if both listed, prefer the one that appears first
+            (let [bi (or (str/index-of a "vnd.dacite.chunk") 9999)
+                  ei (or (str/index-of a "application/edn") 9999)]
+              (<= bi ei)))))))

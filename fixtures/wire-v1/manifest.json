@@ -2,30 +2,15 @@
   "format": "dacite-wire-v1",
   "spec": "docs/spec/wire-v1.md",
   "cases": [
-    {
-      "id": "chunk-literal-i64-42",
-      "path": "cases/chunk-literal-i64-42",
-      "notes": "literal i64 42"
-    },
-    {
-      "id": "chunk-literal-null",
-      "path": "cases/chunk-literal-null",
-      "notes": "literal null"
-    },
-    {
-      "id": "chunk-literal-bool-true",
-      "path": "cases/chunk-literal-bool-true",
-      "notes": "literal bool true"
-    },
-    {
-      "id": "chunk-literal-empty-vector",
-      "path": "cases/chunk-literal-empty-vector",
-      "notes": "literal empty vector"
-    },
-    {
-      "id": "chunk-node-i64-7",
-      "path": "cases/chunk-node-i64-7",
-      "notes": "node encoding i64 7"
-    }
+    { "id": "chunk-literal-i64-42", "notes": "literal i64 42" },
+    { "id": "chunk-literal-null", "notes": "literal null" },
+    { "id": "chunk-literal-bool-true", "notes": "literal bool true" },
+    { "id": "chunk-literal-empty-vector", "notes": "literal empty vector" },
+    { "id": "chunk-literal-vector-123", "notes": "literal vector 1 2 3" },
+    { "id": "chunk-literal-string-hello", "notes": "literal string hello" },
+    { "id": "chunk-literal-map-ab", "notes": "literal map" },
+    { "id": "chunk-literal-todo-seed", "notes": "todo seed root literal" },
+    { "id": "chunk-node-i64-7", "notes": "node i64 7" },
+    { "id": "chunk-two-node-i64s", "notes": "two node items" }
   ]
 }

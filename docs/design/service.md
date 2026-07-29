@@ -35,7 +35,14 @@ Implementation-defined for MVP tests (static token → single test store).
 
 ## Wire format
 
-**Content-Type:** `application/edn` for MVP (matches current store serialization). Binary (`application/octet-stream` via `dacite.value.serial`) is a later refinement.
+**Content-Type:**
+
+- `application/edn` — default for root CAS, novelty responses, and clients that do not request binary.
+- `application/vnd.dacite.chunk.v1` — wire-v1 binary **chunk** bodies for pack-filled
+  `GET /node/{hex}` (when `Accept` prefers it) and `POST /nodes` (when
+  `Content-Type` is binary). See [wire-v1.md](../spec/wire-v1.md).
+
+JVM `remote-store` defaults to binary for pack GET/POST; browser demo still uses EDN.
 
 **Hash encoding:** 64-character lowercase hex (256-bit, 4 × 64-bit words), as produced by `dacite.store/hash->hex`.
 

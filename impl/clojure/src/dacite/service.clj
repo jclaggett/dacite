@@ -17,16 +17,26 @@
             [dacite.store.file :as file]
             [dacite.store.pack :as pack]
             [dacite.rooted :as rs]
-            [dacite.wire :as wire])
+            [dacite.wire :as wire]
+            [dacite.wire.binary :as bin])
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange Headers]
            [java.net InetSocketAddress]
            [java.nio.charset StandardCharsets]))
 
+(def ^:private ct-edn "application/edn; charset=utf-8")
+(def ^:private ct-chunk bin/content-type-chunk-v1)
+
 (defn- utf8-bytes ^bytes [^String s]
   (.getBytes s StandardCharsets/UTF_8))
 
-(defn- read-body-str [^HttpExchange ex]
-  (String. (.readAllBytes (.getRequestBody ex)) StandardCharsets/UTF_8))
+(defn- read-body-bytes [^HttpExchange ex]
+  (.readAllBytes (.getRequestBody ex)))
+
+(defn- header-val
+  "First value of a request header (case-insensitive name), or nil."
+  [^HttpExchange ex name]
+  (when-let [vals (.get (.getRequestHeaders ex) name)]
+    (when (seq vals) (first vals))))
 
 (defn- send-bytes!
   [^HttpExchange ex status ^String content-type ^bytes body]
@@ -36,7 +46,7 @@
     ;; CORS for browser demos (page may be same-origin if served from here)
     (.set headers "Access-Control-Allow-Origin" "*")
     (.set headers "Access-Control-Allow-Methods" "GET,PUT,POST,HEAD,DELETE,OPTIONS")
-    (.set headers "Access-Control-Allow-Headers" "Content-Type,Authorization")
+    (.set headers "Access-Control-Allow-Headers" "Content-Type,Authorization,Accept")
     (if (and body (pos? (alength body)))
       (do (.sendResponseHeaders ex status (alength body))
           (with-open [os (.getResponseBody ex)]
@@ -44,11 +54,45 @@
       (.sendResponseHeaders ex status -1))))
 
 (defn- send-edn! [^HttpExchange ex status body]
-  (send-bytes! ex status "application/edn; charset=utf-8"
-               (utf8-bytes (wire/write-edn body))))
+  (send-bytes! ex status ct-edn (utf8-bytes (wire/write-edn body))))
 
 (defn- send-empty! [^HttpExchange ex status]
   (send-bytes! ex status nil nil))
+
+(defn- parse-edn-body
+  "body is String or bytes → EDN data."
+  [body]
+  (cond
+    (nil? body) nil
+    (string? body) (when (pos? (count body)) (wire/read-edn body))
+    (bytes? body) (when (pos? (alength ^bytes body))
+                    (wire/read-edn (String. ^bytes body StandardCharsets/UTF_8)))
+    :else (wire/read-edn (str body))))
+
+(defn- parse-chunk-body
+  "Parse POST /nodes body as binary chunk or EDN pack chunk."
+  [body content-type]
+  (cond
+    (and (bytes? body) (or (bin/binary-content-type? content-type)
+                           (and (pos? (alength ^bytes body))
+                                (= (aget ^bytes body 0) (unchecked-byte 0x44))
+                                (= (aget ^bytes body 1) (unchecked-byte 0x41)))))
+    (bin/decode-pack-edn body)
+
+    (bytes? body)
+    (parse-edn-body body)
+
+    :else
+    (parse-edn-body body)))
+
+(defn- format-chunk-response
+  "EDN pack chunk map → response body + content-type based on Accept."
+  [chunk accept]
+  (if (bin/wants-binary? accept)
+    {:content-type ct-chunk
+     :body (bin/encode-pack-edn chunk)}
+    {:content-type ct-edn
+     :body (wire/write-edn chunk)}))
 
 (defn- split-path-query
   "Return [path query-string-or-nil] from a path that may include ?query."
@@ -71,115 +115,117 @@
                       query))))
 
 (defn handle-request
-  "Pure-ish request handler against a rooted store.
-   Returns {:status n :headers m? :body string-or-bytes-or-nil :content-type s?}
-   for testing without HttpExchange.
+  "Request handler against a rooted store.
+   Returns {:status n :body string-or-bytes :content-type s?} for testing.
 
-   path may include ?query. GET /node/{hex} returns a pack chunk by default
-   (BFS neighborhood under the hash). Pass ?raw=1 for a bare store node."
-  [rooted method path body-str]
-  (try
-    (let [[path-only query] (split-path-query path)]
-      (cond
-        (= "OPTIONS" method)
-        {:status 204}
+   body — String (EDN) or byte[] (binary chunk or UTF-8 EDN).
+   opts — {:content-type s :accept s}
 
-        (and (= "GET" method) (= path-only "/root"))
-        (let [r (rs/root rooted)]
-          {:status 200
-           :content-type "application/edn; charset=utf-8"
-           :body (wire/write-edn {:root (when r (store/hash->hex r))})})
+   GET /node/{hex} returns a pack chunk by default. Pass ?raw=1 for bare node.
+   Chunk GET/POST support wire-v1 binary when Content-Type / Accept indicate
+   application/vnd.dacite.chunk.v1 (see docs/spec/wire-v1.md)."
+  ([rooted method path body]
+   (handle-request rooted method path body nil))
+  ([rooted method path body {:keys [content-type accept]}]
+   (try
+     (let [[path-only query] (split-path-query path)
+           accept (or accept "")]
+       (cond
+         (= "OPTIONS" method)
+         {:status 204}
 
-        (and (= "POST" method) (= path-only "/root/cas"))
-        (let [data (wire/read-edn body-str)
-              expected (when-let [e (:expected data)]
-                         (when-not (nil? e) (store/hex->hash e)))
-              new-h (store/hex->hash (:new data))]
-          (if (rs/cas-root! rooted expected new-h)
-            {:status 200
-             :content-type "application/edn; charset=utf-8"
-             :body (wire/write-edn {:ok true})}
-            {:status 409
-             :content-type "application/edn; charset=utf-8"
-             :body (wire/write-edn {:ok false})}))
+         (and (= "GET" method) (= path-only "/root"))
+         (let [r (rs/root rooted)]
+           {:status 200
+            :content-type ct-edn
+            :body (wire/write-edn {:root (when r (store/hash->hex r))})})
 
-      ;; Bulk pack-get: demoted — admin/sync only; prefer pack-filled GET /node
-        (and (= "POST" method) (= path-only "/nodes/get"))
-        (try
-          (let [req (wire/read-edn body-str)
-                result (pack/pack-get rooted req)]
-            {:status 200
-             :content-type "application/edn; charset=utf-8"
-             :body (wire/write-edn (assoc result :ok true))})
-          (catch Exception e
-            {:status 400
-             :content-type "application/edn; charset=utf-8"
-             :body (wire/write-edn {:ok false
-                                    :error "malformed pack-get"
-                                    :detail (.getMessage e)})}))
+         (and (= "POST" method) (= path-only "/root/cas"))
+         (let [data (parse-edn-body body)
+               expected (when-let [e (:expected data)]
+                          (when-not (nil? e) (store/hex->hash e)))
+               new-h (store/hex->hash (:new data))]
+           (if (rs/cas-root! rooted expected new-h)
+             {:status 200 :content-type ct-edn :body (wire/write-edn {:ok true})}
+             {:status 409 :content-type ct-edn :body (wire/write-edn {:ok false})}))
 
-        (and (= "POST" method) (= path-only "/nodes"))
-        (try
-          (let [chunk (wire/read-edn body-str)
-                result (pack/apply-chunk! rooted chunk)]
-            {:status 200
-             :content-type "application/edn; charset=utf-8"
-             :body (wire/write-edn (assoc result :ok true))})
-          (catch Exception e
-            {:status 400
-             :content-type "application/edn; charset=utf-8"
-             :body (wire/write-edn {:ok false
-                                    :error "malformed chunk"
-                                    :detail (.getMessage e)})}))
+         ;; Bulk pack-get: demoted — admin/sync only
+         (and (= "POST" method) (= path-only "/nodes/get"))
+         (try
+           (let [req (parse-edn-body body)
+                 result (pack/pack-get rooted req)]
+             {:status 200
+              :content-type ct-edn
+              :body (wire/write-edn (assoc result :ok true))})
+           (catch Exception e
+             {:status 400
+              :content-type ct-edn
+              :body (wire/write-edn {:ok false
+                                     :error "malformed pack-get"
+                                     :detail (.getMessage e)})}))
 
-        (and (#{"GET" "PUT" "HEAD" "DELETE"} method) (parse-node-hex path-only))
-        (let [hex (parse-node-hex path-only)
-              h (store/hex->hash hex)
-              raw? (query-flag? query "raw")]
-          (case method
-            "GET"
-            (if raw?
-              (if-let [node (store/s-get rooted h)]
-                {:status 200
-                 :content-type "application/edn; charset=utf-8"
-                 :body (wire/write-edn node)}
-                {:status 404})
-              (if-let [chunk (pack/pack-under rooted h)]
-                {:status 200
-                 :content-type "application/edn; charset=utf-8"
-                 :body (wire/write-edn chunk)}
-                {:status 404}))
+         (and (= "POST" method) (= path-only "/nodes"))
+         (try
+           (let [chunk (parse-chunk-body body content-type)
+                 result (pack/apply-chunk! rooted chunk)]
+             ;; Novelty stays EDN for now (small response)
+             {:status 200
+              :content-type ct-edn
+              :body (wire/write-edn (assoc result :ok true))})
+           (catch Exception e
+             {:status 400
+              :content-type ct-edn
+              :body (wire/write-edn {:ok false
+                                     :error "malformed chunk"
+                                     :detail (.getMessage e)})}))
 
-            "PUT"
-            (try
-              (let [node (wire/read-edn body-str)
-                    nov (pack/put-node! rooted h node)]
-                {:status 200
-                 :content-type "application/edn; charset=utf-8"
-                 :body (wire/write-edn (assoc nov :ok true))})
-              (catch Exception e
-                {:status 400
-                 :content-type "application/edn; charset=utf-8"
-                 :body (wire/write-edn {:error "malformed body"
-                                        :detail (.getMessage e)})}))
+         (and (#{"GET" "PUT" "HEAD" "DELETE"} method) (parse-node-hex path-only))
+         (let [hex (parse-node-hex path-only)
+               h (store/hex->hash hex)
+               raw? (query-flag? query "raw")]
+           (case method
+             "GET"
+             (if raw?
+               (if-let [node (store/s-get rooted h)]
+                 {:status 200 :content-type ct-edn :body (wire/write-edn node)}
+                 {:status 404})
+               (if-let [chunk (pack/pack-under rooted h)]
+                 (let [fmt (format-chunk-response chunk accept)]
+                   {:status 200
+                    :content-type (:content-type fmt)
+                    :body (:body fmt)})
+                 {:status 404}))
 
-            "HEAD"
-            (if (store/s-has? rooted h)
-              {:status 200}
-              {:status 404})
+             "PUT"
+             (try
+               (let [node (parse-edn-body body)
+                     nov (pack/put-node! rooted h node)]
+                 {:status 200
+                  :content-type ct-edn
+                  :body (wire/write-edn (assoc nov :ok true))})
+               (catch Exception e
+                 {:status 400
+                  :content-type ct-edn
+                  :body (wire/write-edn {:error "malformed body"
+                                         :detail (.getMessage e)})}))
 
-            "DELETE"
-            (do (store/s-delete rooted h)
-                {:status 204})))
+             "HEAD"
+             (if (store/s-has? rooted h)
+               {:status 200}
+               {:status 404})
 
-        :else
-        {:status 404
-         :content-type "application/edn; charset=utf-8"
-         :body (wire/write-edn {:error "not found" :path path})}))
-    (catch Exception e
-      {:status 500
-       :content-type "application/edn; charset=utf-8"
-       :body (wire/write-edn {:error (.getMessage e)})})))
+             "DELETE"
+             (do (store/s-delete rooted h)
+                 {:status 204})))
+
+         :else
+         {:status 404
+          :content-type ct-edn
+          :body (wire/write-edn {:error "not found" :path path})}))
+     (catch Exception e
+       {:status 500
+        :content-type ct-edn
+        :body (wire/write-edn {:error (.getMessage e)})}))))
 
 (defn- content-type-for [^String path]
   (cond
@@ -251,10 +297,14 @@
                     path (.getPath uri)
                     q (.getQuery uri)
                     path+q (if q (str path "?" q) path)
-                    body (when (#{"PUT" "POST"} method) (read-body-str exchange))
+                    body (when (#{"PUT" "POST"} method) (read-body-bytes exchange))
+                    ct (header-val exchange "Content-type")
+                    accept (header-val exchange "Accept")
                     resp (or (when (#{"GET" "HEAD"} method)
                                (handle-static static path))
-                             (handle-request rooted method path+q body))]
+                             (handle-request rooted method path+q body
+                                             {:content-type ct
+                                              :accept accept}))]
                 (write-response! exchange resp))
               (catch Exception e
                 (try

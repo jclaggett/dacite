@@ -140,3 +140,24 @@
     (aset-byte bad 4 (unchecked-byte 99)) ; version
     (is (thrown-with-msg? Exception #"unsupported wire version"
                           (bin/decode-chunk bad)))))
+
+(deftest pack-edn-bridge-round-trip
+  (let [st (store/mem-store)
+        v (coll/vector-with-store st 10 20)
+        h (types/dacite-hash v)
+        form (pack/literal-of st h)
+        edn-chunk {:dacite.wire/chunk-v1 true
+                   :budget 1024
+                   :items [{:encoding :literal
+                            :hash (store/hash->hex h)
+                            :type (:type form)
+                            :body (:body form)}]}
+        bs (bin/encode-pack-edn edn-chunk)
+        back (bin/decode-pack-edn bs)
+        st2 (store/mem-store)]
+    (is (true? (:dacite.wire/chunk-v1 back)))
+    (is (= 1 (count (:items back))))
+    (pack/apply-chunk! st2 back)
+    (is (store/s-has? st2 h))
+    (is (= (bin/bytes->hex bs)
+           (bin/bytes->hex (bin/encode-pack-edn back))))))

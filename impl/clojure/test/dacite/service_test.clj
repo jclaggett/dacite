@@ -4,10 +4,13 @@
             [dacite.service :as svc]
             [dacite.store :as store]
             [dacite.store.remote :as remote]
+            [dacite.store.client-cache :as client-cache]
+            [dacite.store.pack :as pack]
             [dacite.value.collections :as coll]
             [dacite.value.api :as d]
             [dacite.value.types :as types]
             [dacite.wire :as wire]
+            [dacite.wire.binary :as bin]
             [dacite.examples.todo :as todo]))
 
 (deftest handle-request-node-and-root
@@ -63,6 +66,55 @@
         (is (true? (remote/remote-cas-root! remote nil h)))
         (is (= h (remote/remote-get-root remote)))
         (is (false? (remote/remote-cas-root! remote nil h))))
+      (finally
+        (stop!)))))
+
+(deftest binary-chunk-post-and-get-accept
+  (let [rooted (svc/make-demo-rooted)
+        st (store/mem-store)
+        v (coll/vector-with-store st 1 2 3)
+        h (types/dacite-hash v)
+        form (pack/literal-of st h)
+        wire-chunk {:budget 1024
+                    :items [{:enc :literal :hash h :literal form}]}
+        body (bin/encode-chunk wire-chunk)
+        post (svc/handle-request rooted "POST" "/nodes" body
+                                 {:content-type bin/content-type-chunk-v1})]
+    (is (= 200 (:status post)))
+    (is (true? (:ok (wire/read-edn (:body post)))))
+    (is (store/s-has? rooted h))
+    (let [get-bin (svc/handle-request rooted "GET"
+                                      (str "/node/" (store/hash->hex h))
+                                      nil
+                                      {:accept bin/content-type-chunk-v1})
+          get-edn (svc/handle-request rooted "GET"
+                                      (str "/node/" (store/hash->hex h))
+                                      nil
+                                      {:accept "application/edn"})]
+      (is (= 200 (:status get-bin)))
+      (is (= bin/content-type-chunk-v1 (:content-type get-bin)))
+      (is (bytes? (:body get-bin)))
+      (let [decoded (bin/decode-pack-edn (:body get-bin))]
+        (is (true? (:dacite.wire/chunk-v1 decoded)))
+        (is (seq (:items decoded))))
+      (is (= 200 (:status get-edn)))
+      (is (string? (:body get-edn)))
+      (is (true? (:dacite.wire/chunk-v1 (wire/read-edn (:body get-edn))))))))
+
+(deftest live-binary-wire-remote-write-back
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
+    (try
+      (let [raw (remote/remote-store base-url {:binary true})
+            wb (client-cache/wrap raw :write-back)
+            todos (todo/build wb (todo/seed-items))
+            h (types/dacite-hash todos)]
+        (is (true? (remote/remote-cas-root! wb nil h)))
+        (is (store/s-has? raw h))
+        (let [cold (remote/remote-store base-url {:binary true})
+              node (store/s-get cold h)]
+          (is (some? node))
+          (is (= "vector" (types/entry-type node)))))
       (finally
         (stop!)))))
 
