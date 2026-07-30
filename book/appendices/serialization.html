@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-6157ef97.js";
+            window.path_to_searchindex_js = "../searchindex-71a26886.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5f744fa6.js"></script>
+        <script src="../toc-72d4dd4a.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,7 +181,13 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="appendix-serialization"><a class="header" href="#appendix-serialization">Appendix: Serialization</a></h1>
-<p>This appendix defines the canonical binary format used for storage and network transfer in Dacite. It is intentionally low-level and reference-oriented.</p>
+<blockquote>
+<p><strong>Status:</strong> LEGACY reference. Multi-language interop and new work use
+<strong><a href="../../../spec/wire-v1.html">wire format v1</a></strong> (chunk-only binary).
+<code>dacite.value.serial</code> remains directionally related but is not the port contract.</p>
+</blockquote>
+<p>This appendix describes the historical binary layout used in early Clojure work.
+It is intentionally low-level and reference-oriented.</p>
 <h2 id="binary-format"><a class="header" href="#binary-format">Binary Format</a></h2>
 <p>Every serialized node begins with a 1-byte <strong>kind tag</strong>:</p>
 <div class="table-wrapper">

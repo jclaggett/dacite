@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-6157ef97.js";
+            window.path_to_searchindex_js = "searchindex-71a26886.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-5f744fa6.js"></script>
+        <script src="toc-72d4dd4a.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -193,6 +193,442 @@
 <h2 id="for"><a class="header" href="#for">For</a></h2>
 <p>Users, implementors, designers.</p>
 <p><em>Jonathan &amp; Gorm, 2026</em></p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="install"><a class="header" href="#install">Install</a></h1>
+<p>This page is the supported on-ramp for <strong>Dacite 0.1 alpha</strong>. The library lives
+in a monorepo under <code>impl/clojure</code>; for alpha we recommend a clone plus either
+<strong>nbb</strong> (fastest) or <strong>tools.deps</strong> with <code>:local/root</code>.</p>
+<p>Alpha means: useful for experiments; APIs may still change. Pin a git tag or SHA.</p>
+<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Path</th><th>Need</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>nbb (recommended)</strong></td><td><a href="https://nodejs.org/">Node.js</a> 18+</td></tr>
+<tr><td><strong>JVM</strong></td><td>JDK 17+ and <a href="https://clojure.org/guides/install_clojure">Clojure CLI</a></td></tr>
+<tr><td><strong>Browser demo</strong></td><td>JDK + Clojure CLI (to build the CLJS bundle and run the service)</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="clone"><a class="header" href="#clone">Clone</a></h2>
+<pre><code class="language-bash">git clone https://github.com/jclaggett/dacite.git
+cd dacite
+# optional: check out a release tag when available
+# git checkout v0.1.0-alpha
+</code></pre>
+<h2 id="nbb-node--sci"><a class="header" href="#nbb-node--sci">nbb (Node / SCI)</a></h2>
+<p>From the repo root:</p>
+<pre><code class="language-bash">npm install
+npm run hello          # Hello World
+npm run todo:batch     # durable todo list (non-interactive)
+npm run todo           # interactive todo UI
+</code></pre>
+<p>Sources are on the nbb path via <code>nbb.edn</code>:</p>
+<pre><code class="language-clojure">{:paths ["impl/clojure/src" "examples"]}
+</code></pre>
+<p>Ad-hoc scripts:</p>
+<pre><code class="language-bash">npx nbb -e "(require '[dacite.store :as store]
+                     '[dacite.value.api :as d]
+                     '[dacite.value.collections :as coll]
+                     '[dacite.value.types :as types])
+            (let [st (store/mem-store)
+                  v  (coll/vector-with-store st 1 2 3)]
+              (println (d/count v))
+              (println (store/hash-&gt;hex (types/dacite-hash v))))"
+</code></pre>
+<p>See <a href="#hello-world-nbb">Hello World (nbb)</a> for a guided walkthrough.</p>
+<h2 id="jvm-toolsdeps"><a class="header" href="#jvm-toolsdeps">JVM (tools.deps)</a></h2>
+<p>Point a dependency at the library root <code>impl/clojure</code> after cloning:</p>
+<pre><code class="language-clojure">;; deps.edn in your project
+{:deps {dacite/dacite {:local/root "/absolute/path/to/dacite/impl/clojure"}}}
+</code></pre>
+<p>Then:</p>
+<pre><code class="language-clojure">(require '[dacite.core :as d]
+         '[dacite.store :as store]
+         '[dacite.value.types :as types])
+
+(store/with-store [_ (store/mem-store)]
+  (let [v (d/vec [1 2 3])]
+    [(d/realize v)
+     (store/hash-&gt;hex (types/dacite-hash v))]))
+</code></pre>
+<h3 id="git-dependency-optional"><a class="header" href="#git-dependency-optional">Git dependency (optional)</a></h3>
+<p>If your tools.deps version supports monorepo <code>:deps/root</code>, you can try:</p>
+<pre><code class="language-clojure">{io.github.jclaggett/dacite
+ {:git/tag "v0.1.0-alpha"
+  :git/sha "REPLACE_WITH_TAG_SHA"
+  :deps/root "impl/clojure"}}
+</code></pre>
+<p>If that fails on your tools.deps version, use clone + <code>:local/root</code> above — that
+is the reliable alpha path.</p>
+<p>From inside <code>impl/clojure</code> you can also run the test suite and service:</p>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:dev:test
+clojure -M:service --port 8080 --mem   # API + browser todo static UI
+</code></pre>
+<h2 id="browser-todo-demo"><a class="header" href="#browser-todo-demo">Browser todo demo</a></h2>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:cljs-web                    # once / after source changes
+clojure -M:service --port 8080 --mem
+# open http://127.0.0.1:8080/app/
+</code></pre>
+<p>Details: <a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.
+Pack GET/POST use <strong>wire-v1 binary</strong> by default.</p>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
+<ul>
+<li><a href="#hello-world-nbb">Hello World (nbb)</a></li>
+<li><a href="#values-api-reference-01-alpha">Values API reference</a></li>
+<li><a href="#stores-api-reference-01-alpha">Stores API reference</a></li>
+<li><a href="#preface">The Dacite Book</a> — conceptual foundations</li>
+<li><a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">CHANGELOG</a> — alpha scope and known limits</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hello-world-nbb"><a class="header" href="#hello-world-nbb">Hello World (nbb)</a></h1>
+<p>Build a Dacite vector and map in memory, print their sizes and content hashes,
+in about five minutes. No JVM required.</p>
+<h2 id="prerequisites-1"><a class="header" href="#prerequisites-1">Prerequisites</a></h2>
+<ul>
+<li><a href="https://nodejs.org/">Node.js</a> 18+</li>
+<li>A clone of the <a href="https://github.com/jclaggett/dacite">dacite</a> repository</li>
+</ul>
+<pre><code class="language-bash">git clone https://github.com/jclaggett/dacite.git
+cd dacite
+npm install
+</code></pre>
+<h2 id="run-the-example"><a class="header" href="#run-the-example">Run the example</a></h2>
+<pre><code class="language-bash">npm run hello
+</code></pre>
+<p>Expected shape of the output:</p>
+<pre><code class="language-text">Dacite Hello World
+  vector count : 3
+  vector hash  : 58a4799b…
+  map count    : 2
+  map hash     : 5de2bb0c…
+  (get m "hello") realized: 42
+Done.
+</code></pre>
+<p>The exact hashes are stable across hosts (JVM, babashka, nbb) for the same
+value structure — that is part of the Dacite porting contract.</p>
+<h2 id="what-the-code-does"><a class="header" href="#what-the-code-does">What the code does</a></h2>
+<p>Source: <a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/hello.cljs"><code>examples/dacite/examples/hello.cljs</code></a>.</p>
+<ol>
+<li>
+<p><strong>Create a mem store</strong> — an in-memory <code>hash → node</code> dictionary.</p>
+<pre><code class="language-clojure">(def st (store/mem-store))
+</code></pre>
+</li>
+<li>
+<p><strong>Build values bound to that store</strong> — constructors take the store explicitly
+(portable path used by nbb/SCI):</p>
+<pre><code class="language-clojure">(def v (coll/vector-with-store st 1 2 3))
+(def m (coll/hash-map-with-store st
+                                 "hello" (scalar/i64-with-store st 42)
+                                 "vec" v))
+</code></pre>
+</li>
+<li>
+<p><strong>Read with <code>dacite.value.api</code></strong> — host-agnostic collection ops:</p>
+<pre><code class="language-clojure">(d/count v)              ; =&gt; 3
+(d/get m "hello")        ; =&gt; Dacite scalar
+(types/realize …)        ; =&gt; 42
+</code></pre>
+</li>
+<li>
+<p><strong>Content hash</strong> — identity is the hash, independent of store location:</p>
+<pre><code class="language-clojure">(store/hash-&gt;hex (types/dacite-hash v))
+</code></pre>
+</li>
+</ol>
+<h2 id="try-it-in-a-one-liner"><a class="header" href="#try-it-in-a-one-liner">Try it in a one-liner</a></h2>
+<pre><code class="language-bash">npx nbb -e "
+(require '[dacite.store :as store]
+         '[dacite.value.api :as d]
+         '[dacite.value.collections :as coll]
+         '[dacite.value.types :as types])
+(let [st (store/mem-store)
+      v  (coll/vector-with-store st 1 2 3)]
+  (println (d/count v))
+  (println (store/hash-&gt;hex (types/dacite-hash v))))
+"
+</code></pre>
+<h2 id="next-steps-1"><a class="header" href="#next-steps-1">Next steps</a></h2>
+<ul>
+<li><strong>Durable todo</strong> — <code>npm run todo:batch</code> or <code>npm run todo</code> (file store + root cell)</li>
+<li><strong>Browser demo</strong> — <a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web</a></li>
+<li><strong>API reference</strong> — <a href="#values-api-reference-01-alpha">Values</a> · <a href="#stores-api-reference-01-alpha">Stores</a></li>
+<li><strong>Concepts</strong> — <a href="#chapter-1-content-stores">Content Stores</a> · <a href="#chapter-3-values">Values</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="values-api-reference-01-alpha"><a class="header" href="#values-api-reference-01-alpha">Values API reference (0.1 alpha)</a></h1>
+<p>Practical API for Dacite values as implemented in the Clojure / SCI reference
+library. For design intuition, see <a href="#chapter-3-values">Values</a>.</p>
+<h2 id="what-is-a-dacite-value"><a class="header" href="#what-is-a-dacite-value">What is a Dacite value?</a></h2>
+<p>A value is <strong>store-aware and content-addressed</strong>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Property</th><th>Access</th></tr>
+</thead>
+<tbody>
+<tr><td>Content hash</td><td><code>(types/dacite-hash v)</code> or <code>(d/dacite-hash v)</code></td></tr>
+<tr><td>Owning store</td><td><code>(types/dacite-store v)</code></td></tr>
+<tr><td>Type name</td><td><code>(types/dacite-type v)</code> — e.g. <code>"i64"</code>, <code>"vector"</code>, <code>"map"</code></td></tr>
+<tr><td>Host content</td><td><code>(types/realize v)</code> — explicit, never implicit deref</td></tr>
+</tbody>
+</table>
+</div>
+<p>Values are immutable. Updates return new values that share unchanged nodes with
+the old ones. Laziness is natural: you only need the nodes you access.</p>
+<pre><code class="language-clojure">(require '[dacite.value.api :as d]
+         '[dacite.value.types :as types]
+         '[dacite.store :as store])
+</code></pre>
+<p>On the <strong>JVM</strong>, <code>dacite.core</code> also provides Clojure-native constructors and
+<code>clojure.core</code> interop on collection types. On <strong>nbb / babashka</strong>, prefer
+<code>dacite.value.api</code> and the <code>*-with-store</code> constructors.</p>
+<hr>
+<h2 id="constructors"><a class="header" href="#constructors">Constructors</a></h2>
+<h3 id="portable-nbb--babashka--jvm"><a class="header" href="#portable-nbb--babashka--jvm">Portable (nbb / babashka / JVM)</a></h3>
+<p>Pass an explicit store:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Form</th><th>Namespace</th></tr>
+</thead>
+<tbody>
+<tr><td><code>(scalar/null-with-store st)</code></td><td><code>dacite.value.scalar</code></td></tr>
+<tr><td><code>(scalar/bool-with-store st b)</code></td><td></td></tr>
+<tr><td><code>(scalar/i64-with-store st n)</code></td><td>also <code>i8</code>…<code>i32</code>, <code>u8</code>…<code>u64</code>, <code>f32</code>/<code>f64</code>, <code>dacite-char</code></td></tr>
+<tr><td><code>(coll/string-with-store st s)</code></td><td><code>dacite.value.collections</code></td></tr>
+<tr><td><code>(coll/blob-with-store st bytes)</code></td><td></td></tr>
+<tr><td><code>(coll/vector-with-store st &amp; xs)</code></td><td>elements auto-coerced or Dacite values</td></tr>
+<tr><td><code>(coll/hash-map-with-store st &amp; kvs)</code></td><td>alternating keys/values</td></tr>
+<tr><td><code>(coll/dacite-set-with-store st &amp; xs)</code></td><td></td></tr>
+</tbody>
+</table>
+</div>
+<p>Plain ints, strings, and keywords are typically coerced when used as elements
+or map keys (see <code>types/extract-hash</code>).</p>
+<h3 id="jvm-convenience-dacitecore"><a class="header" href="#jvm-convenience-dacitecore">JVM convenience (<code>dacite.core</code>)</a></h3>
+<p>Uses the dynamic <code>store/*store*</code> (default mem store):</p>
+<pre><code class="language-clojure">(require '[dacite.core :as dc])
+
+(dc/i64 42)
+(dc/str "hello")
+(dc/vec [1 2 3])
+(dc/hash-map :a 1 :b 2)
+(dc/dacite-set 1 2 3)
+(dc/realize v)
+(dc/dac-&gt;clj v)   ; recursive plain Clojure
+(dc/clj-&gt;dac data)
+</code></pre>
+<p>Isolated store context:</p>
+<pre><code class="language-clojure">(dc/with-store [_ (store/mem-store)]
+  (dc/vec [1 2 3]))
+</code></pre>
+<hr>
+<h2 id="collection-api-dacitevalueapi"><a class="header" href="#collection-api-dacitevalueapi">Collection API (<code>dacite.value.api</code>)</a></h2>
+<p>Portable surface for all hosts. First argument is always a Dacite value.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Role</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dacite-value?</code></td><td>Predicate</td></tr>
+<tr><td><code>value-type</code></td><td>Type name string</td></tr>
+<tr><td><code>realize</code></td><td>Host content (alias of <code>types/realize</code>)</td></tr>
+<tr><td><code>dacite-hash</code></td><td>Content hash</td></tr>
+<tr><td><code>get-value</code></td><td>Rehydrate hash from store → value (<code>[h]</code> or <code>[st h]</code>)</td></tr>
+<tr><td><code>count</code></td><td>Element/entry count, O(1)</td></tr>
+<tr><td><code>empty?</code></td><td>Zero elements?</td></tr>
+<tr><td><code>seq</code></td><td>Elements or map entries as wrapped values; nil if empty</td></tr>
+<tr><td><code>nth</code></td><td>Index into vector/string/blob (<code>[v i]</code> / <code>[v i not-found]</code>)</td></tr>
+<tr><td><code>get</code></td><td>Map key, set membership key, or vector index</td></tr>
+<tr><td><code>contains?</code></td><td>Presence of key/index</td></tr>
+<tr><td><code>assoc</code></td><td>Vector index or map key → new value</td></tr>
+<tr><td><code>dissoc</code></td><td>Remove map key</td></tr>
+<tr><td><code>conj</code></td><td>Append (vector) / add entry (map/set)</td></tr>
+<tr><td><code>peek</code> / <code>pop</code></td><td>Vector end</td></tr>
+<tr><td><code>remove-nth</code></td><td>Vector without index</td></tr>
+<tr><td><code>keys</code> / <code>vals</code></td><td>Map keys or values as wrapped sequences</td></tr>
+</tbody>
+</table>
+</div>
+<p>Example:</p>
+<pre><code class="language-clojure">(let [st (store/mem-store)
+      v  (coll/vector-with-store st 10 20 30)
+      v2 (d/conj v 40)]
+  [(d/count v) (d/count v2)
+   (types/realize (d/nth v2 3))])
+;; =&gt; [3 4 40]
+</code></pre>
+<hr>
+<h2 id="identity-and-hashing"><a class="header" href="#identity-and-hashing">Identity and hashing</a></h2>
+<ul>
+<li>Two values with the same type and content have the <strong>same hash</strong> on every
+host (see <code>bin/hash-parity.sh</code>).</li>
+<li>Hash is <strong>shape-independent</strong> for equal logical content under Dacite’s
+encoding rules (fused hashing — <a href="#chapter-2-hash-fusion">Hash Fusion</a>).</li>
+<li>Print / log hashes with <code>(store/hash-&gt;hex h)</code> and parse with
+<code>(store/hex-&gt;hash s)</code>.</li>
+</ul>
+<hr>
+<h2 id="not-part-of-the-public-value-api"><a class="header" href="#not-part-of-the-public-value-api">Not part of the public value API</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Area</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>Finger-tree / HAMT node types</td><td>Internal store entries (<code>"ft/…"</code>, <code>"hamt/…"</code>)</td></tr>
+<tr><td>Wire codecs</td><td><code>dacite.wire</code> / <code>dacite.wire.binary</code></td></tr>
+<tr><td>Pack / remote / GC</td><td>Store layer — see <a href="#stores-api-reference-01-alpha">Stores</a></td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="related"><a class="header" href="#related">Related</a></h2>
+<ul>
+<li><a href="#stores-api-reference-01-alpha">Stores API</a></li>
+<li><a href="#hello-world-nbb">Hello World (nbb)</a></li>
+<li><a href="#install">Install</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="stores-api-reference-01-alpha"><a class="header" href="#stores-api-reference-01-alpha">Stores API reference (0.1 alpha)</a></h1>
+<p>Practical API for content stores and client composition in the reference
+implementation. For design background, see <a href="#chapter-1-content-stores">Content Stores</a>
+and <a href="#chapter-4-rooted-stores">Rooted Stores</a>.</p>
+<h2 id="istore-protocol"><a class="header" href="#istore-protocol"><code>IStore</code> protocol</a></h2>
+<p>Namespace: <code>dacite.store</code></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Op</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>(s-get st h)</code></td><td>Node at hash, or nil</td></tr>
+<tr><td><code>(s-put st h value)</code></td><td>Store entry; returns store</td></tr>
+<tr><td><code>(s-has? st h)</code></td><td>Presence</td></tr>
+<tr><td><code>(s-delete st h)</code></td><td>Remove entry</td></tr>
+<tr><td><code>(s-snapshot st)</code></td><td>Bulk map of contents (implementation-defined keys)</td></tr>
+<tr><td><code>(s-merge st m)</code></td><td>Merge map of hash→value</td></tr>
+<tr><td><code>(s-reset st)</code></td><td>Clear</td></tr>
+</tbody>
+</table>
+</div>
+<p>Hashes are 4-word vectors (<code>[w0 w1 w2 w3]</code>). Helpers:</p>
+<pre><code class="language-clojure">(store/hash-&gt;hex h)
+(store/hex-&gt;hash "…64 hex chars…")
+</code></pre>
+<p>Dynamic binding:</p>
+<pre><code class="language-clojure">store/*store*          ; current store
+(store/with-store [st (store/mem-store)] …)
+(store/set-store! st)
+(store/reset-store!)
+</code></pre>
+<hr>
+<h2 id="built-in-stores"><a class="header" href="#built-in-stores">Built-in stores</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Store</th><th>Host</th><th>Namespace / ctor</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>mem</strong></td><td>all</td><td><code>(store/mem-store)</code></td></tr>
+<tr><td><strong>layered</strong></td><td>all</td><td><code>(store/layered-store [fast … durable])</code> — read-through, write-through</td></tr>
+<tr><td><strong>LRU</strong></td><td>all</td><td><code>(dacite.store.lru/lru-store n)</code></td></tr>
+<tr><td><strong>file</strong></td><td>JVM, babashka</td><td><code>(dacite.store.file/file-store path)</code> — <code>{base}/aa/bb/{hex}.edn</code></td></tr>
+<tr><td><strong>file</strong></td><td>nbb</td><td><code>(dacite.store.nbb/file-store path)</code></td></tr>
+<tr><td><strong>LMDB</strong></td><td>JVM</td><td><code>(dacite.store.jvm/lmdb-store path)</code></td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="rooted-stores"><a class="header" href="#rooted-stores">Rooted stores</a></h2>
+<p>A content store holds immutable nodes. A <strong>root cell</strong> holds one mutable root
+hash for application state (compare-and-set, watches, GC).</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Concern</th><th>Where</th></tr>
+</thead>
+<tbody>
+<tr><td>File root cell</td><td><code>dacite.rooted</code> — <code>{base}/ROOT</code> hex</td></tr>
+<tr><td>GC of unreachable nodes</td><td><code>dacite.rooted.gc</code></td></tr>
+<tr><td>Conceptual model</td><td><a href="#chapter-4-rooted-stores">Rooted Stores chapter</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>Typical durable CLI pattern (todo example): open file store + root cell → load
+or seed → mutate values → write root.</p>
+<hr>
+<h2 id="client-composition-remote--sync"><a class="header" href="#client-composition-remote--sync">Client composition (remote / sync)</a></h2>
+<p>Interactive clients usually stack:</p>
+<pre><code class="language-text">application Values
+    ↓
+write-back cache     (dacite.store.client-cache/wrap … :write-back)
+    ↓
+pack / chunk transport   (IChunkTransport + pack/flush-from!)
+    ↓
+optional rate-limit      (dacite.store.rate-limit)
+    ↓
+remote HTTP store        (dacite.store.remote | dacite.store.browser)
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Module</th><th>Role</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dacite.store.client-cache</code></td><td>Local mem + flush reachable on CAS / explicit flush</td></tr>
+<tr><td><code>dacite.store.pack</code></td><td>Soft budget packing, <code>flush-from!</code>, <code>apply-chunk!</code>, literals</td></tr>
+<tr><td><code>dacite.store.rate-limit</code></td><td>Throttle send path (outermost <code>IChunkTransport</code> wins)</td></tr>
+<tr><td><code>dacite.store.stats</code></td><td>Bandwidth accounting for store-protocol bodies</td></tr>
+<tr><td><code>dacite.store.remote</code></td><td>JVM HTTP client (<code>:binary true</code> default for packs)</td></tr>
+<tr><td><code>dacite.store.browser</code></td><td>Browser sync XHR demo client (<code>:binary true</code> default)</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>pack/flush-from!</code> finds the outermost <code>IChunkTransport</code> and sends budgeted
+chunks (default soft budget <strong>1024</strong> bytes).</p>
+<hr>
+<h2 id="wire-edn-vs-wire-v1"><a class="header" href="#wire-edn-vs-wire-v1">Wire: EDN vs wire-v1</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Message</th><th>Default</th></tr>
+</thead>
+<tbody>
+<tr><td>Pack chunk GET <code>/node/{hex}</code></td><td><strong>wire-v1 binary</strong> (<code>application/vnd.dacite.chunk.v1</code>)</td></tr>
+<tr><td>Pack chunk POST <code>/nodes</code></td><td><strong>wire-v1 binary</strong></td></tr>
+<tr><td>Novelty PUT body, <code>/root</code>, CAS</td><td><strong>EDN</strong></td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li>Spec: <a href="../spec/wire-v1.html">wire-v1</a> (repo) / book <a href="#appendix-serialization">Serialization appendix</a></li>
+<li>Codec: <code>dacite.wire.binary</code> (portable <code>.cljc</code> — JVM + CLJS/nbb)</li>
+<li>EDN helpers: <code>dacite.wire</code> (<code>read-edn</code> / <code>write-edn</code>)</li>
+<li>Opt out: <code>{:binary false}</code> on remote/browser store constructors</li>
+</ul>
+<p>Service dual-stack: <code>dacite.service</code> honors <code>Content-Type</code> / <code>Accept</code>.</p>
+<hr>
+<h2 id="alpha-quality-notes"><a class="header" href="#alpha-quality-notes">Alpha quality notes</a></h2>
+<ul>
+<li>HTTP service and remotes are <strong>experimental</strong> but usable for demos and tests</li>
+<li>Browser remote is <strong>sync XHR</strong> (main-thread blocking) — not production networking</li>
+<li>APIs may change before 1.0; see <a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">CHANGELOG</a></li>
+</ul>
+<hr>
+<h2 id="related-1"><a class="header" href="#related-1">Related</a></h2>
+<ul>
+<li><a href="#values-api-reference-01-alpha">Values API</a></li>
+<li><a href="#install">Install</a></li>
+<li><a href="#hello-world-nbb">Hello World (nbb)</a></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="chapter-1-content-stores"><a class="header" href="#chapter-1-content-stores">Chapter 1: Content Stores</a></h1>
 <p>This chapter introduces the <strong>content store</strong> — the persistence layer at the bottom of Dacite. A content store is a single, simple thing:</p>
@@ -1355,7 +1791,13 @@ rooted-store(content-store, lmdb-root-cell(lmdb)) # durable root beside LMDB con
 <p>A <strong>local</strong> rooted store implements the whole set (<code>IDeref</code>, <code>IRef</code>, <code>IAtom2</code>) for free — <code>compare-and-set!</code> <em>is</em> the core primitive of §4.2 and <code>swap!</code> <em>is</em> its retry loop. A <strong>remote</strong> rooted store need implement only the core two (<code>deref</code> and <code>compare-and-set!</code>); it does not offer <code>reset!</code> (<code>set-root</code>) or validators, realizes <code>swap!</code> (<code>update-root</code>) as a client-side loop over the core, and exposes watches only if its transport supports them. The value never escapes being a single root hash, so these interfaces stay a thin, faithful skin over the language-neutral contract — not a dependency of it.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="appendix-serialization"><a class="header" href="#appendix-serialization">Appendix: Serialization</a></h1>
-<p>This appendix defines the canonical binary format used for storage and network transfer in Dacite. It is intentionally low-level and reference-oriented.</p>
+<blockquote>
+<p><strong>Status:</strong> LEGACY reference. Multi-language interop and new work use
+<strong><a href="../../spec/wire-v1.html">wire format v1</a></strong> (chunk-only binary).
+<code>dacite.value.serial</code> remains directionally related but is not the port contract.</p>
+</blockquote>
+<p>This appendix describes the historical binary layout used in early Clojure work.
+It is intentionally low-level and reference-oriented.</p>
 <h2 id="binary-format"><a class="header" href="#binary-format">Binary Format</a></h2>
 <p>Every serialized node begins with a 1-byte <strong>kind tag</strong>:</p>
 <div class="table-wrapper">
