@@ -12,6 +12,7 @@
     <div class="wrap">
       <h1><a href="/">Dacite</a></h1>
       <nav>
+        <a href="/book/getting-started/install.html">Install</a>
         <a href="/book/">The Book</a>
         <a href="https://github.com/jclaggett/dacite">GitHub</a>
       </nav>
@@ -30,8 +31,29 @@
         caching, and transmission as efficient hash→node dictionaries.
       </p>
       <p class="cta">
-        <a class="button" href="/book/">Read the book</a>
-        <a class="button secondary" href="https://github.com/jclaggett/dacite/tree/main/impl/clojure">Clojure reference impl</a>
+        <a class="button" href="/book/getting-started/install.html">Install</a>
+        <a class="button" href="/book/tutorial/hello-nbb.html">Hello World (nbb)</a>
+        <a class="button secondary" href="/book/reference/values.html">Values API</a>
+        <a class="button secondary" href="/book/reference/stores.html">Stores API</a>
+        <a class="button secondary" href="/book/">The Book</a>
+        <a class="button secondary" href="https://github.com/jclaggett/dacite">GitHub</a>
+      </p>
+    </section>
+
+    <section class="status">
+      <h3>Status — Alpha 0.1</h3>
+      <p>
+        The <strong>Clojure / SCI reference implementation</strong> (JVM, babashka, nbb)
+        covers hash fusion, content stores, values, rooted stores, pack transport,
+        wire-v1 binary packs, and an HTTP service with browser todo demo —
+        <strong>395+ tests</strong>. APIs may still change; pin a git tag for experiments.
+        See the <a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">changelog</a>
+        for scope and known limits.
+      </p>
+      <p class="lead" style="font-size:1rem;margin-top:0.75rem">
+        <strong>Quick start (nbb):</strong>
+        <code>git clone … && npm install && npm run hello</code>
+        — details on the <a href="/book/getting-started/install.html">Install</a> page.
       </p>
     </section>
 
@@ -49,20 +71,23 @@
           makes partial sync and incremental fetch natural when data lives across
           a network.
         </p>
+        <p><a href="/book/reference/values.html">Values API reference →</a></p>
       </article>
 
       <article>
         <h3>Stores for persistence and sync</h3>
         <p>
           Content stores are simple immutable maps from <code>hash → node</code>.
-          Mem, file, and LMDB backends share one protocol; layered, LRU, and remote
-          stores compose for caching and distribution without changing application code.
+          Mem, file, and LMDB backends share one protocol; layered, LRU, pack,
+          and remote stores compose for caching and distribution without changing
+          application code.
         </p>
         <p>
           A <strong>rooted store</strong> adds a single mutable root hash on top —
           compare-and-set, watches, and push — so peers coordinate on 32 bytes while
           the graph underneath stays immutable and cacheable forever.
         </p>
+        <p><a href="/book/reference/stores.html">Stores API reference →</a></p>
       </article>
     </section>
 
@@ -75,15 +100,6 @@
         <li><strong>Rooted stores</strong> — mutable application state and sync</li>
       </ol>
       <p>The <a href="/book/">Dacite Book</a> walks through each layer with intuition, API, and guarantees.</p>
-    </section>
-
-    <section class="status">
-      <h3>Status</h3>
-      <p>
-        The <strong>Clojure reference implementation</strong> covers hash fusion,
-        content stores, values, rooted stores, garbage collection, LRU cache, and
-        remote store — 318+ tests. Service and distribution layers are in progress.
-      </p>
     </section>
   </main>
 

@@ -65,12 +65,7 @@
   [pack-local h ^bytes body-bytes binary?]
   (when (and body-bytes (pos? (alength body-bytes)))
     (cond
-      (or binary?
-          (and (>= (alength body-bytes) 4)
-               (= (aget body-bytes 0) (unchecked-byte 0x44))
-               (= (aget body-bytes 1) (unchecked-byte 0x41))
-               (= (aget body-bytes 2) (unchecked-byte 0x43))
-               (= (aget body-bytes 3) (unchecked-byte 0x31))))
+      (or binary? (bin/dac1-magic? body-bytes))
       (let [chunk (bin/decode-pack-edn body-bytes)]
         (pack/apply-chunk! pack-local chunk)
         (store/s-get pack-local h))

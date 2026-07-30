@@ -4,6 +4,18 @@
 
 ---
 
+# Getting started
+
+- [Install](./getting-started/install.md)
+- [Hello World (nbb)](./tutorial/hello-nbb.md)
+
+# Reference
+
+- [Values API](./reference/values.md)
+- [Stores API](./reference/stores.md)
+
+---
+
 # Part I — Foundations
 
 - [Content Stores](./01-stores/chapter.md)

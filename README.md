@@ -15,14 +15,17 @@ Dacite lets applications work with **immutable Values** functionally while **Sto
 
 ## Status
 
-**Reference implementation (Clojure)** — hash fusion, content stores, values,
-rooted stores, remote HTTP service, and leaf-chunking transport packing are
-implemented (**376+ tests**). Browser todo demo uses pack-filled gets and
-write-back flush. Soft pack budget default **1024**. See [docs/roadmap.md](docs/roadmap.md).
+**Alpha 0.1** — Clojure / SCI reference implementation: hash fusion, content
+stores, values, rooted stores, pack transport, wire-v1 binary packs (JVM +
+browser), remote HTTP service (**395+ tests**). Soft pack budget default
+**1024**. APIs may change; see [CHANGELOG.md](CHANGELOG.md).
 
 ## Documentation
 
-- **[The Dacite Book](https://dacite.io/book/)** — primary living documentation (also under [docs/book/](docs/book/))
+- **[Install](https://dacite.io/book/getting-started/install.html)** — nbb + JVM setup ([source](docs/book/getting-started/install.md))
+- **[Hello World (nbb)](https://dacite.io/book/tutorial/hello-nbb.html)** — five-minute tutorial
+- **[Values](https://dacite.io/book/reference/values.html)** / **[Stores](https://dacite.io/book/reference/stores.html)** API reference
+- **[The Dacite Book](https://dacite.io/book/)** — conceptual documentation (also under [docs/book/](docs/book/))
 - **[Development dialogue](docs/development-dialogue.md)** — design history
 - **[Design docs](docs/design/)** — phase plans and service design
 - **[Portable core & host compatibility](docs/design/portable-core.md)** — running on JVM/babashka/nbb and the porting contract
@@ -61,6 +64,7 @@ rooted-store app (file content + `ROOT`).
 
 ```bash
 npm install
+npm run hello                      # Hello World (mem store + hashes)
 npm run todo                       # interactive nbb UI (chalk + prompts)
 npm run todo:batch                 # non-interactive list
 npx nbb -m dacite.examples.todo-ui -- --reset

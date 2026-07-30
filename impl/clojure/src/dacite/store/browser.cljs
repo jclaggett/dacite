@@ -7,6 +7,11 @@
    GET /node returns a pack chunk by default; s-get applies it into a local
    pack cache then returns the node.
 
+   Wire:
+     :binary (default true) — pack GET and POST /nodes use wire-v1 binary
+       (application/vnd.dacite.chunk.v1). Novelty / root CAS stay EDN.
+     :binary false — EDN packs (legacy demos).
+
    Sync XHR keeps IStore blocking so Dacite value ops work unchanged in the
    browser. Not for production (main-thread blocking).
 
@@ -19,7 +24,8 @@
             [dacite.store.stats :as stats]
             [dacite.store.pack :as pack]
             [dacite.store.client-cache :as client-cache]
-            [dacite.wire :as wire]))
+            [dacite.wire :as wire]
+            [dacite.wire.binary :as bin]))
 
 ;; Re-export stats API for todo-web and demos
 (def empty-stats stats/empty-stats)
@@ -40,44 +46,85 @@
    (str (trim-base base-url) "/node/" (store/hash->hex h)
         (when query (str "?" query)))))
 
+(defn- body-byte-len
+  "Byte length of an XHR request or response body."
+  [body]
+  (cond
+    (nil? body) 0
+    (string? body) (count body)
+    (instance? js/Uint8Array body) (.-length body)
+    (instance? js/ArrayBuffer body) (.-byteLength body)
+    :else (count (str body))))
+
 (defn- xhr
-  "Synchronous XHR. Returns {:status n :body string}.
-   Records body sizes into bandwidth stats."
-  [method url body headers]
-  (let [x (js/XMLHttpRequest.)]
-    (.open x method url false)
-    (doseq [[k v] headers]
-      (.setRequestHeader x (name k) (str v)))
-    (.send x (when body body))
-    (let [resp (.-responseText x)
-          sent (if body (count (str body)) 0)
-          recv (if resp (count (str resp)) 0)]
-      (stats/record! (stats/classify-url method url) sent recv)
-      {:status (.-status x)
-       :body resp})))
+  "Synchronous XHR.
+   body — string (EDN) or Uint8Array (wire-v1).
+   opts: :response-type \"arraybuffer\" for binary responses.
+   Returns {:status n :body string|ArrayBuffer|nil}."
+  ([method url body headers]
+   (xhr method url body headers nil))
+  ([method url body headers {:keys [response-type]}]
+   (let [x (js/XMLHttpRequest.)]
+     (.open x method url false)
+     (when response-type
+       (set! (.-responseType x) response-type))
+     (doseq [[k v] headers]
+       (.setRequestHeader x (name k) (str v)))
+     (.send x (when body body))
+     (let [resp (if (= response-type "arraybuffer")
+                  (.-response x)
+                  (.-responseText x))
+           sent (body-byte-len body)
+           recv (body-byte-len resp)]
+       (stats/record! (stats/classify-url method url) sent recv)
+       {:status (.-status x)
+        :body resp}))))
 
 (defn- edn-body [body]
-  (when (and body (pos? (count body)))
-    (wire/read-edn body)))
+  (when (and body (pos? (body-byte-len body)))
+    (if (string? body)
+      (wire/read-edn body)
+      ;; ArrayBuffer / Uint8Array EDN (unusual; UTF-8 decode)
+      (let [u8 (if (instance? js/Uint8Array body)
+                 body
+                 (js/Uint8Array. body))
+            s (.decode (js/TextDecoder.) u8)]
+        (wire/read-edn s)))))
 
 (defn- apply-get-body!
-  [pack-local h data]
-  (cond
-    (pack/chunk? data)
-    (do (pack/apply-chunk! pack-local data)
+  "Install GET /node body into pack-local (chunk or raw node). Return node at h."
+  [pack-local h body binary?]
+  (when (and body (pos? (body-byte-len body)))
+    (cond
+      (or binary? (bin/dac1-magic? body))
+      (let [chunk (bin/decode-pack-edn body)]
+        (pack/apply-chunk! pack-local chunk)
         (store/s-get pack-local h))
-    (some? data)
-    (do (store/s-put pack-local h data)
-        data)
-    :else nil))
 
-(defrecord BrowserRemoteStore [base-url headers pack-local]
+      :else
+      (let [data (edn-body body)]
+        (cond
+          (pack/chunk? data)
+          (do (pack/apply-chunk! pack-local data)
+              (store/s-get pack-local h))
+
+          (some? data)
+          (do (store/s-put pack-local h data)
+              data)
+
+          :else nil)))))
+
+(defrecord BrowserRemoteStore [base-url headers pack-local binary?]
   store/IStore
   (s-get [_ h]
     (or (store/s-get pack-local h)
-        (let [{:keys [status body]} (xhr "GET" (node-url base-url h) nil headers)]
+        (let [hdrs (if binary?
+                     (assoc headers "Accept" bin/content-type-chunk-v1)
+                     (assoc headers "Accept" "application/edn"))
+              opts (when binary? {:response-type "arraybuffer"})
+              {:keys [status body]} (xhr "GET" (node-url base-url h) nil hdrs opts)]
           (when (= 200 status)
-            (apply-get-body! pack-local h (wire/read-edn body))))))
+            (apply-get-body! pack-local h body binary?)))))
 
   (s-put [this h value]
     (let [{:keys [status body]} (xhr "PUT" (node-url base-url h)
@@ -113,26 +160,50 @@
   pack/IChunkTransport
   (send-chunk! [this chunk]
     (let [url (str (trim-base base-url) "/nodes")
-          {:keys [status body]} (xhr "POST" url (wire/write-edn chunk)
-                                     (assoc headers "Content-Type" "application/edn"))]
-      (when-not (= 200 status)
-        (throw (ex-info "Browser send-chunk! failed"
-                        {:status status :body body})))
+          data
+          (if binary?
+            (let [bs (bin/encode-pack-edn chunk)
+                  {:keys [status body]}
+                  (xhr "POST" url bs
+                       (assoc headers
+                              "Content-Type" bin/content-type-chunk-v1
+                              "Accept" "application/edn"))]
+              (when-not (= 200 status)
+                (throw (ex-info "Browser send-chunk! failed"
+                                {:status status :body body})))
+              (when (and body (pos? (body-byte-len body)))
+                (edn-body body)))
+            (let [{:keys [status body]}
+                  (xhr "POST" url (wire/write-edn chunk)
+                       (assoc headers "Content-Type" "application/edn"))]
+              (when-not (= 200 status)
+                (throw (ex-info "Browser send-chunk! failed"
+                                {:status status :body body})))
+              (when (and body (pos? (body-byte-len body)))
+                (edn-body body))))]
       (pack/apply-chunk! pack-local chunk)
-      (when (and body (pos? (count body)))
-        (wire/read-edn body)))))
+      data)))
 
 (defn remote-store
-  "HTTP-backed store for the browser. base-url e.g. \"\" (same origin) or full URL."
-  [base-url & [{:keys [headers] :or {headers {}}}]]
-  (->BrowserRemoteStore (or base-url "") headers (store/mem-store)))
+  "HTTP-backed store for the browser. base-url e.g. \"\" (same origin) or full URL.
+
+   Options:
+     :headers map
+     :binary  true|false (default true — wire-v1 for pack GET/POST)"
+  [base-url & [{:keys [headers binary]
+                :or {headers {}
+                     binary true}}]]
+  (->BrowserRemoteStore (or base-url "") headers (store/mem-store) (boolean binary)))
 
 (defn cached-remote-store
   "Remote store with client cache (default :write-back)."
-  [base-url & [{:keys [headers policy]
+  [base-url & [{:keys [headers policy binary]
                 :or {headers {}
-                     policy :write-back}}]]
-  (client-cache/wrap (remote-store base-url {:headers headers}) policy))
+                     policy :write-back
+                     binary true}}]]
+  (client-cache/wrap
+   (remote-store base-url {:headers headers :binary binary})
+   policy))
 
 (defn- unwrap-remote
   "Peel wrappers for base-url / headers only — not for send-chunk! path."

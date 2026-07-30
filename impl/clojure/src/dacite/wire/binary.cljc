@@ -1,27 +1,237 @@
 (ns dacite.wire.binary
-  "Dacite wire format v1 — chunk-only binary codec.
+  "Dacite wire format v1 — chunk-only binary codec (JVM + CLJS).
 
    Spec: docs/spec/wire-v1.md
-   Fixtures: fixtures/wire-v1/
+   Fixtures: fixtures/wire-v1/ (JVM loaders)
 
    Encodes/decodes ChunkMessage with items as node or literal payloads.
-   EDN transport remains in dacite.wire for debug/transition."
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]
+   EDN transport remains in dacite.wire for debug/transition.
+
+   On the JVM, wire bodies are Java byte[]. On CLJS/nbb they are Uint8Array.
+   Encode/decode APIs accept either form where conversion is unambiguous."
+  (:require [clojure.string :as str]
+            [dacite.host :as host]
             [dacite.store :as store]
             [dacite.store.pack :as pack]
-            [dacite.value.types :as types])
-  (:import [java.nio ByteBuffer ByteOrder]
-           [java.nio.charset StandardCharsets]))
+            [dacite.value.types :as types]
+            #?(:clj [clojure.java.io :as io])))
+
+;; =============================================================================
+;; Portable byte arrays (JVM byte[] / CLJS Uint8Array)
+;; =============================================================================
+
+(defn- make-bytes
+  "Allocate n zeroed wire bytes."
+  [n]
+  #?(:clj (byte-array (int n))
+     :cljs (js/Uint8Array. n)))
+
+(defn byte-len
+  "Length of a wire byte array."
+  [bs]
+  #?(:clj (alength ^bytes bs)
+     :cljs (.-length bs)))
+
+(defn- bget
+  "Unsigned byte 0..255 at index."
+  [bs i]
+  #?(:clj (bit-and 0xff (aget ^bytes bs (int i)))
+     :cljs (aget bs i)))
+
+(defn- bset
+  "Set unsigned byte 0..255 at index."
+  [bs i v]
+  #?(:clj (aset-byte ^bytes bs (int i) (unchecked-byte (bit-and 0xff v)))
+     :cljs (aset bs i (bit-and 0xff v))))
+
+(defn- wire-bytes?
+  "True if x is a platform wire byte array."
+  [x]
+  #?(:clj (bytes? x)
+     :cljs (or (instance? js/Uint8Array x)
+               (instance? js/ArrayBuffer x))))
+
+(defn as-wire-bytes
+  "Normalize ArrayBuffer / seq of 0..255 / wire bytes → platform wire bytes."
+  [x]
+  (cond
+    (nil? x) (make-bytes 0)
+    #?(:clj (bytes? x) :cljs (instance? js/Uint8Array x)) x
+    #?(:cljs (instance? js/ArrayBuffer x))
+    #?(:cljs (js/Uint8Array. x))
+    (or (vector? x) (seq? x) (list? x))
+    (let [v (vec x)
+          a (make-bytes (count v))]
+      (dotimes [i (count v)]
+        (bset a i (nth v i)))
+      a)
+    :else
+    (throw (ex-info "cannot coerce to wire bytes" {:type (type x)}))))
+
+(defn- bytes-eq?
+  [a b]
+  (let [a (as-wire-bytes a)
+        b (as-wire-bytes b)
+        n (byte-len a)]
+    (and (= n (byte-len b))
+         (loop [i 0]
+           (cond
+             (= i n) true
+             (not= (bget a i) (bget b i)) false
+             :else (recur (inc i)))))))
+
+;; =============================================================================
+;; Buffer helpers — cursor over a pre-sized wire byte array
+;; =============================================================================
+
+(defn- bb
+  "Allocate a write buffer of size n. Finish with `finish`."
+  [n]
+  {:arr (make-bytes n) :pos (volatile! 0)})
+
+(defn- wrap-bytes
+  "Read cursor over existing wire bytes."
+  [bs]
+  {:arr (as-wire-bytes bs) :pos (volatile! 0)})
+
+(defn- finish
+  "Return the underlying array (sized exactly at allocate time)."
+  [buf]
+  (:arr buf))
+
+(defn- remaining
+  [buf]
+  (- (byte-len (:arr buf)) @(:pos buf)))
+
+(defn- ensure-remaining
+  [buf n]
+  (when (< (remaining buf) n)
+    (throw (ex-info "truncated wire message" {:need n :have (remaining buf)}))))
+
+(defn- put-u8
+  [buf n]
+  (let [p @(:pos buf)]
+    (bset (:arr buf) p n)
+    (vreset! (:pos buf) (inc p))))
+
+(defn- put-u32
+  [buf n]
+  (let [n (bit-and 0xffffffff #?(:clj (long n) :cljs (js/Math.floor n)))]
+    (put-u8 buf (bit-and 0xff (unsigned-bit-shift-right n 24)))
+    (put-u8 buf (bit-and 0xff (unsigned-bit-shift-right n 16)))
+    (put-u8 buf (bit-and 0xff (unsigned-bit-shift-right n 8)))
+    (put-u8 buf (bit-and 0xff n))))
+
+(defn- put-u64
+  "Write unsigned/modular 64-bit word (host long / BigInt)."
+  [buf n]
+  (doseq [b (host/word->bytes n)]
+    (put-u8 buf b)))
+
+(defn- put-i64
+  [buf n]
+  (put-u64 buf #?(:clj (long n) :cljs (host/word n))))
+
+(defn- put-f64
+  [buf x]
+  (doseq [b (host/f64->bytes x)]
+    (put-u8 buf b)))
+
+(defn- put-bytes
+  [buf bs]
+  (let [bs (as-wire-bytes bs)
+        n (byte-len bs)
+        p @(:pos buf)
+        arr (:arr buf)]
+    (dotimes [i n]
+      (bset arr (+ p i) (bget bs i)))
+    (vreset! (:pos buf) (+ p n))))
+
+(defn- get-u8
+  [buf]
+  (ensure-remaining buf 1)
+  (let [p @(:pos buf)
+        v (bget (:arr buf) p)]
+    (vreset! (:pos buf) (inc p))
+    v))
+
+(defn- get-u32
+  [buf]
+  (ensure-remaining buf 4)
+  (let [b0 (get-u8 buf)
+        b1 (get-u8 buf)
+        b2 (get-u8 buf)
+        b3 (get-u8 buf)]
+    #?(:clj (bit-or (bit-shift-left (long b0) 24)
+                    (bit-shift-left (long b1) 16)
+                    (bit-shift-left (long b2) 8)
+                    (long b3))
+       :cljs (bit-or (bit-shift-left b0 24)
+                     (bit-shift-left b1 16)
+                     (bit-shift-left b2 8)
+                     b3))))
+
+(defn- get-u64
+  "Read 64-bit word as host hash word (long / BigInt)."
+  [buf]
+  (ensure-remaining buf 8)
+  (host/bytes->word [(get-u8 buf) (get-u8 buf) (get-u8 buf) (get-u8 buf)
+                     (get-u8 buf) (get-u8 buf) (get-u8 buf) (get-u8 buf)]))
+
+(defn- get-i64
+  "Read signed i64; returns host long on JVM, Number when safe on CLJS."
+  [buf]
+  (let [w (get-u64 buf)]
+    #?(:clj (long w)
+       :cljs (js/Number (.asIntN js/BigInt 64 w)))))
+
+(defn- get-f64
+  [buf]
+  (ensure-remaining buf 8)
+  (let [bs [(get-u8 buf) (get-u8 buf) (get-u8 buf) (get-u8 buf)
+            (get-u8 buf) (get-u8 buf) (get-u8 buf) (get-u8 buf)]]
+    #?(:clj
+       (let [bits (reduce (fn [acc b]
+                            (bit-or (bit-shift-left (long acc) 8)
+                                    (bit-and (long b) 0xFF)))
+                          0
+                          bs)]
+         (Double/longBitsToDouble bits))
+       :cljs
+       (let [dv (js/DataView. (js/ArrayBuffer. 8))]
+         (dotimes [i 8]
+           (.setUint8 dv i (nth bs i)))
+         (.getFloat64 dv 0 false)))))
+
+(defn- get-bytes
+  [buf n]
+  (ensure-remaining buf n)
+  (let [a (make-bytes n)
+        p @(:pos buf)
+        src (:arr buf)]
+    (dotimes [i n]
+      (bset a i (bget src (+ p i))))
+    (vreset! (:pos buf) (+ p n))
+    a))
+
+(defn- put-hash
+  [buf [a b c d]]
+  (put-u64 buf a)
+  (put-u64 buf b)
+  (put-u64 buf c)
+  (put-u64 buf d))
+
+(defn- get-hash
+  [buf]
+  [(get-u64 buf) (get-u64 buf) (get-u64 buf) (get-u64 buf)])
 
 ;; =============================================================================
 ;; Constants
 ;; =============================================================================
 
 (defn- magic-bytes
-  ^bytes []
-  (byte-array [(unchecked-byte 0x44) (unchecked-byte 0x41)
-               (unchecked-byte 0x43) (unchecked-byte 0x31)])) ; "DAC1"
+  []
+  (as-wire-bytes [0x44 0x41 0x43 0x31])) ; "DAC1"
 
 (def version 1)
 (def msg-type-chunk 0x01)
@@ -86,107 +296,66 @@
   (into {} (map (fn [[k v]] [v k]) hamt-subtype->name)))
 
 ;; =============================================================================
-;; Buffer helpers
+;; Hex helpers
 ;; =============================================================================
 
-(defn- bb ^ByteBuffer [n]
-  (doto (ByteBuffer/allocate (int n))
-    (.order ByteOrder/BIG_ENDIAN)))
-
-(defn- wrap-bytes ^ByteBuffer [^bytes bs]
-  (doto (ByteBuffer/wrap bs)
-    (.order ByteOrder/BIG_ENDIAN)))
-
-(defn- put-u8 [^ByteBuffer buf n]
-  (.put buf (unchecked-byte (bit-and n 0xff))))
-
-(defn- put-u32 [^ByteBuffer buf n]
-  (.putInt buf (unchecked-int n)))
-
-(defn- put-u64 [^ByteBuffer buf n]
-  (.putLong buf (long n)))
-
-(defn- put-i64 [^ByteBuffer buf n]
-  (.putLong buf (long n)))
-
-(defn- get-u8 [^ByteBuffer buf]
-  (Byte/toUnsignedInt (.get buf)))
-
-(defn- get-u32 [^ByteBuffer buf]
-  (Integer/toUnsignedLong (.getInt buf)))
-
-(defn- get-u64 [^ByteBuffer buf]
-  (.getLong buf))
-
-(defn- get-i64 [^ByteBuffer buf]
-  (.getLong buf))
-
-(defn- put-hash [^ByteBuffer buf [a b c d]]
-  (put-u64 buf a)
-  (put-u64 buf b)
-  (put-u64 buf c)
-  (put-u64 buf d))
-
-(defn- get-hash [^ByteBuffer buf]
-  [(get-u64 buf) (get-u64 buf) (get-u64 buf) (get-u64 buf)])
-
-(defn- put-bytes [^ByteBuffer buf ^bytes bs]
-  (.put buf bs))
-
-(defn- get-bytes [^ByteBuffer buf n]
-  (let [a (byte-array (int n))]
-    (.get buf a)
-    a))
-
-(defn- remaining ^long [^ByteBuffer buf]
-  (.remaining buf))
-
-(defn- ensure-remaining [^ByteBuffer buf n]
-  (when (< (remaining buf) n)
-    (throw (ex-info "truncated wire message" {:need n :have (remaining buf)}))))
-
 (defn bytes->hex
-  "Lowercase hex of a byte array (no whitespace)."
-  [^bytes bs]
-  (let [sb (StringBuilder. (* 2 (alength bs)))]
-    (doseq [b bs]
-      (.append sb (format "%02x" (bit-and b 0xff))))
-    (str sb)))
+  "Lowercase hex of wire bytes (no whitespace)."
+  [bs]
+  (let [bs (as-wire-bytes bs)
+        n (byte-len bs)]
+    (apply str (map (fn [i] (host/byte->hex (bget bs i))) (range n)))))
 
 (defn hex->bytes
-  "Parse lowercase/uppercase hex string to byte array."
-  [^String hex]
-  (let [s (str/replace hex #"\s" "")
+  "Parse lowercase/uppercase hex string to wire bytes."
+  [hex]
+  (let [s (str/replace (str hex) #"\s" "")
         n (count s)]
     (when-not (even? n)
       (throw (ex-info "hex length must be even" {:n n})))
-    (byte-array
-     (for [i (range 0 n 2)]
-       (unchecked-byte (Integer/parseInt (subs s i (+ i 2)) 16))))))
+    (let [a (make-bytes (quot n 2))]
+      (doseq [i (range 0 n 2)]
+        (bset a (quot i 2)
+              #?(:clj (Integer/parseInt (subs s i (+ i 2)) 16)
+                 :cljs (js/parseInt (subs s i (+ i 2)) 16))))
+      a)))
 
 (defn hash->bytes
   "32-byte BE encoding of a hash vector."
   [h]
   (let [buf (bb 32)]
     (put-hash buf h)
-    (.array buf)))
+    (finish buf)))
 
 (defn bytes->hash
-  [^bytes bs]
-  (when-not (= 32 (alength bs))
-    (throw (ex-info "hash must be 32 bytes" {:n (alength bs)})))
-  (get-hash (wrap-bytes bs)))
+  [bs]
+  (let [bs (as-wire-bytes bs)]
+    (when-not (= 32 (byte-len bs))
+      (throw (ex-info "hash must be 32 bytes" {:n (byte-len bs)})))
+    (get-hash (wrap-bytes bs))))
+
+(defn dac1-magic?
+  "True if body starts with wire-v1 magic DAC1."
+  [bs]
+  (let [bs (as-wire-bytes bs)]
+    (and (>= (byte-len bs) 4)
+         (= 0x44 (bget bs 0))
+         (= 0x41 (bget bs 1))
+         (= 0x43 (bget bs 2))
+         (= 0x31 (bget bs 3)))))
 
 ;; =============================================================================
 ;; Measure
 ;; =============================================================================
 
-(defn- put-measure [^ByteBuffer buf {:keys [count size-bytes elements-fuse]}]
+(defn- put-measure
+  [buf {:keys [count size-bytes elements-fuse]}]
   (put-u64 buf (or count 0))
   (put-u64 buf (or size-bytes 0))
   (put-hash buf elements-fuse))
 
-(defn- get-measure [^ByteBuffer buf]
+(defn- get-measure
+  [buf]
   {:count (get-u64 buf)
    :size-bytes (get-u64 buf)
    :elements-fuse (get-hash buf)})
@@ -197,11 +366,14 @@
 
 (declare encode-lit-bytes decode-lit)
 
-(defn- utf8-bytes ^bytes [s]
-  (.getBytes (str s) StandardCharsets/UTF_8))
+(defn- utf8-wire
+  "UTF-8 of string as wire bytes."
+  [s]
+  (as-wire-bytes (host/utf8-bytes (str s))))
 
-(defn- utf8-str [^bytes bs]
-  (String. bs StandardCharsets/UTF_8))
+(defn- utf8-from-wire
+  [bs]
+  (host/utf8-decode (mapv #(bget bs %) (range (byte-len bs)))))
 
 (defn encode-lit-bytes
   "Encode a recursive literal form {:type t :body b} to payload bytes.
@@ -211,58 +383,60 @@
                 (throw (ex-info "unknown literal type" {:type type})))]
     (case (str type)
       "null"
-      (byte-array [tid])
+      (as-wire-bytes [tid])
 
       "bool"
-      (byte-array [tid (if body 1 0)])
+      (as-wire-bytes [tid (if body 1 0)])
 
       "char"
-      (let [bs (utf8-bytes (str body))
-            buf (bb (+ 2 (alength bs)))]
+      (let [bs (utf8-wire (str body))
+            buf (bb (+ 2 (byte-len bs)))]
         (put-u8 buf tid)
-        (put-u8 buf (alength bs))
+        (put-u8 buf (byte-len bs))
         (put-bytes buf bs)
-        (.array buf))
+        (finish buf))
 
       "i64"
       (let [buf (bb 9)]
         (put-u8 buf tid)
         (put-i64 buf body)
-        (.array buf))
+        (finish buf))
 
       "f64"
       (let [buf (bb 9)]
         (put-u8 buf tid)
-        (.putDouble buf (double body))
-        (.array buf))
+        (put-f64 buf body)
+        (finish buf))
 
       "string"
-      (let [bs (utf8-bytes body)
-            buf (bb (+ 5 (alength bs)))]
+      (let [bs (utf8-wire body)
+            buf (bb (+ 5 (byte-len bs)))]
         (put-u8 buf tid)
-        (put-u32 buf (alength bs))
+        (put-u32 buf (byte-len bs))
         (put-bytes buf bs)
-        (.array buf))
+        (finish buf))
 
       "blob"
-      (let [bs (if (bytes? body) body (byte-array (map unchecked-byte body)))
-            buf (bb (+ 5 (alength bs)))]
+      (let [bs (if (wire-bytes? body)
+                 (as-wire-bytes body)
+                 (as-wire-bytes body))
+            buf (bb (+ 5 (byte-len bs)))]
         (put-u8 buf tid)
-        (put-u32 buf (alength bs))
+        (put-u32 buf (byte-len bs))
         (put-bytes buf bs)
-        (.array buf))
+        (finish buf))
 
       ("vector" "set" "ft/empty" "ft/digit" "ft/node" "ft/deep"
                 "hamt/empty" "hamt/bitmap")
       ;; Ordered sequence of nested lits (ft/hamt leaf payloads share this shape)
       (let [els (or body [])
             children (mapv encode-lit-bytes els)
-            total (reduce + 5 (map alength children))
+            total (reduce + 5 (map byte-len children))
             buf (bb total)]
         (put-u8 buf tid)
         (put-u32 buf (count children))
         (doseq [c children] (put-bytes buf c))
-        (.array buf))
+        (finish buf))
 
       "map"
       (let [pairs (mapv (fn [[k v]]
@@ -270,30 +444,30 @@
                                 vb (encode-lit-bytes v)]
                             [kb vb]))
                         body)
-            total (reduce + 5 (map (fn [[k v]] (+ (alength k) (alength v))) pairs))
+            total (reduce + 5 (map (fn [[k v]] (+ (byte-len k) (byte-len v))) pairs))
             buf (bb total)]
         (put-u8 buf tid)
         (put-u32 buf (count pairs))
         (doseq [[k v] pairs]
           (put-bytes buf k)
           (put-bytes buf v))
-        (.array buf))
+        (finish buf))
 
       "hamt/entry"
       ;; Body is [key-lit val-lit]
       (let [kb (encode-lit-bytes (nth body 0))
             vb (encode-lit-bytes (nth body 1))
-            buf (bb (+ 1 (alength kb) (alength vb)))]
+            buf (bb (+ 1 (byte-len kb) (byte-len vb)))]
         (put-u8 buf tid)
         (put-bytes buf kb)
         (put-bytes buf vb)
-        (.array buf))
+        (finish buf))
 
       (throw (ex-info "unsupported literal type" {:type type :form form})))))
 
 (defn decode-lit
   "Decode one Lit from buffer; advances position. Returns {:type :body}."
-  [^ByteBuffer buf]
+  [buf]
   (ensure-remaining buf 1)
   (let [tid (get-u8 buf)
         tname (or (type-id->name tid)
@@ -308,7 +482,7 @@
       "char"
       (let [dlen (get-u8 buf)
             bs (get-bytes buf dlen)]
-        {:type "char" :body (first (seq (utf8-str bs)))})
+        {:type "char" :body (first (seq (utf8-from-wire bs)))})
 
       "i64"
       (do (ensure-remaining buf 8)
@@ -316,17 +490,17 @@
 
       "f64"
       (do (ensure-remaining buf 8)
-          {:type "f64" :body (.getDouble buf)})
+          {:type "f64" :body (get-f64 buf)})
 
       "string"
       (let [n (get-u32 buf)
             bs (get-bytes buf n)]
-        {:type "string" :body (utf8-str bs)})
+        {:type "string" :body (utf8-from-wire bs)})
 
       "blob"
       (let [n (get-u32 buf)
             bs (get-bytes buf n)]
-        {:type "blob" :body (vec (map #(bit-and % 0xff) bs))})
+        {:type "blob" :body (mapv #(bget bs %) (range (byte-len bs)))})
 
       ("vector" "set" "ft/empty" "ft/digit" "ft/node" "ft/deep"
                 "hamt/empty" "hamt/bitmap")
@@ -349,7 +523,7 @@
 
 (defn decode-lit-bytes
   "Decode a full literal payload byte array."
-  [^bytes bs]
+  [bs]
   (let [buf (wrap-bytes bs)
         form (decode-lit buf)]
     (when (pos? (remaining buf))
@@ -363,8 +537,8 @@
 
 (defn- scalar-data-bytes
   "Canonical scalar data bytes (no type_id) from store entry."
-  [[type-name data :as entry]]
-  (byte-array (map unchecked-byte (types/encode-value entry))))
+  [entry]
+  (as-wire-bytes (types/encode-value entry)))
 
 (defn encode-node-bytes
   "Encode a store entry [type-name data] as node payload bytes."
@@ -377,12 +551,12 @@
                     (throw (ex-info "scalar type not in wire-v1 table yet" {:type t})))
             data-bs (scalar-data-bytes entry)
             ;; kind + type_id + dlen + data
-            buf (bb (+ 3 (alength data-bs)))]
+            buf (bb (+ 3 (byte-len data-bs)))]
         (put-u8 buf kind-scalar)
         (put-u8 buf tid)
-        (put-u8 buf (alength data-bs))
+        (put-u8 buf (byte-len data-bs))
         (put-bytes buf data-bs)
-        (.array buf))
+        (finish buf))
 
       (str/starts-with? t "ft/")
       (let [sub (or (name->ft-subtype t)
@@ -399,7 +573,7 @@
         (put-measure buf m)
         (put-u8 buf n)
         (doseq [h children] (put-hash buf h))
-        (.array buf))
+        (finish buf))
 
       (str/starts-with? t "hamt/")
       (case t
@@ -408,7 +582,7 @@
           (put-u8 buf kind-hamt)
           (put-u8 buf 0)
           (put-measure buf (:measure data))
-          (.array buf))
+          (finish buf))
 
         "hamt/entry"
         (let [buf (bb (+ 2 48 (* 3 32)))]
@@ -418,7 +592,7 @@
           (put-hash buf (:key-hash data))
           (put-hash buf (:key-ref data))
           (put-hash buf (:val-ref data))
-          (.array buf))
+          (finish buf))
 
         "hamt/bitmap"
         (let [ch (:children data)
@@ -430,7 +604,7 @@
           (put-u32 buf (:bitmap data))
           (put-u8 buf n)
           (doseq [h ch] (put-hash buf h))
-          (.array buf))
+          (finish buf))
 
         (throw (ex-info "unknown hamt type" {:type t})))
 
@@ -442,14 +616,14 @@
         (put-hash buf (:root data))
         (put-u64 buf (:count data 0))
         (put-u64 buf (:size-bytes data 0))
-        (.array buf))
+        (finish buf))
 
       :else
       (throw (ex-info "unsupported node type for wire-v1" {:type t})))))
 
 (defn decode-node-bytes
   "Decode node payload to store entry [type-name data]."
-  [^bytes bs]
+  [bs]
   (let [buf (wrap-bytes bs)
         kind (get-u8 buf)]
     (case kind
@@ -464,10 +638,10 @@
         ;; Reconstruct typed value from canonical bytes via types when possible
         (case tname
           "null" ["null" nil]
-          "bool" ["bool" (not (zero? (aget data-bs 0)))]
+          "bool" ["bool" (not (zero? (bget data-bs 0)))]
           "i64" ["i64" (get-i64 (wrap-bytes data-bs))]
-          "f64" ["f64" (.getDouble (wrap-bytes data-bs))]
-          "char" ["char" (first (seq (utf8-str data-bs)))]
+          "f64" ["f64" (get-f64 (wrap-bytes data-bs))]
+          "char" ["char" (first (seq (utf8-from-wire data-bs)))]
           (throw (ex-info "scalar type decode not implemented" {:type tname}))))
 
       0x01 ; ft
@@ -546,12 +720,12 @@
                   :literal (encode-lit-bytes literal)
                   (throw (ex-info "enc must be :node or :literal" {:enc enc})))
         enc-b (case enc :node enc-node :literal enc-literal)
-        buf (bb (+ 1 32 4 (alength payload)))]
+        buf (bb (+ 1 32 4 (byte-len payload)))]
     (put-u8 buf enc-b)
     (put-hash buf hash)
-    (put-u32 buf (alength payload))
+    (put-u32 buf (byte-len payload))
     (put-bytes buf payload)
-    (.array buf)))
+    (finish buf)))
 
 (defn encode-chunk
   "Encode a chunk message map to binary bytes.
@@ -560,7 +734,7 @@
     :items [{:enc :node|:literal :hash h :entry e | :literal form} …]}"
   [{:keys [budget items] :or {budget 0}}]
   (let [item-bs (mapv encode-item items)
-        body-len (reduce + 0 (map alength item-bs))
+        body-len (reduce + 0 (map byte-len item-bs))
         ;; magic4 + ver1 + msg1 + flags1 + n4 + budget4 + items
         buf (bb (+ 4 1 1 1 4 4 body-len))]
     (put-bytes buf (magic-bytes))
@@ -568,13 +742,13 @@
     (put-u8 buf msg-type-chunk)
     (put-u8 buf 0)
     (put-u32 buf (count items))
-    (put-u32 buf (long (or budget 0)))
+    (put-u32 buf #?(:clj (long (or budget 0)) :cljs (or budget 0)))
     (doseq [ib item-bs] (put-bytes buf ib))
-    (.array buf)))
+    (finish buf)))
 
 (defn decode-item
   "Decode one Item from buffer."
-  [^ByteBuffer buf]
+  [buf]
   (ensure-remaining buf (+ 1 32 4))
   (let [enc-b (get-u8 buf)
         h (get-hash buf)
@@ -590,11 +764,11 @@
 
 (defn decode-chunk
   "Decode full ChunkMessage bytes → map."
-  [^bytes bs]
+  [bs]
   (let [buf (wrap-bytes bs)]
     (ensure-remaining buf 12)
     (let [mag (get-bytes buf 4)]
-      (when-not (java.util.Arrays/equals mag (magic-bytes))
+      (when-not (bytes-eq? mag (magic-bytes))
         (throw (ex-info "bad magic" {:got (bytes->hex mag)}))))
     (let [ver (get-u8 buf)
           mtype (get-u8 buf)
@@ -662,44 +836,47 @@
      :exists @exists}))
 
 ;; =============================================================================
-;; Fixtures
+;; Fixtures (JVM)
 ;; =============================================================================
 
-(defn fixture-root
-  "Absolute path to fixtures/wire-v1 (repo root), independent of cwd."
-  []
-  (let [cwd (io/file (System/getProperty "user.dir"))]
-    (or (loop [dir cwd]
-          (when dir
-            (let [f (io/file dir "fixtures" "wire-v1" "cases")]
-              (if (.isDirectory f)
-                (.getCanonicalPath (io/file dir "fixtures" "wire-v1"))
-                (recur (.getParentFile dir))))))
-        (throw (ex-info "fixtures/wire-v1 not found walking parents of cwd"
-                        {:cwd (.getCanonicalPath cwd)})))))
+#?(:clj
+   (defn fixture-root
+     "Absolute path to fixtures/wire-v1 (repo root), independent of cwd."
+     []
+     (let [cwd (io/file (System/getProperty "user.dir"))]
+       (or (loop [dir cwd]
+             (when dir
+               (let [f (io/file dir "fixtures" "wire-v1" "cases")]
+                 (if (.isDirectory f)
+                   (.getCanonicalPath (io/file dir "fixtures" "wire-v1"))
+                   (recur (.getParentFile dir))))))
+           (throw (ex-info "fixtures/wire-v1 not found walking parents of cwd"
+                           {:cwd (.getCanonicalPath cwd)}))))))
 
-(defn load-fixture
-  "Load a case dir: returns {:description :message-bytes :hash-hex}."
-  [case-id]
-  (let [root (io/file (fixture-root) "cases" case-id)
-        msg-hex (str/trim (slurp (io/file root "message.hex")))
-        hash-file (io/file root "hash.hex")
-        desc-file (io/file root "description.json")]
-    {:id case-id
-     :description (when (.exists desc-file) (slurp desc-file))
-     :message-hex msg-hex
-     :message-bytes (hex->bytes msg-hex)
-     :hash-hex (when (.exists hash-file) (str/trim (slurp hash-file)))}))
+#?(:clj
+   (defn load-fixture
+     "Load a case dir: returns {:description :message-bytes :hash-hex}."
+     [case-id]
+     (let [root (io/file (fixture-root) "cases" case-id)
+           msg-hex (str/trim (slurp (io/file root "message.hex")))
+           hash-file (io/file root "hash.hex")
+           desc-file (io/file root "description.json")]
+       {:id case-id
+        :description (when (.exists desc-file) (slurp desc-file))
+        :message-hex msg-hex
+        :message-bytes (hex->bytes msg-hex)
+        :hash-hex (when (.exists hash-file) (str/trim (slurp hash-file)))})))
 
-(defn list-fixture-ids
-  "Case directory names under fixtures/wire-v1/cases."
-  []
-  (let [cases (io/file (fixture-root) "cases")]
-    (->> (.listFiles cases)
-         (filter #(.isDirectory %))
-         (map #(.getName %))
-         sort
-         vec)))
+#?(:clj
+   (defn list-fixture-ids
+     "Case directory names under fixtures/wire-v1/cases."
+     []
+     (let [cases (io/file (fixture-root) "cases")]
+       (->> (.listFiles cases)
+            (filter #(.isDirectory %))
+            (map #(.getName %))
+            sort
+            vec))))
 
 ;; =============================================================================
 ;; Pack EDN chunk bridge (leaf-chunking EDN maps ↔ wire-v1)
@@ -749,14 +926,16 @@
 (defn pack-edn->wire-map
   "EDN pack chunk map → wire encode-chunk map."
   [chunk]
-  {:budget (long (or (:budget chunk) 0))
+  {:budget #?(:clj (long (or (:budget chunk) 0))
+              :cljs (or (:budget chunk) 0))
    :items (mapv pack-item->wire-item (:items chunk))})
 
 (defn wire-map->pack-edn
   "Wire decode-chunk map → EDN pack chunk map (for pack/apply-chunk!)."
   [{:keys [budget items]}]
   {:dacite.wire/chunk-v1 true
-   :budget (long (or budget 0))
+   :budget #?(:clj (long (or budget 0))
+              :cljs (or budget 0))
    :items (mapv wire-item->pack-item items)})
 
 (defn encode-pack-edn
@@ -766,7 +945,7 @@
 
 (defn decode-pack-edn
   "Parse wire-v1 binary bytes to an EDN pack chunk map."
-  [^bytes bs]
+  [bs]
   (wire-map->pack-edn (decode-chunk bs)))
 
 (defn wants-binary?

@@ -36,6 +36,14 @@ server returns pack chunks but the client still expects bare nodes).
    root advanced with CAS. Reload re-reads the root and materializes the same
    values.
 
+## Wire protocol
+
+Pack transport (`GET /node/{hex}` filled chunks and `POST /nodes` flushes)
+uses **wire-v1 binary** by default
+(`Content-Type` / `Accept: application/vnd.dacite.chunk.v1`). Novelty PUT
+bodies, `/root`, and CAS stay EDN. Pass `{:binary false}` to
+`dacite.store.browser/remote-store` for legacy EDN packs.
+
 ## Bandwidth display
 
 The UI shows a **bw** line for **store-protocol** traffic only
@@ -45,7 +53,8 @@ The UI shows a **bw** line for **store-protocol** traffic only
 - **last** action: cost of the most recent load/seed, add, toggle, remove, or reload
 
 Static assets (`/app/` HTML/JS/CSS) are **not** counted. Sizes are request and
-response **body** string lengths (≈ UTF-8 bytes for ASCII EDN).
+response **body** lengths (UTF-8 for EDN control messages; raw bytes for
+wire-v1 pack chunks).
 
 This is meant to make content-addressed transfer cost visible. Client defaults
 use a **write-back cache** so seed/add do far fewer round-trips than a bare

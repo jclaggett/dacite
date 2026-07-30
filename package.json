@@ -4,6 +4,7 @@
   "private": true,
   "description": "Run the portable Dacite core under nbb (SCI on Node).",
   "scripts": {
+    "hello": "nbb -m dacite.examples.hello",
     "parity": "nbb -m dacite.examples.parity",
     "todo": "nbb -m dacite.examples.todo-ui",
     "todo:batch": "nbb -m dacite.examples.todo"
