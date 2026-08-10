@@ -26,8 +26,14 @@
 
   ;; HTTP service + static todo web UI
   ;;   cd impl/clojure && clojure -M:service
-  ;;   clojure -M:service --port 8080 --mem
+  ;;   clojure -M:service --port 8080 --store mem
+  ;;   clojure -M:service --port 8080 --store file
+  ;;   clojure -M:service --port 8080 --store file:target/dacite-service
+  ;;   clojure -M:service --port 8080 --store lmdb
+  ;;   clojure -M:service --port 8080 --store lmdb:target/my-lmdb
   :service {:extra-paths ["../../examples"]
+            :jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
+                       "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
             :main-opts ["-m" "dacite.service.main"]}
 
   ;; Compile browser bundle (portable core + todo-web)

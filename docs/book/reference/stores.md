@@ -45,23 +45,40 @@ store/*store*          ; current store
 | **LRU** | all | `(dacite.store.lru/lru-store n)` |
 | **file** | JVM, babashka | `(dacite.store.file/file-store path)` — `{base}/aa/bb/{hex}.edn` |
 | **file** | nbb | `(dacite.store.nbb/file-store path)` |
-| **LMDB** | JVM | `(dacite.store.jvm/lmdb-store path)` |
+| **LMDB** | JVM | `(dacite.store.jvm/lmdb-store path)` — content values = **wire-v1 node payload** only; keys = 32-byte hash; root meta = 32-byte hash |
 
 ---
 
 ## Rooted stores
 
 A content store holds immutable nodes. A **root cell** holds one mutable root
-hash for application state (compare-and-set, watches, GC).
+**hash** for application state (compare-and-set, watches, GC). Hash-level ops
+are re-exported on `dacite.store`:
 
-| Concern | Where |
-|---------|--------|
-| File root cell | `dacite.rooted` — `{base}/ROOT` hex |
-| GC of unreachable nodes | `dacite.rooted.gc` |
-| Conceptual model | [Rooted Stores chapter](../04-rooted-stores/chapter.md) |
+| Op | Role |
+|----|------|
+| `(store/rooted-store content)` | Wrap content with ephemeral root |
+| `(store/rooted-store content cell)` | Wrap with durable root cell |
+| `(store/file-root-cell path)` | Hex in `{base}/ROOT` |
+| `(store/root rs)` / `(store/cas-root! …)` / `(store/set-root! …)` | Hash-level root |
+| `(store/collect-garbage! rs)` | Drop unreachable content |
 
-Typical durable CLI pattern (todo example): open file store + root cell → load
-or seed → mutate values → write root.
+**Application value code** should wrap the rooted store once and work with
+values, not hashes:
+
+```clojure
+(def r (v/root-ref (store/rooted-store (store/file-store path)
+                                       (store/file-root-cell path))))
+(v/ref-swap! r domain-update)
+```
+
+See [Values — root reference](values.md#root-reference-value-level) and
+[Rooted Stores chapter](../04-rooted-stores/chapter.md).
+
+Host ctors on `dacite.store` (JVM): `(store/file-store path)`,
+`(store/lmdb-store path)`, `(store/lmdb-root-cell lmdb)`. On **nbb**, use
+`(dacite.store.nbb/file-store path)` (SCI cannot re-export circular host
+backends cleanly).
 
 ---
 
@@ -97,11 +114,13 @@ chunks (default soft budget **1024** bytes).
 
 ## Wire: EDN vs wire-v1
 
-| Message | Default |
-|---------|---------|
-| Pack chunk GET `/node/{hex}` | **wire-v1 binary** (`application/vnd.dacite.chunk.v1`) |
-| Pack chunk POST `/nodes` | **wire-v1 binary** |
+| Context | Format |
+|---------|--------|
+| Pack chunk GET `/node/{hex}` | **wire-v1 chunk** (`application/vnd.dacite.chunk.v1`) |
+| Pack chunk POST `/nodes` | **wire-v1 chunk** |
 | Novelty PUT body, `/root`, CAS | **EDN** |
+| LMDB content values | **wire-v1 node payload only** (no chunk/literal framing) |
+| File store on disk | **EDN** (host-local; not multi-lang interop) |
 
 - Spec: [wire-v1](../../spec/wire-v1.md) (repo) / book [Serialization appendix](../appendices/serialization.md)
 - Codec: `dacite.wire.binary` (portable `.cljc` — JVM + CLJS/nbb)

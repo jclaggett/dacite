@@ -5,27 +5,23 @@
      npm run hello
      npx nbb -m dacite.examples.hello"
   (:require [dacite.store :as store]
-            [dacite.value.api :as d]
-            [dacite.value.collections :as coll]
-            [dacite.value.scalar :as scalar]
-            [dacite.value.types :as types]))
+            [dacite.value :as v]))
 
 (defn -main
   [& _args]
   (let [st (store/mem-store)
-        ;; Build a small vector of ints (auto-coerced to Dacite scalars)
-        v  (coll/vector-with-store st 1 2 3)
-        ;; A map with a string key and nested value
-        m  (coll/hash-map-with-store st
-                                     "hello" (scalar/i64-with-store st 42)
-                                     "vec" v)
-        vh (types/dacite-hash v)
-        mh (types/dacite-hash m)]
+        ;; Bootstrap with an explicit store; then use *-via from peers
+        v  (v/vector-with-store st 1 2 3)
+        m  (v/hash-map-via v
+                           "hello" (v/i64-via v 42)
+                           "vec" v)
+        vh (v/dacite-hash v)
+        mh (v/dacite-hash m)]
     (println "Dacite Hello World")
-    (println "  vector count :" (d/count v))
+    (println "  vector count :" (v/count v))
     (println "  vector hash  :" (store/hash->hex vh))
-    (println "  map count    :" (d/count m))
+    (println "  map count    :" (v/count m))
     (println "  map hash     :" (store/hash->hex mh))
     (println "  (get m \"hello\") realized:"
-             (types/realize (d/get m "hello")))
+             (v/realize (v/get m "hello")))
     (println "Done.")))

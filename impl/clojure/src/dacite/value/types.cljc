@@ -262,3 +262,31 @@
         (ensure-in-store! src store h))
       h)
     (coerce-and-store! store x)))
+
+;; =============================================================================
+;; Store carriers — peers for relative (*-via) construction
+;; =============================================================================
+
+(defprotocol IStoreCarrier
+  "Something that names an IStore for relative allocation (*-via constructors).
+
+   Dacite values and root-refs implement this. Plain IStore instances are also
+   accepted by `store-of` without implementing the protocol."
+  (carrier-store [this]
+    "The IStore used for new allocations relative to this peer."))
+
+(defn store-of
+  "Resolve the IStore for relative construction from a peer.
+
+   Accepts:
+   - an IStoreCarrier (root-ref, or anything that implements carrier-store)
+   - a Dacite value (uses dacite-store)
+   - an IStore (identity)"
+  [x]
+  (cond
+    (satisfies? IStoreCarrier x) (carrier-store x)
+    (satisfies? IDaciteValue x)  (dacite-store x)
+    (satisfies? store/IStore x)  x
+    :else
+    (throw (ex-info "Expected a Dacite value, root-ref, or IStore"
+                    {:value x}))))

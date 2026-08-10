@@ -77,7 +77,9 @@ bin/hash-parity.sh                 # assert identical root hash on all hosts
 ```bash
 cd impl/clojure
 clojure -M:cljs-web                # build examples/web/js/main.js (first time)
-clojure -M:service --port 8080 --mem
+clojure -M:service --port 8080 --store mem
+# durable file:  clojure -M:service --port 8080 --store file
+# durable LMDB:  clojure -M:service --port 8080 --store lmdb
 # open http://127.0.0.1:8080/app/
 ```
 

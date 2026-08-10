@@ -1,6 +1,7 @@
 (ns dacite.service-test
   "Protocol tests for dacite.service handlers and live HttpServer."
   (:require [clojure.test :refer [deftest is]]
+            [clojure.java.io :as io]
             [dacite.service :as svc]
             [dacite.store :as store]
             [dacite.store.remote :as remote]
@@ -138,3 +139,79 @@
           (is (true? (todo/done? (d/nth loaded 0))))))
       (finally
         (stop!)))))
+
+(deftest parse-store-spec-tokens
+  (is (= {:backend :mem} (svc/parse-store-spec "mem")))
+  (is (= {:backend :file :path svc/default-file-path}
+         (svc/parse-store-spec "file")))
+  (is (= {:backend :file :path "target/my-file"}
+         (svc/parse-store-spec "file:target/my-file")))
+  (is (= {:backend :lmdb :path svc/default-lmdb-path}
+         (svc/parse-store-spec "lmdb")))
+  (is (= {:backend :lmdb :path "target/my-lmdb"}
+         (svc/parse-store-spec "lmdb:target/my-lmdb")))
+  (is (= {:backend :file :path svc/default-file-path}
+         (svc/parse-store-spec nil))
+      "omitted --store defaults to file")
+  (is (thrown-with-msg? Exception #"unknown --store"
+                        (svc/parse-store-spec "target/bare-path")))
+  (is (thrown-with-msg? Exception #"empty path after file:"
+                        (svc/parse-store-spec "file:")))
+  (is (thrown-with-msg? Exception #"empty path after lmdb:"
+                        (svc/parse-store-spec "lmdb:"))))
+
+(deftest make-service-rooted-lmdb-backend
+  (let [dir (str (io/file (System/getProperty "java.io.tmpdir")
+                          (str "dacite-svc-lmdb-" (System/nanoTime))))
+        {:keys [rooted close! backend path]}
+        (svc/make-service-rooted {:store (str "lmdb:" dir)})]
+    (try
+      (is (= :lmdb backend))
+      (is (= dir path))
+      (is (some? rooted))
+      (let [r (svc/handle-request rooted "GET" "/root" nil)]
+        (is (= 200 (:status r)))
+        (is (nil? (:root (wire/read-edn (:body r))))))
+      (finally
+        (when close! (close!))
+        (doseq [f (reverse (file-seq (io/file dir)))]
+          (.delete f))))))
+
+(deftest lmdb-service-http-node-root-survives-reopen
+  ;; Todo-demo protocol over LMDB: PUT/GET node, CAS root, reopen same path.
+  (let [dir (str (io/file (System/getProperty "java.io.tmpdir")
+                          (str "dacite-lmdb-http-" (System/nanoTime))))
+        store-spec (str "lmdb:" dir)
+        root-hex
+        (let [{:keys [rooted close!]} (svc/make-service-rooted {:store store-spec})
+              {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
+          (try
+            (let [remote (remote/remote-store base-url)
+                  todos (todo/build remote (todo/seed-items))
+                  h (types/dacite-hash todos)
+                  hex (store/hash->hex h)]
+              (is (true? (remote/remote-cas-root! remote nil h)))
+              (is (= h (remote/remote-get-root remote)))
+              (is (some? (store/s-get remote h)))
+              hex)
+            (finally
+              (stop!)
+              (when close! (close!)))))
+        {:keys [rooted close!]} (svc/make-service-rooted {:store store-spec})
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
+    ;; reopen fresh LMDB env + server on same path
+    (try
+      (let [remote (remote/remote-store base-url)
+            h (store/hex->hash root-hex)
+            node (store/s-get remote h)
+            loaded (d/get-value remote h)]
+        (is (= h (remote/remote-get-root remote)))
+        (is (store/s-has? remote h))
+        (is (some? node))
+        (is (= "vector" (types/entry-type node)))
+        (is (pos? (d/count loaded))))
+      (finally
+        (stop!)
+        (when close! (close!))
+        (doseq [f (reverse (file-seq (io/file dir)))]
+          (.delete f))))))

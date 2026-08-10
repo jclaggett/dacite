@@ -1,28 +1,11 @@
 (ns dacite.core
-  "Dacite: Content-addressed data with Clojure-native interfaces.
+  "Deprecated convenience re-export.
 
-   This is the public API namespace. All constructors, conversion functions,
-   and store management are re-exported here for convenience. The
-   implementation is the value layer (Chapter 3): every value carries its
-   own store and hash, and host-language content is recovered with an
-   explicit `realize` rather than `deref`.
+   Prefer the two public namespaces:
+     (require '[dacite.value :as v]
+              '[dacite.store :as store])
 
-     (d/i64 42)              => DaciteScalar
-     (d/vec [1 2 3])         => DaciteVector
-     (d/str \"hello\")        => DaciteString
-     (d/blob bytes)          => DaciteBlob
-     (d/hash-map \"a\" 1)     => DaciteMap
-
-   Content access:
-     (d/realize v)           => host-language value (scalars) or a lazy
-                                iterable of realized elements (collections)
-
-   Boundary crossing:
-     (d/dac->clj v)          => plain Clojure data (recursive)
-     (d/clj->dac data)       => Dacite values (recursive)
-
-   Use `with-store` for isolated store contexts (testing, transactions).
-   Otherwise the current store (`dacite.store/*store*`) is used."
+   This namespace remains for alpha compatibility and will be removed later."
   (:refer-clojure :exclude [str vec hash-map])
   (:require [dacite.store :as store]
             [dacite.value :as value]

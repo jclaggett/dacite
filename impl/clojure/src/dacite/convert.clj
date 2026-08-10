@@ -10,8 +10,10 @@
 
    Both directions operate in the current store (`dacite.store/*store*`)."
   (:require [dacite.store :as store]
-            [dacite.value :as value]
-            [dacite.value.types :as types]))
+            [dacite.value.types :as types]
+            ;; Register wrap-entry for collections/scalars
+            [dacite.value.scalar]
+            [dacite.value.collections]))
 
 ;; =============================================================================
 ;; dac->clj
@@ -72,4 +74,6 @@
   [x]
   (if (satisfies? types/IDaciteValue x)
     x
-    (value/wrap-hash (types/coerce-and-store! store/*store* x))))
+    (let [st store/*store*
+          h (types/coerce-and-store! st x)]
+      (types/wrap-entry (types/entry-type (store/s-get st h)) st h))))

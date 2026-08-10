@@ -3,7 +3,14 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [dacite.store :as store]
             [dacite.store.jvm :as sj]
-            [clojure.java.io :as io]))
+            [dacite.value.scalar :as scalar]
+            [dacite.value.collections :as coll]
+            [dacite.value.types :as types]
+            [dacite.wire.binary :as bin]
+            [dacite.rooted :as rs]
+            [clojure.java.io :as io])
+  (:import [java.nio ByteBuffer]
+           [org.lmdbjava Env Dbi]))
 
 ;; =============================================================================
 ;; Fixtures
@@ -349,6 +356,103 @@
             (is (= ["i64" 42] (store/s-get s2 [1 2 3 4])))))
         (finally
           (sj/lmdb-close lmdb))))))
+
+(deftest lmdb-value-layer-scalar-and-collection-persist
+  (testing "real value-layer entries survive LMDB close/reopen"
+    (let [path (str *temp-dir* "/lmdb-value-layer")
+          st (sj/lmdb-store path)
+          [scalar-h scalar-entry vec-h vec-entry]
+          (try
+            (let [s (scalar/i64-with-store st 42)
+                  sh (types/dacite-hash s)
+                  se (store/s-get st sh)
+                  v (coll/vector-with-store st 1 2 3)
+                  vh (types/dacite-hash v)
+                  ve (store/s-get st vh)]
+              (is (= ["i64" 42] se))
+              (is (= "vector" (first ve)))
+              (is (= 3 (:count (second ve))))
+              [sh se vh ve])
+            (finally
+              (sj/lmdb-close st)))
+          st2 (sj/lmdb-store path)]
+      (try
+        (is (= scalar-entry (store/s-get st2 scalar-h)))
+        (is (= vec-entry (store/s-get st2 vec-h)))
+        (is (store/s-has? st2 scalar-h))
+        (is (store/s-has? st2 vec-h))
+        ;; full graph still present for vector children
+        (is (store/s-has? st2 (:root (second vec-entry))))
+        (finally
+          (sj/lmdb-close st2))))))
+
+(deftest lmdb-rooted-value-layer-persist
+  (testing "rooted LMDB: set root from real collection; reopen sees root + nodes"
+    (let [path (str *temp-dir* "/lmdb-rooted-value")
+          st (sj/lmdb-store path)
+          cell (sj/lmdb-root-cell st)
+          root-h
+          (try
+            (let [rooted (rs/rooted-store st cell)
+                  v (coll/vector-with-store st "a" "b")
+                  h (types/dacite-hash v)]
+              (rs/set-root! rooted h)
+              (is (= h (rs/root rooted)))
+              h)
+            (finally
+              (sj/lmdb-close st)))
+          st2 (sj/lmdb-store path)
+          cell2 (sj/lmdb-root-cell st2)
+          rooted2 (rs/rooted-store st2 cell2)]
+      (try
+        (is (= root-h (rs/root rooted2)))
+        (is (store/s-has? st2 root-h))
+        (is (= "vector" (first (store/s-get st2 root-h))))
+        (finally
+          (sj/lmdb-close st2))))))
+
+(deftest lmdb-content-is-wire-v1-node-payload
+  (testing "durable LMDB values are node payloads (not EDN, not chunks)"
+    (let [path (str *temp-dir* "/lmdb-wire-node")
+          st (sj/lmdb-store path)]
+      (try
+        (let [v (scalar/i64-with-store st 42)
+              h (types/dacite-hash v)
+              entry (store/s-get st h)
+              expected (bin/encode-node-bytes entry)
+              ;; raw read from LMDB content DBI
+              ^Env env (:env st)
+              ^Dbi db (:db st)
+              raw
+              (with-open [txn (.txnRead env)]
+                (let [k (doto (ByteBuffer/allocateDirect 32)
+                          (.putLong (long (nth h 0)))
+                          (.putLong (long (nth h 1)))
+                          (.putLong (long (nth h 2)))
+                          (.putLong (long (nth h 3)))
+                          (.flip))
+                      buf (.get db txn k)]
+                  (is (some? buf))
+                  (let [bs (byte-array (.remaining buf))]
+                    (.get buf bs)
+                    bs)))]
+          ;; scalar node kind is 0x00 — not EDN '{' or '['
+          (is (= 0x00 (bit-and 0xff (aget raw 0))))
+          (is (= (seq expected) (seq raw)))
+          (is (= entry (bin/decode-node-bytes raw)))
+          ;; close/reopen: re-encode of stored entry matches
+          (sj/lmdb-close st)
+          (let [st2 (sj/lmdb-store path)
+                entry2 (store/s-get st2 h)]
+            (try
+              (is (= entry entry2))
+              (is (= (seq (bin/encode-node-bytes entry))
+                     (seq (bin/encode-node-bytes entry2))))
+              (finally
+                (sj/lmdb-close st2)))))
+        (catch Throwable t
+          (try (sj/lmdb-close st) (catch Throwable _))
+          (throw t))))))
 
 ;; =============================================================================
 ;; Content addressing

@@ -1,6 +1,1 @@
-{
-  "title": "One-item chunk: literal empty vector",
-  "version": 1,
-  "budget": 1024,
-  "items": [{ "enc": "literal", "type": "vector", "value": [] }]
-}
+{"title":"chunk-literal-empty-vector"}

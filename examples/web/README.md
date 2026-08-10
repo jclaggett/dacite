@@ -14,8 +14,11 @@ protocol any remote client can use.
 cd impl/clojure && clojure -M:cljs-web && cd ../..
 
 # start HTTP service (serves API + static UI)
-cd impl/clojure && clojure -M:service --port 8080 --mem
-# or durable: clojure -M:service --port 8080 --store target/dacite-service
+cd impl/clojure && clojure -M:service --port 8080 --store mem
+# durable file:  clojure -M:service --port 8080 --store file
+#                clojure -M:service --port 8080 --store file:target/dacite-service
+# durable LMDB:  clojure -M:service --port 8080 --store lmdb
+#                clojure -M:service --port 8080 --store lmdb:target/my-lmdb
 ```
 
 Open **http://127.0.0.1:8080/app/** in a browser.
@@ -43,6 +46,9 @@ uses **wire-v1 binary** by default
 (`Content-Type` / `Accept: application/vnd.dacite.chunk.v1`). Novelty PUT
 bodies, `/root`, and CAS stay EDN. Pass `{:binary false}` to
 `dacite.store.browser/remote-store` for legacy EDN packs.
+
+Binary GET uses synchronous XHR with `overrideMimeType(… charset=x-user-defined)`
+(browsers reject `responseType = "arraybuffer"` on sync XHR from a document).
 
 ## Bandwidth display
 

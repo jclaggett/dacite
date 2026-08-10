@@ -1,6 +1,1 @@
-{
-  "title": "One-item chunk: literal bool true",
-  "version": 1,
-  "budget": 1024,
-  "items": [{ "enc": "literal", "type": "bool", "value": true }]
-}
+{"title":"literal bool bool-true"}

@@ -15,6 +15,7 @@
   (:require [clojure.java.io :as io]
             [dacite.store :as store]
             [dacite.store.file :as file]
+            [dacite.store.jvm :as jvm]
             [dacite.store.pack :as pack]
             [dacite.rooted :as rs]
             [dacite.wire :as wire]
@@ -334,3 +335,100 @@
   [dir]
   (let [path (str dir)]
     (rs/rooted-store (file/file-store path) (rs/file-root-cell path))))
+
+(def default-file-path
+  "Default directory when CLI uses --store file without a path."
+  "target/dacite-service")
+
+(def default-lmdb-path
+  "Default LMDB env directory when CLI uses --store lmdb without a path."
+  "target/dacite-service-lmdb")
+
+(defn make-lmdb-rooted
+  "LMDB content store + durable LMDB meta root cell under dir.
+
+   Returns a map:
+     :rooted  — IRootedStore for the HTTP handlers
+     :close!  — fn to close the LMDB env (call on process/server stop)
+     :backend — :lmdb
+     :path    — env directory string"
+  [dir]
+  (let [path (str (or dir default-lmdb-path))
+        _ (.mkdirs (io/file path))
+        st (jvm/lmdb-store path)]
+    {:rooted (rs/rooted-store st (jvm/lmdb-root-cell st))
+     :close! (fn [] (jvm/lmdb-close st))
+     :backend :lmdb
+     :path path}))
+
+(defn parse-store-spec
+  "Parse --store argument into a backend description.
+
+   Supported tokens:
+     \"mem\"            → {:backend :mem}
+     \"file\"           → {:backend :file :path default-file-path}
+     \"file:<path>\"    → {:backend :file :path <path>}
+     \"lmdb\"           → {:backend :lmdb :path default-lmdb-path}
+     \"lmdb:<path>\"    → {:backend :lmdb :path <path>}
+     nil / omitted      → same as \"file\" (default durable file store)
+
+   Throws on unknown tokens (including bare paths without a type prefix)."
+  [store-arg]
+  (cond
+    (nil? store-arg)
+    {:backend :file :path default-file-path}
+
+    (= "mem" store-arg)
+    {:backend :mem}
+
+    (= "file" store-arg)
+    {:backend :file :path default-file-path}
+
+    (and (string? store-arg) (.startsWith ^String store-arg "file:"))
+    (let [p (subs store-arg 5)]
+      (when (or (empty? p) (re-find #"^\s*$" p))
+        (throw (ex-info "empty path after file:" {:store store-arg})))
+      {:backend :file :path p})
+
+    (= "lmdb" store-arg)
+    {:backend :lmdb :path default-lmdb-path}
+
+    (and (string? store-arg) (.startsWith ^String store-arg "lmdb:"))
+    (let [p (subs store-arg 5)]
+      (when (or (empty? p) (re-find #"^\s*$" p))
+        (throw (ex-info "empty path after lmdb:" {:store store-arg})))
+      {:backend :lmdb :path p})
+
+    :else
+    (throw (ex-info
+            (str "unknown --store value \"" store-arg "\"; "
+                 "use mem | file | file:<path> | lmdb | lmdb:<path>")
+            {:store store-arg}))))
+
+(defn make-service-rooted
+  "Build rooted store for the HTTP service from a --store string.
+
+   opts:
+     :store — raw --store token (see parse-store-spec); nil defaults to file
+
+   Returns {:rooted :close! :backend :path}
+   where :close! may be nil (mem/file) and :path is nil for :mem."
+  [{:keys [store]}]
+  (let [spec (parse-store-spec store)]
+    (case (:backend spec)
+      :mem
+      {:rooted (make-demo-rooted)
+       :close! nil
+       :backend :mem
+       :path nil}
+
+      :lmdb
+      (make-lmdb-rooted (:path spec))
+
+      :file
+      (let [path (:path spec)]
+        (.mkdirs (io/file path))
+        {:rooted (make-file-rooted path)
+         :close! nil
+         :backend :file
+         :path path}))))

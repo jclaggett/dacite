@@ -1,6 +1,1 @@
-{
-  "title": "One-item chunk: node encoding of i64 7",
-  "version": 1,
-  "budget": 0,
-  "items": [{ "enc": "node", "type": "i64", "value": 7 }]
-}
+{"title":"node i64 i64-7"}

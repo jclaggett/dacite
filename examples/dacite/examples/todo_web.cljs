@@ -13,9 +13,9 @@
      clojure -M:service"
   (:require [clojure.string :as str]
             [dacite.store.browser :as browser]
-            [dacite.value.api :as d]
-            [dacite.examples.todo :as todo]
-            [dacite.hash :as hash]))
+            [dacite.store :as store]
+            [dacite.value :as v]
+            [dacite.examples.todo :as todo]))
 
 (defonce !state
   (atom {:store nil
@@ -102,7 +102,7 @@
        :todos nil
        :root server-root
        :error (str "Root present but value missing/unloadable: "
-                   (subs (hash/hash->hex server-root) 0 12) "…")})
+                   (subs (store/hash->hex server-root) 0 12) "…")})
     (let [seeded (todo/build store (todo/seed-items))
           h (todo/todos-hash seeded)]
       (if (cas-root! store nil h)
@@ -148,14 +148,14 @@
 
 (defn- render-list! []
   (let [{:keys [todos root error status bw-totals bw-last bw-last-label]} @!state
-        root-hex (when root (hash/hash->hex root))
+        root-hex (when root (store/hash->hex root))
         status-el (by-id "status")]
     (when status-el
       (set! (.-textContent status-el)
             (or error
                 (str status
                      (when root-hex (str " · root " (subs root-hex 0 12) "…"))
-                     (when todos (str " · " (d/count todos) " items"))))))
+                     (when todos (str " · " (v/count todos) " items"))))))
     (when-let [el (by-id "bandwidth")]
       (if bw-totals
         (set! (.-textContent el)
@@ -178,7 +178,7 @@
                             "</label>"
                             "<button type=\"button\" data-action=\"remove\" data-i=\"" i "\">×</button>"
                             "</li>")))
-                   (or (d/seq todos) ()))]
+                   (or (v/seq todos) ()))]
         (set-html! "todo-list" (apply str items))))))
 
 (defn- apply-value-result!

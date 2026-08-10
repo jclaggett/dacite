@@ -169,7 +169,17 @@ Scalar =
 | `0x02` | `char` | UTF-8 of one code point, `dlen` 1..4 |
 | `0x03` | `i64` | 8 bytes BE two’s complement |
 | `0x04` | `f64` | 8 bytes IEEE-754 BE |
-| `0x05`–`0x0F` | reserved integers/floats | (future fixed sizes) |
+| `0x05` | `i8` | 1 byte BE two’s complement |
+| `0x06` | `i16` | 2 bytes BE two’s complement |
+| `0x07` | `i32` | 4 bytes BE two’s complement |
+| `0x08` | `u8` | 1 byte unsigned |
+| `0x09` | `u16` | 2 bytes BE unsigned |
+| `0x0A` | `u32` | 4 bytes BE unsigned |
+| `0x0B` | `u64` | 8 bytes BE unsigned |
+| `0x0C` | `f32` | 4 bytes IEEE-754 BE |
+| `0x0D` | `u256` | 32 bytes BE (raw limb bytes; same as value layer) |
+| `0x0E` | `negative` | empty (`dlen = 0`) — set-theory sentinel |
+| `0x0F` | reserved | error if used in v1 |
 | other | error | |
 
 Canonical data bytes for hashing remain as defined by the value layer (same as
@@ -263,6 +273,16 @@ variable sections use their own length fields.
 | `0x02` | `char` | `u8 dlen` ++ UTF-8 (1..4) |
 | `0x03` | `i64` | `i64` BE |
 | `0x04` | `f64` | `f64` BE |
+| `0x05` | `i8` | 1 byte BE two’s complement |
+| `0x06` | `i16` | 2 bytes BE two’s complement |
+| `0x07` | `i32` | 4 bytes BE two’s complement |
+| `0x08` | `u8` | 1 byte unsigned |
+| `0x09` | `u16` | 2 bytes BE unsigned |
+| `0x0A` | `u32` | 4 bytes BE unsigned |
+| `0x0B` | `u64` | 8 bytes BE unsigned |
+| `0x0C` | `f32` | 4 bytes IEEE-754 BE |
+| `0x0D` | `u256` | 32 bytes (no length prefix) |
+| `0x0E` | `negative` | (empty) |
 | `0x10` | `string` | `u32 n` ++ UTF-8 bytes |
 | `0x11` | `blob` | `u32 n` ++ bytes |
 | `0x20` | `vector` | `u32 n` ++ `Lit` × n |
@@ -274,7 +294,7 @@ variable sections use their own length fields.
 | `0x33` | `ft/deep` | ordered leaf lits |
 | `0x40` | `hamt/empty` | ordered entry/leaf lits (usually n=0) |
 | `0x41` | `hamt/entry` | `Lit` key ++ `Lit` val |
-| `0x42` | `hamt/bitmap` | ordered entry pair lits or leaves per pack policy |
+| `0x42` | `hamt/bitmap` | `u32 n` ++ (`Lit` key ++ `Lit` val) × n (same pair layout as `map`) |
 | other | error | |
 
 **Order:**
@@ -372,11 +392,10 @@ and fixtures use wire-v1 only.
 
 | Piece | Status |
 |-------|--------|
-| This spec | Draft |
-| Fixtures | `fixtures/wire-v1/` (golden cases) |
-| Clojure codec | **`dacite.wire.binary`** — encode/decode; pack EDN bridge |
-| HTTP | Service dual Content-Type; JVM `remote-store` defaults `:binary true` |
-| Browser demo | Still EDN by default (Accept not set → EDN response) |
+| This spec | Normative for public value types (node + literal) |
+| Fixtures | `fixtures/wire-v1/` — node + literal goldens per public type |
+| Clojure codec | **`dacite.wire.binary`** — portable `.cljc` encode/decode; pack EDN bridge |
+| HTTP | Service dual Content-Type; JVM/browser remotes default wire-v1 packs |
 
 ## Clojure usage
 

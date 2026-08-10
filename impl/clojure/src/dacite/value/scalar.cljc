@@ -194,6 +194,34 @@
   (negative-with-store store/*store*))
 
 ;; =============================================================================
+;; Constructors relative to a peer (*-via) — use peer’s store
+;; =============================================================================
+
+(defn scalar-via
+  "Typed scalar allocated in the store of `peer` (value, root-ref, or IStore)."
+  [peer type-name data]
+  (scalar-with-store (types/store-of peer) type-name data))
+
+(defn null-via
+  [peer]
+  (null-with-store (types/store-of peer)))
+
+(defn bool-via [peer b] (bool-with-store (types/store-of peer) b))
+(defn i8-via  [peer n] (i8-with-store  (types/store-of peer) n))
+(defn i16-via [peer n] (i16-with-store (types/store-of peer) n))
+(defn i32-via [peer n] (i32-with-store (types/store-of peer) n))
+(defn i64-via [peer n] (i64-with-store (types/store-of peer) n))
+(defn u8-via  [peer n] (u8-with-store  (types/store-of peer) n))
+(defn u16-via [peer n] (u16-with-store (types/store-of peer) n))
+(defn u32-via [peer n] (u32-with-store (types/store-of peer) n))
+(defn u64-via [peer n] (u64-with-store (types/store-of peer) n))
+(defn u256-via [peer data] (u256-with-store (types/store-of peer) data))
+(defn f32-via [peer n] (f32-with-store (types/store-of peer) n))
+(defn f64-via [peer n] (f64-with-store (types/store-of peer) n))
+(defn dacite-char-via [peer c] (dacite-char-with-store (types/store-of peer) c))
+(defn negative-via [peer] (negative-with-store (types/store-of peer)))
+
+;; =============================================================================
 ;; Canonical encoding (multimethod) — portable bytes (vectors of ints 0..255)
 ;; =============================================================================
 

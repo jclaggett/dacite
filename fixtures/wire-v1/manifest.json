@@ -1,42 +1,230 @@
 {
-  "format": "dacite-wire-v1",
-  "spec": "docs/spec/wire-v1.md",
-  "cases": [
-    { "id": "chunk-literal-i64-42", "notes": "literal i64 42" },
-    { "id": "chunk-literal-null", "notes": "literal null" },
-    { "id": "chunk-literal-bool-true", "notes": "literal bool true" },
-    { "id": "chunk-literal-bool-false", "notes": "literal bool false" },
-    { "id": "chunk-literal-char-A", "notes": "literal char A" },
-    { "id": "chunk-literal-f64-3.5", "notes": "literal f64 3.5" },
-    { "id": "chunk-literal-empty-vector", "notes": "literal empty vector" },
-    { "id": "chunk-literal-empty-map", "notes": "literal empty map" },
-    { "id": "chunk-literal-empty-set", "notes": "literal empty set" },
-    { "id": "chunk-literal-empty-string", "notes": "literal empty string" },
-    { "id": "chunk-literal-blob-bytes", "notes": "literal blob bytes" },
-    { "id": "chunk-literal-blob-empty", "notes": "literal empty blob" },
-    { "id": "chunk-literal-vector-123", "notes": "literal vector of i64s" },
-    { "id": "chunk-literal-vector-mixed", "notes": "literal vector string+string+i64" },
-    { "id": "chunk-literal-string-hello", "notes": "literal string" },
-    { "id": "chunk-literal-map-ab", "notes": "literal map" },
-    { "id": "chunk-literal-set-123", "notes": "literal set" },
-    { "id": "chunk-literal-todo-seed", "notes": "todo seed root literal" },
-    { "id": "chunk-literal-ft-digit", "notes": "ft/digit intermediate leaf-payload literal" },
-    { "id": "chunk-literal-ft-deep", "notes": "ft/deep intermediate leaf-payload literal" },
-    { "id": "chunk-node-i64-7", "notes": "node i64 7" },
-    { "id": "chunk-node-char-A", "notes": "node scalar char A" },
-    { "id": "chunk-node-f64-3.5", "notes": "node scalar f64 3.5" },
-    { "id": "chunk-node-blob-header", "notes": "blob collection header as node" },
-    { "id": "chunk-node-empty-vector-header", "notes": "empty vector header as node" },
-    { "id": "chunk-node-empty-map-header", "notes": "empty map header as node" },
-    { "id": "chunk-node-empty-set-header", "notes": "empty set header as node" },
-    { "id": "chunk-node-empty-string-header", "notes": "empty string header as node" },
-    { "id": "chunk-node-ft-digit", "notes": "ft/digit as store node" },
-    { "id": "chunk-node-ft-deep", "notes": "ft/deep as store node" },
-    { "id": "chunk-node-ft-node", "notes": "ft/node as store node" },
-    { "id": "chunk-two-node-i64s", "notes": "two node items in one chunk" },
-    { "id": "chunk-mixed-node-and-literal", "notes": "node i64 + literal string" },
-    { "id": "chunk-string-3000-part-0", "notes": "3000-char string pack @ budget 256, chunk 0" },
-    { "id": "chunk-string-3000-part-1", "notes": "3000-char string pack @ budget 256, chunk 1" },
-    { "id": "chunk-string-3000-part-2", "notes": "3000-char string pack @ budget 256, chunk 2" }
-  ]
+  "format" : "dacite-wire-v1",
+  "spec" : "docs/spec/wire-v1.md",
+  "cases" : [ {
+    "id" : "chunk-literal-blob-bytes",
+    "notes" : "chunk-literal-blob-bytes"
+  }, {
+    "id" : "chunk-literal-blob-empty",
+    "notes" : "chunk-literal-blob-empty"
+  }, {
+    "id" : "chunk-literal-bool-false",
+    "notes" : "chunk-literal-bool-false"
+  }, {
+    "id" : "chunk-literal-bool-true",
+    "notes" : "chunk-literal-bool-true"
+  }, {
+    "id" : "chunk-literal-char-A",
+    "notes" : "chunk-literal-char-A"
+  }, {
+    "id" : "chunk-literal-empty-map",
+    "notes" : "chunk-literal-empty-map"
+  }, {
+    "id" : "chunk-literal-empty-set",
+    "notes" : "chunk-literal-empty-set"
+  }, {
+    "id" : "chunk-literal-empty-string",
+    "notes" : "chunk-literal-empty-string"
+  }, {
+    "id" : "chunk-literal-empty-vector",
+    "notes" : "chunk-literal-empty-vector"
+  }, {
+    "id" : "chunk-literal-f32-1.5",
+    "notes" : "chunk-literal-f32-1.5"
+  }, {
+    "id" : "chunk-literal-f32-neg1.5",
+    "notes" : "chunk-literal-f32-neg1.5"
+  }, {
+    "id" : "chunk-literal-f64-3.5",
+    "notes" : "chunk-literal-f64-3.5"
+  }, {
+    "id" : "chunk-literal-ft-deep",
+    "notes" : "chunk-literal-ft-deep"
+  }, {
+    "id" : "chunk-literal-ft-digit",
+    "notes" : "chunk-literal-ft-digit"
+  }, {
+    "id" : "chunk-literal-ft-empty",
+    "notes" : "chunk-literal-ft-empty"
+  }, {
+    "id" : "chunk-literal-hamt-bitmap",
+    "notes" : "chunk-literal-hamt-bitmap"
+  }, {
+    "id" : "chunk-literal-hamt-empty",
+    "notes" : "chunk-literal-hamt-empty"
+  }, {
+    "id" : "chunk-literal-hamt-entry",
+    "notes" : "chunk-literal-hamt-entry"
+  }, {
+    "id" : "chunk-literal-i16-neg300",
+    "notes" : "chunk-literal-i16-neg300"
+  }, {
+    "id" : "chunk-literal-i32-neg100k",
+    "notes" : "chunk-literal-i32-neg100k"
+  }, {
+    "id" : "chunk-literal-i64-42",
+    "notes" : "chunk-literal-i64-42"
+  }, {
+    "id" : "chunk-literal-i64-7",
+    "notes" : "chunk-literal-i64-7"
+  }, {
+    "id" : "chunk-literal-i8-neg5",
+    "notes" : "chunk-literal-i8-neg5"
+  }, {
+    "id" : "chunk-literal-map-ab",
+    "notes" : "chunk-literal-map-ab"
+  }, {
+    "id" : "chunk-literal-negative",
+    "notes" : "chunk-literal-negative"
+  }, {
+    "id" : "chunk-literal-null",
+    "notes" : "chunk-literal-null"
+  }, {
+    "id" : "chunk-literal-set-123",
+    "notes" : "chunk-literal-set-123"
+  }, {
+    "id" : "chunk-literal-string-hello",
+    "notes" : "chunk-literal-string-hello"
+  }, {
+    "id" : "chunk-literal-todo-seed",
+    "notes" : "chunk-literal-todo-seed"
+  }, {
+    "id" : "chunk-literal-u16-40k",
+    "notes" : "chunk-literal-u16-40k"
+  }, {
+    "id" : "chunk-literal-u256",
+    "notes" : "chunk-literal-u256"
+  }, {
+    "id" : "chunk-literal-u32-3e9",
+    "notes" : "chunk-literal-u32-3e9"
+  }, {
+    "id" : "chunk-literal-u64-42",
+    "notes" : "chunk-literal-u64-42"
+  }, {
+    "id" : "chunk-literal-u8-200",
+    "notes" : "chunk-literal-u8-200"
+  }, {
+    "id" : "chunk-literal-vector-123",
+    "notes" : "chunk-literal-vector-123"
+  }, {
+    "id" : "chunk-literal-vector-mixed",
+    "notes" : "chunk-literal-vector-mixed"
+  }, {
+    "id" : "chunk-mixed-node-and-literal",
+    "notes" : "chunk-mixed-node-and-literal"
+  }, {
+    "id" : "chunk-node-blob-header",
+    "notes" : "chunk-node-blob-header"
+  }, {
+    "id" : "chunk-node-bool-false",
+    "notes" : "chunk-node-bool-false"
+  }, {
+    "id" : "chunk-node-bool-true",
+    "notes" : "chunk-node-bool-true"
+  }, {
+    "id" : "chunk-node-char-A",
+    "notes" : "chunk-node-char-A"
+  }, {
+    "id" : "chunk-node-empty-map-header",
+    "notes" : "chunk-node-empty-map-header"
+  }, {
+    "id" : "chunk-node-empty-set-header",
+    "notes" : "chunk-node-empty-set-header"
+  }, {
+    "id" : "chunk-node-empty-string-header",
+    "notes" : "chunk-node-empty-string-header"
+  }, {
+    "id" : "chunk-node-empty-vector-header",
+    "notes" : "chunk-node-empty-vector-header"
+  }, {
+    "id" : "chunk-node-f32-1.5",
+    "notes" : "chunk-node-f32-1.5"
+  }, {
+    "id" : "chunk-node-f32-neg1.5",
+    "notes" : "chunk-node-f32-neg1.5"
+  }, {
+    "id" : "chunk-node-f64-3.5",
+    "notes" : "chunk-node-f64-3.5"
+  }, {
+    "id" : "chunk-node-ft-deep",
+    "notes" : "chunk-node-ft-deep"
+  }, {
+    "id" : "chunk-node-ft-digit",
+    "notes" : "chunk-node-ft-digit"
+  }, {
+    "id" : "chunk-node-ft-empty",
+    "notes" : "chunk-node-ft-empty"
+  }, {
+    "id" : "chunk-node-ft-node",
+    "notes" : "chunk-node-ft-node"
+  }, {
+    "id" : "chunk-node-hamt-bitmap",
+    "notes" : "chunk-node-hamt-bitmap"
+  }, {
+    "id" : "chunk-node-hamt-empty",
+    "notes" : "chunk-node-hamt-empty"
+  }, {
+    "id" : "chunk-node-hamt-entry",
+    "notes" : "chunk-node-hamt-entry"
+  }, {
+    "id" : "chunk-node-i16-neg300",
+    "notes" : "chunk-node-i16-neg300"
+  }, {
+    "id" : "chunk-node-i32-neg100k",
+    "notes" : "chunk-node-i32-neg100k"
+  }, {
+    "id" : "chunk-node-i64-42",
+    "notes" : "chunk-node-i64-42"
+  }, {
+    "id" : "chunk-node-i64-7",
+    "notes" : "chunk-node-i64-7"
+  }, {
+    "id" : "chunk-node-i8-neg5",
+    "notes" : "chunk-node-i8-neg5"
+  }, {
+    "id" : "chunk-node-map-ab",
+    "notes" : "chunk-node-map-ab"
+  }, {
+    "id" : "chunk-node-negative",
+    "notes" : "chunk-node-negative"
+  }, {
+    "id" : "chunk-node-null",
+    "notes" : "chunk-node-null"
+  }, {
+    "id" : "chunk-node-set-123",
+    "notes" : "chunk-node-set-123"
+  }, {
+    "id" : "chunk-node-string-hello",
+    "notes" : "chunk-node-string-hello"
+  }, {
+    "id" : "chunk-node-u16-40k",
+    "notes" : "chunk-node-u16-40k"
+  }, {
+    "id" : "chunk-node-u256",
+    "notes" : "chunk-node-u256"
+  }, {
+    "id" : "chunk-node-u32-3e9",
+    "notes" : "chunk-node-u32-3e9"
+  }, {
+    "id" : "chunk-node-u64-42",
+    "notes" : "chunk-node-u64-42"
+  }, {
+    "id" : "chunk-node-u8-200",
+    "notes" : "chunk-node-u8-200"
+  }, {
+    "id" : "chunk-node-vector-123",
+    "notes" : "chunk-node-vector-123"
+  }, {
+    "id" : "chunk-string-3000-part-0",
+    "notes" : "chunk-string-3000-part-0"
+  }, {
+    "id" : "chunk-string-3000-part-1",
+    "notes" : "chunk-string-3000-part-1"
+  }, {
+    "id" : "chunk-string-3000-part-2",
+    "notes" : "chunk-string-3000-part-2"
+  }, {
+    "id" : "chunk-two-node-i64s",
+    "notes" : "chunk-two-node-i64s"
+  } ]
 }

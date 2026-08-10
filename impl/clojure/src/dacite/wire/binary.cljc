@@ -137,6 +137,81 @@
   (doseq [b (host/f64->bytes x)]
     (put-u8 buf b)))
 
+(defn- put-f32
+  [buf x]
+  (doseq [b (host/f32->bytes x)]
+    (put-u8 buf b)))
+
+(defn- put-int-be
+  "Write signed/unsigned integer body as big-endian `width` bytes (value-layer layout)."
+  [buf n width]
+  (doseq [b (host/int->bytes-be n width)]
+    (put-u8 buf b)))
+
+(defn- signed-from-be
+  "Interpret wire bytes as two's-complement big-endian signed integer."
+  [bs]
+  (let [bs (as-wire-bytes bs)
+        n (byte-len bs)
+        mag (loop [i 0 acc 0]
+              (if (= i n)
+                acc
+                (recur (inc i) (+ (* acc 256) (bget bs i)))))
+        bits (* 8 n)
+        sign (bit-shift-left 1 (dec bits))]
+    (if (>= mag sign)
+      (- mag (bit-shift-left 1 bits))
+      mag)))
+
+(defn- unsigned-from-be
+  "Interpret wire bytes as unsigned big-endian integer.
+   8-byte values use host word (long/BigInt) bit patterns."
+  [bs]
+  (let [bs (as-wire-bytes bs)
+        n (byte-len bs)]
+    (if (= n 8)
+      (host/bytes->word (mapv #(bget bs %) (range 8)))
+      (loop [i 0 acc 0]
+        (if (= i n)
+          acc
+          (recur (inc i) (+ (* acc 256) (bget bs i))))))))
+
+(defn- get-f32-from-bytes
+  [bs]
+  (let [bs (as-wire-bytes bs)]
+    (when-not (= 4 (byte-len bs))
+      (throw (ex-info "f32 data must be 4 bytes" {:n (byte-len bs)})))
+    #?(:clj
+       ;; unchecked-int: high bit set (negative f32 / -0 / -Inf) yields long ≥ 2^31;
+       ;; clojure.core/int throws ArithmeticException on those values.
+       (let [bits (unchecked-int
+                   (bit-or (bit-shift-left (long (bget bs 0)) 24)
+                           (bit-shift-left (long (bget bs 1)) 16)
+                           (bit-shift-left (long (bget bs 2)) 8)
+                           (long (bget bs 3))))]
+         (Float/intBitsToFloat bits))
+       :cljs
+       (let [dv (js/DataView. (js/ArrayBuffer. 4))]
+         (dotimes [i 4]
+           (.setUint8 dv i (bget bs i)))
+         (.getFloat32 dv 0 false)))))
+
+(defn- u256-body->wire
+  "Normalize u256 body (byte-array or seq of 0..255) to 32 wire bytes."
+  [body]
+  (let [bs (as-wire-bytes body)]
+    (when-not (= 32 (byte-len bs))
+      (throw (ex-info "u256 must be 32 bytes" {:n (byte-len bs)})))
+    bs))
+
+(defn- u256-wire->body
+  "Decode u256 data to portable vector of ints 0..255."
+  [bs]
+  (let [bs (as-wire-bytes bs)]
+    (when-not (= 32 (byte-len bs))
+      (throw (ex-info "u256 must be 32 bytes" {:n (byte-len bs)})))
+    (mapv #(bget bs %) (range 32))))
+
 (defn- put-bytes
   [buf bs]
   (let [bs (as-wire-bytes bs)
@@ -251,6 +326,16 @@
    0x02 "char"
    0x03 "i64"
    0x04 "f64"
+   0x05 "i8"
+   0x06 "i16"
+   0x07 "i32"
+   0x08 "u8"
+   0x09 "u16"
+   0x0A "u32"
+   0x0B "u64"
+   0x0C "f32"
+   0x0D "u256"
+   0x0E "negative"
    0x10 "string"
    0x11 "blob"
    0x20 "vector"
@@ -264,6 +349,18 @@
    0x40 "hamt/empty"
    0x41 "hamt/entry"
    0x42 "hamt/bitmap"})
+
+(def public-scalar-types
+  "Public scalar type names supported on the wire (node + literal)."
+  #{"null" "bool" "char"
+    "i8" "i16" "i32" "i64"
+    "u8" "u16" "u32" "u64" "u256"
+    "f32" "f64"
+    "negative"})
+
+(def public-value-types
+  "Public first-class value types (node + literal)."
+  (into public-scalar-types #{"string" "blob" "vector" "map" "set"}))
 
 (def name->type-id
   (into {} (map (fn [[k v]] [v k]) type-id->name)))
@@ -385,6 +482,9 @@
       "null"
       (as-wire-bytes [tid])
 
+      "negative"
+      (as-wire-bytes [tid])
+
       "bool"
       (as-wire-bytes [tid (if body 1 0)])
 
@@ -396,10 +496,65 @@
         (put-bytes buf bs)
         (finish buf))
 
+      "i8"
+      (let [buf (bb 2)]
+        (put-u8 buf tid)
+        (put-int-be buf body 1)
+        (finish buf))
+
+      "i16"
+      (let [buf (bb 3)]
+        (put-u8 buf tid)
+        (put-int-be buf body 2)
+        (finish buf))
+
+      "i32"
+      (let [buf (bb 5)]
+        (put-u8 buf tid)
+        (put-int-be buf body 4)
+        (finish buf))
+
       "i64"
       (let [buf (bb 9)]
         (put-u8 buf tid)
         (put-i64 buf body)
+        (finish buf))
+
+      "u8"
+      (let [buf (bb 2)]
+        (put-u8 buf tid)
+        (put-int-be buf body 1)
+        (finish buf))
+
+      "u16"
+      (let [buf (bb 3)]
+        (put-u8 buf tid)
+        (put-int-be buf body 2)
+        (finish buf))
+
+      "u32"
+      (let [buf (bb 5)]
+        (put-u8 buf tid)
+        (put-int-be buf body 4)
+        (finish buf))
+
+      "u64"
+      (let [buf (bb 9)]
+        (put-u8 buf tid)
+        (put-u64 buf body)
+        (finish buf))
+
+      "u256"
+      (let [bs (u256-body->wire body)
+            buf (bb 33)]
+        (put-u8 buf tid)
+        (put-bytes buf bs)
+        (finish buf))
+
+      "f32"
+      (let [buf (bb 5)]
+        (put-u8 buf tid)
+        (put-f32 buf body)
         (finish buf))
 
       "f64"
@@ -427,8 +582,8 @@
         (finish buf))
 
       ("vector" "set" "ft/empty" "ft/digit" "ft/node" "ft/deep"
-                "hamt/empty" "hamt/bitmap")
-      ;; Ordered sequence of nested lits (ft/hamt leaf payloads share this shape)
+                "hamt/empty")
+      ;; Ordered sequence of nested lits (ft leaf payloads share this shape)
       (let [els (or body [])
             children (mapv encode-lit-bytes els)
             total (reduce + 5 (map byte-len children))
@@ -438,12 +593,15 @@
         (doseq [c children] (put-bytes buf c))
         (finish buf))
 
-      "map"
-      (let [pairs (mapv (fn [[k v]]
-                          (let [kb (encode-lit-bytes k)
+      ("map" "hamt/bitmap")
+      ;; map: pairs; hamt/bitmap: ordered entry pair lits [k v]
+      (let [pairs (mapv (fn [pair]
+                          (let [k (nth pair 0)
+                                v (nth pair 1)
+                                kb (encode-lit-bytes k)
                                 vb (encode-lit-bytes v)]
                             [kb vb]))
-                        body)
+                        (or body []))
             total (reduce + 5 (map (fn [[k v]] (+ (byte-len k) (byte-len v))) pairs))
             buf (bb total)]
         (put-u8 buf tid)
@@ -475,6 +633,8 @@
     (case tname
       "null" {:type "null" :body nil}
 
+      "negative" {:type "negative" :body nil}
+
       "bool"
       (do (ensure-remaining buf 1)
           {:type "bool" :body (not (zero? (get-u8 buf)))})
@@ -484,9 +644,45 @@
             bs (get-bytes buf dlen)]
         {:type "char" :body (first (seq (utf8-from-wire bs)))})
 
+      "i8"
+      (do (ensure-remaining buf 1)
+          {:type "i8" :body (signed-from-be (get-bytes buf 1))})
+
+      "i16"
+      (do (ensure-remaining buf 2)
+          {:type "i16" :body (signed-from-be (get-bytes buf 2))})
+
+      "i32"
+      (do (ensure-remaining buf 4)
+          {:type "i32" :body (signed-from-be (get-bytes buf 4))})
+
       "i64"
       (do (ensure-remaining buf 8)
           {:type "i64" :body (get-i64 buf)})
+
+      "u8"
+      (do (ensure-remaining buf 1)
+          {:type "u8" :body (unsigned-from-be (get-bytes buf 1))})
+
+      "u16"
+      (do (ensure-remaining buf 2)
+          {:type "u16" :body (unsigned-from-be (get-bytes buf 2))})
+
+      "u32"
+      (do (ensure-remaining buf 4)
+          {:type "u32" :body (unsigned-from-be (get-bytes buf 4))})
+
+      "u64"
+      (do (ensure-remaining buf 8)
+          {:type "u64" :body (get-u64 buf)})
+
+      "u256"
+      (do (ensure-remaining buf 32)
+          {:type "u256" :body (u256-wire->body (get-bytes buf 32))})
+
+      "f32"
+      (do (ensure-remaining buf 4)
+          {:type "f32" :body (get-f32-from-bytes (get-bytes buf 4))})
 
       "f64"
       (do (ensure-remaining buf 8)
@@ -503,17 +699,17 @@
         {:type "blob" :body (mapv #(bget bs %) (range (byte-len bs)))})
 
       ("vector" "set" "ft/empty" "ft/digit" "ft/node" "ft/deep"
-                "hamt/empty" "hamt/bitmap")
+                "hamt/empty")
       (let [n (int (get-u32 buf))
             kids (mapv (fn [_] (decode-lit buf)) (range n))]
         {:type tname :body kids})
 
-      "map"
+      ("map" "hamt/bitmap")
       (let [n (int (get-u32 buf))
             pairs (mapv (fn [_]
                           [(decode-lit buf) (decode-lit buf)])
                         (range n))]
-        {:type "map" :body pairs})
+        {:type tname :body pairs})
 
       "hamt/entry"
       {:type "hamt/entry"
@@ -545,11 +741,13 @@
   [[type-name data :as entry]]
   (let [t (str type-name)]
     (cond
-      (#{"null" "bool" "char" "i64" "f64" "i8" "i16" "i32"
-         "u8" "u16" "u32" "u64" "f32" "negative"} t)
+      (contains? public-scalar-types t)
       (let [tid (or (name->type-id t)
                     (throw (ex-info "scalar type not in wire-v1 table yet" {:type t})))
-            data-bs (scalar-data-bytes entry)
+            ;; u256 store data may be byte[]; encode-value returns it as-is
+            data-bs (if (= "u256" t)
+                      (u256-body->wire (second entry))
+                      (scalar-data-bytes entry))
             ;; kind + type_id + dlen + data
             buf (bb (+ 3 (byte-len data-bs)))]
         (put-u8 buf kind-scalar)
@@ -635,13 +833,27 @@
             data-bs (get-bytes buf dlen)]
         (when (pos? (remaining buf))
           (throw (ex-info "trailing garbage in scalar node" {})))
-        ;; Reconstruct typed value from canonical bytes via types when possible
+        ;; Reconstruct typed value from canonical bytes (value-layer layouts)
         (case tname
           "null" ["null" nil]
+          "negative" ["negative" nil]
           "bool" ["bool" (not (zero? (bget data-bs 0)))]
-          "i64" ["i64" (get-i64 (wrap-bytes data-bs))]
-          "f64" ["f64" (get-f64 (wrap-bytes data-bs))]
           "char" ["char" (first (seq (utf8-from-wire data-bs)))]
+          "i8" ["i8" (signed-from-be data-bs)]
+          "i16" ["i16" (signed-from-be data-bs)]
+          "i32" ["i32" (signed-from-be data-bs)]
+          "i64" ["i64" (get-i64 (wrap-bytes data-bs))]
+          "u8" ["u8" (unsigned-from-be data-bs)]
+          "u16" ["u16" (unsigned-from-be data-bs)]
+          "u32" ["u32" (unsigned-from-be data-bs)]
+          "u64" ["u64" (get-u64 (wrap-bytes data-bs))]
+          "u256" ["u256" #?(:clj (let [a (byte-array 32)]
+                                   (dotimes [i 32]
+                                     (aset-byte a i (unchecked-byte (bget data-bs i))))
+                                   a)
+                            :cljs (u256-wire->body data-bs))]
+          "f32" ["f32" (get-f32-from-bytes data-bs)]
+          "f64" ["f64" (get-f64 (wrap-bytes data-bs))]
           (throw (ex-info "scalar type decode not implemented" {:type tname}))))
 
       0x01 ; ft

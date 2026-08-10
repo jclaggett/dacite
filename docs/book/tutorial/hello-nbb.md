@@ -45,28 +45,27 @@ Source: [`examples/dacite/examples/hello.cljs`](https://github.com/jclaggett/dac
    (def st (store/mem-store))
    ```
 
-2. **Build values bound to that store** — constructors take the store explicitly
-   (portable path used by nbb/SCI):
+2. **Build values** — bootstrap with an explicit store, then `*-via` for peers:
 
    ```clojure
-   (def v (coll/vector-with-store st 1 2 3))
-   (def m (coll/hash-map-with-store st
-                                    "hello" (scalar/i64-with-store st 42)
-                                    "vec" v))
+   (def v (v/vector-with-store st 1 2 3))
+   (def m (v/hash-map-via v
+                          "hello" (v/i64-via v 42)
+                          "vec" v))
    ```
 
-3. **Read with `dacite.value.api`** — host-agnostic collection ops:
+3. **Read with `dacite.value`** — collection ops take the value first:
 
    ```clojure
-   (d/count v)              ; => 3
-   (d/get m "hello")        ; => Dacite scalar
-   (types/realize …)        ; => 42
+   (v/count v)              ; => 3
+   (v/get m "hello")        ; => Dacite scalar
+   (v/realize …)            ; => 42
    ```
 
 4. **Content hash** — identity is the hash, independent of store location:
 
    ```clojure
-   (store/hash->hex (types/dacite-hash v))
+   (store/hash->hex (v/dacite-hash v))
    ```
 
 ## Try it in a one-liner
@@ -74,19 +73,16 @@ Source: [`examples/dacite/examples/hello.cljs`](https://github.com/jclaggett/dac
 ```bash
 npx nbb -e "
 (require '[dacite.store :as store]
-         '[dacite.value.api :as d]
-         '[dacite.value.collections :as coll]
-         '[dacite.value.types :as types])
+         '[dacite.value :as v])
 (let [st (store/mem-store)
-      v  (coll/vector-with-store st 1 2 3)]
-  (println (d/count v))
-  (println (store/hash->hex (types/dacite-hash v))))
+      vec (v/vector-with-store st 1 2 3)]
+  (println (v/count vec))
+  (println (store/hash->hex (v/dacite-hash vec))))
 "
 ```
 
 ## Next steps
 
-- **Durable todo** — `npm run todo:batch` or `npm run todo` (file store + root cell)
-- **Browser demo** — [examples/web](https://github.com/jclaggett/dacite/blob/main/examples/web/README.md)
-- **API reference** — [Values](../reference/values.md) · [Stores](../reference/stores.md)
-- **Concepts** — [Content Stores](../01-stores/chapter.md) · [Values](../03-values/chapter.md)
+- [Values API](../reference/values.md) — constructors, `*-via`, root-ref, collection ops
+- [Stores API](../reference/stores.md) — mem, file, rooted stores
+- [Install](../getting-started/install.md) — JVM and other hosts

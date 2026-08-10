@@ -645,6 +645,35 @@
   [& xs]
   (apply dacite-set-with-store store/*store* xs))
 
+;; =============================================================================
+;; Constructors relative to a peer (*-via) — use peer’s store
+;; =============================================================================
+
+(defn string-via
+  "Create a Dacite string in the store of `peer` (value, root-ref, or IStore)."
+  [peer s]
+  (string-with-store (types/store-of peer) s))
+
+(defn blob-via
+  "Create a Dacite blob in the store of `peer`."
+  [peer bs]
+  (blob-with-store (types/store-of peer) bs))
+
+(defn vector-via
+  "Create a Dacite vector in the store of `peer`."
+  [peer & values]
+  (apply vector-with-store (types/store-of peer) values))
+
+(defn hash-map-via
+  "Create a Dacite map in the store of `peer`."
+  [peer & kvs]
+  (apply hash-map-with-store (types/store-of peer) kvs))
+
+(defn set-via
+  "Create a Dacite set in the store of `peer`."
+  [peer & xs]
+  (apply dacite-set-with-store (types/store-of peer) xs))
+
 (defmethod types/coerce-and-store! :blob
   [store x]
   (types/dacite-hash (blob-with-store store x)))

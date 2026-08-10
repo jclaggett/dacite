@@ -11,8 +11,8 @@
      npx nbb -m dacite.examples.todo-ui -- /tmp/my-todos"
   (:require [clojure.string :as str]
             [dacite.examples.todo :as todo]
-            [dacite.value.api :as d]
-            [dacite.hash :as hash]
+            [dacite.store :as store]
+            [dacite.value :as v]
             [promesa.core :as p]))
 
 ;; ---------------------------------------------------------------------------
@@ -58,9 +58,9 @@
 (defn- print-list!
   [path todos]
   (try
-    (let [n (d/count todos)
+    (let [n (v/count todos)
           open (todo/open-count todos)
-          root-hex (hash/hash->hex (d/dacite-hash todos))]
+          root-hex (store/hash->hex (v/dacite-hash todos))]
       (println)
       (println (c "bold.white" "Dacite todos")
                (c "dim" (str "  " path)))
@@ -69,7 +69,7 @@
       (println)
       (if (zero? n)
         (println (c "yellow" "  (empty — add a todo)"))
-        (doseq [[i t] (map-indexed vector (d/seq todos))]
+        (doseq [[i t] (map-indexed vector (v/seq todos))]
           (println (line-for i t))))
       (println))
     (catch :default e
@@ -86,11 +86,11 @@
          (fn [i t]
            {:title (str (if (todo/done? t) "[x] " "[ ] ") (todo/title-str t))
             :value i}))
-        (d/seq todos)))
+        (v/seq todos)))
 
 (defn- action-toggle!
-  [rs todos]
-  (if (zero? (d/count todos))
+  [todos-ref todos]
+  (if (zero? (v/count todos))
     (do (println (c "yellow" "Nothing to toggle."))
         (p/resolved todos))
     (p/let [{:keys [index]}
@@ -101,18 +101,18 @@
       (if (nil? index)
         todos
         (let [t' (todo/toggle-at todos index)]
-          (todo/commit-todos! rs t')
+          (todo/commit-todos! todos-ref t')
           (println (c "green" (str "Toggled #" index)))
           t')))))
 
 (defn- action-add!
-  [rs todos]
+  [todos-ref todos]
   (p/let [{:keys [title]}
           (ask {:type "text"
                 :name "title"
                 :message "New todo title"
-                :validate (fn [v]
-                            (if (str/blank? (str v))
+                :validate (fn [x]
+                            (if (str/blank? (str x))
                               "Title required"
                               true))})]
     (let [title (some-> title str str/trim)]
@@ -120,7 +120,7 @@
         todos
         (try
           (let [t' (todo/add-todo todos title false)]
-            (todo/commit-todos! rs t')
+            (todo/commit-todos! todos-ref t')
             (println (c "green" (str "Added: " title)))
             t')
           (catch :default e
@@ -128,8 +128,8 @@
             todos))))))
 
 (defn- action-remove!
-  [rs todos]
-  (if (zero? (d/count todos))
+  [todos-ref todos]
+  (if (zero? (v/count todos))
     (do (println (c "yellow" "Nothing to remove."))
         (p/resolved todos))
     (p/let [{:keys [index]}
@@ -143,12 +143,12 @@
                 (ask {:type "confirm"
                       :name "ok"
                       :message (str "Delete \""
-                                    (todo/title-str (d/nth todos index))
+                                    (todo/title-str (v/nth todos index))
                                     "\"?")
                       :initial false})]
           (if ok
             (let [t' (todo/remove-at todos index)]
-              (todo/commit-todos! rs t')
+              (todo/commit-todos! todos-ref t')
               (println (c "red" (str "Removed #" index)))
               t')
             todos))))))
@@ -169,14 +169,14 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- run-loop!
-  [rs path todos]
+  [todos-ref path todos]
   (print-list! path todos)
   (p/loop [todos todos]
     (p/let [{:keys [action]} (action-menu)]
       (case action
         "quit"
         (do (println (c "dim" "Saved. Bye."))
-            (println (c "dim" (str "root " (hash/hash->hex (d/dacite-hash todos)))))
+            (println (c "dim" (str "root " (store/hash->hex (v/dacite-hash todos)))))
             nil)
 
         "refresh"
@@ -184,17 +184,17 @@
             (p/recur todos))
 
         "toggle"
-        (p/let [t' (action-toggle! rs todos)]
+        (p/let [t' (action-toggle! todos-ref todos)]
           (print-list! path t')
           (p/recur t'))
 
         "add"
-        (p/let [t' (action-add! rs todos)]
+        (p/let [t' (action-add! todos-ref todos)]
           (print-list! path t')
           (p/recur t'))
 
         "remove"
-        (p/let [t' (action-remove! rs todos)]
+        (p/let [t' (action-remove! todos-ref todos)]
           (print-list! path t')
           (p/recur t'))
 
@@ -209,11 +209,11 @@
       (todo/reset-store-dir! path)
       (println (c "yellow" (str "reset store at " path))))
     (let [rs (todo/open-store path)
-          ;; Values: load root or seed; mutations use todos' carried store
-          [todos seeded?] (todo/load-or-seed! rs)]
+          todos-ref (v/root-ref rs)
+          [todos seeded?] (todo/load-or-seed! todos-ref)]
       (when seeded?
         (println (c "green" (str "seeded new store at " path))))
-      (-> (run-loop! rs path todos)
+      (-> (run-loop! todos-ref path todos)
           (.catch (fn [e]
                     (when-not (= (.-message e) "cancelled")
                       (js/console.error e))

@@ -56,24 +56,40 @@
     (instance? js/ArrayBuffer body) (.-byteLength body)
     :else (count (str body))))
 
+(defn- binary-response-text->u8
+  "Convert responseText from charset=x-user-defined into a Uint8Array.
+
+   Browsers forbid responseType=arraybuffer on synchronous XHR (the demo
+   needs sync so IStore stays blocking). overrideMimeType + this conversion
+   is the portable way to read binary bodies on a sync request."
+  [s]
+  (let [n (if s (.-length s) 0)
+        a (js/Uint8Array. n)]
+    (dotimes [i n]
+      (aset a i (bit-and 0xff (.charCodeAt s i))))
+    a))
+
 (defn- xhr
   "Synchronous XHR.
    body — string (EDN) or Uint8Array (wire-v1).
-   opts: :response-type \"arraybuffer\" for binary responses.
-   Returns {:status n :body string|ArrayBuffer|nil}."
+   opts: :binary-response true — wire-v1 bytes via overrideMimeType
+   (cannot use responseType=arraybuffer on sync XHR from a document).
+   Returns {:status n :body string|Uint8Array|nil}."
   ([method url body headers]
    (xhr method url body headers nil))
-  ([method url body headers {:keys [response-type]}]
+  ([method url body headers {:keys [binary-response]}]
    (let [x (js/XMLHttpRequest.)]
      (.open x method url false)
-     (when response-type
-       (set! (.-responseType x) response-type))
+     ;; Do NOT set responseType — throws on sync XHR in modern browsers.
+     (when binary-response
+       (.overrideMimeType x "text/plain; charset=x-user-defined"))
      (doseq [[k v] headers]
        (.setRequestHeader x (name k) (str v)))
      (.send x (when body body))
-     (let [resp (if (= response-type "arraybuffer")
-                  (.-response x)
-                  (.-responseText x))
+     (let [raw (.-responseText x)
+           resp (if binary-response
+                  (binary-response-text->u8 raw)
+                  raw)
            sent (body-byte-len body)
            recv (body-byte-len resp)]
        (stats/record! (stats/classify-url method url) sent recv)
@@ -121,7 +137,7 @@
         (let [hdrs (if binary?
                      (assoc headers "Accept" bin/content-type-chunk-v1)
                      (assoc headers "Accept" "application/edn"))
-              opts (when binary? {:response-type "arraybuffer"})
+              opts (when binary? {:binary-response true})
               {:keys [status body]} (xhr "GET" (node-url base-url h) nil hdrs opts)]
           (when (= 200 status)
             (apply-get-body! pack-local h body binary?)))))

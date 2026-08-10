@@ -3,98 +3,125 @@
 Practical API for Dacite values as implemented in the Clojure / SCI reference
 library. For design intuition, see [Values](../03-values/chapter.md).
 
+**Public namespace:** `dacite.value` (pair with `dacite.store` for stores).
+
 ## What is a Dacite value?
 
 A value is **store-aware and content-addressed**:
 
 | Property | Access |
 |----------|--------|
-| Content hash | `(types/dacite-hash v)` or `(d/dacite-hash v)` |
-| Owning store | `(types/dacite-store v)` |
-| Type name | `(types/dacite-type v)` — e.g. `"i64"`, `"vector"`, `"map"` |
-| Host content | `(types/realize v)` — explicit, never implicit deref |
+| Content hash | `(v/dacite-hash v)` |
+| Owning store | `(v/dacite-store v)` |
+| Type name | `(v/dacite-type v)` or `(v/value-type v)` |
+| Host content | `(v/realize v)` — explicit, never implicit deref |
 
 Values are immutable. Updates return new values that share unchanged nodes with
 the old ones. Laziness is natural: you only need the nodes you access.
 
 ```clojure
-(require '[dacite.value.api :as d]
-         '[dacite.value.types :as types]
+(require '[dacite.value :as v]
          '[dacite.store :as store])
 ```
-
-On the **JVM**, `dacite.core` also provides Clojure-native constructors and
-`clojure.core` interop on collection types. On **nbb / babashka**, prefer
-`dacite.value.api` and the `*-with-store` constructors.
 
 ---
 
 ## Constructors
 
-### Portable (nbb / babashka / JVM)
+### Relative (`*-via`) — preferred in domain code
 
-Pass an explicit store:
+Use an existing Dacite value, a root-ref, or an `IStore` as the peer:
 
-| Form | Namespace |
-|------|-----------|
-| `(scalar/null-with-store st)` | `dacite.value.scalar` |
-| `(scalar/bool-with-store st b)` | |
-| `(scalar/i64-with-store st n)` | also `i8`…`i32`, `u8`…`u64`, `f32`/`f64`, `dacite-char` |
-| `(coll/string-with-store st s)` | `dacite.value.collections` |
-| `(coll/blob-with-store st bytes)` | |
-| `(coll/vector-with-store st & xs)` | elements auto-coerced or Dacite values |
-| `(coll/hash-map-with-store st & kvs)` | alternating keys/values |
-| `(coll/dacite-set-with-store st & xs)` | |
-
-Plain ints, strings, and keywords are typically coerced when used as elements
-or map keys (see `types/extract-hash`).
-
-### JVM convenience (`dacite.core`)
-
-Uses the dynamic `store/*store*` (default mem store):
+| Form | Role |
+|------|------|
+| `(v/vector-via peer & xs)` | Vector in peer's store |
+| `(v/hash-map-via peer & kvs)` | Map |
+| `(v/set-via peer & xs)` | Set |
+| `(v/string-via peer s)` / `(v/blob-via peer bs)` | Sequences |
+| `(v/i64-via peer n)` (and other scalars) | Typed scalars |
 
 ```clojure
-(require '[dacite.core :as dc])
-
-(dc/i64 42)
-(dc/str "hello")
-(dc/vec [1 2 3])
-(dc/hash-map :a 1 :b 2)
-(dc/dacite-set 1 2 3)
-(dc/realize v)
-(dc/dac->clj v)   ; recursive plain Clojure
-(dc/clj->dac data)
+(defn add-todo [todos title]
+  (v/conj todos (v/hash-map-via todos "title" title "done" false)))
 ```
 
-Isolated store context:
+### Bootstrap (`*-with-store`)
+
+When there is no peer yet (first allocation):
 
 ```clojure
-(dc/with-store [_ (store/mem-store)]
-  (dc/vec [1 2 3]))
+(v/vector-with-store st 1 2 3)
+(v/i64-with-store st 42)
+```
+
+### REPL convenience
+
+Bare constructors use the dynamic `store/*store*` (default mem store):
+
+```clojure
+(v/vector 1 2 3)
+(v/hash-map :a 1)
+(store/with-store [_ (store/mem-store)]
+  (v/vector 1 2 3))
 ```
 
 ---
 
-## Collection API (`dacite.value.api`)
+## Root reference (value-level)
 
-Portable surface for all hosts. First argument is always a Dacite value.
+The store layer keeps a mutable **hash**. Wrap it once for value-level ops:
+
+```clojure
+(def rooted (store/rooted-store (store/mem-store)))
+(def r (v/root-ref rooted))
+
+(v/ref-reset! r (v/vector-via r))
+(v/ref-swap! r v/conj (v/i64-via r 1))
+(v/ref-deref r)   ; => current Dacite value or nil
+```
+
+On the **JVM**, `RootRef` also implements atom interfaces:
+
+```clojure
+@r
+(swap! r v/conj 2)
+(reset! r (v/hash-map-via r "k" "v"))
+(add-watch r :ui (fn [k ref old new] …))   ; old/new are values
+```
+
+Portable function API (nbb / babashka / all hosts):
+
+| Function | Role |
+|----------|------|
+| `root-ref` | Wrap a rooted store |
+| `ref-deref` | Current value or nil |
+| `ref-reset!` | Unconditional set |
+| `ref-swap!` | CAS-retry apply |
+| `ref-cas!` | Value-level compare-and-set |
+| `ref-add-watch` / `ref-remove-watch` | Watch value transitions |
+
+---
+
+## Collection API
+
+First argument is always a Dacite value:
 
 | Function | Role |
 |----------|------|
 | `dacite-value?` | Predicate |
-| `value-type` | Type name string |
-| `realize` | Host content (alias of `types/realize`) |
+| `value-type` / `dacite-type` | Type name string |
+| `realize` | Host content |
 | `dacite-hash` | Content hash |
 | `get-value` | Rehydrate hash from store → value (`[h]` or `[st h]`) |
 | `count` | Element/entry count, O(1) |
 | `empty?` | Zero elements? |
-| `seq` | Elements or map entries as wrapped values; nil if empty |
-| `nth` | Index into vector/string/blob (`[v i]` / `[v i not-found]`) |
-| `get` | Map key, set membership key, or vector index |
+| `seq` | Elements or map entries as wrapped values |
+| `nth` | Index into vector/string/blob |
+| `get` | Map key, set membership, or vector index |
 | `contains?` | Presence of key/index |
 | `assoc` | Vector index or map key → new value |
 | `dissoc` | Remove map key |
-| `conj` | Append (vector) / add entry (map/set) |
+| `conj` | Append / add entry |
 | `peek` / `pop` | Vector end |
 | `remove-nth` | Vector without index |
 | `keys` / `vals` | Map keys or values as wrapped sequences |
@@ -103,10 +130,10 @@ Example:
 
 ```clojure
 (let [st (store/mem-store)
-      v  (coll/vector-with-store st 10 20 30)
-      v2 (d/conj v 40)]
-  [(d/count v) (d/count v2)
-   (types/realize (d/nth v2 3))])
+      vec (v/vector-with-store st 10 20 30)
+      v2  (v/conj vec 40)]
+  [(v/count vec) (v/count v2)
+   (v/realize (v/nth v2 3))])
 ;; => [3 4 40]
 ```
 
@@ -116,8 +143,6 @@ Example:
 
 - Two values with the same type and content have the **same hash** on every
   host (see `bin/hash-parity.sh`).
-- Hash is **shape-independent** for equal logical content under Dacite’s
-  encoding rules (fused hashing — [Hash Fusion](../02-hash-fusion/chapter.md)).
 - Print / log hashes with `(store/hash->hex h)` and parse with
   `(store/hex->hash s)`.
 
@@ -127,9 +152,11 @@ Example:
 
 | Area | Notes |
 |------|-------|
-| Finger-tree / HAMT node types | Internal store entries (`"ft/…"`, `"hamt/…"`) |
+| Finger-tree / HAMT node types | Internal store entries |
 | Wire codecs | `dacite.wire` / `dacite.wire.binary` |
-| Pack / remote / GC | Store layer — see [Stores](stores.md) |
+| `dacite.value.types` / `.scalar` / `.collections` | Implementation |
+| `dacite.value.api` | Deprecated alias of this namespace |
+| `dacite.core` | Deprecated convenience re-export |
 
 ---
 

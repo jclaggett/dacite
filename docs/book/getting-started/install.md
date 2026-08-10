@@ -44,13 +44,11 @@ Ad-hoc scripts:
 
 ```bash
 npx nbb -e "(require '[dacite.store :as store]
-                     '[dacite.value.api :as d]
-                     '[dacite.value.collections :as coll]
-                     '[dacite.value.types :as types])
+                     '[dacite.value :as v])
             (let [st (store/mem-store)
-                  v  (coll/vector-with-store st 1 2 3)]
-              (println (d/count v))
-              (println (store/hash->hex (types/dacite-hash v))))"
+                  vec (v/vector-with-store st 1 2 3)]
+              (println (v/count vec))
+              (println (store/hash->hex (v/dacite-hash vec))))"
 ```
 
 See [Hello World (nbb)](../tutorial/hello-nbb.md) for a guided walkthrough.
@@ -67,14 +65,13 @@ Point a dependency at the library root `impl/clojure` after cloning:
 Then:
 
 ```clojure
-(require '[dacite.core :as d]
-         '[dacite.store :as store]
-         '[dacite.value.types :as types])
+(require '[dacite.value :as v]
+         '[dacite.store :as store])
 
-(store/with-store [_ (store/mem-store)]
-  (let [v (d/vec [1 2 3])]
-    [(d/realize v)
-     (store/hash->hex (types/dacite-hash v))]))
+(let [st (store/mem-store)
+      vec (v/vector-with-store st 1 2 3)]
+  [(v/count vec)
+   (store/hash->hex (v/dacite-hash vec))])
 ```
 
 ### Git dependency (optional)
@@ -96,7 +93,7 @@ From inside `impl/clojure` you can also run the test suite and service:
 ```bash
 cd impl/clojure
 clojure -M:dev:test
-clojure -M:service --port 8080 --mem   # API + browser todo static UI
+clojure -M:service --port 8080 --store mem   # API + browser todo static UI
 ```
 
 ## Browser todo demo
@@ -104,7 +101,7 @@ clojure -M:service --port 8080 --mem   # API + browser todo static UI
 ```bash
 cd impl/clojure
 clojure -M:cljs-web                    # once / after source changes
-clojure -M:service --port 8080 --mem
+clojure -M:service --port 8080 --store mem
 # open http://127.0.0.1:8080/app/
 ```
 

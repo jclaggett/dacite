@@ -1,28 +1,23 @@
 (ns dacite.store
-  "Content-addressed storage for Dacite values (portable core).
+  "Public store API for Dacite (pair with `dacite.value` for values).
 
-   The IStore protocol defines the minimal interface for value storage.
-   All Dacite operations go through this protocol, allowing stores to
-   be swapped, layered, or backed by different media without changing
-   application code.
+   The IStore protocol defines content-addressed storage. Rooted stores
+   add a single mutable root **hash** (Chapter 4). Application value code
+   should wrap a rooted store with `dacite.value/root-ref` and then work
+   with Dacite values rather than hashes.
 
-   Portable built-in implementations (this namespace):
-   - mem-store:     in-memory atom-backed store (default)
-   - layered-store: compose stores with read-through / write-through
-   - lru-store:     bounded in-memory store (dacite.store.lru)
+   Portable:
+   - mem-store, layered-store
+   - rooted-store, root, cas-root!, set-root!, file-root-cell, mem-root-cell
+   - *store*, with-store, hash→hex helpers
 
-   Host-backed implementations live outside the portable core:
-   - file-store:     dacite.store.file (JVM + babashka; java.io)
-   - file-store:     dacite.store.nbb (nbb / Node fs)
-   - lmdb-store:     dacite.store.jvm (JVM + native LMDB)
-   - remote-store:   dacite.store.remote (JVM only for now)
-   - file-root-cell: dacite.rooted (all hosts; hex in {base}/ROOT)
+   Host backends:
+   - file-store / lmdb-store / lmdb-root-cell (JVM re-exports)
+   - nbb file: dacite.store.nbb/file-store (require directly)
+   - browser remote: dacite.store.browser
 
-   Global store management:
-   - *store*:      dynamic var holding the current store
-   - with-store:   execute body with an isolated store
-   - reset-store!: clear the current store
-   - set-store!:   replace the current store"
+   Advanced composition stays in sub-namespaces:
+   dacite.store.lru, .pack, .client-cache, .remote, .browser, .rate-limit."
   (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
@@ -185,3 +180,166 @@
      (bind-store store#
                  (let [result# (do ~@body)]
                    [(s-snapshot store#) result#]))))
+
+;; =============================================================================
+;; Rooted store (hash-level) — deferred re-export from dacite.rooted
+;; =============================================================================
+;; dacite.rooted requires dacite.store, so we cannot :require it in the ns form.
+;; Resolve vars on first use (JVM/CLJ). On CLJS, require at call time.
+
+#?(:clj
+   (do
+     (defn- rooted-var [sym]
+       (requiring-resolve (symbol "dacite.rooted" (name sym))))
+
+     (defn mem-root-cell
+       "Ephemeral root cell (atom only)."
+       [& args]
+       (apply (rooted-var 'mem-root-cell) args))
+
+     (defn file-root-cell
+       "Durable root cell: hex hash in `{base}/ROOT`."
+       [& args]
+       (apply (rooted-var 'file-root-cell) args))
+
+     (defn rooted-store
+       "Wrap a content store with a mutable root hash.
+        One-arg form uses an ephemeral mem-root-cell; two-arg accepts a root cell."
+       [& args]
+       (apply (rooted-var 'rooted-store) args))
+
+     (defn root
+       "Current root hash, or nil if unset."
+       [rs]
+       ((rooted-var 'root) rs))
+
+     (defn cas-root!
+       "Compare-and-set the root hash. Returns true on success."
+       [rs expected new]
+       ((rooted-var 'cas-root!) rs expected new))
+
+     (defn set-root!
+       "Unconditionally set the root hash (local convenience)."
+       [rs new]
+       ((rooted-var 'set-root!) rs new))
+
+     (defn update-root!
+       "Apply f to the current root hash, CAS-retrying until success."
+       [rs f & args]
+       (apply (rooted-var 'update-root!) rs f args))
+
+     (defn add-root-watch
+       "Register hash-level watch (fn [k rs old-hash new-hash])."
+       [rs k f]
+       ((rooted-var 'add-root-watch) rs k f))
+
+     (defn remove-root-watch
+       [rs k]
+       ((rooted-var 'remove-root-watch) rs k))
+
+     (defn set-root-validator!
+       [rs f]
+       ((rooted-var 'set-root-validator!) rs f))
+
+     (defn push-ref
+       [source target]
+       ((rooted-var 'push-ref) source target))
+
+     (defn collect-garbage!
+       "Remove content not reachable from the current root."
+       ([rs] ((rooted-var 'collect-garbage!) rs))
+       ([rs root-hash] ((rooted-var 'collect-garbage!) rs root-hash)))
+
+     (defn rc-get
+       "Persisted root hash from an IRootCell, or nil."
+       [cell]
+       ((rooted-var 'rc-get) cell))
+
+     (defn rc-put!
+       "Persist root hash into an IRootCell."
+       [cell h]
+       ((rooted-var 'rc-put!) cell h)))
+
+   :cljs
+   (do
+     (defn- rooted-var [sym]
+       (require 'dacite.rooted)
+       (resolve (symbol "dacite.rooted" (name sym))))
+
+     (defn mem-root-cell [& args]
+       (apply (rooted-var 'mem-root-cell) args))
+
+     (defn file-root-cell [& args]
+       (apply (rooted-var 'file-root-cell) args))
+
+     (defn rooted-store [& args]
+       (apply (rooted-var 'rooted-store) args))
+
+     (defn root [rs]
+       ((rooted-var 'root) rs))
+
+     (defn cas-root! [rs expected new]
+       ((rooted-var 'cas-root!) rs expected new))
+
+     (defn set-root! [rs new]
+       ((rooted-var 'set-root!) rs new))
+
+     (defn update-root! [rs f & args]
+       (apply (rooted-var 'update-root!) rs f args))
+
+     (defn add-root-watch [rs k f]
+       ((rooted-var 'add-root-watch) rs k f))
+
+     (defn remove-root-watch [rs k]
+       ((rooted-var 'remove-root-watch) rs k))
+
+     (defn set-root-validator! [rs f]
+       ((rooted-var 'set-root-validator!) rs f))
+
+     (defn push-ref [source target]
+       ((rooted-var 'push-ref) source target))
+
+     (defn collect-garbage!
+       ([rs] ((rooted-var 'collect-garbage!) rs))
+       ([rs root-hash] ((rooted-var 'collect-garbage!) rs root-hash)))
+
+     (defn rc-get [cell]
+       ((rooted-var 'rc-get) cell))
+
+     (defn rc-put! [cell h]
+       ((rooted-var 'rc-put!) cell h))))
+
+;; =============================================================================
+;; Host backends (when available on this host)
+;; =============================================================================
+;; File/LMDB implementations live in sub-namespaces that :require this ns, so
+;; we re-export via requiring-resolve on the JVM. On nbb, require
+;; dacite.store.nbb directly (SCI has no requiring-resolve and circular ns
+;; load is awkward). Browser remotes use dacite.store.browser.
+
+#?(:clj
+   (do
+     (defn file-store
+       "Filesystem content store (JVM + babashka; sharded EDN).
+        On nbb use dacite.store.nbb/file-store."
+       [& args]
+       (apply (requiring-resolve 'dacite.store.file/file-store) args))
+
+     (defn- jvm-var [sym]
+       (requiring-resolve (symbol "dacite.store.jvm" (name sym))))
+
+     (defn lmdb-store
+       "LMDB content store (JVM). Values are wire-v1 node payloads.
+        Not available on babashka (native LMDB)."
+       [& args]
+       (apply (jvm-var 'lmdb-store) args))
+
+     (defn lmdb-root-cell
+       "Durable root cell in an LMDB meta database."
+       [& args]
+       (apply (jvm-var 'lmdb-root-cell) args))
+
+     (defn lmdb-close
+       "Close an LMDB environment."
+       [st]
+       ((jvm-var 'lmdb-close) st))))

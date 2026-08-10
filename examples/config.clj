@@ -3,41 +3,40 @@
 
   Goal: Demonstrate a small client that works against a local in-memory
   store today, and can later be pointed at a remote store with minimal
-  (ideally zero) changes to the client logic."
-  (:require [dacite.rooted :as rs]
-            [dacite.store :as store]
-            [dacite.core :as d]
-            [dacite.value :as v]
-            [dacite.value.types :as types]))
+  (ideally zero) changes to the client logic.
 
-(defn make-config-store []
-  (rs/rooted-store (store/mem-store)))
+  Store section creates the rooted store; value section uses root-ref +
+  collection ops only."
+  (:require [dacite.store :as store]
+            [dacite.value :as v]))
 
-(defn init-config! [store]
-  (let [cfg (d/hash-map-with-store store
-                                   "theme"    "dark"
-                                   "timeout"  30
-                                   "features" (v/vector-with-store store "a" "b"))]
-    (reset! store (types/dacite-hash cfg))
+(defn make-config-ref
+  "Store wiring: mem rooted store wrapped as a value-level root-ref."
+  []
+  (v/root-ref (store/rooted-store (store/mem-store))))
+
+(defn init-config!
+  "Seed default config into the root-ref. Returns the config value."
+  [cfg-ref]
+  (let [cfg (v/hash-map-via cfg-ref
+                            "theme"    "dark"
+                            "timeout"  30
+                            "features" (v/vector-via cfg-ref "a" "b"))]
+    (v/ref-reset! cfg-ref cfg)
     cfg))
 
-(defn get-config [store]
-  (when-let [root @store]
-    (v/get-value-with-store store root)))
+(defn get-config
+  "Current config value, or nil if unset."
+  [cfg-ref]
+  (v/ref-deref cfg-ref))
 
-(defn update-config! [store k v]
-  (swap! store (fn [root]
-                 (let [m (v/get-value-with-store store root)
-                       m' (assoc m k v)]
-                   (types/dacite-hash m')))))
+(defn update-config!
+  "Assoc k→val on the current config (CAS-retry via ref-swap!)."
+  [cfg-ref k val]
+  (v/ref-swap! cfg-ref v/assoc k val))
 
 (comment
-  ;; Usage
-  (def store (make-config-store))
-  (init-config! store)
-  ;; => #dacite/map{"theme" "dark", ...}
-
-  (update-config! store "timeout" 60)
-  (get-config store)
-  ;; => updated map value (new hash, same store)
-  )
+  (def cfg (make-config-ref))
+  (init-config! cfg)
+  (update-config! cfg "timeout" 60)
+  (get-config cfg))
