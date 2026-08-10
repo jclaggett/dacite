@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-71a26886.js";
+            window.path_to_searchindex_js = "../searchindex-e75466ab.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-72d4dd4a.js"></script>
@@ -215,45 +215,41 @@ value structure — that is part of the Dacite porting contract.</p>
 </code></pre>
 </li>
 <li>
-<p><strong>Build values bound to that store</strong> — constructors take the store explicitly
-(portable path used by nbb/SCI):</p>
-<pre><code class="language-clojure">(def v (coll/vector-with-store st 1 2 3))
-(def m (coll/hash-map-with-store st
-                                 "hello" (scalar/i64-with-store st 42)
-                                 "vec" v))
+<p><strong>Build values</strong> — bootstrap with an explicit store, then <code>*-via</code> for peers:</p>
+<pre><code class="language-clojure">(def v (v/vector-with-store st 1 2 3))
+(def m (v/hash-map-via v
+                       "hello" (v/i64-via v 42)
+                       "vec" v))
 </code></pre>
 </li>
 <li>
-<p><strong>Read with <code>dacite.value.api</code></strong> — host-agnostic collection ops:</p>
-<pre><code class="language-clojure">(d/count v)              ; =&gt; 3
-(d/get m "hello")        ; =&gt; Dacite scalar
-(types/realize …)        ; =&gt; 42
+<p><strong>Read with <code>dacite.value</code></strong> — collection ops take the value first:</p>
+<pre><code class="language-clojure">(v/count v)              ; =&gt; 3
+(v/get m "hello")        ; =&gt; Dacite scalar
+(v/realize …)            ; =&gt; 42
 </code></pre>
 </li>
 <li>
 <p><strong>Content hash</strong> — identity is the hash, independent of store location:</p>
-<pre><code class="language-clojure">(store/hash-&gt;hex (types/dacite-hash v))
+<pre><code class="language-clojure">(store/hash-&gt;hex (v/dacite-hash v))
 </code></pre>
 </li>
 </ol>
 <h2 id="try-it-in-a-one-liner"><a class="header" href="#try-it-in-a-one-liner">Try it in a one-liner</a></h2>
 <pre><code class="language-bash">npx nbb -e "
 (require '[dacite.store :as store]
-         '[dacite.value.api :as d]
-         '[dacite.value.collections :as coll]
-         '[dacite.value.types :as types])
+         '[dacite.value :as v])
 (let [st (store/mem-store)
-      v  (coll/vector-with-store st 1 2 3)]
-  (println (d/count v))
-  (println (store/hash-&gt;hex (types/dacite-hash v))))
+      vec (v/vector-with-store st 1 2 3)]
+  (println (v/count vec))
+  (println (store/hash-&gt;hex (v/dacite-hash vec))))
 "
 </code></pre>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
-<li><strong>Durable todo</strong> — <code>npm run todo:batch</code> or <code>npm run todo</code> (file store + root cell)</li>
-<li><strong>Browser demo</strong> — <a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web</a></li>
-<li><strong>API reference</strong> — <a href="../reference/values.html">Values</a> · <a href="../reference/stores.html">Stores</a></li>
-<li><strong>Concepts</strong> — <a href="../01-stores/chapter.html">Content Stores</a> · <a href="../03-values/chapter.html">Values</a></li>
+<li><a href="../reference/values.html">Values API</a> — constructors, <code>*-via</code>, root-ref, collection ops</li>
+<li><a href="../reference/stores.html">Stores API</a> — mem, file, rooted stores</li>
+<li><a href="../getting-started/install.html">Install</a> — JVM and other hosts</li>
 </ul>
 
                     </main>

@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-71a26886.js";
+            window.path_to_searchindex_js = "../searchindex-e75466ab.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-72d4dd4a.js"></script>
@@ -225,28 +225,41 @@ and <a href="../04-rooted-stores/chapter.html">Rooted Stores</a>.</p>
 <tr><td><strong>LRU</strong></td><td>all</td><td><code>(dacite.store.lru/lru-store n)</code></td></tr>
 <tr><td><strong>file</strong></td><td>JVM, babashka</td><td><code>(dacite.store.file/file-store path)</code> — <code>{base}/aa/bb/{hex}.edn</code></td></tr>
 <tr><td><strong>file</strong></td><td>nbb</td><td><code>(dacite.store.nbb/file-store path)</code></td></tr>
-<tr><td><strong>LMDB</strong></td><td>JVM</td><td><code>(dacite.store.jvm/lmdb-store path)</code></td></tr>
+<tr><td><strong>LMDB</strong></td><td>JVM</td><td><code>(dacite.store.jvm/lmdb-store path)</code> — content values = <strong>wire-v1 node payload</strong> only; keys = 32-byte hash; root meta = 32-byte hash</td></tr>
 </tbody>
 </table>
 </div>
 <hr>
 <h2 id="rooted-stores"><a class="header" href="#rooted-stores">Rooted stores</a></h2>
 <p>A content store holds immutable nodes. A <strong>root cell</strong> holds one mutable root
-hash for application state (compare-and-set, watches, GC).</p>
+<strong>hash</strong> for application state (compare-and-set, watches, GC). Hash-level ops
+are re-exported on <code>dacite.store</code>:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Concern</th><th>Where</th></tr>
+<tr><th>Op</th><th>Role</th></tr>
 </thead>
 <tbody>
-<tr><td>File root cell</td><td><code>dacite.rooted</code> — <code>{base}/ROOT</code> hex</td></tr>
-<tr><td>GC of unreachable nodes</td><td><code>dacite.rooted.gc</code></td></tr>
-<tr><td>Conceptual model</td><td><a href="../04-rooted-stores/chapter.html">Rooted Stores chapter</a></td></tr>
+<tr><td><code>(store/rooted-store content)</code></td><td>Wrap content with ephemeral root</td></tr>
+<tr><td><code>(store/rooted-store content cell)</code></td><td>Wrap with durable root cell</td></tr>
+<tr><td><code>(store/file-root-cell path)</code></td><td>Hex in <code>{base}/ROOT</code></td></tr>
+<tr><td><code>(store/root rs)</code> / <code>(store/cas-root! …)</code> / <code>(store/set-root! …)</code></td><td>Hash-level root</td></tr>
+<tr><td><code>(store/collect-garbage! rs)</code></td><td>Drop unreachable content</td></tr>
 </tbody>
 </table>
 </div>
-<p>Typical durable CLI pattern (todo example): open file store + root cell → load
-or seed → mutate values → write root.</p>
+<p><strong>Application value code</strong> should wrap the rooted store once and work with
+values, not hashes:</p>
+<pre><code class="language-clojure">(def r (v/root-ref (store/rooted-store (store/file-store path)
+                                       (store/file-root-cell path))))
+(v/ref-swap! r domain-update)
+</code></pre>
+<p>See <a href="values.html#root-reference-value-level">Values — root reference</a> and
+<a href="../04-rooted-stores/chapter.html">Rooted Stores chapter</a>.</p>
+<p>Host ctors on <code>dacite.store</code> (JVM): <code>(store/file-store path)</code>,
+<code>(store/lmdb-store path)</code>, <code>(store/lmdb-root-cell lmdb)</code>. On <strong>nbb</strong>, use
+<code>(dacite.store.nbb/file-store path)</code> (SCI cannot re-export circular host
+backends cleanly).</p>
 <hr>
 <h2 id="client-composition-remote--sync"><a class="header" href="#client-composition-remote--sync">Client composition (remote / sync)</a></h2>
 <p>Interactive clients usually stack:</p>
@@ -282,12 +295,14 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Message</th><th>Default</th></tr>
+<tr><th>Context</th><th>Format</th></tr>
 </thead>
 <tbody>
-<tr><td>Pack chunk GET <code>/node/{hex}</code></td><td><strong>wire-v1 binary</strong> (<code>application/vnd.dacite.chunk.v1</code>)</td></tr>
-<tr><td>Pack chunk POST <code>/nodes</code></td><td><strong>wire-v1 binary</strong></td></tr>
+<tr><td>Pack chunk GET <code>/node/{hex}</code></td><td><strong>wire-v1 chunk</strong> (<code>application/vnd.dacite.chunk.v1</code>)</td></tr>
+<tr><td>Pack chunk POST <code>/nodes</code></td><td><strong>wire-v1 chunk</strong></td></tr>
 <tr><td>Novelty PUT body, <code>/root</code>, CAS</td><td><strong>EDN</strong></td></tr>
+<tr><td>LMDB content values</td><td><strong>wire-v1 node payload only</strong> (no chunk/literal framing)</td></tr>
+<tr><td>File store on disk</td><td><strong>EDN</strong> (host-local; not multi-lang interop)</td></tr>
 </tbody>
 </table>
 </div>
