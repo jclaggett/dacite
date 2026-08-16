@@ -27,13 +27,15 @@
 
    First argument is always a Dacite value: `conj`, `get`, `nth`, `count`, …"
   (:refer-clojure :exclude [vector hash-map set count nth get assoc conj seq
-                            peek pop keys vals contains? dissoc empty?])
+                            peek pop keys vals contains? dissoc empty?
+                            get-in assoc-in update update-in pr-str])
   (:require [dacite.store :as store]
             [dacite.value.types :as types]
             [dacite.value.scalar :as scalar]
             [dacite.value.collections :as coll]
             [dacite.value.root-ref :as root-ref]
-            #?@(:clj [[dacite.convert :as convert]])))
+            #?@(:clj [[dacite.convert :as convert]
+                      [dacite.value.render :as render]])))
 
 ;; =============================================================================
 ;; Accessors
@@ -290,6 +292,154 @@
   [v]
   (when-let [es (coll/map-entries (types/dacite-store v) (types/dacite-hash v))]
     (map second es)))
+
+;; =============================================================================
+;; Field access and path updates (stay on the value — not dac->clj)
+;; =============================================================================
+
+(def ^:dynamic *string-char-limit*
+  "When bound to a number, `native` / `as-str` refuse a Dacite string longer
+   than this many characters (they realize at most that prefix, then throw).
+   `pr-str` uses the same bound to truncate. nil (default) means no limit
+   for `native` / `as-str`; `pr-str` then falls back to 64 characters."
+  nil)
+
+(def ^:private default-pr-str-char-limit 64)
+
+(defn- join-chars
+  "Concatenate a seq of characters without `apply str` (chunked apply
+   can stop at 20+32 = 52 args)."
+  [cs]
+  #?(:clj
+     (let [sb (StringBuilder.)]
+       (doseq [ch cs]
+         (.append sb (clojure.core/str ch)))
+       (.toString sb))
+     :cljs
+     (.join (to-array (map clojure.core/str cs)) "")))
+
+(defn- realize-string
+  "Realize at most `limit` characters of a Dacite string.
+   nil limit = the whole string. Returns [host-string truncated? total-count].
+   Uses lazy `realize` so only the consumed prefix is fetched."
+  [v limit]
+  (let [n (count v)]
+    (if (zero? n)
+      ["" false 0]
+      (let [take-n (if limit (min n limit) n)
+            s (join-chars (take take-n (or (realize v) ())))]
+        [s (> n take-n) n]))))
+
+(defn- refuse-collection [op v]
+  (throw (ex-info (str op " is for scalars and strings; collections stay as values")
+                  {:op op :type (value-type v)})))
+
+(defn native
+  "Host atom for a scalar, or host String for a Dacite string. nil → nil.
+
+   Collections and blobs throw — they are not field-sized atoms. Use
+   collection ops (`get`, `nth`, `seq`) and walk them instead of dumping
+   the tree into RAM.
+
+   Optional `limit` (or dynamic `*string-char-limit*`) is a max character
+   count for Dacite strings: only that prefix is realized, then a longer
+   string throws. nil limit = no cap. Host values pass through unchanged."
+  ([x] (native x *string-char-limit*))
+  ([x limit]
+   (cond
+     (nil? x) nil
+     (not (dacite-value? x)) x
+     :else
+     (case (value-type x)
+       "string" (let [[s truncated? n] (realize-string x limit)]
+                  (when truncated?
+                    (throw (ex-info "string exceeds native char limit"
+                                    {:count n :limit limit})))
+                  s)
+       ("vector" "map" "set" "blob") (refuse-collection "native" x)
+       (realize x)))))
+
+(defn as-str
+  "Host string for a Dacite string or scalar. nil → nil. Collections throw.
+
+   Implemented via `native` (same optional `limit` / `*string-char-limit*`).
+   For field-sized text (titles, theme names). Not a whole-value dump."
+  ([x] (as-str x *string-char-limit*))
+  ([x limit]
+   (let [n (native x limit)]
+     (cond
+       (nil? n) nil
+       (string? n) n
+       :else (clojure.core/str n)))))
+
+(defn pr-str
+  "Bounded debug render. Never throws. Does not dump the tree into RAM.
+
+   Dacite strings realize at most `limit` characters (default
+   `*string-char-limit*` or 64) and render as `\"prefix…\" (n chars)` when
+   longer — same idea as `dacite.value.render`. Other Dacite values use
+   bounded `toString` (JVM) or host `str`. Host values use clojure.core/pr-str."
+  ([x] (pr-str x (or *string-char-limit* default-pr-str-char-limit)))
+  ([x limit]
+   (cond
+     (nil? x) "nil"
+     (and (dacite-value? x) (= "string" (value-type x)))
+     (let [[s truncated? n] (realize-string x limit)]
+       (if truncated?
+         (str "\"" s "…\" (" n " chars)")
+         (clojure.core/pr-str s)))
+     (dacite-value? x)
+     #?(:clj (render/bounded-to-string x)
+        :default (clojure.core/str x))
+     :else (clojure.core/pr-str x))))
+
+(defn get-in
+  "Look up a nested path. Empty path returns v. Missing path → not-found."
+  ([v ks] (get-in v ks nil))
+  ([v ks not-found]
+   (if-not (clojure.core/seq ks)
+     v
+     (loop [cur v
+            ks (clojure.core/seq ks)]
+       (if ks
+         (if (or (nil? cur) (not (dacite-value? cur)))
+           not-found
+           (let [nxt (get cur (first ks) ::missing)]
+             (if (= nxt ::missing)
+               not-found
+               (recur nxt (next ks)))))
+         cur)))))
+
+(defn assoc-in
+  "Assoc at a nested path, creating intermediate maps as needed.
+   `ks` must be non-empty."
+  [v ks x]
+  (when-not (clojure.core/seq ks)
+    (throw (ex-info "assoc-in requires a non-empty path" {:value v})))
+  (let [k (first ks)
+        more (next ks)]
+    (if more
+      (let [child (get v k)
+            child (if (dacite-value? child) child (hash-map-via v))]
+        (assoc v k (assoc-in child more x)))
+      (assoc v k x))))
+
+(defn update
+  "Apply f to the value at k (nil if missing) and assoc the result."
+  ([v k f]
+   (assoc v k (f (get v k))))
+  ([v k f a]
+   (assoc v k (f (get v k) a)))
+  ([v k f a b]
+   (assoc v k (f (get v k) a b)))
+  ([v k f a b & more]
+   (assoc v k (apply f (get v k) a b more))))
+
+(defn update-in
+  "Apply f to the value at path ks (nil if missing) and assoc-in the result.
+   `ks` must be non-empty."
+  [v ks f & args]
+  (assoc-in v ks (apply f (get-in v ks) args)))
 
 ;; =============================================================================
 ;; Root reference (value-level)

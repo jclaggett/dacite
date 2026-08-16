@@ -8,6 +8,7 @@
 
 - [Install](./getting-started/install.md)
 - [Hello World (nbb)](./tutorial/hello-nbb.md)
+- [Remote config](./tutorial/config.md)
 
 # Reference
 

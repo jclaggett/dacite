@@ -192,8 +192,10 @@
 (defn root-ref
   "Wrap a rooted store as a value-level root reference.
 
-   `rooted` must support `dacite.rooted/root`, `cas-root!`, and `set-root!`
-   (typically a RootedStore from `dacite.store/rooted-store`)."
+   `rooted` must implement `dacite.rooted/IRoot` (`root`, `cas-root!`,
+   `set-root!`) — a local `store/rooted-store` or a
+   `store/remote-rooted-store`. `ref-reset!` / `set-root!` throw on a
+   remote store; seed with `ref-cas!` from nil and update with `ref-swap!`."
   [rooted]
   (->RootRef rooted (atom {})))
 
@@ -213,7 +215,10 @@
     (wrap-at st (rs/root st))))
 
 (defn ref-reset!
-  "Unconditionally set the root to Dacite value v (or nil). Returns the new value."
+  "Unconditionally set the root to Dacite value v (or nil). Returns the new value.
+
+   Local-only. On a remote rooted store this throws — use `ref-cas!` (seed
+   from nil) or `ref-swap!` (shared update)."
   [r v]
   (let [st (ref-store r)
         old-h (rs/root st)

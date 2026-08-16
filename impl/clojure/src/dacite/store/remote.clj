@@ -18,6 +18,7 @@
             [dacite.store.stats :as stats]
             [dacite.store.pack :as pack]
             [dacite.store.client-cache :as client-cache]
+            [dacite.rooted :as rs]
             [dacite.rooted.gc :as gc]
             [dacite.wire :as wire]
             [dacite.wire.binary :as bin])
@@ -152,6 +153,38 @@
       (pack/apply-chunk! pack-local chunk)
       data)))
 
+(declare remote-get-root remote-cas-root!)
+
+(defrecord RemoteRootedStore [content]
+  store/IStore
+  (s-get [_ h] (store/s-get content h))
+  (s-put [this h value]
+    (store/s-put content h value)
+    this)
+  (s-has? [_ h] (store/s-has? content h))
+  (s-delete [this h]
+    (store/s-delete content h)
+    this)
+  (s-snapshot [_] (store/s-snapshot content))
+  (s-merge [this m]
+    (store/s-merge content m)
+    this)
+  (s-reset [this]
+    (store/s-reset content)
+    this)
+
+  pack/IChunkTransport
+  (send-chunk! [_ chunk]
+    (pack/send-chunk! (pack/find-chunk-transport content) chunk))
+
+  rs/IRoot
+  (-root [_] (remote-get-root content))
+  (-cas-root! [_ expected new] (remote-cas-root! content expected new))
+  (-set-root! [_ _]
+    (throw (ex-info
+            "set-root! is not offered on a remote store (unsafe under sharing). Use cas-root! or value-level ref-cas! / ref-swap!."
+            {:op :set-root!}))))
+
 (defn- unwrap-remote
   "Peel wrappers to the underlying RemoteStore for base-url / client fields.
 
@@ -161,6 +194,7 @@
   (loop [r remote]
     (cond
       (instance? RemoteStore r) r
+      (instance? RemoteRootedStore r) (recur (:content r))
       (and (record? r) (contains? r :remote)) (recur (:remote r))
       (and (record? r) (contains? r :inner)) (recur (:inner r))
       (and (record? r) (contains? r :layers)) (recur (last (:layers r)))
@@ -262,6 +296,25 @@
     (when (= 200 status)
       (when-let [hex (:root data)]
         (store/hex->hash hex)))))
+
+(defn remote-rooted-store
+  "HTTP content store plus the server root, for `dacite.value/root-ref`.
+
+   Same domain code as a local `store/rooted-store`. `root` and `cas-root!`
+   hit GET /root and POST /root/cas. `set-root!` / `ref-reset!` throw
+   (local-only under sharing).
+
+   base-url — server origin, e.g. \"http://127.0.0.1:8080\"
+   opts — {:policy :write-back|:none|:layered|:smart-put  ; default :write-back
+           :binary true|false
+           :headers {…}
+           :client HttpClient}"
+  [base-url & [{:keys [policy] :or {policy :write-back} :as opts}]]
+  (let [raw (remote-store base-url (dissoc (or opts {}) :policy))
+        content (if (or (nil? policy) (= policy :none))
+                  raw
+                  (client-cache/wrap raw policy))]
+    (->RemoteRootedStore content)))
 
 (defn remote-cas-root!
   "Compare-and-set root on the server. Returns true on success.

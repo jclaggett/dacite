@@ -52,42 +52,17 @@
   ([todos title done?]
    (v/conj todos (v/hash-map-via todos "title" title "done" done?))))
 
-(defn- field-native
-  "Native host value for map field k, or nil."
-  [todo k]
-  (try
-    (when (todo-entry? todo)
-      (let [x (v/get todo k)]
-        (cond
-          (nil? x) nil
-          (v/dacite-value? x) (v/realize x)
-          :else x)))
-    (catch #?(:clj Throwable :cljs :default) _
-      nil)))
-
 (defn title-str
   "Title of a todo entry as a native string."
   [todo]
-  (try
-    (when-not (todo-entry? todo)
-      (throw (ex-info "not a todo entry" {:type (when (v/dacite-value? todo)
-                                                  (v/value-type todo))})))
-    (let [x (v/get todo "title")]
-      (cond
-        (nil? x) "<?no-title?>"
-        (not (v/dacite-value? x)) (str x)
-        :else
-        (let [r (v/realize x)]
-          (cond
-            (string? r) r
-            (nil? r) "<?empty?>"
-            :else (apply str r)))))
-    (catch #?(:clj Throwable :cljs :default) e
-      (str "<?" #?(:clj (.getMessage e) :cljs (.-message e)) "?>"))))
+  (if-not (todo-entry? todo)
+    (throw (ex-info "not a todo entry" {:type (when (v/dacite-value? todo)
+                                                (v/value-type todo))}))
+    (or (v/as-str (v/get todo "title")) "<?no-title?>")))
 
 (defn done?
   [todo]
-  (boolean (field-native todo "done")))
+  (boolean (v/native (v/get todo "done"))))
 
 (defn set-done
   "Return a new todo entry with done flag set."

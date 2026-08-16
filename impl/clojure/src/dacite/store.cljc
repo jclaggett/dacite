@@ -13,6 +13,7 @@
 
    Host backends:
    - file-store / lmdb-store / lmdb-root-cell (JVM re-exports)
+   - remote-rooted-store (JVM HTTP + server root; use with value/root-ref)
    - nbb file: dacite.store.nbb/file-store (require directly)
    - browser remote: dacite.store.browser
 
@@ -342,4 +343,15 @@
      (defn lmdb-close
        "Close an LMDB environment."
        [st]
-       ((jvm-var 'lmdb-close) st))))
+       ((jvm-var 'lmdb-close) st))
+
+     (defn remote-rooted-store
+       "HTTP content + server root as a rooted store. Use with `dacite.value/root-ref`.
+
+        Same value API as a local rooted store. `set-root!` / `ref-reset!` throw
+        (local-only). Default client-cache policy is `:write-back`.
+
+        (store/remote-rooted-store \"http://127.0.0.1:8080\")
+        (store/remote-rooted-store url {:policy :none})"
+       [& args]
+       (apply (requiring-resolve 'dacite.store.remote/remote-rooted-store) args))))

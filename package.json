@@ -7,7 +7,8 @@
     "hello": "nbb -m dacite.examples.hello",
     "parity": "nbb -m dacite.examples.parity",
     "todo": "nbb -m dacite.examples.todo-ui",
-    "todo:batch": "nbb -m dacite.examples.todo"
+    "todo:batch": "nbb -m dacite.examples.todo",
+    "config": "nbb -m dacite.examples.config"
   },
   "dependencies": {
     "chalk": "^4.1.2",

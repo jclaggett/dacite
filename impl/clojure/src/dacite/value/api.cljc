@@ -4,7 +4,8 @@
    Prefer `(require '[dacite.value :as v])`. This namespace re-exports the
    portable collection surface for one alpha transition period."
   (:refer-clojure :exclude [count nth get assoc conj seq peek pop keys vals
-                            contains? dissoc empty?])
+                            contains? dissoc empty? get-in assoc-in update update-in
+                            pr-str])
   (:require [dacite.value :as v]))
 
 (def dacite-value? v/dacite-value?)
@@ -26,3 +27,10 @@
 (def remove-nth    v/remove-nth)
 (def keys          v/keys)
 (def vals          v/vals)
+(def native        v/native)
+(def as-str        v/as-str)
+(def pr-str        v/pr-str)
+(def get-in        v/get-in)
+(def assoc-in      v/assoc-in)
+(def update        v/update)
+(def update-in     v/update-in)

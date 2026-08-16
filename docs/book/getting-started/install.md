@@ -30,6 +30,7 @@ From the repo root:
 ```bash
 npm install
 npm run hello          # Hello World
+npm run config         # config CLI (file store)
 npm run todo:batch     # durable todo list (non-interactive)
 npm run todo           # interactive todo UI
 ```

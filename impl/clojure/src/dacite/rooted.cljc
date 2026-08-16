@@ -100,6 +100,19 @@
 ;; Rooted store
 ;; =============================================================================
 
+(defprotocol IRoot
+  "A store that exposes the Chapter 4 root cell (one mutable hash).
+
+   Local `RootedStore` and remote HTTP wrappers both implement this so
+   `root` / `cas-root!` / `set-root!` and `dacite.value/root-ref` work
+   without dropping to hashes in application code."
+  (-root [this]
+    "Current root hash, or nil if unset.")
+  (-cas-root! [this expected new]
+    "Compare-and-set the root. Returns true on success.")
+  (-set-root! [this new]
+    "Unconditional set. Local convenience — remote implementations throw."))
+
 (defn- validate! [this v]
   (when-let [vf @(:validator this)]
     (when-not (vf v)
@@ -140,6 +153,23 @@
     (vector old new)))
 
 (defrecord RootedStore [content root-atom cell watches validator]
+  IRoot
+  (-root [_] @root-atom)
+  (-cas-root! [this expected new]
+    (validate! this new)
+    (loop []
+      (let [current @root-atom]
+        (if (not= expected current)
+          false
+          (if (compare-and-set! root-atom current new)
+            (do (commit! this current new) true)
+            (recur))))))
+  (-set-root! [this new]
+    (validate! this new)
+    (let [[old new'] (reset-vals! root-atom new)]
+      (commit! this old new')
+      new'))
+
   store/IStore
   (s-get [_ h] (store/s-get content h))
   (s-put [this h value]
@@ -211,34 +241,23 @@
 (defn root
   "Current root hash, or nil if unset."
   [rs]
-  @(:root-atom rs))
+  (-root rs))
 
 (defn cas-root!
   "Compare-and-set the root. Succeeds only when the current root equals
    expected by value (including nil) — hash vectors compare with `=`, not
    identity, so this is safe for hex round-trips and language ports.
-   Persists via the root cell. Returns true on success, false on conflict."
+   Persists via the root cell (local) or the server CAS (remote).
+   Returns true on success, false on conflict."
   [rs expected new]
-  (validate! rs new)
-  (let [root-atom (:root-atom rs)]
-    (loop []
-      (let [current @root-atom]
-        (if (not= expected current)
-          false
-          ;; CAS with `current` (the live reference) so the atom's
-          ;; identical? check succeeds when the value still matches.
-          (if (compare-and-set! root-atom current new)
-            (do (commit! rs current new) true)
-            (recur)))))))
+  (-cas-root! rs expected new))
 
 (defn set-root!
   "Unconditionally set the root (local convenience). Not offered for
-   remote stores under concurrency — use cas-root! instead."
+   remote stores under concurrency — those implementations throw.
+   Use cas-root! instead."
   [rs new]
-  (validate! rs new)
-  (let [[old new'] (reset-vals! (:root-atom rs) new)]
-    (commit! rs old new')
-    new'))
+  (-set-root! rs new))
 
 (defn update-root!
   "Apply f to the current root (and optional args), CAS-retrying until

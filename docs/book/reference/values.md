@@ -93,11 +93,11 @@ Portable function API (nbb / babashka / all hosts):
 
 | Function | Role |
 |----------|------|
-| `root-ref` | Wrap a rooted store |
+| `root-ref` | Wrap a local or remote rooted store |
 | `ref-deref` | Current value or nil |
-| `ref-reset!` | Unconditional set |
+| `ref-reset!` | Unconditional set (**local only** — throws on remote) |
 | `ref-swap!` | CAS-retry apply |
-| `ref-cas!` | Value-level compare-and-set |
+| `ref-cas!` | Value-level compare-and-set (use from `nil` to seed a remote) |
 | `ref-add-watch` / `ref-remove-watch` | Watch value transitions |
 
 ---
@@ -125,6 +125,11 @@ First argument is always a Dacite value:
 | `peek` / `pop` | Vector end |
 | `remove-nth` | Vector without index |
 | `keys` / `vals` | Map keys or values as wrapped sequences |
+| `native` | Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char `limit` (or `*string-char-limit*`) realizes at most that prefix, then throws if the string is longer. |
+| `as-str` | `(str (native x))` — same optional limit. Field-sized text only. |
+| `pr-str` | Bounded debug render. Never throws. Long strings: `"prefix…" (n chars)`. |
+| `get-in` / `assoc-in` | Nested path lookup / update (creates intermediate maps) |
+| `update` / `update-in` | Apply a fn at a key or path; result is assoc'd back |
 
 Example:
 
@@ -164,4 +169,5 @@ Example:
 
 - [Stores API](stores.md)
 - [Hello World (nbb)](../tutorial/hello-nbb.md)
+- [Remote config](../tutorial/config.md)
 - [Install](../getting-started/install.md)

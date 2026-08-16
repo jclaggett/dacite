@@ -24,6 +24,15 @@
                      "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
           :main-opts ["-e" "(load-file \"../../examples/cards.clj\") (examples.cards/-main)"]}
 
+  ;; Remote config: same domain against file or HTTP
+  ;;   clojure -M:config -- show
+  ;;   clojure -M:config -- --path target/dacite-config set timeout 60
+  ;;   clojure -M:config -- --url http://127.0.0.1:8080 show
+  :config {:extra-paths ["../../examples"]
+           :jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
+                      "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
+           :main-opts ["-m" "dacite.examples.config"]}
+
   ;; HTTP service + static todo web UI
   ;;   cd impl/clojure && clojure -M:service
   ;;   clojure -M:service --port 8080 --store mem

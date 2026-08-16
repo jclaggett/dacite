@@ -57,20 +57,30 @@ From `impl/clojure`:
 clojure -M:cards    # durable LMDB rooted-store card game
 ```
 
-See [examples/](examples/) for `cards.clj` and `config.clj`.
+See [examples/](examples/) for `cards.clj` and the portable config/todo apps.
 
-Portable examples run on every host (JVM, babashka, nbb). Todo is a **durable**
-rooted-store app (file content + `ROOT`).
+Portable examples run on every host (JVM, babashka, nbb). Config and todo are
+**durable** rooted-store apps (file content + `ROOT`). Config is the same
+domain against a file store **or** `clojure -M:service`.
 
 ```bash
 npm install
 npm run hello                      # Hello World (mem store + hashes)
+npm run config                     # config CLI (file store)
 npm run todo                       # interactive nbb UI (chalk + prompts)
 npm run todo:batch                 # non-interactive list
 npx nbb -m dacite.examples.todo-ui -- --reset
+bb config show                     # babashka config (file store)
 bb todo                            # babashka batch (java.io file store)
 bin/hash-parity.sh                 # assert identical root hash on all hosts
+
+# JVM — file or HTTP (start the service in another terminal)
+cd impl/clojure
+clojure -M:config -- --reset show
+clojure -M:config -- --url http://127.0.0.1:8080 set timeout 60
 ```
+
+See [Remote config](https://dacite.io/book/tutorial/config.html) ([source](docs/book/tutorial/config.md)).
 
 ### Browser demo (HTTP service + Dacite values in the browser)
 

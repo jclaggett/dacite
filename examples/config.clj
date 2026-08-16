@@ -1,42 +1,17 @@
 (ns examples.config
-  "Example config manager client using a local rooted Dacite store.
+  "Moved: portable config app is `dacite.examples.config`.
 
-  Goal: Demonstrate a small client that works against a local in-memory
-  store today, and can later be pointed at a remote store with minimal
-  (ideally zero) changes to the client logic.
-
-  Store section creates the rooted store; value section uses root-ref +
-  collection ops only."
-  (:require [dacite.store :as store]
+   clojure -M:config -- show
+   clojure -M:config -- --url http://127.0.0.1:8080 set timeout 60"
+  (:require [dacite.examples.config :as cfg]
             [dacite.value :as v]))
 
 (defn make-config-ref
-  "Store wiring: mem rooted store wrapped as a value-level root-ref."
+  "Mem rooted store wrapped as a value-level root-ref."
   []
-  (v/root-ref (store/rooted-store (store/mem-store))))
+  (v/root-ref (cfg/open-mem)))
 
-(defn init-config!
-  "Seed default config into the root-ref. Returns the config value."
-  [cfg-ref]
-  (let [cfg (v/hash-map-via cfg-ref
-                            "theme"    "dark"
-                            "timeout"  30
-                            "features" (v/vector-via cfg-ref "a" "b"))]
-    (v/ref-reset! cfg-ref cfg)
-    cfg))
-
-(defn get-config
-  "Current config value, or nil if unset."
-  [cfg-ref]
-  (v/ref-deref cfg-ref))
-
-(defn update-config!
-  "Assoc k→val on the current config (CAS-retry via ref-swap!)."
-  [cfg-ref k val]
-  (v/ref-swap! cfg-ref v/assoc k val))
-
-(comment
-  (def cfg (make-config-ref))
-  (init-config! cfg)
-  (update-config! cfg "timeout" 60)
-  (get-config cfg))
+(def init-config! cfg/load-or-seed!)
+(def get-config v/ref-deref)
+(defn update-config! [cfg-ref k val]
+  (v/ref-swap! cfg-ref cfg/set-path [k] val))

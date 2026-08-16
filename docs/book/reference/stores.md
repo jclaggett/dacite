@@ -61,16 +61,25 @@ are re-exported on `dacite.store`:
 | `(store/rooted-store content cell)` | Wrap with durable root cell |
 | `(store/file-root-cell path)` | Hex in `{base}/ROOT` |
 | `(store/root rs)` / `(store/cas-root! …)` / `(store/set-root! …)` | Hash-level root |
+| `(store/remote-rooted-store url)` | HTTP content + server root (`IRoot`; JVM) |
 | `(store/collect-garbage! rs)` | Drop unreachable content |
 
 **Application value code** should wrap the rooted store once and work with
 values, not hashes:
 
 ```clojure
+;; local file
 (def r (v/root-ref (store/rooted-store (store/file-store path)
                                        (store/file-root-cell path))))
+
+;; same value API over HTTP (JVM)
+(def r (v/root-ref (store/remote-rooted-store "http://127.0.0.1:8080")))
+
 (v/ref-swap! r domain-update)
 ```
+
+`set-root!` / `ref-reset!` throw on a remote rooted store. Seed with
+`ref-cas!` from `nil`; update with `ref-swap!`.
 
 See [Values — root reference](values.md#root-reference-value-level) and
 [Rooted Stores chapter](../04-rooted-stores/chapter.md).

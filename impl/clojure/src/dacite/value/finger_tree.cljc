@@ -306,18 +306,24 @@
                     (measure-of store right))))))
 
 (defn- tree-to-seq*
-  "Sequence of leaf or spine-node hashes in order."
+  "Lazy sequence of leaf value hashes in order.
+
+   Walks digits, nodes, and deep spines all the way to non-ft/* leaves.
+   A single `mapcat get-children` on the spine is not enough: overflow
+   can leave a mix of leaves and `ft/node` cells under a digit."
   [store root]
   (let [node (lookup store root)]
     (case (node-type node)
-      "ft/empty" []
+      "ft/empty" nil
+      ("ft/digit" "ft/node")
+      (mapcat #(tree-to-seq* store %) (get-children store root))
       "ft/deep"
       (let [{:keys [left spine right]} (node-data node)]
-        (concat
-         (get-children store left)
-         (mapcat #(get-children store %) (tree-to-seq* store spine))
-         (get-children store right)))
-      [root])))
+        (concat (tree-to-seq* store left)
+                (tree-to-seq* store spine)
+                (tree-to-seq* store right)))
+      ;; bare leaf (scalar, public collection, …)
+      (list root))))
 
 (defn- scan-children [store children idx]
   (loop [cs (seq children) remaining idx]

@@ -88,8 +88,9 @@ why without materializing the whole value.
 | Why (so far) | Targeted utility | Status |
 |---|---|---|
 | REPL / `println` / logs | Bounded render (`dacite.value.render`, `toString`, `print-method`) | Shipped — the model |
-| Read a scalar or short string field | `v/native` / `v/str` (names TBD) | Pulled by remote config |
-| Nested document edit | `get-in` / `assoc-in` / `update` / `update-in` | Pulled by config + notes |
+| Read a scalar or short string field | `v/native` / `v/as-str` (optional char limit; `as-str` via `native`) | Shipped (pulled by remote config) |
+| Bounded print of long strings | `v/pr-str` (truncates; never dumps the tree) | Shipped (pulled by remote config) |
+| Nested document edit | `get-in` / `assoc-in` / `update` / `update-in` | Shipped (pulled by remote config) |
 | Show a page of a large vector | Slice / range that stays on Dacite values | Pulled by event log |
 | Export / interop (JSON, files) | A *specific* encoder that streams or bounds | Only if an app needs it |
 
@@ -153,14 +154,15 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 - [x] Book chapters 1–4
 - [x] Values / Stores API reference
 - [x] Hello World (nbb) tutorial
-- [ ] Tutorials written from real apps (starts with remote config)
+- [x] Remote config tutorial (`docs/book/tutorial/config.md`)
+- [ ] Tutorials written from later apps (notes, event log, …)
 
 ### Examples today
 
 | App | What it proves | What it does not |
 |---|---|---|
 | Hello nbb | Constructors, `realize`, hash identity | Persistence, sync, a user |
-| [config.clj](../examples/config.clj) | Tiny mem snippet | Remote swap (its own stated goal); no `-main` |
+| [config](../examples/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX, SSE |
 | [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, partial load |
@@ -168,9 +170,8 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 Library-pain already visible in those apps (fix in the library, not with
 more helpers):
 
-- `title-str` / `field-native` — ~20 lines to read a string field
+- ~~`title-str` / `field-native` — ~20 lines to read a string field~~ (now `v/as-str` / `v/native`)
 - Cards shuffle dumps to a host vector
-- No `get-in` / `assoc-in` / `update` / `update-in`
 - Browser todo commits at the hash/CAS level, not `v/root-ref`
 - Sync XHR blocks the main thread
 
@@ -180,30 +181,17 @@ more helpers):
 
 Do not start the next app until the current one is usable from the README.
 
-### 1. Remote config — finish the advertised use case
+### 1. Remote config — done
 
 **Claim:** the server publishes a root hash; clients pull only what they
 need. Same domain against mem, file, and HTTP.
 
-Build what [config.clj](../examples/config.clj) already describes: a small
-config map (`theme`, `timeout`, nested `features`) with:
-
-- a CLI that reads/writes a local file-rooted store
-- the same commands against `clojure -M:service`
-- a second process that picks up a new root (poll is enough)
-
-**Pulls, if the API is honest:**
-
-- `v/root-ref` over a remote store
-- field access that is not `title-str` (`v/native` / `v/str`, names TBD)
-- `v/get-in` / `v/assoc-in` for nested keys
-- a documented “open local vs open remote” recipe
-
-**Done when:** one domain namespace, two store wirings, and a test that the
-same config hash is visible on both sides. If that takes more than a thin
-store adapter, the public API is not ready.
-
-This is the smallest app that can fail the thesis.
+Shipped: [config.cljc](../examples/dacite/examples/config.cljc),
+`store/remote-rooted-store`, `v/native` / `v/as-str` / `get-in` /
+`assoc-in` / `update` / `update-in`, tutorial
+[config.md](book/tutorial/config.md). Two HTTP clients see the same
+config hash (`dacite.examples.config-test`). Seed uses `ref-cas!` from
+nil — `ref-reset!` stays local-only.
 
 ### 2. Versioned notes — prove snapshots and sharing
 
@@ -314,11 +302,11 @@ Treat this as a backlog that **appears**, not a build order.
 
 **Pulled by config + notes**
 
-| Gap | Why |
-|---|---|
-| `v/str` / `v/native` (names TBD) | Stop writing `title-str` |
-| `get-in` / `assoc-in` / `update` / `update-in` | Nested documents are unwritable otherwise |
-| Remote `root-ref` | Domain must not drop to hashes for HTTP |
+| Gap | Why | Status |
+|---|---|---|
+| `v/as-str` / `v/native` | Stop writing `title-str` | Done (config) |
+| `get-in` / `assoc-in` / `update` / `update-in` | Nested documents | Done (config) |
+| Remote `root-ref` | Domain must not drop to hashes for HTTP | Done (`IRoot` + `remote-rooted-store`) |
 
 **Pulled by the event log**
 
@@ -376,8 +364,8 @@ use one of them.
 ## Suggested order (from here)
 
 ```
-Remote config (same domain, file + HTTP)
-        → pull: field access, get-in/assoc-in, remote root-ref
+Remote config (same domain, file + HTTP)           ✓
+        → pulled: field access, get-in/assoc-in, remote root-ref
 Versioned notes (history + restore)
         → pull: path updates, string/blob UX, print
         → first tutorial that is not Hello World

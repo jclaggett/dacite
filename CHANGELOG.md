@@ -6,6 +6,24 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### Remote config app
+
+- **`dacite.examples.config`** — same domain against a file-rooted store
+  and `store/remote-rooted-store` (HTTP). Seed with `ref-cas!` from nil;
+  CLI: `show` / `get` / `set` / `add-feature` / `watch`.
+- **`v/native`**, **`v/as-str`**, **`v/pr-str`**, **`v/get-in`**,
+  **`v/assoc-in`**, **`v/update`**, **`v/update-in`** — field and path ops
+  that stay on Dacite values (not `dac->clj`). `as-str` is `native` then
+  stringify. `*string-char-limit*` / an optional limit realizes at most
+  that many string characters (`native`/`as-str` throw if longer;
+  `pr-str` renders `"prefix…" (n chars)`).
+- **`ft-seq` flattens to leaves** — a 100-char string now realizes all
+  100 characters (overflowed digits can mix leaves and `ft/node` cells;
+  seq used to stop at 52).
+- **`dacite.rooted/IRoot`** — local `RootedStore` and remote HTTP wrapper
+  share `root` / `cas-root!`. Remote `set-root!` / `ref-reset!` throw.
+- Tutorial: [docs/book/tutorial/config.md](docs/book/tutorial/config.md)
+
 ### Roadmap
 
 - **Application-driven next phase** — [docs/roadmap.md](docs/roadmap.md)

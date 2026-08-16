@@ -139,6 +139,15 @@
     (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
                         (store/s-snapshot st))))))
 
+(deftest long-string-seq-matches-count
+  ;; Overflowed digits mix leaves and nodes; seq must flatten to every char.
+  (let [st (store/mem-store)
+        s (v/string-with-store st (apply str (repeat 100 \x)))]
+    (is (= 100 (v/count s)))
+    (is (= 100 (count (v/seq s))))
+    (is (= 100 (count (v/realize s))))
+    (is (= (apply str (repeat 100 \x)) (v/native s)))))
+
 (deftest concat-and-rest
   (let [st (store/mem-store)
         as (mapv #(put-i64 st %) [1 2 3])
