@@ -6,6 +6,15 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### Roadmap
+
+- **Application-driven next phase** — [docs/roadmap.md](docs/roadmap.md)
+  rewritten around writing apps that prove the thesis and pull library work.
+  Sequence: remote config → versioned notes → event log → two-client live →
+  directory/blob sync. `dac->clj` is documented as a JVM emergency hatch, not
+  a portable API goal; specific “whys” (print, field access, path updates)
+  get targeted value utilities instead.
+
 ### API cleanup (two public namespaces)
 
 - **Public surface** is now `dacite.value` + `dacite.store` for application code
