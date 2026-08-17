@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e75466ab.js";
+            window.path_to_searchindex_js = "../searchindex-57d11692.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-72d4dd4a.js"></script>
+        <script src="../toc-5f6586a6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -260,11 +260,12 @@ the old ones. Laziness is natural: you only need the nodes you access.</p>
 <tr><th>Function</th><th>Role</th></tr>
 </thead>
 <tbody>
-<tr><td><code>root-ref</code></td><td>Wrap a rooted store</td></tr>
+<tr><td><code>root-ref</code></td><td>Wrap a local or remote rooted store</td></tr>
 <tr><td><code>ref-deref</code></td><td>Current value or nil</td></tr>
-<tr><td><code>ref-reset!</code></td><td>Unconditional set</td></tr>
+<tr><td><code>ref-reset!</code></td><td>Unconditional set (<strong>local only</strong> — throws on remote)</td></tr>
 <tr><td><code>ref-swap!</code></td><td>CAS-retry apply</td></tr>
-<tr><td><code>ref-cas!</code></td><td>Value-level compare-and-set</td></tr>
+<tr><td><code>ref-swap-info!</code></td><td>Same, but <code>{:value new :retries n}</code> — retries are lost-update recoveries</td></tr>
+<tr><td><code>ref-cas!</code></td><td>Value-level compare-and-set (use from <code>nil</code> to seed a remote)</td></tr>
 <tr><td><code>ref-add-watch</code> / <code>ref-remove-watch</code></td><td>Watch value transitions</td></tr>
 </tbody>
 </table>
@@ -294,7 +295,14 @@ the old ones. Laziness is natural: you only need the nodes you access.</p>
 <tr><td><code>conj</code></td><td>Append / add entry</td></tr>
 <tr><td><code>peek</code> / <code>pop</code></td><td>Vector end</td></tr>
 <tr><td><code>remove-nth</code></td><td>Vector without index</td></tr>
+<tr><td><code>subvec</code></td><td><code>[start, end)</code> as a new vector (shared leaves; O(k log n))</td></tr>
 <tr><td><code>keys</code> / <code>vals</code></td><td>Map keys or values as wrapped sequences</td></tr>
+<tr><td><code>native</code></td><td>Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char <code>limit</code> (or <code>*string-char-limit*</code>) realizes at most that prefix, then throws if the string is longer.</td></tr>
+<tr><td><code>as-str</code></td><td><code>(str (native x))</code> — same optional limit. Field-sized text only.</td></tr>
+<tr><td><code>as-bytes</code></td><td>Host bytes for a blob. Optional limit; missing nodes throw <code>:dacite/missing</code>.</td></tr>
+<tr><td><code>pr-str</code></td><td>Bounded debug render. Never throws. Long strings: <code>"prefix…" (n chars)</code>.</td></tr>
+<tr><td><code>get-in</code> / <code>assoc-in</code></td><td>Nested path lookup / update (creates intermediate maps)</td></tr>
+<tr><td><code>update</code> / <code>update-in</code></td><td>Apply a fn at a key or path; result is assoc’d back</td></tr>
 </tbody>
 </table>
 </div>
@@ -335,6 +343,11 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 <ul>
 <li><a href="stores.html">Stores API</a></li>
 <li><a href="../tutorial/hello-nbb.html">Hello World (nbb)</a></li>
+<li><a href="../tutorial/config.html">Remote config</a></li>
+<li><a href="../tutorial/notes.html">Versioned notes</a></li>
+<li><a href="../tutorial/event-log.html">Event log</a></li>
+<li><a href="../tutorial/two-client.html">Two-client live</a></li>
+<li><a href="../tutorial/sync.html">Directory / blob sync</a></li>
 <li><a href="../getting-started/install.html">Install</a></li>
 </ul>
 
@@ -342,7 +355,7 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../tutorial/hello-nbb.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../tutorial/sync.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -356,7 +369,7 @@ host (see <code>bin/hash-parity.sh</code>).</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../tutorial/hello-nbb.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../tutorial/sync.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

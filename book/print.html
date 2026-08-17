@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e75466ab.js";
+            window.path_to_searchindex_js = "searchindex-57d11692.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-72d4dd4a.js"></script>
+        <script src="toc-5f6586a6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -222,6 +222,10 @@ cd dacite
 <p>From the repo root:</p>
 <pre><code class="language-bash">npm install
 npm run hello          # Hello World
+npm run config         # config CLI (file store)
+npm run notes          # versioned notes (file store)
+npm run log            # event log (file store; seeds 2000 events)
+npm run sync           # directory/blob sync
 npm run todo:batch     # durable todo list (non-interactive)
 npm run todo           # interactive todo UI
 </code></pre>
@@ -354,6 +358,430 @@ value structure — that is part of the Dacite porting contract.</p>
 <li><a href="#install">Install</a> — JVM and other hosts</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="remote-config"><a class="header" href="#remote-config">Remote config</a></h1>
+<p>A small config map as Dacite values — the same domain against a <strong>local
+file</strong> store and an <strong>HTTP</strong> store. This is the first application in the
+<a href="../roadmap.html">roadmap</a>: the server publishes a root hash; clients
+pull only what they need.</p>
+<p>You will:</p>
+<ol>
+<li>Seed and edit config on disk.</li>
+<li>Point the same commands at <code>clojure -M:service</code>.</li>
+<li>Watch a second process pick up a new root.</li>
+</ol>
+<h2 id="prerequisites-2"><a class="header" href="#prerequisites-2">Prerequisites</a></h2>
+<ul>
+<li>A clone of this repo (see <a href="#install">Install</a>)</li>
+<li>JDK 17+ and the Clojure CLI for the service and <code>--url</code> client</li>
+<li>Optional: Node.js 18+ (<code>npm run config</code>) or babashka (<code>bb config</code>) for the file store</li>
+</ul>
+<h2 id="the-shape"><a class="header" href="#the-shape">The shape</a></h2>
+<p>Config is a Dacite map:</p>
+<pre><code class="language-text">{"theme" "dark", "timeout" 30, "features" ["a" "b"]}
+</code></pre>
+<p>Domain code lives in <code>dacite.examples.config</code> and uses only <code>dacite.value</code>
+— <code>get-in</code> / <code>assoc-in</code> / <code>native</code> / <code>as-str</code> / <code>root-ref</code>. It never calls
+<code>dac-&gt;clj</code>. Store wiring (file path vs HTTP URL) is a separate section of
+the same namespace.</p>
+<h2 id="local-file"><a class="header" href="#local-file">Local file</a></h2>
+<p>From the repo root:</p>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:config -- --reset show
+</code></pre>
+<p>Or from the repo root with nbb / babashka (file store only):</p>
+<pre><code class="language-bash">npm run config -- --reset show
+bb config --reset show
+</code></pre>
+<p>Expected shape:</p>
+<pre><code class="language-text">seeded new store at target/dacite-config
+theme:    dark
+timeout:  30
+features: a, b
+root:     &lt;64 hex chars&gt;
+</code></pre>
+<p>Edit without leaving the value API:</p>
+<pre><code class="language-bash">clojure -M:config -- set timeout 60
+clojure -M:config -- set theme light
+clojure -M:config -- add-feature telemetry
+clojure -M:config -- get features.0
+</code></pre>
+<p><code>--path DIR</code> selects the store directory (content shards + a <code>ROOT</code> file).
+A second invocation without <code>--reset</code> reopens the same root.</p>
+<h2 id="same-commands-against-the-service"><a class="header" href="#same-commands-against-the-service">Same commands against the service</a></h2>
+<p>Terminal 1 — start the HTTP content store:</p>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:service --port 8080 --store mem
+</code></pre>
+<p>Terminal 2 — the same CLI, <code>--url</code> instead of <code>--path</code>:</p>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:config -- --url http://127.0.0.1:8080 show
+clojure -M:config -- --url http://127.0.0.1:8080 set timeout 90
+</code></pre>
+<p><code>store/remote-rooted-store</code> implements the same root protocol as a local
+rooted store, so <code>v/root-ref</code>, <code>v/ref-swap!</code>, and <code>v/ref-cas!</code> work
+unchanged. <code>v/ref-reset!</code> is local-only and throws on a remote store;
+the app seeds with compare-and-set from <code>nil</code>.</p>
+<h2 id="a-second-process-sees-the-new-root"><a class="header" href="#a-second-process-sees-the-new-root">A second process sees the new root</a></h2>
+<p>Terminal 3:</p>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:config -- --url http://127.0.0.1:8080 watch
+</code></pre>
+<p>Back in terminal 2:</p>
+<pre><code class="language-bash">clojure -M:config -- --url http://127.0.0.1:8080 set theme solarized
+</code></pre>
+<p><code>watch</code> polls <code>GET /root</code> twice a second and reprints when the hash
+moves. (Push watches come later, when a two-client live app needs them.)</p>
+<p>The two clients share one content-addressed tree. After an edit they
+print the <strong>same root hash</strong>. That is the claim this app is here to
+prove.</p>
+<h2 id="open-local-vs-open-remote"><a class="header" href="#open-local-vs-open-remote">Open local vs open remote</a></h2>
+<pre><code class="language-clojure">(require '[dacite.store :as store]
+         '[dacite.value :as v]
+         '[dacite.examples.config :as cfg])
+
+;; local
+(def r (v/root-ref (cfg/open-file "target/dacite-config")))
+
+;; remote (JVM)
+(def r (v/root-ref (store/remote-rooted-store "http://127.0.0.1:8080")))
+
+(cfg/load-or-seed! r)
+(v/ref-swap! r cfg/set-path ["timeout"] 60)
+(cfg/timeout (v/ref-deref r))
+;; =&gt; 60
+</code></pre>
+<p>One domain namespace. Two store wirings.</p>
+<h2 id="what-this-pulled-from-the-library"><a class="header" href="#what-this-pulled-from-the-library">What this pulled from the library</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Why</th><th>Utility</th></tr>
+</thead>
+<tbody>
+<tr><td>Read <code>theme</code> / <code>timeout</code> without a 20-line <code>realize</code> helper</td><td><code>v/native</code>, <code>v/as-str</code> (<code>as-str</code> is <code>native</code> then stringify)</td></tr>
+<tr><td>Cap how much string is realized</td><td>optional limit or <code>v/*string-char-limit*</code> — <code>native</code>/<code>as-str</code> throw if longer</td></tr>
+<tr><td>Print a long string without dumping it</td><td><code>v/pr-str</code> → <code>"prefix…" (n chars)</code></td></tr>
+<tr><td>Nested <code>features.0</code></td><td><code>v/get-in</code>, <code>v/assoc-in</code>, <code>v/update</code></td></tr>
+<tr><td>Same <code>root-ref</code> on HTTP</td><td><code>store/remote-rooted-store</code> (<code>IRoot</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>dac-&gt;clj</code> is not on this path. Field access uses <code>native</code> / <code>as-str</code>.
+Debug printing uses <code>v/pr-str</code> or bounded <code>print-method</code>.</p>
+<h2 id="next"><a class="header" href="#next">Next</a></h2>
+<p><a href="#versioned-notes">Versioned notes</a> — treat each edit as a snapshot you can restore.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="versioned-notes"><a class="header" href="#versioned-notes">Versioned notes</a></h1>
+<p>A note is a Dacite map. Each edit is a <strong>new snapshot</strong>; unchanged fields
+keep their content hash. This is the second application in the
+<a href="../roadmap.html">roadmap</a> — the “why not just overwrite a JSON file”
+answer.</p>
+<p>You will:</p>
+<ol>
+<li>Seed a note with a long body.</li>
+<li>Change only the title and see the body hash stay put.</li>
+<li>Restore an older snapshot by installing the same value again.</li>
+</ol>
+<h2 id="prerequisites-3"><a class="header" href="#prerequisites-3">Prerequisites</a></h2>
+<ul>
+<li>A clone of this repo (see <a href="#install">Install</a>)</li>
+<li>JDK 17+ and the Clojure CLI, or Node.js 18+ / babashka for the file store</li>
+</ul>
+<h2 id="the-shape-1"><a class="header" href="#the-shape-1">The shape</a></h2>
+<p>The root is a <strong>notebook</strong>, not a bare document:</p>
+<pre><code class="language-text">{"doc"     {"title" "…" "body" "…" "tags" […] "edited-at" n}
+ "history" [previous-doc …]}
+</code></pre>
+<p><code>history</code> is newest-previous first. A restore <strong>reuses</strong> a historical
+doc value — same hash, no rewrite. The library does not invent git; the
+app shows the recipe.</p>
+<p>Domain code lives in <code>dacite.examples.notes</code> and uses only <code>dacite.value</code>.
+Bodies print with <code>v/pr-str</code> so a long string is not dumped into RAM.</p>
+<h2 id="local-file-1"><a class="header" href="#local-file-1">Local file</a></h2>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:notes -- --reset show
+</code></pre>
+<p>Or from the repo root:</p>
+<pre><code class="language-bash">npm run notes -- --reset show
+bb notes --reset show
+</code></pre>
+<p>Expected shape:</p>
+<pre><code class="language-text">seeded new store at target/dacite-notes
+title:      Welcome
+edited-at:  0
+tags:       intro
+body:       "Dacite notes keep every snapshot…" (n chars)
+doc:        &lt;12 hex chars&gt;
+history:    0 previous
+root:       &lt;64 hex chars&gt;
+</code></pre>
+<p>Edit, list, diff, restore:</p>
+<pre><code class="language-bash">clojure -M:notes -- set title Hello
+clojure -M:notes -- add-tag demo
+clojure -M:notes -- list
+clojure -M:notes -- diff 0 1
+clojure -M:notes -- restore 1
+</code></pre>
+<p>Version <strong>0</strong> is current, <strong>1</strong> is the previous snapshot, and so on.
+<code>diff</code> compares field hashes — a title-only edit reports <code>title</code> and
+<code>edited-at</code>, not <code>body</code>.</p>
+<p><code>--path DIR</code> selects the store directory. The same <code>--url</code> recipe as
+<a href="#remote-config">Remote config</a> works if the HTTP service is running.</p>
+<h2 id="sharing-bench"><a class="header" href="#sharing-bench">Sharing bench</a></h2>
+<pre><code class="language-bash">clojure -M:notes -- bench
+</code></pre>
+<p>Typical output:</p>
+<pre><code class="language-text">sharing bench
+  title-only:   +N nodes
+  body-rewrite: +M nodes
+  body shared after title edit: true
+</code></pre>
+<p><code>M</code> is larger than <code>N</code> because the seed body is a real paragraph. The
+title-only path allocates a new title string, a new doc map, and a
+history conj. The body node is the same hash.</p>
+<h2 id="what-this-pulled"><a class="header" href="#what-this-pulled">What this pulled</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Why</th><th>Utility</th></tr>
+</thead>
+<tbody>
+<tr><td>Nested doc / history edits</td><td><code>v/assoc</code>, <code>v/conj</code>, <code>v/nth</code> (path ops already shipped)</td></tr>
+<tr><td>Print a long body</td><td><code>v/pr-str</code> — <code>"prefix…" (n chars)</code></td></tr>
+<tr><td>Compare versions without realizing bodies</td><td>field content hashes</td></tr>
+<tr><td>Restore without rewrite</td><td>install the historical value; hash identity is the proof</td></tr>
+</tbody>
+</table>
+</div>
+<p>No <code>dac-&gt;clj</code>. History is a vector of documents in the same store.</p>
+<h2 id="next-1"><a class="header" href="#next-1">Next</a></h2>
+<p><a href="#event-log">Event log</a> — append thousands of events and page them
+without realizing the whole log.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="event-log"><a class="header" href="#event-log">Event log</a></h1>
+<p>An append-only vector of events plus a derived view. This is the third
+application in the <a href="../roadmap.html">roadmap</a>: <strong>large sequences stay
+cheap to append, and you need not realize the whole log.</strong></p>
+<p>You will:</p>
+<ol>
+<li>Seed <strong>2000</strong> events (not five).</li>
+<li>Page the log with <code>v/subvec</code> — no <code>seq</code> of the whole vector.</li>
+<li>Replay the view from a prefix via <code>nth</code>.</li>
+<li>See that one more append adds a handful of nodes at n=100 and at n=2000.</li>
+</ol>
+<h2 id="prerequisites-4"><a class="header" href="#prerequisites-4">Prerequisites</a></h2>
+<ul>
+<li>A clone of this repo (see <a href="#install">Install</a>)</li>
+<li>JDK 17+ and the Clojure CLI, or Node.js 18+ / babashka for the file store</li>
+</ul>
+<h2 id="the-shape-2"><a class="header" href="#the-shape-2">The shape</a></h2>
+<pre><code class="language-text">{"log"  [{"type" "credit"|"debit" "amount" n "note" s} …]
+ "view" {"size" n "credits" n "debits" n "balance" n}}
+</code></pre>
+<p>Append updates the view incrementally. Replay rebuilds the view from
+<code>log[0, end)</code> without walking the tail.</p>
+<p>Domain code lives in <code>dacite.examples.event-log</code> and uses only
+<code>dacite.value</code>. Pagination pulled <code>v/subvec</code>.</p>
+<h2 id="local-file-2"><a class="header" href="#local-file-2">Local file</a></h2>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:log -- --reset show
+</code></pre>
+<p>Or from the repo root (file store; seeding 2000 events takes a few seconds):</p>
+<pre><code class="language-bash">npm run log -- --reset show
+bb log --reset show
+</code></pre>
+<p><code>--n 200</code> seeds a smaller log. Expected shape:</p>
+<pre><code class="language-text">seeded new store at target/dacite-log (2000 events)
+size:     2000
+credits:  …
+debits:   …
+balance:  …
+log:      2000 events
+root:     &lt;64 hex chars&gt;
+</code></pre>
+<p>Page, append, replay:</p>
+<pre><code class="language-bash">clojure -M:log -- page 0
+clojure -M:log -- page 3 10
+clojure -M:log -- append credit 5 coffee
+clojure -M:log -- replay 100
+</code></pre>
+<p><code>page</code> prints a window and its content hash. <code>replay 100</code> replaces the
+view with a fold of the first 100 events.</p>
+<p>The same <code>--url</code> recipe as <a href="#remote-config">Remote config</a> works against
+<code>clojure -M:service</code>.</p>
+<h2 id="append-bench"><a class="header" href="#append-bench">Append bench</a></h2>
+<pre><code class="language-bash">clojure -M:log -- bench
+</code></pre>
+<p>Typical output:</p>
+<pre><code class="language-text">append bench (nodes added by the last conj at each size)
+  n=100   +N nodes
+  n=500   +N nodes
+  n=1000  +N nodes
+  n=2000  +N nodes
+</code></pre>
+<p>The deltas stay small. They must not grow linearly with n — that would
+mean each append rewrote the log.</p>
+<p>A prefix slice has the same hash as a log built from those events
+alone (hash fusion is shape-independent).</p>
+<h2 id="what-this-pulled-1"><a class="header" href="#what-this-pulled-1">What this pulled</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Why</th><th>Utility</th></tr>
+</thead>
+<tbody>
+<tr><td>Page without <code>seq</code> of the whole vector</td><td><code>v/subvec</code> — O(k log n), shared leaves</td></tr>
+<tr><td>Replay a prefix</td><td><code>v/nth</code> in a range</td></tr>
+<tr><td>Prove append is cheap</td><td>node-delta of one <code>conj</code> at several sizes</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>dac-&gt;clj</code> is not on this path. Missing-node errors stay on the shelf
+until a remote page actually needs a catchable “not local” signal.</p>
+<h2 id="next-2"><a class="header" href="#next-2">Next</a></h2>
+<p><a href="#two-client-live">Two-client live</a> — CAS retry and a watch across two
+writers.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="two-client-live"><a class="header" href="#two-client-live">Two-client live</a></h1>
+<p>Compare-and-set is the whole distributed update. Two writers append to
+the <a href="#event-log">event log</a> on one HTTP root; a third process watches
+<code>GET /events</code> and reprints when the root moves. This is the fourth
+application in the <a href="../roadmap.html">roadmap</a>.</p>
+<p>You will:</p>
+<ol>
+<li>Start <code>clojure -M:service</code>.</li>
+<li>Append from two terminals without lost events.</li>
+<li>Watch the root change without polling <code>GET /root</code> yourself.</li>
+</ol>
+<h2 id="prerequisites-5"><a class="header" href="#prerequisites-5">Prerequisites</a></h2>
+<ul>
+<li>JDK 17+ and the Clojure CLI</li>
+<li>The event-log app from the previous tutorial</li>
+</ul>
+<h2 id="terminal-1--the-service"><a class="header" href="#terminal-1--the-service">Terminal 1 — the service</a></h2>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:service --port 8080 --store mem
+</code></pre>
+<h2 id="terminal-2-and-3--two-writers"><a class="header" href="#terminal-2-and-3--two-writers">Terminal 2 and 3 — two writers</a></h2>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:log -- --url http://127.0.0.1:8080 --n 0 append credit 1 from-a
+</code></pre>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:log -- --url http://127.0.0.1:8080 append debit 1 from-b
+</code></pre>
+<p>Each <code>append</code> uses <code>v/ref-swap-info!</code>: read the current ledger, conj,
+CAS the new root. If the other writer landed first, CAS fails, the fn
+runs again on the new ledger, and both events stay in the log. When a
+retry happened the CLI prints <code>cas retried N time(s)</code>.</p>
+<p>To force collisions:</p>
+<pre><code class="language-bash">clojure -M:log -- --url http://127.0.0.1:8080 contend 10
+</code></pre>
+<p>Two remote clients each append 10 events. The final size is start+20.
+<code>cas-retries</code> is how many times a writer rebuilt on a newer root.</p>
+<h2 id="terminal-4--watch"><a class="header" href="#terminal-4--watch">Terminal 4 — watch</a></h2>
+<pre><code class="language-bash">clojure -M:log -- --url http://127.0.0.1:8080 watch
+</code></pre>
+<p>This is <code>GET /events</code> (SSE), not a sleep-and-poll loop. The first
+frame is the current root; later frames fire after a successful CAS.
+Append in another terminal and this one reprints.</p>
+<h2 id="what-this-pulled-2"><a class="header" href="#what-this-pulled-2">What this pulled</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Why</th><th>Utility</th></tr>
+</thead>
+<tbody>
+<tr><td>Notice a remote root without polling</td><td><code>GET /events</code> + <code>dacite.store.remote/watch-root</code></td></tr>
+<tr><td>Apply a domain fn under contention</td><td><code>v/ref-swap!</code> (already the rebase loop)</td></tr>
+<tr><td>Show that a collision was recovered</td><td><code>v/ref-swap-info!</code> → <code>:retries</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Async browser networking stayed on the shelf. Two JVM remotes plus an
+SSE watch prove the claim; sync XHR is still the browser demo.</p>
+<h2 id="next-3"><a class="header" href="#next-3">Next</a></h2>
+<p><a href="#directory--blob-sync">Directory / blob sync</a> — pull only the files you open.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="directory--blob-sync"><a class="header" href="#directory--blob-sync">Directory / blob sync</a></h1>
+<p>A host folder becomes a tree of Dacite maps and blobs. Listing a
+directory does not realize file bodies; opening one file does not pull
+its siblings. A second sync copies only missing nodes. This is the last
+application in the <a href="../roadmap.html">roadmap</a>.</p>
+<p>You will:</p>
+<ol>
+<li>Seed a sample tree (two files share a blob).</li>
+<li><code>ls</code> names and sizes without reading file bytes.</li>
+<li><code>cat</code> one file.</li>
+<li>Push the tree to <code>clojure -M:service</code> and pull it elsewhere.</li>
+</ol>
+<h2 id="prerequisites-6"><a class="header" href="#prerequisites-6">Prerequisites</a></h2>
+<ul>
+<li>JDK 17+ and the Clojure CLI, or Node.js / babashka for the file store</li>
+</ul>
+<h2 id="the-shape-3"><a class="header" href="#the-shape-3">The shape</a></h2>
+<pre><code class="language-text">{"kind" "dir"
+ "entries" {"readme.txt" {"kind" "file" "size" 13 "blob" &lt;blob&gt;}
+            "copy.txt"   {"kind" "file" "size" 13 "blob" &lt;same blob&gt;}
+            "sub"        {"kind" "dir"  "entries" {…}}}}
+</code></pre>
+<p><code>ls</code> reads <code>kind</code> and <code>size</code> only. <code>cat</code> calls <code>v/as-bytes</code> on one blob.
+Identical contents share one blob hash.</p>
+<h2 id="local"><a class="header" href="#local">Local</a></h2>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:sync -- --reset seed
+clojure -M:sync -- ls
+clojure -M:sync -- ls sub
+clojure -M:sync -- cat readme.txt
+clojure -M:sync -- bench
+</code></pre>
+<p>Or <code>npm run sync -- --reset seed</code> / <code>bb sync --reset seed</code>.</p>
+<p><code>put /path/to/dir</code> ingests a real host folder. <code>export DIR</code> writes the
+tree back to disk.</p>
+<h2 id="push-and-pull"><a class="header" href="#push-and-pull">Push and pull</a></h2>
+<pre><code class="language-bash"># terminal 1
+clojure -M:service --port 8080 --store mem
+
+# terminal 2 — publish the local tree
+clojure -M:sync -- --url http://127.0.0.1:8080 push
+
+# terminal 3 — another store
+clojure -M:sync -- --path /tmp/dacite-sync-b --url http://127.0.0.1:8080 pull
+clojure -M:sync -- --path /tmp/dacite-sync-b ls
+</code></pre>
+<p><code>store/sync-reachable!</code> copies the subgraph (packed flush to a remote,
+per-node copy otherwise). Then the dest root is CAS’d to the same hash.
+A second pull copies nothing already present.</p>
+<h2 id="what-the-bench-shows"><a class="header" href="#what-the-bench-shows">What the bench shows</a></h2>
+<pre><code class="language-text">sync bench
+  names:        data.bin, readme.txt, sub, copy.txt
+  shared blob:  true
+  store nodes:  1992
+  readme:       13 B
+  data.bin:     256 B
+</code></pre>
+<p>The sample root hash is the same on JVM, babashka, and nbb:</p>
+<p><code>fe0532ab564af43a7fb7c94541eaf63d63fa70d24e1290e6899747a571f4f196</code></p>
+<p>A remote test measures store-protocol bytes: <strong>GET of one blob</strong>
+transfers less than GET of that blob plus its siblings. A second local
+<code>sync-reachable!</code> copies 0 nodes.</p>
+<h2 id="what-this-pulled-3"><a class="header" href="#what-this-pulled-3">What this pulled</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Why</th><th>Utility</th></tr>
+</thead>
+<tbody>
+<tr><td>Bytes in / bytes out</td><td><code>v/blob-via</code>, <code>v/as-bytes</code> (limit + <code>:dacite/missing</code>)</td></tr>
+<tr><td>Copy a tree before moving the root</td><td><code>dacite.store.sync/sync-reachable!</code></td></tr>
+<tr><td>List without bodies</td><td>walk <code>kind</code>/<code>size</code>; do not <code>as-bytes</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Opaque-byte store entries stayed on the shelf — EDN file nodes are
+enough to prove the fetch claim. A later port can store raw bytes
+without changing the app.</p>
+<p>The five-app sequence is complete.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="values-api-reference-01-alpha"><a class="header" href="#values-api-reference-01-alpha">Values API reference (0.1 alpha)</a></h1>
 <p>Practical API for Dacite values as implemented in the Clojure / SCI reference
 library. For design intuition, see <a href="#chapter-3-values">Values</a>.</p>
@@ -434,11 +862,12 @@ the old ones. Laziness is natural: you only need the nodes you access.</p>
 <tr><th>Function</th><th>Role</th></tr>
 </thead>
 <tbody>
-<tr><td><code>root-ref</code></td><td>Wrap a rooted store</td></tr>
+<tr><td><code>root-ref</code></td><td>Wrap a local or remote rooted store</td></tr>
 <tr><td><code>ref-deref</code></td><td>Current value or nil</td></tr>
-<tr><td><code>ref-reset!</code></td><td>Unconditional set</td></tr>
+<tr><td><code>ref-reset!</code></td><td>Unconditional set (<strong>local only</strong> — throws on remote)</td></tr>
 <tr><td><code>ref-swap!</code></td><td>CAS-retry apply</td></tr>
-<tr><td><code>ref-cas!</code></td><td>Value-level compare-and-set</td></tr>
+<tr><td><code>ref-swap-info!</code></td><td>Same, but <code>{:value new :retries n}</code> — retries are lost-update recoveries</td></tr>
+<tr><td><code>ref-cas!</code></td><td>Value-level compare-and-set (use from <code>nil</code> to seed a remote)</td></tr>
 <tr><td><code>ref-add-watch</code> / <code>ref-remove-watch</code></td><td>Watch value transitions</td></tr>
 </tbody>
 </table>
@@ -468,7 +897,14 @@ the old ones. Laziness is natural: you only need the nodes you access.</p>
 <tr><td><code>conj</code></td><td>Append / add entry</td></tr>
 <tr><td><code>peek</code> / <code>pop</code></td><td>Vector end</td></tr>
 <tr><td><code>remove-nth</code></td><td>Vector without index</td></tr>
+<tr><td><code>subvec</code></td><td><code>[start, end)</code> as a new vector (shared leaves; O(k log n))</td></tr>
 <tr><td><code>keys</code> / <code>vals</code></td><td>Map keys or values as wrapped sequences</td></tr>
+<tr><td><code>native</code></td><td>Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char <code>limit</code> (or <code>*string-char-limit*</code>) realizes at most that prefix, then throws if the string is longer.</td></tr>
+<tr><td><code>as-str</code></td><td><code>(str (native x))</code> — same optional limit. Field-sized text only.</td></tr>
+<tr><td><code>as-bytes</code></td><td>Host bytes for a blob. Optional limit; missing nodes throw <code>:dacite/missing</code>.</td></tr>
+<tr><td><code>pr-str</code></td><td>Bounded debug render. Never throws. Long strings: <code>"prefix…" (n chars)</code>.</td></tr>
+<tr><td><code>get-in</code> / <code>assoc-in</code></td><td>Nested path lookup / update (creates intermediate maps)</td></tr>
+<tr><td><code>update</code> / <code>update-in</code></td><td>Apply a fn at a key or path; result is assoc’d back</td></tr>
 </tbody>
 </table>
 </div>
@@ -509,6 +945,11 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 <ul>
 <li><a href="#stores-api-reference-01-alpha">Stores API</a></li>
 <li><a href="#hello-world-nbb">Hello World (nbb)</a></li>
+<li><a href="#remote-config">Remote config</a></li>
+<li><a href="#versioned-notes">Versioned notes</a></li>
+<li><a href="#event-log">Event log</a></li>
+<li><a href="#two-client-live">Two-client live</a></li>
+<li><a href="#directory--blob-sync">Directory / blob sync</a></li>
 <li><a href="#install">Install</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -576,16 +1017,25 @@ are re-exported on <code>dacite.store</code>:</p>
 <tr><td><code>(store/rooted-store content cell)</code></td><td>Wrap with durable root cell</td></tr>
 <tr><td><code>(store/file-root-cell path)</code></td><td>Hex in <code>{base}/ROOT</code></td></tr>
 <tr><td><code>(store/root rs)</code> / <code>(store/cas-root! …)</code> / <code>(store/set-root! …)</code></td><td>Hash-level root</td></tr>
+<tr><td><code>(store/remote-rooted-store url)</code></td><td>HTTP content + server root (<code>IRoot</code>; JVM)</td></tr>
 <tr><td><code>(store/collect-garbage! rs)</code></td><td>Drop unreachable content</td></tr>
+<tr><td><code>(store/sync-reachable! src dest root-h)</code></td><td>Copy the reachable subgraph (pack flush to remotes)</td></tr>
 </tbody>
 </table>
 </div>
 <p><strong>Application value code</strong> should wrap the rooted store once and work with
 values, not hashes:</p>
-<pre><code class="language-clojure">(def r (v/root-ref (store/rooted-store (store/file-store path)
+<pre><code class="language-clojure">;; local file
+(def r (v/root-ref (store/rooted-store (store/file-store path)
                                        (store/file-root-cell path))))
+
+;; same value API over HTTP (JVM)
+(def r (v/root-ref (store/remote-rooted-store "http://127.0.0.1:8080")))
+
 (v/ref-swap! r domain-update)
 </code></pre>
+<p><code>set-root!</code> / <code>ref-reset!</code> throw on a remote rooted store. Seed with
+<code>ref-cas!</code> from <code>nil</code>; update with <code>ref-swap!</code>.</p>
 <p>See <a href="#root-reference-value-level">Values — root reference</a> and
 <a href="#chapter-4-rooted-stores">Rooted Stores chapter</a>.</p>
 <p>Host ctors on <code>dacite.store</code> (JVM): <code>(store/file-store path)</code>,
@@ -615,7 +1065,7 @@ remote HTTP store        (dacite.store.remote | dacite.store.browser)
 <tr><td><code>dacite.store.pack</code></td><td>Soft budget packing, <code>flush-from!</code>, <code>apply-chunk!</code>, literals</td></tr>
 <tr><td><code>dacite.store.rate-limit</code></td><td>Throttle send path (outermost <code>IChunkTransport</code> wins)</td></tr>
 <tr><td><code>dacite.store.stats</code></td><td>Bandwidth accounting for store-protocol bodies</td></tr>
-<tr><td><code>dacite.store.remote</code></td><td>JVM HTTP client (<code>:binary true</code> default for packs)</td></tr>
+<tr><td><code>dacite.store.remote</code></td><td>JVM HTTP client (<code>:binary true</code> default for packs); <code>watch-root</code> is GET /events</td></tr>
 <tr><td><code>dacite.store.browser</code></td><td>Browser sync XHR demo client (<code>:binary true</code> default)</td></tr>
 </tbody>
 </table>

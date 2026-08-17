@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e75466ab.js";
+            window.path_to_searchindex_js = "../searchindex-57d11692.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-72d4dd4a.js"></script>
+        <script src="../toc-5f6586a6.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -244,16 +244,25 @@ are re-exported on <code>dacite.store</code>:</p>
 <tr><td><code>(store/rooted-store content cell)</code></td><td>Wrap with durable root cell</td></tr>
 <tr><td><code>(store/file-root-cell path)</code></td><td>Hex in <code>{base}/ROOT</code></td></tr>
 <tr><td><code>(store/root rs)</code> / <code>(store/cas-root! …)</code> / <code>(store/set-root! …)</code></td><td>Hash-level root</td></tr>
+<tr><td><code>(store/remote-rooted-store url)</code></td><td>HTTP content + server root (<code>IRoot</code>; JVM)</td></tr>
 <tr><td><code>(store/collect-garbage! rs)</code></td><td>Drop unreachable content</td></tr>
+<tr><td><code>(store/sync-reachable! src dest root-h)</code></td><td>Copy the reachable subgraph (pack flush to remotes)</td></tr>
 </tbody>
 </table>
 </div>
 <p><strong>Application value code</strong> should wrap the rooted store once and work with
 values, not hashes:</p>
-<pre><code class="language-clojure">(def r (v/root-ref (store/rooted-store (store/file-store path)
+<pre><code class="language-clojure">;; local file
+(def r (v/root-ref (store/rooted-store (store/file-store path)
                                        (store/file-root-cell path))))
+
+;; same value API over HTTP (JVM)
+(def r (v/root-ref (store/remote-rooted-store "http://127.0.0.1:8080")))
+
 (v/ref-swap! r domain-update)
 </code></pre>
+<p><code>set-root!</code> / <code>ref-reset!</code> throw on a remote rooted store. Seed with
+<code>ref-cas!</code> from <code>nil</code>; update with <code>ref-swap!</code>.</p>
 <p>See <a href="values.html#root-reference-value-level">Values — root reference</a> and
 <a href="../04-rooted-stores/chapter.html">Rooted Stores chapter</a>.</p>
 <p>Host ctors on <code>dacite.store</code> (JVM): <code>(store/file-store path)</code>,
@@ -283,7 +292,7 @@ remote HTTP store        (dacite.store.remote | dacite.store.browser)
 <tr><td><code>dacite.store.pack</code></td><td>Soft budget packing, <code>flush-from!</code>, <code>apply-chunk!</code>, literals</td></tr>
 <tr><td><code>dacite.store.rate-limit</code></td><td>Throttle send path (outermost <code>IChunkTransport</code> wins)</td></tr>
 <tr><td><code>dacite.store.stats</code></td><td>Bandwidth accounting for store-protocol bodies</td></tr>
-<tr><td><code>dacite.store.remote</code></td><td>JVM HTTP client (<code>:binary true</code> default for packs)</td></tr>
+<tr><td><code>dacite.store.remote</code></td><td>JVM HTTP client (<code>:binary true</code> default for packs); <code>watch-root</code> is GET /events</td></tr>
 <tr><td><code>dacite.store.browser</code></td><td>Browser sync XHR demo client (<code>:binary true</code> default)</td></tr>
 </tbody>
 </table>
