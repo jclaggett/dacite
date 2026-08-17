@@ -46,7 +46,7 @@
         The <strong>Clojure / SCI reference implementation</strong> (JVM, babashka, nbb)
         covers hash fusion, content stores, values, rooted stores, pack transport,
         wire-v1 binary packs, and an HTTP service with browser todo demo —
-        <strong>395+ tests</strong>. APIs may still change; pin a git tag for experiments.
+        <strong>440+ tests</strong>. APIs may still change; pin a git tag for experiments.
         See the <a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">changelog</a>
         for scope and known limits.
       </p>
@@ -89,6 +89,18 @@
         </p>
         <p><a href="/book/reference/stores.html">Stores API reference →</a></p>
       </article>
+    </section>
+
+    <section class="layers">
+      <h3>How to write programs</h3>
+      <ol>
+        <li><a href="/book/tutorial/hello-nbb.html">Hello World (nbb)</a> — constructors and hash identity</li>
+        <li><a href="/book/tutorial/config.html">Remote config</a> — same domain on file and HTTP</li>
+        <li><a href="/book/tutorial/notes.html">Versioned notes</a> — snapshots and restore</li>
+        <li><a href="/book/tutorial/event-log.html">Event log</a> — page a large sequence without realizing it</li>
+        <li><a href="/book/tutorial/two-client.html">Two-client live</a> — CAS under contention, SSE watch</li>
+        <li><a href="/book/tutorial/sync.html">Directory / blob sync</a> — list without bodies; fetch one file</li>
+      </ol>
     </section>
 
     <section class="layers">
