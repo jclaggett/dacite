@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1ccce1c5.js";
+            window.path_to_searchindex_js = "../searchindex-229191c2.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-5f6586a6.js"></script>
@@ -293,7 +293,7 @@ remote HTTP store        (dacite.store.remote | dacite.store.browser)
 <tbody>
 <tr><td><code>dacite.store.client-cache</code></td><td>Local mem + flush reachable on CAS / explicit flush</td></tr>
 <tr><td><code>dacite.store.pack</code></td><td>Soft budget packing, <code>flush-from!</code>, <code>apply-chunk!</code>, literals</td></tr>
-<tr><td><code>dacite.store.rate-limit</code></td><td>Throttle send path (outermost <code>IChunkTransport</code> wins)</td></tr>
+<tr><td><code>dacite.store.rate-limit</code></td><td>Throttle <strong>send</strong> path (outermost <code>IChunkTransport</code> wins). Server inbound admit is <code>dacite.service.throttle</code> (429), not this wrapper.</td></tr>
 <tr><td><code>dacite.store.stats</code></td><td>Bandwidth accounting for store-protocol bodies</td></tr>
 <tr><td><code>dacite.store.remote</code></td><td>JVM HTTP client (<code>:binary true</code> default for packs); <code>watch-root</code> is GET /events</td></tr>
 <tr><td><code>dacite.store.browser</code></td><td>Browser sync XHR demo client (<code>:binary true</code> default)</td></tr>
