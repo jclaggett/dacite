@@ -5,7 +5,7 @@
    portable collection surface for one alpha transition period."
   (:refer-clojure :exclude [count nth get assoc conj seq peek pop keys vals
                             contains? dissoc empty? get-in assoc-in update update-in
-                            pr-str])
+                            pr-str subvec])
   (:require [dacite.value :as v]))
 
 (def dacite-value? v/dacite-value?)
@@ -34,3 +34,4 @@
 (def assoc-in      v/assoc-in)
 (def update        v/update)
 (def update-in     v/update-in)
+(def subvec        v/subvec)

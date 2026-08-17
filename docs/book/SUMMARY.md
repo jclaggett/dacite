@@ -10,6 +10,7 @@
 - [Hello World (nbb)](./tutorial/hello-nbb.md)
 - [Remote config](./tutorial/config.md)
 - [Versioned notes](./tutorial/notes.md)
+- [Event log](./tutorial/event-log.md)
 
 # Reference
 

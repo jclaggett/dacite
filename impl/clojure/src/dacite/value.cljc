@@ -28,7 +28,7 @@
    First argument is always a Dacite value: `conj`, `get`, `nth`, `count`, …"
   (:refer-clojure :exclude [vector hash-map set count nth get assoc conj seq
                             peek pop keys vals contains? dissoc empty?
-                            get-in assoc-in update update-in pr-str])
+                            get-in assoc-in update update-in pr-str subvec])
   (:require [dacite.store :as store]
             [dacite.value.types :as types]
             [dacite.value.scalar :as scalar]
@@ -280,6 +280,18 @@
     ("vector" "string" "blob")
     (coll/seq-remove-nth (types/dacite-store v) (types/dacite-hash v) i)
     (throw (ex-info "remove-nth unsupported for type" {:type (value-type v)}))))
+
+(defn subvec
+  "Elements [start, end) of a vector as a new Dacite vector.
+
+   One-arg end defaults to the count. Leaves are shared. Any page is
+   O((end-start) log n) via nth — it does not seq the whole vector."
+  ([v start] (subvec v start (count v)))
+  ([v start end]
+   (case (value-type v)
+     "vector" (coll/vec-subvec (types/dacite-store v) (types/dacite-hash v)
+                               start end)
+     (throw (ex-info "subvec unsupported for type" {:type (value-type v)})))))
 
 (defn keys
   "Wrapped keys of a map, or nil if empty."

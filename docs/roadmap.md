@@ -91,7 +91,7 @@ why without materializing the whole value.
 | Read a scalar or short string field | `v/native` / `v/as-str` (optional char limit; `as-str` via `native`) | Shipped (pulled by remote config) |
 | Bounded print of long strings | `v/pr-str` (truncates; never dumps the tree) | Shipped (pulled by remote config) |
 | Nested document edit | `get-in` / `assoc-in` / `update` / `update-in` | Shipped (pulled by remote config) |
-| Show a page of a large vector | Slice / range that stays on Dacite values | Pulled by event log |
+| Show a page of a large vector | `v/subvec` | Shipped (pulled by event log) |
 | Export / interop (JSON, files) | A *specific* encoder that streams or bounds | Only if an app needs it |
 
 `realize` stays: scalars yield a host atom; collections yield a **lazy** seq of
@@ -156,7 +156,8 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 - [x] Hello World (nbb) tutorial
 - [x] Remote config tutorial (`docs/book/tutorial/config.md`)
 - [x] Versioned notes tutorial (`docs/book/tutorial/notes.md`)
-- [ ] Tutorials written from later apps (event log, …)
+- [x] Event log tutorial (`docs/book/tutorial/event-log.md`)
+- [ ] Tutorials written from later apps (two-client, …)
 
 ### Examples today
 
@@ -165,6 +166,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | Hello nbb | Constructors, `realize`, hash identity | Persistence, sync, a user |
 | [config](../examples/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX, SSE |
 | [notes](../examples/dacite/examples/notes.cljc) | Snapshots, restore by hash, title-only sharing | Multi-writer, web UI |
+| [event log](../examples/dacite/examples/event_log.cljc) | 2000 events, page via subvec, cheap append | Compact/concat, missing-node UX |
 | [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, partial load |
@@ -207,31 +209,20 @@ title-only edit shares the body hash and adds fewer store nodes than a
 body rewrite. Print uses `v/pr-str`. No new library API — path ops and
 bounded string render from config were enough.
 
-### 3. Event log + derived view — prove append and lazy read
+### 3. Event log + derived view — done
 
 **Claim:** large sequences stay cheap to append; you need not realize the
 whole log.
 
-Append-only vector of events, plus a materialized snapshot at the root:
+Shipped: [event_log.cljc](../examples/dacite/examples/event_log.cljc),
+`v/subvec`, tutorial [event-log.md](book/tutorial/event-log.md). Seed
+2000 credit/debit events. Page uses `subvec`; replay folds with `nth`.
+Append node-delta stays small from n=100 to n=2000. A remote test shows
+page 0 receives fewer bytes than `seq` of the whole log. Prefix
+`subvec` has the same hash as a freshly built prefix.
 
-```text
-{"log" [...events...], "view" <derived state>}
-```
-
-Seed **thousands** of events, not five. UI / CLI pages the log. Replay
-rebuilds the view from a prefix hash.
-
-**Pulls:**
-
-- sequential performance at real size
-- pagination without `v/seq` of the entire vector
-- maybe `concat` / `into` if you ever compact
-- honest, catchable errors when a node is not local
-
-**Done when:** appending is independent of log length in the app’s
-measurements, and listing page 1 does not fetch the whole log over HTTP.
-
-This is the first app that can make pack budget and lazy `realize` *felt*.
+Missing-node errors stayed on the shelf — page/replay did not need a new
+error type.
 
 ### 4. Two-client live — prove CAS and watches
 
@@ -298,8 +289,8 @@ Treat this as a backlog that **appears**, not a build order.
 
 | Gap | Why |
 |---|---|
-| Range / slice on vectors | Pagination without realizing the log |
-| Catchable missing-node errors | Partial availability is currently an exception from `s-get` |
+| Range / slice on vectors | Pagination without realizing the log | Done (`v/subvec`) |
+| Catchable missing-node errors | Partial availability is currently an exception from `s-get` | Still deferred |
 
 **Pulled by two clients**
 
@@ -354,9 +345,8 @@ Remote config (same domain, file + HTTP)           ✓
         → pulled: field access, get-in/assoc-in, remote root-ref
 Versioned notes (history + restore)                ✓
         → reused: path updates, pr-str; recipe is history vector of docs
-Event log at real size
-        → pull: slice/pagination, missing-node errors
-        → first time pack + lazy realize matter
+Event log at real size                             ✓
+        → pulled: v/subvec; append cost stays flat; page < full seq on HTTP
 Two-client notes or todo
         → pull: async browser, SSE, rebase loop
 Directory/blob sync

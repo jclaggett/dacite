@@ -76,3 +76,18 @@
       (is (= "b" (v/as-str (v/nth (v/get cfg' "features") 1)))))
     (let [cfg' (v/update-in cfg ["features" 0] (fn [_] "z"))]
       (is (= "z" (v/as-str (v/get-in cfg' ["features" 0])))))))
+
+(deftest subvec-shares-leaves-and-bounds
+  (let [st (store/mem-store)
+        vec (v/vector-with-store st 0 1 2 3 4 5 6 7 8 9)
+        mid (v/subvec vec 3 7)]
+    (is (= 4 (v/count mid)))
+    (is (= 3 (v/native (v/nth mid 0))))
+    (is (= 6 (v/native (v/nth mid 3))))
+    (is (= (v/dacite-hash vec) (v/dacite-hash (v/subvec vec 0))))
+    (is (zero? (v/count (v/subvec vec 4 4))))
+    (let [built (v/vector-with-store st 3 4 5 6)]
+      (is (= (v/dacite-hash built) (v/dacite-hash mid))
+          "slice of the same elements has the same value hash"))
+    (is (thrown? clojure.lang.ExceptionInfo (v/subvec vec 3 11)))
+    (is (thrown? clojure.lang.ExceptionInfo (v/subvec vec -1 3)))))

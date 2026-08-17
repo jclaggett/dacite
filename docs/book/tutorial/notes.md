@@ -108,5 +108,5 @@ No `dac->clj`. History is a vector of documents in the same store.
 
 ## Next
 
-[Event log](../../roadmap.md) — append thousands of events and page them
+[Event log](event-log.md) — append thousands of events and page them
 without realizing the whole log.

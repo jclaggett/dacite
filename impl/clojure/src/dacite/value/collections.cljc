@@ -41,6 +41,7 @@
 (declare ->DaciteString ->DaciteBlob ->DaciteVector ->DaciteMap ->DaciteSet)
 (declare string string-with-store wrap-hash)
 (declare store-seq-node! store-assoc-node! node-root realize-hashes)
+(declare vec-of-refs-with-store)
 
 ;; =============================================================================
 ;; Store helpers (portable)
@@ -157,6 +158,31 @@
   "Remove element at index i from a vector, returning a new DaciteVector."
   [store h i]
   (seq-remove-nth store h i))
+
+(defn vec-subvec
+  "Elements [start, end) of a vector as a new DaciteVector.
+
+   Leaves are shared (hashes only). Structural nodes for the slice are
+   rebuilt in O((end-start) log n) via nth — any page costs that, not O(n).
+   The full-range slice is the original vector."
+  [store h start end]
+  (let [n (coll-count store h)
+        start (long start)
+        end (long end)]
+    (when (or (neg? start) (neg? end) (> start end) (> end n))
+      (throw (ex-info "subvec out of bounds"
+                      {:start start :end end :count n})))
+    (cond
+      (and (zero? start) (= end n))
+      (->DaciteVector store h)
+
+      (= start end)
+      (vec-of-refs-with-store store [])
+
+      :else
+      (let [root (node-root store h)
+            refs (mapv #(ft/ft-nth store root %) (range start end))]
+        (vec-of-refs-with-store store refs)))))
 
 (defn map-get
   "Look up key k in a map (wrapped value), or not-found."

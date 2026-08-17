@@ -9,6 +9,9 @@
   notes   {:doc "Run the versioned notes example (file store)"
            :requires ([dacite.examples.notes :as notes])
            :task (apply notes/-main *command-line-args*)}
+  log     {:doc "Run the event-log example (file store)"
+           :requires ([dacite.examples.event-log :as elog])
+           :task (apply elog/-main *command-line-args*)}
   parity  {:doc "Print the canonical root hash (for cross-host parity)"
            :requires ([dacite.examples.parity :as parity])
            :task (apply parity/-main *command-line-args*)}}}
