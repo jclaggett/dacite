@@ -97,6 +97,7 @@ Portable function API (nbb / babashka / all hosts):
 | `ref-deref` | Current value or nil |
 | `ref-reset!` | Unconditional set (**local only** — throws on remote) |
 | `ref-swap!` | CAS-retry apply |
+| `ref-swap-info!` | Same, but `{:value new :retries n}` — retries are lost-update recoveries |
 | `ref-cas!` | Value-level compare-and-set (use from `nil` to seed a remote) |
 | `ref-add-watch` / `ref-remove-watch` | Watch value transitions |
 
@@ -173,4 +174,5 @@ Example:
 - [Remote config](../tutorial/config.md)
 - [Versioned notes](../tutorial/notes.md)
 - [Event log](../tutorial/event-log.md)
+- [Two-client live](../tutorial/two-client.md)
 - [Install](../getting-started/install.md)

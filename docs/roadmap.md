@@ -157,7 +157,8 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 - [x] Remote config tutorial (`docs/book/tutorial/config.md`)
 - [x] Versioned notes tutorial (`docs/book/tutorial/notes.md`)
 - [x] Event log tutorial (`docs/book/tutorial/event-log.md`)
-- [ ] Tutorials written from later apps (two-client, …)
+- [x] Two-client live tutorial (`docs/book/tutorial/two-client.md`)
+- [ ] Tutorials written from later apps (file sync, …)
 
 ### Examples today
 
@@ -167,6 +168,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | [config](../examples/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX, SSE |
 | [notes](../examples/dacite/examples/notes.cljc) | Snapshots, restore by hash, title-only sharing | Multi-writer, web UI |
 | [event log](../examples/dacite/examples/event_log.cljc) | 2000 events, page via subvec, cheap append | Compact/concat, missing-node UX |
+| Two-client live | Interleaved appends + SSE watch | Async browser store |
 | [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, partial load |
@@ -224,28 +226,18 @@ page 0 receives fewer bytes than `seq` of the whole log. Prefix
 Missing-node errors stayed on the shelf — page/replay did not need a new
 error type.
 
-### 4. Two-client live — prove CAS and watches
+### 4. Two-client live — done
 
 **Claim:** compare-and-set is the whole distributed update story.
 
-Take notes or todo. Two clients (two browser tabs, or CLI + browser) on one
-service root:
+Shipped: `GET /events` (SSE), `store.remote/watch-root`,
+`v/ref-swap-info!`, event-log `watch` / `contend`, tutorial
+[two-client.md](book/tutorial/two-client.md). Two remotes can interleave
+appends without lost events; a third process reprints on SSE. The rebase
+loop was already `ref-swap!`; `:retries` is the conflict UX.
 
-- local edit → CAS → retry with rebase
-- the other client notices the new root without a manual reload
-
-**Pulls:**
-
-- remote root watches (SSE — sketched in [service.md](design/service.md))
-- async browser store (sync XHR cannot survive this)
-- a value-level rebase helper: read current, apply domain fn, CAS, loop
-- conflict UX that is not “last write wins silently”
-
-**Done when:** two writers can interleave edits without lost updates, and a
-watch updates the other UI.
-
-Do not build SSE or async XHR before this app exists. They have no user
-until then.
+Async browser store stayed on the shelf — two JVM remotes plus SSE prove
+the claim; sync XHR remains the browser demo.
 
 ### 5. Directory / blob sync — prove “pull only what you use”
 
@@ -287,18 +279,18 @@ Treat this as a backlog that **appears**, not a build order.
 
 **Pulled by the event log**
 
-| Gap | Why |
-|---|---|
+| Gap | Why | Status |
+|---|---|---|
 | Range / slice on vectors | Pagination without realizing the log | Done (`v/subvec`) |
 | Catchable missing-node errors | Partial availability is currently an exception from `s-get` | Still deferred |
 
 **Pulled by two clients**
 
-| Gap | Why |
-|---|---|
-| Async remote store | Browser must not block the page |
-| SSE (or a documented poll helper) | Watches across the network |
-| Value-level CAS retry that rebases | `ref-swap!` is local; remote needs the same loop |
+| Gap | Why | Status |
+|---|---|---|
+| Async remote store | Browser must not block the page | Still deferred |
+| SSE (or a documented poll helper) | Watches across the network | Done (`GET /events`) |
+| Value-level CAS retry that rebases | `ref-swap!` / `ref-swap-info!` | Done (same loop on remote) |
 
 **Pulled by file sync**
 
@@ -347,8 +339,8 @@ Versioned notes (history + restore)                ✓
         → reused: path updates, pr-str; recipe is history vector of docs
 Event log at real size                             ✓
         → pulled: v/subvec; append cost stays flat; page < full seq on HTTP
-Two-client notes or todo
-        → pull: async browser, SSE, rebase loop
+Two-client live                                    ✓
+        → pulled: GET /events, watch-root, ref-swap-info!
 Directory/blob sync
         → pull: content-sync helper, opaque bytes
 ```

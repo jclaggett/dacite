@@ -23,8 +23,9 @@
             [dacite.wire :as wire]
             [dacite.wire.binary :as bin])
   (:import [java.net URI]
-           [java.net.http HttpClient HttpRequest HttpResponse HttpRequest$BodyPublishers HttpResponse$BodyHandlers]
-           [java.time Duration]))
+           [java.net.http HttpClient HttpRequest HttpResponse HttpRequest$BodyPublishers HttpResponse$BodyHandlers HttpClient$Version]
+           [java.time Duration]
+           [java.io BufferedReader InputStreamReader]))
 
 (defn- node-url
   ([base-url h] (node-url base-url h nil))
@@ -333,3 +334,56 @@
       (= 200 status) (true? (:ok data))
       (= 409 status) false
       :else (throw (ex-info "Remote CAS root failed" {:status status :data data})))))
+
+(defn watch-root
+  "Subscribe to GET /events (SSE). `f` is (fn [root-hash-or-nil]).
+
+   Returns {:stop! (fn [])}. The first event is the current root. Runs
+   the read loop on a future; stop! cancels it."
+  [remote f]
+  (let [rs (unwrap-remote remote)
+        url (str (str/replace (:base-url rs) #"/$" "") "/events")
+        running (atom true)
+        client (:client rs)
+        req (.build (.. (HttpRequest/newBuilder)
+                        (uri (URI/create url))
+                        (version HttpClient$Version/HTTP_1_1)
+                        (GET)
+                        (header "Accept" "text/event-stream")))
+        fut (future
+              (try
+                (let [^HttpResponse resp
+                      (.send client req (HttpResponse$BodyHandlers/ofInputStream))]
+                  (when (and @running (= 200 (.statusCode resp)))
+                    (with-open [rdr (BufferedReader.
+                                     (InputStreamReader. (.body resp) "UTF-8"))]
+                      (loop [event nil data nil]
+                        (when @running
+                          (let [line (.readLine rdr)]
+                            (cond
+                              (nil? line) nil
+
+                              (or (str/blank? line)
+                                  (str/starts-with? line ":"))
+                              (do
+                                (when (and data (or (nil? event) (= event "root")))
+                                  (let [m (wire/read-edn data)
+                                        h (when-let [hex (:root m)]
+                                            (store/hex->hash hex))]
+                                    (f h)))
+                                (recur nil nil))
+
+                              (str/starts-with? line "event:")
+                              (recur (str/trim (subs line 6)) data)
+
+                              (str/starts-with? line "data:")
+                              (recur event (str/trim (subs line 5)))
+
+                              :else
+                              (recur event data))))))))
+                (catch Exception e
+                  (when @running
+                    (throw e)))))]
+    {:stop! (fn []
+              (reset! running false)
+              (future-cancel fut))}))

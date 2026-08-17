@@ -87,11 +87,15 @@ clojure -M:notes -- bench
 clojure -M:log -- --reset show
 clojure -M:log -- page 0
 clojure -M:log -- bench
+# two writers + SSE watch (service in another terminal)
+clojure -M:log -- --url http://127.0.0.1:8080 contend 10
+clojure -M:log -- --url http://127.0.0.1:8080 watch
 ```
 
 See [Remote config](https://dacite.io/book/tutorial/config.html) ([source](docs/book/tutorial/config.md))
 [Versioned notes](https://dacite.io/book/tutorial/notes.html) ([source](docs/book/tutorial/notes.md)),
-and [Event log](https://dacite.io/book/tutorial/event-log.html) ([source](docs/book/tutorial/event-log.md)).
+[Event log](https://dacite.io/book/tutorial/event-log.html) ([source](docs/book/tutorial/event-log.md)),
+and [Two-client live](https://dacite.io/book/tutorial/two-client.html) ([source](docs/book/tutorial/two-client.md)).
 
 ### Browser demo (HTTP service + Dacite values in the browser)
 

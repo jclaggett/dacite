@@ -6,6 +6,14 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### Two-client live
+
+- **`GET /events`** — SSE root announcements on `dacite.service`
+- **`dacite.store.remote/watch-root`** — JVM SSE client
+- **`v/ref-swap-info!`** — CAS-retry with `{:value :retries}`
+- Event log **`watch`** and **`contend`** — two remotes, no lost appends
+- Tutorial: [docs/book/tutorial/two-client.md](docs/book/tutorial/two-client.md)
+
 ### Event log app
 
 - **`dacite.examples.event-log`** — append-only credit/debit log + derived

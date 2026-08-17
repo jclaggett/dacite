@@ -105,5 +105,5 @@ until a remote page actually needs a catchable “not local” signal.
 
 ## Next
 
-[Two-client live](../../roadmap.md) — CAS retry and a watch across two
+[Two-client live](two-client.md) — CAS retry and a watch across two
 writers.

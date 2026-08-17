@@ -113,7 +113,7 @@ remote HTTP store        (dacite.store.remote | dacite.store.browser)
 | `dacite.store.pack` | Soft budget packing, `flush-from!`, `apply-chunk!`, literals |
 | `dacite.store.rate-limit` | Throttle send path (outermost `IChunkTransport` wins) |
 | `dacite.store.stats` | Bandwidth accounting for store-protocol bodies |
-| `dacite.store.remote` | JVM HTTP client (`:binary true` default for packs) |
+| `dacite.store.remote` | JVM HTTP client (`:binary true` default for packs); `watch-root` is GET /events |
 | `dacite.store.browser` | Browser sync XHR demo client (`:binary true` default) |
 
 `pack/flush-from!` finds the outermost `IChunkTransport` and sends budgeted

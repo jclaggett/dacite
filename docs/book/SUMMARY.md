@@ -11,6 +11,7 @@
 - [Remote config](./tutorial/config.md)
 - [Versioned notes](./tutorial/notes.md)
 - [Event log](./tutorial/event-log.md)
+- [Two-client live](./tutorial/two-client.md)
 
 # Reference
 

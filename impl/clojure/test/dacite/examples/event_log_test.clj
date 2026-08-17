@@ -5,6 +5,7 @@
             [dacite.examples.event-log :as elog]
             [dacite.service :as svc]
             [dacite.store :as store]
+            [dacite.store.remote :as remote]
             [dacite.store.stats :as stats]
             [dacite.value :as v]))
 
@@ -84,5 +85,80 @@
           (is (< (:bytes-recv page-delta) (:bytes-recv all-delta))
               "page 0 must not pull as much as seq of the whole log")
           (is (< (:requests page-delta) (:requests all-delta)))))
+      (finally
+        (stop!)))))
+
+(deftest two-writers-keep-every-append
+  (let [r (v/root-ref (elog/open-mem))]
+    (v/ref-reset! r (elog/empty-ledger r))
+    (let [retries (atom 0)
+          fa (future
+               (dotimes [i 20]
+                 (swap! retries +
+                        (:retries (v/ref-swap-info!
+                                   r elog/append
+                                   (elog/event r "credit" 1 (str "a-" i)))))))
+          fb (future
+               (dotimes [i 20]
+                 (swap! retries +
+                        (:retries (v/ref-swap-info!
+                                   r elog/append
+                                   (elog/event r "debit" 1 (str "b-" i)))))))]
+      @fa
+      @fb
+      (is (= 40 (elog/log-count (v/ref-deref r)))
+          "CAS retry must not drop an append")
+      (is (pos? @retries)
+          "two writers on one root should collide at least once"))))
+
+(deftest two-remote-writers-keep-every-append
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
+    (try
+      (let [a (v/root-ref (store/remote-rooted-store base-url))
+            b (v/root-ref (store/remote-rooted-store base-url))]
+        (elog/load-or-seed! a 0)
+        (let [fa (future
+                   (dotimes [i 8]
+                     (v/ref-swap! a elog/append
+                                  (elog/event a "credit" 1 (str "a-" i)))))
+              fb (future
+                   (dotimes [i 8]
+                     (v/ref-swap! b elog/append
+                                  (elog/event b "debit" 1 (str "b-" i)))))]
+          @fa
+          @fb
+          (let [reader (v/root-ref (store/remote-rooted-store base-url))]
+            (is (= 16 (elog/log-count (v/ref-deref reader)))
+                "both remotes' appends must land"))))
+      (finally
+        (stop!)))))
+
+(deftest sse-watch-sees-new-root
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
+    (try
+      (let [writer (v/root-ref (store/remote-rooted-store base-url))
+            seen (atom [])
+            first-ev (promise)
+            later (promise)
+            w (remote/watch-root
+               (store/remote-rooted-store base-url {:policy :none})
+               (fn [h]
+                 (swap! seen conj h)
+                 (when (= 1 (count @seen))
+                   (deliver first-ev h))
+                 (when (> (count @seen) 1)
+                   (deliver later h))))]
+        (try
+          (is (not= :timeout (deref first-ev 5000 :timeout))
+              "SSE should emit the current root first")
+          (elog/load-or-seed! writer 0)
+          (v/ref-swap! writer elog/append (elog/event writer "credit" 1 "sse"))
+          (is (not= :timeout (deref later 8000 :timeout))
+              "SSE client should see a root after CAS")
+          (is (>= (count @seen) 2))
+          (finally
+            ((:stop! w)))))
       (finally
         (stop!)))))

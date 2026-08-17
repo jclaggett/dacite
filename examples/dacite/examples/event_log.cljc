@@ -17,6 +17,8 @@
      clojure -M:log -- append credit 5 coffee
      clojure -M:log -- replay 100
      clojure -M:log -- bench
+     clojure -M:log -- --url http://127.0.0.1:8080 watch
+     clojure -M:log -- --url http://127.0.0.1:8080 contend 10
      bb log --reset show
      npx nbb -m dacite.examples.event-log -- --reset show"
   (:require [clojure.string :as str]
@@ -24,6 +26,7 @@
             [dacite.value :as v]
             #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]]
                 :cljs []
+                :clj [[dacite.store.remote :as remote]]
                 :default [])))
 
 ;; =============================================================================
@@ -285,7 +288,7 @@
 
 (defn parse-args
   "CLI: [--path DIR | --url URL] [--reset|-r] [--n N]
-        [show|page [P] [SIZE]|append credit|debit AMT [NOTE…]|replay [END]|bench]"
+        [show|page|append|replay|bench|watch|contend]"
   [args]
   (let [args (->> args (map str) (remove #{"--"}))]
     (loop [args args
@@ -312,7 +315,7 @@
             (= a "--n")
             (recur (rest more) (assoc acc :n (parse-int (first more))))
 
-            (#{"show" "page" "append" "replay" "bench"} a)
+            (#{"show" "page" "append" "replay" "bench" "watch" "contend"} a)
             (assoc acc :cmd a :cmd-args (vec more))
 
             :else
@@ -332,6 +335,88 @@
   (print s)
   (flush))
 
+(defn watch-sse!
+  "Print the ledger whenever GET /events announces a new root."
+  [rs]
+  #?(:clj
+     (do
+       (println "watching GET /events (Ctrl-C to stop)…")
+       (let [r (v/root-ref rs)]
+         (when-let [led (v/ref-deref r)]
+           (print! (render led)))
+         (let [w (remote/watch-root
+                  rs
+                  (fn [_h]
+                    (if-let [led (v/ref-deref r)]
+                      (print! (str "updated:\n" (render led)))
+                      (println "root cleared"))))]
+           (try
+             (loop []
+               (Thread/sleep 3600000)
+               (recur))
+             (finally
+               ((:stop! w)))))))
+     :default
+     (throw (ex-info "SSE watch is JVM-only" {}))))
+
+(defn contend!
+  "Two remote clients each append `n` events. Prints retries and final count."
+  [url n]
+  #?(:clj
+     (let [a (v/root-ref (store/remote-rooted-store url))
+           b (v/root-ref (store/remote-rooted-store url))]
+       (load-or-seed! a 0)
+       (let [n0 (log-count (v/ref-deref a))
+             retries (atom 0)
+             fa (future
+                  (dotimes [i n]
+                    (let [info (v/ref-swap-info!
+                                a append (event a "credit" 1 (str "a-" i)))]
+                      (swap! retries + (:retries info)))))
+             fb (future
+                  (dotimes [i n]
+                    (let [info (v/ref-swap-info!
+                                b append (event b "debit" 1 (str "b-" i)))]
+                      (swap! retries + (:retries info)))))]
+         @fa
+         @fb
+         (let [final (v/ref-deref (v/root-ref (store/remote-rooted-store url)))]
+           (println "started:" n0
+                    "appended:" (* 2 n)
+                    "final:" (log-count final)
+                    "cas-retries:" @retries)
+           (print! (render final)))))
+     :default
+     (throw (ex-info "contend is JVM-only" {}))))
+
+(defn- run-cmd!
+  [rs led-ref url cmd cmd-args]
+  (case cmd
+    "show" (print! (render (v/ref-deref led-ref)))
+    "page" (let [p (if (seq cmd-args) (parse-int (first cmd-args)) 0)
+                 sz (if (next cmd-args) (parse-int (second cmd-args)) default-page-size)]
+             (print! (render-page (v/ref-deref led-ref) p sz)))
+    "append" (let [typ (first cmd-args)
+                   amt (parse-int (or (second cmd-args)
+                                      (throw (ex-info "append requires TYPE AMOUNT" {}))))
+                   note (str/join " " (drop 2 cmd-args))]
+               (when-not (#{"credit" "debit"} typ)
+                 (throw (ex-info "type must be credit or debit" {:type typ})))
+               (let [info (v/ref-swap-info! led-ref append
+                                            (event led-ref typ amt note))]
+                 (when (pos? (:retries info))
+                   (println "cas retried" (:retries info) "time(s)"))
+                 (print! (render (:value info)))))
+    "replay" (let [end (if (seq cmd-args)
+                         (parse-int (first cmd-args))
+                         (log-count (v/ref-deref led-ref)))]
+               (print! (render (v/ref-swap! led-ref replay end))))
+    "watch" (watch-sse! rs)
+    "contend" (do
+                (when-not url
+                  (throw (ex-info "contend requires --url (two remote clients)" {})))
+                (contend! url (if (seq cmd-args) (parse-int (first cmd-args)) 10)))))
+
 (defn -main [& args]
   (let [{:keys [reset? path url n cmd cmd-args] :as opts} (parse-args args)]
     (when (and reset? url)
@@ -348,28 +433,4 @@
           (println (if url
                      (str "seeded remote at " url " (" n " events)")
                      (str "seeded new store at " path " (" n " events)"))))
-        (case cmd
-          "show"
-          (print! (render (v/ref-deref led-ref)))
-
-          "page"
-          (let [p (if (seq cmd-args) (parse-int (first cmd-args)) 0)
-                sz (if (next cmd-args) (parse-int (second cmd-args)) default-page-size)]
-            (print! (render-page (v/ref-deref led-ref) p sz)))
-
-          "append"
-          (let [typ (first cmd-args)
-                amt (parse-int (or (second cmd-args)
-                                   (throw (ex-info "append requires TYPE AMOUNT" {}))))
-                note (str/join " " (drop 2 cmd-args))]
-            (when-not (#{"credit" "debit"} typ)
-              (throw (ex-info "type must be credit or debit" {:type typ})))
-            (print! (render
-                     (v/ref-swap! led-ref append
-                                  (event led-ref typ amt note)))))
-
-          "replay"
-          (let [end (if (seq cmd-args)
-                      (parse-int (first cmd-args))
-                      (log-count (v/ref-deref led-ref)))]
-            (print! (render (v/ref-swap! led-ref replay end)))))))))
+        (run-cmd! rs led-ref url cmd cmd-args)))))

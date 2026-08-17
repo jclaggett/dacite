@@ -10,6 +10,7 @@
      POST /nodes/get    — pack-fetch: encode reachable → chunks (read)
      GET  /root         — {:root hex-or-nil}
      POST /root/cas     — {:expected hex-or-nil :new hex} → 200/409
+     GET  /events       — SSE root announcements (text/event-stream)
 
    Also serves static files under /app/* from a configured directory (demo UI)."
   (:require [clojure.java.io :as io]
@@ -59,6 +60,61 @@
 
 (defn- send-empty! [^HttpExchange ex status]
   (send-bytes! ex status nil nil))
+
+(def ^:private ct-sse "text/event-stream; charset=utf-8")
+
+(defn- sse-frame
+  "One SSE event named `event` with an EDN `data` payload."
+  [event data]
+  (str "event: " event "\ndata: " (wire/write-edn data) "\n\n"))
+
+(defn- make-sse-hub
+  "Per-server subscriber set. Broadcasts on the rooted store's hash watch."
+  [rooted]
+  (let [subs (atom #{})
+        send! (fn [^java.io.OutputStream os ^String s]
+                (.write os (utf8-bytes s))
+                (.flush os))
+        frame (fn [h]
+                (sse-frame "root" {:root (when h (store/hash->hex h))}))
+        broadcast (fn [_k _rs _old new]
+                    (doseq [os @subs]
+                      (try
+                        (send! os (frame new))
+                        (catch Exception _
+                          (swap! subs disj os)))))]
+    (rs/add-root-watch rooted ::sse broadcast)
+    {:subs subs
+     :send! send!
+     :frame frame
+     :close! (fn []
+               (rs/remove-root-watch rooted ::sse)
+               (doseq [^java.io.OutputStream os @subs]
+                 (try (.close os) (catch Exception _ nil)))
+               (reset! subs #{}))}))
+
+(defn- handle-sse!
+  "Hold the exchange open and stream root events until the client drops."
+  [^HttpExchange ex hub rooted]
+  (let [^Headers headers (.getResponseHeaders ex)
+        {:keys [subs send! frame]} hub]
+    (.set headers "Content-Type" ct-sse)
+    (.set headers "Cache-Control" "no-cache")
+    (.set headers "Connection" "keep-alive")
+    (.set headers "Access-Control-Allow-Origin" "*")
+    (.sendResponseHeaders ex 200 0)
+    (let [os (.getResponseBody ex)]
+      (swap! subs conj os)
+      (try
+        (send! os (frame (rs/root rooted)))
+        (loop []
+          (Thread/sleep 15000)
+          (send! os ": keepalive\n\n")
+          (recur))
+        (catch Exception _)
+        (finally
+          (swap! subs disj os)
+          (try (.close os) (catch Exception _ nil)))))))
 
 (defn- parse-edn-body
   "body is String or bytes → EDN data."
@@ -288,6 +344,8 @@
   (when-not rooted
     (throw (ex-info "rooted store required" {})))
   (let [static (when static-dir (io/file static-dir))
+        hub (make-sse-hub rooted)
+        executor (java.util.concurrent.Executors/newCachedThreadPool)
         server (HttpServer/create (InetSocketAddress. port) 0)
         handler
         (reify HttpHandler
@@ -297,22 +355,25 @@
                     uri (.getRequestURI exchange)
                     path (.getPath uri)
                     q (.getQuery uri)
-                    path+q (if q (str path "?" q) path)
-                    body (when (#{"PUT" "POST"} method) (read-body-bytes exchange))
-                    ct (header-val exchange "Content-type")
-                    accept (header-val exchange "Accept")
-                    resp (or (when (#{"GET" "HEAD"} method)
-                               (handle-static static path))
-                             (handle-request rooted method path+q body
-                                             {:content-type ct
-                                              :accept accept}))]
-                (write-response! exchange resp))
+                    path+q (if q (str path "?" q) path)]
+                (if (and (= "GET" method) (= path "/events"))
+                  (handle-sse! exchange hub rooted)
+                  (let [body (when (#{"PUT" "POST"} method) (read-body-bytes exchange))
+                        ct (header-val exchange "Content-type")
+                        accept (header-val exchange "Accept")
+                        resp (or (when (#{"GET" "HEAD"} method)
+                                   (handle-static static path))
+                                 (handle-request rooted method path+q body
+                                                 {:content-type ct
+                                                  :accept accept}))]
+                    (write-response! exchange resp))))
               (catch Exception e
                 (try
                   (send-edn! exchange 500 {:error (.getMessage e)})
                   (catch Exception _ nil))))))]
     (.createContext server "/" handler)
-    (.setExecutor server nil)
+    ;; Cached pool so a blocking SSE subscriber cannot starve CAS / node I/O.
+    (.setExecutor server executor)
     (.start server)
     (let [bound (.. server getAddress getPort)
           base (str "http://127.0.0.1:" bound)]
@@ -320,7 +381,11 @@
        :port bound
        :base-url base
        :rooted rooted
-       :stop! (fn [] (.stop server 0))})))
+       :hub hub
+       :stop! (fn []
+                ((:close! hub))
+                (.stop server 0)
+                (.shutdownNow executor))})))
 
 (defn stop-server! [{:keys [stop!]}]
   (when stop! (stop!)))

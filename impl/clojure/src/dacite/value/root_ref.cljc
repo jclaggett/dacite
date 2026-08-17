@@ -227,26 +227,40 @@
     (notify-watches! r old-h nh)
     (wrap-at st nh)))
 
-(defn ref-swap!
-  "Apply f to the current root value (and optional args), CAS-retrying until
-   success. f must return a Dacite value or nil. Returns the new value."
+(defn ref-swap-info!
+  "Like `ref-swap!`, but returns {:value new :retries n}.
+
+   `retries` is how many times CAS failed and f was re-applied on a
+   newer root — the conflict UX for a shared remote root."
   ([r f]
    (let [st (ref-store r)]
-     (loop []
+     (loop [retries 0]
        (let [old-h (rs/root st)
              old-v (wrap-at st old-h)
              new-v (f old-v)
              nh (value->root-hash st new-v)]
          (if (rs/cas-root! st old-h nh)
            (do (notify-watches! r old-h nh)
-               (wrap-at st nh))
-           (recur))))))
+               {:value (wrap-at st nh) :retries retries})
+           (recur (inc retries)))))))
   ([r f a]
-   (ref-swap! r (fn [v] (f v a))))
+   (ref-swap-info! r (fn [v] (f v a))))
   ([r f a b]
-   (ref-swap! r (fn [v] (f v a b))))
+   (ref-swap-info! r (fn [v] (f v a b))))
   ([r f a b & more]
-   (ref-swap! r (fn [v] (apply f v a b more)))))
+   (ref-swap-info! r (fn [v] (apply f v a b more)))))
+
+(defn ref-swap!
+  "Apply f to the current root value (and optional args), CAS-retrying until
+   success. f must return a Dacite value or nil. Returns the new value."
+  ([r f]
+   (:value (ref-swap-info! r f)))
+  ([r f a]
+   (:value (ref-swap-info! r f a)))
+  ([r f a b]
+   (:value (ref-swap-info! r f a b)))
+  ([r f a b & more]
+   (:value (apply ref-swap-info! r f a b more))))
 
 (defn ref-cas!
   "Compare-and-set at the value level. expected and new are Dacite values or nil.

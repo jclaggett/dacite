@@ -25,7 +25,8 @@ Client                          Server
   +--- POST /root/cas ------------>|  compare-and-set! on rooted store
 ```
 
-Future: `GET /events` (SSE) for root change notifications — not required for MVP.
+`GET /events` — SSE root announcements (`event: root`, EDN `{:root hex-or-nil}`).
+First event is the current root; later events fire on successful CAS.
 
 ## Authentication
 
@@ -170,6 +171,23 @@ Compare-and-set root update — the portable core from Chapter 4.
 
 Unconditional `set-root` is **not** exposed remotely (per Chapter 4 — unsafe under sharing).
 
+### `GET /events`
+
+Server-sent events for root changes. `Content-Type: text/event-stream`.
+
+Each event:
+
+```text
+event: root
+data: {:root "…64 hex…"}\n
+```
+
+or `{:root nil}` when unset. The first frame is the current root. Comment
+lines (`: keepalive`) may appear to hold the connection.
+
+JVM clients use `dacite.store.remote/watch-root`. Browser `EventSource`
+works on the same path.
+
 ## Soft pack budget (leaf-chunking 2d)
 
 **Default: 1024 bytes** (`dacite.store.pack/default-budget`).
@@ -243,4 +261,4 @@ Archive reference: [impl/clojure/archive/server.clj](../../impl/clojure/archive/
 
 - Per-user LMDB vs single LMDB with prefixed keys?
 - Root persistence: meta db vs reserved content slot (see Phase 2.5)
-- SSE for `/events` — polling `GET /root` sufficient for MVP?
+- SSE for `/events` — shipped (root announcements; keepalive comments)

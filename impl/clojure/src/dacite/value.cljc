@@ -462,6 +462,7 @@
 (def ref-deref       root-ref/ref-deref)
 (def ref-reset!      root-ref/ref-reset!)
 (def ref-swap!       root-ref/ref-swap!)
+(def ref-swap-info!  root-ref/ref-swap-info!)
 (def ref-cas!        root-ref/ref-cas!)
 (def ref-add-watch   root-ref/ref-add-watch)
 (def ref-remove-watch root-ref/ref-remove-watch)
