@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-57d11692.js";
+            window.path_to_searchindex_js = "searchindex-1ccce1c5.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-5f6586a6.js"></script>
@@ -1041,7 +1041,10 @@ values, not hashes:</p>
 <p>Host ctors on <code>dacite.store</code> (JVM): <code>(store/file-store path)</code>,
 <code>(store/lmdb-store path)</code>, <code>(store/lmdb-root-cell lmdb)</code>. On <strong>nbb</strong>, use
 <code>(dacite.store.nbb/file-store path)</code> (SCI cannot re-export circular host
-backends cleanly).</p>
+backends cleanly). Optional nbb LMDB (same <code>data.mdb</code> layout as JVM, wire-v1
+nodes): <code>(dacite.store.nbb.lmdb/lmdb-store path)</code> after
+<code>LMDB_DATA_V1=true npm rebuild lmdb</code> (prebuilt <code>lmdb</code> is format v2 and will
+not open a lmdbjava env).</p>
 <hr>
 <h2 id="client-composition-remote--sync"><a class="header" href="#client-composition-remote--sync">Client composition (remote / sync)</a></h2>
 <p>Interactive clients usually stack:</p>
