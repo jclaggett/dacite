@@ -17,7 +17,7 @@ Dacite lets applications work with **immutable Values** functionally while **Sto
 
 **Alpha 0.1** — Clojure / SCI reference implementation: hash fusion, content
 stores, values, rooted stores, pack transport, wire-v1 binary packs (JVM +
-browser), remote HTTP service (**440+ tests**). Soft pack budget default
+browser), remote HTTP service (**450+ tests**). Soft pack budget default
 **1024**. APIs may change; see [CHANGELOG.md](CHANGELOG.md).
 
 ## Documentation

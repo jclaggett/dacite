@@ -101,6 +101,17 @@
       (finally
         (stop!)))))
 
+(deftest try-take-tokens-does-not-block
+  (let [{:keys [now-fn advance!]} (fake-clock)
+        state (atom {:tokens 1.0 :last-ms 0})
+        opts {:capacity 1.0 :rate 10.0 :cost 1.0 :now-fn now-fn}]
+    (is (true? (:ok (rl/try-take-tokens! state opts))))
+    (let [denied (rl/try-take-tokens! state opts)]
+      (is (false? (:ok denied)))
+      (is (>= (:retry-after-ms denied) 100)))
+    (advance! 100)
+    (is (true? (:ok (rl/try-take-tokens! state opts))))))
+
 (deftest invalid-opts-throw
   (is (thrown? Exception
                (rl/rate-limit-store (store/mem-store) {:capacity 0 :rate 1})))
@@ -109,4 +120,7 @@
     (is (thrown? Exception
                  (rl/take-tokens! st {:capacity 1 :rate 0 :cost 1
                                       :now-fn (constantly 0)
-                                      :sleep-fn (fn [_])})))))
+                                      :sleep-fn (fn [_])})))
+    (is (thrown? Exception
+                 (rl/try-take-tokens! st {:capacity 1 :rate 0 :cost 1
+                                          :now-fn (constantly 0)})))))

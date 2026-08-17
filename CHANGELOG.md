@@ -6,6 +6,17 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### HTTP inbound throttle
+
+- **`dacite.service.throttle`** — per-client token bucket + inflight cap
+  so one caller cannot starve another. Empty bucket is **429**
+  (`Retry-After`), oversized body is **413**, global slot exhaustion is
+  **503**. Client key is `Authorization: Bearer` or remote IP.
+- `POST /nodes/get` `:budget` and start lists are clamped.
+- `remote-store` retries 429/503 and accepts `:token`.
+- CLI: `--throttle off`, `--rate`, `--burst`, `--inflight`, `--max-body`,
+  `--threads`.
+
 ### nbb LMDB store (optional)
 
 - **`dacite.store.nbb.lmdb`** — named DBs `dacite` / `meta`, 32-byte hash

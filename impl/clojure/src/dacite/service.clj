@@ -20,10 +20,12 @@
             [dacite.store.pack :as pack]
             [dacite.rooted :as rs]
             [dacite.wire :as wire]
-            [dacite.wire.binary :as bin])
+            [dacite.wire.binary :as bin]
+            [dacite.service.throttle :as throttle])
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange Headers]
            [java.net InetSocketAddress]
-           [java.nio.charset StandardCharsets]))
+           [java.nio.charset StandardCharsets]
+           [java.util.concurrent Executors]))
 
 (def ^:private ct-edn "application/edn; charset=utf-8")
 (def ^:private ct-chunk bin/content-type-chunk-v1)
@@ -40,20 +42,29 @@
   (when-let [vals (.get (.getRequestHeaders ex) name)]
     (when (seq vals) (first vals))))
 
+(defn- remote-host [^HttpExchange ex]
+  (when-let [addr (.getRemoteAddress ex)]
+    (when-let [a (.getAddress addr)]
+      (.getHostAddress a))))
+
 (defn- send-bytes!
-  [^HttpExchange ex status ^String content-type ^bytes body]
-  (let [^Headers headers (.getResponseHeaders ex)]
-    (when content-type
-      (.set headers "Content-Type" content-type))
-    ;; CORS for browser demos (page may be same-origin if served from here)
-    (.set headers "Access-Control-Allow-Origin" "*")
-    (.set headers "Access-Control-Allow-Methods" "GET,PUT,POST,HEAD,DELETE,OPTIONS")
-    (.set headers "Access-Control-Allow-Headers" "Content-Type,Authorization,Accept")
-    (if (and body (pos? (alength body)))
-      (do (.sendResponseHeaders ex status (alength body))
-          (with-open [os (.getResponseBody ex)]
-            (.write os body)))
-      (.sendResponseHeaders ex status -1))))
+  ([^HttpExchange ex status ^String content-type ^bytes body]
+   (send-bytes! ex status content-type body nil))
+  ([^HttpExchange ex status ^String content-type ^bytes body extra-headers]
+   (let [^Headers headers (.getResponseHeaders ex)]
+     (when content-type
+       (.set headers "Content-Type" content-type))
+     (doseq [[k v] extra-headers]
+       (.set headers (str k) (str v)))
+     ;; CORS for browser demos (page may be same-origin if served from here)
+     (.set headers "Access-Control-Allow-Origin" "*")
+     (.set headers "Access-Control-Allow-Methods" "GET,PUT,POST,HEAD,DELETE,OPTIONS")
+     (.set headers "Access-Control-Allow-Headers" "Content-Type,Authorization,Accept")
+     (if (and body (pos? (alength body)))
+       (do (.sendResponseHeaders ex status (alength body))
+           (with-open [os (.getResponseBody ex)]
+             (.write os body)))
+       (.sendResponseHeaders ex status -1)))))
 
 (defn- send-edn! [^HttpExchange ex status body]
   (send-bytes! ex status ct-edn (utf8-bytes (wire/write-edn body))))
@@ -183,7 +194,8 @@
    application/vnd.dacite.chunk.v1 (see docs/spec/wire-v1.md)."
   ([rooted method path body]
    (handle-request rooted method path body nil))
-  ([rooted method path body {:keys [content-type accept]}]
+  ([rooted method path body {:keys [content-type accept
+                                    pack-get-max-budget pack-get-max-starts]}]
    (try
      (let [[path-only query] (split-path-query path)
            accept (or accept "")]
@@ -210,6 +222,12 @@
          (and (= "POST" method) (= path-only "/nodes/get"))
          (try
            (let [req (parse-edn-body body)
+                 req (throttle/clamp-pack-get-req
+                      req
+                      (or pack-get-max-budget
+                          (:pack-get-max-budget throttle/defaults))
+                      (or pack-get-max-starts
+                          (:pack-get-max-starts throttle/defaults)))
                  result (pack/pack-get rooted req)]
              {:status 200
               :content-type ct-edn
@@ -320,7 +338,7 @@
 (defn- write-response! [^HttpExchange ex resp]
   (if-let [f (:body-file resp)]
     (let [bytes (.readAllBytes (io/input-stream f))]
-      (send-bytes! ex (:status resp) (:content-type resp) bytes))
+      (send-bytes! ex (:status resp) (:content-type resp) bytes (:headers resp)))
     (let [body (:body resp)
           bs (cond
                (nil? body) nil
@@ -328,8 +346,104 @@
                (string? body) (utf8-bytes body)
                :else (utf8-bytes (pr-str body)))]
       (if bs
-        (send-bytes! ex (:status resp) (:content-type resp) bs)
+        (send-bytes! ex (:status resp) (:content-type resp) bs (:headers resp))
         (send-empty! ex (:status resp))))))
+
+(defn- deny-response
+  "Throttle deny map → HTTP response map."
+  [{:keys [status error retry-after-s]}]
+  (cond-> {:status status
+           :content-type ct-edn
+           :body (wire/write-edn (cond-> {:ok false :error error}
+                                   retry-after-s (assoc :retry-after-s retry-after-s)))}
+    retry-after-s (assoc :headers {"Retry-After" (str retry-after-s)})))
+
+(defn- drain-body! [^HttpExchange ex]
+  (try
+    (.close (.getRequestBody ex))
+    (catch Exception _ nil)))
+
+(defn- make-executor [th]
+  (if th
+    (let [n (+ (long (get-in th [:opts :max-threads]))
+               (long (get-in th [:opts :max-sse])))]
+      (Executors/newFixedThreadPool (int (max 1 n))))
+    (Executors/newCachedThreadPool)))
+
+(defn- handle-plain-request!
+  "Read body (unbounded) and dispatch handle-request. No admission."
+  [^HttpExchange exchange rooted method path+q]
+  (let [body (when (#{"PUT" "POST"} method) (read-body-bytes exchange))
+        ct (header-val exchange "Content-type")
+        accept (header-val exchange "Accept")
+        resp (handle-request rooted method path+q body
+                             {:content-type ct :accept accept})]
+    (write-response! exchange resp)))
+
+(defn- handle-throttled-request!
+  "Admit, bounded-read, dispatch. Caller has already acquired API slot."
+  [^HttpExchange exchange th rooted method path+q]
+  (let [max-body (get-in th [:opts :max-body-bytes])
+        cl (header-val exchange "Content-length")]
+    (if (throttle/content-length-too-large? cl max-body)
+      (do (drain-body! exchange)
+          (write-response! exchange (deny-response (throttle/body-too-large))))
+      (let [raw (when (#{"PUT" "POST"} method)
+                  (throttle/read-body-limited (.getRequestBody exchange) max-body))]
+        (if (= :too-large raw)
+          (do (drain-body! exchange)
+              (write-response! exchange (deny-response (throttle/body-too-large))))
+          (let [ct (header-val exchange "Content-type")
+                accept (header-val exchange "Accept")
+                resp (handle-request
+                      rooted method path+q raw
+                      {:content-type ct
+                       :accept accept
+                       :pack-get-max-budget (get-in th [:opts :pack-get-max-budget])
+                       :pack-get-max-starts (get-in th [:opts :pack-get-max-starts])})]
+            (write-response! exchange resp)))))))
+
+(defn- handle-exchange!
+  [^HttpExchange exchange th rooted static hub]
+  (let [method (.getRequestMethod exchange)
+        uri (.getRequestURI exchange)
+        path (.getPath uri)
+        q (.getQuery uri)
+        path+q (if q (str path "?" q) path)
+        ck (when th
+             (throttle/client-key (header-val exchange "Authorization")
+                                  (remote-host exchange)))]
+    (cond
+      (and (= "GET" method) (= path "/events"))
+      (if (nil? th)
+        (handle-sse! exchange hub rooted)
+        (let [adm (throttle/acquire-sse! th ck)]
+          (if-not (:ok adm)
+            (do (drain-body! exchange)
+                (write-response! exchange (deny-response adm)))
+            (try
+              (handle-sse! exchange hub rooted)
+              (finally
+                (throttle/release-sse! th ck))))))
+
+      (and (#{"GET" "HEAD"} method) (handle-static static path))
+      (write-response! exchange (handle-static static path))
+
+      (= "OPTIONS" method)
+      (write-response! exchange {:status 204})
+
+      (nil? th)
+      (handle-plain-request! exchange rooted method path+q)
+
+      :else
+      (let [adm (throttle/acquire-api! th ck)]
+        (if-not (:ok adm)
+          (do (drain-body! exchange)
+              (write-response! exchange (deny-response adm)))
+          (try
+            (handle-throttled-request! exchange th rooted method path+q)
+            (finally
+              (throttle/release-api! th ck))))))))
 
 (defn start-server!
   "Start HttpServer.
@@ -338,54 +452,43 @@
      :port (default 0 = ephemeral)
      :rooted — required RootedStore
      :static-dir — optional File/string for /app/* and /
+     :throttle — true/nil (defaults on), false (off), or map merged
+                 over dacite.service.throttle/defaults
    Returns {:server HttpServer :port int :base-url string :rooted ...}"
-  [{:keys [port rooted static-dir]
-    :or {port 0}}]
-  (when-not rooted
-    (throw (ex-info "rooted store required" {})))
-  (let [static (when static-dir (io/file static-dir))
-        hub (make-sse-hub rooted)
-        executor (java.util.concurrent.Executors/newCachedThreadPool)
-        server (HttpServer/create (InetSocketAddress. port) 0)
-        handler
-        (reify HttpHandler
-          (handle [_ exchange]
-            (try
-              (let [method (.getRequestMethod exchange)
-                    uri (.getRequestURI exchange)
-                    path (.getPath uri)
-                    q (.getQuery uri)
-                    path+q (if q (str path "?" q) path)]
-                (if (and (= "GET" method) (= path "/events"))
-                  (handle-sse! exchange hub rooted)
-                  (let [body (when (#{"PUT" "POST"} method) (read-body-bytes exchange))
-                        ct (header-val exchange "Content-type")
-                        accept (header-val exchange "Accept")
-                        resp (or (when (#{"GET" "HEAD"} method)
-                                   (handle-static static path))
-                                 (handle-request rooted method path+q body
-                                                 {:content-type ct
-                                                  :accept accept}))]
-                    (write-response! exchange resp))))
-              (catch Exception e
-                (try
-                  (send-edn! exchange 500 {:error (.getMessage e)})
-                  (catch Exception _ nil))))))]
-    (.createContext server "/" handler)
-    ;; Cached pool so a blocking SSE subscriber cannot starve CAS / node I/O.
-    (.setExecutor server executor)
-    (.start server)
-    (let [bound (.. server getAddress getPort)
-          base (str "http://127.0.0.1:" bound)]
-      {:server server
-       :port bound
-       :base-url base
-       :rooted rooted
-       :hub hub
-       :stop! (fn []
-                ((:close! hub))
-                (.stop server 0)
-                (.shutdownNow executor))})))
+  [opts]
+  (let [{:keys [port rooted static-dir] :or {port 0}} opts
+        th (throttle/create (:throttle opts true))]
+    (when-not rooted
+      (throw (ex-info "rooted store required" {})))
+    (let [static (when static-dir (io/file static-dir))
+          hub (make-sse-hub rooted)
+          executor (make-executor th)
+          server (HttpServer/create (InetSocketAddress. port) 0)
+          handler (reify HttpHandler
+                    (handle [_ exchange]
+                      (try
+                        (handle-exchange! exchange th rooted static hub)
+                        (catch Exception e
+                          (try
+                            (send-edn! exchange 500 {:error (.getMessage e)})
+                            (catch Exception _ nil))))))]
+      (.createContext server "/" handler)
+      ;; Fixed pool sized for API threads + SSE slots so a watcher cannot
+      ;; starve CAS / node I/O. Cached pool when throttle is off.
+      (.setExecutor server executor)
+      (.start server)
+      (let [bound (.. server getAddress getPort)
+            base (str "http://127.0.0.1:" bound)]
+        {:server server
+         :port bound
+         :base-url base
+         :rooted rooted
+         :hub hub
+         :throttle th
+         :stop! (fn []
+                  ((:close! hub))
+                  (.stop server 0)
+                  (.shutdownNow executor))}))))
 
 (defn stop-server! [{:keys [stop!]}]
   (when stop! (stop!)))

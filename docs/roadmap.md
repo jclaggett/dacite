@@ -127,6 +127,7 @@ emergencies. Application code that reaches for it has found a hole in
 - [x] Stats / bandwidth instrumentation (`dacite.store.stats`, todo-bw bench)
 - [x] Pack composition (`flush-from!`, outermost `IChunkTransport`)
 - [x] Rate-limit store (`dacite.store.rate-limit`)
+- [x] HTTP inbound throttle (`dacite.service.throttle` — per-client 429)
 
 ### Hash fusion (Chapter 2)
 

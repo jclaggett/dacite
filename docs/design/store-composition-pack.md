@@ -2,7 +2,8 @@
 
 **Status:** IN PROGRESS — composition APIs shipped (`flush-from!`,
 `find-chunk-transport`); client **rate-limit** on `send-chunk!` available
-(`dacite.store.rate-limit`).
+(`dacite.store.rate-limit`); server inbound admit is
+`dacite.service.throttle`.
 
 **Related:** [leaf-chunking.md](leaf-chunking.md) (Layer 1/2 laws, budget 1024),
 [service.md](service.md) (HTTP), [stores-phase-2.md](stores-phase-2.md).
@@ -52,7 +53,7 @@ Recommended stack:
 ```text
 client-cache (write-back | smart-put | …)
   → pack store
-  → [rate-limit store]     ; future
+  → [rate-limit store]     ; send-chunk! token bucket
   → remote / browser       ; pure HTTP + apply-chunk! locally if needed
 ```
 
@@ -267,7 +268,9 @@ entries (single unliteralize implementation). No closure index in the durable
 store for MVP composition work.
 
 Inbound throttle (connections, body size, chunk rate) is **server policy**,
-orthogonal to client token-bucket under pack.
+orthogonal to client token-bucket under pack. Shipped as
+`dacite.service.throttle`: per-client admit → 429 / 413 / 503. See
+[service.md](service.md) §Inbound throttle.
 
 ---
 
@@ -292,6 +295,7 @@ orthogonal to client token-bucket under pack.
 | **P2** | `flush-from!` (W2); write-back calls it; `wrap-chunk-transport` helper — **done** |
 | **P3** | Tests: todo-bw / pack parity; middleware sees every `send-chunk!` |
 | **P4** | Rate-limit store under pack (`send-chunk!` takes tokens, block on empty) — **done** (`dacite.store.rate-limit`) |
+| **P4b** | Server inbound admit (per-client 429 / body cap / pack-get clamp) — **done** (`dacite.service.throttle`) |
 | **P5** | Optional W1 buffering pack store |
 | **Later** | Value-layer closure helpers / CAS-ready checks (not IStore) |
 
@@ -322,7 +326,8 @@ do not. Empty bucket blocks until refill.
 - Pack invocation centralized; write-back is cache policy + flush hook only
 - No unwrap that skips middleware on chunk send
 - Store layer limited to **node presence + chunk novelty**; no value-completeness API on `IStore`
-- Throttle has a clear insertion point **below** packing; not built yet
+- Throttle has a clear insertion point **below** packing; client limiter
+  and server admit both ship (`rate-limit` / `service.throttle`)
 
 ---
 

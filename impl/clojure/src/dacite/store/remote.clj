@@ -34,25 +34,47 @@
         "/node/" (store/hash->hex h)
         (when query (str "?" query)))))
 
-(defn- request [client method url ^bytes body headers]
-  (let [body-publisher (if body
-                         (HttpRequest$BodyPublishers/ofByteArray body)
-                         (HttpRequest$BodyPublishers/noBody))
-        builder (.. (HttpRequest/newBuilder)
-                    (uri (URI/create url))
-                    (method method body-publisher))
-        builder (reduce (fn [b [k v]]
-                          (.header b (name k) (str v)))
-                        builder
-                        headers)
-        ^HttpRequest req (.build builder)
-        ^HttpResponse resp (.send client req (HttpResponse$BodyHandlers/ofByteArray))
-        ^bytes resp-body (.body resp)
-        sent (if body (alength body) 0)
-        recv (if resp-body (alength resp-body) 0)]
-    (stats/record! (stats/classify-url method url) sent recv)
-    {:status (.statusCode resp)
-     :body resp-body}))
+(def ^:private max-retry-after-status
+  "How many times to retry 429/503 before giving up."
+  8)
+
+(defn- retry-after-ms
+  "Retry-After header (delta-seconds) → milliseconds. Default 1000."
+  [^HttpResponse resp]
+  (let [opt (.firstValue (.headers resp) "Retry-After")]
+    (if (.isPresent opt)
+      (try
+        (* 1000 (max 1 (Long/parseLong (str/trim (.get opt)))))
+        (catch Exception _ 1000))
+      1000)))
+
+(defn- request
+  ([client method url body headers]
+   (request client method url body headers 0))
+  ([client method url ^bytes body headers attempt]
+   (let [body-publisher (if body
+                          (HttpRequest$BodyPublishers/ofByteArray body)
+                          (HttpRequest$BodyPublishers/noBody))
+         builder (.. (HttpRequest/newBuilder)
+                     (uri (URI/create url))
+                     (method method body-publisher))
+         builder (reduce (fn [b [k v]]
+                           (.header b (name k) (str v)))
+                         builder
+                         headers)
+         ^HttpRequest req (.build builder)
+         ^HttpResponse resp (.send client req (HttpResponse$BodyHandlers/ofByteArray))
+         ^bytes resp-body (.body resp)
+         sent (if body (alength body) 0)
+         recv (if resp-body (alength resp-body) 0)
+         status (.statusCode resp)]
+     (stats/record! (stats/classify-url method url) sent recv)
+     (if (and (#{429 503} status) (< attempt max-retry-after-status))
+       (do
+         (Thread/sleep (retry-after-ms resp))
+         (request client method url body headers (inc attempt)))
+       {:status status
+        :body resp-body}))))
 
 (defn- edn-request [client method url body headers]
   (let [^bytes bs (when body (.getBytes (wire/write-edn body) "UTF-8"))
@@ -208,20 +230,32 @@
   ([remote items budget]
    (pack/put-items-chunked! remote items budget)))
 
+(defn- merge-token-headers
+  "If :token is set, add Authorization: Bearer <token> unless already present."
+  [headers token]
+  (let [headers (or headers {})]
+    (if (and token (not (some (fn [k] (= "authorization" (str/lower-case (name k))))
+                              (keys headers))))
+      (assoc headers "Authorization" (str "Bearer " token))
+      headers)))
+
 (defn remote-store
   "Create an HTTP-backed remote store.
 
    base-url — server root, e.g. \"http://localhost:8080\"
    opts — {:headers {…}
+           :token string          ; Authorization: Bearer <token> (bucket name)
            :client HttpClient
-           :binary true|false  ; default true — wire-v1 for pack GET/POST}"
-  [base-url & [{:keys [headers client binary]
+           :binary true|false  ; default true — wire-v1 for pack GET/POST}
+
+   429 and 503 responses retry up to 8 times using Retry-After (seconds)."
+  [base-url & [{:keys [headers client binary token]
                 :or {headers {}
                      binary true}}]]
   (->RemoteStore base-url
                  (or client (.build (.. (HttpClient/newBuilder)
                                         (connectTimeout (Duration/ofSeconds 10)))))
-                 headers
+                 (merge-token-headers headers token)
                  (store/mem-store)
                  (boolean binary)))
 
@@ -308,6 +342,7 @@
    base-url — server origin, e.g. \"http://127.0.0.1:8080\"
    opts — {:policy :write-back|:none|:layered|:smart-put  ; default :write-back
            :binary true|false
+           :token string
            :headers {…}
            :client HttpClient}"
   [base-url & [{:keys [policy] :or {policy :write-back} :as opts}]]
@@ -345,11 +380,16 @@
         url (str (str/replace (:base-url rs) #"/$" "") "/events")
         running (atom true)
         client (:client rs)
-        req (.build (.. (HttpRequest/newBuilder)
-                        (uri (URI/create url))
-                        (version HttpClient$Version/HTTP_1_1)
-                        (GET)
-                        (header "Accept" "text/event-stream")))
+        builder (.. (HttpRequest/newBuilder)
+                    (uri (URI/create url))
+                    (version HttpClient$Version/HTTP_1_1)
+                    (GET)
+                    (header "Accept" "text/event-stream"))
+        builder (reduce (fn [b [k v]]
+                          (.header b (name k) (str v)))
+                        builder
+                        (:headers rs))
+        req (.build builder)
         fut (future
               (try
                 (let [^HttpResponse resp

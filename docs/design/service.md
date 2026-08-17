@@ -34,6 +34,10 @@ MVP: **Bearer token** in `Authorization` header. Token maps to a user id; user i
 
 Implementation-defined for MVP tests (static token → single test store).
 
+Today a Bearer token is also the **inbound throttle bucket name** (not a
+capability). If the header is absent, the bucket is the remote IP. See
+[Inbound throttle](#inbound-throttle).
+
 ## Wire format
 
 **Content-Type:**
@@ -229,6 +233,50 @@ See `POST /nodes` under node endpoints above.
 
 Clients pack until soft budget ≥ `budget` (chunks may approach 2× budget),
 then POST each chunk. Write-back flush uses this path when available.
+
+## Inbound throttle
+
+Server policy so one client cannot occupy the process and starve another.
+**Not** `dacite.store.rate-limit` (that limiter sleeps on outbound
+`send-chunk!`). Empty inbound bucket is **429**, not a held handler thread.
+
+**Client key:** `Authorization: Bearer <id>` if present, else remote IP. The
+token is only a bucket name. Two processes on `127.0.0.1` share an IP bucket
+unless they send distinct Bearers (`remote-store` `:token`).
+
+**Responses:**
+
+| Status | When | Header |
+|---|---|---|
+| 429 | per-client rate or inflight exceeded | `Retry-After` (seconds) |
+| 413 | request body larger than `:max-body-bytes` | — |
+| 503 | global API / SSE slot exhausted | `Retry-After` |
+
+Body (EDN): `{:ok false :error "rate limited" :retry-after-s n}` (or
+`"body too large"` / `"server busy"`).
+
+**Defaults** (on for `clojure -M:service`; `:throttle false` disables):
+
+| Cap | Default |
+|---|---|
+| `:client-rate` | 50 /s |
+| `:client-burst` | 100 |
+| `:client-inflight` | 8 |
+| `:max-body-bytes` | 1 MiB |
+| `:max-threads` | 32 |
+| `:max-sse` | 16 |
+| `:sse-per-client` | 4 |
+| `:pack-get-max-budget` | 65536 |
+| `:pack-get-max-starts` | 32 |
+
+`OPTIONS` and `/app/*` are unmetered. `GET /events` counts against the SSE
+caps only (not the request bucket). `POST /nodes/get` `:budget` and start
+hash lists are **clamped** to the server maxima (still 200).
+
+JVM `remote-store` retries 429/503 up to 8 times using `Retry-After`.
+
+CLI: `--throttle off`, `--rate`, `--burst`, `--inflight`, `--max-body`,
+`--threads`.
 
 ### Deferred
 

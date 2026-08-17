@@ -77,6 +77,37 @@
                         :last-ms now2})))
             (recur)))))))
 
+(defn try-take-tokens!
+  "Non-blocking take. Does not sleep.
+
+   Returns {:ok true} when `cost` tokens were deducted, or
+   {:ok false :retry-after-ms n} when the bucket cannot cover cost now.
+
+   Same state atom shape as `take-tokens!`. Server inbound throttle uses
+   this so an empty bucket becomes HTTP 429 instead of holding a handler
+   thread."
+  [state {:keys [capacity rate cost now-fn]
+          :or {cost 1
+               now-fn default-now-ms}}]
+  (let [capacity (double capacity)
+        rate (double rate)
+        cost (double cost)]
+    (when-not (and (pos? capacity) (pos? rate) (pos? cost))
+      (throw (ex-info "rate-limit requires positive :capacity, :rate, and :cost"
+                      {:capacity capacity :rate rate :cost cost})))
+    (loop []
+      (let [st @state
+            now (long (now-fn))
+            tokens' (refill (:tokens st) (:last-ms st) now capacity rate)]
+        (if (>= tokens' cost)
+          (if (compare-and-set! state st {:tokens (- tokens' cost)
+                                          :last-ms now})
+            {:ok true}
+            (recur))
+          (let [need (- cost tokens')
+                wait-ms (long (Math/ceil (* 1000.0 (/ need rate))))]
+            {:ok false :retry-after-ms (max 1 wait-ms)}))))))
+
 (defrecord RateLimitStore [inner state opts]
   pack/IChunkTransport
   (send-chunk! [_ chunk]

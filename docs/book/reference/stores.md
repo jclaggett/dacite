@@ -115,7 +115,7 @@ remote HTTP store        (dacite.store.remote | dacite.store.browser)
 |--------|------|
 | `dacite.store.client-cache` | Local mem + flush reachable on CAS / explicit flush |
 | `dacite.store.pack` | Soft budget packing, `flush-from!`, `apply-chunk!`, literals |
-| `dacite.store.rate-limit` | Throttle send path (outermost `IChunkTransport` wins) |
+| `dacite.store.rate-limit` | Throttle **send** path (outermost `IChunkTransport` wins). Server inbound admit is `dacite.service.throttle` (429), not this wrapper. |
 | `dacite.store.stats` | Bandwidth accounting for store-protocol bodies |
 | `dacite.store.remote` | JVM HTTP client (`:binary true` default for packs); `watch-root` is GET /events |
 | `dacite.store.browser` | Browser sync XHR demo client (`:binary true` default) |

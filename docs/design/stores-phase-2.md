@@ -87,6 +87,8 @@ clojure -M:dev -m dacite.bench.todo-bw --budget-sweep
   (`flush-from!`, outermost `IChunkTransport`; server unpack mirror).
 - Rate-limit store (token bucket) under pack — **done** (`dacite.store.rate-limit`);
   1 token ≈ 1 `send-chunk!`; block when empty
+- Server inbound throttle — **done** (`dacite.service.throttle`); per-client
+  429 / body 413 / pack-get clamp; not the client send-chunk limiter
 - Root slot in content map (`[0,0,0,0]` or `type-hash("dacite/root")`)
 - Content sync helper (copy reachable nodes to target before `push-ref`)
 - True opaque-byte storage in stores
