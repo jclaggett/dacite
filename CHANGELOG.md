@@ -6,6 +6,15 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### nbb LMDB store (optional)
+
+- **`dacite.store.nbb.lmdb`** — named DBs `dacite` / `meta`, 32-byte hash
+  keys, wire-v1 node payloads. Same on-disk layout as `dacite.store.jvm`.
+  Requires `lmdb` built for **data format v1**
+  (`LMDB_DATA_V1=true npm rebuild lmdb`). File-store remains the default.
+- **`dacite.wire.binary`** — CLJS collection counts decode as JS numbers
+  (not BigInt) so nbb can re-encode trees.
+
 ### Directory / blob sync
 
 - **`dacite.examples.sync`** — directory tree of maps + blobs. `ls` does

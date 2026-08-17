@@ -88,7 +88,10 @@ See [Values — root reference](values.md#root-reference-value-level) and
 Host ctors on `dacite.store` (JVM): `(store/file-store path)`,
 `(store/lmdb-store path)`, `(store/lmdb-root-cell lmdb)`. On **nbb**, use
 `(dacite.store.nbb/file-store path)` (SCI cannot re-export circular host
-backends cleanly).
+backends cleanly). Optional nbb LMDB (same `data.mdb` layout as JVM, wire-v1
+nodes): `(dacite.store.nbb.lmdb/lmdb-store path)` after
+`LMDB_DATA_V1=true npm rebuild lmdb` (prebuilt `lmdb` is format v2 and will
+not open a lmdbjava env).
 
 ---
 

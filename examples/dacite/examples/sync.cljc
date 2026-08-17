@@ -19,11 +19,13 @@
      clojure -M:sync -- --url http://127.0.0.1:8080 push
      clojure -M:sync -- bench
      bb sync --reset seed
-     npx nbb -m dacite.examples.sync -- --reset seed"
+     npx nbb -m dacite.examples.sync -- --reset seed
+     npx nbb -m dacite.examples.sync -- --lmdb --reset seed"
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.value :as v]
-            #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]]
+            #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]
+                                   [dacite.store.nbb.lmdb :as lmdb]]
                 :cljs []
                 :default [[clojure.java.io :as io]])))
 
@@ -266,13 +268,53 @@
        (store/rc-put! (store/file-root-cell path) nil)
        nil)))
 
+#?(:org.babashka/nbb
+   (defn open-lmdb
+     [path]
+     (let [st (lmdb/lmdb-store path)]
+       (store/rooted-store st (lmdb/lmdb-root-cell st))))
+   :clj
+   (defn open-lmdb
+     [path]
+     (let [st (store/lmdb-store path)]
+       (store/rooted-store st (store/lmdb-root-cell st))))
+   :default
+   (defn open-lmdb
+     [_path]
+     (throw (ex-info "LMDB is nbb or JVM only" {}))))
+
+#?(:org.babashka/nbb
+   (defn reset-lmdb-dir!
+     [path]
+     (let [fs (js/require "fs")]
+       (when (.existsSync fs path)
+         (.rmSync fs path #js {:recursive true :force true}))
+       nil))
+   :clj
+   (defn reset-lmdb-dir!
+     [path]
+     (let [dir (io/file path)]
+       (when (.exists dir)
+         (doseq [f (reverse (file-seq dir))]
+           (.delete ^java.io.File f)))
+       nil))
+   :default
+   (defn reset-lmdb-dir! [_path] nil))
+
+(defn local-path
+  [{:keys [lmdb? path]}]
+  (if (and lmdb? (= path default-path))
+    (str default-path "-lmdb")
+    path))
+
 (defn parse-args
-  "CLI: [--path DIR | --url URL] [--reset|-r] [--out DIR]
+  "CLI: [--path DIR | --url URL] [--lmdb] [--reset|-r] [--out DIR]
         [seed|ls [PATH]|cat PATH|put HOSTDIR|push|pull|bench|export DIR]"
   [args]
   (let [args (->> args (map str) (remove #{"--"}))]
     (loop [args args
            acc {:reset? false
+                :lmdb? false
                 :path default-path
                 :url nil
                 :out nil
@@ -285,6 +327,9 @@
           (cond
             (or (= a "--reset") (= a "-r"))
             (recur more (assoc acc :reset? true))
+
+            (= a "--lmdb")
+            (recur more (assoc acc :lmdb? true))
 
             (= a "--path")
             (recur (rest more) (assoc acc :path (first more)))
@@ -302,10 +347,17 @@
             (assoc acc :cmd "ls" :cmd-args (vec args))))))))
 
 (defn open-store
-  [{:keys [url path]}]
-  (if url
-    (open-remote url)
-    (open-file path)))
+  [{:keys [url lmdb?] :as opts}]
+  (cond
+    url (open-remote url)
+    lmdb? (open-lmdb (local-path opts))
+    :else (open-file (:path opts))))
+
+(defn open-local
+  [opts]
+  (if (:lmdb? opts)
+    (open-lmdb (local-path opts))
+    (open-file (:path opts))))
 
 (defn push-tree!
   "Copy reachable nodes to dest and CAS dest root to src root."
@@ -343,12 +395,17 @@
        "  data.bin:     " (:data-bytes m) " B\n"))
 
 (defn -main [& args]
-  (let [{:keys [reset? path url out cmd cmd-args] :as opts} (parse-args args)]
+  (let [{:keys [reset? path url lmdb? out cmd cmd-args] :as opts} (parse-args args)
+        local (local-path opts)]
     (when (and reset? url)
-      (throw (ex-info "--reset is for the local file store only" {:url url})))
+      (throw (ex-info "--reset is for the local store only" {:url url})))
     (when reset?
-      (reset-store-dir! path)
-      (println "reset store at" path))
+      (if lmdb?
+        (reset-lmdb-dir! local)
+        (reset-store-dir! path))
+      (println "reset store at" local))
+    (when lmdb?
+      (println "lmdb" local))
     (let [rs (open-store opts)
           tree-ref (v/root-ref rs)]
       (case cmd
@@ -391,7 +448,7 @@
         (do
           (when-not url
             (throw (ex-info "push requires --url" {})))
-          (let [local (open-file path)
+          (let [local (open-local opts)
                 remote (open-remote url)]
             (when-not (store/root local)
               (throw (ex-info "local store has no root; seed or put first" {})))
@@ -405,7 +462,7 @@
         (do
           (when-not url
             (throw (ex-info "pull requires --url" {})))
-          (let [local (open-file path)
+          (let [local (open-local opts)
                 remote (open-remote url)]
             (when-not (store/root remote)
               (throw (ex-info "remote root is empty" {})))

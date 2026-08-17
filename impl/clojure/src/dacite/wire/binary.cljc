@@ -116,7 +116,8 @@
 
 (defn- put-u32
   [buf n]
-  (let [n (bit-and 0xffffffff #?(:clj (long n) :cljs (js/Math.floor n)))]
+  (let [n (bit-and 0xffffffff #?(:clj (long n)
+                                 :cljs (js/Number n)))]
     (put-u8 buf (bit-and 0xff (unsigned-bit-shift-right n 24)))
     (put-u8 buf (bit-and 0xff (unsigned-bit-shift-right n 16)))
     (put-u8 buf (bit-and 0xff (unsigned-bit-shift-right n 8)))
@@ -451,10 +452,17 @@
   (put-u64 buf (or size-bytes 0))
   (put-hash buf elements-fuse))
 
+(defn- get-count
+  "u64 used as a collection/measure count. Host long on JVM; JS Number
+   on CLJS (safe under 2^53 — store node counts are not hash words)."
+  [buf]
+  #?(:clj (long (get-u64 buf))
+     :cljs (js/Number (get-u64 buf))))
+
 (defn- get-measure
   [buf]
-  {:count (get-u64 buf)
-   :size-bytes (get-u64 buf)
+  {:count (get-count buf)
+   :size-bytes (get-count buf)
    :elements-fuse (get-hash buf)})
 
 ;; =============================================================================
@@ -905,8 +913,8 @@
             tname (or (coll-id->name cid)
                       (throw (ex-info "unknown coll_id" {:id cid})))
             root (get-hash buf)
-            cnt (get-u64 buf)
-            sz (get-u64 buf)]
+            cnt (get-count buf)
+            sz (get-count buf)]
         (when (pos? (remaining buf))
           (throw (ex-info "trailing garbage in collection node" {})))
         [tname {:root root :count cnt :size-bytes sz}])

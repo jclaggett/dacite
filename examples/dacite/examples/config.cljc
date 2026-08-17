@@ -13,13 +13,15 @@
      clojure -M:config -- --url http://127.0.0.1:8080 show
      clojure -M:config -- --url http://127.0.0.1:8080 watch
      bb config show
-     npx nbb -m dacite.examples.config -- show"
+     npx nbb -m dacite.examples.config -- show
+     npx nbb -m dacite.examples.config -- --lmdb show"
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.value :as v]
-            #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]]
+            #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]
+                                   [dacite.store.nbb.lmdb :as lmdb]]
                 :cljs []
-                :default [])))
+                :default [[clojure.java.io :as io]])))
 
 ;; =============================================================================
 ;; Values
@@ -158,6 +160,46 @@
        (store/rc-put! (store/file-root-cell path) nil)
        nil)))
 
+#?(:org.babashka/nbb
+   (defn open-lmdb
+     [path]
+     (let [st (lmdb/lmdb-store path)]
+       (store/rooted-store st (lmdb/lmdb-root-cell st))))
+   :clj
+   (defn open-lmdb
+     [path]
+     (let [st (store/lmdb-store path)]
+       (store/rooted-store st (store/lmdb-root-cell st))))
+   :default
+   (defn open-lmdb
+     [_path]
+     (throw (ex-info "LMDB is nbb or JVM only" {}))))
+
+#?(:org.babashka/nbb
+   (defn reset-lmdb-dir!
+     [path]
+     (let [fs (js/require "fs")]
+       (when (.existsSync fs path)
+         (.rmSync fs path #js {:recursive true :force true}))
+       nil))
+   :clj
+   (defn reset-lmdb-dir!
+     [path]
+     (let [dir (io/file path)]
+       (when (.exists dir)
+         (doseq [f (reverse (file-seq dir))]
+           (.delete ^java.io.File f)))
+       nil))
+   :default
+   (defn reset-lmdb-dir! [_path] nil))
+
+(defn local-path
+  "Directory for the local store. `--lmdb` without `--path` uses `<default>-lmdb`."
+  [{:keys [lmdb? path]}]
+  (if (and lmdb? (= path default-path))
+    (str default-path "-lmdb")
+    path))
+
 (defn parse-path
   "Split a dotted CLI path. Numeric segments become integers (vector indexes)."
   [s]
@@ -178,11 +220,12 @@
       s)))
 
 (defn parse-args
-  "CLI: [--path DIR | --url URL] [--reset|-r] [show|get PATH|set PATH VAL|add-feature NAME|watch]"
+  "CLI: [--path DIR | --url URL] [--lmdb] [--reset|-r] [show|get PATH|set PATH VAL|add-feature NAME|watch]"
   [args]
   (let [args (->> args (map str) (remove #{"--"}))]
     (loop [args args
            acc {:reset? false
+                :lmdb? false
                 :path default-path
                 :url nil
                 :cmd "show"
@@ -194,6 +237,9 @@
           (cond
             (or (= a "--reset") (= a "-r"))
             (recur more (assoc acc :reset? true))
+
+            (= a "--lmdb")
+            (recur more (assoc acc :lmdb? true))
 
             (= a "--path")
             (recur (rest more) (assoc acc :path (first more)))
@@ -208,11 +254,12 @@
             (assoc acc :cmd "show" :cmd-args (vec args))))))))
 
 (defn open-store
-  "File-rooted or HTTP remote-rooted, from parsed CLI opts."
-  [{:keys [url path]}]
-  (if url
-    (open-remote url)
-    (open-file path)))
+  "File-rooted, LMDB-rooted, or HTTP remote-rooted."
+  [{:keys [url lmdb?] :as opts}]
+  (cond
+    url (open-remote url)
+    lmdb? (open-lmdb (local-path opts))
+    :else (open-file (:path opts))))
 
 ;; =============================================================================
 ;; Main
@@ -242,19 +289,24 @@
      (throw (ex-info "watch is JVM-only" {}))))
 
 (defn -main [& args]
-  (let [{:keys [reset? path url cmd cmd-args] :as opts} (parse-args args)]
+  (let [{:keys [reset? path url lmdb? cmd cmd-args] :as opts} (parse-args args)
+        local (local-path opts)]
     (when (and reset? url)
-      (throw (ex-info "--reset is for the local file store only" {:url url})))
+      (throw (ex-info "--reset is for the local store only" {:url url})))
     (when reset?
-      (reset-store-dir! path)
-      (println "reset store at" path))
+      (if lmdb?
+        (reset-lmdb-dir! local)
+        (reset-store-dir! path))
+      (println "reset store at" local))
     (let [rs (open-store opts)
           cfg-ref (v/root-ref rs)
           [cfg seeded?] (load-or-seed! cfg-ref)]
+      (when lmdb?
+        (println "lmdb" local))
       (when seeded?
         (println (if url
                    (str "seeded remote at " url)
-                   (str "seeded new store at " path))))
+                   (str "seeded new store at " local))))
       (case cmd
         "show"
         (print-cfg! nil (v/ref-deref cfg-ref))
