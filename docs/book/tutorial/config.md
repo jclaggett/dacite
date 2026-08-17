@@ -148,5 +148,4 @@ Debug printing uses `v/pr-str` or bounded `print-method`.
 
 ## Next
 
-[Versioned notes](../../roadmap.md) — treat each root hash as a snapshot
-you can restore.
+[Versioned notes](notes.md) — treat each edit as a snapshot you can restore.

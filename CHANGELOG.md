@@ -6,6 +6,13 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### Versioned notes app
+
+- **`dacite.examples.notes`** — notebook `{doc, history}`; restore reuses a
+  historical doc hash; `diff` compares field hashes; `bench` shows a
+  title-only edit adds fewer store nodes than a body rewrite.
+- Tutorial: [docs/book/tutorial/notes.md](docs/book/tutorial/notes.md)
+
 ### Remote config app
 
 - **`dacite.examples.config`** — same domain against a file-rooted store

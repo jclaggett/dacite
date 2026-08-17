@@ -170,4 +170,5 @@ Example:
 - [Stores API](stores.md)
 - [Hello World (nbb)](../tutorial/hello-nbb.md)
 - [Remote config](../tutorial/config.md)
+- [Versioned notes](../tutorial/notes.md)
 - [Install](../getting-started/install.md)

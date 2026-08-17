@@ -155,7 +155,8 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 - [x] Values / Stores API reference
 - [x] Hello World (nbb) tutorial
 - [x] Remote config tutorial (`docs/book/tutorial/config.md`)
-- [ ] Tutorials written from later apps (notes, event log, …)
+- [x] Versioned notes tutorial (`docs/book/tutorial/notes.md`)
+- [ ] Tutorials written from later apps (event log, …)
 
 ### Examples today
 
@@ -163,6 +164,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 |---|---|---|
 | Hello nbb | Constructors, `realize`, hash identity | Persistence, sync, a user |
 | [config](../examples/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX, SSE |
+| [notes](../examples/dacite/examples/notes.cljc) | Snapshots, restore by hash, title-only sharing | Multi-writer, web UI |
 | [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, partial load |
@@ -193,33 +195,17 @@ Shipped: [config.cljc](../examples/dacite/examples/config.cljc),
 config hash (`dacite.examples.config-test`). Seed uses `ref-cas!` from
 nil — `ref-reset!` stays local-only.
 
-### 2. Versioned notes — prove snapshots and sharing
+### 2. Versioned notes — done
 
 **Claim:** every root hash is a complete snapshot; unchanged subtrees are
 free.
 
-A notes app (CLI first, optional web):
-
-- documents as maps (`title`, `body`, `tags`, `edited-at`)
-- a **history** of previous root hashes (or `prev` on the state map)
-- show / restore / diff two versions
-- enough edits that sharing is measurable (same body, changed title → tiny
-  new nodes)
-
-**Pulls:**
-
-- path updates (`get-in` / `assoc-in` / `update-in`)
-- string/blob ergonomics for bodies longer than a todo title
-- a history *recipe* (the library should not invent git; the app shows the
-  pattern)
-- REPL/`print` that does not dump an entire finger tree (already started
-  in `dacite.value.render`)
-
-**Done when:** you can restore version N without rewriting the document, and
-a bench shows later versions add little new store data when only one field
-changed.
-
-This is the “why not just overwrite a JSON file” answer.
+Shipped: [notes.cljc](../examples/dacite/examples/notes.cljc), tutorial
+[notes.md](book/tutorial/notes.md). Notebook is `{doc, history}`; restore
+reinstalls the historical doc value (same hash). `bench` / tests show a
+title-only edit shares the body hash and adds fewer store nodes than a
+body rewrite. Print uses `v/pr-str`. No new library API — path ops and
+bounded string render from config were enough.
 
 ### 3. Event log + derived view — prove append and lazy read
 
@@ -366,9 +352,8 @@ use one of them.
 ```
 Remote config (same domain, file + HTTP)           ✓
         → pulled: field access, get-in/assoc-in, remote root-ref
-Versioned notes (history + restore)
-        → pull: path updates, string/blob UX, print
-        → first tutorial that is not Hello World
+Versioned notes (history + restore)                ✓
+        → reused: path updates, pr-str; recipe is history vector of docs
 Event log at real size
         → pull: slice/pagination, missing-node errors
         → first time pack + lazy realize matter

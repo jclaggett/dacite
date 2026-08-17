@@ -33,6 +33,17 @@
                       "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
            :main-opts ["-m" "dacite.examples.config"]}
 
+  ;; Versioned notes: snapshots, restore, sharing bench
+  ;;   clojure -M:notes -- --reset show
+  ;;   clojure -M:notes -- set title Hello
+  ;;   clojure -M:notes -- list
+  ;;   clojure -M:notes -- restore 1
+  ;;   clojure -M:notes -- bench
+  :notes {:extra-paths ["../../examples"]
+          :jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
+                     "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
+          :main-opts ["-m" "dacite.examples.notes"]}
+
   ;; HTTP service + static todo web UI
   ;;   cd impl/clojure && clojure -M:service
   ;;   clojure -M:service --port 8080 --store mem

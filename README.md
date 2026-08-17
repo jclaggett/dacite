@@ -67,10 +67,12 @@ domain against a file store **or** `clojure -M:service`.
 npm install
 npm run hello                      # Hello World (mem store + hashes)
 npm run config                     # config CLI (file store)
+npm run notes                      # versioned notes (file store)
 npm run todo                       # interactive nbb UI (chalk + prompts)
 npm run todo:batch                 # non-interactive list
 npx nbb -m dacite.examples.todo-ui -- --reset
 bb config show                     # babashka config (file store)
+bb notes show                      # babashka notes (file store)
 bb todo                            # babashka batch (java.io file store)
 bin/hash-parity.sh                 # assert identical root hash on all hosts
 
@@ -78,9 +80,12 @@ bin/hash-parity.sh                 # assert identical root hash on all hosts
 cd impl/clojure
 clojure -M:config -- --reset show
 clojure -M:config -- --url http://127.0.0.1:8080 set timeout 60
+clojure -M:notes -- --reset show
+clojure -M:notes -- bench
 ```
 
-See [Remote config](https://dacite.io/book/tutorial/config.html) ([source](docs/book/tutorial/config.md)).
+See [Remote config](https://dacite.io/book/tutorial/config.html) ([source](docs/book/tutorial/config.md))
+and [Versioned notes](https://dacite.io/book/tutorial/notes.html) ([source](docs/book/tutorial/notes.md)).
 
 ### Browser demo (HTTP service + Dacite values in the browser)
 

@@ -31,6 +31,7 @@ From the repo root:
 npm install
 npm run hello          # Hello World
 npm run config         # config CLI (file store)
+npm run notes          # versioned notes (file store)
 npm run todo:batch     # durable todo list (non-interactive)
 npm run todo           # interactive todo UI
 ```
