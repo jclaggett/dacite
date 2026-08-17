@@ -29,6 +29,7 @@
 (def vals          v/vals)
 (def native        v/native)
 (def as-str        v/as-str)
+(def as-bytes      v/as-bytes)
 (def pr-str        v/pr-str)
 (def get-in        v/get-in)
 (def assoc-in      v/assoc-in)

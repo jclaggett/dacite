@@ -106,13 +106,14 @@
     this)
 
   (s-snapshot [_]
+    ;; Key by hex: a hash is a vector of BigInts, which cannot be a
+    ;; CLJS/SCI map key (same workaround as dacite.store/mem-store).
     (into {}
           (map (fn [p]
                  (let [name (.basename path p)
                        hex (.substring name 0 64)
-                       h (store/hex->hash hex)
                        v (read-edn p)]
-                   [h v])))
+                   [hex v])))
           (walk-edn-files (str base))))
 
   (s-merge [this m]

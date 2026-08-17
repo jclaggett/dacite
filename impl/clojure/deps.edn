@@ -54,6 +54,16 @@
                    "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
         :main-opts ["-m" "dacite.examples.event-log"]}
 
+  ;; Directory / blob sync
+  ;;   clojure -M:sync -- --reset seed
+  ;;   clojure -M:sync -- ls
+  ;;   clojure -M:sync -- cat readme.txt
+  ;;   clojure -M:sync -- --url http://127.0.0.1:8080 push
+  :sync {:extra-paths ["../../examples"]
+         :jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
+                    "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
+         :main-opts ["-m" "dacite.examples.sync"]}
+
   ;; HTTP service + static todo web UI
   ;;   cd impl/clojure && clojure -M:service
   ;;   clojure -M:service --port 8080 --store mem

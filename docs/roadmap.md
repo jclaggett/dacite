@@ -158,7 +158,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 - [x] Versioned notes tutorial (`docs/book/tutorial/notes.md`)
 - [x] Event log tutorial (`docs/book/tutorial/event-log.md`)
 - [x] Two-client live tutorial (`docs/book/tutorial/two-client.md`)
-- [ ] Tutorials written from later apps (file sync, …)
+- [x] Directory/blob sync tutorial (`docs/book/tutorial/sync.md`)
 
 ### Examples today
 
@@ -169,6 +169,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | [notes](../examples/dacite/examples/notes.cljc) | Snapshots, restore by hash, title-only sharing | Multi-writer, web UI |
 | [event log](../examples/dacite/examples/event_log.cljc) | 2000 events, page via subvec, cheap append | Compact/concat, missing-node UX |
 | Two-client live | Interleaved appends + SSE watch | Async browser store |
+| [sync](../examples/dacite/examples/sync.cljc) | List without bodies; one-file < clone | Opaque-byte file store |
 | [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, partial load |
@@ -239,29 +240,19 @@ loop was already `ref-swap!`; `:retries` is the conflict UX.
 Async browser store stayed on the shelf — two JVM remotes plus SSE prove
 the claim; sync XHR remains the browser demo.
 
-### 5. Directory / blob sync — prove “pull only what you use”
+### 5. Directory / blob sync — done
 
 **Claim:** trees of blobs + maps sync cheaper than a whole-tree copy.
 
-A directory mirrored as `{"name" → file|dir}`, files as blobs:
+Shipped: [sync.cljc](../examples/dacite/examples/sync.cljc), `v/as-bytes`,
+`store/sync-reachable!`, tutorial [sync.md](book/tutorial/sync.md). `ls`
+reads `kind`/`size` only; `cat` realizes one blob. Identical files share
+a hash. A second local sync copies 0 nodes. Remote GET of one blob
+transfers less than GET of that blob plus its siblings. Missing blobs
+throw `:dacite/missing`.
 
-- `put` a tree, `get` one file, list a folder without fetching file bodies
-- a second machine / second store receives only missing nodes
-- a bandwidth line like the browser todo demo
-
-**Pulls:**
-
-- a real blob ingest path (bytes in, Dacite blob out)
-- the deferred **content-sync helper** and likely **opaque-byte store entries**
-- partial availability as a user-visible state (“folder listed, file not
-  fetched”)
-- progress / missing-node errors at the value layer
-
-**Done when:** cloning a tree of many files transfers far less than tar, and
-opening one file does not pull siblings.
-
-This is last because it is the app that justifies remaining store-layer
-work. Let it pull that work.
+Opaque-byte store entries stayed on the shelf — the fetch claim does not
+need them.
 
 ---
 
@@ -294,11 +285,11 @@ Treat this as a backlog that **appears**, not a build order.
 
 **Pulled by file sync**
 
-| Gap | Why |
-|---|---|
-| Blob ingest / export | Files |
-| Copy reachable subgraph | `push-ref` without a sync helper is incomplete |
-| Opaque-byte store bodies | File store as EDN is a host-local dead end for blobs |
+| Gap | Why | Status |
+|---|---|---|
+| Blob ingest / export | Files | Done (`v/as-bytes`, `blob-via`) |
+| Copy reachable subgraph | `push-ref` without a sync helper is incomplete | Done (`sync-reachable!`) |
+| Opaque-byte store bodies | File store as EDN is a host-local dead end for blobs | Still deferred |
 
 Infrastructure from the old Phase 2.5 list (pack polish, root slot,
 layered write policies, spec v0.5) stays on the shelf until an app above
@@ -341,8 +332,8 @@ Event log at real size                             ✓
         → pulled: v/subvec; append cost stays flat; page < full seq on HTTP
 Two-client live                                    ✓
         → pulled: GET /events, watch-root, ref-swap-info!
-Directory/blob sync
-        → pull: content-sync helper, opaque bytes
+Directory/blob sync                                ✓
+        → pulled: v/as-bytes, sync-reachable!; opaque bytes still deferred
 ```
 
 ---

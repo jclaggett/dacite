@@ -9,6 +9,7 @@
    Portable:
    - mem-store, layered-store
    - rooted-store, root, cas-root!, set-root!, file-root-cell, mem-root-cell
+   - sync-reachable! (copy a subgraph; pack flush to remotes)
    - *store*, with-store, hash→hex helpers
 
    Host backends:
@@ -308,7 +309,13 @@
        ((rooted-var 'rc-get) cell))
 
      (defn rc-put! [cell h]
-       ((rooted-var 'rc-put!) cell h))))
+       ((rooted-var 'rc-put!) cell h))
+
+     (defn sync-reachable!
+       "Copy nodes reachable from root-h in src into dest."
+       [src dest root-h]
+       (require 'dacite.store.sync)
+       ((resolve 'dacite.store.sync/sync-reachable!) src dest root-h))))
 
 ;; =============================================================================
 ;; Host backends (when available on this host)
@@ -354,4 +361,10 @@
         (store/remote-rooted-store \"http://127.0.0.1:8080\")
         (store/remote-rooted-store url {:policy :none})"
        [& args]
-       (apply (requiring-resolve 'dacite.store.remote/remote-rooted-store) args))))
+       (apply (requiring-resolve 'dacite.store.remote/remote-rooted-store) args))
+
+     (defn sync-reachable!
+       "Copy nodes reachable from root-h in src into dest.
+        Packed flush when dest is a remote; otherwise per-node copy."
+       [src dest root-h]
+       ((requiring-resolve 'dacite.store.sync/sync-reachable!) src dest root-h))))

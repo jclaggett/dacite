@@ -129,6 +129,7 @@ First argument is always a Dacite value:
 | `keys` / `vals` | Map keys or values as wrapped sequences |
 | `native` | Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char `limit` (or `*string-char-limit*`) realizes at most that prefix, then throws if the string is longer. |
 | `as-str` | `(str (native x))` — same optional limit. Field-sized text only. |
+| `as-bytes` | Host bytes for a blob. Optional limit; missing nodes throw `:dacite/missing`. |
 | `pr-str` | Bounded debug render. Never throws. Long strings: `"prefix…" (n chars)`. |
 | `get-in` / `assoc-in` | Nested path lookup / update (creates intermediate maps) |
 | `update` / `update-in` | Apply a fn at a key or path; result is assoc'd back |
@@ -175,4 +176,5 @@ Example:
 - [Versioned notes](../tutorial/notes.md)
 - [Event log](../tutorial/event-log.md)
 - [Two-client live](../tutorial/two-client.md)
+- [Directory / blob sync](../tutorial/sync.md)
 - [Install](../getting-started/install.md)

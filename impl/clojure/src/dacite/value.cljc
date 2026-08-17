@@ -384,6 +384,36 @@
        (string? n) n
        :else (clojure.core/str n)))))
 
+(defn as-bytes
+  "Host bytes for a Dacite blob. nil → nil. Other types throw.
+
+   Optional `limit` (or `*string-char-limit*`) is a max byte count: only
+   that prefix is realized, then a longer blob throws. nil limit = no cap.
+   Missing store nodes throw `ex-info` with `:dacite/missing true`."
+  ([x] (as-bytes x *string-char-limit*))
+  ([x limit]
+   (cond
+     (nil? x) nil
+     #?(:clj (bytes? x) :cljs false) x
+     (not (dacite-value? x))
+     (throw (ex-info "as-bytes expects a Dacite blob" {:value x}))
+     (not= "blob" (value-type x))
+     (throw (ex-info "as-bytes is for blobs" {:type (value-type x)}))
+     :else
+     (let [st (dacite-store x)
+           h (dacite-hash x)]
+       (when-not (store/s-has? st h)
+         (throw (ex-info "blob not in store"
+                         {:dacite/missing true :hash h})))
+       (let [n (count x)
+             take-n (if limit (min n limit) n)]
+         (when (and limit (> n limit))
+           (throw (ex-info "blob exceeds byte limit"
+                           {:count n :limit limit})))
+         (let [nums (mapv long (take take-n (or (realize x) ())))]
+           #?(:clj (byte-array (map unchecked-byte nums))
+              :cljs nums)))))))
+
 (defn pr-str
   "Bounded debug render. Never throws. Does not dump the tree into RAM.
 

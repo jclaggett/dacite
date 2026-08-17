@@ -12,6 +12,7 @@
 - [Versioned notes](./tutorial/notes.md)
 - [Event log](./tutorial/event-log.md)
 - [Two-client live](./tutorial/two-client.md)
+- [Directory / blob sync](./tutorial/sync.md)
 
 # Reference
 

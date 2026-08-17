@@ -72,4 +72,4 @@ SSE watch prove the claim; sync XHR is still the browser demo.
 
 ## Next
 
-[Directory / blob sync](../../roadmap.md) — pull only the files you open.
+[Directory / blob sync](sync.md) — pull only the files you open.

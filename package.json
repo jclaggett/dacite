@@ -10,7 +10,8 @@
     "todo:batch": "nbb -m dacite.examples.todo",
     "config": "nbb -m dacite.examples.config",
     "notes": "nbb -m dacite.examples.notes",
-    "log": "nbb -m dacite.examples.event-log"
+    "log": "nbb -m dacite.examples.event-log",
+    "sync": "nbb -m dacite.examples.sync"
   },
   "dependencies": {
     "chalk": "^4.1.2",

@@ -69,12 +69,14 @@ npm run hello                      # Hello World (mem store + hashes)
 npm run config                     # config CLI (file store)
 npm run notes                      # versioned notes (file store)
 npm run log                        # event log (file store; seeds 2000 events)
+npm run sync                       # directory/blob sync (file store)
 npm run todo                       # interactive nbb UI (chalk + prompts)
 npm run todo:batch                 # non-interactive list
 npx nbb -m dacite.examples.todo-ui -- --reset
 bb config show                     # babashka config (file store)
 bb notes show                      # babashka notes (file store)
 bb log --reset show                # babashka event log (file store)
+bb sync --reset seed               # babashka directory sync
 bb todo                            # babashka batch (java.io file store)
 bin/hash-parity.sh                 # assert identical root hash on all hosts
 
@@ -90,12 +92,16 @@ clojure -M:log -- bench
 # two writers + SSE watch (service in another terminal)
 clojure -M:log -- --url http://127.0.0.1:8080 contend 10
 clojure -M:log -- --url http://127.0.0.1:8080 watch
+clojure -M:sync -- --reset seed
+clojure -M:sync -- ls
+clojure -M:sync -- cat readme.txt
 ```
 
 See [Remote config](https://dacite.io/book/tutorial/config.html) ([source](docs/book/tutorial/config.md))
 [Versioned notes](https://dacite.io/book/tutorial/notes.html) ([source](docs/book/tutorial/notes.md)),
 [Event log](https://dacite.io/book/tutorial/event-log.html) ([source](docs/book/tutorial/event-log.md)),
-and [Two-client live](https://dacite.io/book/tutorial/two-client.html) ([source](docs/book/tutorial/two-client.md)).
+[Two-client live](https://dacite.io/book/tutorial/two-client.html) ([source](docs/book/tutorial/two-client.md)),
+and [Directory / blob sync](https://dacite.io/book/tutorial/sync.html) ([source](docs/book/tutorial/sync.md)).
 
 ### Browser demo (HTTP service + Dacite values in the browser)
 

@@ -33,6 +33,7 @@ npm run hello          # Hello World
 npm run config         # config CLI (file store)
 npm run notes          # versioned notes (file store)
 npm run log            # event log (file store; seeds 2000 events)
+npm run sync           # directory/blob sync
 npm run todo:batch     # durable todo list (non-interactive)
 npm run todo           # interactive todo UI
 ```

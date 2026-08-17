@@ -91,3 +91,17 @@
           "slice of the same elements has the same value hash"))
     (is (thrown? clojure.lang.ExceptionInfo (v/subvec vec 3 11)))
     (is (thrown? clojure.lang.ExceptionInfo (v/subvec vec -1 3)))))
+
+(deftest as-bytes-blob
+  (let [st (store/mem-store)
+        b (v/blob-with-store st (byte-array [1 2 3 4]))]
+    (is (= [1 2 3 4] (map #(bit-and % 0xFF) (v/as-bytes b))))
+    (is (thrown? clojure.lang.ExceptionInfo (v/as-bytes b 2)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (v/as-bytes (v/string-with-store st "nope"))))
+    (store/s-delete st (v/dacite-hash b))
+    (try
+      (v/as-bytes b)
+      (is false "expected missing throw")
+      (catch clojure.lang.ExceptionInfo e
+        (is (true? (:dacite/missing (ex-data e))))))))

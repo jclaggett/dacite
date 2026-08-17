@@ -12,6 +12,9 @@
   log     {:doc "Run the event-log example (file store)"
            :requires ([dacite.examples.event-log :as elog])
            :task (apply elog/-main *command-line-args*)}
+  sync    {:doc "Run the directory/blob sync example (file store)"
+           :requires ([dacite.examples.sync :as sync])
+           :task (apply sync/-main *command-line-args*)}
   parity  {:doc "Print the canonical root hash (for cross-host parity)"
            :requires ([dacite.examples.parity :as parity])
            :task (apply parity/-main *command-line-args*)}}}

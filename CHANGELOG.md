@@ -6,6 +6,21 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### Directory / blob sync
+
+- **`dacite.examples.sync`** — directory tree of maps + blobs. `ls` does
+  not realize file bodies; `cat` uses `v/as-bytes`. Identical files share
+  a blob hash. `push` / `pull` use `store/sync-reachable!`.
+- **`v/as-bytes`** — blob → host bytes; optional limit; `:dacite/missing`
+  when the node is not in the store. CLJS returns a vector of 0–255 ints
+  (SCI cannot seq a JS array).
+- **`dacite.store.sync/sync-reachable!`** — copy a reachable subgraph
+  (packed flush to remotes, per-node otherwise). Re-exported on
+  `dacite.store`.
+- **nbb `file-store` snapshot** — keys by hex so `s-snapshot` does not
+  blow up on BigInt hash words.
+- Tutorial: [docs/book/tutorial/sync.md](docs/book/tutorial/sync.md)
+
 ### Two-client live
 
 - **`GET /events`** — SSE root announcements on `dacite.service`

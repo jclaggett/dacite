@@ -63,6 +63,7 @@ are re-exported on `dacite.store`:
 | `(store/root rs)` / `(store/cas-root! …)` / `(store/set-root! …)` | Hash-level root |
 | `(store/remote-rooted-store url)` | HTTP content + server root (`IRoot`; JVM) |
 | `(store/collect-garbage! rs)` | Drop unreachable content |
+| `(store/sync-reachable! src dest root-h)` | Copy the reachable subgraph (pack flush to remotes) |
 
 **Application value code** should wrap the rooted store once and work with
 values, not hashes:
