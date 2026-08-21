@@ -146,20 +146,32 @@
   [entry budget]
   (> (size-cue entry) (long budget)))
 
+(defn- join-chars
+  "Concatenate characters without `apply str` (CLJS apply of a long
+   lazy seq can throw RangeError / silently stop around 52 args)."
+  [cs]
+  #?(:clj
+     (let [sb (StringBuilder.)]
+       (doseq [ch cs]
+         (.append sb (str ch)))
+       (.toString sb))
+     :cljs
+     (.join (to-array (map str cs)) "")))
+
 (defn- host-string
   "Full host string via index access (avoids ft-seq truncation)."
   [st h]
   (let [n (long (or (:count (types/entry-data (store/s-get st h))) 0))]
     (if (zero? n)
       ""
-      (apply str
-             (map (fn [i]
-                    (let [r (types/realize (coll/seq-nth st h i))]
-                      (cond
-                        (char? r) r
-                        (string? r) r
-                        :else (first (str r)))))
-                  (range n))))))
+      (join-chars
+       (map (fn [i]
+              (let [r (types/realize (coll/seq-nth st h i))]
+                (cond
+                  (char? r) r
+                  (string? r) r
+                  :else (first (str r)))))
+            (range n))))))
 
 (defn- host-blob-vec
   "Blob as vector of 0..255 ints (EDN-safe)."
@@ -507,7 +519,10 @@
        (node-item h entry)
 
        :else
-       (if-let [{:keys [type body]} (literal-of st h)]
+       (if-let [{:keys [type body]}
+                (try (literal-of st h)
+                     (catch #?(:clj Throwable :cljs :default) _
+                       nil))]
          (let [item (literal-item h type body)]
            (if (and (<= (item-size item) (* 2 budget))
                     (literal-round-trips? h type body))

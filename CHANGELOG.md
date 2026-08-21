@@ -24,6 +24,13 @@ stability promise: public APIs may still change before 1.0.
 - `/app` and `/app/explorer` without a trailing slash **301** to the
   slashed URL so relative `js/main.js` is not the todo bundle.
 
+### Todo web: long titles
+
+- Pack `host-string` no longer uses `apply str` (CLJS apply of a long
+  character seq can throw or stop around 52 args).
+- `encode-item` falls back to `:node` if building a literal throws.
+- Todo UI shows Add/Toggle/Remove errors instead of failing silently.
+
 ### HTTP inbound throttle
 
 - **`dacite.service.throttle`** — per-client token bucket + inflight cap

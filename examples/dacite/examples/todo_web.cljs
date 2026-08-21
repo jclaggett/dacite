@@ -204,6 +204,18 @@
           (render-list!)
           false))))
 
+(defn- with-ui-error
+  "Run f; on throw, show the message in the status line (Add used to fail silently)."
+  [label f]
+  (try
+    (f)
+    (catch :default e
+      (let [msg (str label " failed: " (or (.-message e) e))]
+        (js/console.error msg e)
+        (swap! !state assoc :error msg :status "error")
+        (render-list!)
+        nil))))
+
 (defn- do-load-or-seed! []
   (with-bw "load/seed"
     (fn []
@@ -216,25 +228,33 @@
   (let [input (by-id "new-title")
         title (when input (str/trim (.-value input)))]
     (when (and title (seq title) (:todos @!state))
-      (with-bw "add"
+      (with-ui-error "Add"
         (fn []
-          (let [todos' (todo/add-todo (:todos @!state) title false)
-                ok (persist! todos')]
-            (when ok
-              (set! (.-value input) ""))
-            ok))))))
+          (swap! !state assoc :status "saving" :error nil)
+          (render-list!)
+          (with-bw "add"
+            (fn []
+              (let [todos' (todo/add-todo (:todos @!state) title false)
+                    ok (persist! todos')]
+                (when ok
+                  (set! (.-value input) ""))
+                ok))))))))
 
 (defn- on-toggle! [i]
   (when-let [todos (:todos @!state)]
-    (with-bw "toggle"
+    (with-ui-error "Toggle"
       (fn []
-        (persist! (todo/toggle-at todos i))))))
+        (with-bw "toggle"
+          (fn []
+            (persist! (todo/toggle-at todos i))))))))
 
 (defn- on-remove! [i]
   (when-let [todos (:todos @!state)]
-    (with-bw "remove"
+    (with-ui-error "Remove"
       (fn []
-        (persist! (todo/remove-at todos i))))))
+        (with-bw "remove"
+          (fn []
+            (persist! (todo/remove-at todos i))))))))
 
 (defn- on-list-click! [e]
   (let [t (.-target e)

@@ -11,7 +11,8 @@
             [dacite.examples.todo :as todo]
             [dacite.value.types :as types]
             [dacite.value.collections :as coll]
-            [dacite.value.scalar :as scalar]))
+            [dacite.value.scalar :as scalar]
+            [dacite.value :as v]))
 
 (defn- round-trip-hash
   "literal-of → materialize in fresh store; return [original-h got-h form]."
@@ -614,3 +615,28 @@
                      bitmaps)]
       (is (every? #{:literal :node} encs))
       (is (some #{:literal} encs)))))
+
+(deftest host-string-is-not-truncated
+  (let [st (store/mem-store)
+        s (apply str (repeat 200 "x"))
+        dv (coll/string-with-store st s)
+        form (pack/literal-of st (types/dacite-hash dv))]
+    (is (= "string" (:type form)))
+    (is (= 200 (count (:body form)))
+        "host-string must keep every character (not apply-str's 52-arg chunk)")))
+
+(deftest long-todo-title-flushes-over-http
+  (let [title (apply str (repeat 400 "and going "))
+        rooted (svc/make-demo-rooted)
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted
+                                                     :throttle false})]
+    (try
+      (let [r (v/root-ref (store/remote-rooted-store base-url {:policy :write-back}))]
+        (v/ref-cas! r nil (todo/empty-todos r))
+        (v/ref-swap! r todo/add-todo title false)
+        (let [cold (v/root-ref (store/remote-rooted-store base-url {:policy :none}))
+              t (v/ref-deref cold)]
+          (is (= 1 (v/count t)))
+          (is (= (count title) (count (todo/title-str (v/nth t 0)))))))
+      (finally
+        (stop!)))))
