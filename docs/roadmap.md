@@ -160,6 +160,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 - [x] Event log tutorial (`docs/book/tutorial/event-log.md`)
 - [x] Two-client live tutorial (`docs/book/tutorial/two-client.md`)
 - [x] Directory/blob sync tutorial (`docs/book/tutorial/sync.md`)
+- [x] Value explorer tutorial (`docs/book/tutorial/explorer.md`)
 
 ### Examples today
 
@@ -174,6 +175,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, partial load |
+| [explorer](../examples/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
 
 Library-pain already visible in those apps (fix in the library, not with
 more helpers):
@@ -255,6 +257,20 @@ throw `:dacite/missing`.
 Opaque-byte store entries stayed on the shelf — the fetch claim does not
 need them.
 
+### 6. Value explorer — done
+
+**Claim:** lazy access — browse the root as typed Dacite values without
+realizing the whole tree.
+
+Shipped: [explorer.cljc](../examples/dacite/examples/explorer.cljc),
+`/app/explorer/`, tutorial [explorer.md](book/tutorial/explorer.md).
+Empty root CAS-seeds a type gallery; an existing root is displayed.
+Vectors/maps/sets expand in pages of 32. Strings and blobs are truncated
+leaves. A remote test shows the first page of a 128-element vector
+transfers less than `seq` of the whole vector.
+
+Edit, SSE live root, and string/blob “read more” stayed on the shelf.
+
 ---
 
 ## Library work the apps will pull
@@ -283,6 +299,17 @@ Treat this as a backlog that **appears**, not a build order.
 | Async remote store | Browser must not block the page | Still deferred |
 | SSE (or a documented poll helper) | Watches across the network | Done (`GET /events`) |
 | Value-level CAS retry that rebases | `ref-swap!` / `ref-swap-info!` | Done (same loop on remote) |
+
+**Pulled by the value explorer**
+
+| Gap | Why | Status |
+|---|---|---|
+| `/app/` directory `index.html` | Nested static app next to todo | Done (`handle-static`) |
+| Browser `require` inside `dacite.store` | JVM ClojureScript forbids it | Done (browser stubs; nbb unchanged) |
+| `v/scalar` / `v/root-ref` smash child nses in cljs | Pack literal `put-scalar!` vanished | Done (omit those two defs in the browser) |
+| Pack literals hash-mismatch on cljs | JVM strings rematerialize differently | Workaround: explorer `GET ?raw=1` |
+| String/blob “read more” | Longer prefix, still a leaf | Deferred |
+| Async browser store | Expand without blocking the tab | Still deferred |
 
 **Pulled by file sync**
 
@@ -335,6 +362,8 @@ Two-client live                                    ✓
         → pulled: GET /events, watch-root, ref-swap-info!
 Directory/blob sync                                ✓
         → pulled: v/as-bytes, sync-reachable!; opaque bytes still deferred
+Value explorer                                     ✓
+        → pulled: /app/ directory index.html; browser store.cljc stubs
 ```
 
 ---

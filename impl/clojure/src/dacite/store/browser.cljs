@@ -112,7 +112,8 @@
   [pack-local h body binary?]
   (when (and body (pos? (body-byte-len body)))
     (cond
-      (or binary? (bin/dac1-magic? body))
+      (or binary?
+          (and (not (string? body)) (bin/dac1-magic? body)))
       (let [chunk (bin/decode-pack-edn body)]
         (pack/apply-chunk! pack-local chunk)
         (store/s-get pack-local h))
@@ -130,17 +131,21 @@
 
           :else nil)))))
 
-(defrecord BrowserRemoteStore [base-url headers pack-local binary?]
+(defrecord BrowserRemoteStore [base-url headers pack-local binary? raw?]
   store/IStore
   (s-get [_ h]
     (or (store/s-get pack-local h)
-        (let [hdrs (if binary?
+        (let [raw? raw?
+              use-bin? (and binary? (not raw?))
+              hdrs (if use-bin?
                      (assoc headers "Accept" bin/content-type-chunk-v1)
                      (assoc headers "Accept" "application/edn"))
-              opts (when binary? {:binary-response true})
-              {:keys [status body]} (xhr "GET" (node-url base-url h) nil hdrs opts)]
+              opts (when use-bin? {:binary-response true})
+              {:keys [status body]} (xhr "GET"
+                                         (node-url base-url h (when raw? "raw=1"))
+                                         nil hdrs opts)]
           (when (= 200 status)
-            (apply-get-body! pack-local h body binary?)))))
+            (apply-get-body! pack-local h body use-bin?)))))
 
   (s-put [this h value]
     (let [{:keys [status body]} (xhr "PUT" (node-url base-url h)
@@ -205,20 +210,26 @@
 
    Options:
      :headers map
-     :binary  true|false (default true — wire-v1 for pack GET/POST)"
-  [base-url & [{:keys [headers binary]
+     :binary  true|false (default true — wire-v1 for pack GET/POST)
+     :raw     true|false (default false). When true, GET /node uses ?raw=1
+              (bare store node, no pack rematerialize). Needed to read
+              JVM-created strings/blobs until cljs literal hashes match."
+  [base-url & [{:keys [headers binary raw]
                 :or {headers {}
-                     binary true}}]]
-  (->BrowserRemoteStore (or base-url "") headers (store/mem-store) (boolean binary)))
+                     binary true
+                     raw false}}]]
+  (->BrowserRemoteStore (or base-url "") headers (store/mem-store)
+                        (boolean binary) (boolean raw)))
 
 (defn cached-remote-store
   "Remote store with client cache (default :write-back)."
-  [base-url & [{:keys [headers policy binary]
+  [base-url & [{:keys [headers policy binary raw]
                 :or {headers {}
                      policy :write-back
-                     binary true}}]]
+                     binary true
+                     raw false}}]]
   (client-cache/wrap
-   (remote-store base-url {:headers headers :binary binary})
+   (remote-store base-url {:headers headers :binary binary :raw raw})
    policy))
 
 (defn- unwrap-remote

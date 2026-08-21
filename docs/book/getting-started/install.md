@@ -107,6 +107,8 @@ cd impl/clojure
 clojure -M:cljs-web                    # once / after source changes
 clojure -M:service --port 8080 --store mem
 # open http://127.0.0.1:8080/app/
+clojure -M:cljs-explorer
+# open http://127.0.0.1:8080/app/explorer/
 ```
 
 Details: [examples/web/README.md](https://github.com/jclaggett/dacite/blob/main/examples/web/README.md).
@@ -115,6 +117,7 @@ Pack GET/POST use **wire-v1 binary** by default.
 ## Next steps
 
 - [Hello World (nbb)](../tutorial/hello-nbb.md)
+- [Value explorer](../tutorial/explorer.md)
 - [Values API reference](../reference/values.md)
 - [Stores API reference](../reference/stores.md)
 - [The Dacite Book](../00-preface.md) — conceptual foundations

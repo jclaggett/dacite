@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dacite Value Explorer</title>
+  <link rel="stylesheet" href="/app/explorer/style.css"/>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>Dacite Value Explorer</h1>
+      <p class="tagline">Browse the root of a rooted store. Expand collections; each row shows type and value.</p>
+      <noscript><p class="status error">JavaScript is required. Allow scripts for this site (Brave Shields).</p></noscript>
+      <p id="status" class="status">loading…</p>
+      <p id="root-hash" class="root-hash" title="Full root content hash"></p>
+      <p id="bandwidth" class="bandwidth" title="Store-protocol body sizes only (node + root), not static assets">bw · …</p>
+      <p class="actions">
+        <button id="reload-btn" type="button" class="secondary">Reload</button>
+        <a class="muted todo-link" href="/app/">Todo demo</a>
+      </p>
+    </header>
+
+    <div id="tree" class="tree"></div>
+
+    <footer>
+      <p><strong>Values</strong> — walk with <code>dacite.value</code> (<code>value-type</code>, <code>count</code>, <code>nth</code>, paged <code>seq</code>). No whole-tree dump.</p>
+      <p><strong>Store</strong> — HTTP remote + write-back seed; <code>GET /node?raw=1</code>, root CAS. Expand fetches children, not the whole root.</p>
+    </footer>
+  </main>
+  <script>
+    window.DACITE_API_BASE = window.DACITE_API_BASE || "";
+  </script>
+  <script src="/app/explorer/js/main.js?v=explorer-8"
+          onerror="var s=document.getElementById('status'); if(s){s.textContent='JS failed to load — open http://127.0.0.1:8080/app/explorer/ (note the trailing slash).'; s.className='status error';}"></script>
+</body>
+</html>

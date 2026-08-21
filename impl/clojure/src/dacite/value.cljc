@@ -92,7 +92,12 @@
 ;; Scalar constructors
 ;; =============================================================================
 
-(def scalar              scalar/scalar)
+;; The JVM ClojureScript compiler munges `dacite.value.scalar` the var onto
+;; the same JS object as the namespace, wiping `put-scalar!`. nbb (SCI) and
+;; the JVM keep both. Feature order: nbb before :cljs.
+#?(:org.babashka/nbb (def scalar scalar/scalar)
+   :clj (def scalar scalar/scalar)
+   :cljs nil)
 (def scalar-with-store   scalar/scalar-with-store)
 (def scalar-via          scalar/scalar-via)
 (def null                scalar/null)
@@ -487,7 +492,10 @@
 ;; Root reference (value-level)
 ;; =============================================================================
 
-(def root-ref        root-ref/root-ref)
+;; Same clash: `dacite.value.root-ref` var vs namespace (browser JS).
+#?(:org.babashka/nbb (def root-ref root-ref/root-ref)
+   :clj (def root-ref root-ref/root-ref)
+   :cljs nil)
 (def root-ref?       root-ref/root-ref?)
 (def ref-deref       root-ref/ref-deref)
 (def ref-reset!      root-ref/ref-reset!)

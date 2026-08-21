@@ -6,6 +6,24 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### Value explorer
+
+- **`dacite.examples.explorer`** — web tree of the current rooted-store
+  root. Expand/collapse vector, map, and set; strings/blobs are truncated
+  leaves. Empty root CAS-seeds a type gallery; an existing root is
+  browsed as-is.
+- `GET /app/explorer/` (todo stays at `/app/`). Directories under `/app/`
+  serve `index.html`.
+- Browser store `:raw true` uses `GET /node?raw=1` so JVM-created string
+  nodes are not rematerialized (pack literals still mismatch cljs hashes).
+- Browser ClojureScript does not re-export `v/scalar` / `v/root-ref`
+  (they smash the `dacite.value.scalar` / `.root-ref` namespaces). nbb
+  and JVM keep the vars. Rooted re-exports on `dacite.store` are stubs
+  in the browser (nbb still requires at call time).
+- Tutorial: [docs/book/tutorial/explorer.md](docs/book/tutorial/explorer.md)
+- `/app` and `/app/explorer` without a trailing slash **301** to the
+  slashed URL so relative `js/main.js` is not the todo bundle.
+
 ### HTTP inbound throttle
 
 - **`dacite.service.throttle`** — per-client token bucket + inflight cap

@@ -21,5 +21,7 @@ docs/book/mermaid-init.js
 node_modules/
 .bin/
 
-# cljs intermediate (whitespace bundle is examples/web/js/main.js)
+# cljs intermediate (whitespace bundles are examples/web/js/main.js
+# and examples/web/explorer/js/main.js)
 examples/web/js/out/
+examples/web/explorer/js/out/

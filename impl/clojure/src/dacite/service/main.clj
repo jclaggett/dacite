@@ -97,7 +97,8 @@
     (println "Dacite service listening at" base-url)
     (println "  API:  GET/PUT /node/{hex}  GET /root  POST /root/cas")
     (when (.exists static-dir)
-      (println "  UI:   " (str base-url "/app/")))
+      (println "  UI:   " (str base-url "/app/"))
+      (println "  expl: " (str base-url "/app/explorer/")))
     (println "  store:"
              (case backend
                :mem "mem"

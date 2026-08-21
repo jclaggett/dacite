@@ -187,7 +187,9 @@
 ;; Rooted store (hash-level) — deferred re-export from dacite.rooted
 ;; =============================================================================
 ;; dacite.rooted requires dacite.store, so we cannot :require it in the ns form.
-;; Resolve vars on first use (JVM/CLJ). On CLJS, require at call time.
+;; Resolve vars on first use (JVM/CLJ). nbb requires at call time (SCI). The
+;; JVM ClojureScript compiler forbids non-top-level `require`, so the browser
+;; branch stubs these; use dacite.store.browser instead.
 
 #?(:clj
    (do
@@ -262,7 +264,7 @@
        [cell h]
        ((rooted-var 'rc-put!) cell h)))
 
-   :cljs
+   :org.babashka/nbb
    (do
      (defn- rooted-var [sym]
        (require 'dacite.rooted)
@@ -315,7 +317,31 @@
        "Copy nodes reachable from root-h in src into dest."
        [src dest root-h]
        (require 'dacite.store.sync)
-       ((resolve 'dacite.store.sync/sync-reachable!) src dest root-h))))
+       ((resolve 'dacite.store.sync/sync-reachable!) src dest root-h)))
+
+   :cljs
+   (do
+     (defn- rooted-browser-stub [fname]
+       (throw (js/Error. (str "dacite.store/" fname
+                              " is JVM/nbb; the browser uses dacite.store.browser"))))
+
+     (defn mem-root-cell [& _] (rooted-browser-stub "mem-root-cell"))
+     (defn file-root-cell [& _] (rooted-browser-stub "file-root-cell"))
+     (defn rooted-store [& _] (rooted-browser-stub "rooted-store"))
+     (defn root [_] (rooted-browser-stub "root"))
+     (defn cas-root! [_ _ _] (rooted-browser-stub "cas-root!"))
+     (defn set-root! [_ _] (rooted-browser-stub "set-root!"))
+     (defn update-root! [_ _ & _] (rooted-browser-stub "update-root!"))
+     (defn add-root-watch [_ _ _] (rooted-browser-stub "add-root-watch"))
+     (defn remove-root-watch [_ _] (rooted-browser-stub "remove-root-watch"))
+     (defn set-root-validator! [_ _] (rooted-browser-stub "set-root-validator!"))
+     (defn push-ref [_ _] (rooted-browser-stub "push-ref"))
+     (defn collect-garbage!
+       ([_] (rooted-browser-stub "collect-garbage!"))
+       ([_ _] (rooted-browser-stub "collect-garbage!")))
+     (defn rc-get [_] (rooted-browser-stub "rc-get"))
+     (defn rc-put! [_ _] (rooted-browser-stub "rc-put!"))
+     (defn sync-reachable! [_ _ _] (rooted-browser-stub "sync-reachable!"))))
 
 ;; =============================================================================
 ;; Host backends (when available on this host)

@@ -177,4 +177,5 @@ Example:
 - [Event log](../tutorial/event-log.md)
 - [Two-client live](../tutorial/two-client.md)
 - [Directory / blob sync](../tutorial/sync.md)
+- [Value explorer](../tutorial/explorer.md)
 - [Install](../getting-started/install.md)

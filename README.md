@@ -17,14 +17,14 @@ Dacite lets applications work with **immutable Values** functionally while **Sto
 
 **Alpha 0.1** — Clojure / SCI reference implementation: hash fusion, content
 stores, values, rooted stores, pack transport, wire-v1 binary packs (JVM +
-browser), remote HTTP service (**450+ tests**). Soft pack budget default
+browser), remote HTTP service (**460+ tests**). Soft pack budget default
 **1024**. APIs may change; see [CHANGELOG.md](CHANGELOG.md).
 
 ## Documentation
 
 - **[Install](https://dacite.io/book/getting-started/install.html)** — nbb + JVM setup ([source](docs/book/getting-started/install.md))
 - **[Hello World (nbb)](https://dacite.io/book/tutorial/hello-nbb.html)** — five-minute tutorial
-- **[Remote config](https://dacite.io/book/tutorial/config.html)** · **[Notes](https://dacite.io/book/tutorial/notes.html)** · **[Event log](https://dacite.io/book/tutorial/event-log.html)** · **[Two-client](https://dacite.io/book/tutorial/two-client.html)** · **[Directory sync](https://dacite.io/book/tutorial/sync.html)**
+- **[Remote config](https://dacite.io/book/tutorial/config.html)** · **[Notes](https://dacite.io/book/tutorial/notes.html)** · **[Event log](https://dacite.io/book/tutorial/event-log.html)** · **[Two-client](https://dacite.io/book/tutorial/two-client.html)** · **[Directory sync](https://dacite.io/book/tutorial/sync.html)** · **[Value explorer](https://dacite.io/book/tutorial/explorer.html)**
 - **[Values](https://dacite.io/book/reference/values.html)** / **[Stores](https://dacite.io/book/reference/stores.html)** API reference
 - **[The Dacite Book](https://dacite.io/book/)** — conceptual documentation (also under [docs/book/](docs/book/))
 - **[Development dialogue](docs/development-dialogue.md)** — design history
@@ -112,12 +112,15 @@ clojure -M:cljs-web                # build examples/web/js/main.js (first time)
 clojure -M:service --port 8080 --store mem
 # durable file:  clojure -M:service --port 8080 --store file
 # durable LMDB:  clojure -M:service --port 8080 --store lmdb
-# open http://127.0.0.1:8080/app/
+# open http://127.0.0.1:8080/app/            # todo
+clojure -M:cljs-explorer             # explorer bundle
+# open http://127.0.0.1:8080/app/explorer/   # value explorer
 ```
 
 See [examples/web/README.md](examples/web/README.md). The UI loads Dacite
 collections in the browser and persists via `GET/PUT /node/{hex}` and
-`GET /root` + `POST /root/cas`.
+`GET /root` + `POST /root/cas`. The explorer walks the current root as
+typed values without dumping the tree.
 
 ## Use Cases
 

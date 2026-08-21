@@ -69,9 +69,6 @@
 (defn- send-edn! [^HttpExchange ex status body]
   (send-bytes! ex status ct-edn (utf8-bytes (wire/write-edn body))))
 
-(defn- send-empty! [^HttpExchange ex status]
-  (send-bytes! ex status nil nil))
-
 (def ^:private ct-sse "text/event-stream; charset=utf-8")
 
 (defn- sse-frame
@@ -322,32 +319,64 @@
     (when (.startsWith file-path base-path)
       f)))
 
+(defn- static-rel
+  "Path relative to the static dir, or nil if this request is not static."
+  [path]
+  (cond
+    (= path "/") "index.html"
+    (or (= path "/app") (= path "/app/")) "app-index"
+    (.startsWith path "/app/") (subs path 5)
+    :else nil))
+
 (defn- handle-static [^java.io.File static-dir path]
   (when static-dir
-    (let [rel (cond
-                (or (= path "/") (= path "/app") (= path "/app/")) "index.html"
-                (.startsWith path "/app/") (subs path 5)
-                :else nil)]
-      (when rel
-        (when-let [f (safe-child static-dir rel)]
+    (let [rel (static-rel path)]
+      (cond
+        (nil? rel) nil
+
+        ;; `/app` without a slash must redirect so relative `js/main.js`
+        ;; does not resolve as `/js/main.js`.
+        (and (= rel "app-index") (not (.endsWith path "/")))
+        {:status 301 :headers {"Location" "/app/"}}
+
+        (= rel "app-index")
+        (when-let [f (safe-child static-dir "index.html")]
           (when (.isFile f)
             {:status 200
+             :content-type (content-type-for "index.html")
+             :body-file f}))
+
+        :else
+        (when-let [f (safe-child static-dir rel)]
+          (cond
+            (.isFile f)
+            {:status 200
              :content-type (content-type-for (.getName f))
-             :body-file f}))))))
+             :body-file f}
+
+            (.isDirectory f)
+            (if (.endsWith path "/")
+              (let [idx (io/file f "index.html")]
+                (when (.isFile idx)
+                  {:status 200
+                   :content-type (content-type-for "index.html")
+                   :body-file idx}))
+              ;; `/app/explorer` otherwise serves HTML at a URL whose
+              ;; relative `js/main.js` is the *todo* bundle.
+              {:status 301 :headers {"Location" (str path "/")}})))))))
 
 (defn- write-response! [^HttpExchange ex resp]
   (if-let [f (:body-file resp)]
     (let [bytes (.readAllBytes (io/input-stream f))]
       (send-bytes! ex (:status resp) (:content-type resp) bytes (:headers resp)))
     (let [body (:body resp)
+          headers (:headers resp)
           bs (cond
                (nil? body) nil
                (bytes? body) body
                (string? body) (utf8-bytes body)
                :else (utf8-bytes (pr-str body)))]
-      (if bs
-        (send-bytes! ex (:status resp) (:content-type resp) bs (:headers resp))
-        (send-empty! ex (:status resp))))))
+      (send-bytes! ex (:status resp) (:content-type resp) bs headers))))
 
 (defn- deny-response
   "Throttle deny map → HTTP response map."

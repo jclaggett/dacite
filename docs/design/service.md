@@ -269,7 +269,9 @@ Body (EDN): `{:ok false :error "rate limited" :retry-after-s n}` (or
 | `:pack-get-max-budget` | 65536 |
 | `:pack-get-max-starts` | 32 |
 
-`OPTIONS` and `/app/*` are unmetered. `GET /events` counts against the SSE
+`OPTIONS` and `/app/*` are unmetered. A `/app/` path that is a directory
+serves `index.html` (todo at `/app/`, explorer at `/app/explorer/`).
+`GET /events` counts against the SSE
 caps only (not the request bucket). `POST /nodes/get` `:budget` and start
 hash lists are **clamped** to the server maxima (still 200).
 
