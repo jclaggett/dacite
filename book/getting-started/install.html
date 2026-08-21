@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-229191c2.js";
+            window.path_to_searchindex_js = "../searchindex-e7a4be49.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5f6586a6.js"></script>
+        <script src="../toc-3b3c5dd1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -260,12 +260,15 @@ clojure -M:service --port 8080 --store mem   # API + browser todo static UI
 clojure -M:cljs-web                    # once / after source changes
 clojure -M:service --port 8080 --store mem
 # open http://127.0.0.1:8080/app/
+clojure -M:cljs-explorer
+# open http://127.0.0.1:8080/app/explorer/
 </code></pre>
 <p>Details: <a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.
 Pack GET/POST use <strong>wire-v1 binary</strong> by default.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
 <li><a href="../tutorial/hello-nbb.html">Hello World (nbb)</a></li>
+<li><a href="../tutorial/explorer.html">Value explorer</a></li>
 <li><a href="../reference/values.html">Values API reference</a></li>
 <li><a href="../reference/stores.html">Stores API reference</a></li>
 <li><a href="../00-preface.html">The Dacite Book</a> — conceptual foundations</li>

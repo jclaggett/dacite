@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-229191c2.js";
+            window.path_to_searchindex_js = "searchindex-e7a4be49.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-5f6586a6.js"></script>
+        <script src="toc-3b3c5dd1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -274,12 +274,15 @@ clojure -M:service --port 8080 --store mem   # API + browser todo static UI
 clojure -M:cljs-web                    # once / after source changes
 clojure -M:service --port 8080 --store mem
 # open http://127.0.0.1:8080/app/
+clojure -M:cljs-explorer
+# open http://127.0.0.1:8080/app/explorer/
 </code></pre>
 <p>Details: <a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.
 Pack GET/POST use <strong>wire-v1 binary</strong> by default.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
 <li><a href="#hello-world-nbb">Hello World (nbb)</a></li>
+<li><a href="#value-explorer">Value explorer</a></li>
 <li><a href="#values-api-reference-01-alpha">Values API reference</a></li>
 <li><a href="#stores-api-reference-01-alpha">Stores API reference</a></li>
 <li><a href="#preface">The Dacite Book</a> — conceptual foundations</li>
@@ -782,6 +785,83 @@ enough to prove the fetch claim. A later port can store raw bytes
 without changing the app.</p>
 <p>The five-app sequence is complete.</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="value-explorer"><a class="header" href="#value-explorer">Value explorer</a></h1>
+<p>A web UI that shows the <strong>root value</strong> of a rooted store as a tree.
+This is the sixth application in the <a href="../roadmap.html">roadmap</a>: <strong>lazy
+access</strong> — expand a collection, fetch that neighborhood, never dump the
+whole tree.</p>
+<p>You will:</p>
+<ol>
+<li>Open <code>/app/explorer/</code> against <code>clojure -M:service</code>.</li>
+<li>See every public Dacite type as <strong>type + value</strong> (not a JSON/EDN dump).</li>
+<li>Expand vectors, maps, and sets; page long collections 32 at a time.</li>
+<li>Measure that the first page of a 128-element vector costs less than
+<code>seq</code> of the whole vector.</li>
+</ol>
+<h2 id="prerequisites-7"><a class="header" href="#prerequisites-7">Prerequisites</a></h2>
+<ul>
+<li>JDK 17+ and the Clojure CLI</li>
+<li>A clone of this repo (see <a href="#install">Install</a>)</li>
+</ul>
+<h2 id="the-shape-4"><a class="header" href="#the-shape-4">The shape</a></h2>
+<p>The explorer does not invent a domain. It displays <strong>whatever is at the
+server root</strong>. If the root is empty, it CAS-seeds a <strong>type gallery</strong> — a
+map that includes every public type, plus <code>"page-me"</code> (128 small maps)
+so paging is forced. An existing root (notes, event log, sync, todo) is
+left alone.</p>
+<p>Domain code lives in <code>dacite.examples.explorer</code> and uses only
+<code>dacite.value</code>: <code>value-type</code>, <code>count</code>, <code>nth</code>, paged <code>seq</code>, lazy
+<code>realize</code> prefixes for strings/blobs. It never calls <code>dac-&gt;clj</code>.</p>
+<p>The browser store uses <code>GET /node?raw=1</code> so nodes created on the JVM
+are installed as-is. Pack-filled GET rematerializes string literals in
+ClojureScript with a different hash today; that is a library follow-up,
+not an explorer helper.</p>
+<p>Strings and blobs are <strong>leaves</strong>: a truncated preview and the total
+count. A later “read more” can lengthen that prefix; this first pass
+does not.</p>
+<h2 id="run"><a class="header" href="#run">Run</a></h2>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:cljs-explorer          # once / after cljs changes
+clojure -M:service --port 8080 --store mem
+# open http://127.0.0.1:8080/app/explorer/   (trailing slash)
+</code></pre>
+<p>Todo stays at <a href="http://127.0.0.1:8080/app/">http://127.0.0.1:8080/app/</a>.</p>
+<p><strong>Reload</strong> re-fetches <code>GET /root</code>. It does not watch <code>GET /events</code>.</p>
+<h2 id="what-to-look-at"><a class="header" href="#what-to-look-at">What to look at</a></h2>
+<ul>
+<li>Each row is a type badge then a summary (<code>i64 -64</code>, <code>vector 3</code>,
+<code>string "prefix…" (n chars)</code>, <code>blob n bytes 0x…</code>).</li>
+<li>Maps show <strong>typed keys</strong> as well as values (the gallery includes a
+vector key).</li>
+<li><code>"page-me"</code> is 128 entries; the first expand shows 32, then <strong>show
+next 32</strong>.</li>
+<li>The <strong>bw</strong> line is store-protocol bodies only (<code>GET /node</code>, <code>GET /root</code>,
+CAS) — the same meter as the todo demo.</li>
+</ul>
+<h2 id="existing-data"><a class="header" href="#existing-data">Existing data</a></h2>
+<p>Point the service at a store you already seeded:</p>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:log -- --reset show          # 2000 events in target/dacite-log
+clojure -M:service --port 8080 --store file:target/dacite-log
+# open /app/explorer/ — the ledger, not the gallery
+</code></pre>
+<p>The explorer must not overwrite that root.</p>
+<h2 id="measure"><a class="header" href="#measure">Measure</a></h2>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:dev:test -n dacite.examples.explorer-test
+</code></pre>
+<p><code>remote-expand-page-cheaper-than-full-seq</code> seeds the gallery over HTTP,
+then compares a cold client’s first <code>child-page</code> of <code>"page-me"</code> with
+<code>seq</code> of all 128. Page bytes and requests stay strictly below the full
+walk.</p>
+<h2 id="related"><a class="header" href="#related">Related</a></h2>
+<ul>
+<li><a href="#values-api-reference-01-alpha">Values API</a></li>
+<li><a href="#stores-api-reference-01-alpha">Stores API</a></li>
+<li><a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">Browser todo</a></li>
+<li><a href="#directory--blob-sync">Directory / blob sync</a> — another tree; <code>ls</code> without bodies</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="values-api-reference-01-alpha"><a class="header" href="#values-api-reference-01-alpha">Values API reference (0.1 alpha)</a></h1>
 <p>Practical API for Dacite values as implemented in the Clojure / SCI reference
 library. For design intuition, see <a href="#chapter-3-values">Values</a>.</p>
@@ -941,7 +1021,7 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 </table>
 </div>
 <hr>
-<h2 id="related"><a class="header" href="#related">Related</a></h2>
+<h2 id="related-1"><a class="header" href="#related-1">Related</a></h2>
 <ul>
 <li><a href="#stores-api-reference-01-alpha">Stores API</a></li>
 <li><a href="#hello-world-nbb">Hello World (nbb)</a></li>
@@ -950,6 +1030,7 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 <li><a href="#event-log">Event log</a></li>
 <li><a href="#two-client-live">Two-client live</a></li>
 <li><a href="#directory--blob-sync">Directory / blob sync</a></li>
+<li><a href="#value-explorer">Value explorer</a></li>
 <li><a href="#install">Install</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -1106,7 +1187,7 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
 <li>APIs may change before 1.0; see <a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">CHANGELOG</a></li>
 </ul>
 <hr>
-<h2 id="related-1"><a class="header" href="#related-1">Related</a></h2>
+<h2 id="related-2"><a class="header" href="#related-2">Related</a></h2>
 <ul>
 <li><a href="#values-api-reference-01-alpha">Values API</a></li>
 <li><a href="#install">Install</a></li>
