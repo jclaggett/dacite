@@ -31,6 +31,18 @@ stability promise: public APIs may still change before 1.0.
   rematerialized literals). Default GET prefers literals; explorer and
   todo use the default.
 
+### Pack fill (leaf-chunking 2e)
+
+- `pack-under` / `pack-items` seal on **sent** bytes (wire-v1 by default),
+  not EDN length of hash words. A 1893-char string GET now BFS-fills ~1k
+  of FT/char neighborhood instead of stopping after two spine nodes.
+- Literal gate is **≤ 1024** wire bytes per item. Include-then-seal can
+  still push a chunk toward ~2k. Remaining-budget skip is deferred.
+- Bottom-level `ft/node` of 2–32 leaves rematerializes via `make-node!`
+  (not conj-right), so a 24-char node is a small literal instead of an
+  856-byte `:node`. After a fat `:node` crosses 1k, BFS continues
+  **children-first** up to ~2k so a 64-char string prefix fits in one GET.
+
 ### Todo web: long titles
 
 - Pack `host-string` no longer uses `apply str` (CLJS apply of a long

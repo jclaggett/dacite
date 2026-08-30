@@ -5,7 +5,8 @@
    2a: :node only.
    2b/2b′: realized recursive typed literals for value types.
    2c: large values — cheap size gate; refuse literal and walk :node + children.
-   2c′: intermediate ft/* / hamt/* literals when leaf rebuild matches hash."
+   2c′: intermediate ft/* / hamt/* literals when leaf rebuild matches hash.
+   2e: seal on sent (wire-v1) bytes; literal iff item ≤ budget."
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.wire :as wire]
@@ -17,12 +18,15 @@
             [dacite.rooted.gc :as gc]))
 
 (def default-budget
-  "Default soft pack budget in bytes (logical EDN length).
+  "Default soft pack budget in **sent** bytes (wire-v1 for the default GET/POST).
 
    Chosen by leaf-chunking 2d sweep (`dacite.bench.todo-bw --budget-sweep`):
    1024 is the smallest budget that collapses the interactive todo suite to
    minimal requests while still splitting clearly oversized values. See
-   docs/design/leaf-chunking.md §2d."
+   docs/design/leaf-chunking.md §2d / §2e.
+
+   Include-then-seal: the item that crosses 1024 is kept, so a chunk may
+   reach ~2×budget when that last item is itself a ~1k literal."
   1024)
 
 (def ^:dynamic *verify-literal-hash*
@@ -61,14 +65,42 @@
    :body body})
 
 (defn item-size
-  "Approx wire size of a Layer-1 item (EDN string length)."
+  "Approx EDN size of a Layer-1 item (debug / benches)."
   [item]
   (count (wire/write-edn item)))
 
 (defn chunk-size
-  "Approx wire size of a chunk envelope."
+  "Approx EDN size of a chunk envelope (EDN GET / benches)."
   [chunk]
   (count (wire/write-edn chunk)))
+
+(defonce ^:private sent-item-size-fn (atom nil))
+(defonce ^:private sent-chunk-size-fn (atom nil))
+
+(defn set-wire-size-fns!
+  "Install functions that measure Layer-1 items and chunks in sent
+   (wire-v1) bytes. Called from `dacite.wire.binary` when that ns loads
+   so this ns does not require the codec (circular with apply-chunk!)."
+  [item-fn chunk-fn]
+  (reset! sent-item-size-fn item-fn)
+  (reset! sent-chunk-size-fn chunk-fn)
+  nil)
+
+(defn wire-item-size
+  "Bytes of a Layer-1 item on the default wire-v1 transport.
+   Falls back to EDN length if the binary codec is not loaded."
+  [item]
+  (if-let [f @sent-item-size-fn]
+    (long (f item))
+    (item-size item)))
+
+(defn wire-chunk-size
+  "Bytes of a chunk on the default wire-v1 transport.
+   Falls back to EDN length if the binary codec is not loaded."
+  [chunk]
+  (if-let [f @sent-chunk-size-fn]
+    (long (f chunk))
+    (chunk-size chunk)))
 
 (defn make-chunk
   "Build a chunk-v1 envelope map."
@@ -80,11 +112,14 @@
 (defn pack-items
   "Split Layer-1 items into chunks using a soft budget.
 
-   Append until estimated chunk size ≥ budget, then seal (including the
-   item that crossed the threshold). Flushes a final partial chunk."
-  ([items] (pack-items items default-budget))
-  ([items budget]
-   (let [budget (long (or budget default-budget))]
+   Append until sent size ≥ budget, then seal (including the item that
+   crossed the threshold). Default size is wire-v1 bytes. Pass `size-fn`
+   for EDN length (legacy Accept). Flushes a final partial chunk."
+  ([items] (pack-items items default-budget nil))
+  ([items budget] (pack-items items budget nil))
+  ([items budget size-fn]
+   (let [budget (long (or budget default-budget))
+         size-fn (or size-fn wire-chunk-size)]
      (if (empty? items)
        []
        (loop [remaining (seq items)
@@ -93,7 +128,7 @@
          (if-let [item (first remaining)]
            (let [cur' (conj cur item)
                  ch (make-chunk budget cur')
-                 sz (chunk-size ch)]
+                 sz (long (size-fn ch))]
              (if (>= sz budget)
                (recur (next remaining) [] (conj out ch))
                (recur (next remaining) cur' out)))
@@ -317,16 +352,13 @@
 
         :else nil))))
 
-(defn- literal-form-size
-  "Approx EDN size of a {:type :body} form."
-  [form]
-  (count (wire/write-edn form)))
-
 (defn fits-literal?
   "True if h has a realized literal under budget (value or intermediate spine).
 
    Uses a cheap size cue first (2c): if :size-bytes already exceeds budget,
-   returns false without building the recursive form or dry-running materialize."
+   returns false without building the recursive form or dry-running materialize.
+   The literal **item** (wire-v1 bytes) must itself be ≤ budget; overshoot
+   is a chunk property (include-then-seal), not a per-item 2× ticket."
   ([st h] (fits-literal? st h default-budget))
   ([st h budget]
    (let [budget (long budget)
@@ -336,8 +368,9 @@
                 (or (value-type? t) (tree-internal-type? t))
                 (not (clearly-oversized? entry budget)))
        (when-let [form (literal-of st h)]
-         (and (<= (literal-form-size form) (* 2 budget))
-              (literal-round-trips? h (:type form) (:body form))))))))
+         (let [item (literal-item h (:type form) (:body form))]
+           (and (<= (wire-item-size item) budget)
+                (literal-round-trips? h (:type form) (:body form)))))))))
 
 ;; =============================================================================
 ;; materialize-literal! (2b′)
@@ -387,8 +420,14 @@
       (= "ft/digit" type)
       (ft/ft-digit-from-value-hashes st leaf-hs)
 
-      ;; deep / node: conj-right path (matches deep; node may fail dry-run)
-      (or (= "ft/deep" type) (= "ft/node" type))
+      ;; Bottom-level nodes are 2–32 leaves; rebuild the node cell, not a
+      ;; conj-right spine (that dry-run-fails and ships as a fat :node).
+      (= "ft/node" type)
+      (if (<= 2 (count leaf-hs) 32)
+        (ft/ft-node-from-value-hashes st leaf-hs)
+        (ft/ft-from-value-hashes st leaf-hs))
+
+      (= "ft/deep" type)
       (ft/ft-from-value-hashes st leaf-hs)
 
       :else
@@ -496,39 +535,42 @@
 (defn encode-item
   "Layer 1: choose :literal or :node for store entry at h.
 
-   Policy (2c / 2c′):
+   Policy (2c / 2c′ / 2e):
    1. Unknown non-value, non-spine type → :node
    2. Stored size cue > budget → :node (no full realize / dry-run)
    3. Else build realized literal (value or intermediate spine);
-      if wire size > 2×budget or hash dry-run fails → :node
-   4. Else :literal
+      if sent item size > budget or hash dry-run fails → :node
+   4. Else :literal (regardless of how full the current chunk is)
 
    Intermediate ft/* / hamt/* may bottom out as leaf-literal payloads when
    reconstruction matches the claimed hash (2c′). Otherwise the walk continues
    into children."
-  ([st h entry] (encode-item st h entry default-budget))
-  ([st h entry budget]
-   (let [budget (long (or budget default-budget))
-         t (types/entry-type entry)]
-     (cond
-       (and (not (value-type? t))
-            (not (tree-internal-type? t)))
-       (node-item h entry)
+  ([st h entry] (encode-item st h entry default-budget false))
+  ([st h entry budget] (encode-item st h entry budget false))
+  ([st h entry budget node-only?]
+   (if node-only?
+     (node-item h entry)
+     (let [budget (long (or budget default-budget))
+           t (types/entry-type entry)]
+       (cond
+         (and (not (value-type? t))
+              (not (tree-internal-type? t)))
+         (node-item h entry)
 
-       (clearly-oversized? entry budget)
-       (node-item h entry)
+         (clearly-oversized? entry budget)
+         (node-item h entry)
 
-       :else
-       (if-let [{:keys [type body]}
-                (try (literal-of st h)
-                     (catch #?(:clj Throwable :cljs :default) _
-                       nil))]
-         (let [item (literal-item h type body)]
-           (if (and (<= (item-size item) (* 2 budget))
-                    (literal-round-trips? h type body))
-             item
-             (node-item h entry)))
-         (node-item h entry))))))
+         :else
+         (if-let [{:keys [type body]}
+                  (try (literal-of st h)
+                       (catch #?(:clj Throwable :cljs :default) _
+                         nil))]
+           (let [item (literal-item h type body)]
+             (if (and (<= (wire-item-size item) budget)
+                      (literal-round-trips? h type body))
+               item
+               (node-item h entry)))
+           (node-item h entry)))))))
 
 (defn encode-reachable
   "Walk from root-h and Layer-1 encode each not-yet-skipped hash.
@@ -589,54 +631,71 @@
             :covered (count covered)
             :budget budget))))
 
-(defn pack-under
-  "Primary read packing: one chunk for hash h and a BFS neighborhood under it.
+(defn- pack-under*
+  "Neighborhood fill rooted at `root`. See pack-under."
+  [st root have budget node-only? size-fn]
+  (when (and root (store/s-has? st root))
+    (let [budget (long (or budget default-budget))
+          size-fn (or size-fn wire-chunk-size)
+          visited (atom (into #{} (map gc/hash-key) (or have #{})))
+          items (atom [])]
+      (loop [q (list root)]
+        (if-let [cur (first q)]
+          (let [q (next q)
+                ck (gc/hash-key cur)]
+            (if (contains? @visited ck)
+              (recur q)
+              (if-let [entry (store/s-get st cur)]
+                (let [item (encode-item st cur entry budget node-only?)
+                      trial (conj @items item)
+                      sz (long (size-fn (make-chunk budget trial)))
+                      empty? (empty? @items)
+                      two (* 2 budget)]
+                  (if (and (not empty?) (>= sz two))
+                    nil
+                    (do
+                      (reset! items trial)
+                      (swap! visited conj ck)
+                      (let [literal? (= :literal (:encoding item))]
+                        (when literal?
+                          (swap! visited into (gc/mark-reachable st cur)))
+                        (cond
+                          (and (>= sz budget) literal?)
+                          nil
+                          (>= sz two)
+                          nil
+                          literal?
+                          (recur q)
+                          :else
+                          (let [chs (remove (fn [ch]
+                                              (or (nil? ch)
+                                                  (contains? @visited (gc/hash-key ch))))
+                                            (or (types/child-hashes entry) []))]
+                            (recur (concat chs q))))))))
+                (recur q))))
+          nil))
+      (when (seq @items)
+        (make-chunk budget @items)))))
 
-   Always includes an encoding of h when present. Then BFS-expands descendants
-   (skipping `have`) with the same :literal/:node policy until soft budget
-   seals the chunk (include the item that crossed the threshold, then stop).
-   Does not start additional chunks — remainder is left for later node gets.
+(defn pack-under
+  "Primary read packing: one chunk for hash h and a neighborhood under it.
+
+   Always includes an encoding of h when present. Then expands descendants
+   (skipping `have`) with the same :literal/:node policy until the **sent**
+   size (wire-v1 by default; EDN if `:size-fn chunk-size`) is ≥ budget.
+   Include-then-seal: the item that crossed is kept (chunk may reach ~2×budget
+   when that item is a ~1k literal). Remainder is left for later node gets.
+
+   Opts:
+     :node-only?  pack only :node items
+     :size-fn     chunk size in sent bytes
 
    Returns a chunk-v1 map, or nil if h is missing from st."
-  ([st h] (pack-under st h #{} default-budget))
-  ([st h have] (pack-under st h have default-budget))
-  ([st h have budget]
-   (when (and h (store/s-has? st h))
-     (let [budget (long (or budget default-budget))
-           ;; visited/have use hex keys (CLJS-safe)
-           visited (atom (into #{} (map gc/hash-key) (or have #{})))
-           items (atom [])]
-       ;; Portable FIFO: list, take from front
-       (loop [q (list h)]
-         (if-let [cur (first q)]
-           (let [q (next q)
-                 ck (gc/hash-key cur)]
-             (if (contains? @visited ck)
-               (recur q)
-               (if-let [entry (store/s-get st cur)]
-                 (let [item (encode-item st cur entry budget)
-                       trial (conj @items item)
-                       sz (chunk-size (make-chunk budget trial))]
-                   (reset! items trial)
-                   (swap! visited conj ck)
-                   (let [literal? (= :literal (:encoding item))]
-                     (when literal?
-                       (swap! visited into (gc/mark-reachable st cur)))
-                     (cond
-                       (>= sz budget)
-                       nil
-                       literal?
-                       (recur q)
-                       :else
-                       (let [chs (remove (fn [ch]
-                                           (or (nil? ch)
-                                               (contains? @visited (gc/hash-key ch))))
-                                         (or (types/child-hashes entry) []))]
-                         (recur (concat q chs))))))
-                 (recur q))))
-           nil))
-       (when (seq @items)
-         (make-chunk budget @items))))))
+  ([st h] (pack-under st h #{} default-budget nil))
+  ([st h have] (pack-under st h have default-budget nil))
+  ([st h have budget] (pack-under st h have budget nil))
+  ([st h have budget {:keys [node-only? size-fn]}]
+   (pack-under* st h have budget node-only? size-fn)))
 
 ;; =============================================================================
 ;; Apply + transport

@@ -1,7 +1,8 @@
 # Leaf-chunking (transport packing) design
 
-**Status:** SHIPPED — 2a–2d done (default soft budget **1024**). Realized-value
-literal law below; intermediate FT/HAMT leaf-payloads (2c′) included.
+**Status:** SHIPPED — 2a–2e done (default soft budget **1024 sent bytes**).
+Realized-value literal law below; intermediate FT/HAMT leaf-payloads (2c′);
+wire-sized include-then-seal (2e).
 
 **Related:** `docs/design/service.md` (HTTP store protocol),
 `docs/design/stores-phase-2.md`, `docs/design/store-composition-pack.md`
@@ -163,12 +164,16 @@ oversized literal if policy allows. No separate “range of a blob” wire kind 
 
 Layer 1 emits a stream of items. Layer 2 only batches them.
 
-**Soft budget (MVP):**
+**Soft budget (MVP / 2e):**
 
-- Append until estimated chunk size ≥ budget, then send and start a new chunk.
-- Chunks may be up to about **2 × budget**.
+- Append until **sent** size ≥ budget (wire-v1 bytes on the default GET/POST;
+  EDN length only when `Accept: application/edn`), then seal.
+- Include the item that crossed the threshold. A last item that is itself a
+  ≤1k literal can push the chunk toward **~2 × budget**.
 - Flush the last partial chunk when the transfer unit finishes.
 - A single oversized item ships alone.
+- A node is a **literal** iff its complete realized item is ≤ budget (not
+  2×). Overshoot is a chunk property, not a per-item ticket.
 
 ```
 needed hashes → Layer 1 (literal | node) → items → Layer 2 pack → HTTP
@@ -224,6 +229,7 @@ Reproduce: `cd impl/clojure && clojure -M:dev -m dacite.bench.todo-bw --budget-s
 | **2c** | Large trees / blobs: cheap size cue gate; refuse root literal and walk `:node` + child literals; `encode-summary`. **Done.** |
 | **2c′** | **Intermediate literals** (`ft/*`, `hamt/*`) as ordered leaf/entry payloads; rebuild + dry-run hash gate. **Done.** |
 | **2d** | Budget sweep; measured default **1024**. **Done.** |
+| **2e** | Seal `pack-under` / `pack-items` on **sent** (wire-v1) bytes; literal gate ≤ 1k. **Done.** |
 
 ### 2b notes (shipped)
 
@@ -248,9 +254,9 @@ Reproduce: `cd impl/clojure && clojure -M:dev -m dacite.bench.todo-bw --budget-s
 
 1. Spine / non-value → `:node`
 2. **`size-cue` (`:size-bytes`) > budget** → `:node` without building `literal-of` or dry-run
-3. Build realized form; if wire size > **2 × budget** → `:node` (typed overhead can exceed cue)
+3. Build realized form; if **sent item size > budget** → `:node` (typed overhead can exceed cue)
 4. Dry-run hash fail → `:node`
-5. Else `:literal` (covers whole subgraph)
+5. Else `:literal` (covers whole subgraph; added even if the current chunk is already partly full)
 
 **Mixed walk:** large parent as `:node` → descend `child-hashes`; small children still `:literal`.
 
@@ -324,6 +330,34 @@ write-back suite). Representative results:
 Larger budgets remain available per request (`:budget` on pack APIs). The
 default is tuned for small interactive values with progressive fill on large
 ones (2c refuse-literal + BFS pack-under).
+
+### 2e notes (shipped)
+
+**Seal on sent bytes.** Default GET/POST uses wire-v1. `pack-under` and
+`pack-items` measure `encode-pack-edn` length, not EDN `pr-str` of hashes.
+EDN `Accept` still seals on EDN length. Before 2e, a 1893-char string GET
+sealed after two spine `:node`s (EDN 1093, **286** binary bytes) and never
+reached `ft/digit` / `char` leaves.
+
+**Literal gate = budget.** A node is `:literal` iff the complete realized
+item is ≤ 1024 wire bytes (and dry-run hash matches), even if the chunk is
+already partly full. Include-then-seal then lets that last item push the
+body toward **~2k**.
+
+**Measured (JVM HTTP, seed 5 todos + 1893-char title at index 5):**
+
+| Walk | Before 2e | After 2e |
+|---|---|---|
+| Collapsed explorer list | 9 req | 2 |
+| Warm open item 5 (64-char preview) | +10 | +7 |
+| Cold `as-str` of that title | 52 | 42 |
+| `pack-under` of the string (wire) | 286 B, 2 `:node`s | ~1.9 kB, mixed nodes+literals |
+
+`ft/node` of 2–32 leaves rebuilds with `make-node!` (hash matches) so those
+nodes are literals. After a fat `:node` crosses 1k, the walk keeps
+**children-first** until ~2k — a 64-char string prefix fits in one GET.
+
+Remaining-budget skip-if-does-not-fit and GET `have` are deferred.
 
 ## Non-goals (MVP)
 

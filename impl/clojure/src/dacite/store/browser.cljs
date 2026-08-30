@@ -4,8 +4,9 @@
    Same protocol as docs/design/service.md and dacite.store.remote:
    GET/PUT/HEAD/DELETE /node/{hex}, GET /root, POST /root/cas, POST /nodes.
 
-   GET /node returns a pack chunk by default; s-get applies it into a local
-   pack cache then returns the node.
+   GET /node returns a pack chunk by default (realized literals under the
+   hash, same as the JVM remote). s-get applies it into a local pack
+   cache then returns the node. :raw / :nodes opt out of that default.
 
    Wire:
      :binary (default true) — pack GET and POST /nodes use wire-v1 binary
@@ -131,18 +132,22 @@
 
           :else nil)))))
 
-(defrecord BrowserRemoteStore [base-url headers pack-local binary? raw?]
+(defrecord BrowserRemoteStore [base-url headers pack-local binary? raw? nodes?]
   store/IStore
   (s-get [_ h]
     (or (store/s-get pack-local h)
         (let [raw? raw?
+              nodes? nodes?
               use-bin? (and binary? (not raw?))
               hdrs (if use-bin?
                      (assoc headers "Accept" bin/content-type-chunk-v1)
                      (assoc headers "Accept" "application/edn"))
               opts (when use-bin? {:binary-response true})
+              q (cond raw? "raw=1"
+                      nodes? "nodes=1"
+                      :else nil)
               {:keys [status body]} (xhr "GET"
-                                         (node-url base-url h (when raw? "raw=1"))
+                                         (node-url base-url h q)
                                          nil hdrs opts)]
           (when (= 200 status)
             (apply-get-body! pack-local h body use-bin?)))))
@@ -212,24 +217,28 @@
      :headers map
      :binary  true|false (default true — wire-v1 for pack GET/POST)
      :raw     true|false (default false). When true, GET /node uses ?raw=1
-              (bare store node, no pack rematerialize). Needed to read
-              JVM-created strings/blobs until cljs literal hashes match."
-  [base-url & [{:keys [headers binary raw]
+              (bare store node, no pack).
+     :nodes   true|false (default false). When true, GET /node uses ?nodes=1
+              (pack of :node items only — neighborhood fill without
+              rematerializing literals)."
+  [base-url & [{:keys [headers binary raw nodes]
                 :or {headers {}
                      binary true
-                     raw false}}]]
+                     raw false
+                     nodes false}}]]
   (->BrowserRemoteStore (or base-url "") headers (store/mem-store)
-                        (boolean binary) (boolean raw)))
+                        (boolean binary) (boolean raw) (boolean nodes)))
 
 (defn cached-remote-store
   "Remote store with client cache (default :write-back)."
-  [base-url & [{:keys [headers policy binary raw]
+  [base-url & [{:keys [headers policy binary raw nodes]
                 :or {headers {}
                      policy :write-back
                      binary true
-                     raw false}}]]
+                     raw false
+                     nodes false}}]]
   (client-cache/wrap
-   (remote-store base-url {:headers headers :binary binary :raw raw})
+   (remote-store base-url {:headers headers :binary binary :raw raw :nodes nodes})
    policy))
 
 (defn- unwrap-remote

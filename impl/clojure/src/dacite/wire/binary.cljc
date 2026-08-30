@@ -1168,6 +1168,18 @@
   [bs]
   (wire-map->pack-edn (decode-chunk bs)))
 
+(defn pack-item-wire-bytes
+  "Sent size of one Layer-1 pack item on wire-v1."
+  [item]
+  (byte-len (encode-item (pack-item->wire-item item))))
+
+(defn pack-chunk-wire-bytes
+  "Sent size of a pack chunk envelope on wire-v1."
+  [chunk]
+  (byte-len (encode-pack-edn chunk)))
+
+(pack/set-wire-size-fns! pack-item-wire-bytes pack-chunk-wire-bytes)
+
 (defn wants-binary?
   "True if Accept header prefers binary chunks over EDN."
   [accept]

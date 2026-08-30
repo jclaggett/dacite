@@ -4,6 +4,7 @@
             [dacite.store :as store]
             [dacite.store.pack :as pack]
             [dacite.wire :as wire]
+            [dacite.wire.binary :as bin]
             [dacite.service :as svc]
             [dacite.store.remote :as remote]
             [dacite.store.client-cache :as client-cache]
@@ -11,6 +12,7 @@
             [dacite.examples.todo :as todo]
             [dacite.value.types :as types]
             [dacite.value.collections :as coll]
+            [dacite.value.finger-tree :as ft]
             [dacite.value.scalar :as scalar]
             [dacite.value :as v]))
 
@@ -401,17 +403,17 @@
       (is (store/s-has? st2 h)))))
 
 (deftest wire-overhead-can-refuse-even-when-size-cue-fits
-  ;; Recursive typed body can exceed 2×budget while :size-bytes is still small.
+  ;; Recursive realized body can exceed the 1k literal gate while :size-bytes
+  ;; (leaf cue) is still small. Overshoot is a chunk property, not a 2× item ticket.
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (map #(str "item-" %) (range 40)))
         h (types/dacite-hash v)
         entry (store/s-get st h)
-        ;; cue ~270; wire form ~1375 → refuse at budget 500 (2×=1000)
         budget 500
         item (pack/encode-item st h entry budget)
         sum (pack/encode-summary st h budget)]
     (is (<= (pack/size-cue entry) budget) "size cue alone would allow")
-    (is (= :node (:encoding item)) "wire form over 2×budget → :node")
+    (is (= :node (:encoding item)) "sent literal item over budget → :node")
     (is (pos? (:literals sum)) "children still literalized")))
 
 (deftest encode-summary-reports-mixed-stats
@@ -496,15 +498,73 @@
     (is (= 1 (count (:items ch))) "small todo root is one literal chunk")
     (let [st2 (store/mem-store)]
       (pack/apply-chunk! st2 ch)
-      (is (store/s-has? st2 h))))
+      (is (store/s-has? st2 h)))
+    (let [back (bin/decode-pack-edn (bin/encode-pack-edn ch))
+          st3 (store/mem-store)]
+      (is (= :literal (:encoding (first (:items back)))))
+      (pack/apply-chunk! st3 back)
+      (is (store/s-has? st3 h)
+          "wire-v1 literal of a todo vector rematerializes at the claimed hash")))
   (let [st (store/mem-store)
         s (coll/string-with-store st (apply str (repeat 3000 \x)))
         h (types/dacite-hash s)
-        ch (pack/pack-under st h #{} 1024)]
+        ch (pack/pack-under st h #{} 1024)
+        n-wire (pack/wire-chunk-size ch)
+        encs (mapv :encoding (:items ch))
+        types (mapv (fn [it]
+                      (or (:type it)
+                          (when (= :node (:encoding it))
+                            (first (:body it)))))
+                    (:items ch))]
     (is (true? (:dacite.wire/chunk-v1 ch)))
-    (is (pos? (count (:items ch))))
-    (is (>= (pack/chunk-size ch) 1024)
-        "large string seals one soft-budget chunk without packing the whole DAG")))
+    (is (> (count (:items ch)) 2)
+        "wire-sized seal BFS-es past string+ft/deep into digits/chars")
+    (is (some #{:literal} encs)
+        (str "neighborhood includes literals, got " types))
+    (is (>= n-wire 1024)
+        "large string seals one soft-budget chunk on sent (wire) bytes")
+    (is (<= n-wire (* 2 1024))
+        "include-then-seal overshoot stays within ~2×budget")))
+
+(deftest long-string-pack-covers-explorer-preview-prefix
+  ;; 24-leaf ft/nodes used to ship as ~856-byte :nodes (conj-right dry-run
+  ;; fail). Rebuilding via make-node! makes them literals; children-first
+  ;; fill then puts a 64-char prefix in one GET.
+  (let [st (store/mem-store)
+        s (coll/string-with-store st (apply str (repeat 1893 \x)))
+        h (types/dacite-hash s)
+        ch (pack/pack-under st h)
+        st2 (store/mem-store)
+        _ (pack/apply-chunk! st2 ch)
+        root (:root (types/entry-data (store/s-get st2 h)))
+        n-hit (count (filter #(store/s-has? st2 %)
+                             (take 64 (ft/ft-seq st2 root))))]
+    (is (>= n-hit 64)
+        (str "explorer 64-char preview should be in the first pack; got " n-hit))
+    (is (some (fn [it]
+                (and (= :literal (:encoding it))
+                     (= "ft/node" (:type it))))
+              (:items ch))
+        "bottom-level ft/node of char leaves is a literal")
+    (let [st3 (store/mem-store)
+          back (bin/decode-pack-edn (bin/encode-pack-edn ch))]
+      (pack/apply-chunk! st3 back)
+      (is (store/s-has? st3 h)
+          "wire-v1 ft/node literal applies at the claimed hash"))))
+
+(deftest pack-under-node-only-has-no-literals
+  (let [st (store/mem-store)
+        v (coll/vector-with-store st 1 2 3)
+        h (types/dacite-hash v)
+        ch (pack/pack-under st h #{} 1024 {:node-only? true})]
+    (is (seq (:items ch)))
+    (is (every? #(= :node (:encoding %)) (:items ch)))
+    (is (> (count (:items ch)) 1)
+        "neighborhood includes children, not only the vector root")
+    (let [st2 (store/mem-store)]
+      (pack/apply-chunk! st2 ch)
+      (is (store/s-has? st2 h))
+      (is (= 3 (coll/coll-count st2 h))))))
 
 (deftest remote-s-get-pack-fill
   (let [rooted (svc/make-demo-rooted)

@@ -59,8 +59,12 @@ Fetch a stored node. **Pack mode is the default** (leaf-chunking read path):
 
 **Response 200 (default):** one `chunk-v1` envelope. The first/primary item
 installs `{hash-hex}`; further items are a **BFS** neighborhood under that
-hash until the soft pack budget seals the chunk. Client applies the chunk
-locally (`apply-chunk!`) then reads the requested hash.
+hash until the soft pack budget seals the chunk (**sent** bytes: wire-v1
+when `Accept` asks for it, EDN length otherwise). A node whose complete
+literal is ≤ 1024 bytes is encoded as `:literal` even if the chunk is
+already partly full; include-then-seal may then push the body toward ~2k.
+Client applies the chunk locally (`apply-chunk!`) then reads the requested
+hash.
 
 **Response 200 (`?raw=1`):** bare store node EDN (debug / simple tools).
 

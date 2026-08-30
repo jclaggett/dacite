@@ -52,6 +52,20 @@
       (let [r1 (svc/handle-request rooted "GET" "/root" nil)]
         (is (= hex (:root (wire/read-edn (:body r1)))))))))
 
+(deftest handle-request-nodes-pack-is-node-only
+  (let [rooted (svc/make-demo-rooted)
+        vec (coll/vector-with-store rooted 1 2 3)
+        vh (types/dacite-hash vec)
+        resp (svc/handle-request rooted "GET"
+                                 (str "/node/" (store/hash->hex vh) "?nodes=1")
+                                 nil)
+        chunk (wire/read-edn (:body resp))]
+    (is (= 200 (:status resp)))
+    (is (true? (:dacite.wire/chunk-v1 chunk)))
+    (is (seq (:items chunk)))
+    (is (every? #(= :node (:encoding %)) (:items chunk))
+        "GET ?nodes=1 is a pack of store nodes, no rematerialized literals")))
+
 (deftest live-server-remote-client-roundtrip
   (let [rooted (svc/make-demo-rooted)
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]

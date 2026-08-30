@@ -136,6 +136,54 @@
       (finally
         (stop!)))))
 
+(def ^:private long-title
+  "1893-char title — larger than the 1k pack budget, so the vector/map/string
+   are mixed :node walks rather than one root literal."
+  (apply str (repeat 1893 \x)))
+
+(deftest explorer-long-title-open-is-few-extra-gets
+  ;; Pre-2e (EDN-sized seal): collapsed list 9 req; warm open item 5 +10;
+  ;; cold as-str of the title 52. Wire-sized BFS fill must beat those.
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted
+                                                     :throttle false})]
+    (try
+      (let [w (v/root-ref (store/remote-rooted-store base-url))]
+        (v/ref-cas! w nil (todo/add-todo (todo/build w (todo/seed-items))
+                                         long-title false)))
+      (let [r (v/root-ref (store/remote-rooted-store base-url {:policy :none}))
+            d-list (:delta
+                    (stats/measure
+                     (fn []
+                       (let [todos (v/ref-deref r)]
+                         (ex/row-summary todos)
+                         (ex/child-page todos 0)))))
+            d-open (:delta
+                    (stats/measure
+                     (fn []
+                       (let [todos (v/ref-deref r)
+                             item (v/nth todos 5)]
+                         (ex/row-summary item)
+                         (doseq [{:keys [label value]} (:items (ex/child-page item 0))]
+                           (when (v/dacite-value? label)
+                             (ex/row-summary label))
+                           (ex/row-summary value))))))]
+        (is (pos? (:requests d-list)))
+        (is (< (:requests d-open) 10)
+            (str "warm open of 1893-char title should not add 10 GETs; got +"
+                 (:requests d-open))))
+      (stats/reset-stats!)
+      (let [cold (v/root-ref (store/remote-rooted-store base-url {:policy :none}))
+            d-str (:delta
+                   (stats/measure
+                    (fn []
+                      (todo/title-str (v/nth (v/ref-deref cold) 5)))))]
+        (is (< (:requests d-str) 52)
+            (str "as-str of 1893-char title should beat pre-2e 52 GETs; got "
+                 (:requests d-str))))
+      (finally
+        (stop!)))))
+
 (defn- http-no-follow
   "GET url without following redirects. Returns {:status :location}."
   [url]

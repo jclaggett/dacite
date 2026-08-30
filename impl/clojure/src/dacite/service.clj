@@ -186,7 +186,8 @@
    body — String (EDN) or byte[] (binary chunk or UTF-8 EDN).
    opts — {:content-type s :accept s}
 
-   GET /node/{hex} returns a pack chunk by default. Pass ?raw=1 for bare node.
+   GET /node/{hex} returns a pack chunk by default. Pass ?raw=1 for a bare
+   node, ?nodes=1 for a pack of :node items only (no rematerialized literals).
    Chunk GET/POST support wire-v1 binary when Content-Type / Accept indicate
    application/vnd.dacite.chunk.v1 (see docs/spec/wire-v1.md)."
   ([rooted method path body]
@@ -254,14 +255,19 @@
          (and (#{"GET" "PUT" "HEAD" "DELETE"} method) (parse-node-hex path-only))
          (let [hex (parse-node-hex path-only)
                h (store/hex->hash hex)
-               raw? (query-flag? query "raw")]
+               raw? (query-flag? query "raw")
+               nodes? (query-flag? query "nodes")]
            (case method
              "GET"
              (if raw?
                (if-let [node (store/s-get rooted h)]
                  {:status 200 :content-type ct-edn :body (wire/write-edn node)}
                  {:status 404})
-               (if-let [chunk (pack/pack-under rooted h)]
+               (if-let [chunk (pack/pack-under rooted h #{} pack/default-budget
+                                               {:node-only? nodes?
+                                                :size-fn (if (bin/wants-binary? accept)
+                                                           pack/wire-chunk-size
+                                                           pack/chunk-size)})]
                  (let [fmt (format-chunk-response chunk accept)]
                    {:status 200
                     :content-type (:content-type fmt)

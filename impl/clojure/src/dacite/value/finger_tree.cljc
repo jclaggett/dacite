@@ -600,6 +600,20 @@
     (doseq [vh vhs] (assert-leaf-value! store vh))
     (make-digit! store vhs (mapv #(measure-of store %) vhs))))
 
+(defn ft-node-from-value-hashes
+  "Build an ft/node whose children are exactly these leaf hashes (2–32).
+
+   Hash is fuse(type, elements_fuse), so a bottom-level node of char/byte
+   leaves round-trips as a pack literal. conj-right (ft-from-value-hashes)
+   rebuilds a deep/digit spine instead and fails the dry-run."
+  [store value-hashes]
+  (let [vhs (vec value-hashes)
+        n (count vhs)]
+    (when-not (<= 2 n 32)
+      (throw (ex-info "ft/node literal needs 2–32 leaves" {:count n})))
+    (doseq [vh vhs] (assert-leaf-value! store vh))
+    (make-node! store vhs (mapv #(measure-of store %) vhs))))
+
 (defn ft-concat
   "Concatenate two trees in the same store. Returns the new root hash."
   [store root-a root-b]
