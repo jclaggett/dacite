@@ -307,7 +307,7 @@ Treat this as a backlog that **appears**, not a build order.
 | `/app/` directory `index.html` | Nested static app next to todo | Done (`handle-static`) |
 | Browser `require` inside `dacite.store` | JVM ClojureScript forbids it | Done (browser stubs; nbb unchanged) |
 | `v/scalar` / `v/root-ref` smash child nses in cljs | Pack literal `put-scalar!` vanished | Done (omit those two defs in the browser) |
-| Pack literals hash-mismatch on cljs | JVM strings rematerialize differently | Workaround: explorer `GET ?raw=1` |
+| Pack literals hash-mismatch on cljs | JVM strings rematerialize differently | Done (host-string + `put-scalar!` smash); explorer uses default pack |
 | String/blob “read more” | Longer prefix, still a leaf | Deferred |
 | Async browser store | Expand without blocking the tab | Still deferred |
 

@@ -118,7 +118,7 @@ novelty (`:created` / `:exists`).
 
 | Method | Path | Role |
 |--------|------|------|
-| GET | `/node/{64-hex}` | Pack-filled get (default); `?raw=1` bare node |
+| GET | `/node/{64-hex}` | Pack-filled get (default, prefers literals); `?raw=1` bare node; `?nodes=1` node-only pack |
 | PUT | `/node/{64-hex}` | Single-node put → novelty body |
 | HEAD/DELETE | `/node/{64-hex}` | Existence / optional GC |
 | POST | `/nodes` | Apply pack chunk (write) |

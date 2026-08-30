@@ -39,9 +39,11 @@
 
 (defn open-store
   []
-  ;; ?raw=1 so JVM-seeded string/blob nodes are stored as-is. Pack literals
-  ;; rematerialized in ClojureScript currently mismatch JVM hashes.
-  (browser/cached-remote-store (api-base) {:policy :write-back :raw true}))
+  ;; Same HTTP path as the todo demo. Pack GET prefers realized literals
+  ;; (soft budget 1024): one request is *data*. apply-chunk! installs
+  ;; ordinary nodes in the tab's mem cache; the explorer walks *values*
+  ;; there. :nodes / :raw opt out of literals and are not used here.
+  (browser/cached-remote-store (api-base) {:policy :write-back}))
 
 (defn get-root
   [st]

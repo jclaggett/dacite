@@ -14,8 +14,9 @@ stability promise: public APIs may still change before 1.0.
   browsed as-is.
 - `GET /app/explorer/` (todo stays at `/app/`). Directories under `/app/`
   serve `index.html`.
-- Browser store `:raw true` uses `GET /node?raw=1` so JVM-created string
-  nodes are not rematerialized (pack literals still mismatch cljs hashes).
+- Browser explorer uses the same pack-filled `GET /node` as todo
+  (realized literals, write-back cache). Values are walked locally;
+  HTTP ships neighborhood *data*.
 - Browser ClojureScript does not re-export `v/scalar` / `v/root-ref`
   (they smash the `dacite.value.scalar` / `.root-ref` namespaces). nbb
   and JVM keep the vars. Rooted re-exports on `dacite.store` are stubs
@@ -23,6 +24,12 @@ stability promise: public APIs may still change before 1.0.
 - Tutorial: [docs/book/tutorial/explorer.md](docs/book/tutorial/explorer.md)
 - `/app` and `/app/explorer` without a trailing slash **301** to the
   slashed URL so relative `js/main.js` is not the todo bundle.
+
+### Explorer pack GET
+
+- `GET /node/{hex}?nodes=1` — opt-out pack of `:node` items only (no
+  rematerialized literals). Default GET prefers literals; explorer and
+  todo use the default.
 
 ### Todo web: long titles
 

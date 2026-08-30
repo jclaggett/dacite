@@ -30,10 +30,24 @@ Domain code lives in `dacite.examples.explorer` and uses only
 `dacite.value`: `value-type`, `count`, `nth`, paged `seq`, lazy
 `realize` prefixes for strings/blobs. It never calls `dac->clj`.
 
-The browser store uses `GET /node?raw=1` so nodes created on the JVM
-are installed as-is. Pack-filled GET rematerializes string literals in
-ClojureScript with a different hash today; that is a library follow-up,
-not an explorer helper.
+The browser store is the same as the todo demo: write-back cache plus
+default pack-filled `GET /node`. One request returns **data** — realized
+literals for a neighborhood under the asked hash, inside the ~1k soft
+budget. `apply-chunk!` installs those as ordinary nodes in the tab's mem
+cache. The explorer then walks **values** locally (`dacite.value`); a
+tree click is not a GET.
+
+A 5-item todo list fits in a single literal, so load + expand of the
+first item is one node GET after `GET /root`. A title longer than 1k
+still takes several GETs, but each GET BFS-fills ~1k of neighborhood
+(last item may overshoot toward 2k). A refresh starts a new heap, so
+that cache is empty again.
+
+`?raw=1` and `?nodes=1` exist for debug (bare node / node-only pack).
+They are not the explorer path.
+
+String/blob rows still realize a short prefix of char/byte nodes; after
+a string literal those nodes are already local.
 
 Strings and blobs are **leaves**: a truncated preview and the total
 count. A later “read more” can lengthen that prefix; this first pass

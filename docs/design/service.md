@@ -64,6 +64,11 @@ locally (`apply-chunk!`) then reads the requested hash.
 
 **Response 200 (`?raw=1`):** bare store node EDN (debug / simple tools).
 
+**Response 200 (`?nodes=1`):** pack chunk whose items are all `:node`
+encodings (BFS neighborhood, no rematerialized literals). Debug / opt-out
+when a client must not rematerialize. Default GET prefers `:literal`
+items; todo and explorer use that path.
+
 **Response 404:** Node not present.
 
 This keeps the unit of interaction content-addressed (**one hash asked**) while

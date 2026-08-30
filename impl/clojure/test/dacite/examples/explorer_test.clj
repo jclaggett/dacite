@@ -3,6 +3,7 @@
   (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [dacite.examples.explorer :as ex]
+            [dacite.examples.todo :as todo]
             [dacite.service :as svc]
             [dacite.store :as store]
             [dacite.store.stats :as stats]
@@ -101,6 +102,37 @@
           (is (< (:bytes-recv page-delta) (:bytes-recv all-delta))
               "first page of page-me must not pull as much as seq of all 128")
           (is (<= (:requests page-delta) (:requests all-delta)))))
+      (finally
+        (stop!)))))
+
+(deftest explorer-todo-root-is-one-pack-get
+  ;; Same data as /app/: a seed todo vector packs as one literal.
+  ;; Explorer row-summary + first page + opening item 0 stay in that
+  ;; neighborhood (value walk on local mem; HTTP shipped the data).
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted
+                                                     :throttle false})]
+    (try
+      (let [w (v/root-ref (store/remote-rooted-store base-url))]
+        (v/ref-cas! w nil (todo/build w (todo/seed-items))))
+      (stats/reset-stats!)
+      (let [cold (v/root-ref (store/remote-rooted-store base-url {:policy :none}))
+            d (:delta
+               (stats/measure
+                (fn []
+                  (let [todos (v/ref-deref cold)
+                        item0 (v/nth todos 0)]
+                    (ex/row-summary todos)
+                    (ex/child-page todos 0)
+                    (ex/row-summary item0)
+                    (doseq [{:keys [label value]} (:items (ex/child-page item0 0))]
+                      (when (v/dacite-value? label)
+                        (ex/row-summary label))
+                      (ex/row-summary value))))))]
+        (is (pos? (:bytes-recv d)))
+        (is (<= (:requests d) 3)
+            (str "todo root should arrive as one pack GET after GET /root; got "
+                 (:requests d) " requests")))
       (finally
         (stop!)))))
 
