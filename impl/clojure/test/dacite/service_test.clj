@@ -8,6 +8,7 @@
             [dacite.store.client-cache :as client-cache]
             [dacite.store.pack :as pack]
             [dacite.value.collections :as coll]
+            [dacite.value.finger-tree :as ft]
             [dacite.value.api :as d]
             [dacite.value.types :as types]
             [dacite.wire :as wire]
@@ -51,6 +52,21 @@
       (is (false? (:ok (wire/read-edn (:body cas-bad)))))
       (let [r1 (svc/handle-request rooted "GET" "/root" nil)]
         (is (= hex (:root (wire/read-edn (:body r1)))))))))
+
+(deftest handle-request-near-packs-enclosing-string
+  (let [rooted (svc/make-demo-rooted)
+        s (coll/string-with-store rooted (apply str (repeat 1893 \x)))
+        sh (types/dacite-hash s)
+        root (:root (types/entry-data (store/s-get rooted sh)))
+        ch0 (first (ft/ft-seq rooted root))
+        resp (svc/handle-request rooted "GET"
+                                 (str "/node/" (store/hash->hex ch0)
+                                      "?near=" (store/hash->hex sh))
+                                 nil)
+        chunk (wire/read-edn (:body resp))]
+    (is (= 200 (:status resp)))
+    (is (> (count (:items chunk)) 1)
+        "GET ?near=string does not return the char leaf alone")))
 
 (deftest handle-request-nodes-pack-is-node-only
   (let [rooted (svc/make-demo-rooted)

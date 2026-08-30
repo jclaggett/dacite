@@ -631,6 +631,21 @@
             :covered (count covered)
             :budget budget))))
 
+(defn- chunk-covers-hash?
+  "True if applying chunk to a client would install h.
+   :node items install only themselves; :literal items cover their
+   reachable subgraph (L5)."
+  [st chunk h]
+  (let [hex (store/hash->hex h)
+        hk (gc/hash-key h)]
+    (boolean
+     (some (fn [item]
+             (or (= hex (:hash item))
+                 (and (= :literal (:encoding item))
+                      (contains? (gc/mark-reachable st (store/hex->hash (:hash item)))
+                                 hk))))
+           (:items chunk)))))
+
 (defn- pack-under*
   "Neighborhood fill rooted at `root`. See pack-under."
   [st root have budget node-only? size-fn]
@@ -689,13 +704,26 @@
    Opts:
      :node-only?  pack only :node items
      :size-fn     chunk size in sent bytes
+     :near        enclosing value (or parent) hash. When set, fill under
+                  `near` instead of `h` if that chunk still installs `h`
+                  (parent literal or siblings). The store has no parent
+                  pointers — the client supplies `near`.
 
    Returns a chunk-v1 map, or nil if h is missing from st."
   ([st h] (pack-under st h #{} default-budget nil))
   ([st h have] (pack-under st h have default-budget nil))
   ([st h have budget] (pack-under st h have budget nil))
-  ([st h have budget {:keys [node-only? size-fn]}]
-   (pack-under* st h have budget node-only? size-fn)))
+  ([st h have budget {:keys [node-only? size-fn near]}]
+   (when (and h (store/s-has? st h))
+     (let [ch (if (and near
+                       (store/s-has? st near)
+                       (not= (gc/hash-key near) (gc/hash-key h)))
+                (let [near-ch (pack-under* st near have budget node-only? size-fn)]
+                  (if (and near-ch (chunk-covers-hash? st near-ch h))
+                    near-ch
+                    (pack-under* st h have budget node-only? size-fn)))
+                (pack-under* st h have budget node-only? size-fn))]
+       ch))))
 
 ;; =============================================================================
 ;; Apply + transport

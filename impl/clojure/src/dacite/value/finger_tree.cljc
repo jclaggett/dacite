@@ -319,9 +319,9 @@
       (mapcat #(tree-to-seq* store %) (get-children store root))
       "ft/deep"
       (let [{:keys [left spine right]} (node-data node)]
-        (concat (tree-to-seq* store left)
-                (tree-to-seq* store spine)
-                (tree-to-seq* store right)))
+        (lazy-cat (tree-to-seq* store left)
+                  (tree-to-seq* store spine)
+                  (tree-to-seq* store right)))
       ;; bare leaf (scalar, public collection, …)
       (list root))))
 

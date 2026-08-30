@@ -42,6 +42,9 @@ stability promise: public APIs may still change before 1.0.
   (not conj-right), so a 24-char node is a small literal instead of an
   856-byte `:node`. After a fat `:node` crosses 1k, BFS continues
   **children-first** up to ~2k so a 64-char string prefix fits in one GET.
+- `GET /node/{h}?near={value}` packs under the enclosing value so a char
+  miss fills siblings (parent literal or neighborhood), not a bare leaf.
+  Collection `seq`/`realize` bind `store/*pack-near*` to that value hash.
 
 ### Todo web: long titles
 

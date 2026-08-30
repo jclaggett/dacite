@@ -40,7 +40,7 @@
 
 (declare ->DaciteString ->DaciteBlob ->DaciteVector ->DaciteMap ->DaciteSet)
 (declare string string-with-store wrap-hash)
-(declare store-seq-node! store-assoc-node! node-root realize-hashes)
+(declare store-seq-node! store-assoc-node! node-root)
 (declare vec-of-refs-with-store)
 
 ;; =============================================================================
@@ -89,9 +89,11 @@
 (defn- realize-hashes
   "Lazily realize a seq of element hashes to native values by wrapping each
    hash and recursively calling `realize`. The result is a lazy seq, so
-   only the consumed portion is fetched from the store."
-  [store hs]
-  (map #(types/realize (wrap-hash store %)) hs))
+   only the consumed portion is fetched from the store. `near` is the
+   enclosing value hash for pack-under-or-near (nil if none)."
+  [store hs near]
+  (let [xs (map #(types/realize (wrap-hash store %)) hs)]
+    (if near (store/keep-near near xs) xs)))
 
 ;; =============================================================================
 ;; Portable operations (the basis of dacite.value.api; the JVM native
@@ -108,12 +110,16 @@
    if empty."
   [store h]
   (when (pos? (coll-count store h))
-    (map #(wrap-hash store %) (ft/ft-seq store (node-root store h)))))
+    (binding [store/*pack-near* h]
+      (store/keep-near h
+                       (map #(wrap-hash store %)
+                            (ft/ft-seq store (node-root store h)))))))
 
 (defn seq-nth
   "Wrapped element at index i of a sequence collection."
   [store h i]
-  (wrap-hash store (ft/ft-nth store (node-root store h) i)))
+  (binding [store/*pack-near* h]
+    (wrap-hash store (ft/ft-nth store (node-root store h) i))))
 
 (defn vec-conj
   "Append val to a vector, returning a new DaciteVector."
@@ -212,9 +218,12 @@
 (defn map-entries
   "Seq of [wrapped-key wrapped-value] pairs, or nil if empty."
   [store h]
-  (let [entries (hamt/hamt-entries store (node-root store h))]
-    (when (clojure.core/seq entries)
-      (map (fn [[kh vh]] [(wrap-hash store kh) (wrap-hash store vh)]) entries))))
+  (let [raw (hamt/hamt-entries store (node-root store h))]
+    (when (clojure.core/seq raw)
+      (store/keep-near h
+                       (map (fn [[kh vh]]
+                              [(wrap-hash store kh) (wrap-hash store vh)])
+                            raw)))))
 
 (defn set-contains?
   [store h k]
@@ -237,9 +246,11 @@
 (defn set-vals
   "Seq of wrapped set elements, or nil if empty."
   [store h]
-  (let [entries (hamt/hamt-entries store (node-root store h))]
-    (when (clojure.core/seq entries)
-      (map (fn [[kh _]] (wrap-hash store kh)) entries))))
+  (let [raw (hamt/hamt-entries store (node-root store h))]
+    (when (clojure.core/seq raw)
+      (store/keep-near h
+                       (map (fn [[kh _]] (wrap-hash store kh))
+                            raw)))))
 
 ;; =============================================================================
 ;; DaciteString — finger tree of chars
@@ -251,9 +262,10 @@
   (dacite-store [_] store)
   (dacite-type [_] "string")
   (realize [_]
-    (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
-      (when (pos? count)
-        (realize-hashes store (ft/ft-seq store root)))))
+    (binding [store/*pack-near* _hash]
+      (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
+        (when (pos? count)
+          (realize-hashes store (ft/ft-seq store root) _hash)))))
 
   #?@(:bb []
       :clj
@@ -265,19 +277,22 @@
 
        Seqable
        (seq [this]
-            (when (pos? (.count this))
-              (map #(wrap-hash store %) (ft/ft-seq store (node-root store _hash)))))
+            (seq-vals store _hash))
 
        CharSequence
        (length [this] (.count this))
        (charAt [_ i]
-               (types/entry-data (store/s-get store (ft/ft-nth store (node-root store _hash) i))))
+               (types/entry-data
+                (store/s-get store
+                             (binding [store/*pack-near* _hash]
+                               (ft/ft-nth store (node-root store _hash) i)))))
        (subSequence [_ start end]
                     (apply clojure.core/str
                            (map #(types/entry-data (store/s-get store %))
-                                (->> (ft/ft-seq store (node-root store _hash))
-                                     (drop start)
-                                     (take (- end start))))))
+                                (binding [store/*pack-near* _hash]
+                                  (->> (ft/ft-seq store (node-root store _hash))
+                                       (drop start)
+                                       (take (- end start)))))))
 
        Object
        (hashCode [_] (hash/hash->int _hash))
@@ -296,9 +311,10 @@
   (dacite-store [_] store)
   (dacite-type [_] "blob")
   (realize [_]
-    (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
-      (when (pos? count)
-        (realize-hashes store (ft/ft-seq store root)))))
+    (binding [store/*pack-near* _hash]
+      (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
+        (when (pos? count)
+          (realize-hashes store (ft/ft-seq store root) _hash)))))
 
   #?@(:bb []
       :clj
@@ -310,8 +326,7 @@
 
        Seqable
        (seq [this]
-            (when (pos? (.count this))
-              (map #(wrap-hash store %) (ft/ft-seq store (node-root store _hash)))))
+            (seq-vals store _hash))
 
        Object
        (hashCode [_] (hash/hash->int _hash))
@@ -330,9 +345,10 @@
   (dacite-store [_] store)
   (dacite-type [_] "vector")
   (realize [_]
-    (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
-      (when (pos? count)
-        (realize-hashes store (ft/ft-seq store root)))))
+    (binding [store/*pack-near* _hash]
+      (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
+        (when (pos? count)
+          (realize-hashes store (ft/ft-seq store root) _hash)))))
 
   #?@(:bb []
       :clj
@@ -344,8 +360,7 @@
 
        Seqable
        (seq [this]
-            (when (pos? (.count this))
-              (map #(wrap-hash store %) (ft/ft-seq store (node-root store _hash)))))
+            (seq-vals store _hash))
 
        ILookup
        (valAt [this k] (.valAt this k nil))

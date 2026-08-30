@@ -552,6 +552,31 @@
       (is (store/s-has? st3 h)
           "wire-v1 ft/node literal applies at the claimed hash"))))
 
+(deftest pack-near-string-covers-prefix-char
+  ;; Asking for a char with :near = the string fills under the string,
+  ;; so siblings for a 64-char preview arrive in the same chunk.
+  (let [st (store/mem-store)
+        s (coll/string-with-store st (apply str (repeat 1893 \x)))
+        sh (types/dacite-hash s)
+        root (:root (types/entry-data (store/s-get st sh)))
+        ch0 (first (ft/ft-seq st root))
+        ch (pack/pack-under st ch0 #{} 1024 {:near sh})
+        types (mapv (fn [it]
+                      (or (:type it)
+                          (when (= :node (:encoding it))
+                            (first (:body it)))))
+                    (:items ch))]
+    (is (> (count (:items ch)) 1)
+        (str "near-pack of a char should not be the leaf alone; got " types))
+    (is (some #{"string"} types)
+        "fill is rooted at the enclosing string")
+    (let [st2 (store/mem-store)]
+      (pack/apply-chunk! st2 ch)
+      (is (store/s-has? st2 ch0))
+      (is (>= (count (filter #(store/s-has? st2 %)
+                             (take 64 (ft/ft-seq st2 root))))
+              64)))))
+
 (deftest pack-under-node-only-has-no-literals
   (let [st (store/mem-store)
         v (coll/vector-with-store st 1 2 3)

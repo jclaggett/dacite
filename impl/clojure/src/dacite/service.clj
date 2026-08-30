@@ -179,6 +179,14 @@
     (boolean (re-find (re-pattern (str "(?i)(?:^|&)" key "=(?:1|true|yes)(?:&|$)"))
                       query))))
 
+(defn- query-hex
+  "64-hex value of a query key, or nil."
+  [query key]
+  (when query
+    (when-let [m (re-find (re-pattern (str "(?i)(?:^|&)" key "=([0-9a-fA-F]{64})(?:&|$)"))
+                          query)]
+      (store/hex->hash (nth m 1)))))
+
 (defn handle-request
   "Request handler against a rooted store.
    Returns {:status n :body string-or-bytes :content-type s?} for testing.
@@ -187,7 +195,8 @@
    opts — {:content-type s :accept s}
 
    GET /node/{hex} returns a pack chunk by default. Pass ?raw=1 for a bare
-   node, ?nodes=1 for a pack of :node items only (no rematerialized literals).
+   node, ?nodes=1 for a pack of :node items only (no rematerialized literals),
+   ?near={hex} to fill under an enclosing value (siblings / parent literal).
    Chunk GET/POST support wire-v1 binary when Content-Type / Accept indicate
    application/vnd.dacite.chunk.v1 (see docs/spec/wire-v1.md)."
   ([rooted method path body]
@@ -256,7 +265,8 @@
          (let [hex (parse-node-hex path-only)
                h (store/hex->hash hex)
                raw? (query-flag? query "raw")
-               nodes? (query-flag? query "nodes")]
+               nodes? (query-flag? query "nodes")
+               near (query-hex query "near")]
            (case method
              "GET"
              (if raw?
@@ -265,6 +275,7 @@
                  {:status 404})
                (if-let [chunk (pack/pack-under rooted h #{} pack/default-budget
                                                {:node-only? nodes?
+                                                :near near
                                                 :size-fn (if (bin/wants-binary? accept)
                                                            pack/wire-chunk-size
                                                            pack/chunk-size)})]

@@ -143,9 +143,16 @@
                      (assoc headers "Accept" bin/content-type-chunk-v1)
                      (assoc headers "Accept" "application/edn"))
               opts (when use-bin? {:binary-response true})
-              q (cond raw? "raw=1"
-                      nodes? "nodes=1"
-                      :else nil)
+              near store/*pack-near*
+              q (->> [(when raw? "raw=1")
+                      (when (and nodes? (not raw?)) "nodes=1")
+                      (when (and near (not raw?)
+                                 (not= (store/hash->hex near)
+                                       (store/hash->hex h)))
+                        (str "near=" (store/hash->hex near)))]
+                     (remove nil?)
+                     (str/join "&")
+                     (not-empty))
               {:keys [status body]} (xhr "GET"
                                          (node-url base-url h q)
                                          nil hdrs opts)]

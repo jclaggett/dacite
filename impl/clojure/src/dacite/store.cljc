@@ -33,6 +33,21 @@
 ;; Store protocol
 ;; =============================================================================
 
+(def ^:dynamic *pack-near*
+  "When bound to a hash, a remote s-get miss asks GET /node/{h}?near=…
+   so the server packs under that enclosing value (siblings / parent
+   literal) instead of a bare leaf. The store has no parent pointers;
+   collection walks bind this to the value being sequenced."
+  nil)
+
+(defn keep-near
+  "Lazy seq that rebinds *pack-near* as it is realized."
+  [near xs]
+  (lazy-seq
+   (binding [*pack-near* near]
+     (when-let [s (seq xs)]
+       (cons (first s) (keep-near near (rest s)))))))
+
 (defprotocol IStore
   "Protocol for content-addressed storage."
   (s-get [this h] "Retrieve value by hash. Returns nil if not found.")

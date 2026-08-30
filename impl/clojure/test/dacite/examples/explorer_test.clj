@@ -169,8 +169,8 @@
                              (ex/row-summary label))
                            (ex/row-summary value))))))]
         (is (pos? (:requests d-list)))
-        (is (< (:requests d-open) 10)
-            (str "warm open of 1893-char title should not add 10 GETs; got +"
+        (is (<= (:requests d-open) 3)
+            (str "title preview should pack under the string (near), not 64 leaf GETs; got +"
                  (:requests d-open))))
       (stats/reset-stats!)
       (let [cold (v/root-ref (store/remote-rooted-store base-url {:policy :none}))
