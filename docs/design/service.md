@@ -16,7 +16,7 @@ Client                          Server
   |  LayeredStore(mem, Remote)    |  RootedStore(LMDB content + root cell)
   |  RootedStore(remote, ...)     |
   |                               |
-  +--- GET /node/{hex} --------->|  pack-filled get (default) or ?raw=1
+  +--- GET /node/{hex} --------->|  pack-filled get
   +--- PUT /node/{hex} --------->|  s-put
   +--- HEAD /node/{hex} -------->|  s-has?
   +--- POST /nodes -------------->|  apply pack chunk (write)
@@ -55,9 +55,9 @@ JVM `remote-store` defaults to binary for pack GET/POST; browser demo still uses
 
 ### `GET /node/{hash-hex}`
 
-Fetch a stored node. **Pack mode is the default** (leaf-chunking read path):
+Fetch a stored node. Always a pack-filled chunk (leaf-chunking read path):
 
-**Response 200 (default):** one `chunk-v1` envelope. The first/primary item
+**Response 200:** one `chunk-v1` envelope. The first/primary item
 installs `{hash-hex}`; further items are a **BFS** neighborhood under that
 hash until the soft pack budget seals the chunk (**sent** bytes: wire-v1
 when `Accept` asks for it, EDN length otherwise). A node whose cached `:size-bytes` is ≤ 1024 (and whose realized form
@@ -68,12 +68,8 @@ Sequence literals pack contiguous same-type leaves as nested `run` /
 Client applies the chunk locally (`apply-chunk!`) then reads the requested
 hash.
 
-**Response 200 (`?raw=1`):** bare store node EDN (debug / simple tools).
-
-**Response 200 (`?nodes=1`):** pack chunk whose items are all `:node`
-encodings (BFS neighborhood, no rematerialized literals). Debug / opt-out
-when a client must not rematerialize. Default GET prefers `:literal`
-items; todo and explorer use that path.
+There is no bare-node or node-only query opt-out. Call `pack-under` with
+budget 0 for a single-item chunk (the asked hash only).
 
 **Response 404:** Node not present.
 

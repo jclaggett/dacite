@@ -668,19 +668,16 @@
       (is (store/s-has? st3 h)
           "wire-v1 ft/node literal applies at the claimed hash"))))
 
-(deftest pack-under-node-only-has-no-literals
+(deftest pack-under-budget-zero-is-single-item
   (let [st (store/mem-store)
         v (coll/vector-with-store st 1 2 3)
         h (types/dacite-hash v)
-        ch (pack/pack-under st h #{} 1024 {:node-only? true})]
-    (is (seq (:items ch)))
-    (is (every? #(= :node (:encoding %)) (:items ch)))
-    (is (> (count (:items ch)) 1)
-        "neighborhood includes children, not only the vector root")
+        ch (pack/pack-under st h #{} 0)]
+    (is (= 1 (count (:items ch)))
+        "budget 0 seals after the asked hash")
     (let [st2 (store/mem-store)]
       (pack/apply-chunk! st2 ch)
-      (is (store/s-has? st2 h))
-      (is (= 3 (coll/coll-count st2 h))))))
+      (is (store/s-has? st2 h)))))
 
 (deftest remote-s-get-pack-fill
   (let [rooted (svc/make-demo-rooted)

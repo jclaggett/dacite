@@ -28,11 +28,9 @@
            [java.io BufferedReader InputStreamReader]))
 
 (defn- node-url
-  ([base-url h] (node-url base-url h nil))
-  ([base-url h query]
-   (str (str/replace base-url #"/$" "")
-        "/node/" (store/hash->hex h)
-        (when query (str "?" query)))))
+  [base-url h]
+  (str (str/replace base-url #"/$" "")
+       "/node/" (store/hash->hex h)))
 
 (def ^:private max-retry-after-status
   "How many times to retry 429/503 before giving up."
@@ -84,7 +82,7 @@
              (wire/read-edn (String. body "UTF-8")))}))
 
 (defn- apply-get-body!
-  "Install GET /node body into pack-local (chunk or raw node). Return node at h.
+  "Install GET /node body into pack-local. Return node at h.
    body-bytes — response body; binary? — wire-v1 chunk when true."
   [pack-local h ^bytes body-bytes binary?]
   (when (and body-bytes (pos? (alength body-bytes)))

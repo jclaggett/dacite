@@ -2,7 +2,7 @@
   "HTTP service for Dacite content stores + root CAS (docs/design/service.md).
 
    Endpoints:
-     GET  /node/{hex}   — s-get
+     GET  /node/{hex}   — pack-filled get (one chunk)
      PUT  /node/{hex}   — s-put (EDN body) → 200 novelty
      HEAD /node/{hex}   — s-has?
      DELETE /node/{hex} — s-delete (optional)
@@ -172,13 +172,6 @@
     (when (and p (.startsWith p "/node/") (> (count p) 6))
       (subs p 6))))
 
-(defn- query-flag?
-  "True if query string contains key=1/true/yes (e.g. raw=1)."
-  [query key]
-  (when query
-    (boolean (re-find (re-pattern (str "(?i)(?:^|&)" key "=(?:1|true|yes)(?:&|$)"))
-                      query))))
-
 (defn handle-request
   "Request handler against a rooted store.
    Returns {:status n :body string-or-bytes :content-type s?} for testing.
@@ -186,16 +179,16 @@
    body — String (EDN) or byte[] (binary chunk or UTF-8 EDN).
    opts — {:content-type s :accept s}
 
-   GET /node/{hex} returns a pack chunk by default. Pass ?raw=1 for a bare
-   node, ?nodes=1 for a pack of :node items only (no rematerialized literals).
-   Chunk GET/POST support wire-v1 binary when Content-Type / Accept indicate
-   application/vnd.dacite.chunk.v1 (see docs/spec/wire-v1.md)."
+   GET /node/{hex} returns a pack chunk (realized literals under the hash,
+   BFS until the soft budget). Chunk GET/POST support wire-v1 binary when
+   Content-Type / Accept indicate application/vnd.dacite.chunk.v1
+   (see docs/spec/wire-v1.md)."
   ([rooted method path body]
    (handle-request rooted method path body nil))
   ([rooted method path body {:keys [content-type accept
                                     pack-get-max-budget pack-get-max-starts]}]
    (try
-     (let [[path-only query] (split-path-query path)
+     (let [[path-only _] (split-path-query path)
            accept (or accept "")]
        (cond
          (= "OPTIONS" method)
@@ -254,25 +247,18 @@
 
          (and (#{"GET" "PUT" "HEAD" "DELETE"} method) (parse-node-hex path-only))
          (let [hex (parse-node-hex path-only)
-               h (store/hex->hash hex)
-               raw? (query-flag? query "raw")
-               nodes? (query-flag? query "nodes")]
+               h (store/hex->hash hex)]
            (case method
              "GET"
-             (if raw?
-               (if-let [node (store/s-get rooted h)]
-                 {:status 200 :content-type ct-edn :body (wire/write-edn node)}
-                 {:status 404})
-               (if-let [chunk (pack/pack-under rooted h #{} pack/default-budget
-                                               {:node-only? nodes?
-                                                :size-fn (if (bin/wants-binary? accept)
-                                                           pack/wire-chunk-size
-                                                           pack/chunk-size)})]
-                 (let [fmt (format-chunk-response chunk accept)]
-                   {:status 200
-                    :content-type (:content-type fmt)
-                    :body (:body fmt)})
-                 {:status 404}))
+             (if-let [chunk (pack/pack-under rooted h #{} pack/default-budget
+                                             {:size-fn (if (bin/wants-binary? accept)
+                                                         pack/wire-chunk-size
+                                                         pack/chunk-size)})]
+               (let [fmt (format-chunk-response chunk accept)]
+                 {:status 200
+                  :content-type (:content-type fmt)
+                  :body (:body fmt)})
+               {:status 404})
 
              "PUT"
              (try

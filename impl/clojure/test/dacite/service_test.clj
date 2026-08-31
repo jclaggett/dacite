@@ -27,13 +27,10 @@
       (is (= 200 (:status put2)))
       (is (= :complete (:status (wire/read-edn (:body put2))))
           "second PUT of same hash is complete (already exists)"))
-    (let [got (svc/handle-request rooted "GET" (str "/node/" (store/hash->hex h)) nil)
-          raw (svc/handle-request rooted "GET" (str "/node/" (store/hash->hex h) "?raw=1") nil)]
+    (let [got (svc/handle-request rooted "GET" (str "/node/" (store/hash->hex h)) nil)]
       (is (= 200 (:status got)))
       (is (true? (:dacite.wire/chunk-v1 (wire/read-edn (:body got))))
-          "GET /node pack mode returns a chunk envelope")
-      (is (= 200 (:status raw)))
-      (is (= node (wire/read-edn (:body raw)))))
+          "GET /node returns a chunk envelope"))
     (let [miss (svc/handle-request rooted "GET"
                                    (str "/node/" (apply str (repeat 64 "b"))) nil)]
       (is (= 404 (:status miss))))
@@ -52,19 +49,23 @@
       (let [r1 (svc/handle-request rooted "GET" "/root" nil)]
         (is (= hex (:root (wire/read-edn (:body r1)))))))))
 
-(deftest handle-request-nodes-pack-is-node-only
+(deftest handle-request-get-always-pack
   (let [rooted (svc/make-demo-rooted)
         vec (coll/vector-with-store rooted 1 2 3)
         vh (types/dacite-hash vec)
-        resp (svc/handle-request rooted "GET"
-                                 (str "/node/" (store/hash->hex vh) "?nodes=1")
-                                 nil)
-        chunk (wire/read-edn (:body resp))]
+        hex (store/hash->hex vh)
+        resp (svc/handle-request rooted "GET" (str "/node/" hex) nil)
+        ignored (svc/handle-request rooted "GET"
+                                    (str "/node/" hex "?raw=1&nodes=1")
+                                    nil)
+        chunk (wire/read-edn (:body resp))
+        ignored-chunk (wire/read-edn (:body ignored))]
     (is (= 200 (:status resp)))
     (is (true? (:dacite.wire/chunk-v1 chunk)))
     (is (seq (:items chunk)))
-    (is (every? #(= :node (:encoding %)) (:items chunk))
-        "GET ?nodes=1 is a pack of store nodes, no rematerialized literals")))
+    (is (= 200 (:status ignored)))
+    (is (true? (:dacite.wire/chunk-v1 ignored-chunk))
+        "query flags are ignored; GET stays pack-filled")))
 
 (deftest live-server-remote-client-roundtrip
   (let [rooted (svc/make-demo-rooted)

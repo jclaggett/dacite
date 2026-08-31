@@ -42,7 +42,7 @@
   ;; Same HTTP path as the todo demo. Pack GET prefers realized literals
   ;; (soft budget 1024): one request is *data*. apply-chunk! installs
   ;; ordinary nodes in the tab's mem cache; the explorer walks *values*
-  ;; there. :nodes / :raw opt out of literals and are not used here.
+  ;; there.
   (browser/cached-remote-store (api-base) {:policy :write-back}))
 
 (defn get-root

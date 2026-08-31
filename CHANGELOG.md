@@ -25,14 +25,11 @@ stability promise: public APIs may still change before 1.0.
 - `/app` and `/app/explorer` without a trailing slash **301** to the
   slashed URL so relative `js/main.js` is not the todo bundle.
 
-### Explorer pack GET
-
-- `GET /node/{hex}?nodes=1` — opt-out pack of `:node` items only (no
-  rematerialized literals). Default GET prefers literals; explorer and
-  todo use the default.
-
 ### Pack GET
 
+- Removed `GET /node/{h}?raw=1` (bare node) and `?nodes=1` (node-only
+  pack). GET always returns a pack-filled chunk. `pack-under` with
+  budget 0 is a single item (the asked hash).
 - Removed `GET /node/{h}?near=` and `store/*pack-near*`. Fill is always
   under the asked hash. Long-string expand is one neighborhood GET via
   `run`/`repeat`, not a parent query param.

@@ -4,9 +4,9 @@
    Same protocol as docs/design/service.md and dacite.store.remote:
    GET/PUT/HEAD/DELETE /node/{hex}, GET /root, POST /root/cas, POST /nodes.
 
-   GET /node returns a pack chunk by default (realized literals under the
-   hash, same as the JVM remote). s-get applies it into a local pack
-   cache then returns the node. :raw / :nodes opt out of that default.
+   GET /node returns a pack chunk (realized literals under the hash, same
+   as the JVM remote). s-get applies it into a local pack cache then
+   returns the node.
 
    Wire:
      :binary (default true) — pack GET and POST /nodes use wire-v1 binary
@@ -42,10 +42,8 @@
   (str/replace base-url #"/$" ""))
 
 (defn- node-url
-  ([base-url h] (node-url base-url h nil))
-  ([base-url h query]
-   (str (trim-base base-url) "/node/" (store/hash->hex h)
-        (when query (str "?" query)))))
+  [base-url h]
+  (str (trim-base base-url) "/node/" (store/hash->hex h)))
 
 (defn- body-byte-len
   "Byte length of an XHR request or response body."
@@ -109,7 +107,7 @@
         (wire/read-edn s)))))
 
 (defn- apply-get-body!
-  "Install GET /node body into pack-local (chunk or raw node). Return node at h."
+  "Install GET /node body into pack-local. Return node at h."
   [pack-local h body binary?]
   (when (and body (pos? (body-byte-len body)))
     (cond
@@ -132,24 +130,17 @@
 
           :else nil)))))
 
-(defrecord BrowserRemoteStore [base-url headers pack-local binary? raw? nodes?]
+(defrecord BrowserRemoteStore [base-url headers pack-local binary?]
   store/IStore
   (s-get [_ h]
     (or (store/s-get pack-local h)
-        (let [raw? raw?
-              nodes? nodes?
-              use-bin? (and binary? (not raw?))
+        (let [use-bin? binary?
               hdrs (if use-bin?
                      (assoc headers "Accept" bin/content-type-chunk-v1)
                      (assoc headers "Accept" "application/edn"))
               opts (when use-bin? {:binary-response true})
-              q (->> [(when raw? "raw=1")
-                      (when (and nodes? (not raw?)) "nodes=1")]
-                     (remove nil?)
-                     (str/join "&")
-                     (not-empty))
               {:keys [status body]} (xhr "GET"
-                                         (node-url base-url h q)
+                                         (node-url base-url h)
                                          nil hdrs opts)]
           (when (= 200 status)
             (apply-get-body! pack-local h body use-bin?)))))
@@ -217,30 +208,21 @@
 
    Options:
      :headers map
-     :binary  true|false (default true — wire-v1 for pack GET/POST)
-     :raw     true|false (default false). When true, GET /node uses ?raw=1
-              (bare store node, no pack).
-     :nodes   true|false (default false). When true, GET /node uses ?nodes=1
-              (pack of :node items only — neighborhood fill without
-              rematerializing literals)."
-  [base-url & [{:keys [headers binary raw nodes]
+     :binary  true|false (default true — wire-v1 for pack GET/POST)"
+  [base-url & [{:keys [headers binary]
                 :or {headers {}
-                     binary true
-                     raw false
-                     nodes false}}]]
+                     binary true}}]]
   (->BrowserRemoteStore (or base-url "") headers (store/mem-store)
-                        (boolean binary) (boolean raw) (boolean nodes)))
+                        (boolean binary)))
 
 (defn cached-remote-store
   "Remote store with client cache (default :write-back)."
-  [base-url & [{:keys [headers policy binary raw nodes]
+  [base-url & [{:keys [headers policy binary]
                 :or {headers {}
                      policy :write-back
-                     binary true
-                     raw false
-                     nodes false}}]]
+                     binary true}}]]
   (client-cache/wrap
-   (remote-store base-url {:headers headers :binary binary :raw raw :nodes nodes})
+   (remote-store base-url {:headers headers :binary binary})
    policy))
 
 (defn- unwrap-remote

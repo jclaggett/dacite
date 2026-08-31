@@ -193,8 +193,7 @@ needed hashes → Layer 1 (literal | node) → items → Layer 2 pack → HTTP
 | Role | Idea |
 |------|------|
 | Send | `POST /nodes` — one body = one chunk |
-| Read (primary) | `GET /node/{hex}` → **one** chunk: encode `hex`, then **BFS** under it until soft budget seals |
-| Read (raw) | `GET /node/{hex}?raw=1` → bare node |
+| Read | `GET /node/{hex}` → **one** chunk: encode `hex`, then **BFS** under it until soft budget seals |
 | Bulk (demoted) | `POST /nodes/get` — full remaining subgraph; admin/sync only |
 
 **Read path (shipped):** pack-filled single-node get. Client remote `s-get`
@@ -215,8 +214,7 @@ descendant misses pack-fill their own neighborhoods. Walk order is **BFS**
 
 | Name | Default | Role |
 |------|---------|------|
-| soft budget (`pack/default-budget`) | **1024** | Soft Layer 2 threshold; cue for literal vs node (2d) |
-| `pack-enabled?` | true on remote clients | Force single-node path for debugging |
+| soft budget (`pack/default-budget`) | **1024** | Soft Layer 2 threshold; cue for literal vs node (2d). Budget **0** is a single item (the asked hash). |
 
 Reproduce: `cd impl/clojure && clojure -M:dev -m dacite.bench.todo-bw --budget-sweep`.
 

@@ -43,9 +43,6 @@ still takes several GETs, but each GET BFS-fills ~1k of neighborhood
 (last item may overshoot toward 2k). A refresh starts a new heap, so
 that cache is empty again.
 
-`?raw=1` and `?nodes=1` exist for debug (bare node / node-only pack).
-They are not the explorer path.
-
 String/blob rows still realize a short prefix of char/byte nodes; after
 a string literal those nodes are already local.
 

@@ -676,31 +676,28 @@
    Intermediate ft/* / hamt/* may bottom out as leaf-literal payloads when
    reconstruction matches the claimed hash (2c′). Sequence bodies use
    run/repeat. Otherwise the walk continues into children."
-  ([st h entry] (encode-item st h entry default-budget false))
-  ([st h entry budget] (encode-item st h entry budget false))
-  ([st h entry budget node-only?]
-   (if node-only?
-     (node-item h entry)
-     (let [budget (long (or budget default-budget))
-           t (types/entry-type entry)]
-       (cond
-         (and (not (value-type? t))
-              (not (tree-internal-type? t)))
-         (node-item h entry)
+  ([st h entry] (encode-item st h entry default-budget))
+  ([st h entry budget]
+   (let [budget (long (or budget default-budget))
+         t (types/entry-type entry)]
+     (cond
+       (and (not (value-type? t))
+            (not (tree-internal-type? t)))
+       (node-item h entry)
 
-         (clearly-oversized? entry budget)
-         (node-item h entry)
+       (clearly-oversized? entry budget)
+       (node-item h entry)
 
-         :else
-         (if-let [{:keys [type body]}
-                  (try (literal-of st h)
-                       (catch #?(:clj Throwable :cljs :default) _
-                         nil))]
-           (let [item (literal-item h type body)]
-             (if (literal-round-trips? h type body)
-               item
-               (node-item h entry)))
-           (node-item h entry)))))))
+       :else
+       (if-let [{:keys [type body]}
+                (try (literal-of st h)
+                     (catch #?(:clj Throwable :cljs :default) _
+                       nil))]
+         (let [item (literal-item h type body)]
+           (if (literal-round-trips? h type body)
+             item
+             (node-item h entry)))
+         (node-item h entry))))))
 
 (defn encode-reachable
   "Walk from root-h and Layer-1 encode each not-yet-skipped hash.
@@ -763,7 +760,7 @@
 
 (defn- pack-under*
   "Neighborhood fill rooted at `root`. See pack-under."
-  [st root have budget node-only? size-fn]
+  [st root have budget size-fn]
   (when (and root (store/s-has? st root))
     (let [budget (long (or budget default-budget))
           size-fn (or size-fn wire-chunk-size)
@@ -776,7 +773,7 @@
             (if (contains? @visited ck)
               (recur q)
               (if-let [entry (store/s-get st cur)]
-                (let [item (encode-item st cur entry budget node-only?)
+                (let [item (encode-item st cur entry budget)
                       trial (conj @items item)
                       sz (long (size-fn (make-chunk budget trial)))
                       empty? (empty? @items)
@@ -815,18 +812,18 @@
    size (wire-v1 by default; EDN if `:size-fn chunk-size`) is ≥ budget.
    Include-then-seal: the item that crossed is kept (chunk may reach ~2×budget
    when that item is a ~1k literal). Remainder is left for later node gets.
+   Budget 0 includes only an encoding of h (Layer 2 seals after the first item).
 
    Opts:
-     :node-only?  pack only :node items
      :size-fn     chunk size in sent bytes
 
    Returns a chunk-v1 map, or nil if h is missing from st."
   ([st h] (pack-under st h #{} default-budget nil))
   ([st h have] (pack-under st h have default-budget nil))
   ([st h have budget] (pack-under st h have budget nil))
-  ([st h have budget {:keys [node-only? size-fn]}]
+  ([st h have budget {:keys [size-fn]}]
    (when (and h (store/s-has? st h))
-     (pack-under* st h have budget node-only? size-fn))))
+     (pack-under* st h have budget size-fn))))
 
 ;; =============================================================================
 ;; Apply + transport
