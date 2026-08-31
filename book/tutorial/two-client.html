@@ -3,12 +3,12 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Two-client live - The Dacite Book</title>
+        <title>Two writers, one CAS - The Dacite Book</title>
 
 
         <!-- Custom HTML head -->
 
-        <meta name="description" content="Content stores, hash fusion, values, and rooted stores.">
+        <meta name="description" content="How to think about data and how to build apps with Dacite values and stores.">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e7a4be49.js";
+            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b3c5dd1.js"></script>
+        <script src="../toc-0aeace7d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -180,11 +180,14 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="two-client-live"><a class="header" href="#two-client-live">Two-client live</a></h1>
-<p>Compare-and-set is the whole distributed update. Two writers append to
-the <a href="event-log.html">event log</a> on one HTTP root; a third process watches
-<code>GET /events</code> and reprints when the root moves. This is the fourth
-application in the <a href="../../roadmap.html">roadmap</a>.</p>
+                        <h1 id="two-writers-one-cas"><a class="header" href="#two-writers-one-cas">Two writers, one CAS</a></h1>
+<p>Two processes must append without silent clobbering. Dacite’s move:
+<strong>compare-and-set is the whole distributed update.</strong> <code>ref-swap!</code> retries
+on conflict; SSE (<code>GET /events</code>) tells a third process the root moved.
+There is no lock and no CRDT in the core.</p>
+<p>Two writers append to the <a href="event-log.html">event log</a> on one HTTP root.
+This is the fourth claim-proving app in the
+<a href="../../roadmap.html">roadmap</a>.</p>
 <p>You will:</p>
 <ol>
 <li>Start <code>clojure -M:service</code>.</li>
@@ -238,7 +241,7 @@ Append in another terminal and this one reprints.</p>
 <p>Async browser networking stayed on the shelf. Two JVM remotes plus an
 SSE watch prove the claim; sync XHR is still the browser demo.</p>
 <h2 id="next"><a class="header" href="#next">Next</a></h2>
-<p><a href="sync.html">Directory / blob sync</a> — pull only the files you open.</p>
+<p><a href="sync.html">Sync a tree of blobs</a> — list metadata; fetch one file.</p>
 
                     </main>
 

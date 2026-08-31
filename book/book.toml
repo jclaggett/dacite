@@ -1,7 +1,7 @@
 [book]
 title = "The Dacite Book"
 authors = ["Jonathan Laggett"]
-description = "Content stores, hash fusion, values, and rooted stores."
+description = "How to think about data and how to build apps with Dacite values and stores."
 language = "en"
 src = "."
 

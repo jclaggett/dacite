@@ -3,12 +3,12 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Event log - The Dacite Book</title>
+        <title>Large sequences stay cheap - The Dacite Book</title>
 
 
         <!-- Custom HTML head -->
 
-        <meta name="description" content="Content stores, hash fusion, values, and rooted stores.">
+        <meta name="description" content="How to think about data and how to build apps with Dacite values and stores.">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e7a4be49.js";
+            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b3c5dd1.js"></script>
+        <script src="../toc-0aeace7d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -180,10 +180,12 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="event-log"><a class="header" href="#event-log">Event log</a></h1>
-<p>An append-only vector of events plus a derived view. This is the third
-application in the <a href="../../roadmap.html">roadmap</a>: <strong>large sequences stay
-cheap to append, and you need not realize the whole log.</strong></p>
+                        <h1 id="large-sequences-stay-cheap"><a class="header" href="#large-sequences-stay-cheap">Large sequences stay cheap</a></h1>
+<p>You have thousands of events. You need a page of them and a derived balance,
+not the whole log in RAM. Dacite’s move: <code>v/subvec</code> and <code>nth</code> on a vector;
+append is <code>conj</code>. Do not <code>seq</code> the log to print page 0.</p>
+<p>This is the third claim-proving app in the
+<a href="../../roadmap.html">roadmap</a>.</p>
 <p>You will:</p>
 <ol>
 <li>Seed <strong>2000</strong> events (not five).</li>
@@ -229,7 +231,7 @@ clojure -M:log -- replay 100
 </code></pre>
 <p><code>page</code> prints a window and its content hash. <code>replay 100</code> replaces the
 view with a fold of the first 100 events.</p>
-<p>The same <code>--url</code> recipe as <a href="config.html">Remote config</a> works against
+<p>The same <code>--url</code> recipe as <a href="config.html">Persist and update a document</a> works against
 <code>clojure -M:service</code>.</p>
 <h2 id="append-bench"><a class="header" href="#append-bench">Append bench</a></h2>
 <pre><code class="language-bash">clojure -M:log -- bench
@@ -261,8 +263,8 @@ alone (hash fusion is shape-independent).</p>
 <p><code>dac-&gt;clj</code> is not on this path. Missing-node errors stay on the shelf
 until a remote page actually needs a catchable “not local” signal.</p>
 <h2 id="next"><a class="header" href="#next">Next</a></h2>
-<p><a href="two-client.html">Two-client live</a> — CAS retry and a watch across two
-writers.</p>
+<p><a href="two-client.html">Two writers, one CAS</a> — <code>ref-swap!</code> retries; SSE watches
+the root.</p>
 
                     </main>
 

@@ -3,12 +3,12 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Directory / blob sync - The Dacite Book</title>
+        <title>Sync a tree of blobs - The Dacite Book</title>
 
 
         <!-- Custom HTML head -->
 
-        <meta name="description" content="Content stores, hash fusion, values, and rooted stores.">
+        <meta name="description" content="How to think about data and how to build apps with Dacite values and stores.">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e7a4be49.js";
+            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b3c5dd1.js"></script>
+        <script src="../toc-0aeace7d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -180,11 +180,13 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="directory--blob-sync"><a class="header" href="#directory--blob-sync">Directory / blob sync</a></h1>
-<p>A host folder becomes a tree of Dacite maps and blobs. Listing a
-directory does not realize file bodies; opening one file does not pull
-its siblings. A second sync copies only missing nodes. This is the last
-application in the <a href="../../roadmap.html">roadmap</a>.</p>
+                        <h1 id="sync-a-tree-of-blobs"><a class="header" href="#sync-a-tree-of-blobs">Sync a tree of blobs</a></h1>
+<p>You have a folder of files. Listing it must not load every body; fetching
+one file must not pull its siblings; a second copy should send nothing
+already present. Dacite’s move: a tree of maps + blobs; <code>ls</code> reads <code>kind</code>
+and <code>size</code>; <code>cat</code> is <code>v/as-bytes</code> on one blob; <code>sync-reachable!</code> copies
+missing nodes.</p>
+<p>This is a claim-proving app in the <a href="../../roadmap.html">roadmap</a>.</p>
 <p>You will:</p>
 <ol>
 <li>Seed a sample tree (two files share a blob).</li>
@@ -258,7 +260,9 @@ transfers less than GET of that blob plus its siblings. A second local
 <p>Opaque-byte store entries stayed on the shelf — EDN file nodes are
 enough to prove the fetch claim. A later port can store raw bytes
 without changing the app.</p>
-<p>The five-app sequence is complete.</p>
+<h2 id="next"><a class="header" href="#next">Next</a></h2>
+<p><a href="explorer.html">Browse without dumping</a> — walk the root as typed values.
+<a href="../building/browser-app.html">A browser app</a> — todo and explorer on HTTP.</p>
 
                     </main>
 

@@ -3,12 +3,12 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Versioned notes - The Dacite Book</title>
+        <title>History is free - The Dacite Book</title>
 
 
         <!-- Custom HTML head -->
 
-        <meta name="description" content="Content stores, hash fusion, values, and rooted stores.">
+        <meta name="description" content="How to think about data and how to build apps with Dacite values and stores.">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e7a4be49.js";
+            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b3c5dd1.js"></script>
+        <script src="../toc-0aeace7d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -180,11 +180,13 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="versioned-notes"><a class="header" href="#versioned-notes">Versioned notes</a></h1>
-<p>A note is a Dacite map. Each edit is a <strong>new snapshot</strong>; unchanged fields
-keep their content hash. This is the second application in the
-<a href="../../roadmap.html">roadmap</a> — the “why not just overwrite a JSON file”
-answer.</p>
+                        <h1 id="history-is-free"><a class="header" href="#history-is-free">History is free</a></h1>
+<p>You want every edit to remain a complete snapshot, and a title-only change
+must not rewrite the body. Dacite’s move: keep the previous <strong>document
+value</strong> (same hash) in a history vector; restore by installing that value
+again. Unchanged fields keep their content hash — you do not invent git.</p>
+<p>This is the second claim-proving app in the
+<a href="../../roadmap.html">roadmap</a>.</p>
 <p>You will:</p>
 <ol>
 <li>Seed a note with a long body.</li>
@@ -235,7 +237,7 @@ clojure -M:notes -- restore 1
 <code>diff</code> compares field hashes — a title-only edit reports <code>title</code> and
 <code>edited-at</code>, not <code>body</code>.</p>
 <p><code>--path DIR</code> selects the store directory. The same <code>--url</code> recipe as
-<a href="config.html">Remote config</a> works if the HTTP service is running.</p>
+<a href="config.html">Persist and update a document</a> works if the HTTP service is running.</p>
 <h2 id="sharing-bench"><a class="header" href="#sharing-bench">Sharing bench</a></h2>
 <pre><code class="language-bash">clojure -M:notes -- bench
 </code></pre>
@@ -264,8 +266,8 @@ history conj. The body node is the same hash.</p>
 </div>
 <p>No <code>dac-&gt;clj</code>. History is a vector of documents in the same store.</p>
 <h2 id="next"><a class="header" href="#next">Next</a></h2>
-<p><a href="event-log.html">Event log</a> — append thousands of events and page them
-without realizing the whole log.</p>
+<p><a href="event-log.html">Large sequences stay cheap</a> — page with <code>subvec</code>; do not
+<code>seq</code> the whole log.</p>
 
                     </main>
 

@@ -8,7 +8,7 @@
 
         <!-- Custom HTML head -->
 
-        <meta name="description" content="Content stores, hash fusion, values, and rooted stores.">
+        <meta name="description" content="How to think about data and how to build apps with Dacite values and stores.">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e7a4be49.js";
+            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b3c5dd1.js"></script>
+        <script src="../toc-0aeace7d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -182,7 +182,9 @@
                     <main>
                         <h1 id="values-api-reference-01-alpha"><a class="header" href="#values-api-reference-01-alpha">Values API reference (0.1 alpha)</a></h1>
 <p>Practical API for Dacite values as implemented in the Clojure / SCI reference
-library. For design intuition, see <a href="../03-values/chapter.html">Values</a>.</p>
+library. For how to <em>use</em> values, start at <a href="../the-dacite-way.html">The Dacite way</a>
+and the <a href="../guide/read.html">cookbook</a>. Internals:
+<a href="../03-values/chapter.html">Values</a>.</p>
 <p><strong>Public namespace:</strong> <code>dacite.value</code> (pair with <code>dacite.store</code> for stores).</p>
 <h2 id="what-is-a-dacite-value"><a class="header" href="#what-is-a-dacite-value">What is a Dacite value?</a></h2>
 <p>A value is <strong>store-aware and content-addressed</strong>:</p>
@@ -342,13 +344,9 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 <h2 id="related"><a class="header" href="#related">Related</a></h2>
 <ul>
 <li><a href="stores.html">Stores API</a></li>
-<li><a href="../tutorial/hello-nbb.html">Hello World (nbb)</a></li>
-<li><a href="../tutorial/config.html">Remote config</a></li>
-<li><a href="../tutorial/notes.html">Versioned notes</a></li>
-<li><a href="../tutorial/event-log.html">Event log</a></li>
-<li><a href="../tutorial/two-client.html">Two-client live</a></li>
-<li><a href="../tutorial/sync.html">Directory / blob sync</a></li>
-<li><a href="../tutorial/explorer.html">Value explorer</a></li>
+<li><a href="../the-dacite-way.html">The Dacite way</a></li>
+<li><a href="../building/anatomy.html">Anatomy of a Dacite app</a></li>
+<li><a href="../guide/read.html">Cookbook</a></li>
 <li><a href="../getting-started/install.html">Install</a></li>
 </ul>
 
@@ -356,7 +354,7 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../tutorial/explorer.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../guide/what-not-to-do.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -370,7 +368,7 @@ host (see <code>bin/hash-parity.sh</code>).</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../tutorial/explorer.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../guide/what-not-to-do.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

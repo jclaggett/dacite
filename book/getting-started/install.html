@@ -8,7 +8,7 @@
 
         <!-- Custom HTML head -->
 
-        <meta name="description" content="Content stores, hash fusion, values, and rooted stores.">
+        <meta name="description" content="How to think about data and how to build apps with Dacite values and stores.">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e7a4be49.js";
+            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b3c5dd1.js"></script>
+        <script src="../toc-0aeace7d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,9 +181,11 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="install"><a class="header" href="#install">Install</a></h1>
-<p>This page is the supported on-ramp for <strong>Dacite 0.1 alpha</strong>. The library lives
-in a monorepo under <code>impl/clojure</code>; for alpha we recommend a clone plus either
-<strong>nbb</strong> (fastest) or <strong>tools.deps</strong> with <code>:local/root</code>.</p>
+<p>This page is the supported on-ramp for <strong>Dacite 0.1 alpha</strong>. Read
+<a href="../the-dacite-way.html">The Dacite way</a> for the stance on data, then come
+back here to run something.</p>
+<p>The library lives in a monorepo under <code>impl/clojure</code>; for alpha we recommend
+a clone plus either <strong>nbb</strong> (fastest) or <strong>tools.deps</strong> with <code>:local/root</code>.</p>
 <p>Alpha means: useful for experiments; APIs may still change. Pin a git tag or SHA.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <div class="table-wrapper">
@@ -226,7 +228,7 @@ npm run todo           # interactive todo UI
               (println (v/count vec))
               (println (store/hash-&gt;hex (v/dacite-hash vec))))"
 </code></pre>
-<p>See <a href="../tutorial/hello-nbb.html">Hello World (nbb)</a> for a guided walkthrough.</p>
+<p>See <a href="../tutorial/hello-nbb.html">First values</a> for a guided walkthrough.</p>
 <h2 id="jvm-toolsdeps"><a class="header" href="#jvm-toolsdeps">JVM (tools.deps)</a></h2>
 <p>Point a dependency at the library root <code>impl/clojure</code> after cloning:</p>
 <pre><code class="language-clojure">;; deps.edn in your project
@@ -267,11 +269,10 @@ clojure -M:cljs-explorer
 Pack GET/POST use <strong>wire-v1 binary</strong> by default.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
-<li><a href="../tutorial/hello-nbb.html">Hello World (nbb)</a></li>
-<li><a href="../tutorial/explorer.html">Value explorer</a></li>
-<li><a href="../reference/values.html">Values API reference</a></li>
-<li><a href="../reference/stores.html">Stores API reference</a></li>
-<li><a href="../00-preface.html">The Dacite Book</a> — conceptual foundations</li>
+<li><a href="../the-dacite-way.html">The Dacite way</a> — how to think about data</li>
+<li><a href="../building/anatomy.html">Anatomy of a Dacite app</a> — Values / Store split</li>
+<li><a href="../tutorial/hello-nbb.html">First values</a></li>
+<li><a href="../reference/values.html">Values API</a> / <a href="../reference/stores.html">Stores API</a></li>
 <li><a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">CHANGELOG</a> — alpha scope and known limits</li>
 </ul>
 
@@ -279,11 +280,11 @@ Pack GET/POST use <strong>wire-v1 binary</strong> by default.</p>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../00-preface.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../the-dacite-way.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../tutorial/hello-nbb.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../building/anatomy.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -293,11 +294,11 @@ Pack GET/POST use <strong>wire-v1 binary</strong> by default.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../00-preface.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../the-dacite-way.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../tutorial/hello-nbb.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../building/anatomy.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
