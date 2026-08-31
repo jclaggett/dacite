@@ -29,6 +29,24 @@
 (def public-value-types
   (into public-scalars public-collections))
 
+(deftest run-repeat-have-wire-ids
+  (is (= 0x50 (get bin/name->type-id "run")))
+  (is (= 0x51 (get bin/name->type-id "repeat"))))
+
+(deftest run-repeat-lit-bytes-round-trip
+  (doseq [form [{:type "run" :body {:of "char" :values "hello"}}
+                {:type "run" :body {:of "i64" :values [1 2 3]}}
+                {:type "run" :body {:of "string" :values ["a" "bb"]}}
+                {:type "run" :body {:of "char" :values "é"}}
+                {:type "repeat" :body {:of "char" :n 4 :value \x}}
+                {:type "repeat" :body {:of "bool" :n 8 :value false}}]]
+    (let [bs (bin/encode-lit-bytes form)
+          back (bin/decode-lit-bytes bs)]
+      (is (= form back) (str "logical " (pr-str form)))
+      (is (= (bin/bytes->hex bs)
+             (bin/bytes->hex (bin/encode-lit-bytes back)))
+          (str "canonical " (pr-str form))))))
+
 (deftest public-types-have-wire-ids
   (doseq [t public-value-types]
     (is (contains? bin/name->type-id t)

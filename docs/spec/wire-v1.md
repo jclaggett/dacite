@@ -295,7 +295,21 @@ variable sections use their own length fields.
 | `0x40` | `hamt/empty` | ordered entry/leaf lits (usually n=0) |
 | `0x41` | `hamt/entry` | `Lit` key ++ `Lit` val |
 | `0x42` | `hamt/bitmap` | `u32 n` ++ (`Lit` key ++ `Lit` val) × n (same pair layout as `map`) |
+| `0x50` | `run` | `inner_type_id u8` ++ `n u32` ++ packed inner payloads (no repeated type tags). **Nested only** — not a store type. |
+| `0x51` | `repeat` | `inner_type_id u8` ++ `n u32` ++ one packed inner payload (`n ≥ 2` copies). **Nested only**. |
 | other | error | |
+
+`run` / `repeat` pack contiguous same-type leaves inside sequence bodies (`vector`, `set`, `ft/*`, `hamt/empty`). The parent item’s type stays the store type (`ft/node`, `vector`, …). Decode expands to `n` nested lits before materialize.
+
+Packed payload of a `run` (after `inner` + `n`):
+
+| Inner | Packed |
+|-------|--------|
+| `char` | `u32 blen` ++ UTF-8 bytes that decode to **n** chars |
+| `u8` | `n` raw bytes |
+| other | `n ×` the inner Lit **body** (no leading `type_id`) |
+
+`repeat` packed payload is one inner body (same as a single `run` element).
 
 **Order:**
 
@@ -304,7 +318,8 @@ variable sections use their own length fields.
 - **set:** elements sorted by **ascending content hash of element**.  
 
 Nested values are full `Lit` values (not bare hashes), unless a future version
-adds an explicit ref form (not in v1).
+adds an explicit ref form (not in v1). Sequence bodies may compress contiguous
+same-type children as `run` / `repeat` (still complete at the parent hash).
 
 ---
 

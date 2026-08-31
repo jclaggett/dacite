@@ -349,7 +349,10 @@
    0x33 "ft/deep"
    0x40 "hamt/empty"
    0x41 "hamt/entry"
-   0x42 "hamt/bitmap"})
+   0x42 "hamt/bitmap"
+   ;; Nested sequence packing (not top-level store types)
+   0x50 "run"
+   0x51 "repeat"})
 
 (def public-scalar-types
   "Public scalar type names supported on the wire (node + literal)."
@@ -469,7 +472,33 @@
 ;; Literal encode / decode
 ;; =============================================================================
 
-(declare encode-lit-bytes decode-lit)
+(declare encode-lit-bytes decode-lit decode-lit-body)
+
+(defn- concat-wire-bytes
+  "Concatenate wire byte arrays."
+  [bss]
+  (let [bss (mapv as-wire-bytes bss)
+        n (reduce + 0 (map byte-len bss))
+        out (make-bytes n)]
+    (loop [i 0 idx 0]
+      (if (= i (count bss))
+        out
+        (let [bs (nth bss i)
+              m (byte-len bs)]
+          (dotimes [j m]
+            (bset out (+ idx j) (bget bs j)))
+          (recur (inc i) (+ idx m)))))))
+
+(defn- drop-first-byte
+  [bs]
+  (let [bs (as-wire-bytes bs)
+        n (dec (byte-len bs))]
+    (when-not (pos? (byte-len bs))
+      (throw (ex-info "empty literal bytes" {})))
+    (let [out (make-bytes (max 0 n))]
+      (dotimes [i n]
+        (bset out i (bget bs (inc i))))
+      out)))
 
 (defn- utf8-wire
   "UTF-8 of string as wire bytes."
@@ -479,6 +508,39 @@
 (defn- utf8-from-wire
   [bs]
   (host/utf8-decode (mapv #(bget bs %) (range (byte-len bs)))))
+
+(defn- encode-inner-payload
+  "Wire bytes of a nested lit body *without* the leading type_id."
+  [of v]
+  (drop-first-byte (encode-lit-bytes {:type of :body v})))
+
+(defn- encode-run-packed
+  "Packed payload for a type-run of `n` values of inner type `of`."
+  [of n values]
+  (let [of (str of)]
+    (case of
+      "char"
+      (let [s (str values)
+            bs (utf8-wire s)
+            buf (bb (+ 4 (byte-len bs)))]
+        (put-u32 buf (byte-len bs))
+        (put-bytes buf bs)
+        (finish buf))
+
+      "u8"
+      (let [vals (vec (or values []))
+            buf (bb (count vals))]
+        (doseq [x vals]
+          (put-u8 buf (bit-and 0xff (int x))))
+        (finish buf))
+
+      (concat-wire-bytes
+       (mapv #(encode-inner-payload of %) (or values []))))))
+
+(defn- encode-repeat-packed
+  "Packed payload for a value-repeat: one inner body."
+  [of value]
+  (encode-inner-payload (str of) value))
 
 (defn encode-lit-bytes
   "Encode a recursive literal form {:type t :body b} to payload bytes.
@@ -629,7 +691,161 @@
         (put-bytes buf vb)
         (finish buf))
 
+      "run"
+      (let [of (str (:of body))
+            values (:values body)
+            inner (or (name->type-id of)
+                      (throw (ex-info "unknown run inner type" {:of of})))
+            n (if (= of "char")
+                (count (str values))
+                (count (or values [])))
+            packed (encode-run-packed of n values)
+            buf (bb (+ 1 1 4 (byte-len packed)))]
+        (put-u8 buf tid)
+        (put-u8 buf inner)
+        (put-u32 buf n)
+        (put-bytes buf packed)
+        (finish buf))
+
+      "repeat"
+      (let [of (str (:of body))
+            n (long (or (:n body) 0))
+            inner (or (name->type-id of)
+                      (throw (ex-info "unknown repeat inner type" {:of of})))
+            packed (encode-repeat-packed of (:value body))
+            buf (bb (+ 1 1 4 (byte-len packed)))]
+        (put-u8 buf tid)
+        (put-u8 buf inner)
+        (put-u32 buf n)
+        (put-bytes buf packed)
+        (finish buf))
+
       (throw (ex-info "unsupported literal type" {:type type :form form})))))
+
+(defn- decode-run-values
+  "Read packed run values of inner type `of` and count `n` from buf."
+  [of n buf]
+  (let [of (str of)
+        n (int n)]
+    (case of
+      "char"
+      (let [blen (int (get-u32 buf))
+            bs (get-bytes buf blen)
+            s (utf8-from-wire bs)]
+        (when-not (= n (count s))
+          (throw (ex-info "char run length mismatch"
+                          {:n n :decoded (count s)})))
+        s)
+
+      "u8"
+      (let [bs (get-bytes buf n)]
+        (mapv #(bget bs %) (range (byte-len bs))))
+
+      (mapv (fn [_] (decode-lit-body of buf)) (range n)))))
+
+(defn decode-lit-body
+  "Decode a Lit body of known type `tname` from buf (no type_id)."
+  [tname buf]
+  (let [tname (str tname)]
+    (case tname
+      "null" nil
+
+      "negative" nil
+
+      "bool"
+      (do (ensure-remaining buf 1)
+          (not (zero? (get-u8 buf))))
+
+      "char"
+      (let [dlen (get-u8 buf)
+            bs (get-bytes buf dlen)]
+        (first (seq (utf8-from-wire bs))))
+
+      "i8"
+      (do (ensure-remaining buf 1)
+          (signed-from-be (get-bytes buf 1)))
+
+      "i16"
+      (do (ensure-remaining buf 2)
+          (signed-from-be (get-bytes buf 2)))
+
+      "i32"
+      (do (ensure-remaining buf 4)
+          (signed-from-be (get-bytes buf 4)))
+
+      "i64"
+      (do (ensure-remaining buf 8)
+          (get-i64 buf))
+
+      "u8"
+      (do (ensure-remaining buf 1)
+          (unsigned-from-be (get-bytes buf 1)))
+
+      "u16"
+      (do (ensure-remaining buf 2)
+          (unsigned-from-be (get-bytes buf 2)))
+
+      "u32"
+      (do (ensure-remaining buf 4)
+          (unsigned-from-be (get-bytes buf 4)))
+
+      "u64"
+      (do (ensure-remaining buf 8)
+          (get-u64 buf))
+
+      "u256"
+      (do (ensure-remaining buf 32)
+          (u256-wire->body (get-bytes buf 32)))
+
+      "f32"
+      (do (ensure-remaining buf 4)
+          (get-f32-from-bytes (get-bytes buf 4)))
+
+      "f64"
+      (do (ensure-remaining buf 8)
+          (get-f64 buf))
+
+      "string"
+      (let [n (get-u32 buf)
+            bs (get-bytes buf n)]
+        (utf8-from-wire bs))
+
+      "blob"
+      (let [n (get-u32 buf)
+            bs (get-bytes buf n)]
+        (mapv #(bget bs %) (range (byte-len bs))))
+
+      ("vector" "set" "ft/empty" "ft/digit" "ft/node" "ft/deep"
+                "hamt/empty")
+      (let [n (int (get-u32 buf))]
+        (mapv (fn [_] (decode-lit buf)) (range n)))
+
+      ("map" "hamt/bitmap")
+      (let [n (int (get-u32 buf))]
+        (mapv (fn [_]
+                [(decode-lit buf) (decode-lit buf)])
+              (range n)))
+
+      "hamt/entry"
+      [(decode-lit buf) (decode-lit buf)]
+
+      "run"
+      (let [inner (get-u8 buf)
+            of (or (type-id->name inner)
+                   (throw (ex-info "unknown run inner type_id" {:id inner})))
+            n (get-u32 buf)
+            values (decode-run-values of n buf)]
+        {:of of :values values})
+
+      "repeat"
+      (let [inner (get-u8 buf)
+            of (or (type-id->name inner)
+                   (throw (ex-info "unknown repeat inner type_id" {:id inner})))
+            n (get-u32 buf)
+            value (decode-lit-body of buf)]
+        {:of of :n n :value value})
+
+      (throw (ex-info "unsupported literal type" {:type tname})))))
 
 (defn decode-lit
   "Decode one Lit from buffer; advances position. Returns {:type :body}."
@@ -638,92 +854,7 @@
   (let [tid (get-u8 buf)
         tname (or (type-id->name tid)
                   (throw (ex-info "unknown literal type_id" {:id tid})))]
-    (case tname
-      "null" {:type "null" :body nil}
-
-      "negative" {:type "negative" :body nil}
-
-      "bool"
-      (do (ensure-remaining buf 1)
-          {:type "bool" :body (not (zero? (get-u8 buf)))})
-
-      "char"
-      (let [dlen (get-u8 buf)
-            bs (get-bytes buf dlen)]
-        {:type "char" :body (first (seq (utf8-from-wire bs)))})
-
-      "i8"
-      (do (ensure-remaining buf 1)
-          {:type "i8" :body (signed-from-be (get-bytes buf 1))})
-
-      "i16"
-      (do (ensure-remaining buf 2)
-          {:type "i16" :body (signed-from-be (get-bytes buf 2))})
-
-      "i32"
-      (do (ensure-remaining buf 4)
-          {:type "i32" :body (signed-from-be (get-bytes buf 4))})
-
-      "i64"
-      (do (ensure-remaining buf 8)
-          {:type "i64" :body (get-i64 buf)})
-
-      "u8"
-      (do (ensure-remaining buf 1)
-          {:type "u8" :body (unsigned-from-be (get-bytes buf 1))})
-
-      "u16"
-      (do (ensure-remaining buf 2)
-          {:type "u16" :body (unsigned-from-be (get-bytes buf 2))})
-
-      "u32"
-      (do (ensure-remaining buf 4)
-          {:type "u32" :body (unsigned-from-be (get-bytes buf 4))})
-
-      "u64"
-      (do (ensure-remaining buf 8)
-          {:type "u64" :body (get-u64 buf)})
-
-      "u256"
-      (do (ensure-remaining buf 32)
-          {:type "u256" :body (u256-wire->body (get-bytes buf 32))})
-
-      "f32"
-      (do (ensure-remaining buf 4)
-          {:type "f32" :body (get-f32-from-bytes (get-bytes buf 4))})
-
-      "f64"
-      (do (ensure-remaining buf 8)
-          {:type "f64" :body (get-f64 buf)})
-
-      "string"
-      (let [n (get-u32 buf)
-            bs (get-bytes buf n)]
-        {:type "string" :body (utf8-from-wire bs)})
-
-      "blob"
-      (let [n (get-u32 buf)
-            bs (get-bytes buf n)]
-        {:type "blob" :body (mapv #(bget bs %) (range (byte-len bs)))})
-
-      ("vector" "set" "ft/empty" "ft/digit" "ft/node" "ft/deep"
-                "hamt/empty")
-      (let [n (int (get-u32 buf))
-            kids (mapv (fn [_] (decode-lit buf)) (range n))]
-        {:type tname :body kids})
-
-      ("map" "hamt/bitmap")
-      (let [n (int (get-u32 buf))
-            pairs (mapv (fn [_]
-                          [(decode-lit buf) (decode-lit buf)])
-                        (range n))]
-        {:type tname :body pairs})
-
-      "hamt/entry"
-      {:type "hamt/entry"
-       :body [(decode-lit buf) (decode-lit buf)]}
-
-      (throw (ex-info "unsupported literal type" {:type tname})))))
+    {:type tname :body (decode-lit-body tname buf)}))
 
 (defn decode-lit-bytes
   "Decode a full literal payload byte array."

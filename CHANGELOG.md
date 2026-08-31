@@ -31,6 +31,16 @@ stability promise: public APIs may still change before 1.0.
   rematerialized literals). Default GET prefers literals; explorer and
   todo use the default.
 
+### Pack literals (leaf-chunking 2f)
+
+- Layer 1 uses cached **`size-bytes`** (not wire-item size) to choose
+  `:literal` vs `:node`. Dry-run hash still required. Layer 2 still seals
+  on sent bytes with include-then-seal (~2× cap on non-first items).
+- Sequence literal bodies collapse contiguous same-type leaves to nested
+  **`run`** (`0x50`) and all-equal **`repeat`** (`0x51`). Item type stays
+  the store type (`ft/node`, `vector`, …). Char runs are UTF-8; a 24-`x`
+  finger-tree node is a `repeat`, not 24 tagged chars.
+
 ### Pack fill (leaf-chunking 2e)
 
 - `pack-under` / `pack-items` seal on **sent** bytes (wire-v1 by default),

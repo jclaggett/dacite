@@ -198,7 +198,12 @@
             (write-case! "chunk-node-ft-node"
                          [(node-item nh ne)]
                          :desc "{\"title\":\"ft/node as store node\"}\n")
-            (swap! cases conj "chunk-node-ft-node")))
+            (swap! cases conj "chunk-node-ft-node")
+            (when-let [form (pack/literal-of st nh)]
+              (write-case! "chunk-literal-ft-node"
+                           [(lit-item nh form)]
+                           :desc "{\"title\":\"ft/node intermediate leaf-payload literal\"}\n")
+              (swap! cases conj "chunk-literal-ft-node"))))
 
         (write-case! "chunk-node-ft-empty"
                      [(node-item ft-empty-h ft-empty-entry)]
@@ -276,6 +281,26 @@
                        :desc "{\"title\":\"node i64 + literal string\"}\n"
                        :hash-hex (store/hash->hex ah))
           (swap! cases conj "chunk-mixed-node-and-literal")))
+
+      ;; Nested run / repeat (not top-level store types)
+      (let [v-run (coll/vector-with-store st 1 2 3)
+            vh (types/dacite-hash v-run)
+            _s-rep (coll/string-with-store st (apply str (repeat 8 \x)))
+            snap (store/s-snapshot st)
+            digit (some (fn [[h e]]
+                          (when (= "ft/digit" (types/entry-type e)) [h e]))
+                        snap)]
+        (write-case! "chunk-literal-run-i64"
+                     [(lit-item vh (pack/literal-of st vh))]
+                     :desc "{\"title\":\"vector of i64s as one type-run\"}\n")
+        (swap! cases conj "chunk-literal-run-i64")
+        (when digit
+          (let [[dh _] digit
+                form (pack/literal-of st dh)]
+            (write-case! "chunk-literal-repeat-char"
+                         [(lit-item dh form)]
+                         :desc "{\"title\":\"ft/digit of equal chars as value-repeat\"}\n")
+            (swap! cases conj "chunk-literal-repeat-char"))))
 
       ;; Preserve multi-chunk 3000-string if already present (do not regenerate here)
       (doseq [id ["chunk-string-3000-part-0"

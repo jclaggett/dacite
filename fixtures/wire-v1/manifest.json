@@ -47,6 +47,9 @@
     "id" : "chunk-literal-ft-empty",
     "notes" : "chunk-literal-ft-empty"
   }, {
+    "id" : "chunk-literal-ft-node",
+    "notes" : "chunk-literal-ft-node"
+  }, {
     "id" : "chunk-literal-hamt-bitmap",
     "notes" : "chunk-literal-hamt-bitmap"
   }, {
@@ -79,6 +82,12 @@
   }, {
     "id" : "chunk-literal-null",
     "notes" : "chunk-literal-null"
+  }, {
+    "id" : "chunk-literal-repeat-char",
+    "notes" : "chunk-literal-repeat-char"
+  }, {
+    "id" : "chunk-literal-run-i64",
+    "notes" : "chunk-literal-run-i64"
   }, {
     "id" : "chunk-literal-set-123",
     "notes" : "chunk-literal-set-123"

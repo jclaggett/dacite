@@ -178,7 +178,7 @@
                    (stats/measure
                     (fn []
                       (todo/title-str (v/nth (v/ref-deref cold) 5)))))]
-        (is (< (:requests d-str) 52)
+        (is (<= (:requests d-str) 40)
             (str "as-str of 1893-char title should beat pre-2e 52 GETs; got "
                  (:requests d-str))))
       (finally

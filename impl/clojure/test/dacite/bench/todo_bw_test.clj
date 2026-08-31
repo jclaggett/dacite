@@ -79,8 +79,8 @@
       (is (= 1 (:chunks todo-1k)))
       (is (= 1 (:literals todo-1k)))
       (is (zero? (:nodes todo-1k))))
-    ;; 256 fragments the same seed
-    (let [todo-256 (first (filter #(and (= :todo-seed (:fixture %))
-                                        (= 256 (:budget %)))
-                                  rows))]
-      (is (> (:chunks todo-256) 1)))))
+    ;; 256 still fragments a 3000-char string (todo seed is one run-literal)
+    (let [s-256 (first (filter #(and (= :string-3000 (:fixture %))
+                                     (= 256 (:budget %)))
+                               rows))]
+      (is (> (:chunks s-256) 1)))))

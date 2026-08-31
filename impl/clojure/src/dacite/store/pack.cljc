@@ -6,7 +6,8 @@
    2b/2b′: realized recursive typed literals for value types.
    2c: large values — cheap size gate; refuse literal and walk :node + children.
    2c′: intermediate ft/* / hamt/* literals when leaf rebuild matches hash.
-   2e: seal on sent (wire-v1) bytes; literal iff item ≤ budget."
+   2e: seal on sent (wire-v1) bytes; literal iff item ≤ budget.
+   2f: sequence bodies collapse contiguous same-type leaves to nested run/repeat."
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.wire :as wire]
@@ -219,6 +220,129 @@
                 (bit-and (int r) 0xFF)))
             (range n)))))
 
+;; =============================================================================
+;; Type-run collapse (sequence bodies) — nested Lit {:type "run"| "repeat"}
+;; =============================================================================
+
+(def ^:private rle-seq-types
+  "Store types whose literal body is an ordered list of nested lits."
+  #{"vector" "set"
+    "ft/empty" "ft/digit" "ft/node" "ft/deep"
+    "hamt/empty"})
+
+(defn- run-form? [x]
+  (and (map? x)
+       (let [t (str (:type x))]
+         (or (= t "run") (= t "repeat")))))
+
+(defn- pack-run-values
+  "Compact :values for a type-run of lits that share `of`."
+  [of lits]
+  (if (= of "char")
+    (join-chars (map :body lits))
+    (mapv :body lits)))
+
+(declare rle-form)
+
+(defn- all-bodies-equal?
+  [lits]
+  (let [bs (mapv :body lits)]
+    (and (seq bs) (apply = bs))))
+
+(defn rle-lits
+  "Collapse contiguous same-type nested lits into run (or repeat if all
+   bodies are equal). Length-1 groups stay unwrapped. Recurses into
+   collection / map bodies first. Idempotent: existing run/repeat lits
+   are not merged with neighbors."
+  [lits]
+  (let [lits (mapv rle-form (or lits []))]
+    (if (empty? lits)
+      []
+      (loop [remaining (seq lits)
+             out []]
+        (if-let [x (first remaining)]
+          (if (run-form? x)
+            (recur (next remaining) (conj out x))
+            (let [t (str (:type x))
+                  [same rst] (split-with (fn [y]
+                                           (and (not (run-form? y))
+                                                (= t (str (:type y)))))
+                                         remaining)]
+              (cond
+                (= 1 (count same))
+                (recur rst (conj out x))
+
+                (all-bodies-equal? same)
+                (recur rst
+                       (conj out {:type "repeat"
+                                  :body {:of t
+                                         :n (count same)
+                                         :value (:body (first same))}}))
+
+                :else
+                (recur rst
+                       (conj out {:type "run"
+                                  :body {:of t
+                                         :values (pack-run-values t same)}})))))
+          out)))))
+
+(defn- rle-form
+  "RLE nested sequence/map bodies of a typed literal. Scalars unchanged."
+  [form]
+  (if-not (and (map? form) (contains? form :type) (contains? form :body))
+    form
+    (let [t (str (:type form))
+          b (:body form)]
+      (cond
+        (run-form? form) form
+
+        (contains? rle-seq-types t)
+        {:type t :body (rle-lits b)}
+
+        (or (= t "map") (= t "hamt/bitmap"))
+        {:type t
+         :body (mapv (fn [pair]
+                       [(rle-form (nth pair 0))
+                        (rle-form (nth pair 1))])
+                     (or b []))}
+
+        (= t "hamt/entry")
+        {:type t :body [(rle-form (nth b 0)) (rle-form (nth b 1))]}
+
+        :else form))))
+
+(defn- expand-run
+  "Expand a type-run to n nested {:type :body} lits."
+  [{:keys [body]}]
+  (let [of (str (:of body))
+        values (:values body)]
+    (if (= of "char")
+      (mapv (fn [ch] {:type "char" :body ch}) (seq (str values)))
+      (mapv (fn [v] {:type of :body v}) (or values [])))))
+
+(defn- expand-repeat
+  "Expand a value-repeat to n copies of one nested lit."
+  [{:keys [body]}]
+  (let [of (str (:of body))
+        n (long (or (:n body) 0))
+        v (:value body)]
+    (vec (repeat n {:type of :body v}))))
+
+(defn expand-rle-seq
+  "Expand run/repeat elements in an ordered lit list. Non-run lits stay.
+   Does not recurse into map/vector bodies (those expand at materialize)."
+  [xs]
+  (into []
+        (mapcat (fn [x]
+                  (if-not (and (map? x) (contains? x :type))
+                    [x]
+                    (let [t (str (:type x))]
+                      (cond
+                        (= t "run") (expand-run x)
+                        (= t "repeat") (expand-repeat x)
+                        :else [x]))))
+                (or xs []))))
+
 (defn- nested-literal
   "Recursive typed literal for child value at eh, or nil if not a value type."
   [st eh]
@@ -256,7 +380,7 @@
 
       (str/starts-with? (str t) "ft/")
       (let [leaves (vec (ft/ft-leaves st h))]
-        {:type t :body (leaf-literals st leaves)})
+        {:type t :body (rle-lits (leaf-literals st leaves))})
 
       (= "hamt/empty" t)
       {:type t :body []}
@@ -269,7 +393,7 @@
                    (throw (ex-info "hamt entry key not a value" {:h h})))
             vl (or (nested-literal st vr)
                    (throw (ex-info "hamt entry val not a value" {:h h})))]
-        {:type t :body [kl vl]})
+        {:type t :body [(rle-form kl) (rle-form vl)]})
 
       (= "hamt/bitmap" t)
       (let [pairs (mapv (fn [[kr vr]]
@@ -278,7 +402,10 @@
                            (or (nested-literal st vr)
                                (throw (ex-info "hamt val not a value" {:h h})))])
                         (hamt/hamt-entries st h))]
-        {:type t :body pairs})
+        {:type t :body (mapv (fn [pair]
+                               [(rle-form (nth pair 0))
+                                (rle-form (nth pair 1))])
+                             pairs)})
 
       :else nil)))
 
@@ -321,7 +448,7 @@
                                                  :child-type (types/entry-type
                                                               (store/s-get st eh))})))))
                         (range n))]
-          {:type "vector" :body els})
+          {:type "vector" :body (rle-lits els)})
 
         (= "set" t)
         (let [els (if-let [xs (coll/set-vals st h)]
@@ -332,7 +459,7 @@
                                                   {:parent h :child eh})))))
                           xs)
                     [])]
-          {:type "set" :body els})
+          {:type "set" :body (rle-lits els)})
 
         (= "map" t)
         (let [pairs (if-let [ps (coll/map-entries st h)]
@@ -348,17 +475,20 @@
                                 [kl vl]))
                             ps)
                       [])]
-          {:type "map" :body pairs})
+          {:type "map" :body (mapv (fn [pair]
+                                     [(rle-form (nth pair 0))
+                                      (rle-form (nth pair 1))])
+                                   pairs)})
 
         :else nil))))
 
 (defn fits-literal?
   "True if h has a realized literal under budget (value or intermediate spine).
 
-   Uses a cheap size cue first (2c): if :size-bytes already exceeds budget,
+   Uses the cached size cue (2c / 2f): if :size-bytes already exceeds budget,
    returns false without building the recursive form or dry-running materialize.
-   The literal **item** (wire-v1 bytes) must itself be ≤ budget; overshoot
-   is a chunk property (include-then-seal), not a per-item 2× ticket."
+   Layer 1 does not measure wire-item size; Layer 2 include-then-seal still
+   bounds the sent chunk."
   ([st h] (fits-literal? st h default-budget))
   ([st h budget]
    (let [budget (long budget)
@@ -368,9 +498,7 @@
                 (or (value-type? t) (tree-internal-type? t))
                 (not (clearly-oversized? entry budget)))
        (when-let [form (literal-of st h)]
-         (let [item (literal-item h (:type form) (:body form))]
-           (and (<= (wire-item-size item) budget)
-                (literal-round-trips? h (:type form) (:body form)))))))))
+         (literal-round-trips? h (:type form) (:body form)))))))
 
 ;; =============================================================================
 ;; materialize-literal! (2b′)
@@ -479,11 +607,13 @@
       (types/dacite-hash (coll/blob-with-store st (blob-bytes body)))
 
       (= "vector" type)
-      (let [refs (mapv #(materialize-nested! st %) (or body []))]
+      (let [refs (mapv #(materialize-nested! st %)
+                       (expand-rle-seq (or body [])))]
         (types/dacite-hash (coll/vec-of-refs-with-store st refs)))
 
       (= "set" type)
-      (let [refs (mapv #(materialize-nested! st %) (or body []))]
+      (let [refs (mapv #(materialize-nested! st %)
+                       (expand-rle-seq (or body [])))]
         (types/dacite-hash
          (apply coll/dacite-set-with-store st
                 (map #(types/wrap-entry
@@ -510,7 +640,8 @@
         (types/dacite-hash (apply coll/hash-map-with-store st kvs)))
 
       (str/starts-with? type "ft/")
-      (let [leaf-hs (mapv #(materialize-nested! st %) (or body []))]
+      (let [leaf-hs (mapv #(materialize-nested! st %)
+                          (expand-rle-seq (or body [])))]
         (materialize-ft! st type leaf-hs))
 
       (str/starts-with? type "hamt/")
@@ -535,16 +666,16 @@
 (defn encode-item
   "Layer 1: choose :literal or :node for store entry at h.
 
-   Policy (2c / 2c′ / 2e):
+   Policy (2c / 2c′ / 2e / 2f):
    1. Unknown non-value, non-spine type → :node
    2. Stored size cue > budget → :node (no full realize / dry-run)
    3. Else build realized literal (value or intermediate spine);
-      if sent item size > budget or hash dry-run fails → :node
-   4. Else :literal (regardless of how full the current chunk is)
+      if hash dry-run fails → :node
+   4. Else :literal (size-bytes ≤ budget is the gate; wire size is Layer 2)
 
    Intermediate ft/* / hamt/* may bottom out as leaf-literal payloads when
-   reconstruction matches the claimed hash (2c′). Otherwise the walk continues
-   into children."
+   reconstruction matches the claimed hash (2c′). Sequence bodies use
+   run/repeat. Otherwise the walk continues into children."
   ([st h entry] (encode-item st h entry default-budget false))
   ([st h entry budget] (encode-item st h entry budget false))
   ([st h entry budget node-only?]
@@ -566,8 +697,7 @@
                        (catch #?(:clj Throwable :cljs :default) _
                          nil))]
            (let [item (literal-item h type body)]
-             (if (and (<= (wire-item-size item) budget)
-                      (literal-round-trips? h type body))
+             (if (literal-round-trips? h type body)
                item
                (node-item h entry)))
            (node-item h entry)))))))

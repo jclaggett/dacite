@@ -45,6 +45,7 @@ Golden suite for wire-v1 (see `manifest.json`, **73** cases). Covers:
   (empty + representative non-empty)
 - **FT / HAMT** store nodes + intermediate pack literals (empty, digit/deep/node,
   hamt empty/entry/bitmap)
+- **Sequence packing:** nested `run` / `repeat` inside `vector` / `ft/*` literals
 - Mixed encodings; multi-chunk 3000-char string pack series
 
 Ports should pass every case under `cases/`.

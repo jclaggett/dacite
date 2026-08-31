@@ -1,8 +1,9 @@
 # Leaf-chunking (transport packing) design
 
-**Status:** SHIPPED — 2a–2e done (default soft budget **1024 sent bytes**).
+**Status:** SHIPPED — 2a–2f done (default soft budget **1024 sent bytes**).
 Realized-value literal law below; intermediate FT/HAMT leaf-payloads (2c′);
-wire-sized include-then-seal (2e).
+wire-sized include-then-seal (2e); size-bytes Layer 1 gate + nested
+`run`/`repeat` (2f).
 
 **Related:** `docs/design/service.md` (HTTP store protocol),
 `docs/design/stores-phase-2.md`, `docs/design/store-composition-pack.md`
@@ -230,6 +231,7 @@ Reproduce: `cd impl/clojure && clojure -M:dev -m dacite.bench.todo-bw --budget-s
 | **2c′** | **Intermediate literals** (`ft/*`, `hamt/*`) as ordered leaf/entry payloads; rebuild + dry-run hash gate. **Done.** |
 | **2d** | Budget sweep; measured default **1024**. **Done.** |
 | **2e** | Seal `pack-under` / `pack-items` on **sent** (wire-v1) bytes; literal gate ≤ 1k. **Done.** |
+| **2f** | Layer 1 gate = `size-bytes`; nested `run`/`repeat` on sequence literals. **Done.** |
 
 ### 2b notes (shipped)
 
@@ -254,9 +256,8 @@ Reproduce: `cd impl/clojure && clojure -M:dev -m dacite.bench.todo-bw --budget-s
 
 1. Spine / non-value → `:node`
 2. **`size-cue` (`:size-bytes`) > budget** → `:node` without building `literal-of` or dry-run
-3. Build realized form; if **sent item size > budget** → `:node` (typed overhead can exceed cue)
-4. Dry-run hash fail → `:node`
-5. Else `:literal` (covers whole subgraph; added even if the current chunk is already partly full)
+3. Build realized form (sequence bodies as `run` / `repeat`); dry-run hash fail → `:node`
+4. Else `:literal`. Layer 1 does **not** measure wire-item size (2f). Layer 2 still seals on sent bytes and will not append a non-first item that would push the chunk to ≥ 2× budget.
 
 **Mixed walk:** large parent as `:node` → descend `child-hashes`; small children still `:literal`.
 
@@ -364,6 +365,31 @@ fills under `near` when that chunk still installs `h` (parent literal or
 siblings). A char miss packs the title prefix, not a bare leaf.
 
 Remaining-budget skip-if-does-not-fit and GET `have` are deferred.
+
+### 2f notes (shipped)
+
+**Layer 1 gate = `size-bytes`.** `encode-item` emits `:literal` when the cached
+leaf-sum is ≤ budget and dry-run hash matches. Framing (~37 byte item
+envelope + run headers) can push the sent item slightly past 1024; that is
+the existing soft-budget overshoot, not a second gate.
+
+**Type `run` / value `repeat` (nested Lits only).** Sequence bodies
+(`vector`, `set`, `ft/*`) collapse contiguous same-type leaves:
+
+| Form | When | Body |
+|------|------|------|
+| `run` (`0x50`) | ≥2 same type, mixed values | packed inner payloads (char = UTF-8) |
+| `repeat` (`0x51`) | ≥2 same type **and** equal values | `n` + one payload |
+| unwrapped lit | n = 1 | unchanged |
+
+Item `:type` stays the store type (`ft/node`, `vector`, …). No `string/node`.
+Maps / HAMT pairs are not pair-RLE’d. Public `string` / `blob` stay one host
+body; char/byte RLE appears on `ft/*` cells when the collection itself is
+oversize.
+
+A 24-char `ft/node` of `\x` is a `repeat`; mixed text `"aaabbc"` is one char
+`run` (not three repeats). An 800-char span with `size-bytes = 800` is one
+`ft/*` literal.
 
 ## Non-goals (MVP)
 

@@ -92,28 +92,130 @@
   (let [st (store/mem-store)
         v (coll/vector-with-store st 1 2 3)
         h (types/dacite-hash v)
-        form (pack/literal-of st h)]
+        form (pack/literal-of st h)
+        run (first (:body form))]
     (is (= "vector" (:type form)))
-    (is (every? typed-lit? (:body form))
-        "vector elements are recursive {:type :body} forms")
-    (is (= ["i64" "i64" "i64"] (mapv :type (:body form))))
-    (is (= [1 2 3] (mapv :body (:body form))))
+    (is (= 1 (count (:body form))) "homogeneous i64s collapse to one run")
+    (is (= "run" (:type run)))
+    (is (= "i64" (get-in run [:body :of])))
+    (is (= [1 2 3] (get-in run [:body :values])))
     (is (= h (second (round-trip-hash st h))))))
 
 (deftest literal-of-nested-vector-of-strings
   (let [st (store/mem-store)
         v (coll/vector-with-store st "hello" "world")
         h (types/dacite-hash v)
-        form (pack/literal-of st h)]
+        form (pack/literal-of st h)
+        run (first (:body form))]
     (is (= "vector" (:type form)))
-    (is (= ["string" "string"] (mapv :type (:body form))))
-    (is (= ["hello" "world"] (mapv :body (:body form))))
+    (is (= "run" (:type run)))
+    (is (= "string" (get-in run [:body :of])))
+    (is (= ["hello" "world"] (get-in run [:body :values])))
     (is (= h (second (round-trip-hash st h))))
     (let [item (pack/encode-item st h (store/s-get st h))]
       (is (= :literal (:encoding item)))
       (let [st2 (store/mem-store)]
         (is (= 1 (:literals (pack/apply-chunk! st2 (pack/make-chunk 1024 [item])))))
         (is (store/s-has? st2 h))))))
+
+(deftest rle-lits-n1-stays-unwrapped
+  (let [st (store/mem-store)
+        v (coll/vector-with-store st 42)
+        form (pack/literal-of st (types/dacite-hash v))
+        el (first (:body form))]
+    (is (= 1 (count (:body form))))
+    (is (= "i64" (:type el)))
+    (is (= 42 (:body el)))))
+
+(deftest rle-lits-mixed-types-split-runs
+  (let [st (store/mem-store)
+        v (coll/vector-with-store st 1 2 "z")
+        form (pack/literal-of st (types/dacite-hash v))
+        body (:body form)]
+    (is (= 2 (count body)))
+    (is (= "run" (:type (nth body 0))))
+    (is (= "i64" (get-in (nth body 0) [:body :of])))
+    (is (= [1 2] (get-in (nth body 0) [:body :values])))
+    (is (= "string" (:type (nth body 1))))
+    (is (= "z" (:body (nth body 1))))
+    (is (= (types/dacite-hash v) (second (round-trip-hash st (types/dacite-hash v)))))))
+
+(deftest rle-char-run-on-string-spine
+  (let [st (store/mem-store)
+        s (coll/string-with-store st "abcdefghij")
+        snap (store/s-snapshot st)
+        ft (filter (fn [[_ e]]
+                     (str/starts-with? (str (types/entry-type e)) "ft/"))
+                   snap)]
+    (is (seq ft))
+    (doseq [[fh _] ft]
+      (let [form (pack/literal-of st fh)]
+        (is (some? form))
+        (when (pos? (count (or (:body form) [])))
+          (let [run (first (:body form))]
+            (when (= "run" (:type run))
+              (is (= "char" (get-in run [:body :of])))
+              (is (string? (get-in run [:body :values]))))))))
+    (is (= (types/dacite-hash s)
+           (second (round-trip-hash st (types/dacite-hash s)))))))
+
+(deftest rle-all-equal-chars-are-repeat
+  (let [st (store/mem-store)
+        chs (mapv #(types/dacite-hash (scalar/dacite-char-with-store st %))
+                  (repeat 24 \x))
+        nh (ft/ft-node-from-value-hashes st chs)
+        form (pack/literal-of st nh)
+        rep (first (:body form))]
+    (is (= "repeat" (:type rep)) (pr-str form))
+    (is (= "char" (get-in rep [:body :of])))
+    (is (= 24 (get-in rep [:body :n])))
+    (is (= \x (get-in rep [:body :value])))
+    (is (= nh (second (round-trip-hash st nh))))))
+
+(deftest rle-mixed-chars-are-run-not-split-repeats
+  (let [st (store/mem-store)
+        chs (mapv #(types/dacite-hash (scalar/dacite-char-with-store st %))
+                  (seq "aaabbc"))
+        dh (ft/ft-digit-from-value-hashes st chs)
+        form (pack/literal-of st dh)
+        run (first (:body form))]
+    (is (= "run" (:type run)) (pr-str form))
+    (is (= "char" (get-in run [:body :of])))
+    (is (= "aaabbc" (get-in run [:body :values])))
+    (is (nil? (some #(= "repeat" (:type %)) (:body form)))
+        "do not split mixed text into per-letter repeats")
+    (is (= dh (second (round-trip-hash st dh))))))
+
+(deftest rle-bool-vector-all-false-is-repeat
+  (let [st (store/mem-store)
+        v (apply coll/vector-with-store st (repeat 8 false))
+        h (types/dacite-hash v)
+        form (pack/literal-of st h)
+        rep (first (:body form))]
+    (is (= "repeat" (:type rep)))
+    (is (= "bool" (get-in rep [:body :of])))
+    (is (= 8 (get-in rep [:body :n])))
+    (is (false? (get-in rep [:body :value])))
+    (is (= h (second (round-trip-hash st h))))))
+
+(deftest rle-char-run-wire-round-trip
+  (let [st (store/mem-store)
+        _s (coll/string-with-store st (apply str (repeat 24 \x)))
+        snap (store/s-snapshot st)
+        nodes (filter (fn [[_ e]]
+                        (#{"ft/node" "ft/digit"} (types/entry-type e)))
+                      snap)]
+    (is (seq nodes))
+    (doseq [[fh _] (take 2 nodes)]
+      (let [form (pack/literal-of st fh)
+            item (pack/literal-item fh (:type form) (:body form))
+            ch (pack/make-chunk 1024 [item])
+            back (bin/decode-pack-edn (bin/encode-pack-edn ch))
+            st2 (store/mem-store)]
+        (is (some #(#{"run" "repeat"} (:type %)) (:body form))
+            (str "spine literal should contain a char run/repeat, got " (pr-str form)))
+        (pack/apply-chunk! st2 back)
+        (is (store/s-has? st2 fh))))))
 
 (deftest literal-of-map-and-set
   (testing "map"
@@ -132,10 +234,12 @@
     (let [st (store/mem-store)
           s (coll/dacite-set-with-store st 1 2 3)
           h (types/dacite-hash s)
-          form (pack/literal-of st h)]
+          form (pack/literal-of st h)
+          run (first (:body form))]
       (is (= "set" (:type form)))
-      (is (= 3 (count (:body form))))
-      (is (every? #(= "i64" (:type %)) (:body form)))
+      (is (= "run" (:type run)))
+      (is (= "i64" (get-in run [:body :of])))
+      (is (= 3 (count (get-in run [:body :values]))))
       (is (= h (second (round-trip-hash st h)))))))
 
 (deftest literal-of-empty-collections
@@ -402,19 +506,31 @@
         (pack/apply-chunk! st2 ch))
       (is (store/s-has? st2 h)))))
 
-(deftest wire-overhead-can-refuse-even-when-size-cue-fits
-  ;; Recursive realized body can exceed the 1k literal gate while :size-bytes
-  ;; (leaf cue) is still small. Overshoot is a chunk property, not a 2× item ticket.
+(deftest size-bytes-at-budget-is-literal-one-over-is-node
+  (let [st (store/mem-store)
+        fit (coll/string-with-store st (apply str (repeat 1024 \x)))
+        over (coll/string-with-store st (apply str (repeat 1025 \x)))
+        fh (types/dacite-hash fit)
+        oh (types/dacite-hash over)]
+    (is (= 1024 (pack/size-cue (store/s-get st fh))))
+    (is (= :literal (:encoding (pack/encode-item st fh (store/s-get st fh)))))
+    (is (pack/clearly-oversized? (store/s-get st oh) pack/default-budget))
+    (is (= :node (:encoding (pack/encode-item st oh (store/s-get st oh)))))))
+
+(deftest type-run-of-short-strings-fits-tight-budget
+  ;; Pre-RLE: 40 tagged string lits exceeded 500 wire bytes while size-bytes
+  ;; still fit. A string run is dense enough that the root is a literal.
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (map #(str "item-" %) (range 40)))
         h (types/dacite-hash v)
         entry (store/s-get st h)
         budget 500
         item (pack/encode-item st h entry budget)
-        sum (pack/encode-summary st h budget)]
-    (is (<= (pack/size-cue entry) budget) "size cue alone would allow")
-    (is (= :node (:encoding item)) "sent literal item over budget → :node")
-    (is (pos? (:literals sum)) "children still literalized")))
+        form (pack/literal-of st h)]
+    (is (<= (pack/size-cue entry) budget) "size cue fits")
+    (is (= :literal (:encoding item)))
+    (is (= "run" (:type (first (:body form)))))
+    (is (= "string" (get-in (first (:body form)) [:body :of])))))
 
 (deftest encode-summary-reports-mixed-stats
   (let [st (store/mem-store)

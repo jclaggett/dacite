@@ -84,7 +84,10 @@
           (is (pos? (:bytes-recv page-delta)))
           (is (< (:bytes-recv page-delta) (:bytes-recv all-delta))
               "page 0 must not pull as much as seq of the whole log")
-          (is (< (:requests page-delta) (:requests all-delta)))))
+          ;; A full seq walk now fills dense event runs per GET, so it can
+          ;; use *fewer* requests than 20 nth-style page misses. Bytes stay
+          ;; the cheapness claim.
+          (is (pos? (:requests page-delta)))))
       (finally
         (stop!)))))
 
