@@ -90,10 +90,10 @@ clojure -M:dev -m dacite.bench.todo-bw --budget-sweep
 - Server inbound throttle — **done** (`dacite.service.throttle`); per-client
   429 / body 413 / pack-get clamp; not the client send-chunk limiter
 - Root slot in content map (`[0,0,0,0]` or `type-hash("dacite/root")`)
-- Content sync helper (copy reachable nodes to target before `push-ref`)
+- Content sync helper — **done** (`store/sync-reachable!`)
 - True opaque-byte storage in stores
-- Remote root watches (SSE)
-- Binary wire v1 ([wire-v1.md](../spec/wire-v1.md); EDN remains debug)
+- Remote root watches (SSE) — **done** (`GET /events`, `watch-root`)
+- Binary wire v1 — **done** ([wire-v1.md](../spec/wire-v1.md); EDN remains debug)
 - Configurable layered write policies (`:push-all`, `:top-only`)
 - Spec update to v0.5
 - User provisioning / multi-tenant auth beyond demo Bearer token

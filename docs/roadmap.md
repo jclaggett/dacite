@@ -1,21 +1,29 @@
 # Dacite Roadmap
 
-*Last updated: 2026-08-16*
+*Last updated: 2026-08-31*
 
 ## Current direction
 
-**Write applications.** The four layers (content stores, hash fusion, values,
-rooted stores) plus pack transport and a demo HTTP service are an alpha
-vertical slice. The next phase is not more store middleware. It is programs
-that **prove the claims** and **pull library work from friction**.
+**Teach how to write programs, then wait for a real one.** The four layers
+(content stores, hash fusion, values, rooted stores) plus pack transport and
+a demo HTTP service are an alpha vertical slice. Six claim-proving apps are
+shipped. The next work is not more store middleware and not a seventh demo.
+It is:
+
+1. **Invert the book** so a reader learns a Dacite perspective on data and
+   how to build an app, then optionally how the store works. See
+   [The Dacite Book](book/).
+2. **Hold for a real app** — a program with a user who would notice if it
+   broke. Library work is pulled by that app.
 
 The README thesis is still unproven as *utility*:
 
 > structural sharing · fetch only what changed · lazy access · perfect
 > caching · versioned snapshots · config push
 
-Shipped examples show that values persist and hashes are stable. They do not
-yet show that Dacite is a better way to write a program.
+Shipped examples show that values persist, hashes are stable, and packed
+GET/POST can be cheap. They do not yet show that Dacite is a better way to
+write a program someone would miss.
 
 **Architecture (unchanged):** dedicated stores per user, not a shared
 multi-user map. Authorization and sharing chapters remain archived; see
@@ -25,8 +33,10 @@ multi-user map. Authorization and sharing chapters remain archived; see
 bound store; collections are finger trees / HAMTs with bare value hashes at
 the leaves.
 
-**Transport (unchanged):** leaf-chunking packs, soft budget **1024**, pack-filled
-`GET /node/{hex}`, write novelty `:created` / `:exists`.
+**Transport (unchanged in policy, simplified in API):** leaf-chunking packs,
+soft budget **1024**, pack-filled `GET /node/{hex}` (no query opt-outs),
+write novelty `:created` / `:exists`. Write-back flush uses the same Layer 1
+literals as GET. `pack-under` with budget **0** is a single item.
 
 ---
 
@@ -61,11 +71,11 @@ tiny tree.
 4. **Measure the claim.** The bandwidth harness (`dacite.bench.todo-bw`) is
    the pattern. Clone it per app. If you cannot measure sharing, lazy fetch,
    or CAS retries, the app is still a demo.
-5. **One app to “usable,” then the next.** Do not scaffold the whole
-   sequence. The current app should be runnable from the README.
-6. **Write the tutorial from the app.** The book stops at Hello World. After
-   each app, add the corresponding tutorial. The book’s job becomes *how to
-   write programs*, not another restatement of the four layers.
+5. **One app to “usable,” then the next.** Do not scaffold a sequence. The
+   current app should be runnable from the README.
+6. **Write the book from the app.** Tutorials teach the *move* (nested
+   document, history, a page of a large vector, …). The book’s job is *how
+   to write programs*, not another restatement of the four layers.
 
 ---
 
@@ -139,46 +149,49 @@ emergencies. Application code that reaches for it has found a hole in
 - [x] `mem-root-cell`, `lmdb-root-cell`, `file-root-cell`
 - [x] `push-ref` sync primitive
 - [x] Value-aware GC (`dacite.rooted.gc`)
+- [x] `sync-reachable!` — copy a reachable subgraph (packed flush to remotes)
 
 See [design/stores-phase-1.md](design/stores-phase-1.md) and
 [design/stores-phase-2.md](design/stores-phase-2.md).
 
 ### Transport
 
-- [x] Leaf-chunking 2a–2d (budget **1024**) — [leaf-chunking.md](design/leaf-chunking.md)
+- [x] Leaf-chunking 2a–2f (budget **1024**) — [leaf-chunking.md](design/leaf-chunking.md)
+      Layer 1 gate is cached `size-bytes` + dry-run hash; sequence bodies use
+      nested `run` / `repeat`; Layer 2 seals on **sent** (wire-v1) bytes
 - [x] Wire-v1 binary packs — [spec/wire-v1.md](spec/wire-v1.md)
 - [x] HTTP service MVP (`dacite.service`) — [service.md](design/service.md)
+- [x] Pack-filled `GET /node/{hex}` only (no `?raw=`, `?nodes=`, `?near=`)
+- [x] Write-back flush (`flush-from!`) uses the same `encode-item` as GET
+- [x] `GET /events` SSE root announcements; JVM `watch-root`
 - [x] JVM + browser remotes (browser is **sync XHR**, demo only)
 
 ### Documentation
 
-- [x] Book chapters 1–4
+- [x] Book inverted for app authors — [The Dacite way](book/the-dacite-way.md),
+      [Anatomy](book/building/anatomy.md), cookbook, pack/HTTP as internals
+- [x] Book chapters 1–4 (now “How it works”)
 - [x] Values / Stores API reference
-- [x] Hello World (nbb) tutorial
-- [x] Remote config tutorial (`docs/book/tutorial/config.md`)
-- [x] Versioned notes tutorial (`docs/book/tutorial/notes.md`)
-- [x] Event log tutorial (`docs/book/tutorial/event-log.md`)
-- [x] Two-client live tutorial (`docs/book/tutorial/two-client.md`)
-- [x] Directory/blob sync tutorial (`docs/book/tutorial/sync.md`)
-- [x] Value explorer tutorial (`docs/book/tutorial/explorer.md`)
+- [x] Claim tutorials: Hello World, config, notes, event log, two-client,
+      directory sync, value explorer
 
 ### Examples today
 
 | App | What it proves | What it does not |
 |---|---|---|
 | Hello nbb | Constructors, `realize`, hash identity | Persistence, sync, a user |
-| [config](../examples/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX, SSE |
+| [config](../examples/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX |
 | [notes](../examples/dacite/examples/notes.cljc) | Snapshots, restore by hash, title-only sharing | Multi-writer, web UI |
 | [event log](../examples/dacite/examples/event_log.cljc) | 2000 events, page via subvec, cheap append | Compact/concat, missing-node UX |
 | Two-client live | Interleaved appends + SSE watch | Async browser store |
 | [sync](../examples/dacite/examples/sync.cljc) | List without bodies; one-file < clone | Opaque-byte file store |
 | [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
-| Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, partial load |
+| Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, `v/root-ref` |
 | [explorer](../examples/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
 
 Library-pain already visible in those apps (fix in the library, not with
-more helpers):
+more helpers — **when an app pulls it**):
 
 - ~~`title-str` / `field-native` — ~20 lines to read a string field~~ (now `v/as-str` / `v/native`)
 - Cards shuffle dumps to a host vector
@@ -187,9 +200,9 @@ more helpers):
 
 ---
 
-## Application sequence
+## Application sequence (done)
 
-Do not start the next app until the current one is usable from the README.
+These six apps are history. Do not start a seventh demo to “complete the set.”
 
 ### 1. Remote config — done
 
@@ -275,7 +288,8 @@ Edit, SSE live root, and string/blob “read more” stayed on the shelf.
 
 ## Library work the apps will pull
 
-Treat this as a backlog that **appears**, not a build order.
+Treat this as a backlog that **appears**, not a build order. Nothing below
+is the next milestone.
 
 **Pulled by config + notes**
 
@@ -319,16 +333,16 @@ Treat this as a backlog that **appears**, not a build order.
 | Copy reachable subgraph | `push-ref` without a sync helper is incomplete | Done (`sync-reachable!`) |
 | Opaque-byte store bodies | File store as EDN is a host-local dead end for blobs | Still deferred |
 
-Infrastructure from the old Phase 2.5 list (pack polish, root slot,
-layered write policies, spec v0.5) stays on the shelf until an app above
-reaches for it.
+Infrastructure from the old Phase 2.5 list (pack as middleware polish, root
+slot, layered write policies, spec v0.5, GET `have`, remaining-budget skip)
+stays on the shelf until a real app reaches for it. Pack query opt-outs
+(`?raw=`, `?nodes=`, `?near=`) were removed on purpose.
 
 ---
 
 ## Deferred
 
-Do **not** start these until two or three apps exist and you would actually
-use one of them.
+Do **not** start these until a real app would actually use one of them.
 
 - Host collection adapters ([design/host-collection-adapters.md](design/host-collection-adapters.md))
   — JVM sugar; they cannot be the portable API (SCI has no adapters).
@@ -352,27 +366,25 @@ use one of them.
 ## Suggested order (from here)
 
 ```
-Remote config (same domain, file + HTTP)           ✓
-        → pulled: field access, get-in/assoc-in, remote root-ref
-Versioned notes (history + restore)                ✓
-        → reused: path updates, pr-str; recipe is history vector of docs
-Event log at real size                             ✓
-        → pulled: v/subvec; append cost stays flat; page < full seq on HTTP
-Two-client live                                    ✓
-        → pulled: GET /events, watch-root, ref-swap-info!
-Directory/blob sync                                ✓
-        → pulled: v/as-bytes, sync-reachable!; opaque bytes still deferred
-Value explorer                                     ✓
-        → pulled: /app/ directory index.html; browser store.cljc stubs
+Remote config … value explorer                     ✓  (claim demos)
+Invert the book for app authors                    ✓
+        → The Dacite way, anatomy, tutorials as
+          patterns, cookbook, pack/HTTP as internals
+Hold for a real app                                ← current
+        → user who would notice; public API only;
+          measure the claim; tutorial from the app
 ```
+
+Do not invent “app 7” to fill the tree.
 
 ---
 
 ## Related
 
-- [The Dacite Book](book/) — conceptual layers
+- [The Dacite Book](book/) — how to think about data and how to build apps
 - [Values API](book/reference/values.md) / [Stores API](book/reference/stores.md)
 - [stores-phase-2.md](design/stores-phase-2.md) — shipped store/transport work
-- [service.md](design/service.md) — HTTP MVP; SSE still future
+- [service.md](design/service.md) — HTTP MVP including SSE `GET /events`
+- [leaf-chunking.md](design/leaf-chunking.md) — pack literals, budget 1024
 - [value-realization-and-computation.md](design/value-realization-and-computation.md)
   — `realize`, partial availability, bounded print

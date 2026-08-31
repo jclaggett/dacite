@@ -1,5 +1,9 @@
 # Chapter 3: Values
 
+Writing an application? The public API is [Values](../reference/values.md);
+the stance is [The Dacite way](../the-dacite-way.md). This chapter is the
+representation (finger trees, HAMTs, typing).
+
 Chapter 1 gave us the **content store** — an immutable content-addressed
 map from hashes to values. Chapter 2 gave us **fuse** and three guarantees:
 content identity, tree-shape independence, and decomposability. This chapter

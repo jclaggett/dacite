@@ -1,9 +1,12 @@
-# Directory / blob sync
+# Sync a tree of blobs
 
-A host folder becomes a tree of Dacite maps and blobs. Listing a
-directory does not realize file bodies; opening one file does not pull
-its siblings. A second sync copies only missing nodes. This is the last
-application in the [roadmap](../../roadmap.md).
+You have a folder of files. Listing it must not load every body; fetching
+one file must not pull its siblings; a second copy should send nothing
+already present. Dacite’s move: a tree of maps + blobs; `ls` reads `kind`
+and `size`; `cat` is `v/as-bytes` on one blob; `sync-reachable!` copies
+missing nodes.
+
+This is a claim-proving app in the [roadmap](../../roadmap.md).
 
 You will:
 
@@ -93,4 +96,7 @@ Opaque-byte store entries stayed on the shelf — EDN file nodes are
 enough to prove the fetch claim. A later port can store raw bytes
 without changing the app.
 
-The five-app sequence is complete.
+## Next
+
+[Browse without dumping](explorer.md) — walk the root as typed values.
+[A browser app](../building/browser-app.md) — todo and explorer on HTTP.

@@ -1,9 +1,12 @@
-# Versioned notes
+# History is free
 
-A note is a Dacite map. Each edit is a **new snapshot**; unchanged fields
-keep their content hash. This is the second application in the
-[roadmap](../../roadmap.md) — the “why not just overwrite a JSON file”
-answer.
+You want every edit to remain a complete snapshot, and a title-only change
+must not rewrite the body. Dacite’s move: keep the previous **document
+value** (same hash) in a history vector; restore by installing that value
+again. Unchanged fields keep their content hash — you do not invent git.
+
+This is the second claim-proving app in the
+[roadmap](../../roadmap.md).
 
 You will:
 
@@ -74,7 +77,7 @@ Version **0** is current, **1** is the previous snapshot, and so on.
 `edited-at`, not `body`.
 
 `--path DIR` selects the store directory. The same `--url` recipe as
-[Remote config](config.md) works if the HTTP service is running.
+[Persist and update a document](config.md) works if the HTTP service is running.
 
 ## Sharing bench
 
@@ -108,5 +111,5 @@ No `dac->clj`. History is a vector of documents in the same store.
 
 ## Next
 
-[Event log](event-log.md) — append thousands of events and page them
-without realizing the whole log.
+[Large sequences stay cheap](event-log.md) — page with `subvec`; do not
+`seq` the whole log.

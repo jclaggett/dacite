@@ -1,5 +1,9 @@
 # Chapter 1: Content Stores
 
+Writing an application? Start at [The Dacite way](../the-dacite-way.md)
+and [Anatomy](../building/anatomy.md). This chapter is how a store is
+built.
+
 This chapter introduces the **content store** — the persistence layer at the bottom of Dacite. A content store is a single, simple thing:
 
 > An immutable, content-addressed dictionary: `hash → value`.

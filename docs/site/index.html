@@ -12,6 +12,7 @@
     <div class="wrap">
       <h1><a href="/">Dacite</a></h1>
       <nav>
+        <a href="/book/the-dacite-way.html">The Dacite way</a>
         <a href="/book/getting-started/install.html">Install</a>
         <a href="/book/">The Book</a>
         <a href="https://github.com/jclaggett/dacite">GitHub</a>
@@ -31,11 +32,11 @@
         caching, and transmission as efficient hash→node dictionaries.
       </p>
       <p class="cta">
+        <a class="button" href="/book/the-dacite-way.html">The Dacite way</a>
         <a class="button" href="/book/getting-started/install.html">Install</a>
-        <a class="button" href="/book/tutorial/hello-nbb.html">Hello World (nbb)</a>
+        <a class="button secondary" href="/book/building/anatomy.html">Anatomy of an app</a>
+        <a class="button secondary" href="/book/tutorial/hello-nbb.html">First values</a>
         <a class="button secondary" href="/book/reference/values.html">Values API</a>
-        <a class="button secondary" href="/book/reference/stores.html">Stores API</a>
-        <a class="button secondary" href="/book/">The Book</a>
         <a class="button secondary" href="https://github.com/jclaggett/dacite">GitHub</a>
       </p>
     </section>
@@ -71,7 +72,7 @@
           makes partial sync and incremental fetch natural when data lives across
           a network.
         </p>
-        <p><a href="/book/reference/values.html">Values API reference →</a></p>
+        <p><a href="/book/the-dacite-way.html">The Dacite way →</a></p>
       </article>
 
       <article>
@@ -94,24 +95,27 @@
     <section class="layers">
       <h3>How to write programs</h3>
       <ol>
-        <li><a href="/book/tutorial/hello-nbb.html">Hello World (nbb)</a> — constructors and hash identity</li>
-        <li><a href="/book/tutorial/config.html">Remote config</a> — same domain on file and HTTP</li>
-        <li><a href="/book/tutorial/notes.html">Versioned notes</a> — snapshots and restore</li>
-        <li><a href="/book/tutorial/event-log.html">Event log</a> — page a large sequence without realizing it</li>
-        <li><a href="/book/tutorial/two-client.html">Two-client live</a> — CAS under contention, SSE watch</li>
-        <li><a href="/book/tutorial/sync.html">Directory / blob sync</a> — list without bodies; fetch one file</li>
+        <li><a href="/book/the-dacite-way.html">The Dacite way</a> — a stance on data</li>
+        <li><a href="/book/building/anatomy.html">Anatomy of a Dacite app</a> — Values / Store split, root-ref</li>
+        <li><a href="/book/tutorial/hello-nbb.html">First values</a> — count, get, hash identity</li>
+        <li><a href="/book/tutorial/config.html">Persist and update a document</a> — same domain on file and HTTP</li>
+        <li><a href="/book/tutorial/notes.html">History is free</a> — snapshots and restore</li>
+        <li><a href="/book/tutorial/event-log.html">Large sequences stay cheap</a> — page without realizing the log</li>
+        <li><a href="/book/tutorial/two-client.html">Two writers, one CAS</a> — retries and SSE watch</li>
+        <li><a href="/book/tutorial/sync.html">Sync a tree of blobs</a> — list without bodies; fetch one file</li>
+        <li><a href="/book/building/browser-app.html">A browser app</a> — todo and explorer on HTTP</li>
       </ol>
     </section>
 
     <section class="layers">
-      <h3>Four layers</h3>
-      <ol>
-        <li><strong>Content stores</strong> — immutable persistence</li>
-        <li><strong>Hash fusion</strong> — content identity and tree independence</li>
-        <li><strong>Values</strong> — the data model your code uses</li>
-        <li><strong>Rooted stores</strong> — mutable application state and sync</li>
-      </ol>
-      <p>The <a href="/book/">Dacite Book</a> walks through each layer with intuition, API, and guarantees.</p>
+      <h3>How it works</h3>
+      <p>
+        Content stores, hash fusion, the value representation, rooted stores,
+        and pack transport live in the book’s
+        <a href="/book/01-stores/chapter.html">How it works</a> part.
+        Skip them until you are writing an app — or until you are changing
+        the library.
+      </p>
     </section>
   </main>
 

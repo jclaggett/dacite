@@ -22,14 +22,16 @@ browser), remote HTTP service (**460+ tests**). Soft pack budget default
 
 ## Documentation
 
+- **[The Dacite way](https://dacite.io/book/the-dacite-way.html)** — how to think about data ([source](docs/book/the-dacite-way.md))
+- **[Anatomy of a Dacite app](https://dacite.io/book/building/anatomy.html)** — Values / Store split, `root-ref`
 - **[Install](https://dacite.io/book/getting-started/install.html)** — nbb + JVM setup ([source](docs/book/getting-started/install.md))
-- **[Hello World (nbb)](https://dacite.io/book/tutorial/hello-nbb.html)** — five-minute tutorial
-- **[Remote config](https://dacite.io/book/tutorial/config.html)** · **[Notes](https://dacite.io/book/tutorial/notes.html)** · **[Event log](https://dacite.io/book/tutorial/event-log.html)** · **[Two-client](https://dacite.io/book/tutorial/two-client.html)** · **[Directory sync](https://dacite.io/book/tutorial/sync.html)** · **[Value explorer](https://dacite.io/book/tutorial/explorer.html)**
+- **[First values](https://dacite.io/book/tutorial/hello-nbb.html)** — five-minute tutorial
+- **[Building apps](https://dacite.io/book/building/anatomy.html)** — document · history · large seq · CAS · blobs · explorer · browser
 - **[Values](https://dacite.io/book/reference/values.html)** / **[Stores](https://dacite.io/book/reference/stores.html)** API reference
-- **[The Dacite Book](https://dacite.io/book/)** — conceptual documentation (also under [docs/book/](docs/book/))
-- **[Development dialogue](docs/development-dialogue.md)** — design history
-- **[Design docs](docs/design/)** — phase plans and service design
-- **[Portable core & host compatibility](docs/design/portable-core.md)** — running on JVM/babashka/nbb and the porting contract
+- **[The Dacite Book](https://dacite.io/book/)** — also under [docs/book/](docs/book/)
+- **[Roadmap](docs/roadmap.md)** — where we are; next is a real app
+- **[Design docs](docs/design/)** — store/transport internals
+- **[Portable core](docs/design/portable-core.md)** — JVM / babashka / nbb
 
 Build the site locally:
 

@@ -1,39 +1,49 @@
 # Summary
 
 [Preface](./00-preface.md)
+[The Dacite way](./the-dacite-way.md)
 
 ---
 
 # Getting started
 
 - [Install](./getting-started/install.md)
-- [Hello World (nbb)](./tutorial/hello-nbb.md)
-- [Remote config](./tutorial/config.md)
-- [Versioned notes](./tutorial/notes.md)
-- [Event log](./tutorial/event-log.md)
-- [Two-client live](./tutorial/two-client.md)
-- [Directory / blob sync](./tutorial/sync.md)
-- [Value explorer](./tutorial/explorer.md)
+
+# Building apps
+
+- [Anatomy of a Dacite app](./building/anatomy.md)
+- [First values](./tutorial/hello-nbb.md)
+- [Persist and update a document](./tutorial/config.md)
+- [History is free](./tutorial/notes.md)
+- [Large sequences stay cheap](./tutorial/event-log.md)
+- [Two writers, one CAS](./tutorial/two-client.md)
+- [Sync a tree of blobs](./tutorial/sync.md)
+- [Browse without dumping](./tutorial/explorer.md)
+- [A browser app](./building/browser-app.md)
+
+# Cookbook
+
+- [Read without dumping](./guide/read.md)
+- [Update and share identity](./guide/update.md)
+- [Commit loops](./guide/commit.md)
+- [Same domain, local or HTTP](./guide/local-or-http.md)
+- [What not to do](./guide/what-not-to-do.md)
 
 # Reference
 
 - [Values API](./reference/values.md)
 - [Stores API](./reference/stores.md)
+- [HTTP service](./reference/http.md)
 
 ---
 
-# Part I — Foundations
+# How it works
 
 - [Content Stores](./01-stores/chapter.md)
 - [Hash Fusion](./02-hash-fusion/chapter.md)
-
-# Part II — The Value Model
-
 - [Values](./03-values/chapter.md)
-
-# Part III — Mutable State
-
 - [Rooted Stores](./04-rooted-stores/chapter.md)
+- [Pack transport](./how-it-works/pack.md)
 
 ---
 

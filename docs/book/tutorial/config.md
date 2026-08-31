@@ -1,7 +1,11 @@
-# Remote config
+# Persist and update a document
 
-A small config map as Dacite values — the same domain against a **local
-file** store and an **HTTP** store. This is the first application in the
+You have a nested config map. You want to change one field, persist it, and
+run the **same domain** against a file or against HTTP. Dacite’s move:
+`get-in` / `assoc-in` / `native` on values, a `root-ref` for the snapshot,
+store wiring in a separate section.
+
+This example is the first claim-proving app in the
 [roadmap](../../roadmap.md): the server publishes a root hash; clients
 pull only what they need.
 
@@ -148,4 +152,4 @@ Debug printing uses `v/pr-str` or bounded `print-method`.
 
 ## Next
 
-[Versioned notes](notes.md) — treat each edit as a snapshot you can restore.
+[History is free](notes.md) — keep the previous document value; restore by hash.

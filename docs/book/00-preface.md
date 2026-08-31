@@ -1,22 +1,32 @@
 # Preface
 
-Dacite: distributed immutable data with content-addressed nodes.
+Dacite lets you write programs over **immutable values** while **stores**
+persist and transmit them. Values are content-addressed: identity is the
+hash, updates return new values, unchanged parts are shared. A rooted store
+adds one mutable root hash so a running program has a current snapshot.
 
-## Chapters (Four Layers)
-
-1. **Content Stores** — immutable content-addressed map, backends, caching.
-2. **Hash Fusion** — fuse primitive and content identity.
-3. **Values** — scalar/seq/map + types.
-4. **Rooted Stores** — mutable root ref, watches, durability, push/sync, GC.
-
-Stop after 1 (persistence), 2 (hashing), 3 (structs), 4 (mutable state + sync).
+This book is for people **writing applications**. Implementors of a new host
+or store backend will want [How it works](./01-stores/chapter.md) as well.
 
 ## Reading
 
-Sequential; SPEC.md for precision.
+1. [The Dacite way](./the-dacite-way.md) — the stance on data.
+2. [Install](./getting-started/install.md) — nbb (fastest) or JVM.
+3. [Anatomy of a Dacite app](./building/anatomy.md) — Values / Store split,
+   `root-ref`, public API.
+4. One tutorial that matches what you are building (a document, history, a
+   large sequence, two writers, blobs, a browser UI).
+5. The [cookbook](./guide/read.md) for field reads, updates, and commit loops.
+6. [Values](./reference/values.md) and [Stores](./reference/stores.md) when
+   you need a function.
+
+[How it works](./01-stores/chapter.md) is the four-layer model (content
+stores, hash fusion, values, rooted stores) plus pack transport. Skip it
+until the application recipe is clear — or until you are changing the
+library.
 
 ## For
 
-Users, implementors, designers.
+Application authors first. Implementors and designers second.
 
 *Jonathan & Gorm, 2026*

@@ -1,9 +1,13 @@
-# Two-client live
+# Two writers, one CAS
 
-Compare-and-set is the whole distributed update. Two writers append to
-the [event log](event-log.md) on one HTTP root; a third process watches
-`GET /events` and reprints when the root moves. This is the fourth
-application in the [roadmap](../../roadmap.md).
+Two processes must append without silent clobbering. Dacite’s move:
+**compare-and-set is the whole distributed update.** `ref-swap!` retries
+on conflict; SSE (`GET /events`) tells a third process the root moved.
+There is no lock and no CRDT in the core.
+
+Two writers append to the [event log](event-log.md) on one HTTP root.
+This is the fourth claim-proving app in the
+[roadmap](../../roadmap.md).
 
 You will:
 
@@ -72,4 +76,4 @@ SSE watch prove the claim; sync XHR is still the browser demo.
 
 ## Next
 
-[Directory / blob sync](sync.md) — pull only the files you open.
+[Sync a tree of blobs](sync.md) — list metadata; fetch one file.

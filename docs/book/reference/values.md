@@ -1,7 +1,9 @@
 # Values API reference (0.1 alpha)
 
 Practical API for Dacite values as implemented in the Clojure / SCI reference
-library. For design intuition, see [Values](../03-values/chapter.md).
+library. For how to *use* values, start at [The Dacite way](../the-dacite-way.md)
+and the [cookbook](../guide/read.md). Internals:
+[Values](../03-values/chapter.md).
 
 **Public namespace:** `dacite.value` (pair with `dacite.store` for stores).
 
@@ -171,11 +173,7 @@ Example:
 ## Related
 
 - [Stores API](stores.md)
-- [Hello World (nbb)](../tutorial/hello-nbb.md)
-- [Remote config](../tutorial/config.md)
-- [Versioned notes](../tutorial/notes.md)
-- [Event log](../tutorial/event-log.md)
-- [Two-client live](../tutorial/two-client.md)
-- [Directory / blob sync](../tutorial/sync.md)
-- [Value explorer](../tutorial/explorer.md)
+- [The Dacite way](../the-dacite-way.md)
+- [Anatomy of a Dacite app](../building/anatomy.md)
+- [Cookbook](../guide/read.md)
 - [Install](../getting-started/install.md)

@@ -1,8 +1,8 @@
 # Dacite Service Design
 
 **Status:** MVP implemented — HTTP protocol for remote stores; leaf-chunking
-pack paths and measured soft budget (**1024**) are live. Productization
-(multi-user auth/provisioning) remains open.
+pack paths and measured soft budget (**1024**) are live; SSE `GET /events`
+is live. Productization (multi-user auth/provisioning) remains open.
 
 **Supersedes:** archived `dacite.server` + `dacite.service` root semantics (those used ad-hoc meta-db roots; new service uses `dacite.rooted`).
 

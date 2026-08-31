@@ -1,9 +1,12 @@
-# Value explorer
+# Browse without dumping
 
-A web UI that shows the **root value** of a rooted store as a tree.
-This is the sixth application in the [roadmap](../../roadmap.md): **lazy
-access** — expand a collection, fetch that neighborhood, never dump the
-whole tree.
+You want to see the current root as **typed values**, expand a collection,
+and not download the whole tree. Dacite’s move: walk with `value-type`,
+`count`, `nth`, paged `seq`; never `dac->clj`. HTTP `GET /node` returns a
+packed neighborhood; the UI then walks values locally.
+
+This is the sixth claim-proving app in the
+[roadmap](../../roadmap.md).
 
 You will:
 
@@ -101,7 +104,6 @@ walk.
 
 ## Related
 
+- [A browser app](../building/browser-app.md) — todo + explorer on one service
 - [Values API](../reference/values.md)
-- [Stores API](../reference/stores.md)
-- [Browser todo](https://github.com/jclaggett/dacite/blob/main/examples/web/README.md)
-- [Directory / blob sync](sync.md) — another tree; `ls` without bodies
+- [Anatomy of a Dacite app](../building/anatomy.md)

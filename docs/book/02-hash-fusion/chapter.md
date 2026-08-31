@@ -1,5 +1,8 @@
 # Chapter 2: Hash Fusion
 
+Writing an application? Start at [The Dacite way](../the-dacite-way.md).
+This chapter is how content hashes are formed.
+
 Chapter 1 introduced **content stores** — an immutable map from content
 hashes to serialized values. Every node in that map is keyed by its hash.
 This chapter defines how those hashes are formed.

@@ -1,5 +1,9 @@
 # Chapter 4: Rooted Stores
 
+Writing an application? Use `root-ref` / `ref-swap!` — see
+[Commit loops](../guide/commit.md). This chapter is the rooted-store
+contract (CAS, watches, GC).
+
 The first three chapters describe an entirely immutable world. A content store (Chapter 1) is a dictionary that only grows; hash fusion (Chapter 2) gives every piece of content a permanent identity; values (Chapter 3) are trees of nodes stored under those hashes. Nothing there ever changes — a value, once stored, is stored forever.
 
 But useful systems change over time. A configuration is edited, a document is revised, a peer learns that "the current state" is now something new. Dacite expresses all of that with **one** mutable cell layered on top of the immutable world:

@@ -1,8 +1,11 @@
-# Event log
+# Large sequences stay cheap
 
-An append-only vector of events plus a derived view. This is the third
-application in the [roadmap](../../roadmap.md): **large sequences stay
-cheap to append, and you need not realize the whole log.**
+You have thousands of events. You need a page of them and a derived balance,
+not the whole log in RAM. Dacite’s move: `v/subvec` and `nth` on a vector;
+append is `conj`. Do not `seq` the log to print page 0.
+
+This is the third claim-proving app in the
+[roadmap](../../roadmap.md).
 
 You will:
 
@@ -67,7 +70,7 @@ clojure -M:log -- replay 100
 `page` prints a window and its content hash. `replay 100` replaces the
 view with a fold of the first 100 events.
 
-The same `--url` recipe as [Remote config](config.md) works against
+The same `--url` recipe as [Persist and update a document](config.md) works against
 `clojure -M:service`.
 
 ## Append bench
@@ -105,5 +108,5 @@ until a remote page actually needs a catchable “not local” signal.
 
 ## Next
 
-[Two-client live](two-client.md) — CAS retry and a watch across two
-writers.
+[Two writers, one CAS](two-client.md) — `ref-swap!` retries; SSE watches
+the root.

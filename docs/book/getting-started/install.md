@@ -1,8 +1,11 @@
 # Install
 
-This page is the supported on-ramp for **Dacite 0.1 alpha**. The library lives
-in a monorepo under `impl/clojure`; for alpha we recommend a clone plus either
-**nbb** (fastest) or **tools.deps** with `:local/root`.
+This page is the supported on-ramp for **Dacite 0.1 alpha**. Read
+[The Dacite way](../the-dacite-way.md) for the stance on data, then come
+back here to run something.
+
+The library lives in a monorepo under `impl/clojure`; for alpha we recommend
+a clone plus either **nbb** (fastest) or **tools.deps** with `:local/root`.
 
 Alpha means: useful for experiments; APIs may still change. Pin a git tag or SHA.
 
@@ -55,7 +58,7 @@ npx nbb -e "(require '[dacite.store :as store]
               (println (store/hash->hex (v/dacite-hash vec))))"
 ```
 
-See [Hello World (nbb)](../tutorial/hello-nbb.md) for a guided walkthrough.
+See [First values](../tutorial/hello-nbb.md) for a guided walkthrough.
 
 ## JVM (tools.deps)
 
@@ -116,9 +119,8 @@ Pack GET/POST use **wire-v1 binary** by default.
 
 ## Next steps
 
-- [Hello World (nbb)](../tutorial/hello-nbb.md)
-- [Value explorer](../tutorial/explorer.md)
-- [Values API reference](../reference/values.md)
-- [Stores API reference](../reference/stores.md)
-- [The Dacite Book](../00-preface.md) — conceptual foundations
+- [The Dacite way](../the-dacite-way.md) — how to think about data
+- [Anatomy of a Dacite app](../building/anatomy.md) — Values / Store split
+- [First values](../tutorial/hello-nbb.md)
+- [Values API](../reference/values.md) / [Stores API](../reference/stores.md)
 - [CHANGELOG](https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md) — alpha scope and known limits

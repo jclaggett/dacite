@@ -1,7 +1,10 @@
-# Hello World (nbb)
+# First values
 
-Build a Dacite vector and map in memory, print their sizes and content hashes,
-in about five minutes. No JVM required.
+You want a small vector and a map, their sizes, and a stable identity —
+without a file or a server. Build them as Dacite values. **Count**, **get**,
+and the **content hash** are the whole API you need here.
+
+Five minutes. nbb only; no JVM.
 
 ## Prerequisites
 
@@ -83,6 +86,6 @@ npx nbb -e "
 
 ## Next steps
 
-- [Values API](../reference/values.md) — constructors, `*-via`, root-ref, collection ops
-- [Stores API](../reference/stores.md) — mem, file, rooted stores
-- [Install](../getting-started/install.md) — JVM and other hosts
+- [Anatomy of a Dacite app](../building/anatomy.md) — add a root and persist
+- [Persist and update a document](config.md) — nested map, file or HTTP
+- [Values API](../reference/values.md) — constructors, `*-via`, collection ops

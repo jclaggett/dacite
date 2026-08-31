@@ -1,8 +1,10 @@
 # Stores API reference (0.1 alpha)
 
 Practical API for content stores and client composition in the reference
-implementation. For design background, see [Content Stores](../01-stores/chapter.md)
-and [Rooted Stores](../04-rooted-stores/chapter.md).
+implementation. App wiring: [Anatomy](../building/anatomy.md) and
+[Same domain, local or HTTP](../guide/local-or-http.md). Internals:
+[Content Stores](../01-stores/chapter.md),
+[Rooted Stores](../04-rooted-stores/chapter.md).
 
 ## `IStore` protocol
 
@@ -155,5 +157,6 @@ Service dual-stack: `dacite.service` honors `Content-Type` / `Accept`.
 ## Related
 
 - [Values API](values.md)
+- [HTTP service](http.md)
+- [Anatomy of a Dacite app](../building/anatomy.md)
 - [Install](../getting-started/install.md)
-- [Hello World (nbb)](../tutorial/hello-nbb.md)

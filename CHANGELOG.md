@@ -6,6 +6,13 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### Documentation
+
+- Book inverted for app authors: [The Dacite way](docs/book/the-dacite-way.md)
+  and [Anatomy of a Dacite app](docs/book/building/anatomy.md) lead;
+  tutorials teach patterns; cookbook; chapters 1–4 plus pack/HTTP are
+  How it works / reference. Roadmap (2026-08-31): then hold for a real app.
+
 ### Value explorer
 
 - **`dacite.examples.explorer`** — web tree of the current rooted-store
