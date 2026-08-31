@@ -40291,7 +40291,7 @@ dacite.store.hash__GT_hex = dacite.hash.hash__GT_hex;
 dacite.store.hex__GT_hash = dacite.hash.hex__GT_hash;
 dacite.store.IStore = function() {
 };
-var dacite$store$IStore$s_get$dyn_3910 = function(this$, h) {
+var dacite$store$IStore$s_get$dyn_1090 = function(this$, h) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.store.s_get[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -40309,10 +40309,10 @@ dacite.store.s_get = function dacite$store$s_get(this$, h) {
   if (!(this$ == null) && !(this$.dacite$store$IStore$s_get$arity$2 == null)) {
     return this$.dacite$store$IStore$s_get$arity$2(this$, h);
   } else {
-    return dacite$store$IStore$s_get$dyn_3910.call(null, this$, h);
+    return dacite$store$IStore$s_get$dyn_1090.call(null, this$, h);
   }
 };
-var dacite$store$IStore$s_put$dyn_3911 = function(this$, h, value) {
+var dacite$store$IStore$s_put$dyn_1091 = function(this$, h, value) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.store.s_put[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -40330,10 +40330,10 @@ dacite.store.s_put = function dacite$store$s_put(this$, h, value) {
   if (!(this$ == null) && !(this$.dacite$store$IStore$s_put$arity$3 == null)) {
     return this$.dacite$store$IStore$s_put$arity$3(this$, h, value);
   } else {
-    return dacite$store$IStore$s_put$dyn_3911.call(null, this$, h, value);
+    return dacite$store$IStore$s_put$dyn_1091.call(null, this$, h, value);
   }
 };
-var dacite$store$IStore$s_has_QMARK_$dyn_3912 = function(this$, h) {
+var dacite$store$IStore$s_has_QMARK_$dyn_1092 = function(this$, h) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.store.s_has_QMARK_[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -40351,10 +40351,10 @@ dacite.store.s_has_QMARK_ = function dacite$store$s_has_QMARK_(this$, h) {
   if (!(this$ == null) && !(this$.dacite$store$IStore$s_has_QMARK_$arity$2 == null)) {
     return this$.dacite$store$IStore$s_has_QMARK_$arity$2(this$, h);
   } else {
-    return dacite$store$IStore$s_has_QMARK_$dyn_3912.call(null, this$, h);
+    return dacite$store$IStore$s_has_QMARK_$dyn_1092.call(null, this$, h);
   }
 };
-var dacite$store$IStore$s_delete$dyn_3913 = function(this$, h) {
+var dacite$store$IStore$s_delete$dyn_1093 = function(this$, h) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.store.s_delete[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -40372,10 +40372,10 @@ dacite.store.s_delete = function dacite$store$s_delete(this$, h) {
   if (!(this$ == null) && !(this$.dacite$store$IStore$s_delete$arity$2 == null)) {
     return this$.dacite$store$IStore$s_delete$arity$2(this$, h);
   } else {
-    return dacite$store$IStore$s_delete$dyn_3913.call(null, this$, h);
+    return dacite$store$IStore$s_delete$dyn_1093.call(null, this$, h);
   }
 };
-var dacite$store$IStore$s_snapshot$dyn_3914 = function(this$) {
+var dacite$store$IStore$s_snapshot$dyn_1094 = function(this$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.store.s_snapshot[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -40393,10 +40393,10 @@ dacite.store.s_snapshot = function dacite$store$s_snapshot(this$) {
   if (!(this$ == null) && !(this$.dacite$store$IStore$s_snapshot$arity$1 == null)) {
     return this$.dacite$store$IStore$s_snapshot$arity$1(this$);
   } else {
-    return dacite$store$IStore$s_snapshot$dyn_3914.call(null, this$);
+    return dacite$store$IStore$s_snapshot$dyn_1094.call(null, this$);
   }
 };
-var dacite$store$IStore$s_merge$dyn_3915 = function(this$, m) {
+var dacite$store$IStore$s_merge$dyn_1095 = function(this$, m) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.store.s_merge[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -40414,10 +40414,10 @@ dacite.store.s_merge = function dacite$store$s_merge(this$, m) {
   if (!(this$ == null) && !(this$.dacite$store$IStore$s_merge$arity$2 == null)) {
     return this$.dacite$store$IStore$s_merge$arity$2(this$, m);
   } else {
-    return dacite$store$IStore$s_merge$dyn_3915.call(null, this$, m);
+    return dacite$store$IStore$s_merge$dyn_1095.call(null, this$, m);
   }
 };
-var dacite$store$IStore$s_reset$dyn_3916 = function(this$) {
+var dacite$store$IStore$s_reset$dyn_1096 = function(this$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.store.s_reset[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -40435,7 +40435,7 @@ dacite.store.s_reset = function dacite$store$s_reset(this$) {
   if (!(this$ == null) && !(this$.dacite$store$IStore$s_reset$arity$1 == null)) {
     return this$.dacite$store$IStore$s_reset$arity$1(this$);
   } else {
-    return dacite$store$IStore$s_reset$dyn_3916.call(null, this$);
+    return dacite$store$IStore$s_reset$dyn_1096.call(null, this$);
   }
 };
 dacite.store.mkey = function dacite$store$mkey(h) {
@@ -40454,26 +40454,26 @@ dacite.store.MemStore.prototype.cljs$core$ILookup$_lookup$arity$2 = function(thi
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.store.MemStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k3918, else__5303__auto__) {
+dacite.store.MemStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k1098, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__3922 = k3918;
-  var G__3922__$1 = G__3922 instanceof cljs.core.Keyword ? G__3922.fqn : null;
-  switch(G__3922__$1) {
+  var G__1102 = k1098;
+  var G__1102__$1 = G__1102 instanceof cljs.core.Keyword ? G__1102.fqn : null;
+  switch(G__1102__$1) {
     case "data":
       return self__.data;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k3918, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k1098, else__5303__auto__);
   }
 };
 dacite.store.MemStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__3923) {
-    var vec__3924 = p__3923;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__3924, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__3924, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__1103) {
+    var vec__1104 = p__1103;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__1104, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__1104, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -40485,10 +40485,10 @@ dacite.store.MemStore.prototype.cljs$core$IPrintWithWriter$_pr_writer$arity$3 = 
   };
   return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.MemStore{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "data", "data", -232669377), self__.data], null)], null), self__.__extmap));
 };
-dacite.store.MemStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__3917) {
+dacite.store.MemStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__1097) {
   var self__ = this;
-  var G__3917__$1 = this;
-  return new cljs.core.RecordIter(0, G__3917__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "data", "data", -232669377)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+  var G__1097__$1 = this;
+  return new cljs.core.RecordIter(0, G__1097__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "data", "data", -232669377)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.store.MemStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
   var self__ = this;
@@ -40519,10 +40519,10 @@ dacite.store.MemStore.prototype.cljs$core$IHash$_hash$arity$1 = function(this__5
     return h__5111__auto____$1;
   }
 };
-dacite.store.MemStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this3919, other3920) {
+dacite.store.MemStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this1099, other1100) {
   var self__ = this;
-  var this3919__$1 = this;
-  return !(other3920 == null) && (this3919__$1.constructor === other3920.constructor && (cljs.core._EQ_.call(null, this3919__$1.data, other3920.data) && cljs.core._EQ_.call(null, this3919__$1.__extmap, other3920.__extmap)));
+  var this1099__$1 = this;
+  return !(other1100 == null) && (this1099__$1.constructor === other1100.constructor && (cljs.core._EQ_.call(null, this1099__$1.data, other1100.data) && cljs.core._EQ_.call(null, this1099__$1.__extmap, other1100.__extmap)));
 };
 dacite.store.MemStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
 dacite.store.MemStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
@@ -40573,28 +40573,28 @@ dacite.store.MemStore.prototype.cljs$core$IMap$_dissoc$arity$2 = function(this__
     return new dacite.store.MemStore(self__.data, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.store.MemStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k3918) {
+dacite.store.MemStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k1098) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__3927 = k3918;
-  var G__3927__$1 = G__3927 instanceof cljs.core.Keyword ? G__3927.fqn : null;
-  switch(G__3927__$1) {
+  var G__1107 = k1098;
+  var G__1107__$1 = G__1107 instanceof cljs.core.Keyword ? G__1107.fqn : null;
+  switch(G__1107__$1) {
     case "data":
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k3918);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k1098);
   }
 };
-dacite.store.MemStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__3917) {
+dacite.store.MemStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__1097) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__3928 = cljs.core.keyword_identical_QMARK_;
-  var expr__3929 = k__5309__auto__;
-  if (cljs.core.truth_(pred__3928.call(null, new cljs.core.Keyword(null, "data", "data", -232669377), expr__3929))) {
-    return new dacite.store.MemStore(G__3917, self__.__meta, self__.__extmap, null);
+  var pred__1108 = cljs.core.keyword_identical_QMARK_;
+  var expr__1109 = k__5309__auto__;
+  if (cljs.core.truth_(pred__1108.call(null, new cljs.core.Keyword(null, "data", "data", -232669377), expr__1109))) {
+    return new dacite.store.MemStore(G__1097, self__.__meta, self__.__extmap, null);
   } else {
-    return new dacite.store.MemStore(self__.data, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__3917), null);
+    return new dacite.store.MemStore(self__.data, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__1097), null);
   }
 };
 dacite.store.MemStore.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this__5313__auto__) {
@@ -40602,10 +40602,10 @@ dacite.store.MemStore.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this_
   var this__5313__auto____$1 = this;
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "data", "data", -232669377), self__.data, null)], null), self__.__extmap));
 };
-dacite.store.MemStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__3917) {
+dacite.store.MemStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__1097) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.store.MemStore(self__.data, G__3917, self__.__extmap, self__.__hash);
+  return new dacite.store.MemStore(self__.data, G__1097, self__.__extmap, self__.__hash);
 };
 dacite.store.MemStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -40629,20 +40629,20 @@ dacite.store.MemStore.cljs$lang$ctorPrWriter = function(this__5346__auto__, writ
 dacite.store.__GT_MemStore = function dacite$store$__GT_MemStore(data) {
   return new dacite.store.MemStore(data, null, null, null);
 };
-dacite.store.map__GT_MemStore = function dacite$store$map__GT_MemStore(G__3921) {
+dacite.store.map__GT_MemStore = function dacite$store$map__GT_MemStore(G__1101) {
   var extmap__5342__auto__ = function() {
-    var G__3931 = cljs.core.dissoc.call(null, G__3921, new cljs.core.Keyword(null, "data", "data", -232669377));
-    if (cljs.core.record_QMARK_.call(null, G__3921)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__3931);
+    var G__1111 = cljs.core.dissoc.call(null, G__1101, new cljs.core.Keyword(null, "data", "data", -232669377));
+    if (cljs.core.record_QMARK_.call(null, G__1101)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__1111);
     } else {
-      return G__3931;
+      return G__1111;
     }
   }();
-  return new dacite.store.MemStore((new cljs.core.Keyword(null, "data", "data", -232669377)).cljs$core$IFn$_invoke$arity$1(G__3921), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.store.MemStore((new cljs.core.Keyword(null, "data", "data", -232669377)).cljs$core$IFn$_invoke$arity$1(G__1101), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.store.mem_store = function dacite$store$mem_store(var_args) {
-  var G__3935 = arguments.length;
-  switch(G__3935) {
+  var G__1115 = arguments.length;
+  switch(G__1115) {
     case 0:
       return dacite.store.mem_store.cljs$core$IFn$_invoke$arity$0();
       break;
@@ -40673,26 +40673,26 @@ dacite.store.LayeredStore.prototype.cljs$core$ILookup$_lookup$arity$2 = function
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.store.LayeredStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k3939, else__5303__auto__) {
+dacite.store.LayeredStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k1119, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__3943 = k3939;
-  var G__3943__$1 = G__3943 instanceof cljs.core.Keyword ? G__3943.fqn : null;
-  switch(G__3943__$1) {
+  var G__1123 = k1119;
+  var G__1123__$1 = G__1123 instanceof cljs.core.Keyword ? G__1123.fqn : null;
+  switch(G__1123__$1) {
     case "layers":
       return self__.layers;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k3939, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k1119, else__5303__auto__);
   }
 };
 dacite.store.LayeredStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__3944) {
-    var vec__3945 = p__3944;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__3945, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__3945, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__1124) {
+    var vec__1125 = p__1124;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__1125, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__1125, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -40704,10 +40704,10 @@ dacite.store.LayeredStore.prototype.cljs$core$IPrintWithWriter$_pr_writer$arity$
   };
   return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.LayeredStore{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "layers", "layers", 1944875032), self__.layers], null)], null), self__.__extmap));
 };
-dacite.store.LayeredStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__3938) {
+dacite.store.LayeredStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__1118) {
   var self__ = this;
-  var G__3938__$1 = this;
-  return new cljs.core.RecordIter(0, G__3938__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "layers", "layers", 1944875032)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+  var G__1118__$1 = this;
+  return new cljs.core.RecordIter(0, G__1118__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "layers", "layers", 1944875032)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.store.LayeredStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
   var self__ = this;
@@ -40738,80 +40738,80 @@ dacite.store.LayeredStore.prototype.cljs$core$IHash$_hash$arity$1 = function(thi
     return h__5111__auto____$1;
   }
 };
-dacite.store.LayeredStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this3940, other3941) {
+dacite.store.LayeredStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this1120, other1121) {
   var self__ = this;
-  var this3940__$1 = this;
-  return !(other3941 == null) && (this3940__$1.constructor === other3941.constructor && (cljs.core._EQ_.call(null, this3940__$1.layers, other3941.layers) && cljs.core._EQ_.call(null, this3940__$1.__extmap, other3941.__extmap)));
+  var this1120__$1 = this;
+  return !(other1121 == null) && (this1120__$1.constructor === other1121.constructor && (cljs.core._EQ_.call(null, this1120__$1.layers, other1121.layers) && cljs.core._EQ_.call(null, this1120__$1.__extmap, other1121.__extmap)));
 };
 dacite.store.LayeredStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
 dacite.store.LayeredStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
   var self__ = this;
   var ___$1 = this;
   var seen = cljs.core.PersistentVector.EMPTY;
-  var G__3951 = self__.layers;
-  var vec__3952 = G__3951;
-  var seq__3953 = cljs.core.seq.call(null, vec__3952);
-  var first__3954 = cljs.core.first.call(null, seq__3953);
-  var seq__3953__$1 = cljs.core.next.call(null, seq__3953);
-  var layer = first__3954;
-  var more = seq__3953__$1;
+  var G__1131 = self__.layers;
+  var vec__1132 = G__1131;
+  var seq__1133 = cljs.core.seq.call(null, vec__1132);
+  var first__1134 = cljs.core.first.call(null, seq__1133);
+  var seq__1133__$1 = cljs.core.next.call(null, seq__1133);
+  var layer = first__1134;
+  var more = seq__1133__$1;
   var seen__$1 = seen;
-  var G__3951__$1 = G__3951;
+  var G__1131__$1 = G__1131;
   while (true) {
     var seen__$2 = seen__$1;
-    var vec__3962 = G__3951__$1;
-    var seq__3963 = cljs.core.seq.call(null, vec__3962);
-    var first__3964 = cljs.core.first.call(null, seq__3963);
-    var seq__3963__$1 = cljs.core.next.call(null, seq__3963);
-    var layer__$1 = first__3964;
-    var more__$1 = seq__3963__$1;
+    var vec__1142 = G__1131__$1;
+    var seq__1143 = cljs.core.seq.call(null, vec__1142);
+    var first__1144 = cljs.core.first.call(null, seq__1143);
+    var seq__1143__$1 = cljs.core.next.call(null, seq__1143);
+    var layer__$1 = first__1144;
+    var more__$1 = seq__1143__$1;
     if (cljs.core.truth_(layer__$1)) {
       var temp__5823__auto__ = dacite.store.s_get.call(null, layer__$1, h);
       if (cljs.core.truth_(temp__5823__auto__)) {
         var v = temp__5823__auto__;
-        var seq__3965_3991 = cljs.core.seq.call(null, seen__$2);
-        var chunk__3966_3992 = null;
-        var count__3967_3993 = 0;
-        var i__3968_3994 = 0;
+        var seq__1145_1171 = cljs.core.seq.call(null, seen__$2);
+        var chunk__1146_1172 = null;
+        var count__1147_1173 = 0;
+        var i__1148_1174 = 0;
         while (true) {
-          if (i__3968_3994 < count__3967_3993) {
-            var faster_3995 = cljs.core._nth.call(null, chunk__3966_3992, i__3968_3994);
-            dacite.store.s_put.call(null, faster_3995, h, v);
-            var G__3996 = seq__3965_3991;
-            var G__3997 = chunk__3966_3992;
-            var G__3998 = count__3967_3993;
-            var G__3999 = i__3968_3994 + 1;
-            seq__3965_3991 = G__3996;
-            chunk__3966_3992 = G__3997;
-            count__3967_3993 = G__3998;
-            i__3968_3994 = G__3999;
+          if (i__1148_1174 < count__1147_1173) {
+            var faster_1175 = cljs.core._nth.call(null, chunk__1146_1172, i__1148_1174);
+            dacite.store.s_put.call(null, faster_1175, h, v);
+            var G__1176 = seq__1145_1171;
+            var G__1177 = chunk__1146_1172;
+            var G__1178 = count__1147_1173;
+            var G__1179 = i__1148_1174 + 1;
+            seq__1145_1171 = G__1176;
+            chunk__1146_1172 = G__1177;
+            count__1147_1173 = G__1178;
+            i__1148_1174 = G__1179;
             continue;
           } else {
-            var temp__5825__auto___4000 = cljs.core.seq.call(null, seq__3965_3991);
-            if (temp__5825__auto___4000) {
-              var seq__3965_4001__$1 = temp__5825__auto___4000;
-              if (cljs.core.chunked_seq_QMARK_.call(null, seq__3965_4001__$1)) {
-                var c__5525__auto___4002 = cljs.core.chunk_first.call(null, seq__3965_4001__$1);
-                var G__4003 = cljs.core.chunk_rest.call(null, seq__3965_4001__$1);
-                var G__4004 = c__5525__auto___4002;
-                var G__4005 = cljs.core.count.call(null, c__5525__auto___4002);
-                var G__4006 = 0;
-                seq__3965_3991 = G__4003;
-                chunk__3966_3992 = G__4004;
-                count__3967_3993 = G__4005;
-                i__3968_3994 = G__4006;
+            var temp__5825__auto___1180 = cljs.core.seq.call(null, seq__1145_1171);
+            if (temp__5825__auto___1180) {
+              var seq__1145_1181__$1 = temp__5825__auto___1180;
+              if (cljs.core.chunked_seq_QMARK_.call(null, seq__1145_1181__$1)) {
+                var c__5525__auto___1182 = cljs.core.chunk_first.call(null, seq__1145_1181__$1);
+                var G__1183 = cljs.core.chunk_rest.call(null, seq__1145_1181__$1);
+                var G__1184 = c__5525__auto___1182;
+                var G__1185 = cljs.core.count.call(null, c__5525__auto___1182);
+                var G__1186 = 0;
+                seq__1145_1171 = G__1183;
+                chunk__1146_1172 = G__1184;
+                count__1147_1173 = G__1185;
+                i__1148_1174 = G__1186;
                 continue;
               } else {
-                var faster_4007 = cljs.core.first.call(null, seq__3965_4001__$1);
-                dacite.store.s_put.call(null, faster_4007, h, v);
-                var G__4008 = cljs.core.next.call(null, seq__3965_4001__$1);
-                var G__4009 = null;
-                var G__4010 = 0;
-                var G__4011 = 0;
-                seq__3965_3991 = G__4008;
-                chunk__3966_3992 = G__4009;
-                count__3967_3993 = G__4010;
-                i__3968_3994 = G__4011;
+                var faster_1187 = cljs.core.first.call(null, seq__1145_1181__$1);
+                dacite.store.s_put.call(null, faster_1187, h, v);
+                var G__1188 = cljs.core.next.call(null, seq__1145_1181__$1);
+                var G__1189 = null;
+                var G__1190 = 0;
+                var G__1191 = 0;
+                seq__1145_1171 = G__1188;
+                chunk__1146_1172 = G__1189;
+                count__1147_1173 = G__1190;
+                i__1148_1174 = G__1191;
                 continue;
               }
             } else {
@@ -40821,10 +40821,10 @@ dacite.store.LayeredStore.prototype.dacite$store$IStore$s_get$arity$2 = function
         }
         return v;
       } else {
-        var G__4012 = cljs.core.conj.call(null, seen__$2, layer__$1);
-        var G__4013 = more__$1;
-        seen__$1 = G__4012;
-        G__3951__$1 = G__4013;
+        var G__1192 = cljs.core.conj.call(null, seen__$2, layer__$1);
+        var G__1193 = more__$1;
+        seen__$1 = G__1192;
+        G__1131__$1 = G__1193;
         continue;
       }
     } else {
@@ -40836,49 +40836,49 @@ dacite.store.LayeredStore.prototype.dacite$store$IStore$s_get$arity$2 = function
 dacite.store.LayeredStore.prototype.dacite$store$IStore$s_put$arity$3 = function(this$, h, value) {
   var self__ = this;
   var this$__$1 = this;
-  var seq__3969_4014 = cljs.core.seq.call(null, self__.layers);
-  var chunk__3970_4015 = null;
-  var count__3971_4016 = 0;
-  var i__3972_4017 = 0;
+  var seq__1149_1194 = cljs.core.seq.call(null, self__.layers);
+  var chunk__1150_1195 = null;
+  var count__1151_1196 = 0;
+  var i__1152_1197 = 0;
   while (true) {
-    if (i__3972_4017 < count__3971_4016) {
-      var layer_4018 = cljs.core._nth.call(null, chunk__3970_4015, i__3972_4017);
-      dacite.store.s_put.call(null, layer_4018, h, value);
-      var G__4019 = seq__3969_4014;
-      var G__4020 = chunk__3970_4015;
-      var G__4021 = count__3971_4016;
-      var G__4022 = i__3972_4017 + 1;
-      seq__3969_4014 = G__4019;
-      chunk__3970_4015 = G__4020;
-      count__3971_4016 = G__4021;
-      i__3972_4017 = G__4022;
+    if (i__1152_1197 < count__1151_1196) {
+      var layer_1198 = cljs.core._nth.call(null, chunk__1150_1195, i__1152_1197);
+      dacite.store.s_put.call(null, layer_1198, h, value);
+      var G__1199 = seq__1149_1194;
+      var G__1200 = chunk__1150_1195;
+      var G__1201 = count__1151_1196;
+      var G__1202 = i__1152_1197 + 1;
+      seq__1149_1194 = G__1199;
+      chunk__1150_1195 = G__1200;
+      count__1151_1196 = G__1201;
+      i__1152_1197 = G__1202;
       continue;
     } else {
-      var temp__5825__auto___4023 = cljs.core.seq.call(null, seq__3969_4014);
-      if (temp__5825__auto___4023) {
-        var seq__3969_4024__$1 = temp__5825__auto___4023;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__3969_4024__$1)) {
-          var c__5525__auto___4025 = cljs.core.chunk_first.call(null, seq__3969_4024__$1);
-          var G__4026 = cljs.core.chunk_rest.call(null, seq__3969_4024__$1);
-          var G__4027 = c__5525__auto___4025;
-          var G__4028 = cljs.core.count.call(null, c__5525__auto___4025);
-          var G__4029 = 0;
-          seq__3969_4014 = G__4026;
-          chunk__3970_4015 = G__4027;
-          count__3971_4016 = G__4028;
-          i__3972_4017 = G__4029;
+      var temp__5825__auto___1203 = cljs.core.seq.call(null, seq__1149_1194);
+      if (temp__5825__auto___1203) {
+        var seq__1149_1204__$1 = temp__5825__auto___1203;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1149_1204__$1)) {
+          var c__5525__auto___1205 = cljs.core.chunk_first.call(null, seq__1149_1204__$1);
+          var G__1206 = cljs.core.chunk_rest.call(null, seq__1149_1204__$1);
+          var G__1207 = c__5525__auto___1205;
+          var G__1208 = cljs.core.count.call(null, c__5525__auto___1205);
+          var G__1209 = 0;
+          seq__1149_1194 = G__1206;
+          chunk__1150_1195 = G__1207;
+          count__1151_1196 = G__1208;
+          i__1152_1197 = G__1209;
           continue;
         } else {
-          var layer_4030 = cljs.core.first.call(null, seq__3969_4024__$1);
-          dacite.store.s_put.call(null, layer_4030, h, value);
-          var G__4031 = cljs.core.next.call(null, seq__3969_4024__$1);
-          var G__4032 = null;
-          var G__4033 = 0;
-          var G__4034 = 0;
-          seq__3969_4014 = G__4031;
-          chunk__3970_4015 = G__4032;
-          count__3971_4016 = G__4033;
-          i__3972_4017 = G__4034;
+          var layer_1210 = cljs.core.first.call(null, seq__1149_1204__$1);
+          dacite.store.s_put.call(null, layer_1210, h, value);
+          var G__1211 = cljs.core.next.call(null, seq__1149_1204__$1);
+          var G__1212 = null;
+          var G__1213 = 0;
+          var G__1214 = 0;
+          seq__1149_1194 = G__1211;
+          chunk__1150_1195 = G__1212;
+          count__1151_1196 = G__1213;
+          i__1152_1197 = G__1214;
           continue;
         }
       } else {
@@ -40891,56 +40891,56 @@ dacite.store.LayeredStore.prototype.dacite$store$IStore$s_put$arity$3 = function
 dacite.store.LayeredStore.prototype.dacite$store$IStore$s_has_QMARK_$arity$2 = function(_, h) {
   var self__ = this;
   var ___$1 = this;
-  return cljs.core.some.call(null, function(p1__3937_SHARP_) {
-    return dacite.store.s_has_QMARK_.call(null, p1__3937_SHARP_, h);
+  return cljs.core.some.call(null, function(p1__1117_SHARP_) {
+    return dacite.store.s_has_QMARK_.call(null, p1__1117_SHARP_, h);
   }, self__.layers);
 };
 dacite.store.LayeredStore.prototype.dacite$store$IStore$s_delete$arity$2 = function(this$, h) {
   var self__ = this;
   var this$__$1 = this;
-  var seq__3973_4035 = cljs.core.seq.call(null, self__.layers);
-  var chunk__3974_4036 = null;
-  var count__3975_4037 = 0;
-  var i__3976_4038 = 0;
+  var seq__1153_1215 = cljs.core.seq.call(null, self__.layers);
+  var chunk__1154_1216 = null;
+  var count__1155_1217 = 0;
+  var i__1156_1218 = 0;
   while (true) {
-    if (i__3976_4038 < count__3975_4037) {
-      var layer_4039 = cljs.core._nth.call(null, chunk__3974_4036, i__3976_4038);
-      dacite.store.s_delete.call(null, layer_4039, h);
-      var G__4040 = seq__3973_4035;
-      var G__4041 = chunk__3974_4036;
-      var G__4042 = count__3975_4037;
-      var G__4043 = i__3976_4038 + 1;
-      seq__3973_4035 = G__4040;
-      chunk__3974_4036 = G__4041;
-      count__3975_4037 = G__4042;
-      i__3976_4038 = G__4043;
+    if (i__1156_1218 < count__1155_1217) {
+      var layer_1219 = cljs.core._nth.call(null, chunk__1154_1216, i__1156_1218);
+      dacite.store.s_delete.call(null, layer_1219, h);
+      var G__1220 = seq__1153_1215;
+      var G__1221 = chunk__1154_1216;
+      var G__1222 = count__1155_1217;
+      var G__1223 = i__1156_1218 + 1;
+      seq__1153_1215 = G__1220;
+      chunk__1154_1216 = G__1221;
+      count__1155_1217 = G__1222;
+      i__1156_1218 = G__1223;
       continue;
     } else {
-      var temp__5825__auto___4044 = cljs.core.seq.call(null, seq__3973_4035);
-      if (temp__5825__auto___4044) {
-        var seq__3973_4045__$1 = temp__5825__auto___4044;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__3973_4045__$1)) {
-          var c__5525__auto___4046 = cljs.core.chunk_first.call(null, seq__3973_4045__$1);
-          var G__4047 = cljs.core.chunk_rest.call(null, seq__3973_4045__$1);
-          var G__4048 = c__5525__auto___4046;
-          var G__4049 = cljs.core.count.call(null, c__5525__auto___4046);
-          var G__4050 = 0;
-          seq__3973_4035 = G__4047;
-          chunk__3974_4036 = G__4048;
-          count__3975_4037 = G__4049;
-          i__3976_4038 = G__4050;
+      var temp__5825__auto___1224 = cljs.core.seq.call(null, seq__1153_1215);
+      if (temp__5825__auto___1224) {
+        var seq__1153_1225__$1 = temp__5825__auto___1224;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1153_1225__$1)) {
+          var c__5525__auto___1226 = cljs.core.chunk_first.call(null, seq__1153_1225__$1);
+          var G__1227 = cljs.core.chunk_rest.call(null, seq__1153_1225__$1);
+          var G__1228 = c__5525__auto___1226;
+          var G__1229 = cljs.core.count.call(null, c__5525__auto___1226);
+          var G__1230 = 0;
+          seq__1153_1215 = G__1227;
+          chunk__1154_1216 = G__1228;
+          count__1155_1217 = G__1229;
+          i__1156_1218 = G__1230;
           continue;
         } else {
-          var layer_4051 = cljs.core.first.call(null, seq__3973_4045__$1);
-          dacite.store.s_delete.call(null, layer_4051, h);
-          var G__4052 = cljs.core.next.call(null, seq__3973_4045__$1);
-          var G__4053 = null;
-          var G__4054 = 0;
-          var G__4055 = 0;
-          seq__3973_4035 = G__4052;
-          chunk__3974_4036 = G__4053;
-          count__3975_4037 = G__4054;
-          i__3976_4038 = G__4055;
+          var layer_1231 = cljs.core.first.call(null, seq__1153_1225__$1);
+          dacite.store.s_delete.call(null, layer_1231, h);
+          var G__1232 = cljs.core.next.call(null, seq__1153_1225__$1);
+          var G__1233 = null;
+          var G__1234 = 0;
+          var G__1235 = 0;
+          seq__1153_1215 = G__1232;
+          chunk__1154_1216 = G__1233;
+          count__1155_1217 = G__1234;
+          i__1156_1218 = G__1235;
           continue;
         }
       } else {
@@ -40960,49 +40960,49 @@ dacite.store.LayeredStore.prototype.dacite$store$IStore$s_snapshot$arity$1 = fun
 dacite.store.LayeredStore.prototype.dacite$store$IStore$s_merge$arity$2 = function(this$, m) {
   var self__ = this;
   var this$__$1 = this;
-  var seq__3977_4056 = cljs.core.seq.call(null, self__.layers);
-  var chunk__3978_4057 = null;
-  var count__3979_4058 = 0;
-  var i__3980_4059 = 0;
+  var seq__1157_1236 = cljs.core.seq.call(null, self__.layers);
+  var chunk__1158_1237 = null;
+  var count__1159_1238 = 0;
+  var i__1160_1239 = 0;
   while (true) {
-    if (i__3980_4059 < count__3979_4058) {
-      var layer_4060 = cljs.core._nth.call(null, chunk__3978_4057, i__3980_4059);
-      dacite.store.s_merge.call(null, layer_4060, m);
-      var G__4061 = seq__3977_4056;
-      var G__4062 = chunk__3978_4057;
-      var G__4063 = count__3979_4058;
-      var G__4064 = i__3980_4059 + 1;
-      seq__3977_4056 = G__4061;
-      chunk__3978_4057 = G__4062;
-      count__3979_4058 = G__4063;
-      i__3980_4059 = G__4064;
+    if (i__1160_1239 < count__1159_1238) {
+      var layer_1240 = cljs.core._nth.call(null, chunk__1158_1237, i__1160_1239);
+      dacite.store.s_merge.call(null, layer_1240, m);
+      var G__1241 = seq__1157_1236;
+      var G__1242 = chunk__1158_1237;
+      var G__1243 = count__1159_1238;
+      var G__1244 = i__1160_1239 + 1;
+      seq__1157_1236 = G__1241;
+      chunk__1158_1237 = G__1242;
+      count__1159_1238 = G__1243;
+      i__1160_1239 = G__1244;
       continue;
     } else {
-      var temp__5825__auto___4065 = cljs.core.seq.call(null, seq__3977_4056);
-      if (temp__5825__auto___4065) {
-        var seq__3977_4066__$1 = temp__5825__auto___4065;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__3977_4066__$1)) {
-          var c__5525__auto___4067 = cljs.core.chunk_first.call(null, seq__3977_4066__$1);
-          var G__4068 = cljs.core.chunk_rest.call(null, seq__3977_4066__$1);
-          var G__4069 = c__5525__auto___4067;
-          var G__4070 = cljs.core.count.call(null, c__5525__auto___4067);
-          var G__4071 = 0;
-          seq__3977_4056 = G__4068;
-          chunk__3978_4057 = G__4069;
-          count__3979_4058 = G__4070;
-          i__3980_4059 = G__4071;
+      var temp__5825__auto___1245 = cljs.core.seq.call(null, seq__1157_1236);
+      if (temp__5825__auto___1245) {
+        var seq__1157_1246__$1 = temp__5825__auto___1245;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1157_1246__$1)) {
+          var c__5525__auto___1247 = cljs.core.chunk_first.call(null, seq__1157_1246__$1);
+          var G__1248 = cljs.core.chunk_rest.call(null, seq__1157_1246__$1);
+          var G__1249 = c__5525__auto___1247;
+          var G__1250 = cljs.core.count.call(null, c__5525__auto___1247);
+          var G__1251 = 0;
+          seq__1157_1236 = G__1248;
+          chunk__1158_1237 = G__1249;
+          count__1159_1238 = G__1250;
+          i__1160_1239 = G__1251;
           continue;
         } else {
-          var layer_4072 = cljs.core.first.call(null, seq__3977_4066__$1);
-          dacite.store.s_merge.call(null, layer_4072, m);
-          var G__4073 = cljs.core.next.call(null, seq__3977_4066__$1);
-          var G__4074 = null;
-          var G__4075 = 0;
-          var G__4076 = 0;
-          seq__3977_4056 = G__4073;
-          chunk__3978_4057 = G__4074;
-          count__3979_4058 = G__4075;
-          i__3980_4059 = G__4076;
+          var layer_1252 = cljs.core.first.call(null, seq__1157_1246__$1);
+          dacite.store.s_merge.call(null, layer_1252, m);
+          var G__1253 = cljs.core.next.call(null, seq__1157_1246__$1);
+          var G__1254 = null;
+          var G__1255 = 0;
+          var G__1256 = 0;
+          seq__1157_1236 = G__1253;
+          chunk__1158_1237 = G__1254;
+          count__1159_1238 = G__1255;
+          i__1160_1239 = G__1256;
           continue;
         }
       } else {
@@ -41015,49 +41015,49 @@ dacite.store.LayeredStore.prototype.dacite$store$IStore$s_merge$arity$2 = functi
 dacite.store.LayeredStore.prototype.dacite$store$IStore$s_reset$arity$1 = function(this$) {
   var self__ = this;
   var this$__$1 = this;
-  var seq__3981_4077 = cljs.core.seq.call(null, self__.layers);
-  var chunk__3982_4078 = null;
-  var count__3983_4079 = 0;
-  var i__3984_4080 = 0;
+  var seq__1161_1257 = cljs.core.seq.call(null, self__.layers);
+  var chunk__1162_1258 = null;
+  var count__1163_1259 = 0;
+  var i__1164_1260 = 0;
   while (true) {
-    if (i__3984_4080 < count__3983_4079) {
-      var layer_4081 = cljs.core._nth.call(null, chunk__3982_4078, i__3984_4080);
-      dacite.store.s_reset.call(null, layer_4081);
-      var G__4082 = seq__3981_4077;
-      var G__4083 = chunk__3982_4078;
-      var G__4084 = count__3983_4079;
-      var G__4085 = i__3984_4080 + 1;
-      seq__3981_4077 = G__4082;
-      chunk__3982_4078 = G__4083;
-      count__3983_4079 = G__4084;
-      i__3984_4080 = G__4085;
+    if (i__1164_1260 < count__1163_1259) {
+      var layer_1261 = cljs.core._nth.call(null, chunk__1162_1258, i__1164_1260);
+      dacite.store.s_reset.call(null, layer_1261);
+      var G__1262 = seq__1161_1257;
+      var G__1263 = chunk__1162_1258;
+      var G__1264 = count__1163_1259;
+      var G__1265 = i__1164_1260 + 1;
+      seq__1161_1257 = G__1262;
+      chunk__1162_1258 = G__1263;
+      count__1163_1259 = G__1264;
+      i__1164_1260 = G__1265;
       continue;
     } else {
-      var temp__5825__auto___4086 = cljs.core.seq.call(null, seq__3981_4077);
-      if (temp__5825__auto___4086) {
-        var seq__3981_4087__$1 = temp__5825__auto___4086;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__3981_4087__$1)) {
-          var c__5525__auto___4088 = cljs.core.chunk_first.call(null, seq__3981_4087__$1);
-          var G__4089 = cljs.core.chunk_rest.call(null, seq__3981_4087__$1);
-          var G__4090 = c__5525__auto___4088;
-          var G__4091 = cljs.core.count.call(null, c__5525__auto___4088);
-          var G__4092 = 0;
-          seq__3981_4077 = G__4089;
-          chunk__3982_4078 = G__4090;
-          count__3983_4079 = G__4091;
-          i__3984_4080 = G__4092;
+      var temp__5825__auto___1266 = cljs.core.seq.call(null, seq__1161_1257);
+      if (temp__5825__auto___1266) {
+        var seq__1161_1267__$1 = temp__5825__auto___1266;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1161_1267__$1)) {
+          var c__5525__auto___1268 = cljs.core.chunk_first.call(null, seq__1161_1267__$1);
+          var G__1269 = cljs.core.chunk_rest.call(null, seq__1161_1267__$1);
+          var G__1270 = c__5525__auto___1268;
+          var G__1271 = cljs.core.count.call(null, c__5525__auto___1268);
+          var G__1272 = 0;
+          seq__1161_1257 = G__1269;
+          chunk__1162_1258 = G__1270;
+          count__1163_1259 = G__1271;
+          i__1164_1260 = G__1272;
           continue;
         } else {
-          var layer_4093 = cljs.core.first.call(null, seq__3981_4087__$1);
-          dacite.store.s_reset.call(null, layer_4093);
-          var G__4094 = cljs.core.next.call(null, seq__3981_4087__$1);
-          var G__4095 = null;
-          var G__4096 = 0;
-          var G__4097 = 0;
-          seq__3981_4077 = G__4094;
-          chunk__3982_4078 = G__4095;
-          count__3983_4079 = G__4096;
-          i__3984_4080 = G__4097;
+          var layer_1273 = cljs.core.first.call(null, seq__1161_1267__$1);
+          dacite.store.s_reset.call(null, layer_1273);
+          var G__1274 = cljs.core.next.call(null, seq__1161_1267__$1);
+          var G__1275 = null;
+          var G__1276 = 0;
+          var G__1277 = 0;
+          seq__1161_1257 = G__1274;
+          chunk__1162_1258 = G__1275;
+          count__1163_1259 = G__1276;
+          i__1164_1260 = G__1277;
           continue;
         }
       } else {
@@ -41076,28 +41076,28 @@ dacite.store.LayeredStore.prototype.cljs$core$IMap$_dissoc$arity$2 = function(th
     return new dacite.store.LayeredStore(self__.layers, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.store.LayeredStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k3939) {
+dacite.store.LayeredStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k1119) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__3985 = k3939;
-  var G__3985__$1 = G__3985 instanceof cljs.core.Keyword ? G__3985.fqn : null;
-  switch(G__3985__$1) {
+  var G__1165 = k1119;
+  var G__1165__$1 = G__1165 instanceof cljs.core.Keyword ? G__1165.fqn : null;
+  switch(G__1165__$1) {
     case "layers":
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k3939);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k1119);
   }
 };
-dacite.store.LayeredStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__3938) {
+dacite.store.LayeredStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__1118) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__3986 = cljs.core.keyword_identical_QMARK_;
-  var expr__3987 = k__5309__auto__;
-  if (cljs.core.truth_(pred__3986.call(null, new cljs.core.Keyword(null, "layers", "layers", 1944875032), expr__3987))) {
-    return new dacite.store.LayeredStore(G__3938, self__.__meta, self__.__extmap, null);
+  var pred__1166 = cljs.core.keyword_identical_QMARK_;
+  var expr__1167 = k__5309__auto__;
+  if (cljs.core.truth_(pred__1166.call(null, new cljs.core.Keyword(null, "layers", "layers", 1944875032), expr__1167))) {
+    return new dacite.store.LayeredStore(G__1118, self__.__meta, self__.__extmap, null);
   } else {
-    return new dacite.store.LayeredStore(self__.layers, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__3938), null);
+    return new dacite.store.LayeredStore(self__.layers, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__1118), null);
   }
 };
 dacite.store.LayeredStore.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this__5313__auto__) {
@@ -41105,10 +41105,10 @@ dacite.store.LayeredStore.prototype.cljs$core$ISeqable$_seq$arity$1 = function(t
   var this__5313__auto____$1 = this;
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "layers", "layers", 1944875032), self__.layers, null)], null), self__.__extmap));
 };
-dacite.store.LayeredStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__3938) {
+dacite.store.LayeredStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__1118) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.store.LayeredStore(self__.layers, G__3938, self__.__extmap, self__.__hash);
+  return new dacite.store.LayeredStore(self__.layers, G__1118, self__.__extmap, self__.__hash);
 };
 dacite.store.LayeredStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -41132,26 +41132,26 @@ dacite.store.LayeredStore.cljs$lang$ctorPrWriter = function(this__5346__auto__, 
 dacite.store.__GT_LayeredStore = function dacite$store$__GT_LayeredStore(layers) {
   return new dacite.store.LayeredStore(layers, null, null, null);
 };
-dacite.store.map__GT_LayeredStore = function dacite$store$map__GT_LayeredStore(G__3942) {
+dacite.store.map__GT_LayeredStore = function dacite$store$map__GT_LayeredStore(G__1122) {
   var extmap__5342__auto__ = function() {
-    var G__3989 = cljs.core.dissoc.call(null, G__3942, new cljs.core.Keyword(null, "layers", "layers", 1944875032));
-    if (cljs.core.record_QMARK_.call(null, G__3942)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__3989);
+    var G__1169 = cljs.core.dissoc.call(null, G__1122, new cljs.core.Keyword(null, "layers", "layers", 1944875032));
+    if (cljs.core.record_QMARK_.call(null, G__1122)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__1169);
     } else {
-      return G__3989;
+      return G__1169;
     }
   }();
-  return new dacite.store.LayeredStore((new cljs.core.Keyword(null, "layers", "layers", 1944875032)).cljs$core$IFn$_invoke$arity$1(G__3942), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.store.LayeredStore((new cljs.core.Keyword(null, "layers", "layers", 1944875032)).cljs$core$IFn$_invoke$arity$1(G__1122), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.store.layered_store = function dacite$store$layered_store(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___4100 = arguments.length;
-  var i__5727__auto___4101 = 0;
+  var len__5726__auto___1280 = arguments.length;
+  var i__5727__auto___1281 = 0;
   while (true) {
-    if (i__5727__auto___4101 < len__5726__auto___4100) {
-      args__5732__auto__.push(arguments[i__5727__auto___4101]);
-      var G__4102 = i__5727__auto___4101 + 1;
-      i__5727__auto___4101 = G__4102;
+    if (i__5727__auto___1281 < len__5726__auto___1280) {
+      args__5732__auto__.push(arguments[i__5727__auto___1281]);
+      var G__1282 = i__5727__auto___1281 + 1;
+      i__5727__auto___1281 = G__1282;
       continue;
     } else {
     }
@@ -41164,9 +41164,9 @@ dacite.store.layered_store.cljs$core$IFn$_invoke$arity$variadic = function(layer
   return dacite.store.__GT_LayeredStore.call(null, cljs.core.vec.call(null, layers));
 };
 dacite.store.layered_store.cljs$lang$maxFixedArity = 0;
-dacite.store.layered_store.cljs$lang$applyTo = function(seq4099) {
+dacite.store.layered_store.cljs$lang$applyTo = function(seq1279) {
   var self__5712__auto__ = this;
-  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq4099));
+  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq1279));
 };
 dacite.store._STAR_store_STAR_ = dacite.store.mem_store.call(null);
 dacite.store.reset_store_BANG_ = function dacite$store$reset_store_BANG_() {
@@ -41187,16 +41187,16 @@ dacite.store.snapshot_store = function dacite$store$snapshot_store() {
 dacite.store.merge_store_BANG_ = function dacite$store$merge_store_BANG_(m) {
   return dacite.store.s_merge.call(null, dacite.store._STAR_store_STAR_, m);
 };
-var ret__5781__auto___4107 = function() {
+var ret__5781__auto___1287 = function() {
   dacite.store.bind_store = function dacite$store$bind_store(var_args) {
     var args__5732__auto__ = [];
-    var len__5726__auto___4108 = arguments.length;
-    var i__5727__auto___4109 = 0;
+    var len__5726__auto___1288 = arguments.length;
+    var i__5727__auto___1289 = 0;
     while (true) {
-      if (i__5727__auto___4109 < len__5726__auto___4108) {
-        args__5732__auto__.push(arguments[i__5727__auto___4109]);
-        var G__4110 = i__5727__auto___4109 + 1;
-        i__5727__auto___4109 = G__4110;
+      if (i__5727__auto___1289 < len__5726__auto___1288) {
+        args__5732__auto__.push(arguments[i__5727__auto___1289]);
+        var G__1290 = i__5727__auto___1289 + 1;
+        i__5727__auto___1289 = G__1290;
         continue;
       } else {
       }
@@ -41210,29 +41210,29 @@ var ret__5781__auto___4107 = function() {
     store, null, 1, null))))), null, 1, null), body)));
   };
   dacite.store.bind_store.cljs$lang$maxFixedArity = 3;
-  dacite.store.bind_store.cljs$lang$applyTo = function(seq4103) {
-    var G__4104 = cljs.core.first.call(null, seq4103);
-    var seq4103__$1 = cljs.core.next.call(null, seq4103);
-    var G__4105 = cljs.core.first.call(null, seq4103__$1);
-    var seq4103__$2 = cljs.core.next.call(null, seq4103__$1);
-    var G__4106 = cljs.core.first.call(null, seq4103__$2);
-    var seq4103__$3 = cljs.core.next.call(null, seq4103__$2);
+  dacite.store.bind_store.cljs$lang$applyTo = function(seq1283) {
+    var G__1284 = cljs.core.first.call(null, seq1283);
+    var seq1283__$1 = cljs.core.next.call(null, seq1283);
+    var G__1285 = cljs.core.first.call(null, seq1283__$1);
+    var seq1283__$2 = cljs.core.next.call(null, seq1283__$1);
+    var G__1286 = cljs.core.first.call(null, seq1283__$2);
+    var seq1283__$3 = cljs.core.next.call(null, seq1283__$2);
     var self__5711__auto__ = this;
-    return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__4104, G__4105, G__4106, seq4103__$3);
+    return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__1284, G__1285, G__1286, seq1283__$3);
   };
   return null;
 }();
 dacite.store.bind_store.cljs$lang$macro = true;
-var ret__5781__auto___4122 = function() {
+var ret__5781__auto___1302 = function() {
   dacite.store.with_store = function dacite$store$with_store(var_args) {
     var args__5732__auto__ = [];
-    var len__5726__auto___4123 = arguments.length;
-    var i__5727__auto___4124 = 0;
+    var len__5726__auto___1303 = arguments.length;
+    var i__5727__auto___1304 = 0;
     while (true) {
-      if (i__5727__auto___4124 < len__5726__auto___4123) {
-        args__5732__auto__.push(arguments[i__5727__auto___4124]);
-        var G__4125 = i__5727__auto___4124 + 1;
-        i__5727__auto___4124 = G__4125;
+      if (i__5727__auto___1304 < len__5726__auto___1303) {
+        args__5732__auto__.push(arguments[i__5727__auto___1304]);
+        var G__1305 = i__5727__auto___1304 + 1;
+        i__5727__auto___1304 = G__1305;
         continue;
       } else {
       }
@@ -41241,30 +41241,30 @@ var ret__5781__auto___4122 = function() {
     var argseq__5733__auto__ = 3 < args__5732__auto__.length ? new cljs.core.IndexedSeq(args__5732__auto__.slice(3), 0, null) : null;
     return dacite.store.with_store.cljs$core$IFn$_invoke$arity$variadic(arguments[0], arguments[1], arguments[2], argseq__5733__auto__);
   };
-  dacite.store.with_store.cljs$core$IFn$_invoke$arity$variadic = function(_AMPERSAND_form, _AMPERSAND_env, p__4118, body) {
-    var vec__4119 = p__4118;
-    var sym = cljs.core.nth.call(null, vec__4119, 0, null);
-    var init = cljs.core.nth.call(null, vec__4119, 1, null);
-    return cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("cljs.core", "let", "cljs.core/let", -308701135, null), null, 1, null), new cljs.core.List(null, cljs.core.vec.call(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol(null, "store__4111__auto__", "store__4111__auto__", -559538000, null), null, 1, null), new cljs.core.List(null, 
-    cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("cljs.core", "let", "cljs.core/let", -308701135, null), null, 1, null), new cljs.core.List(null, cljs.core.vec.call(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol(null, "i__4112__auto__", "i__4112__auto__", 977884970, null), null, 1, null), new cljs.core.List(null, init, null, 1, 
+  dacite.store.with_store.cljs$core$IFn$_invoke$arity$variadic = function(_AMPERSAND_form, _AMPERSAND_env, p__1298, body) {
+    var vec__1299 = p__1298;
+    var sym = cljs.core.nth.call(null, vec__1299, 0, null);
+    var init = cljs.core.nth.call(null, vec__1299, 1, null);
+    return cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("cljs.core", "let", "cljs.core/let", -308701135, null), null, 1, null), new cljs.core.List(null, cljs.core.vec.call(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol(null, "store__1291__auto__", "store__1291__auto__", -147818533, null), null, 1, null), new cljs.core.List(null, 
+    cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("cljs.core", "let", "cljs.core/let", -308701135, null), null, 1, null), new cljs.core.List(null, cljs.core.vec.call(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol(null, "i__1292__auto__", "i__1292__auto__", 463770499, null), null, 1, null), new cljs.core.List(null, init, null, 1, 
     null))))), null, 1, null), new cljs.core.List(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol(null, "if", "if", 1181717262, null), null, 1, null), new cljs.core.List(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("cljs.core", "satisfies?", "cljs.core/satisfies?", -1074798682, null), null, 1, null), new cljs.core.List(null, 
-    new cljs.core.Symbol("dacite.store", "IStore", "dacite.store/IStore", -1728232744, null), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "i__4112__auto__", "i__4112__auto__", 977884970, null), null, 1, null)))), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "i__4112__auto__", "i__4112__auto__", 977884970, null), null, 1, null), new cljs.core.List(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, 
-    new cljs.core.Symbol("dacite.store", "mem-store", "dacite.store/mem-store", 894634741, null), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "i__4112__auto__", "i__4112__auto__", 977884970, null), null, 1, null)))), null, 1, null)))), null, 1, null)))), null, 1, null), new cljs.core.List(null, sym, null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "store__4111__auto__", "store__4111__auto__", -559538000, null), null, 1, null))))), null, 1, null), new cljs.core.List(null, 
-    cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("dacite.store", "bind-store", "dacite.store/bind-store", -1530593387, null), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "store__4111__auto__", "store__4111__auto__", -559538000, null), null, 1, null), new cljs.core.List(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("cljs.core", 
-    "let", "cljs.core/let", -308701135, null), null, 1, null), new cljs.core.List(null, cljs.core.vec.call(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol(null, "result__4113__auto__", "result__4113__auto__", -341360776, null), null, 1, null), new cljs.core.List(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol(null, "do", "do", 
+    new cljs.core.Symbol("dacite.store", "IStore", "dacite.store/IStore", -1728232744, null), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "i__1292__auto__", "i__1292__auto__", 463770499, null), null, 1, null)))), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "i__1292__auto__", "i__1292__auto__", 463770499, null), null, 1, null), new cljs.core.List(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, 
+    new cljs.core.Symbol("dacite.store", "mem-store", "dacite.store/mem-store", 894634741, null), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "i__1292__auto__", "i__1292__auto__", 463770499, null), null, 1, null)))), null, 1, null)))), null, 1, null)))), null, 1, null), new cljs.core.List(null, sym, null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "store__1291__auto__", "store__1291__auto__", -147818533, null), null, 1, null))))), null, 1, null), new cljs.core.List(null, 
+    cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("dacite.store", "bind-store", "dacite.store/bind-store", -1530593387, null), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "store__1291__auto__", "store__1291__auto__", -147818533, null), null, 1, null), new cljs.core.List(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("cljs.core", 
+    "let", "cljs.core/let", -308701135, null), null, 1, null), new cljs.core.List(null, cljs.core.vec.call(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol(null, "result__1293__auto__", "result__1293__auto__", 733233801, null), null, 1, null), new cljs.core.List(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol(null, "do", "do", 
     1686842252, null), null, 1, null), body))), null, 1, null))))), null, 1, null), new cljs.core.List(null, cljs.core.vec.call(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("dacite.store", "s-snapshot", "dacite.store/s-snapshot", 744993044, null), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, 
-    "store__4111__auto__", "store__4111__auto__", -559538000, null), null, 1, null)))), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "result__4113__auto__", "result__4113__auto__", -341360776, null), null, 1, null))))), null, 1, null)))), null, 1, null)))), null, 1, null))));
+    "store__1291__auto__", "store__1291__auto__", -147818533, null), null, 1, null)))), null, 1, null), new cljs.core.List(null, new cljs.core.Symbol(null, "result__1293__auto__", "result__1293__auto__", 733233801, null), null, 1, null))))), null, 1, null)))), null, 1, null)))), null, 1, null))));
   };
   dacite.store.with_store.cljs$lang$maxFixedArity = 3;
-  dacite.store.with_store.cljs$lang$applyTo = function(seq4114) {
-    var G__4115 = cljs.core.first.call(null, seq4114);
-    var seq4114__$1 = cljs.core.next.call(null, seq4114);
-    var G__4116 = cljs.core.first.call(null, seq4114__$1);
-    var seq4114__$2 = cljs.core.next.call(null, seq4114__$1);
-    var G__4117 = cljs.core.first.call(null, seq4114__$2);
-    var seq4114__$3 = cljs.core.next.call(null, seq4114__$2);
+  dacite.store.with_store.cljs$lang$applyTo = function(seq1294) {
+    var G__1295 = cljs.core.first.call(null, seq1294);
+    var seq1294__$1 = cljs.core.next.call(null, seq1294);
+    var G__1296 = cljs.core.first.call(null, seq1294__$1);
+    var seq1294__$2 = cljs.core.next.call(null, seq1294__$1);
+    var G__1297 = cljs.core.first.call(null, seq1294__$2);
+    var seq1294__$3 = cljs.core.next.call(null, seq1294__$2);
     var self__5711__auto__ = this;
-    return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__4115, G__4116, G__4117, seq4114__$3);
+    return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__1295, G__1296, G__1297, seq1294__$3);
   };
   return null;
 }();
@@ -41274,13 +41274,13 @@ dacite.store.rooted_browser_stub = function dacite$store$rooted_browser_stub(fna
 };
 dacite.store.mem_root_cell = function dacite$store$mem_root_cell(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___4134 = arguments.length;
-  var i__5727__auto___4135 = 0;
+  var len__5726__auto___1314 = arguments.length;
+  var i__5727__auto___1315 = 0;
   while (true) {
-    if (i__5727__auto___4135 < len__5726__auto___4134) {
-      args__5732__auto__.push(arguments[i__5727__auto___4135]);
-      var G__4136 = i__5727__auto___4135 + 1;
-      i__5727__auto___4135 = G__4136;
+    if (i__5727__auto___1315 < len__5726__auto___1314) {
+      args__5732__auto__.push(arguments[i__5727__auto___1315]);
+      var G__1316 = i__5727__auto___1315 + 1;
+      i__5727__auto___1315 = G__1316;
       continue;
     } else {
     }
@@ -41293,19 +41293,19 @@ dacite.store.mem_root_cell.cljs$core$IFn$_invoke$arity$variadic = function(_) {
   return dacite.store.rooted_browser_stub.call(null, "mem-root-cell");
 };
 dacite.store.mem_root_cell.cljs$lang$maxFixedArity = 0;
-dacite.store.mem_root_cell.cljs$lang$applyTo = function(seq4126) {
+dacite.store.mem_root_cell.cljs$lang$applyTo = function(seq1306) {
   var self__5712__auto__ = this;
-  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq4126));
+  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq1306));
 };
 dacite.store.file_root_cell = function dacite$store$file_root_cell(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___4137 = arguments.length;
-  var i__5727__auto___4138 = 0;
+  var len__5726__auto___1317 = arguments.length;
+  var i__5727__auto___1318 = 0;
   while (true) {
-    if (i__5727__auto___4138 < len__5726__auto___4137) {
-      args__5732__auto__.push(arguments[i__5727__auto___4138]);
-      var G__4139 = i__5727__auto___4138 + 1;
-      i__5727__auto___4138 = G__4139;
+    if (i__5727__auto___1318 < len__5726__auto___1317) {
+      args__5732__auto__.push(arguments[i__5727__auto___1318]);
+      var G__1319 = i__5727__auto___1318 + 1;
+      i__5727__auto___1318 = G__1319;
       continue;
     } else {
     }
@@ -41318,19 +41318,19 @@ dacite.store.file_root_cell.cljs$core$IFn$_invoke$arity$variadic = function(_) {
   return dacite.store.rooted_browser_stub.call(null, "file-root-cell");
 };
 dacite.store.file_root_cell.cljs$lang$maxFixedArity = 0;
-dacite.store.file_root_cell.cljs$lang$applyTo = function(seq4127) {
+dacite.store.file_root_cell.cljs$lang$applyTo = function(seq1307) {
   var self__5712__auto__ = this;
-  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq4127));
+  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq1307));
 };
 dacite.store.rooted_store = function dacite$store$rooted_store(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___4140 = arguments.length;
-  var i__5727__auto___4141 = 0;
+  var len__5726__auto___1320 = arguments.length;
+  var i__5727__auto___1321 = 0;
   while (true) {
-    if (i__5727__auto___4141 < len__5726__auto___4140) {
-      args__5732__auto__.push(arguments[i__5727__auto___4141]);
-      var G__4142 = i__5727__auto___4141 + 1;
-      i__5727__auto___4141 = G__4142;
+    if (i__5727__auto___1321 < len__5726__auto___1320) {
+      args__5732__auto__.push(arguments[i__5727__auto___1321]);
+      var G__1322 = i__5727__auto___1321 + 1;
+      i__5727__auto___1321 = G__1322;
       continue;
     } else {
     }
@@ -41343,9 +41343,9 @@ dacite.store.rooted_store.cljs$core$IFn$_invoke$arity$variadic = function(_) {
   return dacite.store.rooted_browser_stub.call(null, "rooted-store");
 };
 dacite.store.rooted_store.cljs$lang$maxFixedArity = 0;
-dacite.store.rooted_store.cljs$lang$applyTo = function(seq4128) {
+dacite.store.rooted_store.cljs$lang$applyTo = function(seq1308) {
   var self__5712__auto__ = this;
-  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq4128));
+  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq1308));
 };
 dacite.store.root = function dacite$store$root(_) {
   return dacite.store.rooted_browser_stub.call(null, "root");
@@ -41358,13 +41358,13 @@ dacite.store.set_root_BANG_ = function dacite$store$set_root_BANG_(_, ___$1) {
 };
 dacite.store.update_root_BANG_ = function dacite$store$update_root_BANG_(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___4143 = arguments.length;
-  var i__5727__auto___4144 = 0;
+  var len__5726__auto___1323 = arguments.length;
+  var i__5727__auto___1324 = 0;
   while (true) {
-    if (i__5727__auto___4144 < len__5726__auto___4143) {
-      args__5732__auto__.push(arguments[i__5727__auto___4144]);
-      var G__4145 = i__5727__auto___4144 + 1;
-      i__5727__auto___4144 = G__4145;
+    if (i__5727__auto___1324 < len__5726__auto___1323) {
+      args__5732__auto__.push(arguments[i__5727__auto___1324]);
+      var G__1325 = i__5727__auto___1324 + 1;
+      i__5727__auto___1324 = G__1325;
       continue;
     } else {
     }
@@ -41377,13 +41377,13 @@ dacite.store.update_root_BANG_.cljs$core$IFn$_invoke$arity$variadic = function(_
   return dacite.store.rooted_browser_stub.call(null, "update-root!");
 };
 dacite.store.update_root_BANG_.cljs$lang$maxFixedArity = 2;
-dacite.store.update_root_BANG_.cljs$lang$applyTo = function(seq4129) {
-  var G__4130 = cljs.core.first.call(null, seq4129);
-  var seq4129__$1 = cljs.core.next.call(null, seq4129);
-  var G__4131 = cljs.core.first.call(null, seq4129__$1);
-  var seq4129__$2 = cljs.core.next.call(null, seq4129__$1);
+dacite.store.update_root_BANG_.cljs$lang$applyTo = function(seq1309) {
+  var G__1310 = cljs.core.first.call(null, seq1309);
+  var seq1309__$1 = cljs.core.next.call(null, seq1309);
+  var G__1311 = cljs.core.first.call(null, seq1309__$1);
+  var seq1309__$2 = cljs.core.next.call(null, seq1309__$1);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__4130, G__4131, seq4129__$2);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__1310, G__1311, seq1309__$2);
 };
 dacite.store.add_root_watch = function dacite$store$add_root_watch(_, ___$1, ___$2) {
   return dacite.store.rooted_browser_stub.call(null, "add-root-watch");
@@ -41398,8 +41398,8 @@ dacite.store.push_ref = function dacite$store$push_ref(_, ___$1) {
   return dacite.store.rooted_browser_stub.call(null, "push-ref");
 };
 dacite.store.collect_garbage_BANG_ = function dacite$store$collect_garbage_BANG_(var_args) {
-  var G__4133 = arguments.length;
-  switch(G__4133) {
+  var G__1313 = arguments.length;
+  switch(G__1313) {
     case 1:
       return dacite.store.collect_garbage_BANG_.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -46110,7 +46110,7 @@ goog.require("dacite.host");
 goog.require("dacite.store");
 dacite.value.types.IDaciteValue = function() {
 };
-var dacite$value$types$IDaciteValue$dacite_hash$dyn_4149 = function(this$) {
+var dacite$value$types$IDaciteValue$dacite_hash$dyn_1329 = function(this$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.value.types.dacite_hash[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -46128,10 +46128,10 @@ dacite.value.types.dacite_hash = function dacite$value$types$dacite_hash(this$) 
   if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$dacite_hash$arity$1 == null)) {
     return this$.dacite$value$types$IDaciteValue$dacite_hash$arity$1(this$);
   } else {
-    return dacite$value$types$IDaciteValue$dacite_hash$dyn_4149.call(null, this$);
+    return dacite$value$types$IDaciteValue$dacite_hash$dyn_1329.call(null, this$);
   }
 };
-var dacite$value$types$IDaciteValue$dacite_store$dyn_4150 = function(this$) {
+var dacite$value$types$IDaciteValue$dacite_store$dyn_1330 = function(this$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.value.types.dacite_store[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -46149,10 +46149,10 @@ dacite.value.types.dacite_store = function dacite$value$types$dacite_store(this$
   if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$dacite_store$arity$1 == null)) {
     return this$.dacite$value$types$IDaciteValue$dacite_store$arity$1(this$);
   } else {
-    return dacite$value$types$IDaciteValue$dacite_store$dyn_4150.call(null, this$);
+    return dacite$value$types$IDaciteValue$dacite_store$dyn_1330.call(null, this$);
   }
 };
-var dacite$value$types$IDaciteValue$dacite_type$dyn_4151 = function(this$) {
+var dacite$value$types$IDaciteValue$dacite_type$dyn_1331 = function(this$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.value.types.dacite_type[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -46170,10 +46170,10 @@ dacite.value.types.dacite_type = function dacite$value$types$dacite_type(this$) 
   if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$dacite_type$arity$1 == null)) {
     return this$.dacite$value$types$IDaciteValue$dacite_type$arity$1(this$);
   } else {
-    return dacite$value$types$IDaciteValue$dacite_type$dyn_4151.call(null, this$);
+    return dacite$value$types$IDaciteValue$dacite_type$dyn_1331.call(null, this$);
   }
 };
-var dacite$value$types$IDaciteValue$realize$dyn_4152 = function(this$) {
+var dacite$value$types$IDaciteValue$realize$dyn_1332 = function(this$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.value.types.realize[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -46191,19 +46191,19 @@ dacite.value.types.realize = function dacite$value$types$realize(this$) {
   if (!(this$ == null) && !(this$.dacite$value$types$IDaciteValue$realize$arity$1 == null)) {
     return this$.dacite$value$types$IDaciteValue$realize$arity$1(this$);
   } else {
-    return dacite$value$types$IDaciteValue$realize$dyn_4152.call(null, this$);
+    return dacite$value$types$IDaciteValue$realize$dyn_1332.call(null, this$);
   }
 };
-dacite.value.types.entry_type = function dacite$value$types$entry_type(p__4153) {
-  var vec__4154 = p__4153;
-  var type_name = cljs.core.nth.call(null, vec__4154, 0, null);
-  var _ = cljs.core.nth.call(null, vec__4154, 1, null);
+dacite.value.types.entry_type = function dacite$value$types$entry_type(p__1333) {
+  var vec__1334 = p__1333;
+  var type_name = cljs.core.nth.call(null, vec__1334, 0, null);
+  var _ = cljs.core.nth.call(null, vec__1334, 1, null);
   return type_name;
 };
-dacite.value.types.entry_data = function dacite$value$types$entry_data(p__4157) {
-  var vec__4158 = p__4157;
-  var _ = cljs.core.nth.call(null, vec__4158, 0, null);
-  var data = cljs.core.nth.call(null, vec__4158, 1, null);
+dacite.value.types.entry_data = function dacite$value$types$entry_data(p__1337) {
+  var vec__1338 = p__1337;
+  var _ = cljs.core.nth.call(null, vec__1338, 0, null);
+  var data = cljs.core.nth.call(null, vec__1338, 1, null);
   return data;
 };
 dacite.value.types.null_separator = new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [0], null);
@@ -46237,10 +46237,10 @@ if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && type
     return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "encode-value"), dacite.value.types.entry_type, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
   }();
 }
-cljs.core._add_method.call(null, dacite.value.types.encode_value, new cljs.core.Keyword(null, "default", "default", -1987822328), function(p__4161) {
-  var vec__4162 = p__4161;
-  var _ = cljs.core.nth.call(null, vec__4162, 0, null);
-  var data = cljs.core.nth.call(null, vec__4162, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, new cljs.core.Keyword(null, "default", "default", -1987822328), function(p__1341) {
+  var vec__1342 = p__1341;
+  var _ = cljs.core.nth.call(null, vec__1342, 0, null);
+  var data = cljs.core.nth.call(null, vec__1342, 1, null);
   return dacite.host.utf8_bytes.call(null, cljs.core.pr_str.call(null, data));
 });
 dacite.value.types.scalar_data_hash = function dacite$value$types$scalar_data_hash(typed_value) {
@@ -46260,10 +46260,10 @@ if (typeof dacite !== "undefined" && typeof dacite.value !== "undefined" && type
     return new cljs.core.MultiFn(cljs.core.symbol.call(null, "dacite.value.types", "dacite-size"), dacite.value.types.entry_type, new cljs.core.Keyword(null, "default", "default", -1987822328), hierarchy__5603__auto__, method_table__5599__auto__, prefer_table__5600__auto__, method_cache__5601__auto__, cached_hierarchy__5602__auto__);
   }();
 }
-cljs.core._add_method.call(null, dacite.value.types.dacite_size, new cljs.core.Keyword(null, "default", "default", -1987822328), function(p__4165) {
-  var vec__4166 = p__4165;
-  var _ = cljs.core.nth.call(null, vec__4166, 0, null);
-  var data = cljs.core.nth.call(null, vec__4166, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.dacite_size, new cljs.core.Keyword(null, "default", "default", -1987822328), function(p__1345) {
+  var vec__1346 = p__1345;
+  var _ = cljs.core.nth.call(null, vec__1346, 0, null);
+  var data = cljs.core.nth.call(null, vec__1346, 1, null);
   var temp__5823__auto__ = (new cljs.core.Keyword(null, "measure", "measure", -1857519826)).cljs$core$IFn$_invoke$arity$1(data);
   if (cljs.core.truth_(temp__5823__auto__)) {
     var m = temp__5823__auto__;
@@ -46302,63 +46302,63 @@ cljs.core._add_method.call(null, dacite.value.types.child_hashes, null, function
 cljs.core._add_method.call(null, dacite.value.types.child_hashes, new cljs.core.Keyword(null, "default", "default", -1987822328), function(_) {
   return cljs.core.PersistentVector.EMPTY;
 });
-var seq__4169_4189 = cljs.core.seq.call(null, new cljs.core.PersistentVector(null, 5, 5, cljs.core.PersistentVector.EMPTY_NODE, ["vector", "string", "blob", "map", "set"], null));
-var chunk__4170_4190 = null;
-var count__4171_4191 = 0;
-var i__4172_4192 = 0;
+var seq__1349_1369 = cljs.core.seq.call(null, new cljs.core.PersistentVector(null, 5, 5, cljs.core.PersistentVector.EMPTY_NODE, ["vector", "string", "blob", "map", "set"], null));
+var chunk__1350_1370 = null;
+var count__1351_1371 = 0;
+var i__1352_1372 = 0;
 while (true) {
-  if (i__4172_4192 < count__4171_4191) {
-    var t_4193 = cljs.core._nth.call(null, chunk__4170_4190, i__4172_4192);
-    cljs.core._add_method.call(null, dacite.value.types.child_hashes, t_4193, function(seq__4169_4189, chunk__4170_4190, count__4171_4191, i__4172_4192, t_4193) {
-      return function(p__4181) {
-        var vec__4182 = p__4181;
-        var _ = cljs.core.nth.call(null, vec__4182, 0, null);
-        var data = cljs.core.nth.call(null, vec__4182, 1, null);
+  if (i__1352_1372 < count__1351_1371) {
+    var t_1373 = cljs.core._nth.call(null, chunk__1350_1370, i__1352_1372);
+    cljs.core._add_method.call(null, dacite.value.types.child_hashes, t_1373, function(seq__1349_1369, chunk__1350_1370, count__1351_1371, i__1352_1372, t_1373) {
+      return function(p__1361) {
+        var vec__1362 = p__1361;
+        var _ = cljs.core.nth.call(null, vec__1362, 0, null);
+        var data = cljs.core.nth.call(null, vec__1362, 1, null);
         return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [(new cljs.core.Keyword(null, "root", "root", -448657453)).cljs$core$IFn$_invoke$arity$1(data)], null);
       };
-    }(seq__4169_4189, chunk__4170_4190, count__4171_4191, i__4172_4192, t_4193));
-    var G__4194 = seq__4169_4189;
-    var G__4195 = chunk__4170_4190;
-    var G__4196 = count__4171_4191;
-    var G__4197 = i__4172_4192 + 1;
-    seq__4169_4189 = G__4194;
-    chunk__4170_4190 = G__4195;
-    count__4171_4191 = G__4196;
-    i__4172_4192 = G__4197;
+    }(seq__1349_1369, chunk__1350_1370, count__1351_1371, i__1352_1372, t_1373));
+    var G__1374 = seq__1349_1369;
+    var G__1375 = chunk__1350_1370;
+    var G__1376 = count__1351_1371;
+    var G__1377 = i__1352_1372 + 1;
+    seq__1349_1369 = G__1374;
+    chunk__1350_1370 = G__1375;
+    count__1351_1371 = G__1376;
+    i__1352_1372 = G__1377;
     continue;
   } else {
-    var temp__5825__auto___4198 = cljs.core.seq.call(null, seq__4169_4189);
-    if (temp__5825__auto___4198) {
-      var seq__4169_4199__$1 = temp__5825__auto___4198;
-      if (cljs.core.chunked_seq_QMARK_.call(null, seq__4169_4199__$1)) {
-        var c__5525__auto___4200 = cljs.core.chunk_first.call(null, seq__4169_4199__$1);
-        var G__4201 = cljs.core.chunk_rest.call(null, seq__4169_4199__$1);
-        var G__4202 = c__5525__auto___4200;
-        var G__4203 = cljs.core.count.call(null, c__5525__auto___4200);
-        var G__4204 = 0;
-        seq__4169_4189 = G__4201;
-        chunk__4170_4190 = G__4202;
-        count__4171_4191 = G__4203;
-        i__4172_4192 = G__4204;
+    var temp__5825__auto___1378 = cljs.core.seq.call(null, seq__1349_1369);
+    if (temp__5825__auto___1378) {
+      var seq__1349_1379__$1 = temp__5825__auto___1378;
+      if (cljs.core.chunked_seq_QMARK_.call(null, seq__1349_1379__$1)) {
+        var c__5525__auto___1380 = cljs.core.chunk_first.call(null, seq__1349_1379__$1);
+        var G__1381 = cljs.core.chunk_rest.call(null, seq__1349_1379__$1);
+        var G__1382 = c__5525__auto___1380;
+        var G__1383 = cljs.core.count.call(null, c__5525__auto___1380);
+        var G__1384 = 0;
+        seq__1349_1369 = G__1381;
+        chunk__1350_1370 = G__1382;
+        count__1351_1371 = G__1383;
+        i__1352_1372 = G__1384;
         continue;
       } else {
-        var t_4205 = cljs.core.first.call(null, seq__4169_4199__$1);
-        cljs.core._add_method.call(null, dacite.value.types.child_hashes, t_4205, function(seq__4169_4189, chunk__4170_4190, count__4171_4191, i__4172_4192, t_4205, seq__4169_4199__$1, temp__5825__auto___4198) {
-          return function(p__4185) {
-            var vec__4186 = p__4185;
-            var _ = cljs.core.nth.call(null, vec__4186, 0, null);
-            var data = cljs.core.nth.call(null, vec__4186, 1, null);
+        var t_1385 = cljs.core.first.call(null, seq__1349_1379__$1);
+        cljs.core._add_method.call(null, dacite.value.types.child_hashes, t_1385, function(seq__1349_1369, chunk__1350_1370, count__1351_1371, i__1352_1372, t_1385, seq__1349_1379__$1, temp__5825__auto___1378) {
+          return function(p__1365) {
+            var vec__1366 = p__1365;
+            var _ = cljs.core.nth.call(null, vec__1366, 0, null);
+            var data = cljs.core.nth.call(null, vec__1366, 1, null);
             return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [(new cljs.core.Keyword(null, "root", "root", -448657453)).cljs$core$IFn$_invoke$arity$1(data)], null);
           };
-        }(seq__4169_4189, chunk__4170_4190, count__4171_4191, i__4172_4192, t_4205, seq__4169_4199__$1, temp__5825__auto___4198));
-        var G__4206 = cljs.core.next.call(null, seq__4169_4199__$1);
-        var G__4207 = null;
-        var G__4208 = 0;
-        var G__4209 = 0;
-        seq__4169_4189 = G__4206;
-        chunk__4170_4190 = G__4207;
-        count__4171_4191 = G__4208;
-        i__4172_4192 = G__4209;
+        }(seq__1349_1369, chunk__1350_1370, count__1351_1371, i__1352_1372, t_1385, seq__1349_1379__$1, temp__5825__auto___1378));
+        var G__1386 = cljs.core.next.call(null, seq__1349_1379__$1);
+        var G__1387 = null;
+        var G__1388 = 0;
+        var G__1389 = 0;
+        seq__1349_1369 = G__1386;
+        chunk__1350_1370 = G__1387;
+        count__1351_1371 = G__1388;
+        i__1352_1372 = G__1389;
         continue;
       }
     } else {
@@ -46443,60 +46443,60 @@ dacite.value.types.ensure_in_store_BANG_ = function dacite$value$types$ensure_in
       return and__5000__auto__;
     }
   }())) {
-    var temp__5823__auto___4214 = dacite.store.s_get.call(null, src, h);
-    if (cljs.core.truth_(temp__5823__auto___4214)) {
-      var node_4215 = temp__5823__auto___4214;
-      dacite.store.s_put.call(null, dst, h, node_4215);
-      var seq__4210_4216 = cljs.core.seq.call(null, function() {
-        var or__5002__auto__ = dacite.value.types.child_hashes.call(null, node_4215);
+    var temp__5823__auto___1394 = dacite.store.s_get.call(null, src, h);
+    if (cljs.core.truth_(temp__5823__auto___1394)) {
+      var node_1395 = temp__5823__auto___1394;
+      dacite.store.s_put.call(null, dst, h, node_1395);
+      var seq__1390_1396 = cljs.core.seq.call(null, function() {
+        var or__5002__auto__ = dacite.value.types.child_hashes.call(null, node_1395);
         if (cljs.core.truth_(or__5002__auto__)) {
           return or__5002__auto__;
         } else {
           return cljs.core.PersistentVector.EMPTY;
         }
       }());
-      var chunk__4211_4217 = null;
-      var count__4212_4218 = 0;
-      var i__4213_4219 = 0;
+      var chunk__1391_1397 = null;
+      var count__1392_1398 = 0;
+      var i__1393_1399 = 0;
       while (true) {
-        if (i__4213_4219 < count__4212_4218) {
-          var ch_4220 = cljs.core._nth.call(null, chunk__4211_4217, i__4213_4219);
-          dacite.value.types.ensure_in_store_BANG_.call(null, src, dst, ch_4220);
-          var G__4221 = seq__4210_4216;
-          var G__4222 = chunk__4211_4217;
-          var G__4223 = count__4212_4218;
-          var G__4224 = i__4213_4219 + 1;
-          seq__4210_4216 = G__4221;
-          chunk__4211_4217 = G__4222;
-          count__4212_4218 = G__4223;
-          i__4213_4219 = G__4224;
+        if (i__1393_1399 < count__1392_1398) {
+          var ch_1400 = cljs.core._nth.call(null, chunk__1391_1397, i__1393_1399);
+          dacite.value.types.ensure_in_store_BANG_.call(null, src, dst, ch_1400);
+          var G__1401 = seq__1390_1396;
+          var G__1402 = chunk__1391_1397;
+          var G__1403 = count__1392_1398;
+          var G__1404 = i__1393_1399 + 1;
+          seq__1390_1396 = G__1401;
+          chunk__1391_1397 = G__1402;
+          count__1392_1398 = G__1403;
+          i__1393_1399 = G__1404;
           continue;
         } else {
-          var temp__5825__auto___4225 = cljs.core.seq.call(null, seq__4210_4216);
-          if (temp__5825__auto___4225) {
-            var seq__4210_4226__$1 = temp__5825__auto___4225;
-            if (cljs.core.chunked_seq_QMARK_.call(null, seq__4210_4226__$1)) {
-              var c__5525__auto___4227 = cljs.core.chunk_first.call(null, seq__4210_4226__$1);
-              var G__4228 = cljs.core.chunk_rest.call(null, seq__4210_4226__$1);
-              var G__4229 = c__5525__auto___4227;
-              var G__4230 = cljs.core.count.call(null, c__5525__auto___4227);
-              var G__4231 = 0;
-              seq__4210_4216 = G__4228;
-              chunk__4211_4217 = G__4229;
-              count__4212_4218 = G__4230;
-              i__4213_4219 = G__4231;
+          var temp__5825__auto___1405 = cljs.core.seq.call(null, seq__1390_1396);
+          if (temp__5825__auto___1405) {
+            var seq__1390_1406__$1 = temp__5825__auto___1405;
+            if (cljs.core.chunked_seq_QMARK_.call(null, seq__1390_1406__$1)) {
+              var c__5525__auto___1407 = cljs.core.chunk_first.call(null, seq__1390_1406__$1);
+              var G__1408 = cljs.core.chunk_rest.call(null, seq__1390_1406__$1);
+              var G__1409 = c__5525__auto___1407;
+              var G__1410 = cljs.core.count.call(null, c__5525__auto___1407);
+              var G__1411 = 0;
+              seq__1390_1396 = G__1408;
+              chunk__1391_1397 = G__1409;
+              count__1392_1398 = G__1410;
+              i__1393_1399 = G__1411;
               continue;
             } else {
-              var ch_4232 = cljs.core.first.call(null, seq__4210_4226__$1);
-              dacite.value.types.ensure_in_store_BANG_.call(null, src, dst, ch_4232);
-              var G__4233 = cljs.core.next.call(null, seq__4210_4226__$1);
-              var G__4234 = null;
-              var G__4235 = 0;
-              var G__4236 = 0;
-              seq__4210_4216 = G__4233;
-              chunk__4211_4217 = G__4234;
-              count__4212_4218 = G__4235;
-              i__4213_4219 = G__4236;
+              var ch_1412 = cljs.core.first.call(null, seq__1390_1406__$1);
+              dacite.value.types.ensure_in_store_BANG_.call(null, src, dst, ch_1412);
+              var G__1413 = cljs.core.next.call(null, seq__1390_1406__$1);
+              var G__1414 = null;
+              var G__1415 = 0;
+              var G__1416 = 0;
+              seq__1390_1396 = G__1413;
+              chunk__1391_1397 = G__1414;
+              count__1392_1398 = G__1415;
+              i__1393_1399 = G__1416;
               continue;
             }
           } else {
@@ -46526,7 +46526,7 @@ dacite.value.types.extract_hash = function dacite$value$types$extract_hash(store
 };
 dacite.value.types.IStoreCarrier = function() {
 };
-var dacite$value$types$IStoreCarrier$carrier_store$dyn_4238 = function(this$) {
+var dacite$value$types$IStoreCarrier$carrier_store$dyn_1418 = function(this$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.value.types.carrier_store[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -46544,7 +46544,7 @@ dacite.value.types.carrier_store = function dacite$value$types$carrier_store(thi
   if (!(this$ == null) && !(this$.dacite$value$types$IStoreCarrier$carrier_store$arity$1 == null)) {
     return this$.dacite$value$types$IStoreCarrier$carrier_store$arity$1(this$);
   } else {
-    return dacite$value$types$IStoreCarrier$carrier_store$dyn_4238.call(null, this$);
+    return dacite$value$types$IStoreCarrier$carrier_store$dyn_1418.call(null, this$);
   }
 };
 dacite.value.types.store_of = function dacite$value$types$store_of(x) {
@@ -46852,82 +46852,82 @@ dacite.value.scalar.negative_via = function dacite$value$scalar$negative_via(pee
 cljs.core._add_method.call(null, dacite.value.types.encode_value, "null", function(_) {
   return cljs.core.PersistentVector.EMPTY;
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "bool", function(p__5470) {
-  var vec__5471 = p__5470;
-  var _ = cljs.core.nth.call(null, vec__5471, 0, null);
-  var b = cljs.core.nth.call(null, vec__5471, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "bool", function(p__1627) {
+  var vec__1628 = p__1627;
+  var _ = cljs.core.nth.call(null, vec__1628, 0, null);
+  var b = cljs.core.nth.call(null, vec__1628, 1, null);
   return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [cljs.core.truth_(b) ? 1 : 0], null);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "i8", function(p__5474) {
-  var vec__5475 = p__5474;
-  var _ = cljs.core.nth.call(null, vec__5475, 0, null);
-  var n = cljs.core.nth.call(null, vec__5475, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "i8", function(p__1631) {
+  var vec__1632 = p__1631;
+  var _ = cljs.core.nth.call(null, vec__1632, 0, null);
+  var n = cljs.core.nth.call(null, vec__1632, 1, null);
   return dacite.host.int__GT_bytes_be.call(null, n, 1);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "i16", function(p__5478) {
-  var vec__5479 = p__5478;
-  var _ = cljs.core.nth.call(null, vec__5479, 0, null);
-  var n = cljs.core.nth.call(null, vec__5479, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "i16", function(p__1635) {
+  var vec__1636 = p__1635;
+  var _ = cljs.core.nth.call(null, vec__1636, 0, null);
+  var n = cljs.core.nth.call(null, vec__1636, 1, null);
   return dacite.host.int__GT_bytes_be.call(null, n, 2);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "i32", function(p__5482) {
-  var vec__5483 = p__5482;
-  var _ = cljs.core.nth.call(null, vec__5483, 0, null);
-  var n = cljs.core.nth.call(null, vec__5483, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "i32", function(p__1639) {
+  var vec__1640 = p__1639;
+  var _ = cljs.core.nth.call(null, vec__1640, 0, null);
+  var n = cljs.core.nth.call(null, vec__1640, 1, null);
   return dacite.host.int__GT_bytes_be.call(null, n, 4);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "i64", function(p__5486) {
-  var vec__5487 = p__5486;
-  var _ = cljs.core.nth.call(null, vec__5487, 0, null);
-  var n = cljs.core.nth.call(null, vec__5487, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "i64", function(p__1643) {
+  var vec__1644 = p__1643;
+  var _ = cljs.core.nth.call(null, vec__1644, 0, null);
+  var n = cljs.core.nth.call(null, vec__1644, 1, null);
   return dacite.host.int__GT_bytes_be.call(null, n, 8);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "u8", function(p__5490) {
-  var vec__5491 = p__5490;
-  var _ = cljs.core.nth.call(null, vec__5491, 0, null);
-  var n = cljs.core.nth.call(null, vec__5491, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "u8", function(p__1647) {
+  var vec__1648 = p__1647;
+  var _ = cljs.core.nth.call(null, vec__1648, 0, null);
+  var n = cljs.core.nth.call(null, vec__1648, 1, null);
   return dacite.host.int__GT_bytes_be.call(null, n, 1);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "u16", function(p__5494) {
-  var vec__5495 = p__5494;
-  var _ = cljs.core.nth.call(null, vec__5495, 0, null);
-  var n = cljs.core.nth.call(null, vec__5495, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "u16", function(p__1651) {
+  var vec__1652 = p__1651;
+  var _ = cljs.core.nth.call(null, vec__1652, 0, null);
+  var n = cljs.core.nth.call(null, vec__1652, 1, null);
   return dacite.host.int__GT_bytes_be.call(null, n, 2);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "u32", function(p__5498) {
-  var vec__5499 = p__5498;
-  var _ = cljs.core.nth.call(null, vec__5499, 0, null);
-  var n = cljs.core.nth.call(null, vec__5499, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "u32", function(p__1655) {
+  var vec__1656 = p__1655;
+  var _ = cljs.core.nth.call(null, vec__1656, 0, null);
+  var n = cljs.core.nth.call(null, vec__1656, 1, null);
   return dacite.host.int__GT_bytes_be.call(null, n, 4);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "u64", function(p__5502) {
-  var vec__5503 = p__5502;
-  var _ = cljs.core.nth.call(null, vec__5503, 0, null);
-  var n = cljs.core.nth.call(null, vec__5503, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "u64", function(p__1659) {
+  var vec__1660 = p__1659;
+  var _ = cljs.core.nth.call(null, vec__1660, 0, null);
+  var n = cljs.core.nth.call(null, vec__1660, 1, null);
   return dacite.host.int__GT_bytes_be.call(null, n, 8);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "u256", function(p__5506) {
-  var vec__5507 = p__5506;
-  var _ = cljs.core.nth.call(null, vec__5507, 0, null);
-  var data = cljs.core.nth.call(null, vec__5507, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "u256", function(p__1663) {
+  var vec__1664 = p__1663;
+  var _ = cljs.core.nth.call(null, vec__1664, 0, null);
+  var data = cljs.core.nth.call(null, vec__1664, 1, null);
   return data;
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "f32", function(p__5510) {
-  var vec__5511 = p__5510;
-  var _ = cljs.core.nth.call(null, vec__5511, 0, null);
-  var n = cljs.core.nth.call(null, vec__5511, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "f32", function(p__1667) {
+  var vec__1668 = p__1667;
+  var _ = cljs.core.nth.call(null, vec__1668, 0, null);
+  var n = cljs.core.nth.call(null, vec__1668, 1, null);
   return dacite.host.f32__GT_bytes.call(null, n);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "f64", function(p__5514) {
-  var vec__5515 = p__5514;
-  var _ = cljs.core.nth.call(null, vec__5515, 0, null);
-  var n = cljs.core.nth.call(null, vec__5515, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "f64", function(p__1671) {
+  var vec__1672 = p__1671;
+  var _ = cljs.core.nth.call(null, vec__1672, 0, null);
+  var n = cljs.core.nth.call(null, vec__1672, 1, null);
   return dacite.host.f64__GT_bytes.call(null, n);
 });
-cljs.core._add_method.call(null, dacite.value.types.encode_value, "char", function(p__5518) {
-  var vec__5519 = p__5518;
-  var _ = cljs.core.nth.call(null, vec__5519, 0, null);
-  var ch = cljs.core.nth.call(null, vec__5519, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.encode_value, "char", function(p__1675) {
+  var vec__1676 = p__1675;
+  var _ = cljs.core.nth.call(null, vec__1676, 0, null);
+  var ch = cljs.core.nth.call(null, vec__1676, 1, null);
   return dacite.host.utf8_bytes.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(ch));
 });
 cljs.core._add_method.call(null, dacite.value.types.encode_value, "negative", function(_) {
@@ -46981,10 +46981,10 @@ cljs.core._add_method.call(null, dacite.value.types.dacite_size, "f32", function
 cljs.core._add_method.call(null, dacite.value.types.dacite_size, "f64", function(_) {
   return 8;
 });
-cljs.core._add_method.call(null, dacite.value.types.dacite_size, "char", function(p__5522) {
-  var vec__5523 = p__5522;
-  var _ = cljs.core.nth.call(null, vec__5523, 0, null);
-  var ch = cljs.core.nth.call(null, vec__5523, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.dacite_size, "char", function(p__1679) {
+  var vec__1680 = p__1679;
+  var _ = cljs.core.nth.call(null, vec__1680, 0, null);
+  var ch = cljs.core.nth.call(null, vec__1680, 1, null);
   return cljs.core.count.call(null, dacite.host.utf8_bytes.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(ch)));
 });
 cljs.core._add_method.call(null, dacite.value.types.dacite_size, "negative", function(_) {
@@ -47087,8 +47087,8 @@ dacite.value.finger_tree.digit_rest_BANG_ = function dacite$value$finger_tree$di
   var children = dacite.value.finger_tree.get_children.call(null, store, dh);
   if (cljs.core.count.call(null, children) > 1) {
     var nc = cljs.core.subvec.call(null, children, 1);
-    return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__5338_SHARP_) {
-      return dacite.value.finger_tree.measure_of.call(null, store, p1__5338_SHARP_);
+    return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__1469_SHARP_) {
+      return dacite.value.finger_tree.measure_of.call(null, store, p1__1469_SHARP_);
     }, nc));
   } else {
     return null;
@@ -47098,8 +47098,8 @@ dacite.value.finger_tree.digit_butlast_BANG_ = function dacite$value$finger_tree
   var children = dacite.value.finger_tree.get_children.call(null, store, dh);
   if (cljs.core.count.call(null, children) > 1) {
     var nc = cljs.core.pop.call(null, children);
-    return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__5339_SHARP_) {
-      return dacite.value.finger_tree.measure_of.call(null, store, p1__5339_SHARP_);
+    return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__1470_SHARP_) {
+      return dacite.value.finger_tree.measure_of.call(null, store, p1__1470_SHARP_);
     }, nc));
   } else {
     return null;
@@ -47107,20 +47107,20 @@ dacite.value.finger_tree.digit_butlast_BANG_ = function dacite$value$finger_tree
 };
 dacite.value.finger_tree.digit_conj_left_BANG_ = function dacite$value$finger_tree$digit_conj_left_BANG_(store, dh, elem) {
   var nc = cljs.core.into.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [elem], null), dacite.value.finger_tree.get_children.call(null, store, dh));
-  return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__5340_SHARP_) {
-    return dacite.value.finger_tree.measure_of.call(null, store, p1__5340_SHARP_);
+  return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__1471_SHARP_) {
+    return dacite.value.finger_tree.measure_of.call(null, store, p1__1471_SHARP_);
   }, nc));
 };
 dacite.value.finger_tree.digit_conj_right_BANG_ = function dacite$value$finger_tree$digit_conj_right_BANG_(store, dh, elem) {
   var nc = cljs.core.conj.call(null, dacite.value.finger_tree.get_children.call(null, store, dh), elem);
-  return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__5341_SHARP_) {
-    return dacite.value.finger_tree.measure_of.call(null, store, p1__5341_SHARP_);
+  return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__1472_SHARP_) {
+    return dacite.value.finger_tree.measure_of.call(null, store, p1__1472_SHARP_);
   }, nc));
 };
 dacite.value.finger_tree.tree_first_STAR_ = function dacite$value$finger_tree$tree_first_STAR_(store, root) {
   var node = dacite.value.finger_tree.lookup.call(null, store, root);
-  var G__5342 = dacite.value.finger_tree.node_type.call(null, node);
-  switch(G__5342) {
+  var G__1473 = dacite.value.finger_tree.node_type.call(null, node);
+  switch(G__1473) {
     case "ft/empty":
       return null;
       break;
@@ -47133,8 +47133,8 @@ dacite.value.finger_tree.tree_first_STAR_ = function dacite$value$finger_tree$tr
 };
 dacite.value.finger_tree.tree_last_STAR_ = function dacite$value$finger_tree$tree_last_STAR_(store, root) {
   var node = dacite.value.finger_tree.lookup.call(null, store, root);
-  var G__5344 = dacite.value.finger_tree.node_type.call(null, node);
-  switch(G__5344) {
+  var G__1475 = dacite.value.finger_tree.node_type.call(null, node);
+  switch(G__1475) {
     case "ft/empty":
       return null;
       break;
@@ -47152,17 +47152,17 @@ dacite.value.finger_tree.to_tree_from_digit_BANG_ = function dacite$value$finger
 };
 dacite.value.finger_tree.tree_rest_STAR_ = function dacite$value$finger_tree$tree_rest_STAR_(store, root) {
   var node = dacite.value.finger_tree.lookup.call(null, store, root);
-  var G__5347 = dacite.value.finger_tree.node_type.call(null, node);
-  switch(G__5347) {
+  var G__1478 = dacite.value.finger_tree.node_type.call(null, node);
+  switch(G__1478) {
     case "ft/empty":
       return root;
       break;
     case "ft/deep":
-      var map__5348 = dacite.value.finger_tree.node_data.call(null, node);
-      var map__5348__$1 = cljs.core.__destructure_map.call(null, map__5348);
-      var left = cljs.core.get.call(null, map__5348__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
-      var spine = cljs.core.get.call(null, map__5348__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
-      var right = cljs.core.get.call(null, map__5348__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
+      var map__1479 = dacite.value.finger_tree.node_data.call(null, node);
+      var map__1479__$1 = cljs.core.__destructure_map.call(null, map__1479);
+      var left = cljs.core.get.call(null, map__1479__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
+      var spine = cljs.core.get.call(null, map__1479__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
+      var right = cljs.core.get.call(null, map__1479__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
       var new_left = dacite.value.finger_tree.digit_rest_BANG_.call(null, store, left);
       if (cljs.core.truth_(new_left)) {
         return dacite.value.finger_tree.make_deep_BANG_.call(null, store, new_left, spine, right, dacite.value.finger_tree.measure_of.call(null, store, new_left), dacite.value.finger_tree.measure_of.call(null, store, spine), dacite.value.finger_tree.measure_of.call(null, store, right));
@@ -47173,8 +47173,8 @@ dacite.value.finger_tree.tree_rest_STAR_ = function dacite$value$finger_tree$tre
           var spine_first = dacite.value.finger_tree.tree_first_STAR_.call(null, store, spine);
           var new_spine = dacite.value.finger_tree.tree_rest_STAR_.call(null, store, spine);
           var nch = dacite.value.finger_tree.get_children.call(null, store, spine_first);
-          var new_left_SINGLEQUOTE_ = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nch, cljs.core.mapv.call(null, function(p1__5346_SHARP_) {
-            return dacite.value.finger_tree.measure_of.call(null, store, p1__5346_SHARP_);
+          var new_left_SINGLEQUOTE_ = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nch, cljs.core.mapv.call(null, function(p1__1477_SHARP_) {
+            return dacite.value.finger_tree.measure_of.call(null, store, p1__1477_SHARP_);
           }, nch));
           return dacite.value.finger_tree.make_deep_BANG_.call(null, store, new_left_SINGLEQUOTE_, new_spine, right, dacite.value.finger_tree.measure_of.call(null, store, new_left_SINGLEQUOTE_), dacite.value.finger_tree.measure_of.call(null, store, new_spine), dacite.value.finger_tree.measure_of.call(null, store, right));
         }
@@ -47186,17 +47186,17 @@ dacite.value.finger_tree.tree_rest_STAR_ = function dacite$value$finger_tree$tre
 };
 dacite.value.finger_tree.tree_butlast_STAR_ = function dacite$value$finger_tree$tree_butlast_STAR_(store, root) {
   var node = dacite.value.finger_tree.lookup.call(null, store, root);
-  var G__5351 = dacite.value.finger_tree.node_type.call(null, node);
-  switch(G__5351) {
+  var G__1482 = dacite.value.finger_tree.node_type.call(null, node);
+  switch(G__1482) {
     case "ft/empty":
       return root;
       break;
     case "ft/deep":
-      var map__5352 = dacite.value.finger_tree.node_data.call(null, node);
-      var map__5352__$1 = cljs.core.__destructure_map.call(null, map__5352);
-      var left = cljs.core.get.call(null, map__5352__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
-      var spine = cljs.core.get.call(null, map__5352__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
-      var right = cljs.core.get.call(null, map__5352__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
+      var map__1483 = dacite.value.finger_tree.node_data.call(null, node);
+      var map__1483__$1 = cljs.core.__destructure_map.call(null, map__1483);
+      var left = cljs.core.get.call(null, map__1483__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
+      var spine = cljs.core.get.call(null, map__1483__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
+      var right = cljs.core.get.call(null, map__1483__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
       var new_right = dacite.value.finger_tree.digit_butlast_BANG_.call(null, store, right);
       if (cljs.core.truth_(new_right)) {
         return dacite.value.finger_tree.make_deep_BANG_.call(null, store, left, spine, new_right, dacite.value.finger_tree.measure_of.call(null, store, left), dacite.value.finger_tree.measure_of.call(null, store, spine), dacite.value.finger_tree.measure_of.call(null, store, new_right));
@@ -47207,8 +47207,8 @@ dacite.value.finger_tree.tree_butlast_STAR_ = function dacite$value$finger_tree$
           var spine_last = dacite.value.finger_tree.tree_last_STAR_.call(null, store, spine);
           var new_spine = dacite.value.finger_tree.tree_butlast_STAR_.call(null, store, spine);
           var nch = dacite.value.finger_tree.get_children.call(null, store, spine_last);
-          var new_right_SINGLEQUOTE_ = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nch, cljs.core.mapv.call(null, function(p1__5350_SHARP_) {
-            return dacite.value.finger_tree.measure_of.call(null, store, p1__5350_SHARP_);
+          var new_right_SINGLEQUOTE_ = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nch, cljs.core.mapv.call(null, function(p1__1481_SHARP_) {
+            return dacite.value.finger_tree.measure_of.call(null, store, p1__1481_SHARP_);
           }, nch));
           return dacite.value.finger_tree.make_deep_BANG_.call(null, store, left, new_spine, new_right_SINGLEQUOTE_, dacite.value.finger_tree.measure_of.call(null, store, left), dacite.value.finger_tree.measure_of.call(null, store, new_spine), dacite.value.finger_tree.measure_of.call(null, store, new_right_SINGLEQUOTE_));
         }
@@ -47220,29 +47220,29 @@ dacite.value.finger_tree.tree_butlast_STAR_ = function dacite$value$finger_tree$
 };
 dacite.value.finger_tree.tree_conj_left_BANG_ = function dacite$value$finger_tree$tree_conj_left_BANG_(store, root, elem) {
   var node = dacite.value.finger_tree.lookup.call(null, store, root);
-  var G__5356 = dacite.value.finger_tree.node_type.call(null, node);
-  switch(G__5356) {
+  var G__1487 = dacite.value.finger_tree.node_type.call(null, node);
+  switch(G__1487) {
     case "ft/empty":
       return elem;
       break;
     case "ft/deep":
-      var map__5357 = dacite.value.finger_tree.node_data.call(null, node);
-      var map__5357__$1 = cljs.core.__destructure_map.call(null, map__5357);
-      var left = cljs.core.get.call(null, map__5357__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
-      var spine = cljs.core.get.call(null, map__5357__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
-      var right = cljs.core.get.call(null, map__5357__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
+      var map__1488 = dacite.value.finger_tree.node_data.call(null, node);
+      var map__1488__$1 = cljs.core.__destructure_map.call(null, map__1488);
+      var left = cljs.core.get.call(null, map__1488__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
+      var spine = cljs.core.get.call(null, map__1488__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
+      var right = cljs.core.get.call(null, map__1488__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
       if (dacite.value.finger_tree.digit_count.call(null, store, left) < 32) {
         var new_left = dacite.value.finger_tree.digit_conj_left_BANG_.call(null, store, left, elem);
         return dacite.value.finger_tree.make_deep_BANG_.call(null, store, new_left, spine, right, dacite.value.finger_tree.measure_of.call(null, store, new_left), dacite.value.finger_tree.measure_of.call(null, store, spine), dacite.value.finger_tree.measure_of.call(null, store, right));
       } else {
         var lc = dacite.value.finger_tree.get_children.call(null, store, left);
         var new_left_children = cljs.core.into.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [elem], null), cljs.core.subvec.call(null, lc, 0, 7));
-        var new_left = dacite.value.finger_tree.make_digit_BANG_.call(null, store, new_left_children, cljs.core.mapv.call(null, function(p1__5354_SHARP_) {
-          return dacite.value.finger_tree.measure_of.call(null, store, p1__5354_SHARP_);
+        var new_left = dacite.value.finger_tree.make_digit_BANG_.call(null, store, new_left_children, cljs.core.mapv.call(null, function(p1__1485_SHARP_) {
+          return dacite.value.finger_tree.measure_of.call(null, store, p1__1485_SHARP_);
         }, new_left_children));
         var node_children = cljs.core.subvec.call(null, lc, 7, 32);
-        var new_node = dacite.value.finger_tree.make_node_BANG_.call(null, store, node_children, cljs.core.mapv.call(null, function(p1__5355_SHARP_) {
-          return dacite.value.finger_tree.measure_of.call(null, store, p1__5355_SHARP_);
+        var new_node = dacite.value.finger_tree.make_node_BANG_.call(null, store, node_children, cljs.core.mapv.call(null, function(p1__1486_SHARP_) {
+          return dacite.value.finger_tree.measure_of.call(null, store, p1__1486_SHARP_);
         }, node_children));
         var new_spine = dacite.value.finger_tree.tree_conj_left_BANG_.call(null, store, spine, new_node);
         return dacite.value.finger_tree.make_deep_BANG_.call(null, store, new_left, new_spine, right, dacite.value.finger_tree.measure_of.call(null, store, new_left), dacite.value.finger_tree.measure_of.call(null, store, new_spine), dacite.value.finger_tree.measure_of.call(null, store, right));
@@ -47257,30 +47257,30 @@ dacite.value.finger_tree.tree_conj_left_BANG_ = function dacite$value$finger_tre
 };
 dacite.value.finger_tree.tree_conj_right_BANG_ = function dacite$value$finger_tree$tree_conj_right_BANG_(store, root, elem) {
   var node = dacite.value.finger_tree.lookup.call(null, store, root);
-  var G__5361 = dacite.value.finger_tree.node_type.call(null, node);
-  switch(G__5361) {
+  var G__1492 = dacite.value.finger_tree.node_type.call(null, node);
+  switch(G__1492) {
     case "ft/empty":
       return elem;
       break;
     case "ft/deep":
-      var map__5362 = dacite.value.finger_tree.node_data.call(null, node);
-      var map__5362__$1 = cljs.core.__destructure_map.call(null, map__5362);
-      var left = cljs.core.get.call(null, map__5362__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
-      var spine = cljs.core.get.call(null, map__5362__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
-      var right = cljs.core.get.call(null, map__5362__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
+      var map__1493 = dacite.value.finger_tree.node_data.call(null, node);
+      var map__1493__$1 = cljs.core.__destructure_map.call(null, map__1493);
+      var left = cljs.core.get.call(null, map__1493__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
+      var spine = cljs.core.get.call(null, map__1493__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
+      var right = cljs.core.get.call(null, map__1493__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
       if (dacite.value.finger_tree.digit_count.call(null, store, right) < 32) {
         var new_right = dacite.value.finger_tree.digit_conj_right_BANG_.call(null, store, right, elem);
         return dacite.value.finger_tree.make_deep_BANG_.call(null, store, left, spine, new_right, dacite.value.finger_tree.measure_of.call(null, store, left), dacite.value.finger_tree.measure_of.call(null, store, spine), dacite.value.finger_tree.measure_of.call(null, store, new_right));
       } else {
         var rc = dacite.value.finger_tree.get_children.call(null, store, right);
         var node_children = cljs.core.subvec.call(null, rc, 0, 24);
-        var new_node = dacite.value.finger_tree.make_node_BANG_.call(null, store, node_children, cljs.core.mapv.call(null, function(p1__5359_SHARP_) {
-          return dacite.value.finger_tree.measure_of.call(null, store, p1__5359_SHARP_);
+        var new_node = dacite.value.finger_tree.make_node_BANG_.call(null, store, node_children, cljs.core.mapv.call(null, function(p1__1490_SHARP_) {
+          return dacite.value.finger_tree.measure_of.call(null, store, p1__1490_SHARP_);
         }, node_children));
         var new_spine = dacite.value.finger_tree.tree_conj_right_BANG_.call(null, store, spine, new_node);
         var new_right_children = cljs.core.conj.call(null, cljs.core.subvec.call(null, rc, 24, 32), elem);
-        var new_right = dacite.value.finger_tree.make_digit_BANG_.call(null, store, new_right_children, cljs.core.mapv.call(null, function(p1__5360_SHARP_) {
-          return dacite.value.finger_tree.measure_of.call(null, store, p1__5360_SHARP_);
+        var new_right = dacite.value.finger_tree.make_digit_BANG_.call(null, store, new_right_children, cljs.core.mapv.call(null, function(p1__1491_SHARP_) {
+          return dacite.value.finger_tree.measure_of.call(null, store, p1__1491_SHARP_);
         }, new_right_children));
         return dacite.value.finger_tree.make_deep_BANG_.call(null, store, left, new_spine, new_right, dacite.value.finger_tree.measure_of.call(null, store, left), dacite.value.finger_tree.measure_of.call(null, store, new_spine), dacite.value.finger_tree.measure_of.call(null, store, new_right));
       }
@@ -47294,24 +47294,30 @@ dacite.value.finger_tree.tree_conj_right_BANG_ = function dacite$value$finger_tr
 };
 dacite.value.finger_tree.tree_to_seq_STAR_ = function dacite$value$finger_tree$tree_to_seq_STAR_(store, root) {
   var node = dacite.value.finger_tree.lookup.call(null, store, root);
-  var G__5365 = dacite.value.finger_tree.node_type.call(null, node);
-  switch(G__5365) {
+  var G__1496 = dacite.value.finger_tree.node_type.call(null, node);
+  switch(G__1496) {
     case "ft/empty":
       return null;
       break;
     case "ft/digit":
     case "ft/node":
-      return cljs.core.mapcat.call(null, function(p1__5364_SHARP_) {
-        return dacite.value.finger_tree.tree_to_seq_STAR_.call(null, store, p1__5364_SHARP_);
+      return cljs.core.mapcat.call(null, function(p1__1495_SHARP_) {
+        return dacite.value.finger_tree.tree_to_seq_STAR_.call(null, store, p1__1495_SHARP_);
       }, dacite.value.finger_tree.get_children.call(null, store, root));
       break;
     case "ft/deep":
-      var map__5366 = dacite.value.finger_tree.node_data.call(null, node);
-      var map__5366__$1 = cljs.core.__destructure_map.call(null, map__5366);
-      var left = cljs.core.get.call(null, map__5366__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
-      var spine = cljs.core.get.call(null, map__5366__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
-      var right = cljs.core.get.call(null, map__5366__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
-      return cljs.core.concat.call(null, dacite.value.finger_tree.tree_to_seq_STAR_.call(null, store, left), dacite.value.finger_tree.tree_to_seq_STAR_.call(null, store, spine), dacite.value.finger_tree.tree_to_seq_STAR_.call(null, store, right));
+      var map__1497 = dacite.value.finger_tree.node_data.call(null, node);
+      var map__1497__$1 = cljs.core.__destructure_map.call(null, map__1497);
+      var left = cljs.core.get.call(null, map__1497__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
+      var spine = cljs.core.get.call(null, map__1497__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
+      var right = cljs.core.get.call(null, map__1497__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
+      return cljs.core.concat.call(null, new cljs.core.LazySeq(null, function() {
+        return dacite.value.finger_tree.tree_to_seq_STAR_.call(null, store, left);
+      }, null, null), new cljs.core.LazySeq(null, function() {
+        return dacite.value.finger_tree.tree_to_seq_STAR_.call(null, store, spine);
+      }, null, null), new cljs.core.LazySeq(null, function() {
+        return dacite.value.finger_tree.tree_to_seq_STAR_.call(null, store, right);
+      }, null, null));
       break;
     default:
       return new cljs.core.List(null, root, null, 1, null);
@@ -47325,30 +47331,30 @@ dacite.value.finger_tree.scan_children = function dacite$value$finger_tree$scan_
     var c_count = (new cljs.core.Keyword(null, "count", "count", 2139924085)).cljs$core$IFn$_invoke$arity$1(dacite.value.finger_tree.measure_of.call(null, store, c));
     if (remaining < c_count) {
       var t = dacite.value.finger_tree.node_type.call(null, dacite.value.finger_tree.lookup.call(null, store, c));
-      var G__5368 = t;
-      switch(G__5368) {
+      var G__1499 = t;
+      switch(G__1499) {
         case "ft/node":
-          var G__5370 = cljs.core.seq.call(null, dacite.value.finger_tree.get_children.call(null, store, c));
-          var G__5371 = remaining;
-          cs = G__5370;
-          remaining = G__5371;
+          var G__1501 = cljs.core.seq.call(null, dacite.value.finger_tree.get_children.call(null, store, c));
+          var G__1502 = remaining;
+          cs = G__1501;
+          remaining = G__1502;
           continue;
           break;
         case "ft/digit":
-          var G__5372 = cljs.core.seq.call(null, dacite.value.finger_tree.get_children.call(null, store, c));
-          var G__5373 = remaining;
-          cs = G__5372;
-          remaining = G__5373;
+          var G__1503 = cljs.core.seq.call(null, dacite.value.finger_tree.get_children.call(null, store, c));
+          var G__1504 = remaining;
+          cs = G__1503;
+          remaining = G__1504;
           continue;
           break;
         default:
           return dacite.value.finger_tree.as_leaf_hash.call(null, store, c);
       }
     } else {
-      var G__5374 = cljs.core.next.call(null, cs);
-      var G__5375 = remaining - c_count;
-      cs = G__5374;
-      remaining = G__5375;
+      var G__1505 = cljs.core.next.call(null, cs);
+      var G__1506 = remaining - c_count;
+      cs = G__1505;
+      remaining = G__1506;
       continue;
     }
     break;
@@ -47357,8 +47363,8 @@ dacite.value.finger_tree.scan_children = function dacite$value$finger_tree$scan_
 dacite.value.finger_tree.tree_nth_STAR_ = function dacite$value$finger_tree$tree_nth_STAR_(store, root, idx) {
   var node = dacite.value.finger_tree.lookup.call(null, store, root);
   var t = dacite.value.finger_tree.node_type.call(null, node);
-  var G__5376 = t;
-  switch(G__5376) {
+  var G__1507 = t;
+  switch(G__1507) {
     case "ft/node":
       return dacite.value.finger_tree.scan_children.call(null, store, dacite.value.finger_tree.get_children.call(null, store, root), idx);
       break;
@@ -47366,11 +47372,11 @@ dacite.value.finger_tree.tree_nth_STAR_ = function dacite$value$finger_tree$tree
       return dacite.value.finger_tree.scan_children.call(null, store, dacite.value.finger_tree.get_children.call(null, store, root), idx);
       break;
     case "ft/deep":
-      var map__5377 = dacite.value.finger_tree.node_data.call(null, node);
-      var map__5377__$1 = cljs.core.__destructure_map.call(null, map__5377);
-      var left = cljs.core.get.call(null, map__5377__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
-      var spine = cljs.core.get.call(null, map__5377__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
-      var right = cljs.core.get.call(null, map__5377__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
+      var map__1508 = dacite.value.finger_tree.node_data.call(null, node);
+      var map__1508__$1 = cljs.core.__destructure_map.call(null, map__1508);
+      var left = cljs.core.get.call(null, map__1508__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
+      var spine = cljs.core.get.call(null, map__1508__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
+      var right = cljs.core.get.call(null, map__1508__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
       var left_count = (new cljs.core.Keyword(null, "count", "count", 2139924085)).cljs$core$IFn$_invoke$arity$1(dacite.value.finger_tree.measure_of.call(null, store, left));
       if (idx < left_count) {
         return dacite.value.finger_tree.scan_children.call(null, store, dacite.value.finger_tree.get_children.call(null, store, left), idx);
@@ -47412,10 +47418,10 @@ dacite.value.finger_tree.remove_at_children_BANG_ = function dacite$value$finger
         return cljs.core.into.call(null, left, right);
       }
     } else {
-      var G__5379 = i + 1;
-      var G__5380 = remaining - c_count;
-      i = G__5379;
-      remaining = G__5380;
+      var G__1510 = i + 1;
+      var G__1511 = remaining - c_count;
+      i = G__1510;
+      remaining = G__1511;
       continue;
     }
     break;
@@ -47424,16 +47430,16 @@ dacite.value.finger_tree.remove_at_children_BANG_ = function dacite$value$finger
 dacite.value.finger_tree.tree_remove_nth_STAR_ = function dacite$value$finger_tree$tree_remove_nth_STAR_(store, root, idx) {
   var node = dacite.value.finger_tree.lookup.call(null, store, root);
   var t = dacite.value.finger_tree.node_type.call(null, node);
-  var G__5387 = t;
-  switch(G__5387) {
+  var G__1518 = t;
+  switch(G__1518) {
     case "ft/empty":
       throw cljs.core.ex_info.call(null, "Cannot remove from empty tree", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "index", "index", -1531685915), idx], null));
       break;
     case "ft/digit":
       var nc = dacite.value.finger_tree.remove_at_children_BANG_.call(null, store, dacite.value.finger_tree.get_children.call(null, store, root), idx);
       if (cljs.core.seq.call(null, nc)) {
-        return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__5381_SHARP_) {
-          return dacite.value.finger_tree.measure_of.call(null, store, p1__5381_SHARP_);
+        return dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__1512_SHARP_) {
+          return dacite.value.finger_tree.measure_of.call(null, store, p1__1512_SHARP_);
         }, nc));
       } else {
         return null;
@@ -47441,8 +47447,8 @@ dacite.value.finger_tree.tree_remove_nth_STAR_ = function dacite$value$finger_tr
       break;
     case "ft/node":
       var nc = dacite.value.finger_tree.remove_at_children_BANG_.call(null, store, dacite.value.finger_tree.get_children.call(null, store, root), idx);
-      var G__5388 = cljs.core.count.call(null, nc);
-      switch(G__5388) {
+      var G__1519 = cljs.core.count.call(null, nc);
+      switch(G__1519) {
         case 0:
           return null;
           break;
@@ -47450,16 +47456,16 @@ dacite.value.finger_tree.tree_remove_nth_STAR_ = function dacite$value$finger_tr
           return cljs.core.first.call(null, nc);
           break;
         default:
-          return dacite.value.finger_tree.make_node_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__5382_SHARP_) {
-            return dacite.value.finger_tree.measure_of.call(null, store, p1__5382_SHARP_);
+          return dacite.value.finger_tree.make_node_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__1513_SHARP_) {
+            return dacite.value.finger_tree.measure_of.call(null, store, p1__1513_SHARP_);
           }, nc));
       }break;
     case "ft/deep":
-      var map__5389 = dacite.value.finger_tree.node_data.call(null, node);
-      var map__5389__$1 = cljs.core.__destructure_map.call(null, map__5389);
-      var left = cljs.core.get.call(null, map__5389__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
-      var spine = cljs.core.get.call(null, map__5389__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
-      var right = cljs.core.get.call(null, map__5389__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
+      var map__1520 = dacite.value.finger_tree.node_data.call(null, node);
+      var map__1520__$1 = cljs.core.__destructure_map.call(null, map__1520);
+      var left = cljs.core.get.call(null, map__1520__$1, new cljs.core.Keyword(null, "left", "left", -399115937));
+      var spine = cljs.core.get.call(null, map__1520__$1, new cljs.core.Keyword(null, "spine", "spine", 228266935));
+      var right = cljs.core.get.call(null, map__1520__$1, new cljs.core.Keyword(null, "right", "right", -452581833));
       var left_m = dacite.value.finger_tree.measure_of.call(null, store, left);
       var spine_m = dacite.value.finger_tree.measure_of.call(null, store, spine);
       var right_m = dacite.value.finger_tree.measure_of.call(null, store, right);
@@ -47468,8 +47474,8 @@ dacite.value.finger_tree.tree_remove_nth_STAR_ = function dacite$value$finger_tr
       if (idx < left_count) {
         var nc = dacite.value.finger_tree.remove_at_children_BANG_.call(null, store, dacite.value.finger_tree.get_children.call(null, store, left), idx);
         if (cljs.core.seq.call(null, nc)) {
-          var new_left = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__5383_SHARP_) {
-            return dacite.value.finger_tree.measure_of.call(null, store, p1__5383_SHARP_);
+          var new_left = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__1514_SHARP_) {
+            return dacite.value.finger_tree.measure_of.call(null, store, p1__1514_SHARP_);
           }, nc));
           return dacite.value.finger_tree.make_deep_BANG_.call(null, store, new_left, spine, right, dacite.value.finger_tree.measure_of.call(null, store, new_left), spine_m, right_m);
         } else {
@@ -47479,8 +47485,8 @@ dacite.value.finger_tree.tree_remove_nth_STAR_ = function dacite$value$finger_tr
             var spine_first = dacite.value.finger_tree.tree_first_STAR_.call(null, store, spine);
             var new_spine = dacite.value.finger_tree.tree_rest_STAR_.call(null, store, spine);
             var nch = dacite.value.finger_tree.get_children.call(null, store, spine_first);
-            var new_left_SINGLEQUOTE_ = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nch, cljs.core.mapv.call(null, function(p1__5384_SHARP_) {
-              return dacite.value.finger_tree.measure_of.call(null, store, p1__5384_SHARP_);
+            var new_left_SINGLEQUOTE_ = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nch, cljs.core.mapv.call(null, function(p1__1515_SHARP_) {
+              return dacite.value.finger_tree.measure_of.call(null, store, p1__1515_SHARP_);
             }, nch));
             return dacite.value.finger_tree.make_deep_BANG_.call(null, store, new_left_SINGLEQUOTE_, new_spine, right, dacite.value.finger_tree.measure_of.call(null, store, new_left_SINGLEQUOTE_), dacite.value.finger_tree.measure_of.call(null, store, new_spine), right_m);
           }
@@ -47498,8 +47504,8 @@ dacite.value.finger_tree.tree_remove_nth_STAR_ = function dacite$value$finger_tr
           var right_idx = idx - left_count - spine_count;
           var nc = dacite.value.finger_tree.remove_at_children_BANG_.call(null, store, dacite.value.finger_tree.get_children.call(null, store, right), right_idx);
           if (cljs.core.seq.call(null, nc)) {
-            var new_right = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__5385_SHARP_) {
-              return dacite.value.finger_tree.measure_of.call(null, store, p1__5385_SHARP_);
+            var new_right = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nc, cljs.core.mapv.call(null, function(p1__1516_SHARP_) {
+              return dacite.value.finger_tree.measure_of.call(null, store, p1__1516_SHARP_);
             }, nc));
             return dacite.value.finger_tree.make_deep_BANG_.call(null, store, left, spine, new_right, left_m, spine_m, dacite.value.finger_tree.measure_of.call(null, store, new_right));
           } else {
@@ -47509,8 +47515,8 @@ dacite.value.finger_tree.tree_remove_nth_STAR_ = function dacite$value$finger_tr
               var spine_last = dacite.value.finger_tree.tree_last_STAR_.call(null, store, spine);
               var new_spine = dacite.value.finger_tree.tree_butlast_STAR_.call(null, store, spine);
               var nch = dacite.value.finger_tree.get_children.call(null, store, spine_last);
-              var new_right_SINGLEQUOTE_ = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nch, cljs.core.mapv.call(null, function(p1__5386_SHARP_) {
-                return dacite.value.finger_tree.measure_of.call(null, store, p1__5386_SHARP_);
+              var new_right_SINGLEQUOTE_ = dacite.value.finger_tree.make_digit_BANG_.call(null, store, nch, cljs.core.mapv.call(null, function(p1__1517_SHARP_) {
+                return dacite.value.finger_tree.measure_of.call(null, store, p1__1517_SHARP_);
               }, nch));
               return dacite.value.finger_tree.make_deep_BANG_.call(null, store, left, new_spine, new_right_SINGLEQUOTE_, left_m, dacite.value.finger_tree.measure_of.call(null, store, new_spine), dacite.value.finger_tree.measure_of.call(null, store, new_right_SINGLEQUOTE_));
             }
@@ -47604,26 +47610,26 @@ dacite.value.finger_tree.ft_remove_nth = function dacite$value$finger_tree$ft_re
   }
 };
 dacite.value.finger_tree.ft_seq = function dacite$value$finger_tree$ft_seq(store, root) {
-  return cljs.core.map.call(null, function(p1__5392_SHARP_) {
-    return dacite.value.finger_tree.as_leaf_hash.call(null, store, p1__5392_SHARP_);
+  return cljs.core.map.call(null, function(p1__1523_SHARP_) {
+    return dacite.value.finger_tree.as_leaf_hash.call(null, store, p1__1523_SHARP_);
   }, dacite.value.finger_tree.tree_to_seq_STAR_.call(null, store, root));
 };
 dacite.value.finger_tree.ft_leaves = function dacite$value$finger_tree$ft_leaves(store, h) {
   var node = dacite.value.finger_tree.lookup.call(null, store, h);
   var t = dacite.value.finger_tree.node_type.call(null, node);
-  var G__5395 = t;
-  switch(G__5395) {
+  var G__1526 = t;
+  switch(G__1526) {
     case "ft/empty":
       return cljs.core.PersistentVector.EMPTY;
       break;
     case "ft/digit":
-      return cljs.core.mapcat.call(null, function(p1__5393_SHARP_) {
-        return dacite.value.finger_tree.ft_leaves.call(null, store, p1__5393_SHARP_);
+      return cljs.core.mapcat.call(null, function(p1__1524_SHARP_) {
+        return dacite.value.finger_tree.ft_leaves.call(null, store, p1__1524_SHARP_);
       }, (new cljs.core.Keyword(null, "children", "children", -940561982)).cljs$core$IFn$_invoke$arity$1(dacite.value.finger_tree.node_data.call(null, node)));
       break;
     case "ft/node":
-      return cljs.core.mapcat.call(null, function(p1__5394_SHARP_) {
-        return dacite.value.finger_tree.ft_leaves.call(null, store, p1__5394_SHARP_);
+      return cljs.core.mapcat.call(null, function(p1__1525_SHARP_) {
+        return dacite.value.finger_tree.ft_leaves.call(null, store, p1__1525_SHARP_);
       }, (new cljs.core.Keyword(null, "children", "children", -940561982)).cljs$core$IFn$_invoke$arity$1(dacite.value.finger_tree.node_data.call(null, node)));
       break;
     case "ft/deep":
@@ -47640,49 +47646,49 @@ dacite.value.finger_tree.ft_from_value_hashes = function dacite$value$finger_tre
 };
 dacite.value.finger_tree.ft_digit_from_value_hashes = function dacite$value$finger_tree$ft_digit_from_value_hashes(store, value_hashes) {
   var vhs = cljs.core.vec.call(null, value_hashes);
-  var seq__5398_5402 = cljs.core.seq.call(null, vhs);
-  var chunk__5399_5403 = null;
-  var count__5400_5404 = 0;
-  var i__5401_5405 = 0;
+  var seq__1529_1533 = cljs.core.seq.call(null, vhs);
+  var chunk__1530_1534 = null;
+  var count__1531_1535 = 0;
+  var i__1532_1536 = 0;
   while (true) {
-    if (i__5401_5405 < count__5400_5404) {
-      var vh_5406 = cljs.core._nth.call(null, chunk__5399_5403, i__5401_5405);
-      dacite.value.finger_tree.assert_leaf_value_BANG_.call(null, store, vh_5406);
-      var G__5407 = seq__5398_5402;
-      var G__5408 = chunk__5399_5403;
-      var G__5409 = count__5400_5404;
-      var G__5410 = i__5401_5405 + 1;
-      seq__5398_5402 = G__5407;
-      chunk__5399_5403 = G__5408;
-      count__5400_5404 = G__5409;
-      i__5401_5405 = G__5410;
+    if (i__1532_1536 < count__1531_1535) {
+      var vh_1537 = cljs.core._nth.call(null, chunk__1530_1534, i__1532_1536);
+      dacite.value.finger_tree.assert_leaf_value_BANG_.call(null, store, vh_1537);
+      var G__1538 = seq__1529_1533;
+      var G__1539 = chunk__1530_1534;
+      var G__1540 = count__1531_1535;
+      var G__1541 = i__1532_1536 + 1;
+      seq__1529_1533 = G__1538;
+      chunk__1530_1534 = G__1539;
+      count__1531_1535 = G__1540;
+      i__1532_1536 = G__1541;
       continue;
     } else {
-      var temp__5825__auto___5411 = cljs.core.seq.call(null, seq__5398_5402);
-      if (temp__5825__auto___5411) {
-        var seq__5398_5412__$1 = temp__5825__auto___5411;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__5398_5412__$1)) {
-          var c__5525__auto___5413 = cljs.core.chunk_first.call(null, seq__5398_5412__$1);
-          var G__5414 = cljs.core.chunk_rest.call(null, seq__5398_5412__$1);
-          var G__5415 = c__5525__auto___5413;
-          var G__5416 = cljs.core.count.call(null, c__5525__auto___5413);
-          var G__5417 = 0;
-          seq__5398_5402 = G__5414;
-          chunk__5399_5403 = G__5415;
-          count__5400_5404 = G__5416;
-          i__5401_5405 = G__5417;
+      var temp__5825__auto___1542 = cljs.core.seq.call(null, seq__1529_1533);
+      if (temp__5825__auto___1542) {
+        var seq__1529_1543__$1 = temp__5825__auto___1542;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1529_1543__$1)) {
+          var c__5525__auto___1544 = cljs.core.chunk_first.call(null, seq__1529_1543__$1);
+          var G__1545 = cljs.core.chunk_rest.call(null, seq__1529_1543__$1);
+          var G__1546 = c__5525__auto___1544;
+          var G__1547 = cljs.core.count.call(null, c__5525__auto___1544);
+          var G__1548 = 0;
+          seq__1529_1533 = G__1545;
+          chunk__1530_1534 = G__1546;
+          count__1531_1535 = G__1547;
+          i__1532_1536 = G__1548;
           continue;
         } else {
-          var vh_5418 = cljs.core.first.call(null, seq__5398_5412__$1);
-          dacite.value.finger_tree.assert_leaf_value_BANG_.call(null, store, vh_5418);
-          var G__5419 = cljs.core.next.call(null, seq__5398_5412__$1);
-          var G__5420 = null;
-          var G__5421 = 0;
-          var G__5422 = 0;
-          seq__5398_5402 = G__5419;
-          chunk__5399_5403 = G__5420;
-          count__5400_5404 = G__5421;
-          i__5401_5405 = G__5422;
+          var vh_1549 = cljs.core.first.call(null, seq__1529_1543__$1);
+          dacite.value.finger_tree.assert_leaf_value_BANG_.call(null, store, vh_1549);
+          var G__1550 = cljs.core.next.call(null, seq__1529_1543__$1);
+          var G__1551 = null;
+          var G__1552 = 0;
+          var G__1553 = 0;
+          seq__1529_1533 = G__1550;
+          chunk__1530_1534 = G__1551;
+          count__1531_1535 = G__1552;
+          i__1532_1536 = G__1553;
           continue;
         }
       } else {
@@ -47690,8 +47696,69 @@ dacite.value.finger_tree.ft_digit_from_value_hashes = function dacite$value$fing
     }
     break;
   }
-  return dacite.value.finger_tree.make_digit_BANG_.call(null, store, vhs, cljs.core.mapv.call(null, function(p1__5397_SHARP_) {
-    return dacite.value.finger_tree.measure_of.call(null, store, p1__5397_SHARP_);
+  return dacite.value.finger_tree.make_digit_BANG_.call(null, store, vhs, cljs.core.mapv.call(null, function(p1__1528_SHARP_) {
+    return dacite.value.finger_tree.measure_of.call(null, store, p1__1528_SHARP_);
+  }, vhs));
+};
+dacite.value.finger_tree.ft_node_from_value_hashes = function dacite$value$finger_tree$ft_node_from_value_hashes(store, value_hashes) {
+  var vhs = cljs.core.vec.call(null, value_hashes);
+  var n = cljs.core.count.call(null, vhs);
+  if (2 <= n && n <= 32) {
+  } else {
+    throw cljs.core.ex_info.call(null, "ft/node literal needs 2–32 leaves", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "count", "count", 2139924085), n], null));
+  }
+  var seq__1555_1559 = cljs.core.seq.call(null, vhs);
+  var chunk__1556_1560 = null;
+  var count__1557_1561 = 0;
+  var i__1558_1562 = 0;
+  while (true) {
+    if (i__1558_1562 < count__1557_1561) {
+      var vh_1563 = cljs.core._nth.call(null, chunk__1556_1560, i__1558_1562);
+      dacite.value.finger_tree.assert_leaf_value_BANG_.call(null, store, vh_1563);
+      var G__1564 = seq__1555_1559;
+      var G__1565 = chunk__1556_1560;
+      var G__1566 = count__1557_1561;
+      var G__1567 = i__1558_1562 + 1;
+      seq__1555_1559 = G__1564;
+      chunk__1556_1560 = G__1565;
+      count__1557_1561 = G__1566;
+      i__1558_1562 = G__1567;
+      continue;
+    } else {
+      var temp__5825__auto___1568 = cljs.core.seq.call(null, seq__1555_1559);
+      if (temp__5825__auto___1568) {
+        var seq__1555_1569__$1 = temp__5825__auto___1568;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1555_1569__$1)) {
+          var c__5525__auto___1570 = cljs.core.chunk_first.call(null, seq__1555_1569__$1);
+          var G__1571 = cljs.core.chunk_rest.call(null, seq__1555_1569__$1);
+          var G__1572 = c__5525__auto___1570;
+          var G__1573 = cljs.core.count.call(null, c__5525__auto___1570);
+          var G__1574 = 0;
+          seq__1555_1559 = G__1571;
+          chunk__1556_1560 = G__1572;
+          count__1557_1561 = G__1573;
+          i__1558_1562 = G__1574;
+          continue;
+        } else {
+          var vh_1575 = cljs.core.first.call(null, seq__1555_1569__$1);
+          dacite.value.finger_tree.assert_leaf_value_BANG_.call(null, store, vh_1575);
+          var G__1576 = cljs.core.next.call(null, seq__1555_1569__$1);
+          var G__1577 = null;
+          var G__1578 = 0;
+          var G__1579 = 0;
+          seq__1555_1559 = G__1576;
+          chunk__1556_1560 = G__1577;
+          count__1557_1561 = G__1578;
+          i__1558_1562 = G__1579;
+          continue;
+        }
+      } else {
+      }
+    }
+    break;
+  }
+  return dacite.value.finger_tree.make_node_BANG_.call(null, store, vhs, cljs.core.mapv.call(null, function(p1__1554_SHARP_) {
+    return dacite.value.finger_tree.measure_of.call(null, store, p1__1554_SHARP_);
   }, vhs));
 };
 dacite.value.finger_tree.ft_concat = function dacite$value$finger_tree$ft_concat(store, root_a, root_b) {
@@ -47702,22 +47769,22 @@ dacite.value.finger_tree.ft_concat = function dacite$value$finger_tree$ft_concat
 cljs.core._add_method.call(null, dacite.value.types.child_hashes, "ft/empty", function(_) {
   return cljs.core.PersistentVector.EMPTY;
 });
-cljs.core._add_method.call(null, dacite.value.types.child_hashes, "ft/digit", function(p__5423) {
-  var vec__5424 = p__5423;
-  var _ = cljs.core.nth.call(null, vec__5424, 0, null);
-  var data = cljs.core.nth.call(null, vec__5424, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.child_hashes, "ft/digit", function(p__1580) {
+  var vec__1581 = p__1580;
+  var _ = cljs.core.nth.call(null, vec__1581, 0, null);
+  var data = cljs.core.nth.call(null, vec__1581, 1, null);
   return (new cljs.core.Keyword(null, "children", "children", -940561982)).cljs$core$IFn$_invoke$arity$1(data);
 });
-cljs.core._add_method.call(null, dacite.value.types.child_hashes, "ft/node", function(p__5427) {
-  var vec__5428 = p__5427;
-  var _ = cljs.core.nth.call(null, vec__5428, 0, null);
-  var data = cljs.core.nth.call(null, vec__5428, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.child_hashes, "ft/node", function(p__1584) {
+  var vec__1585 = p__1584;
+  var _ = cljs.core.nth.call(null, vec__1585, 0, null);
+  var data = cljs.core.nth.call(null, vec__1585, 1, null);
   return (new cljs.core.Keyword(null, "children", "children", -940561982)).cljs$core$IFn$_invoke$arity$1(data);
 });
-cljs.core._add_method.call(null, dacite.value.types.child_hashes, "ft/deep", function(p__5431) {
-  var vec__5432 = p__5431;
-  var _ = cljs.core.nth.call(null, vec__5432, 0, null);
-  var data = cljs.core.nth.call(null, vec__5432, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.child_hashes, "ft/deep", function(p__1588) {
+  var vec__1589 = p__1588;
+  var _ = cljs.core.nth.call(null, vec__1589, 0, null);
+  var data = cljs.core.nth.call(null, vec__1589, 1, null);
   return new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [(new cljs.core.Keyword(null, "left", "left", -399115937)).cljs$core$IFn$_invoke$arity$1(data), (new cljs.core.Keyword(null, "spine", "spine", 228266935)).cljs$core$IFn$_invoke$arity$1(data), (new cljs.core.Keyword(null, "right", "right", -452581833)).cljs$core$IFn$_invoke$arity$1(data)], null);
 });
 goog.provide("dacite.value.hamt");
@@ -47791,16 +47858,16 @@ dacite.value.hamt.make_bitmap_BANG_ = function dacite$value$hamt$make_bitmap_BAN
 };
 dacite.value.hamt.hamt_lookup_STAR_ = function dacite$value$hamt$hamt_lookup_STAR_(store, node_hash, key_hash, level) {
   var node = dacite.value.hamt.lookup.call(null, store, node_hash);
-  var G__5437 = dacite.value.hamt.node_type.call(null, node);
-  switch(G__5437) {
+  var G__1594 = dacite.value.hamt.node_type.call(null, node);
+  switch(G__1594) {
     case "hamt/empty":
       return null;
       break;
     case "hamt/entry":
-      var map__5438 = dacite.value.hamt.node_data.call(null, node);
-      var map__5438__$1 = cljs.core.__destructure_map.call(null, map__5438);
-      var ekh = cljs.core.get.call(null, map__5438__$1, new cljs.core.Keyword(null, "key-hash", "key-hash", 929631708));
-      var evr = cljs.core.get.call(null, map__5438__$1, new cljs.core.Keyword(null, "val-ref", "val-ref", 52661721));
+      var map__1595 = dacite.value.hamt.node_data.call(null, node);
+      var map__1595__$1 = cljs.core.__destructure_map.call(null, map__1595);
+      var ekh = cljs.core.get.call(null, map__1595__$1, new cljs.core.Keyword(null, "key-hash", "key-hash", 929631708));
+      var evr = cljs.core.get.call(null, map__1595__$1, new cljs.core.Keyword(null, "val-ref", "val-ref", 52661721));
       if (cljs.core._EQ_.call(null, ekh, key_hash)) {
         return evr;
       } else {
@@ -47808,10 +47875,10 @@ dacite.value.hamt.hamt_lookup_STAR_ = function dacite$value$hamt$hamt_lookup_STA
       }
       break;
     case "hamt/bitmap":
-      var map__5439 = dacite.value.hamt.node_data.call(null, node);
-      var map__5439__$1 = cljs.core.__destructure_map.call(null, map__5439);
-      var bitmap = cljs.core.get.call(null, map__5439__$1, new cljs.core.Keyword(null, "bitmap", "bitmap", -1139196926));
-      var children = cljs.core.get.call(null, map__5439__$1, new cljs.core.Keyword(null, "children", "children", -940561982));
+      var map__1596 = dacite.value.hamt.node_data.call(null, node);
+      var map__1596__$1 = cljs.core.__destructure_map.call(null, map__1596);
+      var bitmap = cljs.core.get.call(null, map__1596__$1, new cljs.core.Keyword(null, "bitmap", "bitmap", -1139196926));
+      var children = cljs.core.get.call(null, map__1596__$1, new cljs.core.Keyword(null, "children", "children", -940561982));
       var chunk = dacite.value.hamt.hash_chunk.call(null, key_hash, level);
       var bit = dacite.value.hamt.chunk_bit.call(null, chunk);
       if (dacite.host.word_zero_QMARK_.call(null, dacite.host.band64.call(null, bitmap, bit))) {
@@ -47822,13 +47889,13 @@ dacite.value.hamt.hamt_lookup_STAR_ = function dacite$value$hamt$hamt_lookup_STA
       }
       break;
     default:
-      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__5437)].join(""));
+      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__1594)].join(""));
   }
 };
 dacite.value.hamt.hamt_assoc_STAR_ = function dacite$value$hamt$hamt_assoc_STAR_(store, node_hash, key_hash, key_ref, val_ref, measure, level) {
   var node = dacite.value.hamt.lookup.call(null, store, node_hash);
-  var G__5444 = dacite.value.hamt.node_type.call(null, node);
-  switch(G__5444) {
+  var G__1601 = dacite.value.hamt.node_type.call(null, node);
+  switch(G__1601) {
     case "hamt/empty":
       return dacite.value.hamt.make_entry_BANG_.call(null, store, key_hash, key_ref, val_ref, measure);
       break;
@@ -47846,42 +47913,42 @@ dacite.value.hamt.hamt_assoc_STAR_ = function dacite$value$hamt$hamt_assoc_STAR_
           var new_entry = dacite.value.hamt.make_entry_BANG_.call(null, store, key_hash, key_ref, val_ref, measure);
           var bitmap = dacite.host.bor64.call(null, dacite.value.hamt.chunk_bit.call(null, my_chunk), dacite.value.hamt.chunk_bit.call(null, new_chunk));
           var children = my_chunk < new_chunk ? new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [node_hash, new_entry], null) : new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new_entry, node_hash], null);
-          return dacite.value.hamt.make_bitmap_BANG_.call(null, store, bitmap, children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__5441_SHARP_) {
-            return dacite.value.hamt.get_measure.call(null, store, p1__5441_SHARP_);
+          return dacite.value.hamt.make_bitmap_BANG_.call(null, store, bitmap, children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__1598_SHARP_) {
+            return dacite.value.hamt.get_measure.call(null, store, p1__1598_SHARP_);
           }, children)));
         }
       }
       break;
     case "hamt/bitmap":
-      var map__5445 = dacite.value.hamt.node_data.call(null, node);
-      var map__5445__$1 = cljs.core.__destructure_map.call(null, map__5445);
-      var bitmap = cljs.core.get.call(null, map__5445__$1, new cljs.core.Keyword(null, "bitmap", "bitmap", -1139196926));
-      var children = cljs.core.get.call(null, map__5445__$1, new cljs.core.Keyword(null, "children", "children", -940561982));
+      var map__1602 = dacite.value.hamt.node_data.call(null, node);
+      var map__1602__$1 = cljs.core.__destructure_map.call(null, map__1602);
+      var bitmap = cljs.core.get.call(null, map__1602__$1, new cljs.core.Keyword(null, "bitmap", "bitmap", -1139196926));
+      var children = cljs.core.get.call(null, map__1602__$1, new cljs.core.Keyword(null, "children", "children", -940561982));
       var chunk = dacite.value.hamt.hash_chunk.call(null, key_hash, level);
       var bit = dacite.value.hamt.chunk_bit.call(null, chunk);
       var idx = dacite.value.hamt.index_of.call(null, bitmap, bit);
       if (!dacite.host.word_zero_QMARK_.call(null, dacite.host.band64.call(null, bitmap, bit))) {
         var new_child = dacite.value.hamt.hamt_assoc_STAR_.call(null, store, cljs.core.nth.call(null, children, idx), key_hash, key_ref, val_ref, measure, level + 1);
         var new_children = cljs.core.assoc.call(null, children, idx, new_child);
-        return dacite.value.hamt.make_bitmap_BANG_.call(null, store, bitmap, new_children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__5442_SHARP_) {
-          return dacite.value.hamt.get_measure.call(null, store, p1__5442_SHARP_);
+        return dacite.value.hamt.make_bitmap_BANG_.call(null, store, bitmap, new_children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__1599_SHARP_) {
+          return dacite.value.hamt.get_measure.call(null, store, p1__1599_SHARP_);
         }, new_children)));
       } else {
         var new_entry = dacite.value.hamt.make_entry_BANG_.call(null, store, key_hash, key_ref, val_ref, measure);
         var new_children = cljs.core.vec.call(null, cljs.core.concat.call(null, cljs.core.subvec.call(null, children, 0, idx), new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new_entry], null), cljs.core.subvec.call(null, children, idx)));
-        return dacite.value.hamt.make_bitmap_BANG_.call(null, store, dacite.host.bor64.call(null, bitmap, bit), new_children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__5443_SHARP_) {
-          return dacite.value.hamt.get_measure.call(null, store, p1__5443_SHARP_);
+        return dacite.value.hamt.make_bitmap_BANG_.call(null, store, dacite.host.bor64.call(null, bitmap, bit), new_children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__1600_SHARP_) {
+          return dacite.value.hamt.get_measure.call(null, store, p1__1600_SHARP_);
         }, new_children)));
       }
       break;
     default:
-      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__5444)].join(""));
+      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__1601)].join(""));
   }
 };
 dacite.value.hamt.hamt_dissoc_STAR_ = function dacite$value$hamt$hamt_dissoc_STAR_(store, node_hash, key_hash, level) {
   var node = dacite.value.hamt.lookup.call(null, store, node_hash);
-  var G__5449 = dacite.value.hamt.node_type.call(null, node);
-  switch(G__5449) {
+  var G__1606 = dacite.value.hamt.node_type.call(null, node);
+  switch(G__1606) {
     case "hamt/empty":
       return null;
       break;
@@ -47893,10 +47960,10 @@ dacite.value.hamt.hamt_dissoc_STAR_ = function dacite$value$hamt$hamt_dissoc_STA
       }
       break;
     case "hamt/bitmap":
-      var map__5450 = dacite.value.hamt.node_data.call(null, node);
-      var map__5450__$1 = cljs.core.__destructure_map.call(null, map__5450);
-      var bitmap = cljs.core.get.call(null, map__5450__$1, new cljs.core.Keyword(null, "bitmap", "bitmap", -1139196926));
-      var children = cljs.core.get.call(null, map__5450__$1, new cljs.core.Keyword(null, "children", "children", -940561982));
+      var map__1607 = dacite.value.hamt.node_data.call(null, node);
+      var map__1607__$1 = cljs.core.__destructure_map.call(null, map__1607);
+      var bitmap = cljs.core.get.call(null, map__1607__$1, new cljs.core.Keyword(null, "bitmap", "bitmap", -1139196926));
+      var children = cljs.core.get.call(null, map__1607__$1, new cljs.core.Keyword(null, "children", "children", -940561982));
       var chunk = dacite.value.hamt.hash_chunk.call(null, key_hash, level);
       var bit = dacite.value.hamt.chunk_bit.call(null, chunk);
       if (dacite.host.word_zero_QMARK_.call(null, dacite.host.band64.call(null, bitmap, bit))) {
@@ -47913,44 +47980,44 @@ dacite.value.hamt.hamt_dissoc_STAR_ = function dacite$value$hamt$hamt_dissoc_STA
             if (cljs.core._EQ_.call(null, 1, dacite.host.popcount.call(null, new_bitmap)) && cljs.core._EQ_.call(null, "hamt/entry", dacite.value.hamt.node_type.call(null, dacite.value.hamt.lookup.call(null, store, cljs.core.first.call(null, new_children))))) {
               return cljs.core.first.call(null, new_children);
             } else {
-              return dacite.value.hamt.make_bitmap_BANG_.call(null, store, new_bitmap, new_children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__5447_SHARP_) {
-                return dacite.value.hamt.get_measure.call(null, store, p1__5447_SHARP_);
+              return dacite.value.hamt.make_bitmap_BANG_.call(null, store, new_bitmap, new_children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__1604_SHARP_) {
+                return dacite.value.hamt.get_measure.call(null, store, p1__1604_SHARP_);
               }, new_children)));
             }
           }
         } else {
           var new_children = cljs.core.assoc.call(null, children, idx, new_child);
-          return dacite.value.hamt.make_bitmap_BANG_.call(null, store, bitmap, new_children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__5448_SHARP_) {
-            return dacite.value.hamt.get_measure.call(null, store, p1__5448_SHARP_);
+          return dacite.value.hamt.make_bitmap_BANG_.call(null, store, bitmap, new_children, dacite.value.hamt.measure_seq.call(null, cljs.core.mapv.call(null, function(p1__1605_SHARP_) {
+            return dacite.value.hamt.get_measure.call(null, store, p1__1605_SHARP_);
           }, new_children)));
         }
       }
       break;
     default:
-      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__5449)].join(""));
+      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__1606)].join(""));
   }
 };
 dacite.value.hamt.hamt_entries_STAR_ = function dacite$value$hamt$hamt_entries_STAR_(store, node_hash) {
   var node = dacite.value.hamt.lookup.call(null, store, node_hash);
-  var G__5453 = dacite.value.hamt.node_type.call(null, node);
-  switch(G__5453) {
+  var G__1610 = dacite.value.hamt.node_type.call(null, node);
+  switch(G__1610) {
     case "hamt/empty":
       return cljs.core.PersistentVector.EMPTY;
       break;
     case "hamt/entry":
-      var map__5454 = dacite.value.hamt.node_data.call(null, node);
-      var map__5454__$1 = cljs.core.__destructure_map.call(null, map__5454);
-      var key_ref = cljs.core.get.call(null, map__5454__$1, new cljs.core.Keyword(null, "key-ref", "key-ref", 1548091662));
-      var val_ref = cljs.core.get.call(null, map__5454__$1, new cljs.core.Keyword(null, "val-ref", "val-ref", 52661721));
+      var map__1611 = dacite.value.hamt.node_data.call(null, node);
+      var map__1611__$1 = cljs.core.__destructure_map.call(null, map__1611);
+      var key_ref = cljs.core.get.call(null, map__1611__$1, new cljs.core.Keyword(null, "key-ref", "key-ref", 1548091662));
+      var val_ref = cljs.core.get.call(null, map__1611__$1, new cljs.core.Keyword(null, "val-ref", "val-ref", 52661721));
       return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [key_ref, val_ref], null)], null);
       break;
     case "hamt/bitmap":
-      return cljs.core.mapcat.call(null, function(p1__5452_SHARP_) {
-        return dacite.value.hamt.hamt_entries_STAR_.call(null, store, p1__5452_SHARP_);
+      return cljs.core.mapcat.call(null, function(p1__1609_SHARP_) {
+        return dacite.value.hamt.hamt_entries_STAR_.call(null, store, p1__1609_SHARP_);
       }, (new cljs.core.Keyword(null, "children", "children", -940561982)).cljs$core$IFn$_invoke$arity$1(dacite.value.hamt.node_data.call(null, node)));
       break;
     default:
-      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__5453)].join(""));
+      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__1610)].join(""));
   }
 };
 dacite.value.hamt.hamt_empty = function dacite$value$hamt$hamt_empty(store) {
@@ -47989,11 +48056,11 @@ dacite.value.hamt.hamt_elements_fuse = function dacite$value$hamt$hamt_elements_
   return (new cljs.core.Keyword(null, "elements-fuse", "elements-fuse", 1651775184)).cljs$core$IFn$_invoke$arity$1(dacite.value.hamt.get_measure.call(null, store, root));
 };
 dacite.value.hamt.hamt_from_entries = function dacite$value$hamt$hamt_from_entries(store, entries) {
-  return cljs.core.reduce.call(null, function(root, p__5456) {
-    var vec__5457 = p__5456;
-    var key_hash = cljs.core.nth.call(null, vec__5457, 0, null);
-    var key_ref = cljs.core.nth.call(null, vec__5457, 1, null);
-    var val_ref = cljs.core.nth.call(null, vec__5457, 2, null);
+  return cljs.core.reduce.call(null, function(root, p__1613) {
+    var vec__1614 = p__1613;
+    var key_hash = cljs.core.nth.call(null, vec__1614, 0, null);
+    var key_ref = cljs.core.nth.call(null, vec__1614, 1, null);
+    var val_ref = cljs.core.nth.call(null, vec__1614, 2, null);
     return dacite.value.hamt.hamt_assoc.call(null, store, root, key_hash, key_ref, val_ref);
   }, dacite.value.hamt.hamt_empty.call(null, store), entries);
 };
@@ -48006,16 +48073,16 @@ dacite.value.hamt.hamt_entry_node = function dacite$value$hamt$hamt_entry_node(s
 cljs.core._add_method.call(null, dacite.value.types.child_hashes, "hamt/empty", function(_) {
   return cljs.core.PersistentVector.EMPTY;
 });
-cljs.core._add_method.call(null, dacite.value.types.child_hashes, "hamt/entry", function(p__5460) {
-  var vec__5461 = p__5460;
-  var _ = cljs.core.nth.call(null, vec__5461, 0, null);
-  var data = cljs.core.nth.call(null, vec__5461, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.child_hashes, "hamt/entry", function(p__1617) {
+  var vec__1618 = p__1617;
+  var _ = cljs.core.nth.call(null, vec__1618, 0, null);
+  var data = cljs.core.nth.call(null, vec__1618, 1, null);
   return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [(new cljs.core.Keyword(null, "key-ref", "key-ref", 1548091662)).cljs$core$IFn$_invoke$arity$1(data), (new cljs.core.Keyword(null, "val-ref", "val-ref", 52661721)).cljs$core$IFn$_invoke$arity$1(data)], null);
 });
-cljs.core._add_method.call(null, dacite.value.types.child_hashes, "hamt/bitmap", function(p__5464) {
-  var vec__5465 = p__5464;
-  var _ = cljs.core.nth.call(null, vec__5465, 0, null);
-  var data = cljs.core.nth.call(null, vec__5465, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.child_hashes, "hamt/bitmap", function(p__1621) {
+  var vec__1622 = p__1621;
+  var _ = cljs.core.nth.call(null, vec__1622, 0, null);
+  var data = cljs.core.nth.call(null, vec__1622, 1, null);
   return (new cljs.core.Keyword(null, "children", "children", -940561982)).cljs$core$IFn$_invoke$arity$1(data);
 });
 goog.provide("dacite.value.collections");
@@ -48050,8 +48117,8 @@ dacite.value.collections.ft_build_BANG_ = function dacite$value$collections$ft_b
   }, dacite.value.finger_tree.ft_empty.call(null, store), refs);
 };
 dacite.value.collections.realize_hashes = function dacite$value$collections$realize_hashes(store, hs) {
-  return cljs.core.map.call(null, function(p1__5528_SHARP_) {
-    return dacite.value.types.realize.call(null, dacite.value.collections.wrap_hash.call(null, store, p1__5528_SHARP_));
+  return cljs.core.map.call(null, function(p1__1685_SHARP_) {
+    return dacite.value.types.realize.call(null, dacite.value.collections.wrap_hash.call(null, store, p1__1685_SHARP_));
   }, hs);
 };
 dacite.value.collections.coll_count = function dacite$value$collections$coll_count(store, h) {
@@ -48059,8 +48126,8 @@ dacite.value.collections.coll_count = function dacite$value$collections$coll_cou
 };
 dacite.value.collections.seq_vals = function dacite$value$collections$seq_vals(store, h) {
   if (dacite.value.collections.coll_count.call(null, store, h) > 0) {
-    return cljs.core.map.call(null, function(p1__5529_SHARP_) {
-      return dacite.value.collections.wrap_hash.call(null, store, p1__5529_SHARP_);
+    return cljs.core.map.call(null, function(p1__1686_SHARP_) {
+      return dacite.value.collections.wrap_hash.call(null, store, p1__1686_SHARP_);
     }, dacite.value.finger_tree.ft_seq.call(null, store, dacite.value.collections.node_root.call(null, store, h)));
   } else {
     return null;
@@ -48124,8 +48191,8 @@ dacite.value.collections.vec_subvec = function dacite$value$collections$vec_subv
       return dacite.value.collections.vec_of_refs_with_store.call(null, store, cljs.core.PersistentVector.EMPTY);
     } else {
       var root = dacite.value.collections.node_root.call(null, store, h);
-      var refs = cljs.core.mapv.call(null, function(p1__5530_SHARP_) {
-        return dacite.value.finger_tree.ft_nth.call(null, store, root, p1__5530_SHARP_);
+      var refs = cljs.core.mapv.call(null, function(p1__1687_SHARP_) {
+        return dacite.value.finger_tree.ft_nth.call(null, store, root, p1__1687_SHARP_);
       }, cljs.core.range.call(null, start__$1, end__$1));
       return dacite.value.collections.vec_of_refs_with_store.call(null, store, refs);
     }
@@ -48156,14 +48223,14 @@ dacite.value.collections.map_dissoc = function dacite$value$collections$map_diss
   return dacite.value.collections.__GT_DaciteMap.call(null, store, dacite.value.collections.store_assoc_node_BANG_.call(null, store, "map", nr));
 };
 dacite.value.collections.map_entries = function dacite$value$collections$map_entries(store, h) {
-  var entries = dacite.value.hamt.hamt_entries.call(null, store, dacite.value.collections.node_root.call(null, store, h));
-  if (cljs.core.seq.call(null, entries)) {
-    return cljs.core.map.call(null, function(p__5531) {
-      var vec__5532 = p__5531;
-      var kh = cljs.core.nth.call(null, vec__5532, 0, null);
-      var vh = cljs.core.nth.call(null, vec__5532, 1, null);
+  var raw = dacite.value.hamt.hamt_entries.call(null, store, dacite.value.collections.node_root.call(null, store, h));
+  if (cljs.core.seq.call(null, raw)) {
+    return cljs.core.map.call(null, function(p__1688) {
+      var vec__1689 = p__1688;
+      var kh = cljs.core.nth.call(null, vec__1689, 0, null);
+      var vh = cljs.core.nth.call(null, vec__1689, 1, null);
       return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.value.collections.wrap_hash.call(null, store, kh), dacite.value.collections.wrap_hash.call(null, store, vh)], null);
-    }, entries);
+    }, raw);
   } else {
     return null;
   }
@@ -48185,14 +48252,14 @@ dacite.value.collections.set_get = function dacite$value$collections$set_get(sto
   }
 };
 dacite.value.collections.set_vals = function dacite$value$collections$set_vals(store, h) {
-  var entries = dacite.value.hamt.hamt_entries.call(null, store, dacite.value.collections.node_root.call(null, store, h));
-  if (cljs.core.seq.call(null, entries)) {
-    return cljs.core.map.call(null, function(p__5535) {
-      var vec__5536 = p__5535;
-      var kh = cljs.core.nth.call(null, vec__5536, 0, null);
-      var _ = cljs.core.nth.call(null, vec__5536, 1, null);
+  var raw = dacite.value.hamt.hamt_entries.call(null, store, dacite.value.collections.node_root.call(null, store, h));
+  if (cljs.core.seq.call(null, raw)) {
+    return cljs.core.map.call(null, function(p__1692) {
+      var vec__1693 = p__1692;
+      var kh = cljs.core.nth.call(null, vec__1693, 0, null);
+      var _ = cljs.core.nth.call(null, vec__1693, 1, null);
       return dacite.value.collections.wrap_hash.call(null, store, kh);
-    }, entries);
+    }, raw);
   } else {
     return null;
   }
@@ -48220,10 +48287,10 @@ dacite.value.collections.DaciteString.prototype.dacite$value$types$IDaciteValue$
 dacite.value.collections.DaciteString.prototype.dacite$value$types$IDaciteValue$realize$arity$1 = function(_) {
   var self__ = this;
   var ___$1 = this;
-  var map__5541 = dacite.value.types.entry_data.call(null, dacite.store.s_get.call(null, self__.store, self__._hash));
-  var map__5541__$1 = cljs.core.__destructure_map.call(null, map__5541);
-  var root = cljs.core.get.call(null, map__5541__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
-  var count = cljs.core.get.call(null, map__5541__$1, new cljs.core.Keyword(null, "count", "count", 2139924085));
+  var map__1697 = dacite.value.types.entry_data.call(null, dacite.store.s_get.call(null, self__.store, self__._hash));
+  var map__1697__$1 = cljs.core.__destructure_map.call(null, map__1697);
+  var root = cljs.core.get.call(null, map__1697__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
+  var count = cljs.core.get.call(null, map__1697__$1, new cljs.core.Keyword(null, "count", "count", 2139924085));
   if (count > 0) {
     return dacite.value.collections.realize_hashes.call(null, self__.store, dacite.value.finger_tree.ft_seq.call(null, self__.store, root));
   } else {
@@ -48264,10 +48331,10 @@ dacite.value.collections.DaciteBlob.prototype.dacite$value$types$IDaciteValue$da
 dacite.value.collections.DaciteBlob.prototype.dacite$value$types$IDaciteValue$realize$arity$1 = function(_) {
   var self__ = this;
   var ___$1 = this;
-  var map__5543 = dacite.value.types.entry_data.call(null, dacite.store.s_get.call(null, self__.store, self__._hash));
-  var map__5543__$1 = cljs.core.__destructure_map.call(null, map__5543);
-  var root = cljs.core.get.call(null, map__5543__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
-  var count = cljs.core.get.call(null, map__5543__$1, new cljs.core.Keyword(null, "count", "count", 2139924085));
+  var map__1698 = dacite.value.types.entry_data.call(null, dacite.store.s_get.call(null, self__.store, self__._hash));
+  var map__1698__$1 = cljs.core.__destructure_map.call(null, map__1698);
+  var root = cljs.core.get.call(null, map__1698__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
+  var count = cljs.core.get.call(null, map__1698__$1, new cljs.core.Keyword(null, "count", "count", 2139924085));
   if (count > 0) {
     return dacite.value.collections.realize_hashes.call(null, self__.store, dacite.value.finger_tree.ft_seq.call(null, self__.store, root));
   } else {
@@ -48308,10 +48375,10 @@ dacite.value.collections.DaciteVector.prototype.dacite$value$types$IDaciteValue$
 dacite.value.collections.DaciteVector.prototype.dacite$value$types$IDaciteValue$realize$arity$1 = function(_) {
   var self__ = this;
   var ___$1 = this;
-  var map__5545 = dacite.value.types.entry_data.call(null, dacite.store.s_get.call(null, self__.store, self__._hash));
-  var map__5545__$1 = cljs.core.__destructure_map.call(null, map__5545);
-  var root = cljs.core.get.call(null, map__5545__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
-  var count = cljs.core.get.call(null, map__5545__$1, new cljs.core.Keyword(null, "count", "count", 2139924085));
+  var map__1699 = dacite.value.types.entry_data.call(null, dacite.store.s_get.call(null, self__.store, self__._hash));
+  var map__1699__$1 = cljs.core.__destructure_map.call(null, map__1699);
+  var root = cljs.core.get.call(null, map__1699__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
+  var count = cljs.core.get.call(null, map__1699__$1, new cljs.core.Keyword(null, "count", "count", 2139924085));
   if (count > 0) {
     return dacite.value.collections.realize_hashes.call(null, self__.store, dacite.value.finger_tree.ft_seq.call(null, self__.store, root));
   } else {
@@ -48354,10 +48421,10 @@ dacite.value.collections.DaciteMap.prototype.dacite$value$types$IDaciteValue$rea
   var ___$1 = this;
   var entries = dacite.value.hamt.hamt_entries.call(null, self__.store, dacite.value.collections.node_root.call(null, self__.store, self__._hash));
   if (cljs.core.seq.call(null, entries)) {
-    return cljs.core.map.call(null, function(p__5546) {
-      var vec__5547 = p__5546;
-      var kh = cljs.core.nth.call(null, vec__5547, 0, null);
-      var vh = cljs.core.nth.call(null, vec__5547, 1, null);
+    return cljs.core.map.call(null, function(p__1700) {
+      var vec__1701 = p__1700;
+      var kh = cljs.core.nth.call(null, vec__1701, 0, null);
+      var vh = cljs.core.nth.call(null, vec__1701, 1, null);
       return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.value.types.realize.call(null, dacite.value.collections.wrap_hash.call(null, self__.store, kh)), dacite.value.types.realize.call(null, dacite.value.collections.wrap_hash.call(null, self__.store, vh))], null);
     }, entries);
   } else {
@@ -48400,10 +48467,10 @@ dacite.value.collections.DaciteSet.prototype.dacite$value$types$IDaciteValue$rea
   var ___$1 = this;
   var entries = dacite.value.hamt.hamt_entries.call(null, self__.store, dacite.value.collections.node_root.call(null, self__.store, self__._hash));
   if (cljs.core.seq.call(null, entries)) {
-    return cljs.core.map.call(null, function(p__5550) {
-      var vec__5551 = p__5550;
-      var kh = cljs.core.nth.call(null, vec__5551, 0, null);
-      var ___$2 = cljs.core.nth.call(null, vec__5551, 1, null);
+    return cljs.core.map.call(null, function(p__1704) {
+      var vec__1705 = p__1704;
+      var kh = cljs.core.nth.call(null, vec__1705, 0, null);
+      var ___$2 = cljs.core.nth.call(null, vec__1705, 1, null);
       return dacite.value.types.realize.call(null, dacite.value.collections.wrap_hash.call(null, self__.store, kh));
     }, entries);
   } else {
@@ -48437,8 +48504,8 @@ cljs.core._add_method.call(null, dacite.value.types.wrap_entry, "blob", function
   return dacite.value.collections.__GT_DaciteBlob.call(null, store, h);
 });
 dacite.value.collections.string_with_store = function dacite$value$collections$string_with_store(store, s) {
-  var refs = cljs.core.mapv.call(null, function(p1__5554_SHARP_) {
-    return dacite.value.scalar.put_scalar_BANG_.call(null, store, "char", p1__5554_SHARP_);
+  var refs = cljs.core.mapv.call(null, function(p1__1708_SHARP_) {
+    return dacite.value.scalar.put_scalar_BANG_.call(null, store, "char", p1__1708_SHARP_);
   }, cljs.core.seq.call(null, s));
   return dacite.value.collections.__GT_DaciteString.call(null, store, dacite.value.collections.store_seq_node_BANG_.call(null, store, "string", dacite.value.collections.ft_build_BANG_.call(null, store, refs)));
 };
@@ -48449,8 +48516,8 @@ dacite.value.collections.string = function dacite$value$collections$string(s) {
   return dacite.value.collections.string_with_store.call(null, dacite.store._STAR_store_STAR_, s);
 };
 dacite.value.collections.blob_with_store = function dacite$value$collections$blob_with_store(store, bs) {
-  var refs = cljs.core.mapv.call(null, function(p1__5555_SHARP_) {
-    return dacite.value.scalar.put_scalar_BANG_.call(null, store, "u8", p1__5555_SHARP_ & 255);
+  var refs = cljs.core.mapv.call(null, function(p1__1709_SHARP_) {
+    return dacite.value.scalar.put_scalar_BANG_.call(null, store, "u8", p1__1709_SHARP_ & 255);
   }, cljs.core.seq.call(null, bs));
   return dacite.value.collections.__GT_DaciteBlob.call(null, store, dacite.value.collections.store_seq_node_BANG_.call(null, store, "blob", dacite.value.collections.ft_build_BANG_.call(null, store, refs)));
 };
@@ -48462,13 +48529,13 @@ dacite.value.collections.vec_of_refs_with_store = function dacite$value$collecti
 };
 dacite.value.collections.vector_with_store = function dacite$value$collections$vector_with_store(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___5559 = arguments.length;
-  var i__5727__auto___5560 = 0;
+  var len__5726__auto___1713 = arguments.length;
+  var i__5727__auto___1714 = 0;
   while (true) {
-    if (i__5727__auto___5560 < len__5726__auto___5559) {
-      args__5732__auto__.push(arguments[i__5727__auto___5560]);
-      var G__5561 = i__5727__auto___5560 + 1;
-      i__5727__auto___5560 = G__5561;
+    if (i__5727__auto___1714 < len__5726__auto___1713) {
+      args__5732__auto__.push(arguments[i__5727__auto___1714]);
+      var G__1715 = i__5727__auto___1714 + 1;
+      i__5727__auto___1714 = G__1715;
       continue;
     } else {
     }
@@ -48478,26 +48545,26 @@ dacite.value.collections.vector_with_store = function dacite$value$collections$v
   return dacite.value.collections.vector_with_store.cljs$core$IFn$_invoke$arity$variadic(arguments[0], argseq__5733__auto__);
 };
 dacite.value.collections.vector_with_store.cljs$core$IFn$_invoke$arity$variadic = function(store, values) {
-  return dacite.value.collections.vec_of_refs_with_store.call(null, store, cljs.core.mapv.call(null, function(p1__5556_SHARP_) {
-    return dacite.value.types.extract_hash.call(null, store, p1__5556_SHARP_);
+  return dacite.value.collections.vec_of_refs_with_store.call(null, store, cljs.core.mapv.call(null, function(p1__1710_SHARP_) {
+    return dacite.value.types.extract_hash.call(null, store, p1__1710_SHARP_);
   }, values));
 };
 dacite.value.collections.vector_with_store.cljs$lang$maxFixedArity = 1;
-dacite.value.collections.vector_with_store.cljs$lang$applyTo = function(seq5557) {
-  var G__5558 = cljs.core.first.call(null, seq5557);
-  var seq5557__$1 = cljs.core.next.call(null, seq5557);
+dacite.value.collections.vector_with_store.cljs$lang$applyTo = function(seq1711) {
+  var G__1712 = cljs.core.first.call(null, seq1711);
+  var seq1711__$1 = cljs.core.next.call(null, seq1711);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__5558, seq5557__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__1712, seq1711__$1);
 };
 dacite.value.collections.vector = function dacite$value$collections$vector(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___5563 = arguments.length;
-  var i__5727__auto___5564 = 0;
+  var len__5726__auto___1717 = arguments.length;
+  var i__5727__auto___1718 = 0;
   while (true) {
-    if (i__5727__auto___5564 < len__5726__auto___5563) {
-      args__5732__auto__.push(arguments[i__5727__auto___5564]);
-      var G__5565 = i__5727__auto___5564 + 1;
-      i__5727__auto___5564 = G__5565;
+    if (i__5727__auto___1718 < len__5726__auto___1717) {
+      args__5732__auto__.push(arguments[i__5727__auto___1718]);
+      var G__1719 = i__5727__auto___1718 + 1;
+      i__5727__auto___1718 = G__1719;
       continue;
     } else {
     }
@@ -48510,19 +48577,19 @@ dacite.value.collections.vector.cljs$core$IFn$_invoke$arity$variadic = function(
   return cljs.core.apply.call(null, dacite.value.collections.vector_with_store, dacite.store._STAR_store_STAR_, values);
 };
 dacite.value.collections.vector.cljs$lang$maxFixedArity = 0;
-dacite.value.collections.vector.cljs$lang$applyTo = function(seq5562) {
+dacite.value.collections.vector.cljs$lang$applyTo = function(seq1716) {
   var self__5712__auto__ = this;
-  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq5562));
+  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq1716));
 };
 dacite.value.collections.hash_map_with_store = function dacite$value$collections$hash_map_with_store(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___5572 = arguments.length;
-  var i__5727__auto___5573 = 0;
+  var len__5726__auto___1726 = arguments.length;
+  var i__5727__auto___1727 = 0;
   while (true) {
-    if (i__5727__auto___5573 < len__5726__auto___5572) {
-      args__5732__auto__.push(arguments[i__5727__auto___5573]);
-      var G__5574 = i__5727__auto___5573 + 1;
-      i__5727__auto___5573 = G__5574;
+    if (i__5727__auto___1727 < len__5726__auto___1726) {
+      args__5732__auto__.push(arguments[i__5727__auto___1727]);
+      var G__1728 = i__5727__auto___1727 + 1;
+      i__5727__auto___1727 = G__1728;
       continue;
     } else {
     }
@@ -48532,10 +48599,10 @@ dacite.value.collections.hash_map_with_store = function dacite$value$collections
   return dacite.value.collections.hash_map_with_store.cljs$core$IFn$_invoke$arity$variadic(arguments[0], argseq__5733__auto__);
 };
 dacite.value.collections.hash_map_with_store.cljs$core$IFn$_invoke$arity$variadic = function(store, kvs) {
-  var root = cljs.core.reduce.call(null, function(root, p__5568) {
-    var vec__5569 = p__5568;
-    var k = cljs.core.nth.call(null, vec__5569, 0, null);
-    var v = cljs.core.nth.call(null, vec__5569, 1, null);
+  var root = cljs.core.reduce.call(null, function(root, p__1722) {
+    var vec__1723 = p__1722;
+    var k = cljs.core.nth.call(null, vec__1723, 0, null);
+    var v = cljs.core.nth.call(null, vec__1723, 1, null);
     var kh = dacite.value.types.extract_hash.call(null, store, k);
     var vh = dacite.value.types.extract_hash.call(null, store, v);
     return dacite.value.hamt.hamt_assoc.call(null, store, root, kh, kh, vh);
@@ -48543,21 +48610,21 @@ dacite.value.collections.hash_map_with_store.cljs$core$IFn$_invoke$arity$variadi
   return dacite.value.collections.__GT_DaciteMap.call(null, store, dacite.value.collections.store_assoc_node_BANG_.call(null, store, "map", root));
 };
 dacite.value.collections.hash_map_with_store.cljs$lang$maxFixedArity = 1;
-dacite.value.collections.hash_map_with_store.cljs$lang$applyTo = function(seq5566) {
-  var G__5567 = cljs.core.first.call(null, seq5566);
-  var seq5566__$1 = cljs.core.next.call(null, seq5566);
+dacite.value.collections.hash_map_with_store.cljs$lang$applyTo = function(seq1720) {
+  var G__1721 = cljs.core.first.call(null, seq1720);
+  var seq1720__$1 = cljs.core.next.call(null, seq1720);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__5567, seq5566__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__1721, seq1720__$1);
 };
 dacite.value.collections.hash_map = function dacite$value$collections$hash_map(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___5576 = arguments.length;
-  var i__5727__auto___5577 = 0;
+  var len__5726__auto___1730 = arguments.length;
+  var i__5727__auto___1731 = 0;
   while (true) {
-    if (i__5727__auto___5577 < len__5726__auto___5576) {
-      args__5732__auto__.push(arguments[i__5727__auto___5577]);
-      var G__5578 = i__5727__auto___5577 + 1;
-      i__5727__auto___5577 = G__5578;
+    if (i__5727__auto___1731 < len__5726__auto___1730) {
+      args__5732__auto__.push(arguments[i__5727__auto___1731]);
+      var G__1732 = i__5727__auto___1731 + 1;
+      i__5727__auto___1731 = G__1732;
       continue;
     } else {
     }
@@ -48570,19 +48637,19 @@ dacite.value.collections.hash_map.cljs$core$IFn$_invoke$arity$variadic = functio
   return cljs.core.apply.call(null, dacite.value.collections.hash_map_with_store, dacite.store._STAR_store_STAR_, kvs);
 };
 dacite.value.collections.hash_map.cljs$lang$maxFixedArity = 0;
-dacite.value.collections.hash_map.cljs$lang$applyTo = function(seq5575) {
+dacite.value.collections.hash_map.cljs$lang$applyTo = function(seq1729) {
   var self__5712__auto__ = this;
-  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq5575));
+  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq1729));
 };
 dacite.value.collections.dacite_set_with_store = function dacite$value$collections$dacite_set_with_store(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___5581 = arguments.length;
-  var i__5727__auto___5582 = 0;
+  var len__5726__auto___1735 = arguments.length;
+  var i__5727__auto___1736 = 0;
   while (true) {
-    if (i__5727__auto___5582 < len__5726__auto___5581) {
-      args__5732__auto__.push(arguments[i__5727__auto___5582]);
-      var G__5583 = i__5727__auto___5582 + 1;
-      i__5727__auto___5582 = G__5583;
+    if (i__5727__auto___1736 < len__5726__auto___1735) {
+      args__5732__auto__.push(arguments[i__5727__auto___1736]);
+      var G__1737 = i__5727__auto___1736 + 1;
+      i__5727__auto___1736 = G__1737;
       continue;
     } else {
     }
@@ -48599,21 +48666,21 @@ dacite.value.collections.dacite_set_with_store.cljs$core$IFn$_invoke$arity$varia
   return dacite.value.collections.__GT_DaciteSet.call(null, store, dacite.value.collections.store_assoc_node_BANG_.call(null, store, "set", root));
 };
 dacite.value.collections.dacite_set_with_store.cljs$lang$maxFixedArity = 1;
-dacite.value.collections.dacite_set_with_store.cljs$lang$applyTo = function(seq5579) {
-  var G__5580 = cljs.core.first.call(null, seq5579);
-  var seq5579__$1 = cljs.core.next.call(null, seq5579);
+dacite.value.collections.dacite_set_with_store.cljs$lang$applyTo = function(seq1733) {
+  var G__1734 = cljs.core.first.call(null, seq1733);
+  var seq1733__$1 = cljs.core.next.call(null, seq1733);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__5580, seq5579__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__1734, seq1733__$1);
 };
 dacite.value.collections.dacite_set = function dacite$value$collections$dacite_set(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___5585 = arguments.length;
-  var i__5727__auto___5586 = 0;
+  var len__5726__auto___1739 = arguments.length;
+  var i__5727__auto___1740 = 0;
   while (true) {
-    if (i__5727__auto___5586 < len__5726__auto___5585) {
-      args__5732__auto__.push(arguments[i__5727__auto___5586]);
-      var G__5587 = i__5727__auto___5586 + 1;
-      i__5727__auto___5586 = G__5587;
+    if (i__5727__auto___1740 < len__5726__auto___1739) {
+      args__5732__auto__.push(arguments[i__5727__auto___1740]);
+      var G__1741 = i__5727__auto___1740 + 1;
+      i__5727__auto___1740 = G__1741;
       continue;
     } else {
     }
@@ -48626,9 +48693,9 @@ dacite.value.collections.dacite_set.cljs$core$IFn$_invoke$arity$variadic = funct
   return cljs.core.apply.call(null, dacite.value.collections.dacite_set_with_store, dacite.store._STAR_store_STAR_, xs);
 };
 dacite.value.collections.dacite_set.cljs$lang$maxFixedArity = 0;
-dacite.value.collections.dacite_set.cljs$lang$applyTo = function(seq5584) {
+dacite.value.collections.dacite_set.cljs$lang$applyTo = function(seq1738) {
   var self__5712__auto__ = this;
-  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq5584));
+  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq1738));
 };
 dacite.value.collections.string_via = function dacite$value$collections$string_via(peer, s) {
   return dacite.value.collections.string_with_store.call(null, dacite.value.types.store_of.call(null, peer), s);
@@ -48638,13 +48705,13 @@ dacite.value.collections.blob_via = function dacite$value$collections$blob_via(p
 };
 dacite.value.collections.vector_via = function dacite$value$collections$vector_via(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___5590 = arguments.length;
-  var i__5727__auto___5591 = 0;
+  var len__5726__auto___1744 = arguments.length;
+  var i__5727__auto___1745 = 0;
   while (true) {
-    if (i__5727__auto___5591 < len__5726__auto___5590) {
-      args__5732__auto__.push(arguments[i__5727__auto___5591]);
-      var G__5592 = i__5727__auto___5591 + 1;
-      i__5727__auto___5591 = G__5592;
+    if (i__5727__auto___1745 < len__5726__auto___1744) {
+      args__5732__auto__.push(arguments[i__5727__auto___1745]);
+      var G__1746 = i__5727__auto___1745 + 1;
+      i__5727__auto___1745 = G__1746;
       continue;
     } else {
     }
@@ -48657,21 +48724,21 @@ dacite.value.collections.vector_via.cljs$core$IFn$_invoke$arity$variadic = funct
   return cljs.core.apply.call(null, dacite.value.collections.vector_with_store, dacite.value.types.store_of.call(null, peer), values);
 };
 dacite.value.collections.vector_via.cljs$lang$maxFixedArity = 1;
-dacite.value.collections.vector_via.cljs$lang$applyTo = function(seq5588) {
-  var G__5589 = cljs.core.first.call(null, seq5588);
-  var seq5588__$1 = cljs.core.next.call(null, seq5588);
+dacite.value.collections.vector_via.cljs$lang$applyTo = function(seq1742) {
+  var G__1743 = cljs.core.first.call(null, seq1742);
+  var seq1742__$1 = cljs.core.next.call(null, seq1742);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__5589, seq5588__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__1743, seq1742__$1);
 };
 dacite.value.collections.hash_map_via = function dacite$value$collections$hash_map_via(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___5595 = arguments.length;
-  var i__5727__auto___5596 = 0;
+  var len__5726__auto___1749 = arguments.length;
+  var i__5727__auto___1750 = 0;
   while (true) {
-    if (i__5727__auto___5596 < len__5726__auto___5595) {
-      args__5732__auto__.push(arguments[i__5727__auto___5596]);
-      var G__5597 = i__5727__auto___5596 + 1;
-      i__5727__auto___5596 = G__5597;
+    if (i__5727__auto___1750 < len__5726__auto___1749) {
+      args__5732__auto__.push(arguments[i__5727__auto___1750]);
+      var G__1751 = i__5727__auto___1750 + 1;
+      i__5727__auto___1750 = G__1751;
       continue;
     } else {
     }
@@ -48684,21 +48751,21 @@ dacite.value.collections.hash_map_via.cljs$core$IFn$_invoke$arity$variadic = fun
   return cljs.core.apply.call(null, dacite.value.collections.hash_map_with_store, dacite.value.types.store_of.call(null, peer), kvs);
 };
 dacite.value.collections.hash_map_via.cljs$lang$maxFixedArity = 1;
-dacite.value.collections.hash_map_via.cljs$lang$applyTo = function(seq5593) {
-  var G__5594 = cljs.core.first.call(null, seq5593);
-  var seq5593__$1 = cljs.core.next.call(null, seq5593);
+dacite.value.collections.hash_map_via.cljs$lang$applyTo = function(seq1747) {
+  var G__1748 = cljs.core.first.call(null, seq1747);
+  var seq1747__$1 = cljs.core.next.call(null, seq1747);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__5594, seq5593__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__1748, seq1747__$1);
 };
 dacite.value.collections.set_via = function dacite$value$collections$set_via(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___5600 = arguments.length;
-  var i__5727__auto___5601 = 0;
+  var len__5726__auto___1754 = arguments.length;
+  var i__5727__auto___1755 = 0;
   while (true) {
-    if (i__5727__auto___5601 < len__5726__auto___5600) {
-      args__5732__auto__.push(arguments[i__5727__auto___5601]);
-      var G__5602 = i__5727__auto___5601 + 1;
-      i__5727__auto___5601 = G__5602;
+    if (i__5727__auto___1755 < len__5726__auto___1754) {
+      args__5732__auto__.push(arguments[i__5727__auto___1755]);
+      var G__1756 = i__5727__auto___1755 + 1;
+      i__5727__auto___1755 = G__1756;
       continue;
     } else {
     }
@@ -48711,11 +48778,11 @@ dacite.value.collections.set_via.cljs$core$IFn$_invoke$arity$variadic = function
   return cljs.core.apply.call(null, dacite.value.collections.dacite_set_with_store, dacite.value.types.store_of.call(null, peer), xs);
 };
 dacite.value.collections.set_via.cljs$lang$maxFixedArity = 1;
-dacite.value.collections.set_via.cljs$lang$applyTo = function(seq5598) {
-  var G__5599 = cljs.core.first.call(null, seq5598);
-  var seq5598__$1 = cljs.core.next.call(null, seq5598);
+dacite.value.collections.set_via.cljs$lang$applyTo = function(seq1752) {
+  var G__1753 = cljs.core.first.call(null, seq1752);
+  var seq1752__$1 = cljs.core.next.call(null, seq1752);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__5599, seq5598__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__1753, seq1752__$1);
 };
 cljs.core._add_method.call(null, dacite.value.types.coerce_and_store_BANG_, new cljs.core.Keyword(null, "blob", "blob", 1636965233), function(store, x) {
   return dacite.value.types.dacite_hash.call(null, dacite.value.collections.blob_with_store.call(null, store, x));
@@ -48730,10 +48797,10 @@ cljs.core._add_method.call(null, dacite.value.types.coerce_and_store_BANG_, new 
   return dacite.value.types.dacite_hash.call(null, cljs.core.apply.call(null, dacite.value.collections.dacite_set_with_store, store, xs));
 });
 cljs.core._add_method.call(null, dacite.value.types.coerce_and_store_BANG_, new cljs.core.Keyword(null, "map", "map", 1371690461), function(store, m) {
-  return dacite.value.types.dacite_hash.call(null, cljs.core.apply.call(null, dacite.value.collections.hash_map_with_store, store, cljs.core.mapcat.call(null, function(p__5603) {
-    var vec__5604 = p__5603;
-    var k = cljs.core.nth.call(null, vec__5604, 0, null);
-    var v = cljs.core.nth.call(null, vec__5604, 1, null);
+  return dacite.value.types.dacite_hash.call(null, cljs.core.apply.call(null, dacite.value.collections.hash_map_with_store, store, cljs.core.mapcat.call(null, function(p__1757) {
+    var vec__1758 = p__1757;
+    var k = cljs.core.nth.call(null, vec__1758, 0, null);
+    var v = cljs.core.nth.call(null, vec__1758, 1, null);
     return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [k, v], null);
   }, m)));
 });
@@ -48744,18 +48811,18 @@ dacite.value.collections.negative_set_QMARK_ = function dacite$value$collections
   return !(dacite.value.hamt.hamt_get.call(null, store, root, dacite.value.collections.neg_hash.call(null, store)) == null);
 };
 dacite.value.collections.op_merge = function dacite$value$collections$op_merge(store, ra, rb) {
-  return cljs.core.reduce.call(null, function(r, p__5607) {
-    var vec__5608 = p__5607;
-    var kref = cljs.core.nth.call(null, vec__5608, 0, null);
-    var _ = cljs.core.nth.call(null, vec__5608, 1, null);
+  return cljs.core.reduce.call(null, function(r, p__1761) {
+    var vec__1762 = p__1761;
+    var kref = cljs.core.nth.call(null, vec__1762, 0, null);
+    var _ = cljs.core.nth.call(null, vec__1762, 1, null);
     return dacite.value.hamt.hamt_assoc.call(null, store, r, kref, kref, kref);
   }, ra, dacite.value.hamt.hamt_entries.call(null, store, rb));
 };
 dacite.value.collections.op_keep = function dacite$value$collections$op_keep(store, ra, rb) {
-  return cljs.core.reduce.call(null, function(r, p__5611) {
-    var vec__5612 = p__5611;
-    var kref = cljs.core.nth.call(null, vec__5612, 0, null);
-    var _ = cljs.core.nth.call(null, vec__5612, 1, null);
+  return cljs.core.reduce.call(null, function(r, p__1765) {
+    var vec__1766 = p__1765;
+    var kref = cljs.core.nth.call(null, vec__1766, 0, null);
+    var _ = cljs.core.nth.call(null, vec__1766, 1, null);
     if (cljs.core.truth_(dacite.value.hamt.hamt_get.call(null, store, rb, kref))) {
       return dacite.value.hamt.hamt_assoc.call(null, store, r, kref, kref, kref);
     } else {
@@ -48764,10 +48831,10 @@ dacite.value.collections.op_keep = function dacite$value$collections$op_keep(sto
   }, dacite.value.hamt.hamt_empty.call(null, store), dacite.value.hamt.hamt_entries.call(null, store, ra));
 };
 dacite.value.collections.op_remove = function dacite$value$collections$op_remove(store, ra, rb) {
-  return cljs.core.reduce.call(null, function(r, p__5615) {
-    var vec__5616 = p__5615;
-    var kref = cljs.core.nth.call(null, vec__5616, 0, null);
-    var _ = cljs.core.nth.call(null, vec__5616, 1, null);
+  return cljs.core.reduce.call(null, function(r, p__1769) {
+    var vec__1770 = p__1769;
+    var kref = cljs.core.nth.call(null, vec__1770, 0, null);
+    var _ = cljs.core.nth.call(null, vec__1770, 1, null);
     return dacite.value.hamt.hamt_dissoc.call(null, store, r, kref);
   }, ra, dacite.value.hamt.hamt_entries.call(null, store, rb));
 };
@@ -48817,34 +48884,34 @@ dacite.value.collections.set_difference = function dacite$value$collections$set_
     return dacite.value.collections.op_remove.call(null, s, rb, ra);
   });
 };
-cljs.core._add_method.call(null, dacite.value.types.dacite_size, "string", function(p__5619) {
-  var vec__5620 = p__5619;
-  var _ = cljs.core.nth.call(null, vec__5620, 0, null);
-  var data = cljs.core.nth.call(null, vec__5620, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.dacite_size, "string", function(p__1773) {
+  var vec__1774 = p__1773;
+  var _ = cljs.core.nth.call(null, vec__1774, 0, null);
+  var data = cljs.core.nth.call(null, vec__1774, 1, null);
   return (new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324)).cljs$core$IFn$_invoke$arity$2(data, 0);
 });
-cljs.core._add_method.call(null, dacite.value.types.dacite_size, "blob", function(p__5623) {
-  var vec__5624 = p__5623;
-  var _ = cljs.core.nth.call(null, vec__5624, 0, null);
-  var data = cljs.core.nth.call(null, vec__5624, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.dacite_size, "blob", function(p__1777) {
+  var vec__1778 = p__1777;
+  var _ = cljs.core.nth.call(null, vec__1778, 0, null);
+  var data = cljs.core.nth.call(null, vec__1778, 1, null);
   return (new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324)).cljs$core$IFn$_invoke$arity$2(data, 0);
 });
-cljs.core._add_method.call(null, dacite.value.types.dacite_size, "vector", function(p__5627) {
-  var vec__5628 = p__5627;
-  var _ = cljs.core.nth.call(null, vec__5628, 0, null);
-  var data = cljs.core.nth.call(null, vec__5628, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.dacite_size, "vector", function(p__1781) {
+  var vec__1782 = p__1781;
+  var _ = cljs.core.nth.call(null, vec__1782, 0, null);
+  var data = cljs.core.nth.call(null, vec__1782, 1, null);
   return (new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324)).cljs$core$IFn$_invoke$arity$2(data, 0);
 });
-cljs.core._add_method.call(null, dacite.value.types.dacite_size, "map", function(p__5631) {
-  var vec__5632 = p__5631;
-  var _ = cljs.core.nth.call(null, vec__5632, 0, null);
-  var data = cljs.core.nth.call(null, vec__5632, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.dacite_size, "map", function(p__1785) {
+  var vec__1786 = p__1785;
+  var _ = cljs.core.nth.call(null, vec__1786, 0, null);
+  var data = cljs.core.nth.call(null, vec__1786, 1, null);
   return (new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324)).cljs$core$IFn$_invoke$arity$2(data, 0);
 });
-cljs.core._add_method.call(null, dacite.value.types.dacite_size, "set", function(p__5635) {
-  var vec__5636 = p__5635;
-  var _ = cljs.core.nth.call(null, vec__5636, 0, null);
-  var data = cljs.core.nth.call(null, vec__5636, 1, null);
+cljs.core._add_method.call(null, dacite.value.types.dacite_size, "set", function(p__1789) {
+  var vec__1790 = p__1789;
+  var _ = cljs.core.nth.call(null, vec__1790, 0, null);
+  var data = cljs.core.nth.call(null, vec__1790, 1, null);
   return (new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324)).cljs$core$IFn$_invoke$arity$2(data, 0);
 });
 goog.provide("dacite.rooted.gc");
@@ -48883,18 +48950,18 @@ dacite.rooted.gc.mark_reachable = function dacite$rooted$gc$mark_reachable(store
         var queue_SINGLEQUOTE_ = cljs.core.subvec.call(null, queue, 1);
         var hk = dacite.rooted.gc.hash_key.call(null, h);
         if (cljs.core.contains_QMARK_.call(null, live, hk)) {
-          var G__5305 = queue_SINGLEQUOTE_;
-          var G__5306 = live;
-          queue = G__5305;
-          live = G__5306;
+          var G__1424 = queue_SINGLEQUOTE_;
+          var G__1425 = live;
+          queue = G__1424;
+          live = G__1425;
           continue;
         } else {
           var temp__5827__auto__ = dacite.store.s_get.call(null, store, h);
           if (temp__5827__auto__ == null) {
-            var G__5307 = queue_SINGLEQUOTE_;
-            var G__5308 = live;
-            queue = G__5307;
-            live = G__5308;
+            var G__1426 = queue_SINGLEQUOTE_;
+            var G__1427 = live;
+            queue = G__1426;
+            live = G__1427;
             continue;
           } else {
             var node = temp__5827__auto__;
@@ -48908,10 +48975,10 @@ dacite.rooted.gc.mark_reachable = function dacite$rooted$gc$mark_reachable(store
             }();
             var live_SINGLEQUOTE_ = cljs.core.conj.call(null, live, hk);
             var queue_SINGLEQUOTE__SINGLEQUOTE_ = cljs.core.into.call(null, queue_SINGLEQUOTE_, children);
-            var G__5309 = queue_SINGLEQUOTE__SINGLEQUOTE_;
-            var G__5310 = live_SINGLEQUOTE_;
-            queue = G__5309;
-            live = G__5310;
+            var G__1428 = queue_SINGLEQUOTE__SINGLEQUOTE_;
+            var G__1429 = live_SINGLEQUOTE_;
+            queue = G__1428;
+            live = G__1429;
             continue;
           }
         }
@@ -48927,49 +48994,49 @@ dacite.rooted.gc.collect_garbage_BANG_ = function dacite$rooted$gc$collect_garba
     return cljs.core.contains_QMARK_.call(null, live, dacite.rooted.gc.hash_key.call(null, h));
   }, all_hashes);
   var removed = cljs.core.count.call(null, detached);
-  var seq__5311_5315 = cljs.core.seq.call(null, detached);
-  var chunk__5312_5316 = null;
-  var count__5313_5317 = 0;
-  var i__5314_5318 = 0;
+  var seq__1430_1434 = cljs.core.seq.call(null, detached);
+  var chunk__1431_1435 = null;
+  var count__1432_1436 = 0;
+  var i__1433_1437 = 0;
   while (true) {
-    if (i__5314_5318 < count__5313_5317) {
-      var h_5319 = cljs.core._nth.call(null, chunk__5312_5316, i__5314_5318);
-      dacite.store.s_delete.call(null, store, h_5319);
-      var G__5320 = seq__5311_5315;
-      var G__5321 = chunk__5312_5316;
-      var G__5322 = count__5313_5317;
-      var G__5323 = i__5314_5318 + 1;
-      seq__5311_5315 = G__5320;
-      chunk__5312_5316 = G__5321;
-      count__5313_5317 = G__5322;
-      i__5314_5318 = G__5323;
+    if (i__1433_1437 < count__1432_1436) {
+      var h_1438 = cljs.core._nth.call(null, chunk__1431_1435, i__1433_1437);
+      dacite.store.s_delete.call(null, store, h_1438);
+      var G__1439 = seq__1430_1434;
+      var G__1440 = chunk__1431_1435;
+      var G__1441 = count__1432_1436;
+      var G__1442 = i__1433_1437 + 1;
+      seq__1430_1434 = G__1439;
+      chunk__1431_1435 = G__1440;
+      count__1432_1436 = G__1441;
+      i__1433_1437 = G__1442;
       continue;
     } else {
-      var temp__5825__auto___5324 = cljs.core.seq.call(null, seq__5311_5315);
-      if (temp__5825__auto___5324) {
-        var seq__5311_5325__$1 = temp__5825__auto___5324;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__5311_5325__$1)) {
-          var c__5525__auto___5326 = cljs.core.chunk_first.call(null, seq__5311_5325__$1);
-          var G__5327 = cljs.core.chunk_rest.call(null, seq__5311_5325__$1);
-          var G__5328 = c__5525__auto___5326;
-          var G__5329 = cljs.core.count.call(null, c__5525__auto___5326);
-          var G__5330 = 0;
-          seq__5311_5315 = G__5327;
-          chunk__5312_5316 = G__5328;
-          count__5313_5317 = G__5329;
-          i__5314_5318 = G__5330;
+      var temp__5825__auto___1443 = cljs.core.seq.call(null, seq__1430_1434);
+      if (temp__5825__auto___1443) {
+        var seq__1430_1444__$1 = temp__5825__auto___1443;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1430_1444__$1)) {
+          var c__5525__auto___1445 = cljs.core.chunk_first.call(null, seq__1430_1444__$1);
+          var G__1446 = cljs.core.chunk_rest.call(null, seq__1430_1444__$1);
+          var G__1447 = c__5525__auto___1445;
+          var G__1448 = cljs.core.count.call(null, c__5525__auto___1445);
+          var G__1449 = 0;
+          seq__1430_1434 = G__1446;
+          chunk__1431_1435 = G__1447;
+          count__1432_1436 = G__1448;
+          i__1433_1437 = G__1449;
           continue;
         } else {
-          var h_5331 = cljs.core.first.call(null, seq__5311_5325__$1);
-          dacite.store.s_delete.call(null, store, h_5331);
-          var G__5332 = cljs.core.next.call(null, seq__5311_5325__$1);
-          var G__5333 = null;
-          var G__5334 = 0;
-          var G__5335 = 0;
-          seq__5311_5315 = G__5332;
-          chunk__5312_5316 = G__5333;
-          count__5313_5317 = G__5334;
-          i__5314_5318 = G__5335;
+          var h_1450 = cljs.core.first.call(null, seq__1430_1444__$1);
+          dacite.store.s_delete.call(null, store, h_1450);
+          var G__1451 = cljs.core.next.call(null, seq__1430_1444__$1);
+          var G__1452 = null;
+          var G__1453 = 0;
+          var G__1454 = 0;
+          seq__1430_1434 = G__1451;
+          chunk__1431_1435 = G__1452;
+          count__1432_1436 = G__1453;
+          i__1433_1437 = G__1454;
           continue;
         }
       } else {
@@ -49041,8 +49108,8 @@ dacite.store.pack.make_chunk = function dacite$store$pack$make_chunk(budget, ite
   return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword("dacite.wire", "chunk-v1", "dacite.wire/chunk-v1", -1158089781), true, new cljs.core.Keyword(null, "budget", "budget", -405386281), budget, new cljs.core.Keyword(null, "items", "items", 1031954938), cljs.core.vec.call(null, items)], null);
 };
 dacite.store.pack.pack_items = function dacite$store$pack$pack_items(var_args) {
-  var G__1886 = arguments.length;
-  switch(G__1886) {
+  var G__2214 = arguments.length;
+  switch(G__2214) {
     case 1:
       return dacite.store.pack.pack_items.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -49093,20 +49160,20 @@ dacite.store.pack.pack_items.cljs$core$IFn$_invoke$arity$3 = function(items, bud
         var ch = dacite.store.pack.make_chunk.call(null, budget__$1, cur_SINGLEQUOTE_);
         var sz = cljs.core.long$.call(null, size_fn__$1.call(null, ch));
         if (sz >= budget__$1) {
-          var G__1888 = cljs.core.next.call(null, remaining);
-          var G__1889 = cljs.core.PersistentVector.EMPTY;
-          var G__1890 = cljs.core.conj.call(null, out, ch);
-          remaining = G__1888;
-          cur = G__1889;
-          out = G__1890;
+          var G__2216 = cljs.core.next.call(null, remaining);
+          var G__2217 = cljs.core.PersistentVector.EMPTY;
+          var G__2218 = cljs.core.conj.call(null, out, ch);
+          remaining = G__2216;
+          cur = G__2217;
+          out = G__2218;
           continue;
         } else {
-          var G__1891 = cljs.core.next.call(null, remaining);
-          var G__1892 = cur_SINGLEQUOTE_;
-          var G__1893 = out;
-          remaining = G__1891;
-          cur = G__1892;
-          out = G__1893;
+          var G__2219 = cljs.core.next.call(null, remaining);
+          var G__2220 = cur_SINGLEQUOTE_;
+          var G__2221 = out;
+          remaining = G__2219;
+          cur = G__2220;
+          out = G__2221;
           continue;
         }
       } else {
@@ -49134,8 +49201,8 @@ dacite.store.pack.entry_payload_size = function dacite$store$pack$entry_payload_
   var or__5002__auto__ = function() {
     try {
       return dacite.value.types.dacite_size.call(null, entry);
-    } catch (e1894) {
-      var _ = e1894;
+    } catch (e2222) {
+      var _ = e2222;
       return null;
     }
   }();
@@ -49218,6 +49285,193 @@ dacite.store.pack.host_blob_vec = function dacite$store$pack$host_blob_vec(st, h
     }, cljs.core.range.call(null, n));
   }
 };
+dacite.store.pack.rle_seq_types = new cljs.core.PersistentHashSet(null, new cljs.core.PersistentArrayMap(null, 7, ["ft/deep", null, "hamt/empty", null, "vector", null, "ft/node", null, "ft/empty", null, "ft/digit", null, "set", null], null), null);
+dacite.store.pack.run_form_QMARK_ = function dacite$store$pack$run_form_QMARK_(x) {
+  var and__5000__auto__ = cljs.core.map_QMARK_.call(null, x);
+  if (and__5000__auto__) {
+    var t = cljs.core.str.cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(x));
+    return cljs.core._EQ_.call(null, t, "run") || cljs.core._EQ_.call(null, t, "repeat");
+  } else {
+    return and__5000__auto__;
+  }
+};
+dacite.store.pack.pack_run_values = function dacite$store$pack$pack_run_values(of, lits) {
+  if (cljs.core._EQ_.call(null, of, "char")) {
+    return dacite.store.pack.join_chars.call(null, cljs.core.map.call(null, new cljs.core.Keyword(null, "body", "body", -2049205669), lits));
+  } else {
+    return cljs.core.mapv.call(null, new cljs.core.Keyword(null, "body", "body", -2049205669), lits);
+  }
+};
+dacite.store.pack.all_bodies_equal_QMARK_ = function dacite$store$pack$all_bodies_equal_QMARK_(lits) {
+  var bs = cljs.core.mapv.call(null, new cljs.core.Keyword(null, "body", "body", -2049205669), lits);
+  var and__5000__auto__ = cljs.core.seq.call(null, bs);
+  if (and__5000__auto__) {
+    return cljs.core.apply.call(null, cljs.core._EQ_, bs);
+  } else {
+    return and__5000__auto__;
+  }
+};
+dacite.store.pack.rle_lits = function dacite$store$pack$rle_lits(lits) {
+  var lits__$1 = cljs.core.mapv.call(null, dacite.store.pack.rle_form, function() {
+    var or__5002__auto__ = lits;
+    if (cljs.core.truth_(or__5002__auto__)) {
+      return or__5002__auto__;
+    } else {
+      return cljs.core.PersistentVector.EMPTY;
+    }
+  }());
+  if (cljs.core.empty_QMARK_.call(null, lits__$1)) {
+    return cljs.core.PersistentVector.EMPTY;
+  } else {
+    var remaining = cljs.core.seq.call(null, lits__$1);
+    var out = cljs.core.PersistentVector.EMPTY;
+    while (true) {
+      var temp__5823__auto__ = cljs.core.first.call(null, remaining);
+      if (cljs.core.truth_(temp__5823__auto__)) {
+        var x = temp__5823__auto__;
+        if (dacite.store.pack.run_form_QMARK_.call(null, x)) {
+          var G__2229 = cljs.core.next.call(null, remaining);
+          var G__2230 = cljs.core.conj.call(null, out, x);
+          remaining = G__2229;
+          out = G__2230;
+          continue;
+        } else {
+          var t = cljs.core.str.cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(x));
+          var vec__2226 = cljs.core.split_with.call(null, function(remaining, out, t, x, temp__5823__auto__, lits__$1) {
+            return function(y) {
+              return !dacite.store.pack.run_form_QMARK_.call(null, y) && cljs.core._EQ_.call(null, t, cljs.core.str.cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(y)));
+            };
+          }(remaining, out, t, x, temp__5823__auto__, lits__$1), remaining);
+          var same = cljs.core.nth.call(null, vec__2226, 0, null);
+          var rst = cljs.core.nth.call(null, vec__2226, 1, null);
+          if (cljs.core._EQ_.call(null, 1, cljs.core.count.call(null, same))) {
+            var G__2231 = rst;
+            var G__2232 = cljs.core.conj.call(null, out, x);
+            remaining = G__2231;
+            out = G__2232;
+            continue;
+          } else {
+            if (cljs.core.truth_(dacite.store.pack.all_bodies_equal_QMARK_.call(null, same))) {
+              var G__2233 = rst;
+              var G__2234 = cljs.core.conj.call(null, out, new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "repeat", new cljs.core.Keyword(null, "body", "body", -2049205669), new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "of", "of", -2075414212), t, new cljs.core.Keyword(null, "n", "n", 562130025), cljs.core.count.call(null, same), new cljs.core.Keyword(null, "value", "value", 305978217), (new cljs.core.Keyword(null, "body", 
+              "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(cljs.core.first.call(null, same))], null)], null));
+              remaining = G__2233;
+              out = G__2234;
+              continue;
+            } else {
+              var G__2235 = rst;
+              var G__2236 = cljs.core.conj.call(null, out, new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "run", new cljs.core.Keyword(null, "body", "body", -2049205669), new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "of", "of", -2075414212), t, new cljs.core.Keyword(null, "values", "values", 372645556), dacite.store.pack.pack_run_values.call(null, t, same)], null)], null));
+              remaining = G__2235;
+              out = G__2236;
+              continue;
+            }
+          }
+        }
+      } else {
+        return out;
+      }
+      break;
+    }
+  }
+};
+dacite.store.pack.rle_form = function dacite$store$pack$rle_form(form) {
+  if (!(cljs.core.map_QMARK_.call(null, form) && (cljs.core.contains_QMARK_.call(null, form, new cljs.core.Keyword(null, "type", "type", 1174270348)) && cljs.core.contains_QMARK_.call(null, form, new cljs.core.Keyword(null, "body", "body", -2049205669))))) {
+    return form;
+  } else {
+    var t = cljs.core.str.cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(form));
+    var b = (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(form);
+    if (dacite.store.pack.run_form_QMARK_.call(null, form)) {
+      return form;
+    } else {
+      if (cljs.core.contains_QMARK_.call(null, dacite.store.pack.rle_seq_types, t)) {
+        return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.store.pack.rle_lits.call(null, b)], null);
+      } else {
+        if (cljs.core._EQ_.call(null, t, "map") || cljs.core._EQ_.call(null, t, "hamt/bitmap")) {
+          return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), cljs.core.mapv.call(null, function(pair) {
+            return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.store.pack.rle_form.call(null, cljs.core.nth.call(null, pair, 0)), dacite.store.pack.rle_form.call(null, cljs.core.nth.call(null, pair, 1))], null);
+          }, function() {
+            var or__5002__auto__ = b;
+            if (cljs.core.truth_(or__5002__auto__)) {
+              return or__5002__auto__;
+            } else {
+              return cljs.core.PersistentVector.EMPTY;
+            }
+          }())], null);
+        } else {
+          if (cljs.core._EQ_.call(null, t, "hamt/entry")) {
+            return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.store.pack.rle_form.call(null, cljs.core.nth.call(null, b, 0)), dacite.store.pack.rle_form.call(null, cljs.core.nth.call(null, b, 1))], null)], null);
+          } else {
+            return form;
+          }
+        }
+      }
+    }
+  }
+};
+dacite.store.pack.expand_run = function dacite$store$pack$expand_run(p__2237) {
+  var map__2238 = p__2237;
+  var map__2238__$1 = cljs.core.__destructure_map.call(null, map__2238);
+  var body = cljs.core.get.call(null, map__2238__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  var of = cljs.core.str.cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "of", "of", -2075414212)).cljs$core$IFn$_invoke$arity$1(body));
+  var values = (new cljs.core.Keyword(null, "values", "values", 372645556)).cljs$core$IFn$_invoke$arity$1(body);
+  if (cljs.core._EQ_.call(null, of, "char")) {
+    return cljs.core.mapv.call(null, function(ch) {
+      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "char", new cljs.core.Keyword(null, "body", "body", -2049205669), ch], null);
+    }, cljs.core.seq.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(values)));
+  } else {
+    return cljs.core.mapv.call(null, function(v) {
+      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), of, new cljs.core.Keyword(null, "body", "body", -2049205669), v], null);
+    }, function() {
+      var or__5002__auto__ = values;
+      if (cljs.core.truth_(or__5002__auto__)) {
+        return or__5002__auto__;
+      } else {
+        return cljs.core.PersistentVector.EMPTY;
+      }
+    }());
+  }
+};
+dacite.store.pack.expand_repeat = function dacite$store$pack$expand_repeat(p__2239) {
+  var map__2240 = p__2239;
+  var map__2240__$1 = cljs.core.__destructure_map.call(null, map__2240);
+  var body = cljs.core.get.call(null, map__2240__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  var of = cljs.core.str.cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "of", "of", -2075414212)).cljs$core$IFn$_invoke$arity$1(body));
+  var n = cljs.core.long$.call(null, function() {
+    var or__5002__auto__ = (new cljs.core.Keyword(null, "n", "n", 562130025)).cljs$core$IFn$_invoke$arity$1(body);
+    if (cljs.core.truth_(or__5002__auto__)) {
+      return or__5002__auto__;
+    } else {
+      return 0;
+    }
+  }());
+  var v = (new cljs.core.Keyword(null, "value", "value", 305978217)).cljs$core$IFn$_invoke$arity$1(body);
+  return cljs.core.vec.call(null, cljs.core.repeat.call(null, n, new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), of, new cljs.core.Keyword(null, "body", "body", -2049205669), v], null)));
+};
+dacite.store.pack.expand_rle_seq = function dacite$store$pack$expand_rle_seq(xs) {
+  return cljs.core.into.call(null, cljs.core.PersistentVector.EMPTY, cljs.core.mapcat.call(null, function(x) {
+    if (!(cljs.core.map_QMARK_.call(null, x) && cljs.core.contains_QMARK_.call(null, x, new cljs.core.Keyword(null, "type", "type", 1174270348)))) {
+      return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [x], null);
+    } else {
+      var t = cljs.core.str.cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(x));
+      if (cljs.core._EQ_.call(null, t, "run")) {
+        return dacite.store.pack.expand_run.call(null, x);
+      } else {
+        if (cljs.core._EQ_.call(null, t, "repeat")) {
+          return dacite.store.pack.expand_repeat.call(null, x);
+        } else {
+          return new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [x], null);
+        }
+      }
+    }
+  }, function() {
+    var or__5002__auto__ = xs;
+    if (cljs.core.truth_(or__5002__auto__)) {
+      return or__5002__auto__;
+    } else {
+      return cljs.core.PersistentVector.EMPTY;
+    }
+  }()));
+};
 dacite.store.pack.nested_literal = function dacite$store$pack$nested_literal(st, eh) {
   var temp__5825__auto__ = dacite.store.s_get.call(null, st, eh);
   if (cljs.core.truth_(temp__5825__auto__)) {
@@ -49257,7 +49511,7 @@ dacite.store.pack.intermediate_literal_of = function dacite$store$pack$intermedi
   } else {
     if (clojure.string.starts_with_QMARK_.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(t), "ft/")) {
       var leaves = cljs.core.vec.call(null, dacite.value.finger_tree.ft_leaves.call(null, st, h));
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.store.pack.leaf_literals.call(null, st, leaves)], null);
+      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.store.pack.rle_lits.call(null, dacite.store.pack.leaf_literals.call(null, st, leaves))], null);
     } else {
       if (cljs.core._EQ_.call(null, "hamt/empty", t)) {
         return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), cljs.core.PersistentVector.EMPTY], null);
@@ -49282,13 +49536,13 @@ dacite.store.pack.intermediate_literal_of = function dacite$store$pack$intermedi
               throw cljs.core.ex_info.call(null, "hamt entry val not a value", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "h", "h", 1109658740), h], null));
             }
           }();
-          return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [kl, vl], null)], null);
+          return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.store.pack.rle_form.call(null, kl), dacite.store.pack.rle_form.call(null, vl)], null)], null);
         } else {
           if (cljs.core._EQ_.call(null, "hamt/bitmap", t)) {
-            var pairs = cljs.core.mapv.call(null, function(p__1895) {
-              var vec__1896 = p__1895;
-              var kr = cljs.core.nth.call(null, vec__1896, 0, null);
-              var vr = cljs.core.nth.call(null, vec__1896, 1, null);
+            var pairs = cljs.core.mapv.call(null, function(p__2241) {
+              var vec__2242 = p__2241;
+              var kr = cljs.core.nth.call(null, vec__2242, 0, null);
+              var vr = cljs.core.nth.call(null, vec__2242, 1, null);
               return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [function() {
                 var or__5002__auto__ = dacite.store.pack.nested_literal.call(null, st, kr);
                 if (cljs.core.truth_(or__5002__auto__)) {
@@ -49305,7 +49559,9 @@ dacite.store.pack.intermediate_literal_of = function dacite$store$pack$intermedi
                 }
               }()], null);
             }, dacite.value.hamt.hamt_entries.call(null, st, h));
-            return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), pairs], null);
+            return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), t, new cljs.core.Keyword(null, "body", "body", -2049205669), cljs.core.mapv.call(null, function(pair) {
+              return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.store.pack.rle_form.call(null, cljs.core.nth.call(null, pair, 0)), dacite.store.pack.rle_form.call(null, cljs.core.nth.call(null, pair, 1))], null);
+            }, pairs)], null);
           } else {
             return null;
           }
@@ -49323,8 +49579,8 @@ dacite.store.pack.literal_of = function dacite$store$pack$literal_of(st, h) {
     if (dacite.store.pack.tree_internal_type_QMARK_.call(null, t)) {
       try {
         return dacite.store.pack.intermediate_literal_of.call(null, st, h, entry);
-      } catch (e1899) {
-        var _ = e1899;
+      } catch (e2245) {
+        var _ = e2245;
         return null;
       }
     } else {
@@ -49356,7 +49612,7 @@ dacite.store.pack.literal_of = function dacite$store$pack$literal_of(st, h) {
                   throw cljs.core.ex_info.call(null, "vector child is not a value type", new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "parent", "parent", -878878779), h, new cljs.core.Keyword(null, "child", "child", 623967545), eh, new cljs.core.Keyword(null, "child-type", "child-type", 827906268), dacite.value.types.entry_type.call(null, dacite.store.s_get.call(null, st, eh))], null));
                 }
               }, cljs.core.range.call(null, n));
-              return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "vector", new cljs.core.Keyword(null, "body", "body", -2049205669), els], null);
+              return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "vector", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.store.pack.rle_lits.call(null, els)], null);
             } else {
               if (cljs.core._EQ_.call(null, "set", t)) {
                 var els = function() {
@@ -49376,17 +49632,17 @@ dacite.store.pack.literal_of = function dacite$store$pack$literal_of(st, h) {
                     return cljs.core.PersistentVector.EMPTY;
                   }
                 }();
-                return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "set", new cljs.core.Keyword(null, "body", "body", -2049205669), els], null);
+                return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "set", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.store.pack.rle_lits.call(null, els)], null);
               } else {
                 if (cljs.core._EQ_.call(null, "map", t)) {
                   var pairs = function() {
                     var temp__5823__auto__ = dacite.value.collections.map_entries.call(null, st, h);
                     if (cljs.core.truth_(temp__5823__auto__)) {
                       var ps = temp__5823__auto__;
-                      return cljs.core.mapv.call(null, function(p__1900) {
-                        var vec__1901 = p__1900;
-                        var k = cljs.core.nth.call(null, vec__1901, 0, null);
-                        var v = cljs.core.nth.call(null, vec__1901, 1, null);
+                      return cljs.core.mapv.call(null, function(p__2246) {
+                        var vec__2247 = p__2246;
+                        var k = cljs.core.nth.call(null, vec__2247, 0, null);
+                        var v = cljs.core.nth.call(null, vec__2247, 1, null);
                         var kh = dacite.value.types.dacite_hash.call(null, k);
                         var vh = dacite.value.types.dacite_hash.call(null, v);
                         var kl = function() {
@@ -49411,7 +49667,9 @@ dacite.store.pack.literal_of = function dacite$store$pack$literal_of(st, h) {
                       return cljs.core.PersistentVector.EMPTY;
                     }
                   }();
-                  return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "map", new cljs.core.Keyword(null, "body", "body", -2049205669), pairs], null);
+                  return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "map", new cljs.core.Keyword(null, "body", "body", -2049205669), cljs.core.mapv.call(null, function(pair) {
+                    return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.store.pack.rle_form.call(null, cljs.core.nth.call(null, pair, 0)), dacite.store.pack.rle_form.call(null, cljs.core.nth.call(null, pair, 1))], null);
+                  }, pairs)], null);
                 } else {
                   return null;
                 }
@@ -49426,8 +49684,8 @@ dacite.store.pack.literal_of = function dacite$store$pack$literal_of(st, h) {
   }
 };
 dacite.store.pack.fits_literal_QMARK_ = function dacite$store$pack$fits_literal_QMARK_(var_args) {
-  var G__1905 = arguments.length;
-  switch(G__1905) {
+  var G__2251 = arguments.length;
+  switch(G__2251) {
     case 2:
       return dacite.store.pack.fits_literal_QMARK_.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -49456,13 +49714,7 @@ dacite.store.pack.fits_literal_QMARK_.cljs$core$IFn$_invoke$arity$3 = function(s
     var temp__5825__auto__ = dacite.store.pack.literal_of.call(null, st, h);
     if (cljs.core.truth_(temp__5825__auto__)) {
       var form = temp__5825__auto__;
-      var item = dacite.store.pack.literal_item.call(null, h, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(form), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(form));
-      var and__5000__auto__ = dacite.store.pack.wire_item_size.call(null, item) <= budget__$1;
-      if (and__5000__auto__) {
-        return dacite.store.pack.literal_round_trips_QMARK_.call(null, h, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(form), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(form));
-      } else {
-        return and__5000__auto__;
-      }
+      return dacite.store.pack.literal_round_trips_QMARK_.call(null, h, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(form), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(form));
     } else {
       return null;
     }
@@ -49473,8 +49725,8 @@ dacite.store.pack.fits_literal_QMARK_.cljs$core$IFn$_invoke$arity$3 = function(s
 dacite.store.pack.fits_literal_QMARK_.cljs$lang$maxFixedArity = 3;
 dacite.store.pack.blob_bytes = function dacite$store$pack$blob_bytes(body) {
   if (cljs.core.sequential_QMARK_.call(null, body)) {
-    return cljs.core.clj__GT_js.call(null, cljs.core.mapv.call(null, function(p1__1908_SHARP_) {
-      return (p1__1908_SHARP_ | 0) & 255;
+    return cljs.core.clj__GT_js.call(null, cljs.core.mapv.call(null, function(p1__2254_SHARP_) {
+      return (p1__2254_SHARP_ | 0) & 255;
     }, body));
   } else {
     return body;
@@ -49499,10 +49751,18 @@ dacite.store.pack.materialize_ft_BANG_ = function dacite$store$pack$materialize_
     if (cljs.core._EQ_.call(null, "ft/digit", type__$1)) {
       return dacite.value.finger_tree.ft_digit_from_value_hashes.call(null, st, leaf_hs__$1);
     } else {
-      if (cljs.core._EQ_.call(null, "ft/deep", type__$1) || cljs.core._EQ_.call(null, "ft/node", type__$1)) {
-        return dacite.value.finger_tree.ft_from_value_hashes.call(null, st, leaf_hs__$1);
+      if (cljs.core._EQ_.call(null, "ft/node", type__$1)) {
+        if (2 <= cljs.core.count.call(null, leaf_hs__$1) && cljs.core.count.call(null, leaf_hs__$1) <= 32) {
+          return dacite.value.finger_tree.ft_node_from_value_hashes.call(null, st, leaf_hs__$1);
+        } else {
+          return dacite.value.finger_tree.ft_from_value_hashes.call(null, st, leaf_hs__$1);
+        }
       } else {
-        throw cljs.core.ex_info.call(null, "unsupported ft literal type", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "type", "type", 1174270348), type__$1], null));
+        if (cljs.core._EQ_.call(null, "ft/deep", type__$1)) {
+          return dacite.value.finger_tree.ft_from_value_hashes.call(null, st, leaf_hs__$1);
+        } else {
+          throw cljs.core.ex_info.call(null, "unsupported ft literal type", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "type", "type", 1174270348), type__$1], null));
+        }
       }
     }
   }
@@ -49546,31 +49806,31 @@ dacite.store.pack.materialize_literal_BANG_ = function dacite$store$pack$materia
         return dacite.value.types.dacite_hash.call(null, dacite.value.collections.blob_with_store.call(null, st, dacite.store.pack.blob_bytes.call(null, body)));
       } else {
         if (cljs.core._EQ_.call(null, "vector", type__$1)) {
-          var refs = cljs.core.mapv.call(null, function(p1__1909_SHARP_) {
-            return dacite.store.pack.materialize_nested_BANG_.call(null, st, p1__1909_SHARP_);
-          }, function() {
+          var refs = cljs.core.mapv.call(null, function(p1__2255_SHARP_) {
+            return dacite.store.pack.materialize_nested_BANG_.call(null, st, p1__2255_SHARP_);
+          }, dacite.store.pack.expand_rle_seq.call(null, function() {
             var or__5002__auto__ = body;
             if (cljs.core.truth_(or__5002__auto__)) {
               return or__5002__auto__;
             } else {
               return cljs.core.PersistentVector.EMPTY;
             }
-          }());
+          }()));
           return dacite.value.types.dacite_hash.call(null, dacite.value.collections.vec_of_refs_with_store.call(null, st, refs));
         } else {
           if (cljs.core._EQ_.call(null, "set", type__$1)) {
-            var refs = cljs.core.mapv.call(null, function(p1__1910_SHARP_) {
-              return dacite.store.pack.materialize_nested_BANG_.call(null, st, p1__1910_SHARP_);
-            }, function() {
+            var refs = cljs.core.mapv.call(null, function(p1__2256_SHARP_) {
+              return dacite.store.pack.materialize_nested_BANG_.call(null, st, p1__2256_SHARP_);
+            }, dacite.store.pack.expand_rle_seq.call(null, function() {
               var or__5002__auto__ = body;
               if (cljs.core.truth_(or__5002__auto__)) {
                 return or__5002__auto__;
               } else {
                 return cljs.core.PersistentVector.EMPTY;
               }
-            }());
-            return dacite.value.types.dacite_hash.call(null, cljs.core.apply.call(null, dacite.value.collections.dacite_set_with_store, st, cljs.core.map.call(null, function(p1__1911_SHARP_) {
-              return dacite.value.types.wrap_entry.call(null, dacite.value.types.entry_type.call(null, dacite.store.s_get.call(null, st, p1__1911_SHARP_)), st, p1__1911_SHARP_);
+            }()));
+            return dacite.value.types.dacite_hash.call(null, cljs.core.apply.call(null, dacite.value.collections.dacite_set_with_store, st, cljs.core.map.call(null, function(p1__2257_SHARP_) {
+              return dacite.value.types.wrap_entry.call(null, dacite.value.types.entry_type.call(null, dacite.store.s_get.call(null, st, p1__2257_SHARP_)), st, p1__2257_SHARP_);
             }, refs)));
           } else {
             if (cljs.core._EQ_.call(null, "map", type__$1)) {
@@ -49587,16 +49847,16 @@ dacite.store.pack.materialize_literal_BANG_ = function dacite$store$pack$materia
               return dacite.value.types.dacite_hash.call(null, cljs.core.apply.call(null, dacite.value.collections.hash_map_with_store, st, kvs));
             } else {
               if (clojure.string.starts_with_QMARK_.call(null, type__$1, "ft/")) {
-                var leaf_hs = cljs.core.mapv.call(null, function(p1__1912_SHARP_) {
-                  return dacite.store.pack.materialize_nested_BANG_.call(null, st, p1__1912_SHARP_);
-                }, function() {
+                var leaf_hs = cljs.core.mapv.call(null, function(p1__2258_SHARP_) {
+                  return dacite.store.pack.materialize_nested_BANG_.call(null, st, p1__2258_SHARP_);
+                }, dacite.store.pack.expand_rle_seq.call(null, function() {
                   var or__5002__auto__ = body;
                   if (cljs.core.truth_(or__5002__auto__)) {
                     return or__5002__auto__;
                   } else {
                     return cljs.core.PersistentVector.EMPTY;
                   }
-                }());
+                }()));
                 return dacite.store.pack.materialize_ft_BANG_.call(null, st, type__$1, leaf_hs);
               } else {
                 if (clojure.string.starts_with_QMARK_.call(null, type__$1, "hamt/")) {
@@ -49622,14 +49882,14 @@ dacite.store.pack.materialize_literal_BANG_ = function dacite$store$pack$materia
 dacite.store.pack.literal_round_trips_QMARK_ = function dacite$store$pack$literal_round_trips_QMARK_(h, type, body) {
   try {
     return cljs.core._EQ_.call(null, h, dacite.store.pack.materialize_literal_BANG_.call(null, dacite.store.mem_store.call(null), type, body));
-  } catch (e1913) {
-    var _ = e1913;
+  } catch (e2259) {
+    var _ = e2259;
     return false;
   }
 };
 dacite.store.pack.encode_item = function dacite$store$pack$encode_item(var_args) {
-  var G__1915 = arguments.length;
-  switch(G__1915) {
+  var G__2261 = arguments.length;
+  switch(G__2261) {
     case 3:
       return dacite.store.pack.encode_item.cljs$core$IFn$_invoke$arity$3(arguments[0], arguments[1], arguments[2]);
       break;
@@ -49671,25 +49931,18 @@ dacite.store.pack.encode_item.cljs$core$IFn$_invoke$arity$5 = function(st, h, en
         var temp__5823__auto__ = function() {
           try {
             return dacite.store.pack.literal_of.call(null, st, h);
-          } catch (e1916) {
-            var _ = e1916;
+          } catch (e2262) {
+            var _ = e2262;
             return null;
           }
         }();
         if (cljs.core.truth_(temp__5823__auto__)) {
-          var map__1917 = temp__5823__auto__;
-          var map__1917__$1 = cljs.core.__destructure_map.call(null, map__1917);
-          var type = cljs.core.get.call(null, map__1917__$1, new cljs.core.Keyword(null, "type", "type", 1174270348));
-          var body = cljs.core.get.call(null, map__1917__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+          var map__2263 = temp__5823__auto__;
+          var map__2263__$1 = cljs.core.__destructure_map.call(null, map__2263);
+          var type = cljs.core.get.call(null, map__2263__$1, new cljs.core.Keyword(null, "type", "type", 1174270348));
+          var body = cljs.core.get.call(null, map__2263__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
           var item = dacite.store.pack.literal_item.call(null, h, type, body);
-          if (cljs.core.truth_(function() {
-            var and__5000__auto__ = dacite.store.pack.wire_item_size.call(null, item) <= budget__$1;
-            if (and__5000__auto__) {
-              return dacite.store.pack.literal_round_trips_QMARK_.call(null, h, type, body);
-            } else {
-              return and__5000__auto__;
-            }
-          }())) {
+          if (cljs.core.truth_(dacite.store.pack.literal_round_trips_QMARK_.call(null, h, type, body))) {
             return item;
           } else {
             return dacite.store.pack.node_item.call(null, h, entry);
@@ -49703,8 +49956,8 @@ dacite.store.pack.encode_item.cljs$core$IFn$_invoke$arity$5 = function(st, h, en
 };
 dacite.store.pack.encode_item.cljs$lang$maxFixedArity = 5;
 dacite.store.pack.encode_reachable = function dacite$store$pack$encode_reachable(var_args) {
-  var G__1920 = arguments.length;
-  switch(G__1920) {
+  var G__2266 = arguments.length;
+  switch(G__2266) {
     case 2:
       return dacite.store.pack.encode_reachable.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -49764,7 +50017,7 @@ dacite.store.pack.encode_reachable.cljs$core$IFn$_invoke$arity$4 = function(st, 
           return cljs.core.swap_BANG_.call(null, covered, cljs.core.into, dacite.rooted.gc.mark_reachable.call(null, st, h));
         } else {
           cljs.core.swap_BANG_.call(null, covered, cljs.core.conj, hk);
-          var seq__1925 = cljs.core.seq.call(null, function() {
+          var seq__2271 = cljs.core.seq.call(null, function() {
             var or__5002__auto__ = dacite.value.types.child_hashes.call(null, entry);
             if (cljs.core.truth_(or__5002__auto__)) {
               return or__5002__auto__;
@@ -49772,48 +50025,48 @@ dacite.store.pack.encode_reachable.cljs$core$IFn$_invoke$arity$4 = function(st, 
               return cljs.core.PersistentVector.EMPTY;
             }
           }());
-          var chunk__1926 = null;
-          var count__1927 = 0;
-          var i__1928 = 0;
+          var chunk__2272 = null;
+          var count__2273 = 0;
+          var i__2274 = 0;
           while (true) {
-            if (i__1928 < count__1927) {
-              var ch = cljs.core._nth.call(null, chunk__1926, i__1928);
+            if (i__2274 < count__2273) {
+              var ch = cljs.core._nth.call(null, chunk__2272, i__2274);
               dacite$store$pack$walk.call(null, ch);
-              var G__1930 = seq__1925;
-              var G__1931 = chunk__1926;
-              var G__1932 = count__1927;
-              var G__1933 = i__1928 + 1;
-              seq__1925 = G__1930;
-              chunk__1926 = G__1931;
-              count__1927 = G__1932;
-              i__1928 = G__1933;
+              var G__2276 = seq__2271;
+              var G__2277 = chunk__2272;
+              var G__2278 = count__2273;
+              var G__2279 = i__2274 + 1;
+              seq__2271 = G__2276;
+              chunk__2272 = G__2277;
+              count__2273 = G__2278;
+              i__2274 = G__2279;
               continue;
             } else {
-              var temp__5825__auto____$1 = cljs.core.seq.call(null, seq__1925);
+              var temp__5825__auto____$1 = cljs.core.seq.call(null, seq__2271);
               if (temp__5825__auto____$1) {
-                var seq__1925__$1 = temp__5825__auto____$1;
-                if (cljs.core.chunked_seq_QMARK_.call(null, seq__1925__$1)) {
-                  var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__1925__$1);
-                  var G__1934 = cljs.core.chunk_rest.call(null, seq__1925__$1);
-                  var G__1935 = c__5525__auto__;
-                  var G__1936 = cljs.core.count.call(null, c__5525__auto__);
-                  var G__1937 = 0;
-                  seq__1925 = G__1934;
-                  chunk__1926 = G__1935;
-                  count__1927 = G__1936;
-                  i__1928 = G__1937;
+                var seq__2271__$1 = temp__5825__auto____$1;
+                if (cljs.core.chunked_seq_QMARK_.call(null, seq__2271__$1)) {
+                  var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2271__$1);
+                  var G__2280 = cljs.core.chunk_rest.call(null, seq__2271__$1);
+                  var G__2281 = c__5525__auto__;
+                  var G__2282 = cljs.core.count.call(null, c__5525__auto__);
+                  var G__2283 = 0;
+                  seq__2271 = G__2280;
+                  chunk__2272 = G__2281;
+                  count__2273 = G__2282;
+                  i__2274 = G__2283;
                   continue;
                 } else {
-                  var ch = cljs.core.first.call(null, seq__1925__$1);
+                  var ch = cljs.core.first.call(null, seq__2271__$1);
                   dacite$store$pack$walk.call(null, ch);
-                  var G__1938 = cljs.core.next.call(null, seq__1925__$1);
-                  var G__1939 = null;
-                  var G__1940 = 0;
-                  var G__1941 = 0;
-                  seq__1925 = G__1938;
-                  chunk__1926 = G__1939;
-                  count__1927 = G__1940;
-                  i__1928 = G__1941;
+                  var G__2284 = cljs.core.next.call(null, seq__2271__$1);
+                  var G__2285 = null;
+                  var G__2286 = 0;
+                  var G__2287 = 0;
+                  seq__2271 = G__2284;
+                  chunk__2272 = G__2285;
+                  count__2273 = G__2286;
+                  i__2274 = G__2287;
                   continue;
                 }
               } else {
@@ -49838,18 +50091,18 @@ dacite.store.pack.encode_reachable.cljs$core$IFn$_invoke$arity$4 = function(st, 
 };
 dacite.store.pack.encode_reachable.cljs$lang$maxFixedArity = 4;
 dacite.store.pack.summarize_items = function dacite$store$pack$summarize_items(items) {
-  var lits = cljs.core.filter.call(null, function(p1__1942_SHARP_) {
-    return cljs.core._EQ_.call(null, new cljs.core.Keyword(null, "literal", "literal", 1664775605), (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(p1__1942_SHARP_));
+  var lits = cljs.core.filter.call(null, function(p1__2288_SHARP_) {
+    return cljs.core._EQ_.call(null, new cljs.core.Keyword(null, "literal", "literal", 1664775605), (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(p1__2288_SHARP_));
   }, items);
-  var nodes = cljs.core.filter.call(null, function(p1__1943_SHARP_) {
-    return cljs.core._EQ_.call(null, new cljs.core.Keyword(null, "node", "node", 581201198), (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(p1__1943_SHARP_));
+  var nodes = cljs.core.filter.call(null, function(p1__2289_SHARP_) {
+    return cljs.core._EQ_.call(null, new cljs.core.Keyword(null, "node", "node", 581201198), (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(p1__2289_SHARP_));
   }, items);
   return new cljs.core.PersistentArrayMap(null, 4, [new cljs.core.Keyword(null, "items", "items", 1031954938), cljs.core.count.call(null, items), new cljs.core.Keyword(null, "literals", "literals", -427821498), cljs.core.count.call(null, lits), new cljs.core.Keyword(null, "nodes", "nodes", -2099585805), cljs.core.count.call(null, nodes), new cljs.core.Keyword(null, "approx-bytes", "approx-bytes", -193577057), cljs.core.reduce.call(null, cljs.core._PLUS_, 0, cljs.core.map.call(null, dacite.store.pack.item_size, 
   items))], null);
 };
 dacite.store.pack.encode_summary = function dacite$store$pack$encode_summary(var_args) {
-  var G__1945 = arguments.length;
-  switch(G__1945) {
+  var G__2291 = arguments.length;
+  switch(G__2291) {
     case 2:
       return dacite.store.pack.encode_summary.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -49872,51 +50125,19 @@ dacite.store.pack.encode_summary.cljs$core$IFn$_invoke$arity$3 = function(st, ro
       return dacite.store.pack.default_budget;
     }
   }());
-  var map__1946 = dacite.store.pack.encode_reachable.call(null, st, root_h, cljs.core.PersistentHashSet.EMPTY, budget__$1);
-  var map__1946__$1 = cljs.core.__destructure_map.call(null, map__1946);
-  var items = cljs.core.get.call(null, map__1946__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
-  var covered = cljs.core.get.call(null, map__1946__$1, new cljs.core.Keyword(null, "covered", "covered", -409185091));
+  var map__2292 = dacite.store.pack.encode_reachable.call(null, st, root_h, cljs.core.PersistentHashSet.EMPTY, budget__$1);
+  var map__2292__$1 = cljs.core.__destructure_map.call(null, map__2292);
+  var items = cljs.core.get.call(null, map__2292__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
+  var covered = cljs.core.get.call(null, map__2292__$1, new cljs.core.Keyword(null, "covered", "covered", -409185091));
   var sum = dacite.store.pack.summarize_items.call(null, items);
   return cljs.core.assoc.call(null, sum, new cljs.core.Keyword(null, "chunks", "chunks", 83720431), cljs.core.count.call(null, dacite.store.pack.pack_items.call(null, items, budget__$1)), new cljs.core.Keyword(null, "covered", "covered", -409185091), cljs.core.count.call(null, covered), new cljs.core.Keyword(null, "budget", "budget", -405386281), budget__$1);
 };
 dacite.store.pack.encode_summary.cljs$lang$maxFixedArity = 3;
-dacite.store.pack.pack_under = function dacite$store$pack$pack_under(var_args) {
-  var G__1949 = arguments.length;
-  switch(G__1949) {
-    case 2:
-      return dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
-      break;
-    case 3:
-      return dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$3(arguments[0], arguments[1], arguments[2]);
-      break;
-    case 4:
-      return dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$4(arguments[0], arguments[1], arguments[2], arguments[3]);
-      break;
-    case 5:
-      return dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$5(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4]);
-      break;
-    default:
-      throw new Error(["Invalid arity: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(arguments.length)].join(""));
-  }
-};
-dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$2 = function(st, h) {
-  return dacite.store.pack.pack_under.call(null, st, h, cljs.core.PersistentHashSet.EMPTY, dacite.store.pack.default_budget, null);
-};
-dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$3 = function(st, h, have) {
-  return dacite.store.pack.pack_under.call(null, st, h, have, dacite.store.pack.default_budget, null);
-};
-dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$4 = function(st, h, have, budget) {
-  return dacite.store.pack.pack_under.call(null, st, h, have, budget, null);
-};
-dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$5 = function(st, h, have, budget, p__1950) {
-  var map__1951 = p__1950;
-  var map__1951__$1 = cljs.core.__destructure_map.call(null, map__1951);
-  var node_only_QMARK_ = cljs.core.get.call(null, map__1951__$1, new cljs.core.Keyword(null, "node-only?", "node-only?", 415849956));
-  var size_fn = cljs.core.get.call(null, map__1951__$1, new cljs.core.Keyword(null, "size-fn", "size-fn", -28111871));
+dacite.store.pack.pack_under_STAR_ = function dacite$store$pack$pack_under_STAR_(st, root, have, budget, node_only_QMARK_, size_fn) {
   if (cljs.core.truth_(function() {
-    var and__5000__auto__ = h;
+    var and__5000__auto__ = root;
     if (cljs.core.truth_(and__5000__auto__)) {
-      return dacite.store.s_has_QMARK_.call(null, st, h);
+      return dacite.store.s_has_QMARK_.call(null, st, root);
     } else {
       return and__5000__auto__;
     }
@@ -49946,58 +50167,66 @@ dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$5 = function(st, h, hav
       }
     }()));
     var items = cljs.core.atom.call(null, cljs.core.PersistentVector.EMPTY);
-    var q_1953 = new cljs.core.List(null, h, null, 1, null);
+    var q_2294 = new cljs.core.List(null, root, null, 1, null);
     while (true) {
-      var temp__5823__auto___1954 = cljs.core.first.call(null, q_1953);
-      if (cljs.core.truth_(temp__5823__auto___1954)) {
-        var cur_1955 = temp__5823__auto___1954;
-        var q_1956__$1 = cljs.core.next.call(null, q_1953);
-        var ck_1957 = dacite.rooted.gc.hash_key.call(null, cur_1955);
-        if (cljs.core.contains_QMARK_.call(null, cljs.core.deref.call(null, visited), ck_1957)) {
-          var G__1958 = q_1956__$1;
-          q_1953 = G__1958;
+      var temp__5823__auto___2295 = cljs.core.first.call(null, q_2294);
+      if (cljs.core.truth_(temp__5823__auto___2295)) {
+        var cur_2296 = temp__5823__auto___2295;
+        var q_2297__$1 = cljs.core.next.call(null, q_2294);
+        var ck_2298 = dacite.rooted.gc.hash_key.call(null, cur_2296);
+        if (cljs.core.contains_QMARK_.call(null, cljs.core.deref.call(null, visited), ck_2298)) {
+          var G__2299 = q_2297__$1;
+          q_2294 = G__2299;
           continue;
         } else {
-          var temp__5823__auto___1959__$1 = dacite.store.s_get.call(null, st, cur_1955);
-          if (cljs.core.truth_(temp__5823__auto___1959__$1)) {
-            var entry_1960 = temp__5823__auto___1959__$1;
-            var item_1961 = dacite.store.pack.encode_item.call(null, st, cur_1955, entry_1960, budget__$1, node_only_QMARK_);
-            var trial_1962 = cljs.core.conj.call(null, cljs.core.deref.call(null, items), item_1961);
-            var sz_1963 = cljs.core.long$.call(null, size_fn__$1.call(null, dacite.store.pack.make_chunk.call(null, budget__$1, trial_1962)));
-            cljs.core.reset_BANG_.call(null, items, trial_1962);
-            cljs.core.swap_BANG_.call(null, visited, cljs.core.conj, ck_1957);
-            var literal_QMARK__1964 = cljs.core._EQ_.call(null, new cljs.core.Keyword(null, "literal", "literal", 1664775605), (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(item_1961));
-            if (literal_QMARK__1964) {
-              cljs.core.swap_BANG_.call(null, visited, cljs.core.into, dacite.rooted.gc.mark_reachable.call(null, st, cur_1955));
+          var temp__5823__auto___2300__$1 = dacite.store.s_get.call(null, st, cur_2296);
+          if (cljs.core.truth_(temp__5823__auto___2300__$1)) {
+            var entry_2301 = temp__5823__auto___2300__$1;
+            var item_2302 = dacite.store.pack.encode_item.call(null, st, cur_2296, entry_2301, budget__$1, node_only_QMARK_);
+            var trial_2303 = cljs.core.conj.call(null, cljs.core.deref.call(null, items), item_2302);
+            var sz_2304 = cljs.core.long$.call(null, size_fn__$1.call(null, dacite.store.pack.make_chunk.call(null, budget__$1, trial_2303)));
+            var empty_QMARK__2305 = cljs.core.empty_QMARK_.call(null, cljs.core.deref.call(null, items));
+            var two_2306 = 2 * budget__$1;
+            if (!empty_QMARK__2305 && sz_2304 >= two_2306) {
             } else {
-            }
-            if (sz_1963 >= budget__$1) {
-            } else {
-              if (literal_QMARK__1964) {
-                var G__1965 = q_1956__$1;
-                q_1953 = G__1965;
-                continue;
+              cljs.core.reset_BANG_.call(null, items, trial_2303);
+              cljs.core.swap_BANG_.call(null, visited, cljs.core.conj, ck_2298);
+              var literal_QMARK__2307 = cljs.core._EQ_.call(null, new cljs.core.Keyword(null, "literal", "literal", 1664775605), (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(item_2302));
+              if (literal_QMARK__2307) {
+                cljs.core.swap_BANG_.call(null, visited, cljs.core.into, dacite.rooted.gc.mark_reachable.call(null, st, cur_2296));
               } else {
-                var chs_1966 = cljs.core.remove.call(null, function(q_1953, literal_QMARK__1964, item_1961, trial_1962, sz_1963, entry_1960, temp__5823__auto___1959__$1, q_1956__$1, ck_1957, cur_1955, temp__5823__auto___1954, budget__$1, size_fn__$1, visited, items, map__1951, map__1951__$1, node_only_QMARK_, size_fn) {
-                  return function(ch) {
-                    return ch == null || cljs.core.contains_QMARK_.call(null, cljs.core.deref.call(null, visited), dacite.rooted.gc.hash_key.call(null, ch));
-                  };
-                }(q_1953, literal_QMARK__1964, item_1961, trial_1962, sz_1963, entry_1960, temp__5823__auto___1959__$1, q_1956__$1, ck_1957, cur_1955, temp__5823__auto___1954, budget__$1, size_fn__$1, visited, items, map__1951, map__1951__$1, node_only_QMARK_, size_fn), function() {
-                  var or__5002__auto__ = dacite.value.types.child_hashes.call(null, entry_1960);
-                  if (cljs.core.truth_(or__5002__auto__)) {
-                    return or__5002__auto__;
+              }
+              if (sz_2304 >= budget__$1 && literal_QMARK__2307) {
+              } else {
+                if (sz_2304 >= two_2306) {
+                } else {
+                  if (literal_QMARK__2307) {
+                    var G__2308 = q_2297__$1;
+                    q_2294 = G__2308;
+                    continue;
                   } else {
-                    return cljs.core.PersistentVector.EMPTY;
+                    var chs_2309 = cljs.core.remove.call(null, function(q_2294, literal_QMARK__2307, item_2302, trial_2303, sz_2304, empty_QMARK__2305, two_2306, entry_2301, temp__5823__auto___2300__$1, q_2297__$1, ck_2298, cur_2296, temp__5823__auto___2295, budget__$1, size_fn__$1, visited, items) {
+                      return function(ch) {
+                        return ch == null || cljs.core.contains_QMARK_.call(null, cljs.core.deref.call(null, visited), dacite.rooted.gc.hash_key.call(null, ch));
+                      };
+                    }(q_2294, literal_QMARK__2307, item_2302, trial_2303, sz_2304, empty_QMARK__2305, two_2306, entry_2301, temp__5823__auto___2300__$1, q_2297__$1, ck_2298, cur_2296, temp__5823__auto___2295, budget__$1, size_fn__$1, visited, items), function() {
+                      var or__5002__auto__ = dacite.value.types.child_hashes.call(null, entry_2301);
+                      if (cljs.core.truth_(or__5002__auto__)) {
+                        return or__5002__auto__;
+                      } else {
+                        return cljs.core.PersistentVector.EMPTY;
+                      }
+                    }());
+                    var G__2310 = cljs.core.concat.call(null, chs_2309, q_2297__$1);
+                    q_2294 = G__2310;
+                    continue;
                   }
-                }());
-                var G__1967 = cljs.core.concat.call(null, q_1956__$1, chs_1966);
-                q_1953 = G__1967;
-                continue;
+                }
               }
             }
           } else {
-            var G__1968 = q_1956__$1;
-            q_1953 = G__1968;
+            var G__2311 = q_2297__$1;
+            q_2294 = G__2311;
             continue;
           }
         }
@@ -50010,6 +50239,52 @@ dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$5 = function(st, h, hav
     } else {
       return null;
     }
+  } else {
+    return null;
+  }
+};
+dacite.store.pack.pack_under = function dacite$store$pack$pack_under(var_args) {
+  var G__2313 = arguments.length;
+  switch(G__2313) {
+    case 2:
+      return dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
+      break;
+    case 3:
+      return dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$3(arguments[0], arguments[1], arguments[2]);
+      break;
+    case 4:
+      return dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$4(arguments[0], arguments[1], arguments[2], arguments[3]);
+      break;
+    case 5:
+      return dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$5(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4]);
+      break;
+    default:
+      throw new Error(["Invalid arity: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(arguments.length)].join(""));
+  }
+};
+dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$2 = function(st, h) {
+  return dacite.store.pack.pack_under.call(null, st, h, cljs.core.PersistentHashSet.EMPTY, dacite.store.pack.default_budget, null);
+};
+dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$3 = function(st, h, have) {
+  return dacite.store.pack.pack_under.call(null, st, h, have, dacite.store.pack.default_budget, null);
+};
+dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$4 = function(st, h, have, budget) {
+  return dacite.store.pack.pack_under.call(null, st, h, have, budget, null);
+};
+dacite.store.pack.pack_under.cljs$core$IFn$_invoke$arity$5 = function(st, h, have, budget, p__2314) {
+  var map__2315 = p__2314;
+  var map__2315__$1 = cljs.core.__destructure_map.call(null, map__2315);
+  var node_only_QMARK_ = cljs.core.get.call(null, map__2315__$1, new cljs.core.Keyword(null, "node-only?", "node-only?", 415849956));
+  var size_fn = cljs.core.get.call(null, map__2315__$1, new cljs.core.Keyword(null, "size-fn", "size-fn", -28111871));
+  if (cljs.core.truth_(function() {
+    var and__5000__auto__ = h;
+    if (cljs.core.truth_(and__5000__auto__)) {
+      return dacite.store.s_has_QMARK_.call(null, st, h);
+    } else {
+      return and__5000__auto__;
+    }
+  }())) {
+    return dacite.store.pack.pack_under_STAR_.call(null, st, h, have, budget, node_only_QMARK_, size_fn);
   } else {
     return null;
   }
@@ -50040,125 +50315,125 @@ dacite.store.pack.apply_chunk_BANG_ = function dacite$store$pack$apply_chunk_BAN
   var lits = cljs.core.atom.call(null, 0);
   var created = cljs.core.atom.call(null, cljs.core.PersistentVector.EMPTY);
   var exists = cljs.core.atom.call(null, cljs.core.PersistentVector.EMPTY);
-  var seq__1969_1977 = cljs.core.seq.call(null, items);
-  var chunk__1970_1978 = null;
-  var count__1971_1979 = 0;
-  var i__1972_1980 = 0;
+  var seq__2317_2325 = cljs.core.seq.call(null, items);
+  var chunk__2318_2326 = null;
+  var count__2319_2327 = 0;
+  var i__2320_2328 = 0;
   while (true) {
-    if (i__1972_1980 < count__1971_1979) {
-      var item_1981 = cljs.core._nth.call(null, chunk__1970_1978, i__1972_1980);
-      var enc_1982 = cljs.core.keyword.call(null, (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(item_1981));
-      var hex_1983 = (new cljs.core.Keyword(null, "hash", "hash", -13781596)).cljs$core$IFn$_invoke$arity$1(item_1981);
-      var expected_1984 = dacite.store.hex__GT_hash.call(null, hex_1983);
-      var had_QMARK__1985 = dacite.store.s_has_QMARK_.call(null, st, expected_1984);
-      var G__1975_1986 = enc_1982;
-      var G__1975_1987__$1 = G__1975_1986 instanceof cljs.core.Keyword ? G__1975_1986.fqn : null;
-      switch(G__1975_1987__$1) {
+    if (i__2320_2328 < count__2319_2327) {
+      var item_2329 = cljs.core._nth.call(null, chunk__2318_2326, i__2320_2328);
+      var enc_2330 = cljs.core.keyword.call(null, (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(item_2329));
+      var hex_2331 = (new cljs.core.Keyword(null, "hash", "hash", -13781596)).cljs$core$IFn$_invoke$arity$1(item_2329);
+      var expected_2332 = dacite.store.hex__GT_hash.call(null, hex_2331);
+      var had_QMARK__2333 = dacite.store.s_has_QMARK_.call(null, st, expected_2332);
+      var G__2323_2334 = enc_2330;
+      var G__2323_2335__$1 = G__2323_2334 instanceof cljs.core.Keyword ? G__2323_2334.fqn : null;
+      switch(G__2323_2335__$1) {
         case "node":
-          dacite.store.s_put.call(null, st, expected_1984, (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_1981));
+          dacite.store.s_put.call(null, st, expected_2332, (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_2329));
           cljs.core.swap_BANG_.call(null, nodes, cljs.core.inc);
-          if (cljs.core.truth_(had_QMARK__1985)) {
-            cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_1983);
+          if (cljs.core.truth_(had_QMARK__2333)) {
+            cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2331);
           } else {
-            cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_1983);
+            cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2331);
           }
           break;
         case "literal":
-          if (cljs.core.truth_(had_QMARK__1985)) {
-            cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_1983);
+          if (cljs.core.truth_(had_QMARK__2333)) {
+            cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2331);
           } else {
-            var got_1989 = dacite.store.pack.materialize_literal_BANG_.call(null, st, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(item_1981), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_1981));
+            var got_2337 = dacite.store.pack.materialize_literal_BANG_.call(null, st, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(item_2329), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_2329));
             if (cljs.core.truth_(function() {
               var and__5000__auto__ = dacite.store.pack._STAR_verify_literal_hash_STAR_;
               if (cljs.core.truth_(and__5000__auto__)) {
-                return cljs.core.not_EQ_.call(null, got_1989, expected_1984);
+                return cljs.core.not_EQ_.call(null, got_2337, expected_2332);
               } else {
                 return and__5000__auto__;
               }
             }())) {
-              throw cljs.core.ex_info.call(null, "literal hash mismatch", new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), hex_1983, new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.store.hash__GT_hex.call(null, got_1989), new cljs.core.Keyword(null, "type", "type", 1174270348), (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(item_1981)], null));
+              throw cljs.core.ex_info.call(null, "literal hash mismatch", new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), hex_2331, new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.store.hash__GT_hex.call(null, got_2337), new cljs.core.Keyword(null, "type", "type", 1174270348), (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(item_2329)], null));
             } else {
             }
-            cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_1983);
+            cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2331);
           }
           cljs.core.swap_BANG_.call(null, lits, cljs.core.inc);
           break;
         default:
-          throw cljs.core.ex_info.call(null, "unsupported chunk item encoding", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "encoding", "encoding", 1728578272), enc_1982, new cljs.core.Keyword(null, "hash", "hash", -13781596), hex_1983], null));
+          throw cljs.core.ex_info.call(null, "unsupported chunk item encoding", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "encoding", "encoding", 1728578272), enc_2330, new cljs.core.Keyword(null, "hash", "hash", -13781596), hex_2331], null));
       }
-      var G__1990 = seq__1969_1977;
-      var G__1991 = chunk__1970_1978;
-      var G__1992 = count__1971_1979;
-      var G__1993 = i__1972_1980 + 1;
-      seq__1969_1977 = G__1990;
-      chunk__1970_1978 = G__1991;
-      count__1971_1979 = G__1992;
-      i__1972_1980 = G__1993;
+      var G__2338 = seq__2317_2325;
+      var G__2339 = chunk__2318_2326;
+      var G__2340 = count__2319_2327;
+      var G__2341 = i__2320_2328 + 1;
+      seq__2317_2325 = G__2338;
+      chunk__2318_2326 = G__2339;
+      count__2319_2327 = G__2340;
+      i__2320_2328 = G__2341;
       continue;
     } else {
-      var temp__5825__auto___1994 = cljs.core.seq.call(null, seq__1969_1977);
-      if (temp__5825__auto___1994) {
-        var seq__1969_1995__$1 = temp__5825__auto___1994;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__1969_1995__$1)) {
-          var c__5525__auto___1996 = cljs.core.chunk_first.call(null, seq__1969_1995__$1);
-          var G__1997 = cljs.core.chunk_rest.call(null, seq__1969_1995__$1);
-          var G__1998 = c__5525__auto___1996;
-          var G__1999 = cljs.core.count.call(null, c__5525__auto___1996);
-          var G__2000 = 0;
-          seq__1969_1977 = G__1997;
-          chunk__1970_1978 = G__1998;
-          count__1971_1979 = G__1999;
-          i__1972_1980 = G__2000;
+      var temp__5825__auto___2342 = cljs.core.seq.call(null, seq__2317_2325);
+      if (temp__5825__auto___2342) {
+        var seq__2317_2343__$1 = temp__5825__auto___2342;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2317_2343__$1)) {
+          var c__5525__auto___2344 = cljs.core.chunk_first.call(null, seq__2317_2343__$1);
+          var G__2345 = cljs.core.chunk_rest.call(null, seq__2317_2343__$1);
+          var G__2346 = c__5525__auto___2344;
+          var G__2347 = cljs.core.count.call(null, c__5525__auto___2344);
+          var G__2348 = 0;
+          seq__2317_2325 = G__2345;
+          chunk__2318_2326 = G__2346;
+          count__2319_2327 = G__2347;
+          i__2320_2328 = G__2348;
           continue;
         } else {
-          var item_2001 = cljs.core.first.call(null, seq__1969_1995__$1);
-          var enc_2002 = cljs.core.keyword.call(null, (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(item_2001));
-          var hex_2003 = (new cljs.core.Keyword(null, "hash", "hash", -13781596)).cljs$core$IFn$_invoke$arity$1(item_2001);
-          var expected_2004 = dacite.store.hex__GT_hash.call(null, hex_2003);
-          var had_QMARK__2005 = dacite.store.s_has_QMARK_.call(null, st, expected_2004);
-          var G__1976_2006 = enc_2002;
-          var G__1976_2007__$1 = G__1976_2006 instanceof cljs.core.Keyword ? G__1976_2006.fqn : null;
-          switch(G__1976_2007__$1) {
+          var item_2349 = cljs.core.first.call(null, seq__2317_2343__$1);
+          var enc_2350 = cljs.core.keyword.call(null, (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(item_2349));
+          var hex_2351 = (new cljs.core.Keyword(null, "hash", "hash", -13781596)).cljs$core$IFn$_invoke$arity$1(item_2349);
+          var expected_2352 = dacite.store.hex__GT_hash.call(null, hex_2351);
+          var had_QMARK__2353 = dacite.store.s_has_QMARK_.call(null, st, expected_2352);
+          var G__2324_2354 = enc_2350;
+          var G__2324_2355__$1 = G__2324_2354 instanceof cljs.core.Keyword ? G__2324_2354.fqn : null;
+          switch(G__2324_2355__$1) {
             case "node":
-              dacite.store.s_put.call(null, st, expected_2004, (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_2001));
+              dacite.store.s_put.call(null, st, expected_2352, (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_2349));
               cljs.core.swap_BANG_.call(null, nodes, cljs.core.inc);
-              if (cljs.core.truth_(had_QMARK__2005)) {
-                cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2003);
+              if (cljs.core.truth_(had_QMARK__2353)) {
+                cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2351);
               } else {
-                cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2003);
+                cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2351);
               }
               break;
             case "literal":
-              if (cljs.core.truth_(had_QMARK__2005)) {
-                cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2003);
+              if (cljs.core.truth_(had_QMARK__2353)) {
+                cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2351);
               } else {
-                var got_2009 = dacite.store.pack.materialize_literal_BANG_.call(null, st, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(item_2001), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_2001));
+                var got_2357 = dacite.store.pack.materialize_literal_BANG_.call(null, st, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(item_2349), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item_2349));
                 if (cljs.core.truth_(function() {
                   var and__5000__auto__ = dacite.store.pack._STAR_verify_literal_hash_STAR_;
                   if (cljs.core.truth_(and__5000__auto__)) {
-                    return cljs.core.not_EQ_.call(null, got_2009, expected_2004);
+                    return cljs.core.not_EQ_.call(null, got_2357, expected_2352);
                   } else {
                     return and__5000__auto__;
                   }
                 }())) {
-                  throw cljs.core.ex_info.call(null, "literal hash mismatch", new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), hex_2003, new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.store.hash__GT_hex.call(null, got_2009), new cljs.core.Keyword(null, "type", "type", 1174270348), (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(item_2001)], null));
+                  throw cljs.core.ex_info.call(null, "literal hash mismatch", new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), hex_2351, new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.store.hash__GT_hex.call(null, got_2357), new cljs.core.Keyword(null, "type", "type", 1174270348), (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(item_2349)], null));
                 } else {
                 }
-                cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2003);
+                cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2351);
               }
               cljs.core.swap_BANG_.call(null, lits, cljs.core.inc);
               break;
             default:
-              throw cljs.core.ex_info.call(null, "unsupported chunk item encoding", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "encoding", "encoding", 1728578272), enc_2002, new cljs.core.Keyword(null, "hash", "hash", -13781596), hex_2003], null));
+              throw cljs.core.ex_info.call(null, "unsupported chunk item encoding", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "encoding", "encoding", 1728578272), enc_2350, new cljs.core.Keyword(null, "hash", "hash", -13781596), hex_2351], null));
           }
-          var G__2010 = cljs.core.next.call(null, seq__1969_1995__$1);
-          var G__2011 = null;
-          var G__2012 = 0;
-          var G__2013 = 0;
-          seq__1969_1977 = G__2010;
-          chunk__1970_1978 = G__2011;
-          count__1971_1979 = G__2012;
-          i__1972_1980 = G__2013;
+          var G__2358 = cljs.core.next.call(null, seq__2317_2343__$1);
+          var G__2359 = null;
+          var G__2360 = 0;
+          var G__2361 = 0;
+          seq__2317_2325 = G__2358;
+          chunk__2318_2326 = G__2359;
+          count__2319_2327 = G__2360;
+          i__2320_2328 = G__2361;
           continue;
         }
       } else {
@@ -50173,7 +50448,7 @@ dacite.store.pack.apply_chunk_BANG_ = function dacite$store$pack$apply_chunk_BAN
 };
 dacite.store.pack.IChunkTransport = function() {
 };
-var dacite$store$pack$IChunkTransport$send_chunk_BANG_$dyn_2014 = function(this$, chunk) {
+var dacite$store$pack$IChunkTransport$send_chunk_BANG_$dyn_2362 = function(this$, chunk) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.store.pack.send_chunk_BANG_[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -50191,7 +50466,7 @@ dacite.store.pack.send_chunk_BANG_ = function dacite$store$pack$send_chunk_BANG_
   if (!(this$ == null) && !(this$.dacite$store$pack$IChunkTransport$send_chunk_BANG_$arity$2 == null)) {
     return this$.dacite$store$pack$IChunkTransport$send_chunk_BANG_$arity$2(this$, chunk);
   } else {
-    return dacite$store$pack$IChunkTransport$send_chunk_BANG_$dyn_2014.call(null, this$, chunk);
+    return dacite$store$pack$IChunkTransport$send_chunk_BANG_$dyn_2362.call(null, this$, chunk);
   }
 };
 dacite.store.pack.find_chunk_transport = function dacite$store$pack$find_chunk_transport(s) {
@@ -50226,8 +50501,8 @@ dacite.store.pack.as_chunk_transport = function dacite$store$pack$as_chunk_trans
   }
 };
 dacite.store.pack.put_items_chunked_BANG_ = function dacite$store$pack$put_items_chunked_BANG_(var_args) {
-  var G__2017 = arguments.length;
-  switch(G__2017) {
+  var G__2365 = arguments.length;
+  switch(G__2365) {
     case 2:
       return dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -50246,17 +50521,17 @@ dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$3 = functi
   var chunks = dacite.store.pack.pack_items.call(null, items, budget);
   var created = cljs.core.atom.call(null, cljs.core.PersistentVector.EMPTY);
   var exists = cljs.core.atom.call(null, cljs.core.PersistentVector.EMPTY);
-  var seq__2018_2023 = cljs.core.seq.call(null, chunks);
-  var chunk__2019_2024 = null;
-  var count__2020_2025 = 0;
-  var i__2021_2026 = 0;
+  var seq__2366_2371 = cljs.core.seq.call(null, chunks);
+  var chunk__2367_2372 = null;
+  var count__2368_2373 = 0;
+  var i__2369_2374 = 0;
   while (true) {
-    if (i__2021_2026 < count__2020_2025) {
-      var ch_2027 = cljs.core._nth.call(null, chunk__2019_2024, i__2021_2026);
-      var data_2028 = dacite.store.pack.send_chunk_BANG_.call(null, t, ch_2027);
-      if (cljs.core.map_QMARK_.call(null, data_2028)) {
+    if (i__2369_2374 < count__2368_2373) {
+      var ch_2375 = cljs.core._nth.call(null, chunk__2367_2372, i__2369_2374);
+      var data_2376 = dacite.store.pack.send_chunk_BANG_.call(null, t, ch_2375);
+      if (cljs.core.map_QMARK_.call(null, data_2376)) {
         cljs.core.swap_BANG_.call(null, created, cljs.core.into, function() {
-          var or__5002__auto__ = (new cljs.core.Keyword(null, "created", "created", -704993748)).cljs$core$IFn$_invoke$arity$1(data_2028);
+          var or__5002__auto__ = (new cljs.core.Keyword(null, "created", "created", -704993748)).cljs$core$IFn$_invoke$arity$1(data_2376);
           if (cljs.core.truth_(or__5002__auto__)) {
             return or__5002__auto__;
           } else {
@@ -50264,7 +50539,7 @@ dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$3 = functi
           }
         }());
         cljs.core.swap_BANG_.call(null, exists, cljs.core.into, function() {
-          var or__5002__auto__ = (new cljs.core.Keyword(null, "exists", "exists", 1312597120)).cljs$core$IFn$_invoke$arity$1(data_2028);
+          var or__5002__auto__ = (new cljs.core.Keyword(null, "exists", "exists", 1312597120)).cljs$core$IFn$_invoke$arity$1(data_2376);
           if (cljs.core.truth_(or__5002__auto__)) {
             return or__5002__auto__;
           } else {
@@ -50273,36 +50548,36 @@ dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$3 = functi
         }());
       } else {
       }
-      var G__2029 = seq__2018_2023;
-      var G__2030 = chunk__2019_2024;
-      var G__2031 = count__2020_2025;
-      var G__2032 = i__2021_2026 + 1;
-      seq__2018_2023 = G__2029;
-      chunk__2019_2024 = G__2030;
-      count__2020_2025 = G__2031;
-      i__2021_2026 = G__2032;
+      var G__2377 = seq__2366_2371;
+      var G__2378 = chunk__2367_2372;
+      var G__2379 = count__2368_2373;
+      var G__2380 = i__2369_2374 + 1;
+      seq__2366_2371 = G__2377;
+      chunk__2367_2372 = G__2378;
+      count__2368_2373 = G__2379;
+      i__2369_2374 = G__2380;
       continue;
     } else {
-      var temp__5825__auto___2033 = cljs.core.seq.call(null, seq__2018_2023);
-      if (temp__5825__auto___2033) {
-        var seq__2018_2034__$1 = temp__5825__auto___2033;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2018_2034__$1)) {
-          var c__5525__auto___2035 = cljs.core.chunk_first.call(null, seq__2018_2034__$1);
-          var G__2036 = cljs.core.chunk_rest.call(null, seq__2018_2034__$1);
-          var G__2037 = c__5525__auto___2035;
-          var G__2038 = cljs.core.count.call(null, c__5525__auto___2035);
-          var G__2039 = 0;
-          seq__2018_2023 = G__2036;
-          chunk__2019_2024 = G__2037;
-          count__2020_2025 = G__2038;
-          i__2021_2026 = G__2039;
+      var temp__5825__auto___2381 = cljs.core.seq.call(null, seq__2366_2371);
+      if (temp__5825__auto___2381) {
+        var seq__2366_2382__$1 = temp__5825__auto___2381;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2366_2382__$1)) {
+          var c__5525__auto___2383 = cljs.core.chunk_first.call(null, seq__2366_2382__$1);
+          var G__2384 = cljs.core.chunk_rest.call(null, seq__2366_2382__$1);
+          var G__2385 = c__5525__auto___2383;
+          var G__2386 = cljs.core.count.call(null, c__5525__auto___2383);
+          var G__2387 = 0;
+          seq__2366_2371 = G__2384;
+          chunk__2367_2372 = G__2385;
+          count__2368_2373 = G__2386;
+          i__2369_2374 = G__2387;
           continue;
         } else {
-          var ch_2040 = cljs.core.first.call(null, seq__2018_2034__$1);
-          var data_2041 = dacite.store.pack.send_chunk_BANG_.call(null, t, ch_2040);
-          if (cljs.core.map_QMARK_.call(null, data_2041)) {
+          var ch_2388 = cljs.core.first.call(null, seq__2366_2382__$1);
+          var data_2389 = dacite.store.pack.send_chunk_BANG_.call(null, t, ch_2388);
+          if (cljs.core.map_QMARK_.call(null, data_2389)) {
             cljs.core.swap_BANG_.call(null, created, cljs.core.into, function() {
-              var or__5002__auto__ = (new cljs.core.Keyword(null, "created", "created", -704993748)).cljs$core$IFn$_invoke$arity$1(data_2041);
+              var or__5002__auto__ = (new cljs.core.Keyword(null, "created", "created", -704993748)).cljs$core$IFn$_invoke$arity$1(data_2389);
               if (cljs.core.truth_(or__5002__auto__)) {
                 return or__5002__auto__;
               } else {
@@ -50310,7 +50585,7 @@ dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$3 = functi
               }
             }());
             cljs.core.swap_BANG_.call(null, exists, cljs.core.into, function() {
-              var or__5002__auto__ = (new cljs.core.Keyword(null, "exists", "exists", 1312597120)).cljs$core$IFn$_invoke$arity$1(data_2041);
+              var or__5002__auto__ = (new cljs.core.Keyword(null, "exists", "exists", 1312597120)).cljs$core$IFn$_invoke$arity$1(data_2389);
               if (cljs.core.truth_(or__5002__auto__)) {
                 return or__5002__auto__;
               } else {
@@ -50319,14 +50594,14 @@ dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$3 = functi
             }());
           } else {
           }
-          var G__2042 = cljs.core.next.call(null, seq__2018_2034__$1);
-          var G__2043 = null;
-          var G__2044 = 0;
-          var G__2045 = 0;
-          seq__2018_2023 = G__2042;
-          chunk__2019_2024 = G__2043;
-          count__2020_2025 = G__2044;
-          i__2021_2026 = G__2045;
+          var G__2390 = cljs.core.next.call(null, seq__2366_2382__$1);
+          var G__2391 = null;
+          var G__2392 = 0;
+          var G__2393 = 0;
+          seq__2366_2371 = G__2390;
+          chunk__2367_2372 = G__2391;
+          count__2368_2373 = G__2392;
+          i__2369_2374 = G__2393;
           continue;
         }
       } else {
@@ -50340,8 +50615,8 @@ dacite.store.pack.put_items_chunked_BANG_.cljs$core$IFn$_invoke$arity$3 = functi
 };
 dacite.store.pack.put_items_chunked_BANG_.cljs$lang$maxFixedArity = 3;
 dacite.store.pack.flush_from_BANG_ = function dacite$store$pack$flush_from_BANG_(var_args) {
-  var G__2047 = arguments.length;
-  switch(G__2047) {
+  var G__2395 = arguments.length;
+  switch(G__2395) {
     case 4:
       return dacite.store.pack.flush_from_BANG_.cljs$core$IFn$_invoke$arity$4(arguments[0], arguments[1], arguments[2], arguments[3]);
       break;
@@ -50364,7 +50639,7 @@ dacite.store.pack.flush_from_BANG_.cljs$core$IFn$_invoke$arity$5 = function(tran
       return dacite.store.pack.default_budget;
     }
   }());
-  var map__2048 = dacite.store.pack.encode_reachable.call(null, content_store, root_h, function() {
+  var map__2396 = dacite.store.pack.encode_reachable.call(null, content_store, root_h, function() {
     var or__5002__auto__ = skip;
     if (cljs.core.truth_(or__5002__auto__)) {
       return or__5002__auto__;
@@ -50372,9 +50647,9 @@ dacite.store.pack.flush_from_BANG_.cljs$core$IFn$_invoke$arity$5 = function(tran
       return cljs.core.PersistentHashSet.EMPTY;
     }
   }(), budget__$1);
-  var map__2048__$1 = cljs.core.__destructure_map.call(null, map__2048);
-  var items = cljs.core.get.call(null, map__2048__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
-  var covered = cljs.core.get.call(null, map__2048__$1, new cljs.core.Keyword(null, "covered", "covered", -409185091));
+  var map__2396__$1 = cljs.core.__destructure_map.call(null, map__2396);
+  var items = cljs.core.get.call(null, map__2396__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
+  var covered = cljs.core.get.call(null, map__2396__$1, new cljs.core.Keyword(null, "covered", "covered", -409185091));
   if (cljs.core.empty_QMARK_.call(null, items)) {
     return new cljs.core.PersistentArrayMap(null, 6, [new cljs.core.Keyword(null, "items", "items", 1031954938), 0, new cljs.core.Keyword(null, "chunks", "chunks", 83720431), 0, new cljs.core.Keyword(null, "covered", "covered", -409185091), cljs.core.PersistentHashSet.EMPTY, new cljs.core.Keyword(null, "created", "created", -704993748), cljs.core.PersistentVector.EMPTY, new cljs.core.Keyword(null, "exists", "exists", 1312597120), cljs.core.PersistentVector.EMPTY, new cljs.core.Keyword(null, "status", 
     "status", -1997798413), new cljs.core.Keyword(null, "complete", "complete", -500388775)], null);
@@ -50403,26 +50678,26 @@ dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$ILookup$_lookup$a
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k2051, else__5303__auto__) {
+dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k2399, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__2055 = k2051;
-  var G__2055__$1 = G__2055 instanceof cljs.core.Keyword ? G__2055.fqn : null;
-  switch(G__2055__$1) {
+  var G__2403 = k2399;
+  var G__2403__$1 = G__2403 instanceof cljs.core.Keyword ? G__2403.fqn : null;
+  switch(G__2403__$1) {
     case "inner":
       return self__.inner;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k2051, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k2399, else__5303__auto__);
   }
 };
 dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__2056) {
-    var vec__2057 = p__2056;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__2057, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__2057, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__2404) {
+    var vec__2405 = p__2404;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__2405, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__2405, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -50434,10 +50709,10 @@ dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IPrintWithWriter$
   };
   return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.pack.DelegatingChunkTransport{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "inner", "inner", -1383171215), self__.inner], null)], null), self__.__extmap));
 };
-dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__2050) {
+dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__2398) {
   var self__ = this;
-  var G__2050__$1 = this;
-  return new cljs.core.RecordIter(0, G__2050__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "inner", "inner", -1383171215)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+  var G__2398__$1 = this;
+  return new cljs.core.RecordIter(0, G__2398__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "inner", "inner", -1383171215)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
   var self__ = this;
@@ -50468,10 +50743,10 @@ dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IHash$_hash$arity
     return h__5111__auto____$1;
   }
 };
-dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this2052, other2053) {
+dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this2400, other2401) {
   var self__ = this;
-  var this2052__$1 = this;
-  return !(other2053 == null) && (this2052__$1.constructor === other2053.constructor && (cljs.core._EQ_.call(null, this2052__$1.inner, other2053.inner) && cljs.core._EQ_.call(null, this2052__$1.__extmap, other2053.__extmap)));
+  var this2400__$1 = this;
+  return !(other2401 == null) && (this2400__$1.constructor === other2401.constructor && (cljs.core._EQ_.call(null, this2400__$1.inner, other2401.inner) && cljs.core._EQ_.call(null, this2400__$1.__extmap, other2401.__extmap)));
 };
 dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IMap$_dissoc$arity$2 = function(this__5310__auto__, k__5311__auto__) {
   var self__ = this;
@@ -50482,28 +50757,28 @@ dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IMap$_dissoc$arit
     return new dacite.store.pack.DelegatingChunkTransport(self__.inner, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k2051) {
+dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k2399) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__2060 = k2051;
-  var G__2060__$1 = G__2060 instanceof cljs.core.Keyword ? G__2060.fqn : null;
-  switch(G__2060__$1) {
+  var G__2408 = k2399;
+  var G__2408__$1 = G__2408 instanceof cljs.core.Keyword ? G__2408.fqn : null;
+  switch(G__2408__$1) {
     case "inner":
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k2051);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k2399);
   }
 };
-dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__2050) {
+dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__2398) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__2061 = cljs.core.keyword_identical_QMARK_;
-  var expr__2062 = k__5309__auto__;
-  if (cljs.core.truth_(pred__2061.call(null, new cljs.core.Keyword(null, "inner", "inner", -1383171215), expr__2062))) {
-    return new dacite.store.pack.DelegatingChunkTransport(G__2050, self__.__meta, self__.__extmap, null);
+  var pred__2409 = cljs.core.keyword_identical_QMARK_;
+  var expr__2410 = k__5309__auto__;
+  if (cljs.core.truth_(pred__2409.call(null, new cljs.core.Keyword(null, "inner", "inner", -1383171215), expr__2410))) {
+    return new dacite.store.pack.DelegatingChunkTransport(G__2398, self__.__meta, self__.__extmap, null);
   } else {
-    return new dacite.store.pack.DelegatingChunkTransport(self__.inner, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__2050), null);
+    return new dacite.store.pack.DelegatingChunkTransport(self__.inner, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__2398), null);
   }
 };
 dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this__5313__auto__) {
@@ -50511,10 +50786,10 @@ dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$ISeqable$_seq$ari
   var this__5313__auto____$1 = this;
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "inner", "inner", -1383171215), self__.inner, null)], null), self__.__extmap));
 };
-dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__2050) {
+dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__2398) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.store.pack.DelegatingChunkTransport(self__.inner, G__2050, self__.__extmap, self__.__hash);
+  return new dacite.store.pack.DelegatingChunkTransport(self__.inner, G__2398, self__.__extmap, self__.__hash);
 };
 dacite.store.pack.DelegatingChunkTransport.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -50538,16 +50813,16 @@ dacite.store.pack.DelegatingChunkTransport.cljs$lang$ctorPrWriter = function(thi
 dacite.store.pack.__GT_DelegatingChunkTransport = function dacite$store$pack$__GT_DelegatingChunkTransport(inner) {
   return new dacite.store.pack.DelegatingChunkTransport(inner, null, null, null);
 };
-dacite.store.pack.map__GT_DelegatingChunkTransport = function dacite$store$pack$map__GT_DelegatingChunkTransport(G__2054) {
+dacite.store.pack.map__GT_DelegatingChunkTransport = function dacite$store$pack$map__GT_DelegatingChunkTransport(G__2402) {
   var extmap__5342__auto__ = function() {
-    var G__2064 = cljs.core.dissoc.call(null, G__2054, new cljs.core.Keyword(null, "inner", "inner", -1383171215));
-    if (cljs.core.record_QMARK_.call(null, G__2054)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__2064);
+    var G__2412 = cljs.core.dissoc.call(null, G__2402, new cljs.core.Keyword(null, "inner", "inner", -1383171215));
+    if (cljs.core.record_QMARK_.call(null, G__2402)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__2412);
     } else {
-      return G__2064;
+      return G__2412;
     }
   }();
-  return new dacite.store.pack.DelegatingChunkTransport((new cljs.core.Keyword(null, "inner", "inner", -1383171215)).cljs$core$IFn$_invoke$arity$1(G__2054), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.store.pack.DelegatingChunkTransport((new cljs.core.Keyword(null, "inner", "inner", -1383171215)).cljs$core$IFn$_invoke$arity$1(G__2402), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.store.pack.wrap_chunk_transport = function dacite$store$pack$wrap_chunk_transport(inner) {
   return dacite.store.pack.__GT_DelegatingChunkTransport.call(null, inner);
@@ -50599,7 +50874,7 @@ dacite.store.pack.pack_get = function dacite$store$pack$pack_get(st, req) {
       return cljs.core.PersistentVector.EMPTY;
     }
   }()));
-  var map__2067 = function() {
+  var map__2415 = function() {
     var qs = starts;
     var skip = have;
     var acc_items = cljs.core.PersistentVector.EMPTY;
@@ -50608,18 +50883,18 @@ dacite.store.pack.pack_get = function dacite$store$pack$pack_get(st, req) {
       var temp__5823__auto__ = cljs.core.first.call(null, qs);
       if (cljs.core.truth_(temp__5823__auto__)) {
         var h = temp__5823__auto__;
-        var map__2069 = dacite.store.pack.encode_reachable.call(null, st, h, skip, budget);
-        var map__2069__$1 = cljs.core.__destructure_map.call(null, map__2069);
-        var items = cljs.core.get.call(null, map__2069__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
-        var covered = cljs.core.get.call(null, map__2069__$1, new cljs.core.Keyword(null, "covered", "covered", -409185091));
-        var G__2070 = cljs.core.next.call(null, qs);
-        var G__2071 = cljs.core.into.call(null, skip, covered);
-        var G__2072 = cljs.core.into.call(null, acc_items, items);
-        var G__2073 = cljs.core.into.call(null, acc_cov, covered);
-        qs = G__2070;
-        skip = G__2071;
-        acc_items = G__2072;
-        acc_cov = G__2073;
+        var map__2417 = dacite.store.pack.encode_reachable.call(null, st, h, skip, budget);
+        var map__2417__$1 = cljs.core.__destructure_map.call(null, map__2417);
+        var items = cljs.core.get.call(null, map__2417__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
+        var covered = cljs.core.get.call(null, map__2417__$1, new cljs.core.Keyword(null, "covered", "covered", -409185091));
+        var G__2418 = cljs.core.next.call(null, qs);
+        var G__2419 = cljs.core.into.call(null, skip, covered);
+        var G__2420 = cljs.core.into.call(null, acc_items, items);
+        var G__2421 = cljs.core.into.call(null, acc_cov, covered);
+        qs = G__2418;
+        skip = G__2419;
+        acc_items = G__2420;
+        acc_cov = G__2421;
         continue;
       } else {
         return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "all-items", "all-items", 1467247308), acc_items, new cljs.core.Keyword(null, "all-covered", "all-covered", 404616466), acc_cov], null);
@@ -50627,9 +50902,9 @@ dacite.store.pack.pack_get = function dacite$store$pack$pack_get(st, req) {
       break;
     }
   }();
-  var map__2067__$1 = cljs.core.__destructure_map.call(null, map__2067);
-  var all_items = cljs.core.get.call(null, map__2067__$1, new cljs.core.Keyword(null, "all-items", "all-items", 1467247308));
-  var all_covered = cljs.core.get.call(null, map__2067__$1, new cljs.core.Keyword(null, "all-covered", "all-covered", 404616466));
+  var map__2415__$1 = cljs.core.__destructure_map.call(null, map__2415);
+  var all_items = cljs.core.get.call(null, map__2415__$1, new cljs.core.Keyword(null, "all-items", "all-items", 1467247308));
+  var all_covered = cljs.core.get.call(null, map__2415__$1, new cljs.core.Keyword(null, "all-covered", "all-covered", 404616466));
   var items = cljs.core.vec.call(null, cljs.core.vals.call(null, cljs.core.reduce.call(null, function(m, it) {
     var hx = (new cljs.core.Keyword(null, "hash", "hash", -13781596)).cljs$core$IFn$_invoke$arity$1(it);
     if (cljs.core.contains_QMARK_.call(null, m, hx)) {
@@ -50663,63 +50938,63 @@ dacite.store.client_cache.absorb_remote_pack_cache_BANG_ = function dacite$store
       return null;
     } else {
       if (cljs.core.record_QMARK_.call(null, r) && cljs.core.contains_QMARK_.call(null, r, new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931))) {
-        var seq__2460 = cljs.core.seq.call(null, dacite.store.s_snapshot.call(null, (new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931)).cljs$core$IFn$_invoke$arity$1(r)));
-        var chunk__2461 = null;
-        var count__2462 = 0;
-        var i__2463 = 0;
+        var seq__2847 = cljs.core.seq.call(null, dacite.store.s_snapshot.call(null, (new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931)).cljs$core$IFn$_invoke$arity$1(r)));
+        var chunk__2848 = null;
+        var count__2849 = 0;
+        var i__2850 = 0;
         while (true) {
-          if (i__2463 < count__2462) {
-            var vec__2470 = cljs.core._nth.call(null, chunk__2461, i__2463);
-            var k = cljs.core.nth.call(null, vec__2470, 0, null);
-            var v = cljs.core.nth.call(null, vec__2470, 1, null);
-            var h_2476 = dacite.store.client_cache.snapshot_entry__GT_hash.call(null, k);
-            dacite.store.s_put.call(null, local, h_2476, v);
+          if (i__2850 < count__2849) {
+            var vec__2857 = cljs.core._nth.call(null, chunk__2848, i__2850);
+            var k = cljs.core.nth.call(null, vec__2857, 0, null);
+            var v = cljs.core.nth.call(null, vec__2857, 1, null);
+            var h_2863 = dacite.store.client_cache.snapshot_entry__GT_hash.call(null, k);
+            dacite.store.s_put.call(null, local, h_2863, v);
             if (cljs.core.truth_(flushed_atom)) {
-              dacite.store.client_cache.flushed_conj_BANG_.call(null, flushed_atom, h_2476);
+              dacite.store.client_cache.flushed_conj_BANG_.call(null, flushed_atom, h_2863);
             } else {
             }
-            var G__2477 = seq__2460;
-            var G__2478 = chunk__2461;
-            var G__2479 = count__2462;
-            var G__2480 = i__2463 + 1;
-            seq__2460 = G__2477;
-            chunk__2461 = G__2478;
-            count__2462 = G__2479;
-            i__2463 = G__2480;
+            var G__2864 = seq__2847;
+            var G__2865 = chunk__2848;
+            var G__2866 = count__2849;
+            var G__2867 = i__2850 + 1;
+            seq__2847 = G__2864;
+            chunk__2848 = G__2865;
+            count__2849 = G__2866;
+            i__2850 = G__2867;
             continue;
           } else {
-            var temp__5825__auto__ = cljs.core.seq.call(null, seq__2460);
+            var temp__5825__auto__ = cljs.core.seq.call(null, seq__2847);
             if (temp__5825__auto__) {
-              var seq__2460__$1 = temp__5825__auto__;
-              if (cljs.core.chunked_seq_QMARK_.call(null, seq__2460__$1)) {
-                var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2460__$1);
-                var G__2481 = cljs.core.chunk_rest.call(null, seq__2460__$1);
-                var G__2482 = c__5525__auto__;
-                var G__2483 = cljs.core.count.call(null, c__5525__auto__);
-                var G__2484 = 0;
-                seq__2460 = G__2481;
-                chunk__2461 = G__2482;
-                count__2462 = G__2483;
-                i__2463 = G__2484;
+              var seq__2847__$1 = temp__5825__auto__;
+              if (cljs.core.chunked_seq_QMARK_.call(null, seq__2847__$1)) {
+                var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2847__$1);
+                var G__2868 = cljs.core.chunk_rest.call(null, seq__2847__$1);
+                var G__2869 = c__5525__auto__;
+                var G__2870 = cljs.core.count.call(null, c__5525__auto__);
+                var G__2871 = 0;
+                seq__2847 = G__2868;
+                chunk__2848 = G__2869;
+                count__2849 = G__2870;
+                i__2850 = G__2871;
                 continue;
               } else {
-                var vec__2473 = cljs.core.first.call(null, seq__2460__$1);
-                var k = cljs.core.nth.call(null, vec__2473, 0, null);
-                var v = cljs.core.nth.call(null, vec__2473, 1, null);
-                var h_2485 = dacite.store.client_cache.snapshot_entry__GT_hash.call(null, k);
-                dacite.store.s_put.call(null, local, h_2485, v);
+                var vec__2860 = cljs.core.first.call(null, seq__2847__$1);
+                var k = cljs.core.nth.call(null, vec__2860, 0, null);
+                var v = cljs.core.nth.call(null, vec__2860, 1, null);
+                var h_2872 = dacite.store.client_cache.snapshot_entry__GT_hash.call(null, k);
+                dacite.store.s_put.call(null, local, h_2872, v);
                 if (cljs.core.truth_(flushed_atom)) {
-                  dacite.store.client_cache.flushed_conj_BANG_.call(null, flushed_atom, h_2485);
+                  dacite.store.client_cache.flushed_conj_BANG_.call(null, flushed_atom, h_2872);
                 } else {
                 }
-                var G__2486 = cljs.core.next.call(null, seq__2460__$1);
-                var G__2487 = null;
-                var G__2488 = 0;
-                var G__2489 = 0;
-                seq__2460 = G__2486;
-                chunk__2461 = G__2487;
-                count__2462 = G__2488;
-                i__2463 = G__2489;
+                var G__2873 = cljs.core.next.call(null, seq__2847__$1);
+                var G__2874 = null;
+                var G__2875 = 0;
+                var G__2876 = 0;
+                seq__2847 = G__2873;
+                chunk__2848 = G__2874;
+                count__2849 = G__2875;
+                i__2850 = G__2876;
                 continue;
               }
             } else {
@@ -50730,8 +51005,8 @@ dacite.store.client_cache.absorb_remote_pack_cache_BANG_ = function dacite$store
         }
       } else {
         if (cljs.core.record_QMARK_.call(null, r) && cljs.core.contains_QMARK_.call(null, r, new cljs.core.Keyword(null, "remote", "remote", -1593576576))) {
-          var G__2490 = (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(r);
-          r = G__2490;
+          var G__2877 = (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(r);
+          r = G__2877;
           continue;
         } else {
           return null;
@@ -50755,12 +51030,12 @@ dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ILookup$_lookup$ar
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k2492, else__5303__auto__) {
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k2879, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__2496 = k2492;
-  var G__2496__$1 = G__2496 instanceof cljs.core.Keyword ? G__2496.fqn : null;
-  switch(G__2496__$1) {
+  var G__2883 = k2879;
+  var G__2883__$1 = G__2883 instanceof cljs.core.Keyword ? G__2883.fqn : null;
+  switch(G__2883__$1) {
     case "local":
       return self__.local;
       break;
@@ -50768,16 +51043,16 @@ dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ILookup$_lookup$ar
       return self__.remote;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k2492, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k2879, else__5303__auto__);
   }
 };
 dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__2497) {
-    var vec__2498 = p__2497;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__2498, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__2498, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__2884) {
+    var vec__2885 = p__2884;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__2885, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__2885, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -50790,10 +51065,10 @@ dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IPrintWithWriter$_
   return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.client-cache.SmartCacheStore{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, 
   [new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote], null)], null), self__.__extmap));
 };
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__2491) {
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__2878) {
   var self__ = this;
-  var G__2491__$1 = this;
-  return new cljs.core.RecordIter(0, G__2491__$1, 2, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+  var G__2878__$1 = this;
+  return new cljs.core.RecordIter(0, G__2878__$1, 2, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
   var self__ = this;
@@ -50824,10 +51099,10 @@ dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IHash$_hash$arity$
     return h__5111__auto____$1;
   }
 };
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this2493, other2494) {
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this2880, other2881) {
   var self__ = this;
-  var this2493__$1 = this;
-  return !(other2494 == null) && (this2493__$1.constructor === other2494.constructor && (cljs.core._EQ_.call(null, this2493__$1.local, other2494.local) && (cljs.core._EQ_.call(null, this2493__$1.remote, other2494.remote) && cljs.core._EQ_.call(null, this2493__$1.__extmap, other2494.__extmap))));
+  var this2880__$1 = this;
+  return !(other2881 == null) && (this2880__$1.constructor === other2881.constructor && (cljs.core._EQ_.call(null, this2880__$1.local, other2881.local) && (cljs.core._EQ_.call(null, this2880__$1.remote, other2881.remote) && cljs.core._EQ_.call(null, this2880__$1.__extmap, other2881.__extmap))));
 };
 dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
 dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
@@ -50885,53 +51160,53 @@ dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_snapsh
 dacite.store.client_cache.SmartCacheStore.prototype.dacite$store$IStore$s_merge$arity$2 = function(this$, m) {
   var self__ = this;
   var this$__$1 = this;
-  var seq__2501_2523 = cljs.core.seq.call(null, m);
-  var chunk__2502_2524 = null;
-  var count__2503_2525 = 0;
-  var i__2504_2526 = 0;
+  var seq__2888_2910 = cljs.core.seq.call(null, m);
+  var chunk__2889_2911 = null;
+  var count__2890_2912 = 0;
+  var i__2891_2913 = 0;
   while (true) {
-    if (i__2504_2526 < count__2503_2525) {
-      var vec__2511_2527 = cljs.core._nth.call(null, chunk__2502_2524, i__2504_2526);
-      var h_2528 = cljs.core.nth.call(null, vec__2511_2527, 0, null);
-      var v_2529 = cljs.core.nth.call(null, vec__2511_2527, 1, null);
-      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2528, v_2529);
-      var G__2530 = seq__2501_2523;
-      var G__2531 = chunk__2502_2524;
-      var G__2532 = count__2503_2525;
-      var G__2533 = i__2504_2526 + 1;
-      seq__2501_2523 = G__2530;
-      chunk__2502_2524 = G__2531;
-      count__2503_2525 = G__2532;
-      i__2504_2526 = G__2533;
+    if (i__2891_2913 < count__2890_2912) {
+      var vec__2898_2914 = cljs.core._nth.call(null, chunk__2889_2911, i__2891_2913);
+      var h_2915 = cljs.core.nth.call(null, vec__2898_2914, 0, null);
+      var v_2916 = cljs.core.nth.call(null, vec__2898_2914, 1, null);
+      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2915, v_2916);
+      var G__2917 = seq__2888_2910;
+      var G__2918 = chunk__2889_2911;
+      var G__2919 = count__2890_2912;
+      var G__2920 = i__2891_2913 + 1;
+      seq__2888_2910 = G__2917;
+      chunk__2889_2911 = G__2918;
+      count__2890_2912 = G__2919;
+      i__2891_2913 = G__2920;
       continue;
     } else {
-      var temp__5825__auto___2534 = cljs.core.seq.call(null, seq__2501_2523);
-      if (temp__5825__auto___2534) {
-        var seq__2501_2535__$1 = temp__5825__auto___2534;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2501_2535__$1)) {
-          var c__5525__auto___2536 = cljs.core.chunk_first.call(null, seq__2501_2535__$1);
-          var G__2537 = cljs.core.chunk_rest.call(null, seq__2501_2535__$1);
-          var G__2538 = c__5525__auto___2536;
-          var G__2539 = cljs.core.count.call(null, c__5525__auto___2536);
-          var G__2540 = 0;
-          seq__2501_2523 = G__2537;
-          chunk__2502_2524 = G__2538;
-          count__2503_2525 = G__2539;
-          i__2504_2526 = G__2540;
+      var temp__5825__auto___2921 = cljs.core.seq.call(null, seq__2888_2910);
+      if (temp__5825__auto___2921) {
+        var seq__2888_2922__$1 = temp__5825__auto___2921;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2888_2922__$1)) {
+          var c__5525__auto___2923 = cljs.core.chunk_first.call(null, seq__2888_2922__$1);
+          var G__2924 = cljs.core.chunk_rest.call(null, seq__2888_2922__$1);
+          var G__2925 = c__5525__auto___2923;
+          var G__2926 = cljs.core.count.call(null, c__5525__auto___2923);
+          var G__2927 = 0;
+          seq__2888_2910 = G__2924;
+          chunk__2889_2911 = G__2925;
+          count__2890_2912 = G__2926;
+          i__2891_2913 = G__2927;
           continue;
         } else {
-          var vec__2514_2541 = cljs.core.first.call(null, seq__2501_2535__$1);
-          var h_2542 = cljs.core.nth.call(null, vec__2514_2541, 0, null);
-          var v_2543 = cljs.core.nth.call(null, vec__2514_2541, 1, null);
-          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2542, v_2543);
-          var G__2544 = cljs.core.next.call(null, seq__2501_2535__$1);
-          var G__2545 = null;
-          var G__2546 = 0;
-          var G__2547 = 0;
-          seq__2501_2523 = G__2544;
-          chunk__2502_2524 = G__2545;
-          count__2503_2525 = G__2546;
-          i__2504_2526 = G__2547;
+          var vec__2901_2928 = cljs.core.first.call(null, seq__2888_2922__$1);
+          var h_2929 = cljs.core.nth.call(null, vec__2901_2928, 0, null);
+          var v_2930 = cljs.core.nth.call(null, vec__2901_2928, 1, null);
+          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2929, v_2930);
+          var G__2931 = cljs.core.next.call(null, seq__2888_2922__$1);
+          var G__2932 = null;
+          var G__2933 = 0;
+          var G__2934 = 0;
+          seq__2888_2910 = G__2931;
+          chunk__2889_2911 = G__2932;
+          count__2890_2912 = G__2933;
+          i__2891_2913 = G__2934;
           continue;
         }
       } else {
@@ -50956,32 +51231,32 @@ dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IMap$_dissoc$arity
     return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k2492) {
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k2879) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__2517 = k2492;
-  var G__2517__$1 = G__2517 instanceof cljs.core.Keyword ? G__2517.fqn : null;
-  switch(G__2517__$1) {
+  var G__2904 = k2879;
+  var G__2904__$1 = G__2904 instanceof cljs.core.Keyword ? G__2904.fqn : null;
+  switch(G__2904__$1) {
     case "local":
     case "remote":
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k2492);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k2879);
   }
 };
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__2491) {
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__2878) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__2518 = cljs.core.keyword_identical_QMARK_;
-  var expr__2519 = k__5309__auto__;
-  if (cljs.core.truth_(pred__2518.call(null, new cljs.core.Keyword(null, "local", "local", -1497766724), expr__2519))) {
-    return new dacite.store.client_cache.SmartCacheStore(G__2491, self__.remote, self__.__meta, self__.__extmap, null);
+  var pred__2905 = cljs.core.keyword_identical_QMARK_;
+  var expr__2906 = k__5309__auto__;
+  if (cljs.core.truth_(pred__2905.call(null, new cljs.core.Keyword(null, "local", "local", -1497766724), expr__2906))) {
+    return new dacite.store.client_cache.SmartCacheStore(G__2878, self__.remote, self__.__meta, self__.__extmap, null);
   } else {
-    if (cljs.core.truth_(pred__2518.call(null, new cljs.core.Keyword(null, "remote", "remote", -1593576576), expr__2519))) {
-      return new dacite.store.client_cache.SmartCacheStore(self__.local, G__2491, self__.__meta, self__.__extmap, null);
+    if (cljs.core.truth_(pred__2905.call(null, new cljs.core.Keyword(null, "remote", "remote", -1593576576), expr__2906))) {
+      return new dacite.store.client_cache.SmartCacheStore(self__.local, G__2878, self__.__meta, self__.__extmap, null);
     } else {
-      return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__2491), null);
+      return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__2878), null);
     }
   }
 };
@@ -50990,10 +51265,10 @@ dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ISeqable$_seq$arit
   var this__5313__auto____$1 = this;
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote, null)], null), self__.__extmap));
 };
-dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__2491) {
+dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__2878) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, G__2491, self__.__extmap, self__.__hash);
+  return new dacite.store.client_cache.SmartCacheStore(self__.local, self__.remote, G__2878, self__.__extmap, self__.__hash);
 };
 dacite.store.client_cache.SmartCacheStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -51017,16 +51292,16 @@ dacite.store.client_cache.SmartCacheStore.cljs$lang$ctorPrWriter = function(this
 dacite.store.client_cache.__GT_SmartCacheStore = function dacite$store$client_cache$__GT_SmartCacheStore(local, remote) {
   return new dacite.store.client_cache.SmartCacheStore(local, remote, null, null, null);
 };
-dacite.store.client_cache.map__GT_SmartCacheStore = function dacite$store$client_cache$map__GT_SmartCacheStore(G__2495) {
+dacite.store.client_cache.map__GT_SmartCacheStore = function dacite$store$client_cache$map__GT_SmartCacheStore(G__2882) {
   var extmap__5342__auto__ = function() {
-    var G__2521 = cljs.core.dissoc.call(null, G__2495, new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576));
-    if (cljs.core.record_QMARK_.call(null, G__2495)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__2521);
+    var G__2908 = cljs.core.dissoc.call(null, G__2882, new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576));
+    if (cljs.core.record_QMARK_.call(null, G__2882)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__2908);
     } else {
-      return G__2521;
+      return G__2908;
     }
   }();
-  return new dacite.store.client_cache.SmartCacheStore((new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(G__2495), (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(G__2495), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.store.client_cache.SmartCacheStore((new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(G__2882), (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(G__2882), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.store.client_cache.WriteBackStore = function(local, remote, flushed, __meta, __extmap, __hash) {
   this.local = local;
@@ -51043,12 +51318,12 @@ dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ILookup$_lookup$ari
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k2550, else__5303__auto__) {
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k2937, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__2554 = k2550;
-  var G__2554__$1 = G__2554 instanceof cljs.core.Keyword ? G__2554.fqn : null;
-  switch(G__2554__$1) {
+  var G__2941 = k2937;
+  var G__2941__$1 = G__2941 instanceof cljs.core.Keyword ? G__2941.fqn : null;
+  switch(G__2941__$1) {
     case "local":
       return self__.local;
       break;
@@ -51059,16 +51334,16 @@ dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ILookup$_lookup$ari
       return self__.flushed;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k2550, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k2937, else__5303__auto__);
   }
 };
 dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__2555) {
-    var vec__2556 = p__2555;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__2556, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__2556, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__2942) {
+    var vec__2943 = p__2942;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__2943, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__2943, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -51081,10 +51356,10 @@ dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IPrintWithWriter$_p
   return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.store.client-cache.WriteBackStore{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, 
   [new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "flushed", "flushed", 44294838), self__.flushed], null)], null), self__.__extmap));
 };
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__2549) {
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__2936) {
   var self__ = this;
-  var G__2549__$1 = this;
-  return new cljs.core.RecordIter(0, G__2549__$1, 3, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576), new cljs.core.Keyword(null, "flushed", "flushed", 44294838)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+  var G__2936__$1 = this;
+  return new cljs.core.RecordIter(0, G__2936__$1, 3, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576), new cljs.core.Keyword(null, "flushed", "flushed", 44294838)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
   var self__ = this;
@@ -51115,10 +51390,10 @@ dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IHash$_hash$arity$1
     return h__5111__auto____$1;
   }
 };
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this2551, other2552) {
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this2938, other2939) {
   var self__ = this;
-  var this2551__$1 = this;
-  return !(other2552 == null) && (this2551__$1.constructor === other2552.constructor && (cljs.core._EQ_.call(null, this2551__$1.local, other2552.local) && (cljs.core._EQ_.call(null, this2551__$1.remote, other2552.remote) && (cljs.core._EQ_.call(null, this2551__$1.flushed, other2552.flushed) && cljs.core._EQ_.call(null, this2551__$1.__extmap, other2552.__extmap)))));
+  var this2938__$1 = this;
+  return !(other2939 == null) && (this2938__$1.constructor === other2939.constructor && (cljs.core._EQ_.call(null, this2938__$1.local, other2939.local) && (cljs.core._EQ_.call(null, this2938__$1.remote, other2939.remote) && (cljs.core._EQ_.call(null, this2938__$1.flushed, other2939.flushed) && cljs.core._EQ_.call(null, this2938__$1.__extmap, other2939.__extmap)))));
 };
 dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
 dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
@@ -51173,53 +51448,53 @@ dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_snapsho
 dacite.store.client_cache.WriteBackStore.prototype.dacite$store$IStore$s_merge$arity$2 = function(this$, m) {
   var self__ = this;
   var this$__$1 = this;
-  var seq__2559_2581 = cljs.core.seq.call(null, m);
-  var chunk__2560_2582 = null;
-  var count__2561_2583 = 0;
-  var i__2562_2584 = 0;
+  var seq__2946_2968 = cljs.core.seq.call(null, m);
+  var chunk__2947_2969 = null;
+  var count__2948_2970 = 0;
+  var i__2949_2971 = 0;
   while (true) {
-    if (i__2562_2584 < count__2561_2583) {
-      var vec__2569_2585 = cljs.core._nth.call(null, chunk__2560_2582, i__2562_2584);
-      var h_2586 = cljs.core.nth.call(null, vec__2569_2585, 0, null);
-      var v_2587 = cljs.core.nth.call(null, vec__2569_2585, 1, null);
-      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2586, v_2587);
-      var G__2588 = seq__2559_2581;
-      var G__2589 = chunk__2560_2582;
-      var G__2590 = count__2561_2583;
-      var G__2591 = i__2562_2584 + 1;
-      seq__2559_2581 = G__2588;
-      chunk__2560_2582 = G__2589;
-      count__2561_2583 = G__2590;
-      i__2562_2584 = G__2591;
+    if (i__2949_2971 < count__2948_2970) {
+      var vec__2956_2972 = cljs.core._nth.call(null, chunk__2947_2969, i__2949_2971);
+      var h_2973 = cljs.core.nth.call(null, vec__2956_2972, 0, null);
+      var v_2974 = cljs.core.nth.call(null, vec__2956_2972, 1, null);
+      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2973, v_2974);
+      var G__2975 = seq__2946_2968;
+      var G__2976 = chunk__2947_2969;
+      var G__2977 = count__2948_2970;
+      var G__2978 = i__2949_2971 + 1;
+      seq__2946_2968 = G__2975;
+      chunk__2947_2969 = G__2976;
+      count__2948_2970 = G__2977;
+      i__2949_2971 = G__2978;
       continue;
     } else {
-      var temp__5825__auto___2592 = cljs.core.seq.call(null, seq__2559_2581);
-      if (temp__5825__auto___2592) {
-        var seq__2559_2593__$1 = temp__5825__auto___2592;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2559_2593__$1)) {
-          var c__5525__auto___2594 = cljs.core.chunk_first.call(null, seq__2559_2593__$1);
-          var G__2595 = cljs.core.chunk_rest.call(null, seq__2559_2593__$1);
-          var G__2596 = c__5525__auto___2594;
-          var G__2597 = cljs.core.count.call(null, c__5525__auto___2594);
-          var G__2598 = 0;
-          seq__2559_2581 = G__2595;
-          chunk__2560_2582 = G__2596;
-          count__2561_2583 = G__2597;
-          i__2562_2584 = G__2598;
+      var temp__5825__auto___2979 = cljs.core.seq.call(null, seq__2946_2968);
+      if (temp__5825__auto___2979) {
+        var seq__2946_2980__$1 = temp__5825__auto___2979;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2946_2980__$1)) {
+          var c__5525__auto___2981 = cljs.core.chunk_first.call(null, seq__2946_2980__$1);
+          var G__2982 = cljs.core.chunk_rest.call(null, seq__2946_2980__$1);
+          var G__2983 = c__5525__auto___2981;
+          var G__2984 = cljs.core.count.call(null, c__5525__auto___2981);
+          var G__2985 = 0;
+          seq__2946_2968 = G__2982;
+          chunk__2947_2969 = G__2983;
+          count__2948_2970 = G__2984;
+          i__2949_2971 = G__2985;
           continue;
         } else {
-          var vec__2572_2599 = cljs.core.first.call(null, seq__2559_2593__$1);
-          var h_2600 = cljs.core.nth.call(null, vec__2572_2599, 0, null);
-          var v_2601 = cljs.core.nth.call(null, vec__2572_2599, 1, null);
-          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2600, v_2601);
-          var G__2602 = cljs.core.next.call(null, seq__2559_2593__$1);
-          var G__2603 = null;
-          var G__2604 = 0;
-          var G__2605 = 0;
-          seq__2559_2581 = G__2602;
-          chunk__2560_2582 = G__2603;
-          count__2561_2583 = G__2604;
-          i__2562_2584 = G__2605;
+          var vec__2959_2986 = cljs.core.first.call(null, seq__2946_2980__$1);
+          var h_2987 = cljs.core.nth.call(null, vec__2959_2986, 0, null);
+          var v_2988 = cljs.core.nth.call(null, vec__2959_2986, 1, null);
+          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2987, v_2988);
+          var G__2989 = cljs.core.next.call(null, seq__2946_2980__$1);
+          var G__2990 = null;
+          var G__2991 = 0;
+          var G__2992 = 0;
+          seq__2946_2968 = G__2989;
+          chunk__2947_2969 = G__2990;
+          count__2948_2970 = G__2991;
+          i__2949_2971 = G__2992;
           continue;
         }
       } else {
@@ -51245,36 +51520,36 @@ dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IMap$_dissoc$arity$
     return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k2550) {
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k2937) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__2575 = k2550;
-  var G__2575__$1 = G__2575 instanceof cljs.core.Keyword ? G__2575.fqn : null;
-  switch(G__2575__$1) {
+  var G__2962 = k2937;
+  var G__2962__$1 = G__2962 instanceof cljs.core.Keyword ? G__2962.fqn : null;
+  switch(G__2962__$1) {
     case "local":
     case "remote":
     case "flushed":
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k2550);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k2937);
   }
 };
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__2549) {
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__2936) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__2576 = cljs.core.keyword_identical_QMARK_;
-  var expr__2577 = k__5309__auto__;
-  if (cljs.core.truth_(pred__2576.call(null, new cljs.core.Keyword(null, "local", "local", -1497766724), expr__2577))) {
-    return new dacite.store.client_cache.WriteBackStore(G__2549, self__.remote, self__.flushed, self__.__meta, self__.__extmap, null);
+  var pred__2963 = cljs.core.keyword_identical_QMARK_;
+  var expr__2964 = k__5309__auto__;
+  if (cljs.core.truth_(pred__2963.call(null, new cljs.core.Keyword(null, "local", "local", -1497766724), expr__2964))) {
+    return new dacite.store.client_cache.WriteBackStore(G__2936, self__.remote, self__.flushed, self__.__meta, self__.__extmap, null);
   } else {
-    if (cljs.core.truth_(pred__2576.call(null, new cljs.core.Keyword(null, "remote", "remote", -1593576576), expr__2577))) {
-      return new dacite.store.client_cache.WriteBackStore(self__.local, G__2549, self__.flushed, self__.__meta, self__.__extmap, null);
+    if (cljs.core.truth_(pred__2963.call(null, new cljs.core.Keyword(null, "remote", "remote", -1593576576), expr__2964))) {
+      return new dacite.store.client_cache.WriteBackStore(self__.local, G__2936, self__.flushed, self__.__meta, self__.__extmap, null);
     } else {
-      if (cljs.core.truth_(pred__2576.call(null, new cljs.core.Keyword(null, "flushed", "flushed", 44294838), expr__2577))) {
-        return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, G__2549, self__.__meta, self__.__extmap, null);
+      if (cljs.core.truth_(pred__2963.call(null, new cljs.core.Keyword(null, "flushed", "flushed", 44294838), expr__2964))) {
+        return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, G__2936, self__.__meta, self__.__extmap, null);
       } else {
-        return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__2549), null);
+        return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__2936), null);
       }
     }
   }
@@ -51284,10 +51559,10 @@ dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ISeqable$_seq$arity
   var this__5313__auto____$1 = this;
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 3, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "local", "local", -1497766724), self__.local, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "remote", "remote", -1593576576), self__.remote, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "flushed", "flushed", 44294838), self__.flushed, null)], null), self__.__extmap));
 };
-dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__2549) {
+dacite.store.client_cache.WriteBackStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__2936) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, G__2549, self__.__extmap, self__.__hash);
+  return new dacite.store.client_cache.WriteBackStore(self__.local, self__.remote, self__.flushed, G__2936, self__.__extmap, self__.__hash);
 };
 dacite.store.client_cache.WriteBackStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -51311,16 +51586,16 @@ dacite.store.client_cache.WriteBackStore.cljs$lang$ctorPrWriter = function(this_
 dacite.store.client_cache.__GT_WriteBackStore = function dacite$store$client_cache$__GT_WriteBackStore(local, remote, flushed) {
   return new dacite.store.client_cache.WriteBackStore(local, remote, flushed, null, null, null);
 };
-dacite.store.client_cache.map__GT_WriteBackStore = function dacite$store$client_cache$map__GT_WriteBackStore(G__2553) {
+dacite.store.client_cache.map__GT_WriteBackStore = function dacite$store$client_cache$map__GT_WriteBackStore(G__2940) {
   var extmap__5342__auto__ = function() {
-    var G__2579 = cljs.core.dissoc.call(null, G__2553, new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576), new cljs.core.Keyword(null, "flushed", "flushed", 44294838));
-    if (cljs.core.record_QMARK_.call(null, G__2553)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__2579);
+    var G__2966 = cljs.core.dissoc.call(null, G__2940, new cljs.core.Keyword(null, "local", "local", -1497766724), new cljs.core.Keyword(null, "remote", "remote", -1593576576), new cljs.core.Keyword(null, "flushed", "flushed", 44294838));
+    if (cljs.core.record_QMARK_.call(null, G__2940)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__2966);
     } else {
-      return G__2579;
+      return G__2966;
     }
   }();
-  return new dacite.store.client_cache.WriteBackStore((new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(G__2553), (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(G__2553), (new cljs.core.Keyword(null, "flushed", "flushed", 44294838)).cljs$core$IFn$_invoke$arity$1(G__2553), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.store.client_cache.WriteBackStore((new cljs.core.Keyword(null, "local", "local", -1497766724)).cljs$core$IFn$_invoke$arity$1(G__2940), (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(G__2940), (new cljs.core.Keyword(null, "flushed", "flushed", 44294838)).cljs$core$IFn$_invoke$arity$1(G__2940), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.store.client_cache.write_back_store_QMARK_ = function dacite$store$client_cache$write_back_store_QMARK_(s) {
   return s instanceof dacite.store.client_cache.WriteBackStore;
@@ -51343,7 +51618,7 @@ dacite.store.client_cache.flush_reachable_BANG_ = function dacite$store$client_c
             return cljs.core.PersistentHashSet.EMPTY;
           }
         }());
-        var seq__2607_2627 = cljs.core.seq.call(null, function() {
+        var seq__2994_3014 = cljs.core.seq.call(null, function() {
           var or__5002__auto__ = (new cljs.core.Keyword(null, "exists", "exists", 1312597120)).cljs$core$IFn$_invoke$arity$1(result);
           if (cljs.core.truth_(or__5002__auto__)) {
             return or__5002__auto__;
@@ -51351,56 +51626,56 @@ dacite.store.client_cache.flush_reachable_BANG_ = function dacite$store$client_c
             return cljs.core.PersistentVector.EMPTY;
           }
         }());
-        var chunk__2608_2628 = null;
-        var count__2609_2629 = 0;
-        var i__2610_2630 = 0;
+        var chunk__2995_3015 = null;
+        var count__2996_3016 = 0;
+        var i__2997_3017 = 0;
         while (true) {
-          if (i__2610_2630 < count__2609_2629) {
-            var hex_2631 = cljs.core._nth.call(null, chunk__2608_2628, i__2610_2630);
-            var hv_2632 = dacite.store.hex__GT_hash.call(null, hex_2631);
-            if (cljs.core.truth_(dacite.store.s_has_QMARK_.call(null, local, hv_2632))) {
-              cljs.core.swap_BANG_.call(null, flushed, cljs.core.into, dacite.rooted.gc.mark_reachable.call(null, local, hv_2632));
+          if (i__2997_3017 < count__2996_3016) {
+            var hex_3018 = cljs.core._nth.call(null, chunk__2995_3015, i__2997_3017);
+            var hv_3019 = dacite.store.hex__GT_hash.call(null, hex_3018);
+            if (cljs.core.truth_(dacite.store.s_has_QMARK_.call(null, local, hv_3019))) {
+              cljs.core.swap_BANG_.call(null, flushed, cljs.core.into, dacite.rooted.gc.mark_reachable.call(null, local, hv_3019));
             } else {
             }
-            var G__2633 = seq__2607_2627;
-            var G__2634 = chunk__2608_2628;
-            var G__2635 = count__2609_2629;
-            var G__2636 = i__2610_2630 + 1;
-            seq__2607_2627 = G__2633;
-            chunk__2608_2628 = G__2634;
-            count__2609_2629 = G__2635;
-            i__2610_2630 = G__2636;
+            var G__3020 = seq__2994_3014;
+            var G__3021 = chunk__2995_3015;
+            var G__3022 = count__2996_3016;
+            var G__3023 = i__2997_3017 + 1;
+            seq__2994_3014 = G__3020;
+            chunk__2995_3015 = G__3021;
+            count__2996_3016 = G__3022;
+            i__2997_3017 = G__3023;
             continue;
           } else {
-            var temp__5825__auto___2637 = cljs.core.seq.call(null, seq__2607_2627);
-            if (temp__5825__auto___2637) {
-              var seq__2607_2638__$1 = temp__5825__auto___2637;
-              if (cljs.core.chunked_seq_QMARK_.call(null, seq__2607_2638__$1)) {
-                var c__5525__auto___2639 = cljs.core.chunk_first.call(null, seq__2607_2638__$1);
-                var G__2640 = cljs.core.chunk_rest.call(null, seq__2607_2638__$1);
-                var G__2641 = c__5525__auto___2639;
-                var G__2642 = cljs.core.count.call(null, c__5525__auto___2639);
-                var G__2643 = 0;
-                seq__2607_2627 = G__2640;
-                chunk__2608_2628 = G__2641;
-                count__2609_2629 = G__2642;
-                i__2610_2630 = G__2643;
+            var temp__5825__auto___3024 = cljs.core.seq.call(null, seq__2994_3014);
+            if (temp__5825__auto___3024) {
+              var seq__2994_3025__$1 = temp__5825__auto___3024;
+              if (cljs.core.chunked_seq_QMARK_.call(null, seq__2994_3025__$1)) {
+                var c__5525__auto___3026 = cljs.core.chunk_first.call(null, seq__2994_3025__$1);
+                var G__3027 = cljs.core.chunk_rest.call(null, seq__2994_3025__$1);
+                var G__3028 = c__5525__auto___3026;
+                var G__3029 = cljs.core.count.call(null, c__5525__auto___3026);
+                var G__3030 = 0;
+                seq__2994_3014 = G__3027;
+                chunk__2995_3015 = G__3028;
+                count__2996_3016 = G__3029;
+                i__2997_3017 = G__3030;
                 continue;
               } else {
-                var hex_2644 = cljs.core.first.call(null, seq__2607_2638__$1);
-                var hv_2645 = dacite.store.hex__GT_hash.call(null, hex_2644);
-                if (cljs.core.truth_(dacite.store.s_has_QMARK_.call(null, local, hv_2645))) {
-                  cljs.core.swap_BANG_.call(null, flushed, cljs.core.into, dacite.rooted.gc.mark_reachable.call(null, local, hv_2645));
+                var hex_3031 = cljs.core.first.call(null, seq__2994_3025__$1);
+                var hv_3032 = dacite.store.hex__GT_hash.call(null, hex_3031);
+                if (cljs.core.truth_(dacite.store.s_has_QMARK_.call(null, local, hv_3032))) {
+                  cljs.core.swap_BANG_.call(null, flushed, cljs.core.into, dacite.rooted.gc.mark_reachable.call(null, local, hv_3032));
                 } else {
                 }
-                var G__2646 = cljs.core.next.call(null, seq__2607_2638__$1);
-                var G__2647 = null;
-                var G__2648 = 0;
-                var G__2649 = 0;
-                seq__2607_2627 = G__2646;
-                chunk__2608_2628 = G__2647;
-                count__2609_2629 = G__2648;
-                i__2610_2630 = G__2649;
+                var G__3033 = cljs.core.next.call(null, seq__2994_3025__$1);
+                var G__3034 = null;
+                var G__3035 = 0;
+                var G__3036 = 0;
+                seq__2994_3014 = G__3033;
+                chunk__2995_3015 = G__3034;
+                count__2996_3016 = G__3035;
+                i__2997_3017 = G__3036;
                 continue;
               }
             } else {
@@ -51427,53 +51702,53 @@ dacite.store.client_cache.flush_reachable_BANG_ = function dacite$store$client_c
       if (cljs.core.empty_QMARK_.call(null, pairs)) {
         return 0;
       } else {
-        var seq__2611_2650 = cljs.core.seq.call(null, pairs);
-        var chunk__2612_2651 = null;
-        var count__2613_2652 = 0;
-        var i__2614_2653 = 0;
+        var seq__2998_3037 = cljs.core.seq.call(null, pairs);
+        var chunk__2999_3038 = null;
+        var count__3000_3039 = 0;
+        var i__3001_3040 = 0;
         while (true) {
-          if (i__2614_2653 < count__2613_2652) {
-            var vec__2621_2654 = cljs.core._nth.call(null, chunk__2612_2651, i__2614_2653);
-            var h_2655 = cljs.core.nth.call(null, vec__2621_2654, 0, null);
-            var v_2656 = cljs.core.nth.call(null, vec__2621_2654, 1, null);
-            dacite.store.s_put.call(null, remote, h_2655, v_2656);
-            var G__2657 = seq__2611_2650;
-            var G__2658 = chunk__2612_2651;
-            var G__2659 = count__2613_2652;
-            var G__2660 = i__2614_2653 + 1;
-            seq__2611_2650 = G__2657;
-            chunk__2612_2651 = G__2658;
-            count__2613_2652 = G__2659;
-            i__2614_2653 = G__2660;
+          if (i__3001_3040 < count__3000_3039) {
+            var vec__3008_3041 = cljs.core._nth.call(null, chunk__2999_3038, i__3001_3040);
+            var h_3042 = cljs.core.nth.call(null, vec__3008_3041, 0, null);
+            var v_3043 = cljs.core.nth.call(null, vec__3008_3041, 1, null);
+            dacite.store.s_put.call(null, remote, h_3042, v_3043);
+            var G__3044 = seq__2998_3037;
+            var G__3045 = chunk__2999_3038;
+            var G__3046 = count__3000_3039;
+            var G__3047 = i__3001_3040 + 1;
+            seq__2998_3037 = G__3044;
+            chunk__2999_3038 = G__3045;
+            count__3000_3039 = G__3046;
+            i__3001_3040 = G__3047;
             continue;
           } else {
-            var temp__5825__auto___2661 = cljs.core.seq.call(null, seq__2611_2650);
-            if (temp__5825__auto___2661) {
-              var seq__2611_2662__$1 = temp__5825__auto___2661;
-              if (cljs.core.chunked_seq_QMARK_.call(null, seq__2611_2662__$1)) {
-                var c__5525__auto___2663 = cljs.core.chunk_first.call(null, seq__2611_2662__$1);
-                var G__2664 = cljs.core.chunk_rest.call(null, seq__2611_2662__$1);
-                var G__2665 = c__5525__auto___2663;
-                var G__2666 = cljs.core.count.call(null, c__5525__auto___2663);
-                var G__2667 = 0;
-                seq__2611_2650 = G__2664;
-                chunk__2612_2651 = G__2665;
-                count__2613_2652 = G__2666;
-                i__2614_2653 = G__2667;
+            var temp__5825__auto___3048 = cljs.core.seq.call(null, seq__2998_3037);
+            if (temp__5825__auto___3048) {
+              var seq__2998_3049__$1 = temp__5825__auto___3048;
+              if (cljs.core.chunked_seq_QMARK_.call(null, seq__2998_3049__$1)) {
+                var c__5525__auto___3050 = cljs.core.chunk_first.call(null, seq__2998_3049__$1);
+                var G__3051 = cljs.core.chunk_rest.call(null, seq__2998_3049__$1);
+                var G__3052 = c__5525__auto___3050;
+                var G__3053 = cljs.core.count.call(null, c__5525__auto___3050);
+                var G__3054 = 0;
+                seq__2998_3037 = G__3051;
+                chunk__2999_3038 = G__3052;
+                count__3000_3039 = G__3053;
+                i__3001_3040 = G__3054;
                 continue;
               } else {
-                var vec__2624_2668 = cljs.core.first.call(null, seq__2611_2662__$1);
-                var h_2669 = cljs.core.nth.call(null, vec__2624_2668, 0, null);
-                var v_2670 = cljs.core.nth.call(null, vec__2624_2668, 1, null);
-                dacite.store.s_put.call(null, remote, h_2669, v_2670);
-                var G__2671 = cljs.core.next.call(null, seq__2611_2662__$1);
-                var G__2672 = null;
-                var G__2673 = 0;
-                var G__2674 = 0;
-                seq__2611_2650 = G__2671;
-                chunk__2612_2651 = G__2672;
-                count__2613_2652 = G__2673;
-                i__2614_2653 = G__2674;
+                var vec__3011_3055 = cljs.core.first.call(null, seq__2998_3049__$1);
+                var h_3056 = cljs.core.nth.call(null, vec__3011_3055, 0, null);
+                var v_3057 = cljs.core.nth.call(null, vec__3011_3055, 1, null);
+                dacite.store.s_put.call(null, remote, h_3056, v_3057);
+                var G__3058 = cljs.core.next.call(null, seq__2998_3049__$1);
+                var G__3059 = null;
+                var G__3060 = 0;
+                var G__3061 = 0;
+                seq__2998_3037 = G__3058;
+                chunk__2999_3038 = G__3059;
+                count__3000_3039 = G__3060;
+                i__3001_3040 = G__3061;
                 continue;
               }
             } else {
@@ -51488,9 +51763,9 @@ dacite.store.client_cache.flush_reachable_BANG_ = function dacite$store$client_c
   }
 };
 dacite.store.client_cache.wrap = function dacite$store$client_cache$wrap(remote, policy) {
-  var G__2675 = policy;
-  var G__2675__$1 = G__2675 instanceof cljs.core.Keyword ? G__2675.fqn : null;
-  switch(G__2675__$1) {
+  var G__3062 = policy;
+  var G__3062__$1 = G__3062 instanceof cljs.core.Keyword ? G__3062.fqn : null;
+  switch(G__3062__$1) {
     case "none":
       return remote;
       break;
@@ -51543,13 +51818,13 @@ dacite.wire.binary.as_wire_bytes = function dacite$wire$binary$as_wire_bytes(x) 
         if (cljs.core.vector_QMARK_.call(null, x) || (cljs.core.seq_QMARK_.call(null, x) || cljs.core.list_QMARK_.call(null, x))) {
           var v = cljs.core.vec.call(null, x);
           var a = dacite.wire.binary.make_bytes.call(null, cljs.core.count.call(null, v));
-          var n__5593__auto___2076 = cljs.core.count.call(null, v);
-          var i_2077 = 0;
+          var n__5593__auto___2424 = cljs.core.count.call(null, v);
+          var i_2425 = 0;
           while (true) {
-            if (i_2077 < n__5593__auto___2076) {
-              dacite.wire.binary.bset.call(null, a, i_2077, cljs.core.nth.call(null, v, i_2077));
-              var G__2078 = i_2077 + 1;
-              i_2077 = G__2078;
+            if (i_2425 < n__5593__auto___2424) {
+              dacite.wire.binary.bset.call(null, a, i_2425, cljs.core.nth.call(null, v, i_2425));
+              var G__2426 = i_2425 + 1;
+              i_2425 = G__2426;
               continue;
             } else {
             }
@@ -51577,8 +51852,8 @@ dacite.wire.binary.bytes_eq_QMARK_ = function dacite$wire$binary$bytes_eq_QMARK_
         if (cljs.core.not_EQ_.call(null, dacite.wire.binary.bget.call(null, a__$1, i), dacite.wire.binary.bget.call(null, b__$1, i))) {
           return false;
         } else {
-          var G__2079 = i + 1;
-          i = G__2079;
+          var G__2427 = i + 1;
+          i = G__2427;
           continue;
         }
       }
@@ -51620,49 +51895,49 @@ dacite.wire.binary.put_u32 = function dacite$wire$binary$put_u32(buf, n) {
   return dacite.wire.binary.put_u8.call(null, buf, 255 & n__$1);
 };
 dacite.wire.binary.put_u64 = function dacite$wire$binary$put_u64(buf, n) {
-  var seq__2080 = cljs.core.seq.call(null, dacite.host.word__GT_bytes.call(null, n));
-  var chunk__2081 = null;
-  var count__2082 = 0;
-  var i__2083 = 0;
+  var seq__2428 = cljs.core.seq.call(null, dacite.host.word__GT_bytes.call(null, n));
+  var chunk__2429 = null;
+  var count__2430 = 0;
+  var i__2431 = 0;
   while (true) {
-    if (i__2083 < count__2082) {
-      var b = cljs.core._nth.call(null, chunk__2081, i__2083);
+    if (i__2431 < count__2430) {
+      var b = cljs.core._nth.call(null, chunk__2429, i__2431);
       dacite.wire.binary.put_u8.call(null, buf, b);
-      var G__2084 = seq__2080;
-      var G__2085 = chunk__2081;
-      var G__2086 = count__2082;
-      var G__2087 = i__2083 + 1;
-      seq__2080 = G__2084;
-      chunk__2081 = G__2085;
-      count__2082 = G__2086;
-      i__2083 = G__2087;
+      var G__2432 = seq__2428;
+      var G__2433 = chunk__2429;
+      var G__2434 = count__2430;
+      var G__2435 = i__2431 + 1;
+      seq__2428 = G__2432;
+      chunk__2429 = G__2433;
+      count__2430 = G__2434;
+      i__2431 = G__2435;
       continue;
     } else {
-      var temp__5825__auto__ = cljs.core.seq.call(null, seq__2080);
+      var temp__5825__auto__ = cljs.core.seq.call(null, seq__2428);
       if (temp__5825__auto__) {
-        var seq__2080__$1 = temp__5825__auto__;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2080__$1)) {
-          var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2080__$1);
-          var G__2088 = cljs.core.chunk_rest.call(null, seq__2080__$1);
-          var G__2089 = c__5525__auto__;
-          var G__2090 = cljs.core.count.call(null, c__5525__auto__);
-          var G__2091 = 0;
-          seq__2080 = G__2088;
-          chunk__2081 = G__2089;
-          count__2082 = G__2090;
-          i__2083 = G__2091;
+        var seq__2428__$1 = temp__5825__auto__;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2428__$1)) {
+          var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2428__$1);
+          var G__2436 = cljs.core.chunk_rest.call(null, seq__2428__$1);
+          var G__2437 = c__5525__auto__;
+          var G__2438 = cljs.core.count.call(null, c__5525__auto__);
+          var G__2439 = 0;
+          seq__2428 = G__2436;
+          chunk__2429 = G__2437;
+          count__2430 = G__2438;
+          i__2431 = G__2439;
           continue;
         } else {
-          var b = cljs.core.first.call(null, seq__2080__$1);
+          var b = cljs.core.first.call(null, seq__2428__$1);
           dacite.wire.binary.put_u8.call(null, buf, b);
-          var G__2092 = cljs.core.next.call(null, seq__2080__$1);
-          var G__2093 = null;
-          var G__2094 = 0;
-          var G__2095 = 0;
-          seq__2080 = G__2092;
-          chunk__2081 = G__2093;
-          count__2082 = G__2094;
-          i__2083 = G__2095;
+          var G__2440 = cljs.core.next.call(null, seq__2428__$1);
+          var G__2441 = null;
+          var G__2442 = 0;
+          var G__2443 = 0;
+          seq__2428 = G__2440;
+          chunk__2429 = G__2441;
+          count__2430 = G__2442;
+          i__2431 = G__2443;
           continue;
         }
       } else {
@@ -51676,49 +51951,49 @@ dacite.wire.binary.put_i64 = function dacite$wire$binary$put_i64(buf, n) {
   return dacite.wire.binary.put_u64.call(null, buf, dacite.host.word.call(null, n));
 };
 dacite.wire.binary.put_f64 = function dacite$wire$binary$put_f64(buf, x) {
-  var seq__2096 = cljs.core.seq.call(null, dacite.host.f64__GT_bytes.call(null, x));
-  var chunk__2097 = null;
-  var count__2098 = 0;
-  var i__2099 = 0;
+  var seq__2444 = cljs.core.seq.call(null, dacite.host.f64__GT_bytes.call(null, x));
+  var chunk__2445 = null;
+  var count__2446 = 0;
+  var i__2447 = 0;
   while (true) {
-    if (i__2099 < count__2098) {
-      var b = cljs.core._nth.call(null, chunk__2097, i__2099);
+    if (i__2447 < count__2446) {
+      var b = cljs.core._nth.call(null, chunk__2445, i__2447);
       dacite.wire.binary.put_u8.call(null, buf, b);
-      var G__2100 = seq__2096;
-      var G__2101 = chunk__2097;
-      var G__2102 = count__2098;
-      var G__2103 = i__2099 + 1;
-      seq__2096 = G__2100;
-      chunk__2097 = G__2101;
-      count__2098 = G__2102;
-      i__2099 = G__2103;
+      var G__2448 = seq__2444;
+      var G__2449 = chunk__2445;
+      var G__2450 = count__2446;
+      var G__2451 = i__2447 + 1;
+      seq__2444 = G__2448;
+      chunk__2445 = G__2449;
+      count__2446 = G__2450;
+      i__2447 = G__2451;
       continue;
     } else {
-      var temp__5825__auto__ = cljs.core.seq.call(null, seq__2096);
+      var temp__5825__auto__ = cljs.core.seq.call(null, seq__2444);
       if (temp__5825__auto__) {
-        var seq__2096__$1 = temp__5825__auto__;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2096__$1)) {
-          var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2096__$1);
-          var G__2104 = cljs.core.chunk_rest.call(null, seq__2096__$1);
-          var G__2105 = c__5525__auto__;
-          var G__2106 = cljs.core.count.call(null, c__5525__auto__);
-          var G__2107 = 0;
-          seq__2096 = G__2104;
-          chunk__2097 = G__2105;
-          count__2098 = G__2106;
-          i__2099 = G__2107;
+        var seq__2444__$1 = temp__5825__auto__;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2444__$1)) {
+          var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2444__$1);
+          var G__2452 = cljs.core.chunk_rest.call(null, seq__2444__$1);
+          var G__2453 = c__5525__auto__;
+          var G__2454 = cljs.core.count.call(null, c__5525__auto__);
+          var G__2455 = 0;
+          seq__2444 = G__2452;
+          chunk__2445 = G__2453;
+          count__2446 = G__2454;
+          i__2447 = G__2455;
           continue;
         } else {
-          var b = cljs.core.first.call(null, seq__2096__$1);
+          var b = cljs.core.first.call(null, seq__2444__$1);
           dacite.wire.binary.put_u8.call(null, buf, b);
-          var G__2108 = cljs.core.next.call(null, seq__2096__$1);
-          var G__2109 = null;
-          var G__2110 = 0;
-          var G__2111 = 0;
-          seq__2096 = G__2108;
-          chunk__2097 = G__2109;
-          count__2098 = G__2110;
-          i__2099 = G__2111;
+          var G__2456 = cljs.core.next.call(null, seq__2444__$1);
+          var G__2457 = null;
+          var G__2458 = 0;
+          var G__2459 = 0;
+          seq__2444 = G__2456;
+          chunk__2445 = G__2457;
+          count__2446 = G__2458;
+          i__2447 = G__2459;
           continue;
         }
       } else {
@@ -51729,49 +52004,49 @@ dacite.wire.binary.put_f64 = function dacite$wire$binary$put_f64(buf, x) {
   }
 };
 dacite.wire.binary.put_f32 = function dacite$wire$binary$put_f32(buf, x) {
-  var seq__2112 = cljs.core.seq.call(null, dacite.host.f32__GT_bytes.call(null, x));
-  var chunk__2113 = null;
-  var count__2114 = 0;
-  var i__2115 = 0;
+  var seq__2460 = cljs.core.seq.call(null, dacite.host.f32__GT_bytes.call(null, x));
+  var chunk__2461 = null;
+  var count__2462 = 0;
+  var i__2463 = 0;
   while (true) {
-    if (i__2115 < count__2114) {
-      var b = cljs.core._nth.call(null, chunk__2113, i__2115);
+    if (i__2463 < count__2462) {
+      var b = cljs.core._nth.call(null, chunk__2461, i__2463);
       dacite.wire.binary.put_u8.call(null, buf, b);
-      var G__2116 = seq__2112;
-      var G__2117 = chunk__2113;
-      var G__2118 = count__2114;
-      var G__2119 = i__2115 + 1;
-      seq__2112 = G__2116;
-      chunk__2113 = G__2117;
-      count__2114 = G__2118;
-      i__2115 = G__2119;
+      var G__2464 = seq__2460;
+      var G__2465 = chunk__2461;
+      var G__2466 = count__2462;
+      var G__2467 = i__2463 + 1;
+      seq__2460 = G__2464;
+      chunk__2461 = G__2465;
+      count__2462 = G__2466;
+      i__2463 = G__2467;
       continue;
     } else {
-      var temp__5825__auto__ = cljs.core.seq.call(null, seq__2112);
+      var temp__5825__auto__ = cljs.core.seq.call(null, seq__2460);
       if (temp__5825__auto__) {
-        var seq__2112__$1 = temp__5825__auto__;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2112__$1)) {
-          var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2112__$1);
-          var G__2120 = cljs.core.chunk_rest.call(null, seq__2112__$1);
-          var G__2121 = c__5525__auto__;
-          var G__2122 = cljs.core.count.call(null, c__5525__auto__);
-          var G__2123 = 0;
-          seq__2112 = G__2120;
-          chunk__2113 = G__2121;
-          count__2114 = G__2122;
-          i__2115 = G__2123;
+        var seq__2460__$1 = temp__5825__auto__;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2460__$1)) {
+          var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2460__$1);
+          var G__2468 = cljs.core.chunk_rest.call(null, seq__2460__$1);
+          var G__2469 = c__5525__auto__;
+          var G__2470 = cljs.core.count.call(null, c__5525__auto__);
+          var G__2471 = 0;
+          seq__2460 = G__2468;
+          chunk__2461 = G__2469;
+          count__2462 = G__2470;
+          i__2463 = G__2471;
           continue;
         } else {
-          var b = cljs.core.first.call(null, seq__2112__$1);
+          var b = cljs.core.first.call(null, seq__2460__$1);
           dacite.wire.binary.put_u8.call(null, buf, b);
-          var G__2124 = cljs.core.next.call(null, seq__2112__$1);
-          var G__2125 = null;
-          var G__2126 = 0;
-          var G__2127 = 0;
-          seq__2112 = G__2124;
-          chunk__2113 = G__2125;
-          count__2114 = G__2126;
-          i__2115 = G__2127;
+          var G__2472 = cljs.core.next.call(null, seq__2460__$1);
+          var G__2473 = null;
+          var G__2474 = 0;
+          var G__2475 = 0;
+          seq__2460 = G__2472;
+          chunk__2461 = G__2473;
+          count__2462 = G__2474;
+          i__2463 = G__2475;
           continue;
         }
       } else {
@@ -51782,49 +52057,49 @@ dacite.wire.binary.put_f32 = function dacite$wire$binary$put_f32(buf, x) {
   }
 };
 dacite.wire.binary.put_int_be = function dacite$wire$binary$put_int_be(buf, n, width) {
-  var seq__2128 = cljs.core.seq.call(null, dacite.host.int__GT_bytes_be.call(null, n, width));
-  var chunk__2129 = null;
-  var count__2130 = 0;
-  var i__2131 = 0;
+  var seq__2476 = cljs.core.seq.call(null, dacite.host.int__GT_bytes_be.call(null, n, width));
+  var chunk__2477 = null;
+  var count__2478 = 0;
+  var i__2479 = 0;
   while (true) {
-    if (i__2131 < count__2130) {
-      var b = cljs.core._nth.call(null, chunk__2129, i__2131);
+    if (i__2479 < count__2478) {
+      var b = cljs.core._nth.call(null, chunk__2477, i__2479);
       dacite.wire.binary.put_u8.call(null, buf, b);
-      var G__2132 = seq__2128;
-      var G__2133 = chunk__2129;
-      var G__2134 = count__2130;
-      var G__2135 = i__2131 + 1;
-      seq__2128 = G__2132;
-      chunk__2129 = G__2133;
-      count__2130 = G__2134;
-      i__2131 = G__2135;
+      var G__2480 = seq__2476;
+      var G__2481 = chunk__2477;
+      var G__2482 = count__2478;
+      var G__2483 = i__2479 + 1;
+      seq__2476 = G__2480;
+      chunk__2477 = G__2481;
+      count__2478 = G__2482;
+      i__2479 = G__2483;
       continue;
     } else {
-      var temp__5825__auto__ = cljs.core.seq.call(null, seq__2128);
+      var temp__5825__auto__ = cljs.core.seq.call(null, seq__2476);
       if (temp__5825__auto__) {
-        var seq__2128__$1 = temp__5825__auto__;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2128__$1)) {
-          var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2128__$1);
-          var G__2136 = cljs.core.chunk_rest.call(null, seq__2128__$1);
-          var G__2137 = c__5525__auto__;
-          var G__2138 = cljs.core.count.call(null, c__5525__auto__);
-          var G__2139 = 0;
-          seq__2128 = G__2136;
-          chunk__2129 = G__2137;
-          count__2130 = G__2138;
-          i__2131 = G__2139;
+        var seq__2476__$1 = temp__5825__auto__;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2476__$1)) {
+          var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__2476__$1);
+          var G__2484 = cljs.core.chunk_rest.call(null, seq__2476__$1);
+          var G__2485 = c__5525__auto__;
+          var G__2486 = cljs.core.count.call(null, c__5525__auto__);
+          var G__2487 = 0;
+          seq__2476 = G__2484;
+          chunk__2477 = G__2485;
+          count__2478 = G__2486;
+          i__2479 = G__2487;
           continue;
         } else {
-          var b = cljs.core.first.call(null, seq__2128__$1);
+          var b = cljs.core.first.call(null, seq__2476__$1);
           dacite.wire.binary.put_u8.call(null, buf, b);
-          var G__2140 = cljs.core.next.call(null, seq__2128__$1);
-          var G__2141 = null;
-          var G__2142 = 0;
-          var G__2143 = 0;
-          seq__2128 = G__2140;
-          chunk__2129 = G__2141;
-          count__2130 = G__2142;
-          i__2131 = G__2143;
+          var G__2488 = cljs.core.next.call(null, seq__2476__$1);
+          var G__2489 = null;
+          var G__2490 = 0;
+          var G__2491 = 0;
+          seq__2476 = G__2488;
+          chunk__2477 = G__2489;
+          count__2478 = G__2490;
+          i__2479 = G__2491;
           continue;
         }
       } else {
@@ -51844,10 +52119,10 @@ dacite.wire.binary.signed_from_be = function dacite$wire$binary$signed_from_be(b
       if (cljs.core._EQ_.call(null, i, n)) {
         return acc;
       } else {
-        var G__2144 = i + 1;
-        var G__2145 = acc * 256 + dacite.wire.binary.bget.call(null, bs__$1, i);
-        i = G__2144;
-        acc = G__2145;
+        var G__2492 = i + 1;
+        var G__2493 = acc * 256 + dacite.wire.binary.bget.call(null, bs__$1, i);
+        i = G__2492;
+        acc = G__2493;
         continue;
       }
       break;
@@ -51865,8 +52140,8 @@ dacite.wire.binary.unsigned_from_be = function dacite$wire$binary$unsigned_from_
   var bs__$1 = dacite.wire.binary.as_wire_bytes.call(null, bs);
   var n = dacite.wire.binary.byte_len.call(null, bs__$1);
   if (cljs.core._EQ_.call(null, n, 8)) {
-    return dacite.host.bytes__GT_word.call(null, cljs.core.mapv.call(null, function(p1__2146_SHARP_) {
-      return dacite.wire.binary.bget.call(null, bs__$1, p1__2146_SHARP_);
+    return dacite.host.bytes__GT_word.call(null, cljs.core.mapv.call(null, function(p1__2494_SHARP_) {
+      return dacite.wire.binary.bget.call(null, bs__$1, p1__2494_SHARP_);
     }, cljs.core.range.call(null, 8)));
   } else {
     var i = 0;
@@ -51875,10 +52150,10 @@ dacite.wire.binary.unsigned_from_be = function dacite$wire$binary$unsigned_from_
       if (cljs.core._EQ_.call(null, i, n)) {
         return acc;
       } else {
-        var G__2147 = i + 1;
-        var G__2148 = acc * 256 + dacite.wire.binary.bget.call(null, bs__$1, i);
-        i = G__2147;
-        acc = G__2148;
+        var G__2495 = i + 1;
+        var G__2496 = acc * 256 + dacite.wire.binary.bget.call(null, bs__$1, i);
+        i = G__2495;
+        acc = G__2496;
         continue;
       }
       break;
@@ -51892,13 +52167,13 @@ dacite.wire.binary.get_f32_from_bytes = function dacite$wire$binary$get_f32_from
     throw cljs.core.ex_info.call(null, "f32 data must be 4 bytes", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "n", "n", 562130025), dacite.wire.binary.byte_len.call(null, bs__$1)], null));
   }
   var dv = new DataView(new ArrayBuffer(4));
-  var n__5593__auto___2149 = 4;
-  var i_2150 = 0;
+  var n__5593__auto___2497 = 4;
+  var i_2498 = 0;
   while (true) {
-    if (i_2150 < n__5593__auto___2149) {
-      dv.setUint8(i_2150, dacite.wire.binary.bget.call(null, bs__$1, i_2150));
-      var G__2151 = i_2150 + 1;
-      i_2150 = G__2151;
+    if (i_2498 < n__5593__auto___2497) {
+      dv.setUint8(i_2498, dacite.wire.binary.bget.call(null, bs__$1, i_2498));
+      var G__2499 = i_2498 + 1;
+      i_2498 = G__2499;
       continue;
     } else {
     }
@@ -51920,8 +52195,8 @@ dacite.wire.binary.u256_wire__GT_body = function dacite$wire$binary$u256_wire__G
   } else {
     throw cljs.core.ex_info.call(null, "u256 must be 32 bytes", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "n", "n", 562130025), dacite.wire.binary.byte_len.call(null, bs__$1)], null));
   }
-  return cljs.core.mapv.call(null, function(p1__2152_SHARP_) {
-    return dacite.wire.binary.bget.call(null, bs__$1, p1__2152_SHARP_);
+  return cljs.core.mapv.call(null, function(p1__2500_SHARP_) {
+    return dacite.wire.binary.bget.call(null, bs__$1, p1__2500_SHARP_);
   }, cljs.core.range.call(null, 32));
 };
 dacite.wire.binary.put_bytes = function dacite$wire$binary$put_bytes(buf, bs) {
@@ -51929,13 +52204,13 @@ dacite.wire.binary.put_bytes = function dacite$wire$binary$put_bytes(buf, bs) {
   var n = dacite.wire.binary.byte_len.call(null, bs__$1);
   var p = cljs.core.deref.call(null, (new cljs.core.Keyword(null, "pos", "pos", -864607220)).cljs$core$IFn$_invoke$arity$1(buf));
   var arr = (new cljs.core.Keyword(null, "arr", "arr", 474961448)).cljs$core$IFn$_invoke$arity$1(buf);
-  var n__5593__auto___2153 = n;
-  var i_2154 = 0;
+  var n__5593__auto___2501 = n;
+  var i_2502 = 0;
   while (true) {
-    if (i_2154 < n__5593__auto___2153) {
-      dacite.wire.binary.bset.call(null, arr, p + i_2154, dacite.wire.binary.bget.call(null, bs__$1, i_2154));
-      var G__2155 = i_2154 + 1;
-      i_2154 = G__2155;
+    if (i_2502 < n__5593__auto___2501) {
+      dacite.wire.binary.bset.call(null, arr, p + i_2502, dacite.wire.binary.bget.call(null, bs__$1, i_2502));
+      var G__2503 = i_2502 + 1;
+      i_2502 = G__2503;
       continue;
     } else {
     }
@@ -51970,13 +52245,13 @@ dacite.wire.binary.get_f64 = function dacite$wire$binary$get_f64(buf) {
   dacite.wire.binary.ensure_remaining.call(null, buf, 8);
   var bs = new cljs.core.PersistentVector(null, 8, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.wire.binary.get_u8.call(null, buf), dacite.wire.binary.get_u8.call(null, buf), dacite.wire.binary.get_u8.call(null, buf), dacite.wire.binary.get_u8.call(null, buf), dacite.wire.binary.get_u8.call(null, buf), dacite.wire.binary.get_u8.call(null, buf), dacite.wire.binary.get_u8.call(null, buf), dacite.wire.binary.get_u8.call(null, buf)], null);
   var dv = new DataView(new ArrayBuffer(8));
-  var n__5593__auto___2156 = 8;
-  var i_2157 = 0;
+  var n__5593__auto___2504 = 8;
+  var i_2505 = 0;
   while (true) {
-    if (i_2157 < n__5593__auto___2156) {
-      dv.setUint8(i_2157, cljs.core.nth.call(null, bs, i_2157));
-      var G__2158 = i_2157 + 1;
-      i_2157 = G__2158;
+    if (i_2505 < n__5593__auto___2504) {
+      dv.setUint8(i_2505, cljs.core.nth.call(null, bs, i_2505));
+      var G__2506 = i_2505 + 1;
+      i_2505 = G__2506;
       continue;
     } else {
     }
@@ -51989,13 +52264,13 @@ dacite.wire.binary.get_bytes = function dacite$wire$binary$get_bytes(buf, n) {
   var a = dacite.wire.binary.make_bytes.call(null, n);
   var p = cljs.core.deref.call(null, (new cljs.core.Keyword(null, "pos", "pos", -864607220)).cljs$core$IFn$_invoke$arity$1(buf));
   var src = (new cljs.core.Keyword(null, "arr", "arr", 474961448)).cljs$core$IFn$_invoke$arity$1(buf);
-  var n__5593__auto___2159 = n;
-  var i_2160 = 0;
+  var n__5593__auto___2507 = n;
+  var i_2508 = 0;
   while (true) {
-    if (i_2160 < n__5593__auto___2159) {
-      dacite.wire.binary.bset.call(null, a, i_2160, dacite.wire.binary.bget.call(null, src, p + i_2160));
-      var G__2161 = i_2160 + 1;
-      i_2160 = G__2161;
+    if (i_2508 < n__5593__auto___2507) {
+      dacite.wire.binary.bset.call(null, a, i_2508, dacite.wire.binary.bget.call(null, src, p + i_2508));
+      var G__2509 = i_2508 + 1;
+      i_2508 = G__2509;
       continue;
     } else {
     }
@@ -52004,12 +52279,12 @@ dacite.wire.binary.get_bytes = function dacite$wire$binary$get_bytes(buf, n) {
   cljs.core.vreset_BANG_.call(null, (new cljs.core.Keyword(null, "pos", "pos", -864607220)).cljs$core$IFn$_invoke$arity$1(buf), p + n);
   return a;
 };
-dacite.wire.binary.put_hash = function dacite$wire$binary$put_hash(buf, p__2162) {
-  var vec__2163 = p__2162;
-  var a = cljs.core.nth.call(null, vec__2163, 0, null);
-  var b = cljs.core.nth.call(null, vec__2163, 1, null);
-  var c = cljs.core.nth.call(null, vec__2163, 2, null);
-  var d = cljs.core.nth.call(null, vec__2163, 3, null);
+dacite.wire.binary.put_hash = function dacite$wire$binary$put_hash(buf, p__2510) {
+  var vec__2511 = p__2510;
+  var a = cljs.core.nth.call(null, vec__2511, 0, null);
+  var b = cljs.core.nth.call(null, vec__2511, 1, null);
+  var c = cljs.core.nth.call(null, vec__2511, 2, null);
+  var d = cljs.core.nth.call(null, vec__2511, 3, null);
   dacite.wire.binary.put_u64.call(null, buf, a);
   dacite.wire.binary.put_u64.call(null, buf, b);
   dacite.wire.binary.put_u64.call(null, buf, c);
@@ -52029,34 +52304,34 @@ dacite.wire.binary.kind_scalar = 0;
 dacite.wire.binary.kind_ft = 1;
 dacite.wire.binary.kind_hamt = 2;
 dacite.wire.binary.kind_collection = 3;
-dacite.wire.binary.type_id__GT_name = cljs.core.PersistentHashMap.fromArrays([0, 65, 7, 1, 4, 48, 50, 32, 33, 13, 6, 64, 51, 34, 17, 3, 12, 2, 66, 11, 9, 5, 14, 16, 10, 8, 49], ["null", "hamt/entry", "i32", "bool", "f64", "ft/empty", "ft/node", "vector", "map", "u256", "i16", "hamt/empty", "ft/deep", "set", "blob", "i64", "f32", "char", "hamt/bitmap", "u64", "u16", "i8", "negative", "string", "u32", "u8", "ft/digit"]);
+dacite.wire.binary.type_id__GT_name = cljs.core.PersistentHashMap.fromArrays([0, 65, 7, 1, 4, 48, 50, 32, 33, 13, 6, 64, 51, 34, 17, 3, 12, 2, 66, 11, 9, 5, 14, 16, 81, 10, 80, 8, 49], ["null", "hamt/entry", "i32", "bool", "f64", "ft/empty", "ft/node", "vector", "map", "u256", "i16", "hamt/empty", "ft/deep", "set", "blob", "i64", "f32", "char", "hamt/bitmap", "u64", "u16", "i8", "negative", "string", "repeat", "u32", "run", "u8", "ft/digit"]);
 dacite.wire.binary.public_scalar_types = new cljs.core.PersistentHashSet(null, new cljs.core.PersistentArrayMap(null, 15, ["u16", null, "u256", null, "null", null, "negative", null, "u32", null, "u8", null, "bool", null, "char", null, "i64", null, "f64", null, "i16", null, "u64", null, "i8", null, "i32", null, "f32", null], null), null);
 dacite.wire.binary.public_value_types = cljs.core.into.call(null, dacite.wire.binary.public_scalar_types, new cljs.core.PersistentHashSet(null, new cljs.core.PersistentArrayMap(null, 5, ["map", null, "string", null, "blob", null, "vector", null, "set", null], null), null));
-dacite.wire.binary.name__GT_type_id = cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, cljs.core.map.call(null, function(p__2166) {
-  var vec__2167 = p__2166;
-  var k = cljs.core.nth.call(null, vec__2167, 0, null);
-  var v = cljs.core.nth.call(null, vec__2167, 1, null);
+dacite.wire.binary.name__GT_type_id = cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, cljs.core.map.call(null, function(p__2514) {
+  var vec__2515 = p__2514;
+  var k = cljs.core.nth.call(null, vec__2515, 0, null);
+  var v = cljs.core.nth.call(null, vec__2515, 1, null);
   return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [v, k], null);
 }, dacite.wire.binary.type_id__GT_name));
 dacite.wire.binary.coll_id__GT_name = new cljs.core.PersistentArrayMap(null, 5, [0, "vector", 1, "string", 2, "blob", 3, "map", 4, "set"], null);
-dacite.wire.binary.name__GT_coll_id = cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, cljs.core.map.call(null, function(p__2170) {
-  var vec__2171 = p__2170;
-  var k = cljs.core.nth.call(null, vec__2171, 0, null);
-  var v = cljs.core.nth.call(null, vec__2171, 1, null);
+dacite.wire.binary.name__GT_coll_id = cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, cljs.core.map.call(null, function(p__2518) {
+  var vec__2519 = p__2518;
+  var k = cljs.core.nth.call(null, vec__2519, 0, null);
+  var v = cljs.core.nth.call(null, vec__2519, 1, null);
   return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [v, k], null);
 }, dacite.wire.binary.coll_id__GT_name));
 dacite.wire.binary.ft_subtype__GT_name = new cljs.core.PersistentArrayMap(null, 4, [0, "ft/empty", 2, "ft/digit", 3, "ft/node", 4, "ft/deep"], null);
-dacite.wire.binary.name__GT_ft_subtype = cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, cljs.core.map.call(null, function(p__2174) {
-  var vec__2175 = p__2174;
-  var k = cljs.core.nth.call(null, vec__2175, 0, null);
-  var v = cljs.core.nth.call(null, vec__2175, 1, null);
+dacite.wire.binary.name__GT_ft_subtype = cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, cljs.core.map.call(null, function(p__2522) {
+  var vec__2523 = p__2522;
+  var k = cljs.core.nth.call(null, vec__2523, 0, null);
+  var v = cljs.core.nth.call(null, vec__2523, 1, null);
   return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [v, k], null);
 }, dacite.wire.binary.ft_subtype__GT_name));
 dacite.wire.binary.hamt_subtype__GT_name = new cljs.core.PersistentArrayMap(null, 3, [0, "hamt/empty", 1, "hamt/entry", 2, "hamt/bitmap"], null);
-dacite.wire.binary.name__GT_hamt_subtype = cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, cljs.core.map.call(null, function(p__2178) {
-  var vec__2179 = p__2178;
-  var k = cljs.core.nth.call(null, vec__2179, 0, null);
-  var v = cljs.core.nth.call(null, vec__2179, 1, null);
+dacite.wire.binary.name__GT_hamt_subtype = cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, cljs.core.map.call(null, function(p__2526) {
+  var vec__2527 = p__2526;
+  var k = cljs.core.nth.call(null, vec__2527, 0, null);
+  var v = cljs.core.nth.call(null, vec__2527, 1, null);
   return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [v, k], null);
 }, dacite.wire.binary.hamt_subtype__GT_name));
 dacite.wire.binary.bytes__GT_hex = function dacite$wire$binary$bytes__GT_hex(bs) {
@@ -52074,49 +52349,49 @@ dacite.wire.binary.hex__GT_bytes = function dacite$wire$binary$hex__GT_bytes(hex
     throw cljs.core.ex_info.call(null, "hex length must be even", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "n", "n", 562130025), n], null));
   }
   var a = dacite.wire.binary.make_bytes.call(null, cljs.core.quot.call(null, n, 2));
-  var seq__2182_2186 = cljs.core.seq.call(null, cljs.core.range.call(null, 0, n, 2));
-  var chunk__2183_2187 = null;
-  var count__2184_2188 = 0;
-  var i__2185_2189 = 0;
+  var seq__2530_2534 = cljs.core.seq.call(null, cljs.core.range.call(null, 0, n, 2));
+  var chunk__2531_2535 = null;
+  var count__2532_2536 = 0;
+  var i__2533_2537 = 0;
   while (true) {
-    if (i__2185_2189 < count__2184_2188) {
-      var i_2190 = cljs.core._nth.call(null, chunk__2183_2187, i__2185_2189);
-      dacite.wire.binary.bset.call(null, a, cljs.core.quot.call(null, i_2190, 2), parseInt(cljs.core.subs.call(null, s, i_2190, i_2190 + 2), 16));
-      var G__2191 = seq__2182_2186;
-      var G__2192 = chunk__2183_2187;
-      var G__2193 = count__2184_2188;
-      var G__2194 = i__2185_2189 + 1;
-      seq__2182_2186 = G__2191;
-      chunk__2183_2187 = G__2192;
-      count__2184_2188 = G__2193;
-      i__2185_2189 = G__2194;
+    if (i__2533_2537 < count__2532_2536) {
+      var i_2538 = cljs.core._nth.call(null, chunk__2531_2535, i__2533_2537);
+      dacite.wire.binary.bset.call(null, a, cljs.core.quot.call(null, i_2538, 2), parseInt(cljs.core.subs.call(null, s, i_2538, i_2538 + 2), 16));
+      var G__2539 = seq__2530_2534;
+      var G__2540 = chunk__2531_2535;
+      var G__2541 = count__2532_2536;
+      var G__2542 = i__2533_2537 + 1;
+      seq__2530_2534 = G__2539;
+      chunk__2531_2535 = G__2540;
+      count__2532_2536 = G__2541;
+      i__2533_2537 = G__2542;
       continue;
     } else {
-      var temp__5825__auto___2195 = cljs.core.seq.call(null, seq__2182_2186);
-      if (temp__5825__auto___2195) {
-        var seq__2182_2196__$1 = temp__5825__auto___2195;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2182_2196__$1)) {
-          var c__5525__auto___2197 = cljs.core.chunk_first.call(null, seq__2182_2196__$1);
-          var G__2198 = cljs.core.chunk_rest.call(null, seq__2182_2196__$1);
-          var G__2199 = c__5525__auto___2197;
-          var G__2200 = cljs.core.count.call(null, c__5525__auto___2197);
-          var G__2201 = 0;
-          seq__2182_2186 = G__2198;
-          chunk__2183_2187 = G__2199;
-          count__2184_2188 = G__2200;
-          i__2185_2189 = G__2201;
+      var temp__5825__auto___2543 = cljs.core.seq.call(null, seq__2530_2534);
+      if (temp__5825__auto___2543) {
+        var seq__2530_2544__$1 = temp__5825__auto___2543;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2530_2544__$1)) {
+          var c__5525__auto___2545 = cljs.core.chunk_first.call(null, seq__2530_2544__$1);
+          var G__2546 = cljs.core.chunk_rest.call(null, seq__2530_2544__$1);
+          var G__2547 = c__5525__auto___2545;
+          var G__2548 = cljs.core.count.call(null, c__5525__auto___2545);
+          var G__2549 = 0;
+          seq__2530_2534 = G__2546;
+          chunk__2531_2535 = G__2547;
+          count__2532_2536 = G__2548;
+          i__2533_2537 = G__2549;
           continue;
         } else {
-          var i_2202 = cljs.core.first.call(null, seq__2182_2196__$1);
-          dacite.wire.binary.bset.call(null, a, cljs.core.quot.call(null, i_2202, 2), parseInt(cljs.core.subs.call(null, s, i_2202, i_2202 + 2), 16));
-          var G__2203 = cljs.core.next.call(null, seq__2182_2196__$1);
-          var G__2204 = null;
-          var G__2205 = 0;
-          var G__2206 = 0;
-          seq__2182_2186 = G__2203;
-          chunk__2183_2187 = G__2204;
-          count__2184_2188 = G__2205;
-          i__2185_2189 = G__2206;
+          var i_2550 = cljs.core.first.call(null, seq__2530_2544__$1);
+          dacite.wire.binary.bset.call(null, a, cljs.core.quot.call(null, i_2550, 2), parseInt(cljs.core.subs.call(null, s, i_2550, i_2550 + 2), 16));
+          var G__2551 = cljs.core.next.call(null, seq__2530_2544__$1);
+          var G__2552 = null;
+          var G__2553 = 0;
+          var G__2554 = 0;
+          seq__2530_2534 = G__2551;
+          chunk__2531_2535 = G__2552;
+          count__2532_2536 = G__2553;
+          i__2533_2537 = G__2554;
           continue;
         }
       } else {
@@ -52143,12 +52418,12 @@ dacite.wire.binary.dac1_magic_QMARK_ = function dacite$wire$binary$dac1_magic_QM
   var bs__$1 = dacite.wire.binary.as_wire_bytes.call(null, bs);
   return dacite.wire.binary.byte_len.call(null, bs__$1) >= 4 && (cljs.core._EQ_.call(null, 68, dacite.wire.binary.bget.call(null, bs__$1, 0)) && (cljs.core._EQ_.call(null, 65, dacite.wire.binary.bget.call(null, bs__$1, 1)) && (cljs.core._EQ_.call(null, 67, dacite.wire.binary.bget.call(null, bs__$1, 2)) && cljs.core._EQ_.call(null, 49, dacite.wire.binary.bget.call(null, bs__$1, 3)))));
 };
-dacite.wire.binary.put_measure = function dacite$wire$binary$put_measure(buf, p__2207) {
-  var map__2208 = p__2207;
-  var map__2208__$1 = cljs.core.__destructure_map.call(null, map__2208);
-  var count = cljs.core.get.call(null, map__2208__$1, new cljs.core.Keyword(null, "count", "count", 2139924085));
-  var size_bytes = cljs.core.get.call(null, map__2208__$1, new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324));
-  var elements_fuse = cljs.core.get.call(null, map__2208__$1, new cljs.core.Keyword(null, "elements-fuse", "elements-fuse", 1651775184));
+dacite.wire.binary.put_measure = function dacite$wire$binary$put_measure(buf, p__2555) {
+  var map__2556 = p__2555;
+  var map__2556__$1 = cljs.core.__destructure_map.call(null, map__2556);
+  var count = cljs.core.get.call(null, map__2556__$1, new cljs.core.Keyword(null, "count", "count", 2139924085));
+  var size_bytes = cljs.core.get.call(null, map__2556__$1, new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324));
+  var elements_fuse = cljs.core.get.call(null, map__2556__$1, new cljs.core.Keyword(null, "elements-fuse", "elements-fuse", 1651775184));
   dacite.wire.binary.put_u64.call(null, buf, function() {
     var or__5002__auto__ = count;
     if (cljs.core.truth_(or__5002__auto__)) {
@@ -52173,20 +52448,172 @@ dacite.wire.binary.get_count = function dacite$wire$binary$get_count(buf) {
 dacite.wire.binary.get_measure = function dacite$wire$binary$get_measure(buf) {
   return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "count", "count", 2139924085), dacite.wire.binary.get_count.call(null, buf), new cljs.core.Keyword(null, "size-bytes", "size-bytes", 2109643324), dacite.wire.binary.get_count.call(null, buf), new cljs.core.Keyword(null, "elements-fuse", "elements-fuse", 1651775184), dacite.wire.binary.get_hash.call(null, buf)], null);
 };
+dacite.wire.binary.concat_wire_bytes = function dacite$wire$binary$concat_wire_bytes(bss) {
+  var bss__$1 = cljs.core.mapv.call(null, dacite.wire.binary.as_wire_bytes, bss);
+  var n = cljs.core.reduce.call(null, cljs.core._PLUS_, 0, cljs.core.map.call(null, dacite.wire.binary.byte_len, bss__$1));
+  var out = dacite.wire.binary.make_bytes.call(null, n);
+  var i = 0;
+  var idx = 0;
+  while (true) {
+    if (cljs.core._EQ_.call(null, i, cljs.core.count.call(null, bss__$1))) {
+      return out;
+    } else {
+      var bs = cljs.core.nth.call(null, bss__$1, i);
+      var m = dacite.wire.binary.byte_len.call(null, bs);
+      var n__5593__auto___2557 = m;
+      var j_2558 = 0;
+      while (true) {
+        if (j_2558 < n__5593__auto___2557) {
+          dacite.wire.binary.bset.call(null, out, idx + j_2558, dacite.wire.binary.bget.call(null, bs, j_2558));
+          var G__2559 = j_2558 + 1;
+          j_2558 = G__2559;
+          continue;
+        } else {
+        }
+        break;
+      }
+      var G__2560 = i + 1;
+      var G__2561 = idx + m;
+      i = G__2560;
+      idx = G__2561;
+      continue;
+    }
+    break;
+  }
+};
+dacite.wire.binary.drop_first_byte = function dacite$wire$binary$drop_first_byte(bs) {
+  var bs__$1 = dacite.wire.binary.as_wire_bytes.call(null, bs);
+  var n = dacite.wire.binary.byte_len.call(null, bs__$1) - 1;
+  if (dacite.wire.binary.byte_len.call(null, bs__$1) > 0) {
+  } else {
+    throw cljs.core.ex_info.call(null, "empty literal bytes", cljs.core.PersistentArrayMap.EMPTY);
+  }
+  var out = dacite.wire.binary.make_bytes.call(null, function() {
+    var x__5087__auto__ = 0;
+    var y__5088__auto__ = n;
+    return x__5087__auto__ > y__5088__auto__ ? x__5087__auto__ : y__5088__auto__;
+  }());
+  var n__5593__auto___2562 = n;
+  var i_2563 = 0;
+  while (true) {
+    if (i_2563 < n__5593__auto___2562) {
+      dacite.wire.binary.bset.call(null, out, i_2563, dacite.wire.binary.bget.call(null, bs__$1, i_2563 + 1));
+      var G__2564 = i_2563 + 1;
+      i_2563 = G__2564;
+      continue;
+    } else {
+    }
+    break;
+  }
+  return out;
+};
 dacite.wire.binary.utf8_wire = function dacite$wire$binary$utf8_wire(s) {
   return dacite.wire.binary.as_wire_bytes.call(null, dacite.host.utf8_bytes.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(s)));
 };
 dacite.wire.binary.utf8_from_wire = function dacite$wire$binary$utf8_from_wire(bs) {
-  return dacite.host.utf8_decode.call(null, cljs.core.mapv.call(null, function(p1__2209_SHARP_) {
-    return dacite.wire.binary.bget.call(null, bs, p1__2209_SHARP_);
+  return dacite.host.utf8_decode.call(null, cljs.core.mapv.call(null, function(p1__2565_SHARP_) {
+    return dacite.wire.binary.bget.call(null, bs, p1__2565_SHARP_);
   }, cljs.core.range.call(null, dacite.wire.binary.byte_len.call(null, bs))));
 };
-dacite.wire.binary.encode_lit_bytes = function dacite$wire$binary$encode_lit_bytes(p__2210) {
-  var map__2211 = p__2210;
-  var map__2211__$1 = cljs.core.__destructure_map.call(null, map__2211);
-  var form = map__2211__$1;
-  var type = cljs.core.get.call(null, map__2211__$1, new cljs.core.Keyword(null, "type", "type", 1174270348));
-  var body = cljs.core.get.call(null, map__2211__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+dacite.wire.binary.encode_inner_payload = function dacite$wire$binary$encode_inner_payload(of, v) {
+  return dacite.wire.binary.drop_first_byte.call(null, dacite.wire.binary.encode_lit_bytes.call(null, new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), of, new cljs.core.Keyword(null, "body", "body", -2049205669), v], null)));
+};
+dacite.wire.binary.encode_run_packed = function dacite$wire$binary$encode_run_packed(of, n, values) {
+  var of__$1 = cljs.core.str.cljs$core$IFn$_invoke$arity$1(of);
+  var G__2567 = of__$1;
+  switch(G__2567) {
+    case "char":
+      var s = cljs.core.str.cljs$core$IFn$_invoke$arity$1(values);
+      var bs = dacite.wire.binary.utf8_wire.call(null, s);
+      var buf = dacite.wire.binary.bb.call(null, 4 + dacite.wire.binary.byte_len.call(null, bs));
+      dacite.wire.binary.put_u32.call(null, buf, dacite.wire.binary.byte_len.call(null, bs));
+      dacite.wire.binary.put_bytes.call(null, buf, bs);
+      return dacite.wire.binary.finish.call(null, buf);
+      break;
+    case "u8":
+      var vals = cljs.core.vec.call(null, function() {
+        var or__5002__auto__ = values;
+        if (cljs.core.truth_(or__5002__auto__)) {
+          return or__5002__auto__;
+        } else {
+          return cljs.core.PersistentVector.EMPTY;
+        }
+      }());
+      var buf = dacite.wire.binary.bb.call(null, cljs.core.count.call(null, vals));
+      var seq__2568_2573 = cljs.core.seq.call(null, vals);
+      var chunk__2569_2574 = null;
+      var count__2570_2575 = 0;
+      var i__2571_2576 = 0;
+      while (true) {
+        if (i__2571_2576 < count__2570_2575) {
+          var x_2577 = cljs.core._nth.call(null, chunk__2569_2574, i__2571_2576);
+          dacite.wire.binary.put_u8.call(null, buf, 255 & (x_2577 | 0));
+          var G__2578 = seq__2568_2573;
+          var G__2579 = chunk__2569_2574;
+          var G__2580 = count__2570_2575;
+          var G__2581 = i__2571_2576 + 1;
+          seq__2568_2573 = G__2578;
+          chunk__2569_2574 = G__2579;
+          count__2570_2575 = G__2580;
+          i__2571_2576 = G__2581;
+          continue;
+        } else {
+          var temp__5825__auto___2582 = cljs.core.seq.call(null, seq__2568_2573);
+          if (temp__5825__auto___2582) {
+            var seq__2568_2583__$1 = temp__5825__auto___2582;
+            if (cljs.core.chunked_seq_QMARK_.call(null, seq__2568_2583__$1)) {
+              var c__5525__auto___2584 = cljs.core.chunk_first.call(null, seq__2568_2583__$1);
+              var G__2585 = cljs.core.chunk_rest.call(null, seq__2568_2583__$1);
+              var G__2586 = c__5525__auto___2584;
+              var G__2587 = cljs.core.count.call(null, c__5525__auto___2584);
+              var G__2588 = 0;
+              seq__2568_2573 = G__2585;
+              chunk__2569_2574 = G__2586;
+              count__2570_2575 = G__2587;
+              i__2571_2576 = G__2588;
+              continue;
+            } else {
+              var x_2589 = cljs.core.first.call(null, seq__2568_2583__$1);
+              dacite.wire.binary.put_u8.call(null, buf, 255 & (x_2589 | 0));
+              var G__2590 = cljs.core.next.call(null, seq__2568_2583__$1);
+              var G__2591 = null;
+              var G__2592 = 0;
+              var G__2593 = 0;
+              seq__2568_2573 = G__2590;
+              chunk__2569_2574 = G__2591;
+              count__2570_2575 = G__2592;
+              i__2571_2576 = G__2593;
+              continue;
+            }
+          } else {
+          }
+        }
+        break;
+      }
+      return dacite.wire.binary.finish.call(null, buf);
+      break;
+    default:
+      return dacite.wire.binary.concat_wire_bytes.call(null, cljs.core.mapv.call(null, function(p1__2566_SHARP_) {
+        return dacite.wire.binary.encode_inner_payload.call(null, of__$1, p1__2566_SHARP_);
+      }, function() {
+        var or__5002__auto__ = values;
+        if (cljs.core.truth_(or__5002__auto__)) {
+          return or__5002__auto__;
+        } else {
+          return cljs.core.PersistentVector.EMPTY;
+        }
+      }()));
+  }
+};
+dacite.wire.binary.encode_repeat_packed = function dacite$wire$binary$encode_repeat_packed(of, value) {
+  return dacite.wire.binary.encode_inner_payload.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(of), value);
+};
+dacite.wire.binary.encode_lit_bytes = function dacite$wire$binary$encode_lit_bytes(p__2594) {
+  var map__2595 = p__2594;
+  var map__2595__$1 = cljs.core.__destructure_map.call(null, map__2595);
+  var form = map__2595__$1;
+  var type = cljs.core.get.call(null, map__2595__$1, new cljs.core.Keyword(null, "type", "type", 1174270348));
+  var body = cljs.core.get.call(null, map__2595__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
   var tid = function() {
     var or__5002__auto__ = dacite.wire.binary.name__GT_type_id.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(type));
     if (cljs.core.truth_(or__5002__auto__)) {
@@ -52195,8 +52622,8 @@ dacite.wire.binary.encode_lit_bytes = function dacite$wire$binary$encode_lit_byt
       throw cljs.core.ex_info.call(null, "unknown literal type", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "type", "type", 1174270348), type], null));
     }
   }();
-  var G__2212 = cljs.core.str.cljs$core$IFn$_invoke$arity$1(type);
-  switch(G__2212) {
+  var G__2596 = cljs.core.str.cljs$core$IFn$_invoke$arity$1(type);
+  switch(G__2596) {
     case "null":
       return dacite.wire.binary.as_wire_bytes.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [tid], null));
       break;
@@ -52317,49 +52744,49 @@ dacite.wire.binary.encode_lit_bytes = function dacite$wire$binary$encode_lit_byt
       var buf = dacite.wire.binary.bb.call(null, total);
       dacite.wire.binary.put_u8.call(null, buf, tid);
       dacite.wire.binary.put_u32.call(null, buf, cljs.core.count.call(null, children));
-      var seq__2213_2238 = cljs.core.seq.call(null, children);
-      var chunk__2214_2239 = null;
-      var count__2215_2240 = 0;
-      var i__2216_2241 = 0;
+      var seq__2597_2622 = cljs.core.seq.call(null, children);
+      var chunk__2598_2623 = null;
+      var count__2599_2624 = 0;
+      var i__2600_2625 = 0;
       while (true) {
-        if (i__2216_2241 < count__2215_2240) {
-          var c_2242 = cljs.core._nth.call(null, chunk__2214_2239, i__2216_2241);
-          dacite.wire.binary.put_bytes.call(null, buf, c_2242);
-          var G__2243 = seq__2213_2238;
-          var G__2244 = chunk__2214_2239;
-          var G__2245 = count__2215_2240;
-          var G__2246 = i__2216_2241 + 1;
-          seq__2213_2238 = G__2243;
-          chunk__2214_2239 = G__2244;
-          count__2215_2240 = G__2245;
-          i__2216_2241 = G__2246;
+        if (i__2600_2625 < count__2599_2624) {
+          var c_2626 = cljs.core._nth.call(null, chunk__2598_2623, i__2600_2625);
+          dacite.wire.binary.put_bytes.call(null, buf, c_2626);
+          var G__2627 = seq__2597_2622;
+          var G__2628 = chunk__2598_2623;
+          var G__2629 = count__2599_2624;
+          var G__2630 = i__2600_2625 + 1;
+          seq__2597_2622 = G__2627;
+          chunk__2598_2623 = G__2628;
+          count__2599_2624 = G__2629;
+          i__2600_2625 = G__2630;
           continue;
         } else {
-          var temp__5825__auto___2247 = cljs.core.seq.call(null, seq__2213_2238);
-          if (temp__5825__auto___2247) {
-            var seq__2213_2248__$1 = temp__5825__auto___2247;
-            if (cljs.core.chunked_seq_QMARK_.call(null, seq__2213_2248__$1)) {
-              var c__5525__auto___2249 = cljs.core.chunk_first.call(null, seq__2213_2248__$1);
-              var G__2250 = cljs.core.chunk_rest.call(null, seq__2213_2248__$1);
-              var G__2251 = c__5525__auto___2249;
-              var G__2252 = cljs.core.count.call(null, c__5525__auto___2249);
-              var G__2253 = 0;
-              seq__2213_2238 = G__2250;
-              chunk__2214_2239 = G__2251;
-              count__2215_2240 = G__2252;
-              i__2216_2241 = G__2253;
+          var temp__5825__auto___2631 = cljs.core.seq.call(null, seq__2597_2622);
+          if (temp__5825__auto___2631) {
+            var seq__2597_2632__$1 = temp__5825__auto___2631;
+            if (cljs.core.chunked_seq_QMARK_.call(null, seq__2597_2632__$1)) {
+              var c__5525__auto___2633 = cljs.core.chunk_first.call(null, seq__2597_2632__$1);
+              var G__2634 = cljs.core.chunk_rest.call(null, seq__2597_2632__$1);
+              var G__2635 = c__5525__auto___2633;
+              var G__2636 = cljs.core.count.call(null, c__5525__auto___2633);
+              var G__2637 = 0;
+              seq__2597_2622 = G__2634;
+              chunk__2598_2623 = G__2635;
+              count__2599_2624 = G__2636;
+              i__2600_2625 = G__2637;
               continue;
             } else {
-              var c_2254 = cljs.core.first.call(null, seq__2213_2248__$1);
-              dacite.wire.binary.put_bytes.call(null, buf, c_2254);
-              var G__2255 = cljs.core.next.call(null, seq__2213_2248__$1);
-              var G__2256 = null;
-              var G__2257 = 0;
-              var G__2258 = 0;
-              seq__2213_2238 = G__2255;
-              chunk__2214_2239 = G__2256;
-              count__2215_2240 = G__2257;
-              i__2216_2241 = G__2258;
+              var c_2638 = cljs.core.first.call(null, seq__2597_2632__$1);
+              dacite.wire.binary.put_bytes.call(null, buf, c_2638);
+              var G__2639 = cljs.core.next.call(null, seq__2597_2632__$1);
+              var G__2640 = null;
+              var G__2641 = 0;
+              var G__2642 = 0;
+              seq__2597_2622 = G__2639;
+              chunk__2598_2623 = G__2640;
+              count__2599_2624 = G__2641;
+              i__2600_2625 = G__2642;
               continue;
             }
           } else {
@@ -52385,64 +52812,64 @@ dacite.wire.binary.encode_lit_bytes = function dacite$wire$binary$encode_lit_byt
           return cljs.core.PersistentVector.EMPTY;
         }
       }());
-      var total = cljs.core.reduce.call(null, cljs.core._PLUS_, 5, cljs.core.map.call(null, function(p__2217) {
-        var vec__2218 = p__2217;
-        var k = cljs.core.nth.call(null, vec__2218, 0, null);
-        var v = cljs.core.nth.call(null, vec__2218, 1, null);
+      var total = cljs.core.reduce.call(null, cljs.core._PLUS_, 5, cljs.core.map.call(null, function(p__2601) {
+        var vec__2602 = p__2601;
+        var k = cljs.core.nth.call(null, vec__2602, 0, null);
+        var v = cljs.core.nth.call(null, vec__2602, 1, null);
         return dacite.wire.binary.byte_len.call(null, k) + dacite.wire.binary.byte_len.call(null, v);
       }, pairs));
       var buf = dacite.wire.binary.bb.call(null, total);
       dacite.wire.binary.put_u8.call(null, buf, tid);
       dacite.wire.binary.put_u32.call(null, buf, cljs.core.count.call(null, pairs));
-      var seq__2221_2259 = cljs.core.seq.call(null, pairs);
-      var chunk__2222_2260 = null;
-      var count__2223_2261 = 0;
-      var i__2224_2262 = 0;
+      var seq__2605_2643 = cljs.core.seq.call(null, pairs);
+      var chunk__2606_2644 = null;
+      var count__2607_2645 = 0;
+      var i__2608_2646 = 0;
       while (true) {
-        if (i__2224_2262 < count__2223_2261) {
-          var vec__2231_2263 = cljs.core._nth.call(null, chunk__2222_2260, i__2224_2262);
-          var k_2264 = cljs.core.nth.call(null, vec__2231_2263, 0, null);
-          var v_2265 = cljs.core.nth.call(null, vec__2231_2263, 1, null);
-          dacite.wire.binary.put_bytes.call(null, buf, k_2264);
-          dacite.wire.binary.put_bytes.call(null, buf, v_2265);
-          var G__2266 = seq__2221_2259;
-          var G__2267 = chunk__2222_2260;
-          var G__2268 = count__2223_2261;
-          var G__2269 = i__2224_2262 + 1;
-          seq__2221_2259 = G__2266;
-          chunk__2222_2260 = G__2267;
-          count__2223_2261 = G__2268;
-          i__2224_2262 = G__2269;
+        if (i__2608_2646 < count__2607_2645) {
+          var vec__2615_2647 = cljs.core._nth.call(null, chunk__2606_2644, i__2608_2646);
+          var k_2648 = cljs.core.nth.call(null, vec__2615_2647, 0, null);
+          var v_2649 = cljs.core.nth.call(null, vec__2615_2647, 1, null);
+          dacite.wire.binary.put_bytes.call(null, buf, k_2648);
+          dacite.wire.binary.put_bytes.call(null, buf, v_2649);
+          var G__2650 = seq__2605_2643;
+          var G__2651 = chunk__2606_2644;
+          var G__2652 = count__2607_2645;
+          var G__2653 = i__2608_2646 + 1;
+          seq__2605_2643 = G__2650;
+          chunk__2606_2644 = G__2651;
+          count__2607_2645 = G__2652;
+          i__2608_2646 = G__2653;
           continue;
         } else {
-          var temp__5825__auto___2270 = cljs.core.seq.call(null, seq__2221_2259);
-          if (temp__5825__auto___2270) {
-            var seq__2221_2271__$1 = temp__5825__auto___2270;
-            if (cljs.core.chunked_seq_QMARK_.call(null, seq__2221_2271__$1)) {
-              var c__5525__auto___2272 = cljs.core.chunk_first.call(null, seq__2221_2271__$1);
-              var G__2273 = cljs.core.chunk_rest.call(null, seq__2221_2271__$1);
-              var G__2274 = c__5525__auto___2272;
-              var G__2275 = cljs.core.count.call(null, c__5525__auto___2272);
-              var G__2276 = 0;
-              seq__2221_2259 = G__2273;
-              chunk__2222_2260 = G__2274;
-              count__2223_2261 = G__2275;
-              i__2224_2262 = G__2276;
+          var temp__5825__auto___2654 = cljs.core.seq.call(null, seq__2605_2643);
+          if (temp__5825__auto___2654) {
+            var seq__2605_2655__$1 = temp__5825__auto___2654;
+            if (cljs.core.chunked_seq_QMARK_.call(null, seq__2605_2655__$1)) {
+              var c__5525__auto___2656 = cljs.core.chunk_first.call(null, seq__2605_2655__$1);
+              var G__2657 = cljs.core.chunk_rest.call(null, seq__2605_2655__$1);
+              var G__2658 = c__5525__auto___2656;
+              var G__2659 = cljs.core.count.call(null, c__5525__auto___2656);
+              var G__2660 = 0;
+              seq__2605_2643 = G__2657;
+              chunk__2606_2644 = G__2658;
+              count__2607_2645 = G__2659;
+              i__2608_2646 = G__2660;
               continue;
             } else {
-              var vec__2234_2277 = cljs.core.first.call(null, seq__2221_2271__$1);
-              var k_2278 = cljs.core.nth.call(null, vec__2234_2277, 0, null);
-              var v_2279 = cljs.core.nth.call(null, vec__2234_2277, 1, null);
-              dacite.wire.binary.put_bytes.call(null, buf, k_2278);
-              dacite.wire.binary.put_bytes.call(null, buf, v_2279);
-              var G__2280 = cljs.core.next.call(null, seq__2221_2271__$1);
-              var G__2281 = null;
-              var G__2282 = 0;
-              var G__2283 = 0;
-              seq__2221_2259 = G__2280;
-              chunk__2222_2260 = G__2281;
-              count__2223_2261 = G__2282;
-              i__2224_2262 = G__2283;
+              var vec__2618_2661 = cljs.core.first.call(null, seq__2605_2655__$1);
+              var k_2662 = cljs.core.nth.call(null, vec__2618_2661, 0, null);
+              var v_2663 = cljs.core.nth.call(null, vec__2618_2661, 1, null);
+              dacite.wire.binary.put_bytes.call(null, buf, k_2662);
+              dacite.wire.binary.put_bytes.call(null, buf, v_2663);
+              var G__2664 = cljs.core.next.call(null, seq__2605_2655__$1);
+              var G__2665 = null;
+              var G__2666 = 0;
+              var G__2667 = 0;
+              seq__2605_2643 = G__2664;
+              chunk__2606_2644 = G__2665;
+              count__2607_2645 = G__2666;
+              i__2608_2646 = G__2667;
               continue;
             }
           } else {
@@ -52461,8 +52888,217 @@ dacite.wire.binary.encode_lit_bytes = function dacite$wire$binary$encode_lit_byt
       dacite.wire.binary.put_bytes.call(null, buf, vb);
       return dacite.wire.binary.finish.call(null, buf);
       break;
+    case "run":
+      var of = cljs.core.str.cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "of", "of", -2075414212)).cljs$core$IFn$_invoke$arity$1(body));
+      var values = (new cljs.core.Keyword(null, "values", "values", 372645556)).cljs$core$IFn$_invoke$arity$1(body);
+      var inner = function() {
+        var or__5002__auto__ = dacite.wire.binary.name__GT_type_id.call(null, of);
+        if (cljs.core.truth_(or__5002__auto__)) {
+          return or__5002__auto__;
+        } else {
+          throw cljs.core.ex_info.call(null, "unknown run inner type", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "of", "of", -2075414212), of], null));
+        }
+      }();
+      var n = cljs.core._EQ_.call(null, of, "char") ? cljs.core.str.cljs$core$IFn$_invoke$arity$1(values).length : cljs.core.count.call(null, function() {
+        var or__5002__auto__ = values;
+        if (cljs.core.truth_(or__5002__auto__)) {
+          return or__5002__auto__;
+        } else {
+          return cljs.core.PersistentVector.EMPTY;
+        }
+      }());
+      var packed = dacite.wire.binary.encode_run_packed.call(null, of, n, values);
+      var buf = dacite.wire.binary.bb.call(null, 1 + 1 + 4 + dacite.wire.binary.byte_len.call(null, packed));
+      dacite.wire.binary.put_u8.call(null, buf, tid);
+      dacite.wire.binary.put_u8.call(null, buf, inner);
+      dacite.wire.binary.put_u32.call(null, buf, n);
+      dacite.wire.binary.put_bytes.call(null, buf, packed);
+      return dacite.wire.binary.finish.call(null, buf);
+      break;
+    case "repeat":
+      var of = cljs.core.str.cljs$core$IFn$_invoke$arity$1((new cljs.core.Keyword(null, "of", "of", -2075414212)).cljs$core$IFn$_invoke$arity$1(body));
+      var n = cljs.core.long$.call(null, function() {
+        var or__5002__auto__ = (new cljs.core.Keyword(null, "n", "n", 562130025)).cljs$core$IFn$_invoke$arity$1(body);
+        if (cljs.core.truth_(or__5002__auto__)) {
+          return or__5002__auto__;
+        } else {
+          return 0;
+        }
+      }());
+      var inner = function() {
+        var or__5002__auto__ = dacite.wire.binary.name__GT_type_id.call(null, of);
+        if (cljs.core.truth_(or__5002__auto__)) {
+          return or__5002__auto__;
+        } else {
+          throw cljs.core.ex_info.call(null, "unknown repeat inner type", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "of", "of", -2075414212), of], null));
+        }
+      }();
+      var packed = dacite.wire.binary.encode_repeat_packed.call(null, of, (new cljs.core.Keyword(null, "value", "value", 305978217)).cljs$core$IFn$_invoke$arity$1(body));
+      var buf = dacite.wire.binary.bb.call(null, 1 + 1 + 4 + dacite.wire.binary.byte_len.call(null, packed));
+      dacite.wire.binary.put_u8.call(null, buf, tid);
+      dacite.wire.binary.put_u8.call(null, buf, inner);
+      dacite.wire.binary.put_u32.call(null, buf, n);
+      dacite.wire.binary.put_bytes.call(null, buf, packed);
+      return dacite.wire.binary.finish.call(null, buf);
+      break;
     default:
       throw cljs.core.ex_info.call(null, "unsupported literal type", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), type, new cljs.core.Keyword(null, "form", "form", -1624062471), form], null));
+  }
+};
+dacite.wire.binary.decode_run_values = function dacite$wire$binary$decode_run_values(of, n, buf) {
+  var of__$1 = cljs.core.str.cljs$core$IFn$_invoke$arity$1(of);
+  var n__$1 = n | 0;
+  var G__2669 = of__$1;
+  switch(G__2669) {
+    case "char":
+      var blen = dacite.wire.binary.get_u32.call(null, buf) | 0;
+      var bs = dacite.wire.binary.get_bytes.call(null, buf, blen);
+      var s = dacite.wire.binary.utf8_from_wire.call(null, bs);
+      if (cljs.core._EQ_.call(null, n__$1, cljs.core.count.call(null, s))) {
+      } else {
+        throw cljs.core.ex_info.call(null, "char run length mismatch", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "n", "n", 562130025), n__$1, new cljs.core.Keyword(null, "decoded", "decoded", 1408657676), cljs.core.count.call(null, s)], null));
+      }
+      return s;
+      break;
+    case "u8":
+      var bs = dacite.wire.binary.get_bytes.call(null, buf, n__$1);
+      return cljs.core.mapv.call(null, function(p1__2668_SHARP_) {
+        return dacite.wire.binary.bget.call(null, bs, p1__2668_SHARP_);
+      }, cljs.core.range.call(null, dacite.wire.binary.byte_len.call(null, bs)));
+      break;
+    default:
+      return cljs.core.mapv.call(null, function(_) {
+        return dacite.wire.binary.decode_lit_body.call(null, of__$1, buf);
+      }, cljs.core.range.call(null, n__$1));
+  }
+};
+dacite.wire.binary.decode_lit_body = function dacite$wire$binary$decode_lit_body(tname, buf) {
+  var tname__$1 = cljs.core.str.cljs$core$IFn$_invoke$arity$1(tname);
+  var G__2672 = tname__$1;
+  switch(G__2672) {
+    case "null":
+      return null;
+      break;
+    case "negative":
+      return null;
+      break;
+    case "bool":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 1);
+      return !(dacite.wire.binary.get_u8.call(null, buf) === 0);
+      break;
+    case "char":
+      var dlen = dacite.wire.binary.get_u8.call(null, buf);
+      var bs = dacite.wire.binary.get_bytes.call(null, buf, dlen);
+      return cljs.core.first.call(null, cljs.core.seq.call(null, dacite.wire.binary.utf8_from_wire.call(null, bs)));
+      break;
+    case "i8":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 1);
+      return dacite.wire.binary.signed_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 1));
+      break;
+    case "i16":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 2);
+      return dacite.wire.binary.signed_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 2));
+      break;
+    case "i32":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 4);
+      return dacite.wire.binary.signed_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 4));
+      break;
+    case "i64":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 8);
+      return dacite.wire.binary.get_i64.call(null, buf);
+      break;
+    case "u8":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 1);
+      return dacite.wire.binary.unsigned_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 1));
+      break;
+    case "u16":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 2);
+      return dacite.wire.binary.unsigned_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 2));
+      break;
+    case "u32":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 4);
+      return dacite.wire.binary.unsigned_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 4));
+      break;
+    case "u64":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 8);
+      return dacite.wire.binary.get_u64.call(null, buf);
+      break;
+    case "u256":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 32);
+      return dacite.wire.binary.u256_wire__GT_body.call(null, dacite.wire.binary.get_bytes.call(null, buf, 32));
+      break;
+    case "f32":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 4);
+      return dacite.wire.binary.get_f32_from_bytes.call(null, dacite.wire.binary.get_bytes.call(null, buf, 4));
+      break;
+    case "f64":
+      dacite.wire.binary.ensure_remaining.call(null, buf, 8);
+      return dacite.wire.binary.get_f64.call(null, buf);
+      break;
+    case "string":
+      var n = dacite.wire.binary.get_u32.call(null, buf);
+      var bs = dacite.wire.binary.get_bytes.call(null, buf, n);
+      return dacite.wire.binary.utf8_from_wire.call(null, bs);
+      break;
+    case "blob":
+      var n = dacite.wire.binary.get_u32.call(null, buf);
+      var bs = dacite.wire.binary.get_bytes.call(null, buf, n);
+      return cljs.core.mapv.call(null, function(p1__2671_SHARP_) {
+        return dacite.wire.binary.bget.call(null, bs, p1__2671_SHARP_);
+      }, cljs.core.range.call(null, dacite.wire.binary.byte_len.call(null, bs)));
+      break;
+    case "vector":
+    case "set":
+    case "ft/empty":
+    case "ft/digit":
+    case "ft/node":
+    case "ft/deep":
+    case "hamt/empty":
+      var n = dacite.wire.binary.get_u32.call(null, buf) | 0;
+      return cljs.core.mapv.call(null, function(_) {
+        return dacite.wire.binary.decode_lit.call(null, buf);
+      }, cljs.core.range.call(null, n));
+      break;
+    case "map":
+    case "hamt/bitmap":
+      var n = dacite.wire.binary.get_u32.call(null, buf) | 0;
+      return cljs.core.mapv.call(null, function(_) {
+        return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.wire.binary.decode_lit.call(null, buf), dacite.wire.binary.decode_lit.call(null, buf)], null);
+      }, cljs.core.range.call(null, n));
+      break;
+    case "hamt/entry":
+      return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.wire.binary.decode_lit.call(null, buf), dacite.wire.binary.decode_lit.call(null, buf)], null);
+      break;
+    case "run":
+      var inner = dacite.wire.binary.get_u8.call(null, buf);
+      var of = function() {
+        var or__5002__auto__ = dacite.wire.binary.type_id__GT_name.call(null, inner);
+        if (cljs.core.truth_(or__5002__auto__)) {
+          return or__5002__auto__;
+        } else {
+          throw cljs.core.ex_info.call(null, "unknown run inner type_id", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "id", "id", -1388402092), inner], null));
+        }
+      }();
+      var n = dacite.wire.binary.get_u32.call(null, buf);
+      var values = dacite.wire.binary.decode_run_values.call(null, of, n, buf);
+      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "of", "of", -2075414212), of, new cljs.core.Keyword(null, "values", "values", 372645556), values], null);
+      break;
+    case "repeat":
+      var inner = dacite.wire.binary.get_u8.call(null, buf);
+      var of = function() {
+        var or__5002__auto__ = dacite.wire.binary.type_id__GT_name.call(null, inner);
+        if (cljs.core.truth_(or__5002__auto__)) {
+          return or__5002__auto__;
+        } else {
+          throw cljs.core.ex_info.call(null, "unknown repeat inner type_id", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "id", "id", -1388402092), inner], null));
+        }
+      }();
+      var n = dacite.wire.binary.get_u32.call(null, buf);
+      var value = dacite.wire.binary.decode_lit_body.call(null, of, buf);
+      return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "of", "of", -2075414212), of, new cljs.core.Keyword(null, "n", "n", 562130025), n, new cljs.core.Keyword(null, "value", "value", 305978217), value], null);
+      break;
+    default:
+      throw cljs.core.ex_info.call(null, "unsupported literal type", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "type", "type", 1174270348), tname__$1], null));
   }
 };
 dacite.wire.binary.decode_lit = function dacite$wire$binary$decode_lit(buf) {
@@ -52476,106 +53112,7 @@ dacite.wire.binary.decode_lit = function dacite$wire$binary$decode_lit(buf) {
       throw cljs.core.ex_info.call(null, "unknown literal type_id", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "id", "id", -1388402092), tid], null));
     }
   }();
-  var G__2285 = tname;
-  switch(G__2285) {
-    case "null":
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "null", new cljs.core.Keyword(null, "body", "body", -2049205669), null], null);
-      break;
-    case "negative":
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "negative", new cljs.core.Keyword(null, "body", "body", -2049205669), null], null);
-      break;
-    case "bool":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 1);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "bool", new cljs.core.Keyword(null, "body", "body", -2049205669), !(dacite.wire.binary.get_u8.call(null, buf) === 0)], null);
-      break;
-    case "char":
-      var dlen = dacite.wire.binary.get_u8.call(null, buf);
-      var bs = dacite.wire.binary.get_bytes.call(null, buf, dlen);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "char", new cljs.core.Keyword(null, "body", "body", -2049205669), cljs.core.first.call(null, cljs.core.seq.call(null, dacite.wire.binary.utf8_from_wire.call(null, bs)))], null);
-      break;
-    case "i8":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 1);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "i8", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.signed_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 1))], null);
-      break;
-    case "i16":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 2);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "i16", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.signed_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 2))], null);
-      break;
-    case "i32":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 4);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "i32", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.signed_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 4))], null);
-      break;
-    case "i64":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 8);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "i64", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.get_i64.call(null, buf)], null);
-      break;
-    case "u8":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 1);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "u8", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.unsigned_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 1))], null);
-      break;
-    case "u16":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 2);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "u16", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.unsigned_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 2))], null);
-      break;
-    case "u32":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 4);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "u32", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.unsigned_from_be.call(null, dacite.wire.binary.get_bytes.call(null, buf, 4))], null);
-      break;
-    case "u64":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 8);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "u64", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.get_u64.call(null, buf)], null);
-      break;
-    case "u256":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 32);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "u256", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.u256_wire__GT_body.call(null, dacite.wire.binary.get_bytes.call(null, buf, 32))], null);
-      break;
-    case "f32":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 4);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "f32", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.get_f32_from_bytes.call(null, dacite.wire.binary.get_bytes.call(null, buf, 4))], null);
-      break;
-    case "f64":
-      dacite.wire.binary.ensure_remaining.call(null, buf, 8);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "f64", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.get_f64.call(null, buf)], null);
-      break;
-    case "string":
-      var n = dacite.wire.binary.get_u32.call(null, buf);
-      var bs = dacite.wire.binary.get_bytes.call(null, buf, n);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "string", new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.utf8_from_wire.call(null, bs)], null);
-      break;
-    case "blob":
-      var n = dacite.wire.binary.get_u32.call(null, buf);
-      var bs = dacite.wire.binary.get_bytes.call(null, buf, n);
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "blob", new cljs.core.Keyword(null, "body", "body", -2049205669), cljs.core.mapv.call(null, function(p1__2284_SHARP_) {
-        return dacite.wire.binary.bget.call(null, bs, p1__2284_SHARP_);
-      }, cljs.core.range.call(null, dacite.wire.binary.byte_len.call(null, bs)))], null);
-      break;
-    case "vector":
-    case "set":
-    case "ft/empty":
-    case "ft/digit":
-    case "ft/node":
-    case "ft/deep":
-    case "hamt/empty":
-      var n = dacite.wire.binary.get_u32.call(null, buf) | 0;
-      var kids = cljs.core.mapv.call(null, function(_) {
-        return dacite.wire.binary.decode_lit.call(null, buf);
-      }, cljs.core.range.call(null, n));
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), tname, new cljs.core.Keyword(null, "body", "body", -2049205669), kids], null);
-      break;
-    case "map":
-    case "hamt/bitmap":
-      var n = dacite.wire.binary.get_u32.call(null, buf) | 0;
-      var pairs = cljs.core.mapv.call(null, function(_) {
-        return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.wire.binary.decode_lit.call(null, buf), dacite.wire.binary.decode_lit.call(null, buf)], null);
-      }, cljs.core.range.call(null, n));
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), tname, new cljs.core.Keyword(null, "body", "body", -2049205669), pairs], null);
-      break;
-    case "hamt/entry":
-      return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), "hamt/entry", new cljs.core.Keyword(null, "body", "body", -2049205669), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [dacite.wire.binary.decode_lit.call(null, buf), dacite.wire.binary.decode_lit.call(null, buf)], null)], null);
-      break;
-    default:
-      throw cljs.core.ex_info.call(null, "unsupported literal type", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "type", "type", 1174270348), tname], null));
-  }
+  return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "type", "type", 1174270348), tname, new cljs.core.Keyword(null, "body", "body", -2049205669), dacite.wire.binary.decode_lit_body.call(null, tname, buf)], null);
 };
 dacite.wire.binary.decode_lit_bytes = function dacite$wire$binary$decode_lit_bytes(bs) {
   var buf = dacite.wire.binary.wrap_bytes.call(null, bs);
@@ -52589,11 +53126,11 @@ dacite.wire.binary.decode_lit_bytes = function dacite$wire$binary$decode_lit_byt
 dacite.wire.binary.scalar_data_bytes = function dacite$wire$binary$scalar_data_bytes(entry) {
   return dacite.wire.binary.as_wire_bytes.call(null, dacite.value.types.encode_value.call(null, entry));
 };
-dacite.wire.binary.encode_node_bytes = function dacite$wire$binary$encode_node_bytes(p__2287) {
-  var vec__2288 = p__2287;
-  var type_name = cljs.core.nth.call(null, vec__2288, 0, null);
-  var data = cljs.core.nth.call(null, vec__2288, 1, null);
-  var entry = vec__2288;
+dacite.wire.binary.encode_node_bytes = function dacite$wire$binary$encode_node_bytes(p__2674) {
+  var vec__2675 = p__2674;
+  var type_name = cljs.core.nth.call(null, vec__2675, 0, null);
+  var data = cljs.core.nth.call(null, vec__2675, 1, null);
+  var entry = vec__2675;
   var t = cljs.core.str.cljs$core$IFn$_invoke$arity$1(type_name);
   if (cljs.core.contains_QMARK_.call(null, dacite.wire.binary.public_scalar_types, t)) {
     var tid = function() {
@@ -52623,8 +53160,8 @@ dacite.wire.binary.encode_node_bytes = function dacite$wire$binary$encode_node_b
       }();
       var m = (new cljs.core.Keyword(null, "measure", "measure", -1857519826)).cljs$core$IFn$_invoke$arity$1(data);
       var children = function() {
-        var G__2291 = t;
-        switch(G__2291) {
+        var G__2678 = t;
+        switch(G__2678) {
           case "ft/empty":
             return cljs.core.PersistentVector.EMPTY;
             break;
@@ -52641,49 +53178,49 @@ dacite.wire.binary.encode_node_bytes = function dacite$wire$binary$encode_node_b
       dacite.wire.binary.put_u8.call(null, buf, sub);
       dacite.wire.binary.put_measure.call(null, buf, m);
       dacite.wire.binary.put_u8.call(null, buf, n);
-      var seq__2292_2302 = cljs.core.seq.call(null, children);
-      var chunk__2293_2303 = null;
-      var count__2294_2304 = 0;
-      var i__2295_2305 = 0;
+      var seq__2679_2689 = cljs.core.seq.call(null, children);
+      var chunk__2680_2690 = null;
+      var count__2681_2691 = 0;
+      var i__2682_2692 = 0;
       while (true) {
-        if (i__2295_2305 < count__2294_2304) {
-          var h_2306 = cljs.core._nth.call(null, chunk__2293_2303, i__2295_2305);
-          dacite.wire.binary.put_hash.call(null, buf, h_2306);
-          var G__2307 = seq__2292_2302;
-          var G__2308 = chunk__2293_2303;
-          var G__2309 = count__2294_2304;
-          var G__2310 = i__2295_2305 + 1;
-          seq__2292_2302 = G__2307;
-          chunk__2293_2303 = G__2308;
-          count__2294_2304 = G__2309;
-          i__2295_2305 = G__2310;
+        if (i__2682_2692 < count__2681_2691) {
+          var h_2693 = cljs.core._nth.call(null, chunk__2680_2690, i__2682_2692);
+          dacite.wire.binary.put_hash.call(null, buf, h_2693);
+          var G__2694 = seq__2679_2689;
+          var G__2695 = chunk__2680_2690;
+          var G__2696 = count__2681_2691;
+          var G__2697 = i__2682_2692 + 1;
+          seq__2679_2689 = G__2694;
+          chunk__2680_2690 = G__2695;
+          count__2681_2691 = G__2696;
+          i__2682_2692 = G__2697;
           continue;
         } else {
-          var temp__5825__auto___2311 = cljs.core.seq.call(null, seq__2292_2302);
-          if (temp__5825__auto___2311) {
-            var seq__2292_2312__$1 = temp__5825__auto___2311;
-            if (cljs.core.chunked_seq_QMARK_.call(null, seq__2292_2312__$1)) {
-              var c__5525__auto___2313 = cljs.core.chunk_first.call(null, seq__2292_2312__$1);
-              var G__2314 = cljs.core.chunk_rest.call(null, seq__2292_2312__$1);
-              var G__2315 = c__5525__auto___2313;
-              var G__2316 = cljs.core.count.call(null, c__5525__auto___2313);
-              var G__2317 = 0;
-              seq__2292_2302 = G__2314;
-              chunk__2293_2303 = G__2315;
-              count__2294_2304 = G__2316;
-              i__2295_2305 = G__2317;
+          var temp__5825__auto___2698 = cljs.core.seq.call(null, seq__2679_2689);
+          if (temp__5825__auto___2698) {
+            var seq__2679_2699__$1 = temp__5825__auto___2698;
+            if (cljs.core.chunked_seq_QMARK_.call(null, seq__2679_2699__$1)) {
+              var c__5525__auto___2700 = cljs.core.chunk_first.call(null, seq__2679_2699__$1);
+              var G__2701 = cljs.core.chunk_rest.call(null, seq__2679_2699__$1);
+              var G__2702 = c__5525__auto___2700;
+              var G__2703 = cljs.core.count.call(null, c__5525__auto___2700);
+              var G__2704 = 0;
+              seq__2679_2689 = G__2701;
+              chunk__2680_2690 = G__2702;
+              count__2681_2691 = G__2703;
+              i__2682_2692 = G__2704;
               continue;
             } else {
-              var h_2318 = cljs.core.first.call(null, seq__2292_2312__$1);
-              dacite.wire.binary.put_hash.call(null, buf, h_2318);
-              var G__2319 = cljs.core.next.call(null, seq__2292_2312__$1);
-              var G__2320 = null;
-              var G__2321 = 0;
-              var G__2322 = 0;
-              seq__2292_2302 = G__2319;
-              chunk__2293_2303 = G__2320;
-              count__2294_2304 = G__2321;
-              i__2295_2305 = G__2322;
+              var h_2705 = cljs.core.first.call(null, seq__2679_2699__$1);
+              dacite.wire.binary.put_hash.call(null, buf, h_2705);
+              var G__2706 = cljs.core.next.call(null, seq__2679_2699__$1);
+              var G__2707 = null;
+              var G__2708 = 0;
+              var G__2709 = 0;
+              seq__2679_2689 = G__2706;
+              chunk__2680_2690 = G__2707;
+              count__2681_2691 = G__2708;
+              i__2682_2692 = G__2709;
               continue;
             }
           } else {
@@ -52694,8 +53231,8 @@ dacite.wire.binary.encode_node_bytes = function dacite$wire$binary$encode_node_b
       return dacite.wire.binary.finish.call(null, buf);
     } else {
       if (clojure.string.starts_with_QMARK_.call(null, t, "hamt/")) {
-        var G__2296 = t;
-        switch(G__2296) {
+        var G__2683 = t;
+        switch(G__2683) {
           case "hamt/empty":
             var buf = dacite.wire.binary.bb.call(null, 2 + 48);
             dacite.wire.binary.put_u8.call(null, buf, dacite.wire.binary.kind_hamt);
@@ -52722,49 +53259,49 @@ dacite.wire.binary.encode_node_bytes = function dacite$wire$binary$encode_node_b
             dacite.wire.binary.put_measure.call(null, buf, (new cljs.core.Keyword(null, "measure", "measure", -1857519826)).cljs$core$IFn$_invoke$arity$1(data));
             dacite.wire.binary.put_u32.call(null, buf, (new cljs.core.Keyword(null, "bitmap", "bitmap", -1139196926)).cljs$core$IFn$_invoke$arity$1(data));
             dacite.wire.binary.put_u8.call(null, buf, n);
-            var seq__2297_2324 = cljs.core.seq.call(null, ch);
-            var chunk__2298_2325 = null;
-            var count__2299_2326 = 0;
-            var i__2300_2327 = 0;
+            var seq__2684_2711 = cljs.core.seq.call(null, ch);
+            var chunk__2685_2712 = null;
+            var count__2686_2713 = 0;
+            var i__2687_2714 = 0;
             while (true) {
-              if (i__2300_2327 < count__2299_2326) {
-                var h_2328 = cljs.core._nth.call(null, chunk__2298_2325, i__2300_2327);
-                dacite.wire.binary.put_hash.call(null, buf, h_2328);
-                var G__2329 = seq__2297_2324;
-                var G__2330 = chunk__2298_2325;
-                var G__2331 = count__2299_2326;
-                var G__2332 = i__2300_2327 + 1;
-                seq__2297_2324 = G__2329;
-                chunk__2298_2325 = G__2330;
-                count__2299_2326 = G__2331;
-                i__2300_2327 = G__2332;
+              if (i__2687_2714 < count__2686_2713) {
+                var h_2715 = cljs.core._nth.call(null, chunk__2685_2712, i__2687_2714);
+                dacite.wire.binary.put_hash.call(null, buf, h_2715);
+                var G__2716 = seq__2684_2711;
+                var G__2717 = chunk__2685_2712;
+                var G__2718 = count__2686_2713;
+                var G__2719 = i__2687_2714 + 1;
+                seq__2684_2711 = G__2716;
+                chunk__2685_2712 = G__2717;
+                count__2686_2713 = G__2718;
+                i__2687_2714 = G__2719;
                 continue;
               } else {
-                var temp__5825__auto___2333 = cljs.core.seq.call(null, seq__2297_2324);
-                if (temp__5825__auto___2333) {
-                  var seq__2297_2334__$1 = temp__5825__auto___2333;
-                  if (cljs.core.chunked_seq_QMARK_.call(null, seq__2297_2334__$1)) {
-                    var c__5525__auto___2335 = cljs.core.chunk_first.call(null, seq__2297_2334__$1);
-                    var G__2336 = cljs.core.chunk_rest.call(null, seq__2297_2334__$1);
-                    var G__2337 = c__5525__auto___2335;
-                    var G__2338 = cljs.core.count.call(null, c__5525__auto___2335);
-                    var G__2339 = 0;
-                    seq__2297_2324 = G__2336;
-                    chunk__2298_2325 = G__2337;
-                    count__2299_2326 = G__2338;
-                    i__2300_2327 = G__2339;
+                var temp__5825__auto___2720 = cljs.core.seq.call(null, seq__2684_2711);
+                if (temp__5825__auto___2720) {
+                  var seq__2684_2721__$1 = temp__5825__auto___2720;
+                  if (cljs.core.chunked_seq_QMARK_.call(null, seq__2684_2721__$1)) {
+                    var c__5525__auto___2722 = cljs.core.chunk_first.call(null, seq__2684_2721__$1);
+                    var G__2723 = cljs.core.chunk_rest.call(null, seq__2684_2721__$1);
+                    var G__2724 = c__5525__auto___2722;
+                    var G__2725 = cljs.core.count.call(null, c__5525__auto___2722);
+                    var G__2726 = 0;
+                    seq__2684_2711 = G__2723;
+                    chunk__2685_2712 = G__2724;
+                    count__2686_2713 = G__2725;
+                    i__2687_2714 = G__2726;
                     continue;
                   } else {
-                    var h_2340 = cljs.core.first.call(null, seq__2297_2334__$1);
-                    dacite.wire.binary.put_hash.call(null, buf, h_2340);
-                    var G__2341 = cljs.core.next.call(null, seq__2297_2334__$1);
-                    var G__2342 = null;
-                    var G__2343 = 0;
-                    var G__2344 = 0;
-                    seq__2297_2324 = G__2341;
-                    chunk__2298_2325 = G__2342;
-                    count__2299_2326 = G__2343;
-                    i__2300_2327 = G__2344;
+                    var h_2727 = cljs.core.first.call(null, seq__2684_2721__$1);
+                    dacite.wire.binary.put_hash.call(null, buf, h_2727);
+                    var G__2728 = cljs.core.next.call(null, seq__2684_2721__$1);
+                    var G__2729 = null;
+                    var G__2730 = 0;
+                    var G__2731 = 0;
+                    seq__2684_2711 = G__2728;
+                    chunk__2685_2712 = G__2729;
+                    count__2686_2713 = G__2730;
+                    i__2687_2714 = G__2731;
                     continue;
                   }
                 } else {
@@ -52797,8 +53334,8 @@ dacite.wire.binary.encode_node_bytes = function dacite$wire$binary$encode_node_b
 dacite.wire.binary.decode_node_bytes = function dacite$wire$binary$decode_node_bytes(bs) {
   var buf = dacite.wire.binary.wrap_bytes.call(null, bs);
   var kind = dacite.wire.binary.get_u8.call(null, buf);
-  var G__2345 = kind;
-  switch(G__2345) {
+  var G__2732 = kind;
+  switch(G__2732) {
     case 0:
       var tid = dacite.wire.binary.get_u8.call(null, buf);
       var tname = function() {
@@ -52815,8 +53352,8 @@ dacite.wire.binary.decode_node_bytes = function dacite$wire$binary$decode_node_b
         throw cljs.core.ex_info.call(null, "trailing garbage in scalar node", cljs.core.PersistentArrayMap.EMPTY);
       } else {
       }
-      var G__2346 = tname;
-      switch(G__2346) {
+      var G__2733 = tname;
+      switch(G__2733) {
         case "null":
           return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, ["null", null], null);
           break;
@@ -52887,8 +53424,8 @@ dacite.wire.binary.decode_node_bytes = function dacite$wire$binary$decode_node_b
         throw cljs.core.ex_info.call(null, "trailing garbage in ft node", cljs.core.PersistentArrayMap.EMPTY);
       } else {
       }
-      var G__2347 = tname;
-      switch(G__2347) {
+      var G__2734 = tname;
+      switch(G__2734) {
         case "ft/empty":
           return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [tname, new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "measure", "measure", -1857519826), m], null)], null);
           break;
@@ -52910,8 +53447,8 @@ dacite.wire.binary.decode_node_bytes = function dacite$wire$binary$decode_node_b
         }
       }();
       var m = dacite.wire.binary.get_measure.call(null, buf);
-      var G__2348 = tname;
-      switch(G__2348) {
+      var G__2735 = tname;
+      switch(G__2735) {
         case "hamt/empty":
           if (dacite.wire.binary.remaining.call(null, buf) > 0) {
             throw cljs.core.ex_info.call(null, "trailing garbage", cljs.core.PersistentArrayMap.EMPTY);
@@ -52942,7 +53479,7 @@ dacite.wire.binary.decode_node_bytes = function dacite$wire$binary$decode_node_b
           return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [tname, new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "measure", "measure", -1857519826), m, new cljs.core.Keyword(null, "bitmap", "bitmap", -1139196926), bitmap, new cljs.core.Keyword(null, "children", "children", -940561982), ch], null)], null);
           break;
         default:
-          throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2348)].join(""));
+          throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2735)].join(""));
       }break;
     case 3:
       var cid = dacite.wire.binary.get_u8.call(null, buf);
@@ -52967,17 +53504,17 @@ dacite.wire.binary.decode_node_bytes = function dacite$wire$binary$decode_node_b
       throw cljs.core.ex_info.call(null, "unknown node kind", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "kind", "kind", -717265803), kind], null));
   }
 };
-dacite.wire.binary.encode_item = function dacite$wire$binary$encode_item(p__2353) {
-  var map__2354 = p__2353;
-  var map__2354__$1 = cljs.core.__destructure_map.call(null, map__2354);
-  var enc = cljs.core.get.call(null, map__2354__$1, new cljs.core.Keyword(null, "enc", "enc", 709124780));
-  var hash = cljs.core.get.call(null, map__2354__$1, new cljs.core.Keyword(null, "hash", "hash", -13781596));
-  var entry = cljs.core.get.call(null, map__2354__$1, new cljs.core.Keyword(null, "entry", "entry", 505168823));
-  var literal = cljs.core.get.call(null, map__2354__$1, new cljs.core.Keyword(null, "literal", "literal", 1664775605));
+dacite.wire.binary.encode_item = function dacite$wire$binary$encode_item(p__2740) {
+  var map__2741 = p__2740;
+  var map__2741__$1 = cljs.core.__destructure_map.call(null, map__2741);
+  var enc = cljs.core.get.call(null, map__2741__$1, new cljs.core.Keyword(null, "enc", "enc", 709124780));
+  var hash = cljs.core.get.call(null, map__2741__$1, new cljs.core.Keyword(null, "hash", "hash", -13781596));
+  var entry = cljs.core.get.call(null, map__2741__$1, new cljs.core.Keyword(null, "entry", "entry", 505168823));
+  var literal = cljs.core.get.call(null, map__2741__$1, new cljs.core.Keyword(null, "literal", "literal", 1664775605));
   var payload = function() {
-    var G__2355 = enc;
-    var G__2355__$1 = G__2355 instanceof cljs.core.Keyword ? G__2355.fqn : null;
-    switch(G__2355__$1) {
+    var G__2742 = enc;
+    var G__2742__$1 = G__2742 instanceof cljs.core.Keyword ? G__2742.fqn : null;
+    switch(G__2742__$1) {
       case "node":
         return dacite.wire.binary.encode_node_bytes.call(null, entry);
         break;
@@ -52989,9 +53526,9 @@ dacite.wire.binary.encode_item = function dacite$wire$binary$encode_item(p__2353
     }
   }();
   var enc_b = function() {
-    var G__2356 = enc;
-    var G__2356__$1 = G__2356 instanceof cljs.core.Keyword ? G__2356.fqn : null;
-    switch(G__2356__$1) {
+    var G__2743 = enc;
+    var G__2743__$1 = G__2743 instanceof cljs.core.Keyword ? G__2743.fqn : null;
+    switch(G__2743__$1) {
       case "node":
         return dacite.wire.binary.enc_node;
         break;
@@ -52999,7 +53536,7 @@ dacite.wire.binary.encode_item = function dacite$wire$binary$encode_item(p__2353
         return dacite.wire.binary.enc_literal;
         break;
       default:
-        throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2356__$1)].join(""));
+        throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2743__$1)].join(""));
     }
   }();
   var buf = dacite.wire.binary.bb.call(null, 1 + 32 + 4 + dacite.wire.binary.byte_len.call(null, payload));
@@ -53009,11 +53546,11 @@ dacite.wire.binary.encode_item = function dacite$wire$binary$encode_item(p__2353
   dacite.wire.binary.put_bytes.call(null, buf, payload);
   return dacite.wire.binary.finish.call(null, buf);
 };
-dacite.wire.binary.encode_chunk = function dacite$wire$binary$encode_chunk(p__2359) {
-  var map__2360 = p__2359;
-  var map__2360__$1 = cljs.core.__destructure_map.call(null, map__2360);
-  var budget = cljs.core.get.call(null, map__2360__$1, new cljs.core.Keyword(null, "budget", "budget", -405386281), 0);
-  var items = cljs.core.get.call(null, map__2360__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
+dacite.wire.binary.encode_chunk = function dacite$wire$binary$encode_chunk(p__2746) {
+  var map__2747 = p__2746;
+  var map__2747__$1 = cljs.core.__destructure_map.call(null, map__2747);
+  var budget = cljs.core.get.call(null, map__2747__$1, new cljs.core.Keyword(null, "budget", "budget", -405386281), 0);
+  var items = cljs.core.get.call(null, map__2747__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
   var item_bs = cljs.core.mapv.call(null, dacite.wire.binary.encode_item, items);
   var body_len = cljs.core.reduce.call(null, cljs.core._PLUS_, 0, cljs.core.map.call(null, dacite.wire.binary.byte_len, item_bs));
   var buf = dacite.wire.binary.bb.call(null, 4 + 1 + 1 + 1 + 4 + 4 + body_len);
@@ -53030,49 +53567,49 @@ dacite.wire.binary.encode_chunk = function dacite$wire$binary$encode_chunk(p__23
       return 0;
     }
   }());
-  var seq__2361_2365 = cljs.core.seq.call(null, item_bs);
-  var chunk__2362_2366 = null;
-  var count__2363_2367 = 0;
-  var i__2364_2368 = 0;
+  var seq__2748_2752 = cljs.core.seq.call(null, item_bs);
+  var chunk__2749_2753 = null;
+  var count__2750_2754 = 0;
+  var i__2751_2755 = 0;
   while (true) {
-    if (i__2364_2368 < count__2363_2367) {
-      var ib_2369 = cljs.core._nth.call(null, chunk__2362_2366, i__2364_2368);
-      dacite.wire.binary.put_bytes.call(null, buf, ib_2369);
-      var G__2370 = seq__2361_2365;
-      var G__2371 = chunk__2362_2366;
-      var G__2372 = count__2363_2367;
-      var G__2373 = i__2364_2368 + 1;
-      seq__2361_2365 = G__2370;
-      chunk__2362_2366 = G__2371;
-      count__2363_2367 = G__2372;
-      i__2364_2368 = G__2373;
+    if (i__2751_2755 < count__2750_2754) {
+      var ib_2756 = cljs.core._nth.call(null, chunk__2749_2753, i__2751_2755);
+      dacite.wire.binary.put_bytes.call(null, buf, ib_2756);
+      var G__2757 = seq__2748_2752;
+      var G__2758 = chunk__2749_2753;
+      var G__2759 = count__2750_2754;
+      var G__2760 = i__2751_2755 + 1;
+      seq__2748_2752 = G__2757;
+      chunk__2749_2753 = G__2758;
+      count__2750_2754 = G__2759;
+      i__2751_2755 = G__2760;
       continue;
     } else {
-      var temp__5825__auto___2374 = cljs.core.seq.call(null, seq__2361_2365);
-      if (temp__5825__auto___2374) {
-        var seq__2361_2375__$1 = temp__5825__auto___2374;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2361_2375__$1)) {
-          var c__5525__auto___2376 = cljs.core.chunk_first.call(null, seq__2361_2375__$1);
-          var G__2377 = cljs.core.chunk_rest.call(null, seq__2361_2375__$1);
-          var G__2378 = c__5525__auto___2376;
-          var G__2379 = cljs.core.count.call(null, c__5525__auto___2376);
-          var G__2380 = 0;
-          seq__2361_2365 = G__2377;
-          chunk__2362_2366 = G__2378;
-          count__2363_2367 = G__2379;
-          i__2364_2368 = G__2380;
+      var temp__5825__auto___2761 = cljs.core.seq.call(null, seq__2748_2752);
+      if (temp__5825__auto___2761) {
+        var seq__2748_2762__$1 = temp__5825__auto___2761;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2748_2762__$1)) {
+          var c__5525__auto___2763 = cljs.core.chunk_first.call(null, seq__2748_2762__$1);
+          var G__2764 = cljs.core.chunk_rest.call(null, seq__2748_2762__$1);
+          var G__2765 = c__5525__auto___2763;
+          var G__2766 = cljs.core.count.call(null, c__5525__auto___2763);
+          var G__2767 = 0;
+          seq__2748_2752 = G__2764;
+          chunk__2749_2753 = G__2765;
+          count__2750_2754 = G__2766;
+          i__2751_2755 = G__2767;
           continue;
         } else {
-          var ib_2381 = cljs.core.first.call(null, seq__2361_2375__$1);
-          dacite.wire.binary.put_bytes.call(null, buf, ib_2381);
-          var G__2382 = cljs.core.next.call(null, seq__2361_2375__$1);
-          var G__2383 = null;
-          var G__2384 = 0;
-          var G__2385 = 0;
-          seq__2361_2365 = G__2382;
-          chunk__2362_2366 = G__2383;
-          count__2363_2367 = G__2384;
-          i__2364_2368 = G__2385;
+          var ib_2768 = cljs.core.first.call(null, seq__2748_2762__$1);
+          dacite.wire.binary.put_bytes.call(null, buf, ib_2768);
+          var G__2769 = cljs.core.next.call(null, seq__2748_2762__$1);
+          var G__2770 = null;
+          var G__2771 = 0;
+          var G__2772 = 0;
+          seq__2748_2752 = G__2769;
+          chunk__2749_2753 = G__2770;
+          count__2750_2754 = G__2771;
+          i__2751_2755 = G__2772;
           continue;
         }
       } else {
@@ -53089,8 +53626,8 @@ dacite.wire.binary.decode_item = function dacite$wire$binary$decode_item(buf) {
   var plen = dacite.wire.binary.get_u32.call(null, buf) | 0;
   var payload = dacite.wire.binary.get_bytes.call(null, buf, plen);
   var enc = function() {
-    var G__2386 = enc_b;
-    switch(G__2386) {
+    var G__2773 = enc_b;
+    switch(G__2773) {
       case 0:
         return new cljs.core.Keyword(null, "node", "node", 581201198);
         break;
@@ -53101,9 +53638,9 @@ dacite.wire.binary.decode_item = function dacite$wire$binary$decode_item(buf) {
         throw cljs.core.ex_info.call(null, "unknown item enc", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "enc", "enc", 709124780), enc_b], null));
     }
   }();
-  var G__2387 = enc;
-  var G__2387__$1 = G__2387 instanceof cljs.core.Keyword ? G__2387.fqn : null;
-  switch(G__2387__$1) {
+  var G__2774 = enc;
+  var G__2774__$1 = G__2774 instanceof cljs.core.Keyword ? G__2774.fqn : null;
+  switch(G__2774__$1) {
     case "node":
       return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "enc", "enc", 709124780), new cljs.core.Keyword(null, "node", "node", 581201198), new cljs.core.Keyword(null, "hash", "hash", -13781596), h, new cljs.core.Keyword(null, "entry", "entry", 505168823), dacite.wire.binary.decode_node_bytes.call(null, payload)], null);
       break;
@@ -53111,16 +53648,16 @@ dacite.wire.binary.decode_item = function dacite$wire$binary$decode_item(buf) {
       return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "enc", "enc", 709124780), new cljs.core.Keyword(null, "literal", "literal", 1664775605), new cljs.core.Keyword(null, "hash", "hash", -13781596), h, new cljs.core.Keyword(null, "literal", "literal", 1664775605), dacite.wire.binary.decode_lit_bytes.call(null, payload)], null);
       break;
     default:
-      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2387__$1)].join(""));
+      throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2774__$1)].join(""));
   }
 };
 dacite.wire.binary.decode_chunk = function dacite$wire$binary$decode_chunk(bs) {
   var buf = dacite.wire.binary.wrap_bytes.call(null, bs);
   dacite.wire.binary.ensure_remaining.call(null, buf, 12);
-  var mag_2390 = dacite.wire.binary.get_bytes.call(null, buf, 4);
-  if (dacite.wire.binary.bytes_eq_QMARK_.call(null, mag_2390, dacite.wire.binary.magic_bytes.call(null))) {
+  var mag_2777 = dacite.wire.binary.get_bytes.call(null, buf, 4);
+  if (dacite.wire.binary.bytes_eq_QMARK_.call(null, mag_2777, dacite.wire.binary.magic_bytes.call(null))) {
   } else {
-    throw cljs.core.ex_info.call(null, "bad magic", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.wire.binary.bytes__GT_hex.call(null, mag_2390)], null));
+    throw cljs.core.ex_info.call(null, "bad magic", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.wire.binary.bytes__GT_hex.call(null, mag_2777)], null));
   }
   var ver = dacite.wire.binary.get_u8.call(null, buf);
   var mtype = dacite.wire.binary.get_u8.call(null, buf);
@@ -53154,133 +53691,133 @@ dacite.wire.binary.encode_chunk_hex = function dacite$wire$binary$encode_chunk_h
 dacite.wire.binary.decode_chunk_hex = function dacite$wire$binary$decode_chunk_hex(hex) {
   return dacite.wire.binary.decode_chunk.call(null, dacite.wire.binary.hex__GT_bytes.call(null, hex));
 };
-dacite.wire.binary.apply_chunk_message_BANG_ = function dacite$wire$binary$apply_chunk_message_BANG_(st, p__2391) {
-  var map__2392 = p__2391;
-  var map__2392__$1 = cljs.core.__destructure_map.call(null, map__2392);
-  var items = cljs.core.get.call(null, map__2392__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
+dacite.wire.binary.apply_chunk_message_BANG_ = function dacite$wire$binary$apply_chunk_message_BANG_(st, p__2778) {
+  var map__2779 = p__2778;
+  var map__2779__$1 = cljs.core.__destructure_map.call(null, map__2779);
+  var items = cljs.core.get.call(null, map__2779__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
   var created = cljs.core.atom.call(null, cljs.core.PersistentVector.EMPTY);
   var exists = cljs.core.atom.call(null, cljs.core.PersistentVector.EMPTY);
-  var seq__2393_2405 = cljs.core.seq.call(null, items);
-  var chunk__2394_2406 = null;
-  var count__2395_2407 = 0;
-  var i__2396_2408 = 0;
+  var seq__2780_2792 = cljs.core.seq.call(null, items);
+  var chunk__2781_2793 = null;
+  var count__2782_2794 = 0;
+  var i__2783_2795 = 0;
   while (true) {
-    if (i__2396_2408 < count__2395_2407) {
-      var map__2401_2409 = cljs.core._nth.call(null, chunk__2394_2406, i__2396_2408);
-      var map__2401_2410__$1 = cljs.core.__destructure_map.call(null, map__2401_2409);
-      var enc_2411 = cljs.core.get.call(null, map__2401_2410__$1, new cljs.core.Keyword(null, "enc", "enc", 709124780));
-      var hash_2412 = cljs.core.get.call(null, map__2401_2410__$1, new cljs.core.Keyword(null, "hash", "hash", -13781596));
-      var entry_2413 = cljs.core.get.call(null, map__2401_2410__$1, new cljs.core.Keyword(null, "entry", "entry", 505168823));
-      var literal_2414 = cljs.core.get.call(null, map__2401_2410__$1, new cljs.core.Keyword(null, "literal", "literal", 1664775605));
-      var hex_2415 = dacite.store.hash__GT_hex.call(null, hash_2412);
-      var had_QMARK__2416 = dacite.store.s_has_QMARK_.call(null, st, hash_2412);
-      var G__2402_2417 = enc_2411;
-      var G__2402_2418__$1 = G__2402_2417 instanceof cljs.core.Keyword ? G__2402_2417.fqn : null;
-      switch(G__2402_2418__$1) {
+    if (i__2783_2795 < count__2782_2794) {
+      var map__2788_2796 = cljs.core._nth.call(null, chunk__2781_2793, i__2783_2795);
+      var map__2788_2797__$1 = cljs.core.__destructure_map.call(null, map__2788_2796);
+      var enc_2798 = cljs.core.get.call(null, map__2788_2797__$1, new cljs.core.Keyword(null, "enc", "enc", 709124780));
+      var hash_2799 = cljs.core.get.call(null, map__2788_2797__$1, new cljs.core.Keyword(null, "hash", "hash", -13781596));
+      var entry_2800 = cljs.core.get.call(null, map__2788_2797__$1, new cljs.core.Keyword(null, "entry", "entry", 505168823));
+      var literal_2801 = cljs.core.get.call(null, map__2788_2797__$1, new cljs.core.Keyword(null, "literal", "literal", 1664775605));
+      var hex_2802 = dacite.store.hash__GT_hex.call(null, hash_2799);
+      var had_QMARK__2803 = dacite.store.s_has_QMARK_.call(null, st, hash_2799);
+      var G__2789_2804 = enc_2798;
+      var G__2789_2805__$1 = G__2789_2804 instanceof cljs.core.Keyword ? G__2789_2804.fqn : null;
+      switch(G__2789_2805__$1) {
         case "node":
-          dacite.store.s_put.call(null, st, hash_2412, entry_2413);
-          if (cljs.core.truth_(had_QMARK__2416)) {
-            cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2415);
+          dacite.store.s_put.call(null, st, hash_2799, entry_2800);
+          if (cljs.core.truth_(had_QMARK__2803)) {
+            cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2802);
           } else {
-            cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2415);
+            cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2802);
           }
           break;
         case "literal":
-          if (cljs.core.truth_(had_QMARK__2416)) {
-            cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2415);
+          if (cljs.core.truth_(had_QMARK__2803)) {
+            cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2802);
           } else {
-            var got_2420 = dacite.store.pack.materialize_literal_BANG_.call(null, st, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(literal_2414), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(literal_2414));
+            var got_2807 = dacite.store.pack.materialize_literal_BANG_.call(null, st, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(literal_2801), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(literal_2801));
             if (cljs.core.truth_(function() {
               var and__5000__auto__ = dacite.store.pack._STAR_verify_literal_hash_STAR_;
               if (cljs.core.truth_(and__5000__auto__)) {
-                return cljs.core.not_EQ_.call(null, got_2420, hash_2412);
+                return cljs.core.not_EQ_.call(null, got_2807, hash_2799);
               } else {
                 return and__5000__auto__;
               }
             }())) {
-              throw cljs.core.ex_info.call(null, "literal hash mismatch", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), hex_2415, new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.store.hash__GT_hex.call(null, got_2420)], null));
+              throw cljs.core.ex_info.call(null, "literal hash mismatch", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), hex_2802, new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.store.hash__GT_hex.call(null, got_2807)], null));
             } else {
             }
-            cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2415);
+            cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2802);
           }
           break;
         default:
-          throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2402_2418__$1)].join(""));
+          throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2789_2805__$1)].join(""));
       }
-      var G__2421 = seq__2393_2405;
-      var G__2422 = chunk__2394_2406;
-      var G__2423 = count__2395_2407;
-      var G__2424 = i__2396_2408 + 1;
-      seq__2393_2405 = G__2421;
-      chunk__2394_2406 = G__2422;
-      count__2395_2407 = G__2423;
-      i__2396_2408 = G__2424;
+      var G__2808 = seq__2780_2792;
+      var G__2809 = chunk__2781_2793;
+      var G__2810 = count__2782_2794;
+      var G__2811 = i__2783_2795 + 1;
+      seq__2780_2792 = G__2808;
+      chunk__2781_2793 = G__2809;
+      count__2782_2794 = G__2810;
+      i__2783_2795 = G__2811;
       continue;
     } else {
-      var temp__5825__auto___2425 = cljs.core.seq.call(null, seq__2393_2405);
-      if (temp__5825__auto___2425) {
-        var seq__2393_2426__$1 = temp__5825__auto___2425;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2393_2426__$1)) {
-          var c__5525__auto___2427 = cljs.core.chunk_first.call(null, seq__2393_2426__$1);
-          var G__2428 = cljs.core.chunk_rest.call(null, seq__2393_2426__$1);
-          var G__2429 = c__5525__auto___2427;
-          var G__2430 = cljs.core.count.call(null, c__5525__auto___2427);
-          var G__2431 = 0;
-          seq__2393_2405 = G__2428;
-          chunk__2394_2406 = G__2429;
-          count__2395_2407 = G__2430;
-          i__2396_2408 = G__2431;
+      var temp__5825__auto___2812 = cljs.core.seq.call(null, seq__2780_2792);
+      if (temp__5825__auto___2812) {
+        var seq__2780_2813__$1 = temp__5825__auto___2812;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2780_2813__$1)) {
+          var c__5525__auto___2814 = cljs.core.chunk_first.call(null, seq__2780_2813__$1);
+          var G__2815 = cljs.core.chunk_rest.call(null, seq__2780_2813__$1);
+          var G__2816 = c__5525__auto___2814;
+          var G__2817 = cljs.core.count.call(null, c__5525__auto___2814);
+          var G__2818 = 0;
+          seq__2780_2792 = G__2815;
+          chunk__2781_2793 = G__2816;
+          count__2782_2794 = G__2817;
+          i__2783_2795 = G__2818;
           continue;
         } else {
-          var map__2403_2432 = cljs.core.first.call(null, seq__2393_2426__$1);
-          var map__2403_2433__$1 = cljs.core.__destructure_map.call(null, map__2403_2432);
-          var enc_2434 = cljs.core.get.call(null, map__2403_2433__$1, new cljs.core.Keyword(null, "enc", "enc", 709124780));
-          var hash_2435 = cljs.core.get.call(null, map__2403_2433__$1, new cljs.core.Keyword(null, "hash", "hash", -13781596));
-          var entry_2436 = cljs.core.get.call(null, map__2403_2433__$1, new cljs.core.Keyword(null, "entry", "entry", 505168823));
-          var literal_2437 = cljs.core.get.call(null, map__2403_2433__$1, new cljs.core.Keyword(null, "literal", "literal", 1664775605));
-          var hex_2438 = dacite.store.hash__GT_hex.call(null, hash_2435);
-          var had_QMARK__2439 = dacite.store.s_has_QMARK_.call(null, st, hash_2435);
-          var G__2404_2440 = enc_2434;
-          var G__2404_2441__$1 = G__2404_2440 instanceof cljs.core.Keyword ? G__2404_2440.fqn : null;
-          switch(G__2404_2441__$1) {
+          var map__2790_2819 = cljs.core.first.call(null, seq__2780_2813__$1);
+          var map__2790_2820__$1 = cljs.core.__destructure_map.call(null, map__2790_2819);
+          var enc_2821 = cljs.core.get.call(null, map__2790_2820__$1, new cljs.core.Keyword(null, "enc", "enc", 709124780));
+          var hash_2822 = cljs.core.get.call(null, map__2790_2820__$1, new cljs.core.Keyword(null, "hash", "hash", -13781596));
+          var entry_2823 = cljs.core.get.call(null, map__2790_2820__$1, new cljs.core.Keyword(null, "entry", "entry", 505168823));
+          var literal_2824 = cljs.core.get.call(null, map__2790_2820__$1, new cljs.core.Keyword(null, "literal", "literal", 1664775605));
+          var hex_2825 = dacite.store.hash__GT_hex.call(null, hash_2822);
+          var had_QMARK__2826 = dacite.store.s_has_QMARK_.call(null, st, hash_2822);
+          var G__2791_2827 = enc_2821;
+          var G__2791_2828__$1 = G__2791_2827 instanceof cljs.core.Keyword ? G__2791_2827.fqn : null;
+          switch(G__2791_2828__$1) {
             case "node":
-              dacite.store.s_put.call(null, st, hash_2435, entry_2436);
-              if (cljs.core.truth_(had_QMARK__2439)) {
-                cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2438);
+              dacite.store.s_put.call(null, st, hash_2822, entry_2823);
+              if (cljs.core.truth_(had_QMARK__2826)) {
+                cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2825);
               } else {
-                cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2438);
+                cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2825);
               }
               break;
             case "literal":
-              if (cljs.core.truth_(had_QMARK__2439)) {
-                cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2438);
+              if (cljs.core.truth_(had_QMARK__2826)) {
+                cljs.core.swap_BANG_.call(null, exists, cljs.core.conj, hex_2825);
               } else {
-                var got_2443 = dacite.store.pack.materialize_literal_BANG_.call(null, st, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(literal_2437), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(literal_2437));
+                var got_2830 = dacite.store.pack.materialize_literal_BANG_.call(null, st, (new cljs.core.Keyword(null, "type", "type", 1174270348)).cljs$core$IFn$_invoke$arity$1(literal_2824), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(literal_2824));
                 if (cljs.core.truth_(function() {
                   var and__5000__auto__ = dacite.store.pack._STAR_verify_literal_hash_STAR_;
                   if (cljs.core.truth_(and__5000__auto__)) {
-                    return cljs.core.not_EQ_.call(null, got_2443, hash_2435);
+                    return cljs.core.not_EQ_.call(null, got_2830, hash_2822);
                   } else {
                     return and__5000__auto__;
                   }
                 }())) {
-                  throw cljs.core.ex_info.call(null, "literal hash mismatch", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), hex_2438, new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.store.hash__GT_hex.call(null, got_2443)], null));
+                  throw cljs.core.ex_info.call(null, "literal hash mismatch", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), hex_2825, new cljs.core.Keyword(null, "got", "got", -1674745710), dacite.store.hash__GT_hex.call(null, got_2830)], null));
                 } else {
                 }
-                cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2438);
+                cljs.core.swap_BANG_.call(null, created, cljs.core.conj, hex_2825);
               }
               break;
             default:
-              throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2404_2441__$1)].join(""));
+              throw new Error(["No matching clause: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(G__2791_2828__$1)].join(""));
           }
-          var G__2444 = cljs.core.next.call(null, seq__2393_2426__$1);
-          var G__2445 = null;
-          var G__2446 = 0;
-          var G__2447 = 0;
-          seq__2393_2405 = G__2444;
-          chunk__2394_2406 = G__2445;
-          count__2395_2407 = G__2446;
-          i__2396_2408 = G__2447;
+          var G__2831 = cljs.core.next.call(null, seq__2780_2813__$1);
+          var G__2832 = null;
+          var G__2833 = 0;
+          var G__2834 = 0;
+          seq__2780_2792 = G__2831;
+          chunk__2781_2793 = G__2832;
+          count__2782_2794 = G__2833;
+          i__2783_2795 = G__2834;
           continue;
         }
       } else {
@@ -53309,9 +53846,9 @@ dacite.wire.binary.edn_content_type_QMARK_ = function dacite$wire$binary$edn_con
 dacite.wire.binary.pack_item__GT_wire_item = function dacite$wire$binary$pack_item__GT_wire_item(item) {
   var h = dacite.store.hex__GT_hash.call(null, (new cljs.core.Keyword(null, "hash", "hash", -13781596)).cljs$core$IFn$_invoke$arity$1(item));
   var enc = cljs.core.keyword.call(null, (new cljs.core.Keyword(null, "encoding", "encoding", 1728578272)).cljs$core$IFn$_invoke$arity$1(item));
-  var G__2450 = enc;
-  var G__2450__$1 = G__2450 instanceof cljs.core.Keyword ? G__2450.fqn : null;
-  switch(G__2450__$1) {
+  var G__2837 = enc;
+  var G__2837__$1 = G__2837 instanceof cljs.core.Keyword ? G__2837.fqn : null;
+  switch(G__2837__$1) {
     case "node":
       return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "enc", "enc", 709124780), new cljs.core.Keyword(null, "node", "node", 581201198), new cljs.core.Keyword(null, "hash", "hash", -13781596), h, new cljs.core.Keyword(null, "entry", "entry", 505168823), (new cljs.core.Keyword(null, "body", "body", -2049205669)).cljs$core$IFn$_invoke$arity$1(item)], null);
       break;
@@ -53323,16 +53860,16 @@ dacite.wire.binary.pack_item__GT_wire_item = function dacite$wire$binary$pack_it
       throw cljs.core.ex_info.call(null, "unknown pack item encoding", new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "encoding", "encoding", 1728578272), enc], null));
   }
 };
-dacite.wire.binary.wire_item__GT_pack_item = function dacite$wire$binary$wire_item__GT_pack_item(p__2452) {
-  var map__2453 = p__2452;
-  var map__2453__$1 = cljs.core.__destructure_map.call(null, map__2453);
-  var enc = cljs.core.get.call(null, map__2453__$1, new cljs.core.Keyword(null, "enc", "enc", 709124780));
-  var hash = cljs.core.get.call(null, map__2453__$1, new cljs.core.Keyword(null, "hash", "hash", -13781596));
-  var entry = cljs.core.get.call(null, map__2453__$1, new cljs.core.Keyword(null, "entry", "entry", 505168823));
-  var literal = cljs.core.get.call(null, map__2453__$1, new cljs.core.Keyword(null, "literal", "literal", 1664775605));
-  var G__2454 = enc;
-  var G__2454__$1 = G__2454 instanceof cljs.core.Keyword ? G__2454.fqn : null;
-  switch(G__2454__$1) {
+dacite.wire.binary.wire_item__GT_pack_item = function dacite$wire$binary$wire_item__GT_pack_item(p__2839) {
+  var map__2840 = p__2839;
+  var map__2840__$1 = cljs.core.__destructure_map.call(null, map__2840);
+  var enc = cljs.core.get.call(null, map__2840__$1, new cljs.core.Keyword(null, "enc", "enc", 709124780));
+  var hash = cljs.core.get.call(null, map__2840__$1, new cljs.core.Keyword(null, "hash", "hash", -13781596));
+  var entry = cljs.core.get.call(null, map__2840__$1, new cljs.core.Keyword(null, "entry", "entry", 505168823));
+  var literal = cljs.core.get.call(null, map__2840__$1, new cljs.core.Keyword(null, "literal", "literal", 1664775605));
+  var G__2841 = enc;
+  var G__2841__$1 = G__2841 instanceof cljs.core.Keyword ? G__2841.fqn : null;
+  switch(G__2841__$1) {
     case "node":
       return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "encoding", "encoding", 1728578272), new cljs.core.Keyword(null, "node", "node", 581201198), new cljs.core.Keyword(null, "hash", "hash", -13781596), dacite.store.hash__GT_hex.call(null, hash), new cljs.core.Keyword(null, "body", "body", -2049205669), entry], null);
       break;
@@ -53354,11 +53891,11 @@ dacite.wire.binary.pack_edn__GT_wire_map = function dacite$wire$binary$pack_edn_
     }
   }(), new cljs.core.Keyword(null, "items", "items", 1031954938), cljs.core.mapv.call(null, dacite.wire.binary.pack_item__GT_wire_item, (new cljs.core.Keyword(null, "items", "items", 1031954938)).cljs$core$IFn$_invoke$arity$1(chunk))], null);
 };
-dacite.wire.binary.wire_map__GT_pack_edn = function dacite$wire$binary$wire_map__GT_pack_edn(p__2456) {
-  var map__2457 = p__2456;
-  var map__2457__$1 = cljs.core.__destructure_map.call(null, map__2457);
-  var budget = cljs.core.get.call(null, map__2457__$1, new cljs.core.Keyword(null, "budget", "budget", -405386281));
-  var items = cljs.core.get.call(null, map__2457__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
+dacite.wire.binary.wire_map__GT_pack_edn = function dacite$wire$binary$wire_map__GT_pack_edn(p__2843) {
+  var map__2844 = p__2843;
+  var map__2844__$1 = cljs.core.__destructure_map.call(null, map__2844);
+  var budget = cljs.core.get.call(null, map__2844__$1, new cljs.core.Keyword(null, "budget", "budget", -405386281));
+  var items = cljs.core.get.call(null, map__2844__$1, new cljs.core.Keyword(null, "items", "items", 1031954938));
   return new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword("dacite.wire", "chunk-v1", "dacite.wire/chunk-v1", -1158089781), true, new cljs.core.Keyword(null, "budget", "budget", -405386281), function() {
     var or__5002__auto__ = budget;
     if (cljs.core.truth_(or__5002__auto__)) {
@@ -53429,8 +53966,8 @@ dacite.store.browser.trim_base = function dacite$store$browser$trim_base(base_ur
   return clojure.string.replace.call(null, base_url, /\/$/, "");
 };
 dacite.store.browser.node_url = function dacite$store$browser$node_url(var_args) {
-  var G__2683 = arguments.length;
-  switch(G__2683) {
+  var G__3070 = arguments.length;
+  switch(G__3070) {
     case 2:
       return dacite.store.browser.node_url.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -53470,13 +54007,13 @@ dacite.store.browser.body_byte_len = function dacite$store$browser$body_byte_len
 dacite.store.browser.binary_response_text__GT_u8 = function dacite$store$browser$binary_response_text__GT_u8(s) {
   var n = cljs.core.truth_(s) ? s.length : 0;
   var a = new Uint8Array(n);
-  var n__5593__auto___2685 = n;
-  var i_2686 = 0;
+  var n__5593__auto___3072 = n;
+  var i_3073 = 0;
   while (true) {
-    if (i_2686 < n__5593__auto___2685) {
-      a[i_2686] = 255 & s.charCodeAt(i_2686);
-      var G__2687 = i_2686 + 1;
-      i_2686 = G__2687;
+    if (i_3073 < n__5593__auto___3072) {
+      a[i_3073] = 255 & s.charCodeAt(i_3073);
+      var G__3074 = i_3073 + 1;
+      i_3073 = G__3074;
       continue;
     } else {
     }
@@ -53485,8 +54022,8 @@ dacite.store.browser.binary_response_text__GT_u8 = function dacite$store$browser
   return a;
 };
 dacite.store.browser.xhr = function dacite$store$browser$xhr(var_args) {
-  var G__2689 = arguments.length;
-  switch(G__2689) {
+  var G__3076 = arguments.length;
+  switch(G__3076) {
     case 4:
       return dacite.store.browser.xhr.cljs$core$IFn$_invoke$arity$4(arguments[0], arguments[1], arguments[2], arguments[3]);
       break;
@@ -53500,63 +54037,63 @@ dacite.store.browser.xhr = function dacite$store$browser$xhr(var_args) {
 dacite.store.browser.xhr.cljs$core$IFn$_invoke$arity$4 = function(method, url, body, headers) {
   return dacite.store.browser.xhr.call(null, method, url, body, headers, null);
 };
-dacite.store.browser.xhr.cljs$core$IFn$_invoke$arity$5 = function(method, url, body, headers, p__2690) {
-  var map__2691 = p__2690;
-  var map__2691__$1 = cljs.core.__destructure_map.call(null, map__2691);
-  var binary_response = cljs.core.get.call(null, map__2691__$1, new cljs.core.Keyword(null, "binary-response", "binary-response", -1663295022));
+dacite.store.browser.xhr.cljs$core$IFn$_invoke$arity$5 = function(method, url, body, headers, p__3077) {
+  var map__3078 = p__3077;
+  var map__3078__$1 = cljs.core.__destructure_map.call(null, map__3078);
+  var binary_response = cljs.core.get.call(null, map__3078__$1, new cljs.core.Keyword(null, "binary-response", "binary-response", -1663295022));
   var x = new XMLHttpRequest();
   x.open(method, url, false);
   if (cljs.core.truth_(binary_response)) {
     x.overrideMimeType("text/plain; charset\x3dx-user-defined");
   } else {
   }
-  var seq__2692_2709 = cljs.core.seq.call(null, headers);
-  var chunk__2693_2710 = null;
-  var count__2694_2711 = 0;
-  var i__2695_2712 = 0;
+  var seq__3079_3096 = cljs.core.seq.call(null, headers);
+  var chunk__3080_3097 = null;
+  var count__3081_3098 = 0;
+  var i__3082_3099 = 0;
   while (true) {
-    if (i__2695_2712 < count__2694_2711) {
-      var vec__2702_2713 = cljs.core._nth.call(null, chunk__2693_2710, i__2695_2712);
-      var k_2714 = cljs.core.nth.call(null, vec__2702_2713, 0, null);
-      var v_2715 = cljs.core.nth.call(null, vec__2702_2713, 1, null);
-      x.setRequestHeader(cljs.core.name.call(null, k_2714), cljs.core.str.cljs$core$IFn$_invoke$arity$1(v_2715));
-      var G__2716 = seq__2692_2709;
-      var G__2717 = chunk__2693_2710;
-      var G__2718 = count__2694_2711;
-      var G__2719 = i__2695_2712 + 1;
-      seq__2692_2709 = G__2716;
-      chunk__2693_2710 = G__2717;
-      count__2694_2711 = G__2718;
-      i__2695_2712 = G__2719;
+    if (i__3082_3099 < count__3081_3098) {
+      var vec__3089_3100 = cljs.core._nth.call(null, chunk__3080_3097, i__3082_3099);
+      var k_3101 = cljs.core.nth.call(null, vec__3089_3100, 0, null);
+      var v_3102 = cljs.core.nth.call(null, vec__3089_3100, 1, null);
+      x.setRequestHeader(cljs.core.name.call(null, k_3101), cljs.core.str.cljs$core$IFn$_invoke$arity$1(v_3102));
+      var G__3103 = seq__3079_3096;
+      var G__3104 = chunk__3080_3097;
+      var G__3105 = count__3081_3098;
+      var G__3106 = i__3082_3099 + 1;
+      seq__3079_3096 = G__3103;
+      chunk__3080_3097 = G__3104;
+      count__3081_3098 = G__3105;
+      i__3082_3099 = G__3106;
       continue;
     } else {
-      var temp__5825__auto___2720 = cljs.core.seq.call(null, seq__2692_2709);
-      if (temp__5825__auto___2720) {
-        var seq__2692_2721__$1 = temp__5825__auto___2720;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2692_2721__$1)) {
-          var c__5525__auto___2722 = cljs.core.chunk_first.call(null, seq__2692_2721__$1);
-          var G__2723 = cljs.core.chunk_rest.call(null, seq__2692_2721__$1);
-          var G__2724 = c__5525__auto___2722;
-          var G__2725 = cljs.core.count.call(null, c__5525__auto___2722);
-          var G__2726 = 0;
-          seq__2692_2709 = G__2723;
-          chunk__2693_2710 = G__2724;
-          count__2694_2711 = G__2725;
-          i__2695_2712 = G__2726;
+      var temp__5825__auto___3107 = cljs.core.seq.call(null, seq__3079_3096);
+      if (temp__5825__auto___3107) {
+        var seq__3079_3108__$1 = temp__5825__auto___3107;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__3079_3108__$1)) {
+          var c__5525__auto___3109 = cljs.core.chunk_first.call(null, seq__3079_3108__$1);
+          var G__3110 = cljs.core.chunk_rest.call(null, seq__3079_3108__$1);
+          var G__3111 = c__5525__auto___3109;
+          var G__3112 = cljs.core.count.call(null, c__5525__auto___3109);
+          var G__3113 = 0;
+          seq__3079_3096 = G__3110;
+          chunk__3080_3097 = G__3111;
+          count__3081_3098 = G__3112;
+          i__3082_3099 = G__3113;
           continue;
         } else {
-          var vec__2705_2727 = cljs.core.first.call(null, seq__2692_2721__$1);
-          var k_2728 = cljs.core.nth.call(null, vec__2705_2727, 0, null);
-          var v_2729 = cljs.core.nth.call(null, vec__2705_2727, 1, null);
-          x.setRequestHeader(cljs.core.name.call(null, k_2728), cljs.core.str.cljs$core$IFn$_invoke$arity$1(v_2729));
-          var G__2730 = cljs.core.next.call(null, seq__2692_2721__$1);
-          var G__2731 = null;
-          var G__2732 = 0;
-          var G__2733 = 0;
-          seq__2692_2709 = G__2730;
-          chunk__2693_2710 = G__2731;
-          count__2694_2711 = G__2732;
-          i__2695_2712 = G__2733;
+          var vec__3092_3114 = cljs.core.first.call(null, seq__3079_3108__$1);
+          var k_3115 = cljs.core.nth.call(null, vec__3092_3114, 0, null);
+          var v_3116 = cljs.core.nth.call(null, vec__3092_3114, 1, null);
+          x.setRequestHeader(cljs.core.name.call(null, k_3115), cljs.core.str.cljs$core$IFn$_invoke$arity$1(v_3116));
+          var G__3117 = cljs.core.next.call(null, seq__3079_3108__$1);
+          var G__3118 = null;
+          var G__3119 = 0;
+          var G__3120 = 0;
+          seq__3079_3096 = G__3117;
+          chunk__3080_3097 = G__3118;
+          count__3081_3098 = G__3119;
+          i__3082_3099 = G__3120;
           continue;
         }
       } else {
@@ -53649,12 +54186,12 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ILookup$_lookup$arit
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k2735, else__5303__auto__) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k3122, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__2739 = k2735;
-  var G__2739__$1 = G__2739 instanceof cljs.core.Keyword ? G__2739.fqn : null;
-  switch(G__2739__$1) {
+  var G__3126 = k3122;
+  var G__3126__$1 = G__3126 instanceof cljs.core.Keyword ? G__3126.fqn : null;
+  switch(G__3126__$1) {
     case "base-url":
       return self__.base_url;
       break;
@@ -53674,16 +54211,16 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ILookup$_lookup$arit
       return self__.nodes_QMARK_;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k2735, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k3122, else__5303__auto__);
   }
 };
 dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__2740) {
-    var vec__2741 = p__2740;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__2741, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__2741, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__3127) {
+    var vec__3128 = p__3127;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__3128, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__3128, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -53697,10 +54234,10 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IPrintWithWriter$_pr
   [new cljs.core.Keyword(null, "headers", "headers", -835030129), self__.headers], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931), self__.pack_local], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "binary?", "binary?", -589404570), self__.binary_QMARK_], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, 
   [new cljs.core.Keyword(null, "raw?", "raw?", 394379982), self__.raw_QMARK_], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615), self__.nodes_QMARK_], null)], null), self__.__extmap));
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__2734) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__3121) {
   var self__ = this;
-  var G__2734__$1 = this;
-  return new cljs.core.RecordIter(0, G__2734__$1, 6, new cljs.core.PersistentVector(null, 6, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "base-url", "base-url", 9540398), new cljs.core.Keyword(null, "headers", "headers", -835030129), new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931), new cljs.core.Keyword(null, "binary?", "binary?", -589404570), new cljs.core.Keyword(null, "raw?", "raw?", 394379982), new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615)], 
+  var G__3121__$1 = this;
+  return new cljs.core.RecordIter(0, G__3121__$1, 6, new cljs.core.PersistentVector(null, 6, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "base-url", "base-url", 9540398), new cljs.core.Keyword(null, "headers", "headers", -835030129), new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931), new cljs.core.Keyword(null, "binary?", "binary?", -589404570), new cljs.core.Keyword(null, "raw?", "raw?", 394379982), new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615)], 
   null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
@@ -53725,10 +54262,10 @@ dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$pack$IChunkTransp
   var url = [dacite.store.browser.trim_base.call(null, self__.base_url), "/nodes"].join("");
   var data = cljs.core.truth_(self__.binary_QMARK_) ? function() {
     var bs = dacite.wire.binary.encode_pack_edn.call(null, chunk);
-    var map__2744 = dacite.store.browser.xhr.call(null, "POST", url, bs, cljs.core.assoc.call(null, self__.headers, "Content-Type", dacite.wire.binary.content_type_chunk_v1, "Accept", "application/edn"));
-    var map__2744__$1 = cljs.core.__destructure_map.call(null, map__2744);
-    var status = cljs.core.get.call(null, map__2744__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-    var body = cljs.core.get.call(null, map__2744__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+    var map__3131 = dacite.store.browser.xhr.call(null, "POST", url, bs, cljs.core.assoc.call(null, self__.headers, "Content-Type", dacite.wire.binary.content_type_chunk_v1, "Accept", "application/edn"));
+    var map__3131__$1 = cljs.core.__destructure_map.call(null, map__3131);
+    var status = cljs.core.get.call(null, map__3131__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+    var body = cljs.core.get.call(null, map__3131__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
     if (cljs.core._EQ_.call(null, 200, status)) {
     } else {
       throw cljs.core.ex_info.call(null, "Browser send-chunk! failed", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "status", "status", -1997798413), status, new cljs.core.Keyword(null, "body", "body", -2049205669), body], null));
@@ -53746,10 +54283,10 @@ dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$pack$IChunkTransp
       return null;
     }
   }() : function() {
-    var map__2745 = dacite.store.browser.xhr.call(null, "POST", url, dacite.wire.write_edn.call(null, chunk), cljs.core.assoc.call(null, self__.headers, "Content-Type", "application/edn"));
-    var map__2745__$1 = cljs.core.__destructure_map.call(null, map__2745);
-    var status = cljs.core.get.call(null, map__2745__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-    var body = cljs.core.get.call(null, map__2745__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+    var map__3132 = dacite.store.browser.xhr.call(null, "POST", url, dacite.wire.write_edn.call(null, chunk), cljs.core.assoc.call(null, self__.headers, "Content-Type", "application/edn"));
+    var map__3132__$1 = cljs.core.__destructure_map.call(null, map__3132);
+    var status = cljs.core.get.call(null, map__3132__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+    var body = cljs.core.get.call(null, map__3132__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
     if (cljs.core._EQ_.call(null, 200, status)) {
     } else {
       throw cljs.core.ex_info.call(null, "Browser send-chunk! failed", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "status", "status", -1997798413), status, new cljs.core.Keyword(null, "body", "body", -2049205669), body], null));
@@ -53784,11 +54321,11 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IHash$_hash$arity$1 
     return h__5111__auto____$1;
   }
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this2736, other2737) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this3123, other3124) {
   var self__ = this;
-  var this2736__$1 = this;
-  return !(other2737 == null) && (this2736__$1.constructor === other2737.constructor && (cljs.core._EQ_.call(null, this2736__$1.base_url, other2737.base_url) && (cljs.core._EQ_.call(null, this2736__$1.headers, other2737.headers) && (cljs.core._EQ_.call(null, this2736__$1.pack_local, other2737.pack_local) && (cljs.core._EQ_.call(null, this2736__$1.binary_QMARK_, other2737.binary_QMARK_) && (cljs.core._EQ_.call(null, this2736__$1.raw_QMARK_, other2737.raw_QMARK_) && (cljs.core._EQ_.call(null, this2736__$1.nodes_QMARK_, 
-  other2737.nodes_QMARK_) && cljs.core._EQ_.call(null, this2736__$1.__extmap, other2737.__extmap))))))));
+  var this3123__$1 = this;
+  return !(other3124 == null) && (this3123__$1.constructor === other3124.constructor && (cljs.core._EQ_.call(null, this3123__$1.base_url, other3124.base_url) && (cljs.core._EQ_.call(null, this3123__$1.headers, other3124.headers) && (cljs.core._EQ_.call(null, this3123__$1.pack_local, other3124.pack_local) && (cljs.core._EQ_.call(null, this3123__$1.binary_QMARK_, other3124.binary_QMARK_) && (cljs.core._EQ_.call(null, this3123__$1.raw_QMARK_, other3124.raw_QMARK_) && (cljs.core._EQ_.call(null, this3123__$1.nodes_QMARK_, 
+  other3124.nodes_QMARK_) && cljs.core._EQ_.call(null, this3123__$1.__extmap, other3124.__extmap))))))));
 };
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
@@ -53810,11 +54347,18 @@ dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_get$arit
     }();
     var hdrs = cljs.core.truth_(use_bin_QMARK_) ? cljs.core.assoc.call(null, self__.headers, "Accept", dacite.wire.binary.content_type_chunk_v1) : cljs.core.assoc.call(null, self__.headers, "Accept", "application/edn");
     var opts = cljs.core.truth_(use_bin_QMARK_) ? new cljs.core.PersistentArrayMap(null, 1, [new cljs.core.Keyword(null, "binary-response", "binary-response", -1663295022), true], null) : null;
-    var q = cljs.core.truth_(raw_QMARK___$1) ? "raw\x3d1" : cljs.core.truth_(nodes_QMARK___$1) ? "nodes\x3d1" : null;
-    var map__2746 = dacite.store.browser.xhr.call(null, "GET", dacite.store.browser.node_url.call(null, self__.base_url, h, q), null, hdrs, opts);
-    var map__2746__$1 = cljs.core.__destructure_map.call(null, map__2746);
-    var status = cljs.core.get.call(null, map__2746__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-    var body = cljs.core.get.call(null, map__2746__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+    var q = cljs.core.not_empty.call(null, clojure.string.join.call(null, "\x26", cljs.core.remove.call(null, cljs.core.nil_QMARK_, new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [cljs.core.truth_(raw_QMARK___$1) ? "raw\x3d1" : null, cljs.core.truth_(function() {
+      var and__5000__auto__ = nodes_QMARK___$1;
+      if (cljs.core.truth_(and__5000__auto__)) {
+        return cljs.core.not.call(null, raw_QMARK___$1);
+      } else {
+        return and__5000__auto__;
+      }
+    }()) ? "nodes\x3d1" : null], null))));
+    var map__3133 = dacite.store.browser.xhr.call(null, "GET", dacite.store.browser.node_url.call(null, self__.base_url, h, q), null, hdrs, opts);
+    var map__3133__$1 = cljs.core.__destructure_map.call(null, map__3133);
+    var status = cljs.core.get.call(null, map__3133__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+    var body = cljs.core.get.call(null, map__3133__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
     if (cljs.core._EQ_.call(null, 200, status)) {
       return dacite.store.browser.apply_get_body_BANG_.call(null, self__.pack_local, h, body, use_bin_QMARK_);
     } else {
@@ -53825,13 +54369,13 @@ dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_get$arit
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_put$arity$3 = function(this$, h, value) {
   var self__ = this;
   var this$__$1 = this;
-  var map__2747_2771 = dacite.store.browser.xhr.call(null, "PUT", dacite.store.browser.node_url.call(null, self__.base_url, h), dacite.wire.write_edn.call(null, value), cljs.core.assoc.call(null, self__.headers, "Content-Type", "application/edn"));
-  var map__2747_2772__$1 = cljs.core.__destructure_map.call(null, map__2747_2771);
-  var status_2773 = cljs.core.get.call(null, map__2747_2772__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var body_2774 = cljs.core.get.call(null, map__2747_2772__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
-  if (cljs.core._EQ_.call(null, 200, status_2773) || cljs.core._EQ_.call(null, 204, status_2773)) {
+  var map__3134_3158 = dacite.store.browser.xhr.call(null, "PUT", dacite.store.browser.node_url.call(null, self__.base_url, h), dacite.wire.write_edn.call(null, value), cljs.core.assoc.call(null, self__.headers, "Content-Type", "application/edn"));
+  var map__3134_3159__$1 = cljs.core.__destructure_map.call(null, map__3134_3158);
+  var status_3160 = cljs.core.get.call(null, map__3134_3159__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var body_3161 = cljs.core.get.call(null, map__3134_3159__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  if (cljs.core._EQ_.call(null, 200, status_3160) || cljs.core._EQ_.call(null, 204, status_3160)) {
   } else {
-    throw cljs.core.ex_info.call(null, "Browser remote s-put failed", new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "status", "status", -1997798413), status_2773, new cljs.core.Keyword(null, "hash", "hash", -13781596), h, new cljs.core.Keyword(null, "body", "body", -2049205669), body_2774], null));
+    throw cljs.core.ex_info.call(null, "Browser remote s-put failed", new cljs.core.PersistentArrayMap(null, 3, [new cljs.core.Keyword(null, "status", "status", -1997798413), status_3160, new cljs.core.Keyword(null, "hash", "hash", -13781596), h, new cljs.core.Keyword(null, "body", "body", -2049205669), body_3161], null));
   }
   dacite.store.s_put.call(null, self__.pack_local, h, value);
   return this$__$1;
@@ -53849,11 +54393,11 @@ dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_has_QMAR
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_delete$arity$2 = function(this$, h) {
   var self__ = this;
   var this$__$1 = this;
-  var map__2748_2775 = dacite.store.browser.xhr.call(null, "DELETE", dacite.store.browser.node_url.call(null, self__.base_url, h), null, self__.headers);
-  var map__2748_2776__$1 = cljs.core.__destructure_map.call(null, map__2748_2775);
-  var status_2777 = cljs.core.get.call(null, map__2748_2776__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  if (cljs.core.not_EQ_.call(null, 204, status_2777) && cljs.core.not_EQ_.call(null, 404, status_2777)) {
-    throw cljs.core.ex_info.call(null, "Browser remote s-delete failed", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "status", "status", -1997798413), status_2777, new cljs.core.Keyword(null, "hash", "hash", -13781596), h], null));
+  var map__3135_3162 = dacite.store.browser.xhr.call(null, "DELETE", dacite.store.browser.node_url.call(null, self__.base_url, h), null, self__.headers);
+  var map__3135_3163__$1 = cljs.core.__destructure_map.call(null, map__3135_3162);
+  var status_3164 = cljs.core.get.call(null, map__3135_3163__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  if (cljs.core.not_EQ_.call(null, 204, status_3164) && cljs.core.not_EQ_.call(null, 404, status_3164)) {
+    throw cljs.core.ex_info.call(null, "Browser remote s-delete failed", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "status", "status", -1997798413), status_3164, new cljs.core.Keyword(null, "hash", "hash", -13781596), h], null));
   } else {
   }
   dacite.store.s_delete.call(null, self__.pack_local, h);
@@ -53867,53 +54411,53 @@ dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_snapshot
 dacite.store.browser.BrowserRemoteStore.prototype.dacite$store$IStore$s_merge$arity$2 = function(this$, m) {
   var self__ = this;
   var this$__$1 = this;
-  var seq__2749_2778 = cljs.core.seq.call(null, m);
-  var chunk__2750_2779 = null;
-  var count__2751_2780 = 0;
-  var i__2752_2781 = 0;
+  var seq__3136_3165 = cljs.core.seq.call(null, m);
+  var chunk__3137_3166 = null;
+  var count__3138_3167 = 0;
+  var i__3139_3168 = 0;
   while (true) {
-    if (i__2752_2781 < count__2751_2780) {
-      var vec__2759_2782 = cljs.core._nth.call(null, chunk__2750_2779, i__2752_2781);
-      var h_2783 = cljs.core.nth.call(null, vec__2759_2782, 0, null);
-      var v_2784 = cljs.core.nth.call(null, vec__2759_2782, 1, null);
-      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2783, v_2784);
-      var G__2785 = seq__2749_2778;
-      var G__2786 = chunk__2750_2779;
-      var G__2787 = count__2751_2780;
-      var G__2788 = i__2752_2781 + 1;
-      seq__2749_2778 = G__2785;
-      chunk__2750_2779 = G__2786;
-      count__2751_2780 = G__2787;
-      i__2752_2781 = G__2788;
+    if (i__3139_3168 < count__3138_3167) {
+      var vec__3146_3169 = cljs.core._nth.call(null, chunk__3137_3166, i__3139_3168);
+      var h_3170 = cljs.core.nth.call(null, vec__3146_3169, 0, null);
+      var v_3171 = cljs.core.nth.call(null, vec__3146_3169, 1, null);
+      this$__$1.dacite$store$IStore$s_put$arity$3(null, h_3170, v_3171);
+      var G__3172 = seq__3136_3165;
+      var G__3173 = chunk__3137_3166;
+      var G__3174 = count__3138_3167;
+      var G__3175 = i__3139_3168 + 1;
+      seq__3136_3165 = G__3172;
+      chunk__3137_3166 = G__3173;
+      count__3138_3167 = G__3174;
+      i__3139_3168 = G__3175;
       continue;
     } else {
-      var temp__5825__auto___2789 = cljs.core.seq.call(null, seq__2749_2778);
-      if (temp__5825__auto___2789) {
-        var seq__2749_2790__$1 = temp__5825__auto___2789;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2749_2790__$1)) {
-          var c__5525__auto___2791 = cljs.core.chunk_first.call(null, seq__2749_2790__$1);
-          var G__2792 = cljs.core.chunk_rest.call(null, seq__2749_2790__$1);
-          var G__2793 = c__5525__auto___2791;
-          var G__2794 = cljs.core.count.call(null, c__5525__auto___2791);
-          var G__2795 = 0;
-          seq__2749_2778 = G__2792;
-          chunk__2750_2779 = G__2793;
-          count__2751_2780 = G__2794;
-          i__2752_2781 = G__2795;
+      var temp__5825__auto___3176 = cljs.core.seq.call(null, seq__3136_3165);
+      if (temp__5825__auto___3176) {
+        var seq__3136_3177__$1 = temp__5825__auto___3176;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__3136_3177__$1)) {
+          var c__5525__auto___3178 = cljs.core.chunk_first.call(null, seq__3136_3177__$1);
+          var G__3179 = cljs.core.chunk_rest.call(null, seq__3136_3177__$1);
+          var G__3180 = c__5525__auto___3178;
+          var G__3181 = cljs.core.count.call(null, c__5525__auto___3178);
+          var G__3182 = 0;
+          seq__3136_3165 = G__3179;
+          chunk__3137_3166 = G__3180;
+          count__3138_3167 = G__3181;
+          i__3139_3168 = G__3182;
           continue;
         } else {
-          var vec__2762_2796 = cljs.core.first.call(null, seq__2749_2790__$1);
-          var h_2797 = cljs.core.nth.call(null, vec__2762_2796, 0, null);
-          var v_2798 = cljs.core.nth.call(null, vec__2762_2796, 1, null);
-          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_2797, v_2798);
-          var G__2799 = cljs.core.next.call(null, seq__2749_2790__$1);
-          var G__2800 = null;
-          var G__2801 = 0;
-          var G__2802 = 0;
-          seq__2749_2778 = G__2799;
-          chunk__2750_2779 = G__2800;
-          count__2751_2780 = G__2801;
-          i__2752_2781 = G__2802;
+          var vec__3149_3183 = cljs.core.first.call(null, seq__3136_3177__$1);
+          var h_3184 = cljs.core.nth.call(null, vec__3149_3183, 0, null);
+          var v_3185 = cljs.core.nth.call(null, vec__3149_3183, 1, null);
+          this$__$1.dacite$store$IStore$s_put$arity$3(null, h_3184, v_3185);
+          var G__3186 = cljs.core.next.call(null, seq__3136_3177__$1);
+          var G__3187 = null;
+          var G__3188 = 0;
+          var G__3189 = 0;
+          seq__3136_3165 = G__3186;
+          chunk__3137_3166 = G__3187;
+          count__3138_3167 = G__3188;
+          i__3139_3168 = G__3189;
           continue;
         }
       } else {
@@ -53939,12 +54483,12 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IMap$_dissoc$arity$2
     return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k2735) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k3122) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__2765 = k2735;
-  var G__2765__$1 = G__2765 instanceof cljs.core.Keyword ? G__2765.fqn : null;
-  switch(G__2765__$1) {
+  var G__3152 = k3122;
+  var G__3152__$1 = G__3152 instanceof cljs.core.Keyword ? G__3152.fqn : null;
+  switch(G__3152__$1) {
     case "base-url":
     case "headers":
     case "pack-local":
@@ -53954,33 +54498,33 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IAssociative$_contai
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k2735);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k3122);
   }
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__2734) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__3121) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__2766 = cljs.core.keyword_identical_QMARK_;
-  var expr__2767 = k__5309__auto__;
-  if (cljs.core.truth_(pred__2766.call(null, new cljs.core.Keyword(null, "base-url", "base-url", 9540398), expr__2767))) {
-    return new dacite.store.browser.BrowserRemoteStore(G__2734, self__.headers, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
+  var pred__3153 = cljs.core.keyword_identical_QMARK_;
+  var expr__3154 = k__5309__auto__;
+  if (cljs.core.truth_(pred__3153.call(null, new cljs.core.Keyword(null, "base-url", "base-url", 9540398), expr__3154))) {
+    return new dacite.store.browser.BrowserRemoteStore(G__3121, self__.headers, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
   } else {
-    if (cljs.core.truth_(pred__2766.call(null, new cljs.core.Keyword(null, "headers", "headers", -835030129), expr__2767))) {
-      return new dacite.store.browser.BrowserRemoteStore(self__.base_url, G__2734, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
+    if (cljs.core.truth_(pred__3153.call(null, new cljs.core.Keyword(null, "headers", "headers", -835030129), expr__3154))) {
+      return new dacite.store.browser.BrowserRemoteStore(self__.base_url, G__3121, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
     } else {
-      if (cljs.core.truth_(pred__2766.call(null, new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931), expr__2767))) {
-        return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, G__2734, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
+      if (cljs.core.truth_(pred__3153.call(null, new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931), expr__3154))) {
+        return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, G__3121, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
       } else {
-        if (cljs.core.truth_(pred__2766.call(null, new cljs.core.Keyword(null, "binary?", "binary?", -589404570), expr__2767))) {
-          return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, G__2734, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
+        if (cljs.core.truth_(pred__3153.call(null, new cljs.core.Keyword(null, "binary?", "binary?", -589404570), expr__3154))) {
+          return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, G__3121, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
         } else {
-          if (cljs.core.truth_(pred__2766.call(null, new cljs.core.Keyword(null, "raw?", "raw?", 394379982), expr__2767))) {
-            return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, self__.binary_QMARK_, G__2734, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
+          if (cljs.core.truth_(pred__3153.call(null, new cljs.core.Keyword(null, "raw?", "raw?", 394379982), expr__3154))) {
+            return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, self__.binary_QMARK_, G__3121, self__.nodes_QMARK_, self__.__meta, self__.__extmap, null);
           } else {
-            if (cljs.core.truth_(pred__2766.call(null, new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615), expr__2767))) {
-              return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, G__2734, self__.__meta, self__.__extmap, null);
+            if (cljs.core.truth_(pred__3153.call(null, new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615), expr__3154))) {
+              return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, G__3121, self__.__meta, self__.__extmap, null);
             } else {
-              return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__2734), null);
+              return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__3121), null);
             }
           }
         }
@@ -53994,10 +54538,10 @@ dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ISeqable$_seq$arity$
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 6, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "base-url", "base-url", 9540398), self__.base_url, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "headers", "headers", -835030129), self__.headers, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931), self__.pack_local, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, 
   "binary?", "binary?", -589404570), self__.binary_QMARK_, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "raw?", "raw?", 394379982), self__.raw_QMARK_, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615), self__.nodes_QMARK_, null)], null), self__.__extmap));
 };
-dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__2734) {
+dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__3121) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, G__2734, self__.__extmap, self__.__hash);
+  return new dacite.store.browser.BrowserRemoteStore(self__.base_url, self__.headers, self__.pack_local, self__.binary_QMARK_, self__.raw_QMARK_, self__.nodes_QMARK_, G__3121, self__.__extmap, self__.__hash);
 };
 dacite.store.browser.BrowserRemoteStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -54022,27 +54566,27 @@ dacite.store.browser.BrowserRemoteStore.cljs$lang$ctorPrWriter = function(this__
 dacite.store.browser.__GT_BrowserRemoteStore = function dacite$store$browser$__GT_BrowserRemoteStore(base_url, headers, pack_local, binary_QMARK_, raw_QMARK_, nodes_QMARK_) {
   return new dacite.store.browser.BrowserRemoteStore(base_url, headers, pack_local, binary_QMARK_, raw_QMARK_, nodes_QMARK_, null, null, null);
 };
-dacite.store.browser.map__GT_BrowserRemoteStore = function dacite$store$browser$map__GT_BrowserRemoteStore(G__2738) {
+dacite.store.browser.map__GT_BrowserRemoteStore = function dacite$store$browser$map__GT_BrowserRemoteStore(G__3125) {
   var extmap__5342__auto__ = function() {
-    var G__2769 = cljs.core.dissoc.call(null, G__2738, new cljs.core.Keyword(null, "base-url", "base-url", 9540398), new cljs.core.Keyword(null, "headers", "headers", -835030129), new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931), new cljs.core.Keyword(null, "binary?", "binary?", -589404570), new cljs.core.Keyword(null, "raw?", "raw?", 394379982), new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615));
-    if (cljs.core.record_QMARK_.call(null, G__2738)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__2769);
+    var G__3156 = cljs.core.dissoc.call(null, G__3125, new cljs.core.Keyword(null, "base-url", "base-url", 9540398), new cljs.core.Keyword(null, "headers", "headers", -835030129), new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931), new cljs.core.Keyword(null, "binary?", "binary?", -589404570), new cljs.core.Keyword(null, "raw?", "raw?", 394379982), new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615));
+    if (cljs.core.record_QMARK_.call(null, G__3125)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__3156);
     } else {
-      return G__2769;
+      return G__3156;
     }
   }();
-  return new dacite.store.browser.BrowserRemoteStore((new cljs.core.Keyword(null, "base-url", "base-url", 9540398)).cljs$core$IFn$_invoke$arity$1(G__2738), (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(G__2738), (new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931)).cljs$core$IFn$_invoke$arity$1(G__2738), (new cljs.core.Keyword(null, "binary?", "binary?", -589404570)).cljs$core$IFn$_invoke$arity$1(G__2738), (new cljs.core.Keyword(null, 
-  "raw?", "raw?", 394379982)).cljs$core$IFn$_invoke$arity$1(G__2738), (new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615)).cljs$core$IFn$_invoke$arity$1(G__2738), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.store.browser.BrowserRemoteStore((new cljs.core.Keyword(null, "base-url", "base-url", 9540398)).cljs$core$IFn$_invoke$arity$1(G__3125), (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(G__3125), (new cljs.core.Keyword(null, "pack-local", "pack-local", 24525931)).cljs$core$IFn$_invoke$arity$1(G__3125), (new cljs.core.Keyword(null, "binary?", "binary?", -589404570)).cljs$core$IFn$_invoke$arity$1(G__3125), (new cljs.core.Keyword(null, 
+  "raw?", "raw?", 394379982)).cljs$core$IFn$_invoke$arity$1(G__3125), (new cljs.core.Keyword(null, "nodes?", "nodes?", 899506615)).cljs$core$IFn$_invoke$arity$1(G__3125), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.store.browser.remote_store = function dacite$store$browser$remote_store(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___2811 = arguments.length;
-  var i__5727__auto___2812 = 0;
+  var len__5726__auto___3198 = arguments.length;
+  var i__5727__auto___3199 = 0;
   while (true) {
-    if (i__5727__auto___2812 < len__5726__auto___2811) {
-      args__5732__auto__.push(arguments[i__5727__auto___2812]);
-      var G__2813 = i__5727__auto___2812 + 1;
-      i__5727__auto___2812 = G__2813;
+    if (i__5727__auto___3199 < len__5726__auto___3198) {
+      args__5732__auto__.push(arguments[i__5727__auto___3199]);
+      var G__3200 = i__5727__auto___3199 + 1;
+      i__5727__auto___3199 = G__3200;
       continue;
     } else {
     }
@@ -54051,14 +54595,14 @@ dacite.store.browser.remote_store = function dacite$store$browser$remote_store(v
   var argseq__5733__auto__ = 1 < args__5732__auto__.length ? new cljs.core.IndexedSeq(args__5732__auto__.slice(1), 0, null) : null;
   return dacite.store.browser.remote_store.cljs$core$IFn$_invoke$arity$variadic(arguments[0], argseq__5733__auto__);
 };
-dacite.store.browser.remote_store.cljs$core$IFn$_invoke$arity$variadic = function(base_url, p__2806) {
-  var vec__2807 = p__2806;
-  var map__2810 = cljs.core.nth.call(null, vec__2807, 0, null);
-  var map__2810__$1 = cljs.core.__destructure_map.call(null, map__2810);
-  var headers = cljs.core.get.call(null, map__2810__$1, new cljs.core.Keyword(null, "headers", "headers", -835030129), cljs.core.PersistentArrayMap.EMPTY);
-  var binary = cljs.core.get.call(null, map__2810__$1, new cljs.core.Keyword(null, "binary", "binary", -1802232288), true);
-  var raw = cljs.core.get.call(null, map__2810__$1, new cljs.core.Keyword(null, "raw", "raw", 1604651272), false);
-  var nodes = cljs.core.get.call(null, map__2810__$1, new cljs.core.Keyword(null, "nodes", "nodes", -2099585805), false);
+dacite.store.browser.remote_store.cljs$core$IFn$_invoke$arity$variadic = function(base_url, p__3193) {
+  var vec__3194 = p__3193;
+  var map__3197 = cljs.core.nth.call(null, vec__3194, 0, null);
+  var map__3197__$1 = cljs.core.__destructure_map.call(null, map__3197);
+  var headers = cljs.core.get.call(null, map__3197__$1, new cljs.core.Keyword(null, "headers", "headers", -835030129), cljs.core.PersistentArrayMap.EMPTY);
+  var binary = cljs.core.get.call(null, map__3197__$1, new cljs.core.Keyword(null, "binary", "binary", -1802232288), true);
+  var raw = cljs.core.get.call(null, map__3197__$1, new cljs.core.Keyword(null, "raw", "raw", 1604651272), false);
+  var nodes = cljs.core.get.call(null, map__3197__$1, new cljs.core.Keyword(null, "nodes", "nodes", -2099585805), false);
   return dacite.store.browser.__GT_BrowserRemoteStore.call(null, function() {
     var or__5002__auto__ = base_url;
     if (cljs.core.truth_(or__5002__auto__)) {
@@ -54069,21 +54613,21 @@ dacite.store.browser.remote_store.cljs$core$IFn$_invoke$arity$variadic = functio
   }(), headers, dacite.store.mem_store.call(null), cljs.core.boolean$.call(null, binary), cljs.core.boolean$.call(null, raw), cljs.core.boolean$.call(null, nodes));
 };
 dacite.store.browser.remote_store.cljs$lang$maxFixedArity = 1;
-dacite.store.browser.remote_store.cljs$lang$applyTo = function(seq2804) {
-  var G__2805 = cljs.core.first.call(null, seq2804);
-  var seq2804__$1 = cljs.core.next.call(null, seq2804);
+dacite.store.browser.remote_store.cljs$lang$applyTo = function(seq3191) {
+  var G__3192 = cljs.core.first.call(null, seq3191);
+  var seq3191__$1 = cljs.core.next.call(null, seq3191);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__2805, seq2804__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__3192, seq3191__$1);
 };
 dacite.store.browser.cached_remote_store = function dacite$store$browser$cached_remote_store(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___2821 = arguments.length;
-  var i__5727__auto___2822 = 0;
+  var len__5726__auto___3208 = arguments.length;
+  var i__5727__auto___3209 = 0;
   while (true) {
-    if (i__5727__auto___2822 < len__5726__auto___2821) {
-      args__5732__auto__.push(arguments[i__5727__auto___2822]);
-      var G__2823 = i__5727__auto___2822 + 1;
-      i__5727__auto___2822 = G__2823;
+    if (i__5727__auto___3209 < len__5726__auto___3208) {
+      args__5732__auto__.push(arguments[i__5727__auto___3209]);
+      var G__3210 = i__5727__auto___3209 + 1;
+      i__5727__auto___3209 = G__3210;
       continue;
     } else {
     }
@@ -54092,23 +54636,23 @@ dacite.store.browser.cached_remote_store = function dacite$store$browser$cached_
   var argseq__5733__auto__ = 1 < args__5732__auto__.length ? new cljs.core.IndexedSeq(args__5732__auto__.slice(1), 0, null) : null;
   return dacite.store.browser.cached_remote_store.cljs$core$IFn$_invoke$arity$variadic(arguments[0], argseq__5733__auto__);
 };
-dacite.store.browser.cached_remote_store.cljs$core$IFn$_invoke$arity$variadic = function(base_url, p__2816) {
-  var vec__2817 = p__2816;
-  var map__2820 = cljs.core.nth.call(null, vec__2817, 0, null);
-  var map__2820__$1 = cljs.core.__destructure_map.call(null, map__2820);
-  var headers = cljs.core.get.call(null, map__2820__$1, new cljs.core.Keyword(null, "headers", "headers", -835030129), cljs.core.PersistentArrayMap.EMPTY);
-  var policy = cljs.core.get.call(null, map__2820__$1, new cljs.core.Keyword(null, "policy", "policy", 902736495), new cljs.core.Keyword(null, "write-back", "write-back", -821877224));
-  var binary = cljs.core.get.call(null, map__2820__$1, new cljs.core.Keyword(null, "binary", "binary", -1802232288), true);
-  var raw = cljs.core.get.call(null, map__2820__$1, new cljs.core.Keyword(null, "raw", "raw", 1604651272), false);
-  var nodes = cljs.core.get.call(null, map__2820__$1, new cljs.core.Keyword(null, "nodes", "nodes", -2099585805), false);
+dacite.store.browser.cached_remote_store.cljs$core$IFn$_invoke$arity$variadic = function(base_url, p__3203) {
+  var vec__3204 = p__3203;
+  var map__3207 = cljs.core.nth.call(null, vec__3204, 0, null);
+  var map__3207__$1 = cljs.core.__destructure_map.call(null, map__3207);
+  var headers = cljs.core.get.call(null, map__3207__$1, new cljs.core.Keyword(null, "headers", "headers", -835030129), cljs.core.PersistentArrayMap.EMPTY);
+  var policy = cljs.core.get.call(null, map__3207__$1, new cljs.core.Keyword(null, "policy", "policy", 902736495), new cljs.core.Keyword(null, "write-back", "write-back", -821877224));
+  var binary = cljs.core.get.call(null, map__3207__$1, new cljs.core.Keyword(null, "binary", "binary", -1802232288), true);
+  var raw = cljs.core.get.call(null, map__3207__$1, new cljs.core.Keyword(null, "raw", "raw", 1604651272), false);
+  var nodes = cljs.core.get.call(null, map__3207__$1, new cljs.core.Keyword(null, "nodes", "nodes", -2099585805), false);
   return dacite.store.client_cache.wrap.call(null, dacite.store.browser.remote_store.call(null, base_url, new cljs.core.PersistentArrayMap(null, 4, [new cljs.core.Keyword(null, "headers", "headers", -835030129), headers, new cljs.core.Keyword(null, "binary", "binary", -1802232288), binary, new cljs.core.Keyword(null, "raw", "raw", 1604651272), raw, new cljs.core.Keyword(null, "nodes", "nodes", -2099585805), nodes], null)), policy);
 };
 dacite.store.browser.cached_remote_store.cljs$lang$maxFixedArity = 1;
-dacite.store.browser.cached_remote_store.cljs$lang$applyTo = function(seq2814) {
-  var G__2815 = cljs.core.first.call(null, seq2814);
-  var seq2814__$1 = cljs.core.next.call(null, seq2814);
+dacite.store.browser.cached_remote_store.cljs$lang$applyTo = function(seq3201) {
+  var G__3202 = cljs.core.first.call(null, seq3201);
+  var seq3201__$1 = cljs.core.next.call(null, seq3201);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__2815, seq2814__$1);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__3202, seq3201__$1);
 };
 dacite.store.browser.unwrap_remote = function dacite$store$browser$unwrap_remote(remote) {
   var r = remote;
@@ -54117,18 +54661,18 @@ dacite.store.browser.unwrap_remote = function dacite$store$browser$unwrap_remote
       return r;
     } else {
       if (cljs.core.record_QMARK_.call(null, r) && cljs.core.contains_QMARK_.call(null, r, new cljs.core.Keyword(null, "remote", "remote", -1593576576))) {
-        var G__2824 = (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(r);
-        r = G__2824;
+        var G__3211 = (new cljs.core.Keyword(null, "remote", "remote", -1593576576)).cljs$core$IFn$_invoke$arity$1(r);
+        r = G__3211;
         continue;
       } else {
         if (cljs.core.record_QMARK_.call(null, r) && cljs.core.contains_QMARK_.call(null, r, new cljs.core.Keyword(null, "inner", "inner", -1383171215))) {
-          var G__2825 = (new cljs.core.Keyword(null, "inner", "inner", -1383171215)).cljs$core$IFn$_invoke$arity$1(r);
-          r = G__2825;
+          var G__3212 = (new cljs.core.Keyword(null, "inner", "inner", -1383171215)).cljs$core$IFn$_invoke$arity$1(r);
+          r = G__3212;
           continue;
         } else {
           if (cljs.core.record_QMARK_.call(null, r) && cljs.core.contains_QMARK_.call(null, r, new cljs.core.Keyword(null, "layers", "layers", 1944875032))) {
-            var G__2826 = cljs.core.last.call(null, (new cljs.core.Keyword(null, "layers", "layers", 1944875032)).cljs$core$IFn$_invoke$arity$1(r));
-            r = G__2826;
+            var G__3213 = cljs.core.last.call(null, (new cljs.core.Keyword(null, "layers", "layers", 1944875032)).cljs$core$IFn$_invoke$arity$1(r));
+            r = G__3213;
             continue;
           } else {
             return r;
@@ -54151,8 +54695,8 @@ dacite.store.browser.local_dest = function dacite$store$browser$local_dest(remot
   }
 };
 dacite.store.browser.fetch_reachable_BANG_ = function dacite$store$browser$fetch_reachable_BANG_(var_args) {
-  var G__2828 = arguments.length;
-  switch(G__2828) {
+  var G__3215 = arguments.length;
+  switch(G__3215) {
     case 2:
       return dacite.store.browser.fetch_reachable_BANG_.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -54166,12 +54710,12 @@ dacite.store.browser.fetch_reachable_BANG_ = function dacite$store$browser$fetch
 dacite.store.browser.fetch_reachable_BANG_.cljs$core$IFn$_invoke$arity$2 = function(remote, roots) {
   return dacite.store.browser.fetch_reachable_BANG_.call(null, remote, roots, null);
 };
-dacite.store.browser.fetch_reachable_BANG_.cljs$core$IFn$_invoke$arity$3 = function(remote, roots, p__2829) {
-  var map__2830 = p__2829;
-  var map__2830__$1 = cljs.core.__destructure_map.call(null, map__2830);
-  var budget = cljs.core.get.call(null, map__2830__$1, new cljs.core.Keyword(null, "budget", "budget", -405386281));
-  var have = cljs.core.get.call(null, map__2830__$1, new cljs.core.Keyword(null, "have", "have", -1066112221));
-  var dest = cljs.core.get.call(null, map__2830__$1, new cljs.core.Keyword(null, "dest", "dest", -34569477));
+dacite.store.browser.fetch_reachable_BANG_.cljs$core$IFn$_invoke$arity$3 = function(remote, roots, p__3216) {
+  var map__3217 = p__3216;
+  var map__3217__$1 = cljs.core.__destructure_map.call(null, map__3217);
+  var budget = cljs.core.get.call(null, map__3217__$1, new cljs.core.Keyword(null, "budget", "budget", -405386281));
+  var have = cljs.core.get.call(null, map__3217__$1, new cljs.core.Keyword(null, "have", "have", -1066112221));
+  var dest = cljs.core.get.call(null, map__3217__$1, new cljs.core.Keyword(null, "dest", "dest", -34569477));
   var rs = dacite.store.browser.unwrap_remote.call(null, remote);
   var dest__$1 = function() {
     var or__5002__auto__ = dest;
@@ -54224,10 +54768,10 @@ dacite.store.browser.fetch_reachable_BANG_.cljs$core$IFn$_invoke$arity$3 = funct
       return dacite.store.pack.default_budget;
     }
   }()], null);
-  var map__2831 = dacite.store.browser.xhr.call(null, "POST", url, dacite.wire.write_edn.call(null, payload), cljs.core.assoc.call(null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs), "Content-Type", "application/edn"));
-  var map__2831__$1 = cljs.core.__destructure_map.call(null, map__2831);
-  var status = cljs.core.get.call(null, map__2831__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var body = cljs.core.get.call(null, map__2831__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  var map__3218 = dacite.store.browser.xhr.call(null, "POST", url, dacite.wire.write_edn.call(null, payload), cljs.core.assoc.call(null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs), "Content-Type", "application/edn"));
+  var map__3218__$1 = cljs.core.__destructure_map.call(null, map__3218);
+  var status = cljs.core.get.call(null, map__3218__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var body = cljs.core.get.call(null, map__3218__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
   if (cljs.core._EQ_.call(null, 200, status)) {
   } else {
     throw cljs.core.ex_info.call(null, "Browser pack-get failed", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "status", "status", -1997798413), status, new cljs.core.Keyword(null, "body", "body", -2049205669), body], null));
@@ -54241,49 +54785,49 @@ dacite.store.browser.fetch_reachable_BANG_.cljs$core$IFn$_invoke$arity$3 = funct
       return cljs.core.PersistentVector.EMPTY;
     }
   }();
-  var seq__2832_2837 = cljs.core.seq.call(null, chunks);
-  var chunk__2833_2838 = null;
-  var count__2834_2839 = 0;
-  var i__2835_2840 = 0;
+  var seq__3219_3224 = cljs.core.seq.call(null, chunks);
+  var chunk__3220_3225 = null;
+  var count__3221_3226 = 0;
+  var i__3222_3227 = 0;
   while (true) {
-    if (i__2835_2840 < count__2834_2839) {
-      var ch_2841 = cljs.core._nth.call(null, chunk__2833_2838, i__2835_2840);
-      dacite.store.pack.apply_chunk_BANG_.call(null, dest__$1, ch_2841);
-      var G__2842 = seq__2832_2837;
-      var G__2843 = chunk__2833_2838;
-      var G__2844 = count__2834_2839;
-      var G__2845 = i__2835_2840 + 1;
-      seq__2832_2837 = G__2842;
-      chunk__2833_2838 = G__2843;
-      count__2834_2839 = G__2844;
-      i__2835_2840 = G__2845;
+    if (i__3222_3227 < count__3221_3226) {
+      var ch_3228 = cljs.core._nth.call(null, chunk__3220_3225, i__3222_3227);
+      dacite.store.pack.apply_chunk_BANG_.call(null, dest__$1, ch_3228);
+      var G__3229 = seq__3219_3224;
+      var G__3230 = chunk__3220_3225;
+      var G__3231 = count__3221_3226;
+      var G__3232 = i__3222_3227 + 1;
+      seq__3219_3224 = G__3229;
+      chunk__3220_3225 = G__3230;
+      count__3221_3226 = G__3231;
+      i__3222_3227 = G__3232;
       continue;
     } else {
-      var temp__5825__auto___2846 = cljs.core.seq.call(null, seq__2832_2837);
-      if (temp__5825__auto___2846) {
-        var seq__2832_2847__$1 = temp__5825__auto___2846;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__2832_2847__$1)) {
-          var c__5525__auto___2848 = cljs.core.chunk_first.call(null, seq__2832_2847__$1);
-          var G__2849 = cljs.core.chunk_rest.call(null, seq__2832_2847__$1);
-          var G__2850 = c__5525__auto___2848;
-          var G__2851 = cljs.core.count.call(null, c__5525__auto___2848);
-          var G__2852 = 0;
-          seq__2832_2837 = G__2849;
-          chunk__2833_2838 = G__2850;
-          count__2834_2839 = G__2851;
-          i__2835_2840 = G__2852;
+      var temp__5825__auto___3233 = cljs.core.seq.call(null, seq__3219_3224);
+      if (temp__5825__auto___3233) {
+        var seq__3219_3234__$1 = temp__5825__auto___3233;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__3219_3234__$1)) {
+          var c__5525__auto___3235 = cljs.core.chunk_first.call(null, seq__3219_3234__$1);
+          var G__3236 = cljs.core.chunk_rest.call(null, seq__3219_3234__$1);
+          var G__3237 = c__5525__auto___3235;
+          var G__3238 = cljs.core.count.call(null, c__5525__auto___3235);
+          var G__3239 = 0;
+          seq__3219_3224 = G__3236;
+          chunk__3220_3225 = G__3237;
+          count__3221_3226 = G__3238;
+          i__3222_3227 = G__3239;
           continue;
         } else {
-          var ch_2853 = cljs.core.first.call(null, seq__2832_2847__$1);
-          dacite.store.pack.apply_chunk_BANG_.call(null, dest__$1, ch_2853);
-          var G__2854 = cljs.core.next.call(null, seq__2832_2847__$1);
-          var G__2855 = null;
-          var G__2856 = 0;
-          var G__2857 = 0;
-          seq__2832_2837 = G__2854;
-          chunk__2833_2838 = G__2855;
-          count__2834_2839 = G__2856;
-          i__2835_2840 = G__2857;
+          var ch_3240 = cljs.core.first.call(null, seq__3219_3234__$1);
+          dacite.store.pack.apply_chunk_BANG_.call(null, dest__$1, ch_3240);
+          var G__3241 = cljs.core.next.call(null, seq__3219_3234__$1);
+          var G__3242 = null;
+          var G__3243 = 0;
+          var G__3244 = 0;
+          seq__3219_3224 = G__3241;
+          chunk__3220_3225 = G__3242;
+          count__3221_3226 = G__3243;
+          i__3222_3227 = G__3244;
           continue;
         }
       } else {
@@ -54302,10 +54846,10 @@ dacite.store.browser.fetch_reachable_BANG_.cljs$lang$maxFixedArity = 3;
 dacite.store.browser.remote_get_root = function dacite$store$browser$remote_get_root(remote) {
   var rs = dacite.store.browser.unwrap_remote.call(null, remote);
   var url = [dacite.store.browser.trim_base.call(null, (new cljs.core.Keyword(null, "base-url", "base-url", 9540398)).cljs$core$IFn$_invoke$arity$1(rs)), "/root"].join("");
-  var map__2858 = dacite.store.browser.xhr.call(null, "GET", url, null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs));
-  var map__2858__$1 = cljs.core.__destructure_map.call(null, map__2858);
-  var status = cljs.core.get.call(null, map__2858__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var body = cljs.core.get.call(null, map__2858__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  var map__3245 = dacite.store.browser.xhr.call(null, "GET", url, null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs));
+  var map__3245__$1 = cljs.core.__destructure_map.call(null, map__3245);
+  var status = cljs.core.get.call(null, map__3245__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var body = cljs.core.get.call(null, map__3245__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
   if (cljs.core._EQ_.call(null, 200, status)) {
     var temp__5825__auto__ = (new cljs.core.Keyword(null, "root", "root", -448657453)).cljs$core$IFn$_invoke$arity$1(dacite.store.browser.edn_body.call(null, body));
     if (cljs.core.truth_(temp__5825__auto__)) {
@@ -54326,10 +54870,10 @@ dacite.store.browser.remote_cas_root_BANG_ = function dacite$store$browser$remot
   var rs = dacite.store.browser.unwrap_remote.call(null, remote);
   var url = [dacite.store.browser.trim_base.call(null, (new cljs.core.Keyword(null, "base-url", "base-url", 9540398)).cljs$core$IFn$_invoke$arity$1(rs)), "/root/cas"].join("");
   var payload = new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "expected", "expected", 1583670997), cljs.core.truth_(expected) ? dacite.store.hash__GT_hex.call(null, expected) : null, new cljs.core.Keyword(null, "new", "new", -2085437848), dacite.store.hash__GT_hex.call(null, new_root)], null);
-  var map__2859 = dacite.store.browser.xhr.call(null, "POST", url, dacite.wire.write_edn.call(null, payload), cljs.core.assoc.call(null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs), "Content-Type", "application/edn"));
-  var map__2859__$1 = cljs.core.__destructure_map.call(null, map__2859);
-  var status = cljs.core.get.call(null, map__2859__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var body = cljs.core.get.call(null, map__2859__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
+  var map__3246 = dacite.store.browser.xhr.call(null, "POST", url, dacite.wire.write_edn.call(null, payload), cljs.core.assoc.call(null, (new cljs.core.Keyword(null, "headers", "headers", -835030129)).cljs$core$IFn$_invoke$arity$1(rs), "Content-Type", "application/edn"));
+  var map__3246__$1 = cljs.core.__destructure_map.call(null, map__3246);
+  var status = cljs.core.get.call(null, map__3246__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var body = cljs.core.get.call(null, map__3246__$1, new cljs.core.Keyword(null, "body", "body", -2049205669));
   if (cljs.core._EQ_.call(null, 200, status)) {
     return (new cljs.core.Keyword(null, "ok", "ok", 967785236)).cljs$core$IFn$_invoke$arity$1(dacite.store.browser.edn_body.call(null, body)) === true;
   } else {
@@ -54347,7 +54891,7 @@ goog.require("dacite.store");
 goog.require("clojure.string");
 dacite.rooted.IRootCell = function() {
 };
-var dacite$rooted$IRootCell$rc_get$dyn_6214 = function(this$) {
+var dacite$rooted$IRootCell$rc_get$dyn_3249 = function(this$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.rooted.rc_get[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -54365,10 +54909,10 @@ dacite.rooted.rc_get = function dacite$rooted$rc_get(this$) {
   if (!(this$ == null) && !(this$.dacite$rooted$IRootCell$rc_get$arity$1 == null)) {
     return this$.dacite$rooted$IRootCell$rc_get$arity$1(this$);
   } else {
-    return dacite$rooted$IRootCell$rc_get$dyn_6214.call(null, this$);
+    return dacite$rooted$IRootCell$rc_get$dyn_3249.call(null, this$);
   }
 };
-var dacite$rooted$IRootCell$rc_put_BANG_$dyn_6215 = function(this$, h) {
+var dacite$rooted$IRootCell$rc_put_BANG_$dyn_3250 = function(this$, h) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.rooted.rc_put_BANG_[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -54386,7 +54930,7 @@ dacite.rooted.rc_put_BANG_ = function dacite$rooted$rc_put_BANG_(this$, h) {
   if (!(this$ == null) && !(this$.dacite$rooted$IRootCell$rc_put_BANG_$arity$2 == null)) {
     return this$.dacite$rooted$IRootCell$rc_put_BANG_$arity$2(this$, h);
   } else {
-    return dacite$rooted$IRootCell$rc_put_BANG_$dyn_6215.call(null, this$, h);
+    return dacite$rooted$IRootCell$rc_put_BANG_$dyn_3250.call(null, this$, h);
   }
 };
 dacite.rooted.MemRootCell = function(a, __meta, __extmap, __hash) {
@@ -54402,26 +54946,26 @@ dacite.rooted.MemRootCell.prototype.cljs$core$ILookup$_lookup$arity$2 = function
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.rooted.MemRootCell.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k6217, else__5303__auto__) {
+dacite.rooted.MemRootCell.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k3252, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__6221 = k6217;
-  var G__6221__$1 = G__6221 instanceof cljs.core.Keyword ? G__6221.fqn : null;
-  switch(G__6221__$1) {
+  var G__3256 = k3252;
+  var G__3256__$1 = G__3256 instanceof cljs.core.Keyword ? G__3256.fqn : null;
+  switch(G__3256__$1) {
     case "a":
       return self__.a;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k6217, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k3252, else__5303__auto__);
   }
 };
 dacite.rooted.MemRootCell.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__6222) {
-    var vec__6223 = p__6222;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__6223, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__6223, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__3257) {
+    var vec__3258 = p__3257;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__3258, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__3258, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -54433,10 +54977,10 @@ dacite.rooted.MemRootCell.prototype.cljs$core$IPrintWithWriter$_pr_writer$arity$
   };
   return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.rooted.MemRootCell{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "a", "a", -2123407586), self__.a], null)], null), self__.__extmap));
 };
-dacite.rooted.MemRootCell.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__6216) {
+dacite.rooted.MemRootCell.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__3251) {
   var self__ = this;
-  var G__6216__$1 = this;
-  return new cljs.core.RecordIter(0, G__6216__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "a", "a", -2123407586)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+  var G__3251__$1 = this;
+  return new cljs.core.RecordIter(0, G__3251__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "a", "a", -2123407586)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.rooted.MemRootCell.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
   var self__ = this;
@@ -54467,10 +55011,10 @@ dacite.rooted.MemRootCell.prototype.cljs$core$IHash$_hash$arity$1 = function(thi
     return h__5111__auto____$1;
   }
 };
-dacite.rooted.MemRootCell.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this6218, other6219) {
+dacite.rooted.MemRootCell.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this3253, other3254) {
   var self__ = this;
-  var this6218__$1 = this;
-  return !(other6219 == null) && (this6218__$1.constructor === other6219.constructor && (cljs.core._EQ_.call(null, this6218__$1.a, other6219.a) && cljs.core._EQ_.call(null, this6218__$1.__extmap, other6219.__extmap)));
+  var this3253__$1 = this;
+  return !(other3254 == null) && (this3253__$1.constructor === other3254.constructor && (cljs.core._EQ_.call(null, this3253__$1.a, other3254.a) && cljs.core._EQ_.call(null, this3253__$1.__extmap, other3254.__extmap)));
 };
 dacite.rooted.MemRootCell.prototype.cljs$core$IMap$_dissoc$arity$2 = function(this__5310__auto__, k__5311__auto__) {
   var self__ = this;
@@ -54481,28 +55025,28 @@ dacite.rooted.MemRootCell.prototype.cljs$core$IMap$_dissoc$arity$2 = function(th
     return new dacite.rooted.MemRootCell(self__.a, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.rooted.MemRootCell.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k6217) {
+dacite.rooted.MemRootCell.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k3252) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__6226 = k6217;
-  var G__6226__$1 = G__6226 instanceof cljs.core.Keyword ? G__6226.fqn : null;
-  switch(G__6226__$1) {
+  var G__3261 = k3252;
+  var G__3261__$1 = G__3261 instanceof cljs.core.Keyword ? G__3261.fqn : null;
+  switch(G__3261__$1) {
     case "a":
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k6217);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k3252);
   }
 };
-dacite.rooted.MemRootCell.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__6216) {
+dacite.rooted.MemRootCell.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__3251) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__6227 = cljs.core.keyword_identical_QMARK_;
-  var expr__6228 = k__5309__auto__;
-  if (cljs.core.truth_(pred__6227.call(null, new cljs.core.Keyword(null, "a", "a", -2123407586), expr__6228))) {
-    return new dacite.rooted.MemRootCell(G__6216, self__.__meta, self__.__extmap, null);
+  var pred__3262 = cljs.core.keyword_identical_QMARK_;
+  var expr__3263 = k__5309__auto__;
+  if (cljs.core.truth_(pred__3262.call(null, new cljs.core.Keyword(null, "a", "a", -2123407586), expr__3263))) {
+    return new dacite.rooted.MemRootCell(G__3251, self__.__meta, self__.__extmap, null);
   } else {
-    return new dacite.rooted.MemRootCell(self__.a, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__6216), null);
+    return new dacite.rooted.MemRootCell(self__.a, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__3251), null);
   }
 };
 dacite.rooted.MemRootCell.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this__5313__auto__) {
@@ -54510,10 +55054,10 @@ dacite.rooted.MemRootCell.prototype.cljs$core$ISeqable$_seq$arity$1 = function(t
   var this__5313__auto____$1 = this;
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "a", "a", -2123407586), self__.a, null)], null), self__.__extmap));
 };
-dacite.rooted.MemRootCell.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__6216) {
+dacite.rooted.MemRootCell.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__3251) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.rooted.MemRootCell(self__.a, G__6216, self__.__extmap, self__.__hash);
+  return new dacite.rooted.MemRootCell(self__.a, G__3251, self__.__extmap, self__.__hash);
 };
 dacite.rooted.MemRootCell.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -54549,20 +55093,20 @@ dacite.rooted.MemRootCell.cljs$lang$ctorPrWriter = function(this__5346__auto__, 
 dacite.rooted.__GT_MemRootCell = function dacite$rooted$__GT_MemRootCell(a) {
   return new dacite.rooted.MemRootCell(a, null, null, null);
 };
-dacite.rooted.map__GT_MemRootCell = function dacite$rooted$map__GT_MemRootCell(G__6220) {
+dacite.rooted.map__GT_MemRootCell = function dacite$rooted$map__GT_MemRootCell(G__3255) {
   var extmap__5342__auto__ = function() {
-    var G__6230 = cljs.core.dissoc.call(null, G__6220, new cljs.core.Keyword(null, "a", "a", -2123407586));
-    if (cljs.core.record_QMARK_.call(null, G__6220)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__6230);
+    var G__3265 = cljs.core.dissoc.call(null, G__3255, new cljs.core.Keyword(null, "a", "a", -2123407586));
+    if (cljs.core.record_QMARK_.call(null, G__3255)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__3265);
     } else {
-      return G__6230;
+      return G__3265;
     }
   }();
-  return new dacite.rooted.MemRootCell((new cljs.core.Keyword(null, "a", "a", -2123407586)).cljs$core$IFn$_invoke$arity$1(G__6220), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.rooted.MemRootCell((new cljs.core.Keyword(null, "a", "a", -2123407586)).cljs$core$IFn$_invoke$arity$1(G__3255), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.rooted.mem_root_cell = function dacite$rooted$mem_root_cell(var_args) {
-  var G__6234 = arguments.length;
-  switch(G__6234) {
+  var G__3269 = arguments.length;
+  switch(G__3269) {
     case 0:
       return dacite.rooted.mem_root_cell.cljs$core$IFn$_invoke$arity$0();
       break;
@@ -54617,26 +55161,26 @@ dacite.rooted.FileRootCell.prototype.cljs$core$ILookup$_lookup$arity$2 = functio
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.rooted.FileRootCell.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k6237, else__5303__auto__) {
+dacite.rooted.FileRootCell.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k3272, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__6241 = k6237;
-  var G__6241__$1 = G__6241 instanceof cljs.core.Keyword ? G__6241.fqn : null;
-  switch(G__6241__$1) {
+  var G__3276 = k3272;
+  var G__3276__$1 = G__3276 instanceof cljs.core.Keyword ? G__3276.fqn : null;
+  switch(G__3276__$1) {
     case "base":
       return self__.base;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k6237, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k3272, else__5303__auto__);
   }
 };
 dacite.rooted.FileRootCell.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__6242) {
-    var vec__6243 = p__6242;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__6243, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__6243, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__3277) {
+    var vec__3278 = p__3277;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__3278, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__3278, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -54648,10 +55192,10 @@ dacite.rooted.FileRootCell.prototype.cljs$core$IPrintWithWriter$_pr_writer$arity
   };
   return cljs.core.pr_sequential_writer.call(null, writer__5316__auto__, pr_pair__5318__auto__, "#dacite.rooted.FileRootCell{", ", ", "}", opts__5317__auto__, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "base", "base", 185279322), self__.base], null)], null), self__.__extmap));
 };
-dacite.rooted.FileRootCell.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__6236) {
+dacite.rooted.FileRootCell.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__3271) {
   var self__ = this;
-  var G__6236__$1 = this;
-  return new cljs.core.RecordIter(0, G__6236__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "base", "base", 185279322)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
+  var G__3271__$1 = this;
+  return new cljs.core.RecordIter(0, G__3271__$1, 1, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "base", "base", 185279322)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.rooted.FileRootCell.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
   var self__ = this;
@@ -54682,10 +55226,10 @@ dacite.rooted.FileRootCell.prototype.cljs$core$IHash$_hash$arity$1 = function(th
     return h__5111__auto____$1;
   }
 };
-dacite.rooted.FileRootCell.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this6238, other6239) {
+dacite.rooted.FileRootCell.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this3273, other3274) {
   var self__ = this;
-  var this6238__$1 = this;
-  return !(other6239 == null) && (this6238__$1.constructor === other6239.constructor && (cljs.core._EQ_.call(null, this6238__$1.base, other6239.base) && cljs.core._EQ_.call(null, this6238__$1.__extmap, other6239.__extmap)));
+  var this3273__$1 = this;
+  return !(other3274 == null) && (this3273__$1.constructor === other3274.constructor && (cljs.core._EQ_.call(null, this3273__$1.base, other3274.base) && cljs.core._EQ_.call(null, this3273__$1.__extmap, other3274.__extmap)));
 };
 dacite.rooted.FileRootCell.prototype.cljs$core$IMap$_dissoc$arity$2 = function(this__5310__auto__, k__5311__auto__) {
   var self__ = this;
@@ -54696,28 +55240,28 @@ dacite.rooted.FileRootCell.prototype.cljs$core$IMap$_dissoc$arity$2 = function(t
     return new dacite.rooted.FileRootCell(self__.base, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.rooted.FileRootCell.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k6237) {
+dacite.rooted.FileRootCell.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k3272) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__6246 = k6237;
-  var G__6246__$1 = G__6246 instanceof cljs.core.Keyword ? G__6246.fqn : null;
-  switch(G__6246__$1) {
+  var G__3281 = k3272;
+  var G__3281__$1 = G__3281 instanceof cljs.core.Keyword ? G__3281.fqn : null;
+  switch(G__3281__$1) {
     case "base":
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k6237);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k3272);
   }
 };
-dacite.rooted.FileRootCell.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__6236) {
+dacite.rooted.FileRootCell.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__3271) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__6247 = cljs.core.keyword_identical_QMARK_;
-  var expr__6248 = k__5309__auto__;
-  if (cljs.core.truth_(pred__6247.call(null, new cljs.core.Keyword(null, "base", "base", 185279322), expr__6248))) {
-    return new dacite.rooted.FileRootCell(G__6236, self__.__meta, self__.__extmap, null);
+  var pred__3282 = cljs.core.keyword_identical_QMARK_;
+  var expr__3283 = k__5309__auto__;
+  if (cljs.core.truth_(pred__3282.call(null, new cljs.core.Keyword(null, "base", "base", 185279322), expr__3283))) {
+    return new dacite.rooted.FileRootCell(G__3271, self__.__meta, self__.__extmap, null);
   } else {
-    return new dacite.rooted.FileRootCell(self__.base, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__6236), null);
+    return new dacite.rooted.FileRootCell(self__.base, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__3271), null);
   }
 };
 dacite.rooted.FileRootCell.prototype.cljs$core$ISeqable$_seq$arity$1 = function(this__5313__auto__) {
@@ -54725,10 +55269,10 @@ dacite.rooted.FileRootCell.prototype.cljs$core$ISeqable$_seq$arity$1 = function(
   var this__5313__auto____$1 = this;
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 1, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "base", "base", 185279322), self__.base, null)], null), self__.__extmap));
 };
-dacite.rooted.FileRootCell.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__6236) {
+dacite.rooted.FileRootCell.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__3271) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.rooted.FileRootCell(self__.base, G__6236, self__.__extmap, self__.__hash);
+  return new dacite.rooted.FileRootCell(self__.base, G__3271, self__.__extmap, self__.__hash);
 };
 dacite.rooted.FileRootCell.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -54764,23 +55308,23 @@ dacite.rooted.FileRootCell.cljs$lang$ctorPrWriter = function(this__5346__auto__,
 dacite.rooted.__GT_FileRootCell = function dacite$rooted$__GT_FileRootCell(base) {
   return new dacite.rooted.FileRootCell(base, null, null, null);
 };
-dacite.rooted.map__GT_FileRootCell = function dacite$rooted$map__GT_FileRootCell(G__6240) {
+dacite.rooted.map__GT_FileRootCell = function dacite$rooted$map__GT_FileRootCell(G__3275) {
   var extmap__5342__auto__ = function() {
-    var G__6250 = cljs.core.dissoc.call(null, G__6240, new cljs.core.Keyword(null, "base", "base", 185279322));
-    if (cljs.core.record_QMARK_.call(null, G__6240)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__6250);
+    var G__3285 = cljs.core.dissoc.call(null, G__3275, new cljs.core.Keyword(null, "base", "base", 185279322));
+    if (cljs.core.record_QMARK_.call(null, G__3275)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__3285);
     } else {
-      return G__6250;
+      return G__3285;
     }
   }();
-  return new dacite.rooted.FileRootCell((new cljs.core.Keyword(null, "base", "base", 185279322)).cljs$core$IFn$_invoke$arity$1(G__6240), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.rooted.FileRootCell((new cljs.core.Keyword(null, "base", "base", 185279322)).cljs$core$IFn$_invoke$arity$1(G__3275), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.rooted.file_root_cell = function dacite$rooted$file_root_cell(base) {
   return dacite.rooted.__GT_FileRootCell.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(base));
 };
 dacite.rooted.IRoot = function() {
 };
-var dacite$rooted$IRoot$_root$dyn_6253 = function(this$) {
+var dacite$rooted$IRoot$_root$dyn_3288 = function(this$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.rooted._root[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -54798,10 +55342,10 @@ dacite.rooted._root = function dacite$rooted$_root(this$) {
   if (!(this$ == null) && !(this$.dacite$rooted$IRoot$_root$arity$1 == null)) {
     return this$.dacite$rooted$IRoot$_root$arity$1(this$);
   } else {
-    return dacite$rooted$IRoot$_root$dyn_6253.call(null, this$);
+    return dacite$rooted$IRoot$_root$dyn_3288.call(null, this$);
   }
 };
-var dacite$rooted$IRoot$_cas_root_BANG_$dyn_6254 = function(this$, expected, new$) {
+var dacite$rooted$IRoot$_cas_root_BANG_$dyn_3289 = function(this$, expected, new$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.rooted._cas_root_BANG_[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -54819,10 +55363,10 @@ dacite.rooted._cas_root_BANG_ = function dacite$rooted$_cas_root_BANG_(this$, ex
   if (!(this$ == null) && !(this$.dacite$rooted$IRoot$_cas_root_BANG_$arity$3 == null)) {
     return this$.dacite$rooted$IRoot$_cas_root_BANG_$arity$3(this$, expected, new$);
   } else {
-    return dacite$rooted$IRoot$_cas_root_BANG_$dyn_6254.call(null, this$, expected, new$);
+    return dacite$rooted$IRoot$_cas_root_BANG_$dyn_3289.call(null, this$, expected, new$);
   }
 };
-var dacite$rooted$IRoot$_set_root_BANG_$dyn_6255 = function(this$, new$) {
+var dacite$rooted$IRoot$_set_root_BANG_$dyn_3290 = function(this$, new$) {
   var x__5350__auto__ = this$ == null ? null : this$;
   var m__5351__auto__ = dacite.rooted._set_root_BANG_[goog.typeOf(x__5350__auto__)];
   if (!(m__5351__auto__ == null)) {
@@ -54840,14 +55384,14 @@ dacite.rooted._set_root_BANG_ = function dacite$rooted$_set_root_BANG_(this$, ne
   if (!(this$ == null) && !(this$.dacite$rooted$IRoot$_set_root_BANG_$arity$2 == null)) {
     return this$.dacite$rooted$IRoot$_set_root_BANG_$arity$2(this$, new$);
   } else {
-    return dacite$rooted$IRoot$_set_root_BANG_$dyn_6255.call(null, this$, new$);
+    return dacite$rooted$IRoot$_set_root_BANG_$dyn_3290.call(null, this$, new$);
   }
 };
 dacite.rooted.validate_BANG_ = function dacite$rooted$validate_BANG_(this$, v) {
-  var temp__5825__auto___6256 = cljs.core.deref.call(null, (new cljs.core.Keyword(null, "validator", "validator", -1966190681)).cljs$core$IFn$_invoke$arity$1(this$));
-  if (cljs.core.truth_(temp__5825__auto___6256)) {
-    var vf_6257 = temp__5825__auto___6256;
-    if (cljs.core.truth_(vf_6257.call(null, v))) {
+  var temp__5825__auto___3291 = cljs.core.deref.call(null, (new cljs.core.Keyword(null, "validator", "validator", -1966190681)).cljs$core$IFn$_invoke$arity$1(this$));
+  if (cljs.core.truth_(temp__5825__auto___3291)) {
+    var vf_3292 = temp__5825__auto___3291;
+    if (cljs.core.truth_(vf_3292.call(null, v))) {
     } else {
       throw new Error("Invalid reference state");
     }
@@ -54857,53 +55401,53 @@ dacite.rooted.validate_BANG_ = function dacite$rooted$validate_BANG_(this$, v) {
 };
 dacite.rooted.commit_BANG_ = function dacite$rooted$commit_BANG_(this$, old, new$) {
   dacite.rooted.rc_put_BANG_.call(null, (new cljs.core.Keyword(null, "cell", "cell", 764245084)).cljs$core$IFn$_invoke$arity$1(this$), new$);
-  var seq__6258_6274 = cljs.core.seq.call(null, cljs.core.deref.call(null, (new cljs.core.Keyword(null, "watches", "watches", -273097535)).cljs$core$IFn$_invoke$arity$1(this$)));
-  var chunk__6259_6275 = null;
-  var count__6260_6276 = 0;
-  var i__6261_6277 = 0;
+  var seq__3293_3309 = cljs.core.seq.call(null, cljs.core.deref.call(null, (new cljs.core.Keyword(null, "watches", "watches", -273097535)).cljs$core$IFn$_invoke$arity$1(this$)));
+  var chunk__3294_3310 = null;
+  var count__3295_3311 = 0;
+  var i__3296_3312 = 0;
   while (true) {
-    if (i__6261_6277 < count__6260_6276) {
-      var vec__6268_6278 = cljs.core._nth.call(null, chunk__6259_6275, i__6261_6277);
-      var k_6279 = cljs.core.nth.call(null, vec__6268_6278, 0, null);
-      var f_6280 = cljs.core.nth.call(null, vec__6268_6278, 1, null);
-      f_6280.call(null, k_6279, this$, old, new$);
-      var G__6281 = seq__6258_6274;
-      var G__6282 = chunk__6259_6275;
-      var G__6283 = count__6260_6276;
-      var G__6284 = i__6261_6277 + 1;
-      seq__6258_6274 = G__6281;
-      chunk__6259_6275 = G__6282;
-      count__6260_6276 = G__6283;
-      i__6261_6277 = G__6284;
+    if (i__3296_3312 < count__3295_3311) {
+      var vec__3303_3313 = cljs.core._nth.call(null, chunk__3294_3310, i__3296_3312);
+      var k_3314 = cljs.core.nth.call(null, vec__3303_3313, 0, null);
+      var f_3315 = cljs.core.nth.call(null, vec__3303_3313, 1, null);
+      f_3315.call(null, k_3314, this$, old, new$);
+      var G__3316 = seq__3293_3309;
+      var G__3317 = chunk__3294_3310;
+      var G__3318 = count__3295_3311;
+      var G__3319 = i__3296_3312 + 1;
+      seq__3293_3309 = G__3316;
+      chunk__3294_3310 = G__3317;
+      count__3295_3311 = G__3318;
+      i__3296_3312 = G__3319;
       continue;
     } else {
-      var temp__5825__auto___6285 = cljs.core.seq.call(null, seq__6258_6274);
-      if (temp__5825__auto___6285) {
-        var seq__6258_6286__$1 = temp__5825__auto___6285;
-        if (cljs.core.chunked_seq_QMARK_.call(null, seq__6258_6286__$1)) {
-          var c__5525__auto___6287 = cljs.core.chunk_first.call(null, seq__6258_6286__$1);
-          var G__6288 = cljs.core.chunk_rest.call(null, seq__6258_6286__$1);
-          var G__6289 = c__5525__auto___6287;
-          var G__6290 = cljs.core.count.call(null, c__5525__auto___6287);
-          var G__6291 = 0;
-          seq__6258_6274 = G__6288;
-          chunk__6259_6275 = G__6289;
-          count__6260_6276 = G__6290;
-          i__6261_6277 = G__6291;
+      var temp__5825__auto___3320 = cljs.core.seq.call(null, seq__3293_3309);
+      if (temp__5825__auto___3320) {
+        var seq__3293_3321__$1 = temp__5825__auto___3320;
+        if (cljs.core.chunked_seq_QMARK_.call(null, seq__3293_3321__$1)) {
+          var c__5525__auto___3322 = cljs.core.chunk_first.call(null, seq__3293_3321__$1);
+          var G__3323 = cljs.core.chunk_rest.call(null, seq__3293_3321__$1);
+          var G__3324 = c__5525__auto___3322;
+          var G__3325 = cljs.core.count.call(null, c__5525__auto___3322);
+          var G__3326 = 0;
+          seq__3293_3309 = G__3323;
+          chunk__3294_3310 = G__3324;
+          count__3295_3311 = G__3325;
+          i__3296_3312 = G__3326;
           continue;
         } else {
-          var vec__6271_6292 = cljs.core.first.call(null, seq__6258_6286__$1);
-          var k_6293 = cljs.core.nth.call(null, vec__6271_6292, 0, null);
-          var f_6294 = cljs.core.nth.call(null, vec__6271_6292, 1, null);
-          f_6294.call(null, k_6293, this$, old, new$);
-          var G__6295 = cljs.core.next.call(null, seq__6258_6286__$1);
-          var G__6296 = null;
-          var G__6297 = 0;
-          var G__6298 = 0;
-          seq__6258_6274 = G__6295;
-          chunk__6259_6275 = G__6296;
-          count__6260_6276 = G__6297;
-          i__6261_6277 = G__6298;
+          var vec__3306_3327 = cljs.core.first.call(null, seq__3293_3321__$1);
+          var k_3328 = cljs.core.nth.call(null, vec__3306_3327, 0, null);
+          var f_3329 = cljs.core.nth.call(null, vec__3306_3327, 1, null);
+          f_3329.call(null, k_3328, this$, old, new$);
+          var G__3330 = cljs.core.next.call(null, seq__3293_3321__$1);
+          var G__3331 = null;
+          var G__3332 = 0;
+          var G__3333 = 0;
+          seq__3293_3309 = G__3330;
+          chunk__3294_3310 = G__3331;
+          count__3295_3311 = G__3332;
+          i__3296_3312 = G__3333;
           continue;
         }
       } else {
@@ -54914,8 +55458,8 @@ dacite.rooted.commit_BANG_ = function dacite$rooted$commit_BANG_(this$, old, new
   return new$;
 };
 dacite.rooted.apply_f = function dacite$rooted$apply_f(f, v, args) {
-  var G__6299 = cljs.core.count.call(null, args);
-  switch(G__6299) {
+  var G__3334 = cljs.core.count.call(null, args);
+  switch(G__3334) {
     case 0:
       return f.call(null, v);
       break;
@@ -54934,9 +55478,9 @@ dacite.rooted.swap_STAR_ = function dacite$rooted$swap_STAR_(this$, f, args) {
   var wrapped = function(v) {
     return dacite.rooted.validate_BANG_.call(null, this$, dacite.rooted.apply_f.call(null, f, v, args));
   };
-  var vec__6301 = cljs.core.swap_vals_BANG_.call(null, root_atom, wrapped);
-  var old = cljs.core.nth.call(null, vec__6301, 0, null);
-  var new$ = cljs.core.nth.call(null, vec__6301, 1, null);
+  var vec__3336 = cljs.core.swap_vals_BANG_.call(null, root_atom, wrapped);
+  var old = cljs.core.nth.call(null, vec__3336, 0, null);
+  var new$ = cljs.core.nth.call(null, vec__3336, 1, null);
   dacite.rooted.commit_BANG_.call(null, this$, old, new$);
   return new$;
 };
@@ -54945,9 +55489,9 @@ dacite.rooted.swap_vals_STAR_ = function dacite$rooted$swap_vals_STAR_(this$, f,
   var wrapped = function(v) {
     return dacite.rooted.validate_BANG_.call(null, this$, dacite.rooted.apply_f.call(null, f, v, args));
   };
-  var vec__6304 = cljs.core.swap_vals_BANG_.call(null, root_atom, wrapped);
-  var old = cljs.core.nth.call(null, vec__6304, 0, null);
-  var new$ = cljs.core.nth.call(null, vec__6304, 1, null);
+  var vec__3339 = cljs.core.swap_vals_BANG_.call(null, root_atom, wrapped);
+  var old = cljs.core.nth.call(null, vec__3339, 0, null);
+  var new$ = cljs.core.nth.call(null, vec__3339, 1, null);
   dacite.rooted.commit_BANG_.call(null, this$, old, new$);
   return new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [old, new$], null);
 };
@@ -54992,9 +55536,9 @@ dacite.rooted.RootedStore.prototype.dacite$rooted$IRoot$_set_root_BANG_$arity$2 
   var self__ = this;
   var this$__$1 = this;
   dacite.rooted.validate_BANG_.call(null, this$__$1, new$);
-  var vec__6312 = cljs.core.reset_vals_BANG_.call(null, self__.root_atom, new$);
-  var old = cljs.core.nth.call(null, vec__6312, 0, null);
-  var new_SINGLEQUOTE_ = cljs.core.nth.call(null, vec__6312, 1, null);
+  var vec__3347 = cljs.core.reset_vals_BANG_.call(null, self__.root_atom, new$);
+  var old = cljs.core.nth.call(null, vec__3347, 0, null);
+  var new_SINGLEQUOTE_ = cljs.core.nth.call(null, vec__3347, 1, null);
   dacite.rooted.commit_BANG_.call(null, this$__$1, old, new_SINGLEQUOTE_);
   return new_SINGLEQUOTE_;
 };
@@ -55003,12 +55547,12 @@ dacite.rooted.RootedStore.prototype.cljs$core$ILookup$_lookup$arity$2 = function
   var this__5300__auto____$1 = this;
   return this__5300__auto____$1.cljs$core$ILookup$_lookup$arity$3(null, k__5301__auto__, null);
 };
-dacite.rooted.RootedStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k6308, else__5303__auto__) {
+dacite.rooted.RootedStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function(this__5302__auto__, k3343, else__5303__auto__) {
   var self__ = this;
   var this__5302__auto____$1 = this;
-  var G__6315 = k6308;
-  var G__6315__$1 = G__6315 instanceof cljs.core.Keyword ? G__6315.fqn : null;
-  switch(G__6315__$1) {
+  var G__3350 = k3343;
+  var G__3350__$1 = G__3350 instanceof cljs.core.Keyword ? G__3350.fqn : null;
+  switch(G__3350__$1) {
     case "content":
       return self__.content;
       break;
@@ -55025,16 +55569,16 @@ dacite.rooted.RootedStore.prototype.cljs$core$ILookup$_lookup$arity$3 = function
       return self__.validator;
       break;
     default:
-      return cljs.core.get.call(null, self__.__extmap, k6308, else__5303__auto__);
+      return cljs.core.get.call(null, self__.__extmap, k3343, else__5303__auto__);
   }
 };
 dacite.rooted.RootedStore.prototype.cljs$core$IKVReduce$_kv_reduce$arity$3 = function(this__5320__auto__, f__5321__auto__, init__5322__auto__) {
   var self__ = this;
   var this__5320__auto____$1 = this;
-  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__6316) {
-    var vec__6317 = p__6316;
-    var k__5324__auto__ = cljs.core.nth.call(null, vec__6317, 0, null);
-    var v__5325__auto__ = cljs.core.nth.call(null, vec__6317, 1, null);
+  return cljs.core.reduce.call(null, function(ret__5323__auto__, p__3351) {
+    var vec__3352 = p__3351;
+    var k__5324__auto__ = cljs.core.nth.call(null, vec__3352, 0, null);
+    var v__5325__auto__ = cljs.core.nth.call(null, vec__3352, 1, null);
     return f__5321__auto__.call(null, ret__5323__auto__, k__5324__auto__, v__5325__auto__);
   }, init__5322__auto__, this__5320__auto____$1);
 };
@@ -55048,10 +55592,10 @@ dacite.rooted.RootedStore.prototype.cljs$core$IPrintWithWriter$_pr_writer$arity$
   [new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596), self__.root_atom], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "cell", "cell", 764245084), self__.cell], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "watches", "watches", -273097535), self__.watches], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, 
   [new cljs.core.Keyword(null, "validator", "validator", -1966190681), self__.validator], null)], null), self__.__extmap));
 };
-dacite.rooted.RootedStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__6307) {
+dacite.rooted.RootedStore.prototype.cljs$core$IIterable$_iterator$arity$1 = function(G__3342) {
   var self__ = this;
-  var G__6307__$1 = this;
-  return new cljs.core.RecordIter(0, G__6307__$1, 5, new cljs.core.PersistentVector(null, 5, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "content", "content", 15833224), new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596), new cljs.core.Keyword(null, "cell", "cell", 764245084), new cljs.core.Keyword(null, "watches", "watches", -273097535), new cljs.core.Keyword(null, "validator", "validator", -1966190681)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, 
+  var G__3342__$1 = this;
+  return new cljs.core.RecordIter(0, G__3342__$1, 5, new cljs.core.PersistentVector(null, 5, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.Keyword(null, "content", "content", 15833224), new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596), new cljs.core.Keyword(null, "cell", "cell", 764245084), new cljs.core.Keyword(null, "watches", "watches", -273097535), new cljs.core.Keyword(null, "validator", "validator", -1966190681)], null), cljs.core.truth_(self__.__extmap) ? cljs.core._iterator.call(null, 
   self__.__extmap) : cljs.core.nil_iter.call(null));
 };
 dacite.rooted.RootedStore.prototype.cljs$core$IMeta$_meta$arity$1 = function(this__5298__auto__) {
@@ -55083,10 +55627,10 @@ dacite.rooted.RootedStore.prototype.cljs$core$IHash$_hash$arity$1 = function(thi
     return h__5111__auto____$1;
   }
 };
-dacite.rooted.RootedStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this6309, other6310) {
+dacite.rooted.RootedStore.prototype.cljs$core$IEquiv$_equiv$arity$2 = function(this3344, other3345) {
   var self__ = this;
-  var this6309__$1 = this;
-  return !(other6310 == null) && (this6309__$1.constructor === other6310.constructor && (cljs.core._EQ_.call(null, this6309__$1.content, other6310.content) && (cljs.core._EQ_.call(null, this6309__$1.root_atom, other6310.root_atom) && (cljs.core._EQ_.call(null, this6309__$1.cell, other6310.cell) && (cljs.core._EQ_.call(null, this6309__$1.watches, other6310.watches) && (cljs.core._EQ_.call(null, this6309__$1.validator, other6310.validator) && cljs.core._EQ_.call(null, this6309__$1.__extmap, other6310.__extmap)))))));
+  var this3344__$1 = this;
+  return !(other3345 == null) && (this3344__$1.constructor === other3345.constructor && (cljs.core._EQ_.call(null, this3344__$1.content, other3345.content) && (cljs.core._EQ_.call(null, this3344__$1.root_atom, other3345.root_atom) && (cljs.core._EQ_.call(null, this3344__$1.cell, other3345.cell) && (cljs.core._EQ_.call(null, this3344__$1.watches, other3345.watches) && (cljs.core._EQ_.call(null, this3344__$1.validator, other3345.validator) && cljs.core._EQ_.call(null, this3344__$1.__extmap, other3345.__extmap)))))));
 };
 dacite.rooted.RootedStore.prototype.dacite$store$IStore$ = cljs.core.PROTOCOL_SENTINEL;
 dacite.rooted.RootedStore.prototype.dacite$store$IStore$s_get$arity$2 = function(_, h) {
@@ -55137,12 +55681,12 @@ dacite.rooted.RootedStore.prototype.cljs$core$IMap$_dissoc$arity$2 = function(th
     return new dacite.rooted.RootedStore(self__.content, self__.root_atom, self__.cell, self__.watches, self__.validator, self__.__meta, cljs.core.not_empty.call(null, cljs.core.dissoc.call(null, self__.__extmap, k__5311__auto__)), null);
   }
 };
-dacite.rooted.RootedStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k6308) {
+dacite.rooted.RootedStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$arity$2 = function(this__5307__auto__, k3343) {
   var self__ = this;
   var this__5307__auto____$1 = this;
-  var G__6320 = k6308;
-  var G__6320__$1 = G__6320 instanceof cljs.core.Keyword ? G__6320.fqn : null;
-  switch(G__6320__$1) {
+  var G__3355 = k3343;
+  var G__3355__$1 = G__3355 instanceof cljs.core.Keyword ? G__3355.fqn : null;
+  switch(G__3355__$1) {
     case "content":
     case "root-atom":
     case "cell":
@@ -55151,30 +55695,30 @@ dacite.rooted.RootedStore.prototype.cljs$core$IAssociative$_contains_key_QMARK_$
       return true;
       break;
     default:
-      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k6308);
+      return cljs.core.contains_QMARK_.call(null, self__.__extmap, k3343);
   }
 };
-dacite.rooted.RootedStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__6307) {
+dacite.rooted.RootedStore.prototype.cljs$core$IAssociative$_assoc$arity$3 = function(this__5308__auto__, k__5309__auto__, G__3342) {
   var self__ = this;
   var this__5308__auto____$1 = this;
-  var pred__6321 = cljs.core.keyword_identical_QMARK_;
-  var expr__6322 = k__5309__auto__;
-  if (cljs.core.truth_(pred__6321.call(null, new cljs.core.Keyword(null, "content", "content", 15833224), expr__6322))) {
-    return new dacite.rooted.RootedStore(G__6307, self__.root_atom, self__.cell, self__.watches, self__.validator, self__.__meta, self__.__extmap, null);
+  var pred__3356 = cljs.core.keyword_identical_QMARK_;
+  var expr__3357 = k__5309__auto__;
+  if (cljs.core.truth_(pred__3356.call(null, new cljs.core.Keyword(null, "content", "content", 15833224), expr__3357))) {
+    return new dacite.rooted.RootedStore(G__3342, self__.root_atom, self__.cell, self__.watches, self__.validator, self__.__meta, self__.__extmap, null);
   } else {
-    if (cljs.core.truth_(pred__6321.call(null, new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596), expr__6322))) {
-      return new dacite.rooted.RootedStore(self__.content, G__6307, self__.cell, self__.watches, self__.validator, self__.__meta, self__.__extmap, null);
+    if (cljs.core.truth_(pred__3356.call(null, new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596), expr__3357))) {
+      return new dacite.rooted.RootedStore(self__.content, G__3342, self__.cell, self__.watches, self__.validator, self__.__meta, self__.__extmap, null);
     } else {
-      if (cljs.core.truth_(pred__6321.call(null, new cljs.core.Keyword(null, "cell", "cell", 764245084), expr__6322))) {
-        return new dacite.rooted.RootedStore(self__.content, self__.root_atom, G__6307, self__.watches, self__.validator, self__.__meta, self__.__extmap, null);
+      if (cljs.core.truth_(pred__3356.call(null, new cljs.core.Keyword(null, "cell", "cell", 764245084), expr__3357))) {
+        return new dacite.rooted.RootedStore(self__.content, self__.root_atom, G__3342, self__.watches, self__.validator, self__.__meta, self__.__extmap, null);
       } else {
-        if (cljs.core.truth_(pred__6321.call(null, new cljs.core.Keyword(null, "watches", "watches", -273097535), expr__6322))) {
-          return new dacite.rooted.RootedStore(self__.content, self__.root_atom, self__.cell, G__6307, self__.validator, self__.__meta, self__.__extmap, null);
+        if (cljs.core.truth_(pred__3356.call(null, new cljs.core.Keyword(null, "watches", "watches", -273097535), expr__3357))) {
+          return new dacite.rooted.RootedStore(self__.content, self__.root_atom, self__.cell, G__3342, self__.validator, self__.__meta, self__.__extmap, null);
         } else {
-          if (cljs.core.truth_(pred__6321.call(null, new cljs.core.Keyword(null, "validator", "validator", -1966190681), expr__6322))) {
-            return new dacite.rooted.RootedStore(self__.content, self__.root_atom, self__.cell, self__.watches, G__6307, self__.__meta, self__.__extmap, null);
+          if (cljs.core.truth_(pred__3356.call(null, new cljs.core.Keyword(null, "validator", "validator", -1966190681), expr__3357))) {
+            return new dacite.rooted.RootedStore(self__.content, self__.root_atom, self__.cell, self__.watches, G__3342, self__.__meta, self__.__extmap, null);
           } else {
-            return new dacite.rooted.RootedStore(self__.content, self__.root_atom, self__.cell, self__.watches, self__.validator, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__6307), null);
+            return new dacite.rooted.RootedStore(self__.content, self__.root_atom, self__.cell, self__.watches, self__.validator, self__.__meta, cljs.core.assoc.call(null, self__.__extmap, k__5309__auto__, G__3342), null);
           }
         }
       }
@@ -55187,10 +55731,10 @@ dacite.rooted.RootedStore.prototype.cljs$core$ISeqable$_seq$arity$1 = function(t
   return cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.PersistentVector(null, 5, 5, cljs.core.PersistentVector.EMPTY_NODE, [new cljs.core.MapEntry(new cljs.core.Keyword(null, "content", "content", 15833224), self__.content, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596), self__.root_atom, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "cell", "cell", 764245084), self__.cell, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, 
   "watches", "watches", -273097535), self__.watches, null), new cljs.core.MapEntry(new cljs.core.Keyword(null, "validator", "validator", -1966190681), self__.validator, null)], null), self__.__extmap));
 };
-dacite.rooted.RootedStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__6307) {
+dacite.rooted.RootedStore.prototype.cljs$core$IWithMeta$_with_meta$arity$2 = function(this__5299__auto__, G__3342) {
   var self__ = this;
   var this__5299__auto____$1 = this;
-  return new dacite.rooted.RootedStore(self__.content, self__.root_atom, self__.cell, self__.watches, self__.validator, G__6307, self__.__extmap, self__.__hash);
+  return new dacite.rooted.RootedStore(self__.content, self__.root_atom, self__.cell, self__.watches, self__.validator, G__3342, self__.__extmap, self__.__hash);
 };
 dacite.rooted.RootedStore.prototype.cljs$core$ICollection$_conj$arity$2 = function(this__5305__auto__, entry__5306__auto__) {
   var self__ = this;
@@ -55214,17 +55758,17 @@ dacite.rooted.RootedStore.cljs$lang$ctorPrWriter = function(this__5346__auto__, 
 dacite.rooted.__GT_RootedStore = function dacite$rooted$__GT_RootedStore(content, root_atom, cell, watches, validator) {
   return new dacite.rooted.RootedStore(content, root_atom, cell, watches, validator, null, null, null);
 };
-dacite.rooted.map__GT_RootedStore = function dacite$rooted$map__GT_RootedStore(G__6311) {
+dacite.rooted.map__GT_RootedStore = function dacite$rooted$map__GT_RootedStore(G__3346) {
   var extmap__5342__auto__ = function() {
-    var G__6324 = cljs.core.dissoc.call(null, G__6311, new cljs.core.Keyword(null, "content", "content", 15833224), new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596), new cljs.core.Keyword(null, "cell", "cell", 764245084), new cljs.core.Keyword(null, "watches", "watches", -273097535), new cljs.core.Keyword(null, "validator", "validator", -1966190681));
-    if (cljs.core.record_QMARK_.call(null, G__6311)) {
-      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__6324);
+    var G__3359 = cljs.core.dissoc.call(null, G__3346, new cljs.core.Keyword(null, "content", "content", 15833224), new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596), new cljs.core.Keyword(null, "cell", "cell", 764245084), new cljs.core.Keyword(null, "watches", "watches", -273097535), new cljs.core.Keyword(null, "validator", "validator", -1966190681));
+    if (cljs.core.record_QMARK_.call(null, G__3346)) {
+      return cljs.core.into.call(null, cljs.core.PersistentArrayMap.EMPTY, G__3359);
     } else {
-      return G__6324;
+      return G__3359;
     }
   }();
-  return new dacite.rooted.RootedStore((new cljs.core.Keyword(null, "content", "content", 15833224)).cljs$core$IFn$_invoke$arity$1(G__6311), (new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596)).cljs$core$IFn$_invoke$arity$1(G__6311), (new cljs.core.Keyword(null, "cell", "cell", 764245084)).cljs$core$IFn$_invoke$arity$1(G__6311), (new cljs.core.Keyword(null, "watches", "watches", -273097535)).cljs$core$IFn$_invoke$arity$1(G__6311), (new cljs.core.Keyword(null, "validator", "validator", 
-  -1966190681)).cljs$core$IFn$_invoke$arity$1(G__6311), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
+  return new dacite.rooted.RootedStore((new cljs.core.Keyword(null, "content", "content", 15833224)).cljs$core$IFn$_invoke$arity$1(G__3346), (new cljs.core.Keyword(null, "root-atom", "root-atom", 603928596)).cljs$core$IFn$_invoke$arity$1(G__3346), (new cljs.core.Keyword(null, "cell", "cell", 764245084)).cljs$core$IFn$_invoke$arity$1(G__3346), (new cljs.core.Keyword(null, "watches", "watches", -273097535)).cljs$core$IFn$_invoke$arity$1(G__3346), (new cljs.core.Keyword(null, "validator", "validator", 
+  -1966190681)).cljs$core$IFn$_invoke$arity$1(G__3346), null, cljs.core.not_empty.call(null, extmap__5342__auto__), null);
 };
 dacite.rooted.root = function dacite$rooted$root(rs) {
   return dacite.rooted._root.call(null, rs);
@@ -55237,13 +55781,13 @@ dacite.rooted.set_root_BANG_ = function dacite$rooted$set_root_BANG_(rs, new$) {
 };
 dacite.rooted.update_root_BANG_ = function dacite$rooted$update_root_BANG_(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___6330 = arguments.length;
-  var i__5727__auto___6331 = 0;
+  var len__5726__auto___3365 = arguments.length;
+  var i__5727__auto___3366 = 0;
   while (true) {
-    if (i__5727__auto___6331 < len__5726__auto___6330) {
-      args__5732__auto__.push(arguments[i__5727__auto___6331]);
-      var G__6332 = i__5727__auto___6331 + 1;
-      i__5727__auto___6331 = G__6332;
+    if (i__5727__auto___3366 < len__5726__auto___3365) {
+      args__5732__auto__.push(arguments[i__5727__auto___3366]);
+      var G__3367 = i__5727__auto___3366 + 1;
+      i__5727__auto___3366 = G__3367;
       continue;
     } else {
     }
@@ -55265,13 +55809,13 @@ dacite.rooted.update_root_BANG_.cljs$core$IFn$_invoke$arity$variadic = function(
   }
 };
 dacite.rooted.update_root_BANG_.cljs$lang$maxFixedArity = 2;
-dacite.rooted.update_root_BANG_.cljs$lang$applyTo = function(seq6327) {
-  var G__6328 = cljs.core.first.call(null, seq6327);
-  var seq6327__$1 = cljs.core.next.call(null, seq6327);
-  var G__6329 = cljs.core.first.call(null, seq6327__$1);
-  var seq6327__$2 = cljs.core.next.call(null, seq6327__$1);
+dacite.rooted.update_root_BANG_.cljs$lang$applyTo = function(seq3362) {
+  var G__3363 = cljs.core.first.call(null, seq3362);
+  var seq3362__$1 = cljs.core.next.call(null, seq3362);
+  var G__3364 = cljs.core.first.call(null, seq3362__$1);
+  var seq3362__$2 = cljs.core.next.call(null, seq3362__$1);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__6328, G__6329, seq6327__$2);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__3363, G__3364, seq3362__$2);
 };
 dacite.rooted.add_root_watch = function dacite$rooted$add_root_watch(rs, k, f) {
   cljs.core.swap_BANG_.call(null, (new cljs.core.Keyword(null, "watches", "watches", -273097535)).cljs$core$IFn$_invoke$arity$1(rs), cljs.core.assoc, k, f);
@@ -55286,8 +55830,8 @@ dacite.rooted.set_root_validator_BANG_ = function dacite$rooted$set_root_validat
   return rs;
 };
 dacite.rooted.rooted_store = function dacite$rooted$rooted_store(var_args) {
-  var G__6334 = arguments.length;
-  switch(G__6334) {
+  var G__3369 = arguments.length;
+  switch(G__3369) {
     case 1:
       return dacite.rooted.rooted_store.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -55309,8 +55853,8 @@ dacite.rooted.push_ref = function dacite$rooted$push_ref(source, target) {
   return dacite.rooted.cas_root_BANG_.call(null, target, dacite.rooted.root.call(null, target), dacite.rooted.root.call(null, source));
 };
 dacite.rooted.collect_garbage_BANG_ = function dacite$rooted$collect_garbage_BANG_(var_args) {
-  var G__6337 = arguments.length;
-  switch(G__6337) {
+  var G__3372 = arguments.length;
+  switch(G__3372) {
     case 1:
       return dacite.rooted.collect_garbage_BANG_.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -55392,53 +55936,53 @@ dacite.value.root_ref.notify_watches_BANG_ = function dacite$value$root_ref$noti
     var st = dacite.value.root_ref.ref_store.call(null, r);
     var old_v = dacite.value.root_ref.wrap_at.call(null, st, old_h);
     var new_v = dacite.value.root_ref.wrap_at.call(null, st, new_h);
-    var seq__6342 = cljs.core.seq.call(null, cljs.core.deref.call(null, watches));
-    var chunk__6343 = null;
-    var count__6344 = 0;
-    var i__6345 = 0;
+    var seq__3377 = cljs.core.seq.call(null, cljs.core.deref.call(null, watches));
+    var chunk__3378 = null;
+    var count__3379 = 0;
+    var i__3380 = 0;
     while (true) {
-      if (i__6345 < count__6344) {
-        var vec__6352 = cljs.core._nth.call(null, chunk__6343, i__6345);
-        var k = cljs.core.nth.call(null, vec__6352, 0, null);
-        var f = cljs.core.nth.call(null, vec__6352, 1, null);
+      if (i__3380 < count__3379) {
+        var vec__3387 = cljs.core._nth.call(null, chunk__3378, i__3380);
+        var k = cljs.core.nth.call(null, vec__3387, 0, null);
+        var f = cljs.core.nth.call(null, vec__3387, 1, null);
         f.call(null, k, r, old_v, new_v);
-        var G__6358 = seq__6342;
-        var G__6359 = chunk__6343;
-        var G__6360 = count__6344;
-        var G__6361 = i__6345 + 1;
-        seq__6342 = G__6358;
-        chunk__6343 = G__6359;
-        count__6344 = G__6360;
-        i__6345 = G__6361;
+        var G__3393 = seq__3377;
+        var G__3394 = chunk__3378;
+        var G__3395 = count__3379;
+        var G__3396 = i__3380 + 1;
+        seq__3377 = G__3393;
+        chunk__3378 = G__3394;
+        count__3379 = G__3395;
+        i__3380 = G__3396;
         continue;
       } else {
-        var temp__5825__auto__ = cljs.core.seq.call(null, seq__6342);
+        var temp__5825__auto__ = cljs.core.seq.call(null, seq__3377);
         if (temp__5825__auto__) {
-          var seq__6342__$1 = temp__5825__auto__;
-          if (cljs.core.chunked_seq_QMARK_.call(null, seq__6342__$1)) {
-            var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__6342__$1);
-            var G__6362 = cljs.core.chunk_rest.call(null, seq__6342__$1);
-            var G__6363 = c__5525__auto__;
-            var G__6364 = cljs.core.count.call(null, c__5525__auto__);
-            var G__6365 = 0;
-            seq__6342 = G__6362;
-            chunk__6343 = G__6363;
-            count__6344 = G__6364;
-            i__6345 = G__6365;
+          var seq__3377__$1 = temp__5825__auto__;
+          if (cljs.core.chunked_seq_QMARK_.call(null, seq__3377__$1)) {
+            var c__5525__auto__ = cljs.core.chunk_first.call(null, seq__3377__$1);
+            var G__3397 = cljs.core.chunk_rest.call(null, seq__3377__$1);
+            var G__3398 = c__5525__auto__;
+            var G__3399 = cljs.core.count.call(null, c__5525__auto__);
+            var G__3400 = 0;
+            seq__3377 = G__3397;
+            chunk__3378 = G__3398;
+            count__3379 = G__3399;
+            i__3380 = G__3400;
             continue;
           } else {
-            var vec__6355 = cljs.core.first.call(null, seq__6342__$1);
-            var k = cljs.core.nth.call(null, vec__6355, 0, null);
-            var f = cljs.core.nth.call(null, vec__6355, 1, null);
+            var vec__3390 = cljs.core.first.call(null, seq__3377__$1);
+            var k = cljs.core.nth.call(null, vec__3390, 0, null);
+            var f = cljs.core.nth.call(null, vec__3390, 1, null);
             f.call(null, k, r, old_v, new_v);
-            var G__6366 = cljs.core.next.call(null, seq__6342__$1);
-            var G__6367 = null;
-            var G__6368 = 0;
-            var G__6369 = 0;
-            seq__6342 = G__6366;
-            chunk__6343 = G__6367;
-            count__6344 = G__6368;
-            i__6345 = G__6369;
+            var G__3401 = cljs.core.next.call(null, seq__3377__$1);
+            var G__3402 = null;
+            var G__3403 = 0;
+            var G__3404 = 0;
+            seq__3377 = G__3401;
+            chunk__3378 = G__3402;
+            count__3379 = G__3403;
+            i__3380 = G__3404;
             continue;
           }
         } else {
@@ -55470,8 +56014,8 @@ dacite.value.root_ref.ref_reset_BANG_ = function dacite$value$root_ref$ref_reset
   return dacite.value.root_ref.wrap_at.call(null, st, nh);
 };
 dacite.value.root_ref.ref_swap_info_BANG_ = function dacite$value$root_ref$ref_swap_info_BANG_(var_args) {
-  var G__6376 = arguments.length;
-  switch(G__6376) {
+  var G__3411 = arguments.length;
+  switch(G__3411) {
     case 2:
       return dacite.value.root_ref.ref_swap_info_BANG_.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -55483,13 +56027,13 @@ dacite.value.root_ref.ref_swap_info_BANG_ = function dacite$value$root_ref$ref_s
       break;
     default:
       var args_arr__5751__auto__ = [];
-      var len__5726__auto___6378 = arguments.length;
-      var i__5727__auto___6379 = 0;
+      var len__5726__auto___3413 = arguments.length;
+      var i__5727__auto___3414 = 0;
       while (true) {
-        if (i__5727__auto___6379 < len__5726__auto___6378) {
-          args_arr__5751__auto__.push(arguments[i__5727__auto___6379]);
-          var G__6380 = i__5727__auto___6379 + 1;
-          i__5727__auto___6379 = G__6380;
+        if (i__5727__auto___3414 < len__5726__auto___3413) {
+          args_arr__5751__auto__.push(arguments[i__5727__auto___3414]);
+          var G__3415 = i__5727__auto___3414 + 1;
+          i__5727__auto___3414 = G__3415;
           continue;
         } else {
         }
@@ -55511,8 +56055,8 @@ dacite.value.root_ref.ref_swap_info_BANG_.cljs$core$IFn$_invoke$arity$2 = functi
       dacite.value.root_ref.notify_watches_BANG_.call(null, r, old_h, nh);
       return new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "value", "value", 305978217), dacite.value.root_ref.wrap_at.call(null, st, nh), new cljs.core.Keyword(null, "retries", "retries", 1888092808), retries], null);
     } else {
-      var G__6381 = retries + 1;
-      retries = G__6381;
+      var G__3416 = retries + 1;
+      retries = G__3416;
       continue;
     }
     break;
@@ -55533,22 +56077,22 @@ dacite.value.root_ref.ref_swap_info_BANG_.cljs$core$IFn$_invoke$arity$variadic =
     return cljs.core.apply.call(null, f, v, a, b, more);
   });
 };
-dacite.value.root_ref.ref_swap_info_BANG_.cljs$lang$applyTo = function(seq6371) {
-  var G__6372 = cljs.core.first.call(null, seq6371);
-  var seq6371__$1 = cljs.core.next.call(null, seq6371);
-  var G__6373 = cljs.core.first.call(null, seq6371__$1);
-  var seq6371__$2 = cljs.core.next.call(null, seq6371__$1);
-  var G__6374 = cljs.core.first.call(null, seq6371__$2);
-  var seq6371__$3 = cljs.core.next.call(null, seq6371__$2);
-  var G__6375 = cljs.core.first.call(null, seq6371__$3);
-  var seq6371__$4 = cljs.core.next.call(null, seq6371__$3);
+dacite.value.root_ref.ref_swap_info_BANG_.cljs$lang$applyTo = function(seq3406) {
+  var G__3407 = cljs.core.first.call(null, seq3406);
+  var seq3406__$1 = cljs.core.next.call(null, seq3406);
+  var G__3408 = cljs.core.first.call(null, seq3406__$1);
+  var seq3406__$2 = cljs.core.next.call(null, seq3406__$1);
+  var G__3409 = cljs.core.first.call(null, seq3406__$2);
+  var seq3406__$3 = cljs.core.next.call(null, seq3406__$2);
+  var G__3410 = cljs.core.first.call(null, seq3406__$3);
+  var seq3406__$4 = cljs.core.next.call(null, seq3406__$3);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__6372, G__6373, G__6374, G__6375, seq6371__$4);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__3407, G__3408, G__3409, G__3410, seq3406__$4);
 };
 dacite.value.root_ref.ref_swap_info_BANG_.cljs$lang$maxFixedArity = 4;
 dacite.value.root_ref.ref_swap_BANG_ = function dacite$value$root_ref$ref_swap_BANG_(var_args) {
-  var G__6388 = arguments.length;
-  switch(G__6388) {
+  var G__3423 = arguments.length;
+  switch(G__3423) {
     case 2:
       return dacite.value.root_ref.ref_swap_BANG_.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -55560,13 +56104,13 @@ dacite.value.root_ref.ref_swap_BANG_ = function dacite$value$root_ref$ref_swap_B
       break;
     default:
       var args_arr__5751__auto__ = [];
-      var len__5726__auto___6390 = arguments.length;
-      var i__5727__auto___6391 = 0;
+      var len__5726__auto___3425 = arguments.length;
+      var i__5727__auto___3426 = 0;
       while (true) {
-        if (i__5727__auto___6391 < len__5726__auto___6390) {
-          args_arr__5751__auto__.push(arguments[i__5727__auto___6391]);
-          var G__6392 = i__5727__auto___6391 + 1;
-          i__5727__auto___6391 = G__6392;
+        if (i__5727__auto___3426 < len__5726__auto___3425) {
+          args_arr__5751__auto__.push(arguments[i__5727__auto___3426]);
+          var G__3427 = i__5727__auto___3426 + 1;
+          i__5727__auto___3426 = G__3427;
           continue;
         } else {
         }
@@ -55588,17 +56132,17 @@ dacite.value.root_ref.ref_swap_BANG_.cljs$core$IFn$_invoke$arity$4 = function(r,
 dacite.value.root_ref.ref_swap_BANG_.cljs$core$IFn$_invoke$arity$variadic = function(r, f, a, b, more) {
   return (new cljs.core.Keyword(null, "value", "value", 305978217)).cljs$core$IFn$_invoke$arity$1(cljs.core.apply.call(null, dacite.value.root_ref.ref_swap_info_BANG_, r, f, a, b, more));
 };
-dacite.value.root_ref.ref_swap_BANG_.cljs$lang$applyTo = function(seq6383) {
-  var G__6384 = cljs.core.first.call(null, seq6383);
-  var seq6383__$1 = cljs.core.next.call(null, seq6383);
-  var G__6385 = cljs.core.first.call(null, seq6383__$1);
-  var seq6383__$2 = cljs.core.next.call(null, seq6383__$1);
-  var G__6386 = cljs.core.first.call(null, seq6383__$2);
-  var seq6383__$3 = cljs.core.next.call(null, seq6383__$2);
-  var G__6387 = cljs.core.first.call(null, seq6383__$3);
-  var seq6383__$4 = cljs.core.next.call(null, seq6383__$3);
+dacite.value.root_ref.ref_swap_BANG_.cljs$lang$applyTo = function(seq3418) {
+  var G__3419 = cljs.core.first.call(null, seq3418);
+  var seq3418__$1 = cljs.core.next.call(null, seq3418);
+  var G__3420 = cljs.core.first.call(null, seq3418__$1);
+  var seq3418__$2 = cljs.core.next.call(null, seq3418__$1);
+  var G__3421 = cljs.core.first.call(null, seq3418__$2);
+  var seq3418__$3 = cljs.core.next.call(null, seq3418__$2);
+  var G__3422 = cljs.core.first.call(null, seq3418__$3);
+  var seq3418__$4 = cljs.core.next.call(null, seq3418__$3);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__6384, G__6385, G__6386, G__6387, seq6383__$4);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__3419, G__3420, G__3421, G__3422, seq3418__$4);
 };
 dacite.value.root_ref.ref_swap_BANG_.cljs$lang$maxFixedArity = 4;
 dacite.value.root_ref.ref_cas_BANG_ = function dacite$value$root_ref$ref_cas_BANG_(r, expected, new$) {
@@ -55657,8 +56201,8 @@ dacite.value.content_hash = function dacite$value$content_hash(v) {
   return dacite.value.types.content_hash.call(null, dacite.value.dacite_type.call(null, v), dacite.value.dacite_hash.call(null, v));
 };
 dacite.value.wrap_hash = function dacite$value$wrap_hash(var_args) {
-  var G__6397 = arguments.length;
-  switch(G__6397) {
+  var G__3432 = arguments.length;
+  switch(G__3432) {
     case 1:
       return dacite.value.wrap_hash.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -55686,8 +56230,8 @@ dacite.value.get_value_with_store = function dacite$value$get_value_with_store(s
   }
 };
 dacite.value.get_value = function dacite$value$get_value(var_args) {
-  var G__6400 = arguments.length;
-  switch(G__6400) {
+  var G__3435 = arguments.length;
+  switch(G__3435) {
     case 1:
       return dacite.value.get_value.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -55788,8 +56332,8 @@ dacite.value.empty_QMARK_ = function dacite$value$empty_QMARK_(v) {
   return dacite.value.count.call(null, v) === 0;
 };
 dacite.value.seq = function dacite$value$seq(v) {
-  var G__6402 = dacite.value.value_type.call(null, v);
-  switch(G__6402) {
+  var G__3437 = dacite.value.value_type.call(null, v);
+  switch(G__3437) {
     case "string":
     case "blob":
     case "vector":
@@ -55806,8 +56350,8 @@ dacite.value.seq = function dacite$value$seq(v) {
   }
 };
 dacite.value.nth = function dacite$value$nth(var_args) {
-  var G__6405 = arguments.length;
-  switch(G__6405) {
+  var G__3440 = arguments.length;
+  switch(G__3440) {
     case 2:
       return dacite.value.nth.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -55830,8 +56374,8 @@ dacite.value.nth.cljs$core$IFn$_invoke$arity$3 = function(v, i, not_found) {
 };
 dacite.value.nth.cljs$lang$maxFixedArity = 3;
 dacite.value.get = function dacite$value$get(var_args) {
-  var G__6408 = arguments.length;
-  switch(G__6408) {
+  var G__3443 = arguments.length;
+  switch(G__3443) {
     case 2:
       return dacite.value.get.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -55846,8 +56390,8 @@ dacite.value.get.cljs$core$IFn$_invoke$arity$2 = function(v, k) {
   return dacite.value.get.call(null, v, k, null);
 };
 dacite.value.get.cljs$core$IFn$_invoke$arity$3 = function(v, k, not_found) {
-  var G__6409 = dacite.value.value_type.call(null, v);
-  switch(G__6409) {
+  var G__3444 = dacite.value.value_type.call(null, v);
+  switch(G__3444) {
     case "map":
       return dacite.value.collections.map_get.call(null, dacite.value.types.dacite_store.call(null, v), dacite.value.types.dacite_hash.call(null, v), k, not_found);
       break;
@@ -55867,8 +56411,8 @@ dacite.value.get.cljs$core$IFn$_invoke$arity$3 = function(v, k, not_found) {
 };
 dacite.value.get.cljs$lang$maxFixedArity = 3;
 dacite.value.contains_QMARK_ = function dacite$value$contains_QMARK_(v, k) {
-  var G__6412 = dacite.value.value_type.call(null, v);
-  switch(G__6412) {
+  var G__3447 = dacite.value.value_type.call(null, v);
+  switch(G__3447) {
     case "map":
       return dacite.value.collections.map_contains_QMARK_.call(null, dacite.value.types.dacite_store.call(null, v), dacite.value.types.dacite_hash.call(null, v), k);
       break;
@@ -55883,8 +56427,8 @@ dacite.value.contains_QMARK_ = function dacite$value$contains_QMARK_(v, k) {
   }
 };
 dacite.value.assoc = function dacite$value$assoc(v, k, val) {
-  var G__6414 = dacite.value.value_type.call(null, v);
-  switch(G__6414) {
+  var G__3449 = dacite.value.value_type.call(null, v);
+  switch(G__3449) {
     case "vector":
       return dacite.value.collections.vec_assoc.call(null, dacite.value.types.dacite_store.call(null, v), dacite.value.types.dacite_hash.call(null, v), k, val);
       break;
@@ -55896,8 +56440,8 @@ dacite.value.assoc = function dacite$value$assoc(v, k, val) {
   }
 };
 dacite.value.dissoc = function dacite$value$dissoc(v, k) {
-  var G__6416 = dacite.value.value_type.call(null, v);
-  switch(G__6416) {
+  var G__3451 = dacite.value.value_type.call(null, v);
+  switch(G__3451) {
     case "map":
       return dacite.value.collections.map_dissoc.call(null, dacite.value.types.dacite_store.call(null, v), dacite.value.types.dacite_hash.call(null, v), k);
       break;
@@ -55906,8 +56450,8 @@ dacite.value.dissoc = function dacite$value$dissoc(v, k) {
   }
 };
 dacite.value.conj = function dacite$value$conj(v, x) {
-  var G__6418 = dacite.value.value_type.call(null, v);
-  switch(G__6418) {
+  var G__3453 = dacite.value.value_type.call(null, v);
+  switch(G__3453) {
     case "vector":
       return dacite.value.collections.vec_conj.call(null, dacite.value.types.dacite_store.call(null, v), dacite.value.types.dacite_hash.call(null, v), x);
       break;
@@ -55928,8 +56472,8 @@ dacite.value.pop = function dacite$value$pop(v) {
   return dacite.value.collections.vec_pop.call(null, dacite.value.types.dacite_store.call(null, v), dacite.value.types.dacite_hash.call(null, v));
 };
 dacite.value.remove_nth = function dacite$value$remove_nth(v, i) {
-  var G__6420 = dacite.value.value_type.call(null, v);
-  switch(G__6420) {
+  var G__3455 = dacite.value.value_type.call(null, v);
+  switch(G__3455) {
     case "vector":
     case "string":
     case "blob":
@@ -55940,8 +56484,8 @@ dacite.value.remove_nth = function dacite$value$remove_nth(v, i) {
   }
 };
 dacite.value.subvec = function dacite$value$subvec(var_args) {
-  var G__6423 = arguments.length;
-  switch(G__6423) {
+  var G__3458 = arguments.length;
+  switch(G__3458) {
     case 2:
       return dacite.value.subvec.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -55956,8 +56500,8 @@ dacite.value.subvec.cljs$core$IFn$_invoke$arity$2 = function(v, start) {
   return dacite.value.subvec.call(null, v, start, dacite.value.count.call(null, v));
 };
 dacite.value.subvec.cljs$core$IFn$_invoke$arity$3 = function(v, start, end) {
-  var G__6424 = dacite.value.value_type.call(null, v);
-  switch(G__6424) {
+  var G__3459 = dacite.value.value_type.call(null, v);
+  switch(G__3459) {
     case "vector":
       return dacite.value.collections.vec_subvec.call(null, dacite.value.types.dacite_store.call(null, v), dacite.value.types.dacite_hash.call(null, v), start, end);
       break;
@@ -56014,8 +56558,8 @@ dacite.value.refuse_collection = function dacite$value$refuse_collection(op, v) 
   throw cljs.core.ex_info.call(null, [cljs.core.str.cljs$core$IFn$_invoke$arity$1(op), " is for scalars and strings; collections stay as values"].join(""), new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "op", "op", -1882987955), op, new cljs.core.Keyword(null, "type", "type", 1174270348), dacite.value.value_type.call(null, v)], null));
 };
 dacite.value.native$ = function dacite$value$native(var_args) {
-  var G__6428 = arguments.length;
-  switch(G__6428) {
+  var G__3463 = arguments.length;
+  switch(G__3463) {
     case 1:
       return dacite.value.native$.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -56036,13 +56580,13 @@ dacite.value.native$.cljs$core$IFn$_invoke$arity$2 = function(x, limit) {
     if (!dacite.value.dacite_value_QMARK_.call(null, x)) {
       return x;
     } else {
-      var G__6429 = dacite.value.value_type.call(null, x);
-      switch(G__6429) {
+      var G__3464 = dacite.value.value_type.call(null, x);
+      switch(G__3464) {
         case "string":
-          var vec__6430 = dacite.value.realize_string.call(null, x, limit);
-          var s = cljs.core.nth.call(null, vec__6430, 0, null);
-          var truncated_QMARK_ = cljs.core.nth.call(null, vec__6430, 1, null);
-          var n = cljs.core.nth.call(null, vec__6430, 2, null);
+          var vec__3465 = dacite.value.realize_string.call(null, x, limit);
+          var s = cljs.core.nth.call(null, vec__3465, 0, null);
+          var truncated_QMARK_ = cljs.core.nth.call(null, vec__3465, 1, null);
+          var n = cljs.core.nth.call(null, vec__3465, 2, null);
           if (cljs.core.truth_(truncated_QMARK_)) {
             throw cljs.core.ex_info.call(null, "string exceeds native char limit", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "count", "count", 2139924085), n, new cljs.core.Keyword(null, "limit", "limit", -1355822363), limit], null));
           } else {
@@ -56063,8 +56607,8 @@ dacite.value.native$.cljs$core$IFn$_invoke$arity$2 = function(x, limit) {
 };
 dacite.value.native$.cljs$lang$maxFixedArity = 2;
 dacite.value.as_str = function dacite$value$as_str(var_args) {
-  var G__6436 = arguments.length;
-  switch(G__6436) {
+  var G__3471 = arguments.length;
+  switch(G__3471) {
     case 1:
       return dacite.value.as_str.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -56092,8 +56636,8 @@ dacite.value.as_str.cljs$core$IFn$_invoke$arity$2 = function(x, limit) {
 };
 dacite.value.as_str.cljs$lang$maxFixedArity = 2;
 dacite.value.as_bytes = function dacite$value$as_bytes(var_args) {
-  var G__6439 = arguments.length;
-  switch(G__6439) {
+  var G__3474 = arguments.length;
+  switch(G__3474) {
     case 1:
       return dacite.value.as_bytes.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -56155,8 +56699,8 @@ dacite.value.as_bytes.cljs$core$IFn$_invoke$arity$2 = function(x, limit) {
 };
 dacite.value.as_bytes.cljs$lang$maxFixedArity = 2;
 dacite.value.pr_str = function dacite$value$pr_str(var_args) {
-  var G__6442 = arguments.length;
-  switch(G__6442) {
+  var G__3477 = arguments.length;
+  switch(G__3477) {
     case 1:
       return dacite.value.pr_str.cljs$core$IFn$_invoke$arity$1(arguments[0]);
       break;
@@ -56182,10 +56726,10 @@ dacite.value.pr_str.cljs$core$IFn$_invoke$arity$2 = function(x, limit) {
     return "nil";
   } else {
     if (dacite.value.dacite_value_QMARK_.call(null, x) && cljs.core._EQ_.call(null, "string", dacite.value.value_type.call(null, x))) {
-      var vec__6443 = dacite.value.realize_string.call(null, x, limit);
-      var s = cljs.core.nth.call(null, vec__6443, 0, null);
-      var truncated_QMARK_ = cljs.core.nth.call(null, vec__6443, 1, null);
-      var n = cljs.core.nth.call(null, vec__6443, 2, null);
+      var vec__3478 = dacite.value.realize_string.call(null, x, limit);
+      var s = cljs.core.nth.call(null, vec__3478, 0, null);
+      var truncated_QMARK_ = cljs.core.nth.call(null, vec__3478, 1, null);
+      var n = cljs.core.nth.call(null, vec__3478, 2, null);
       if (cljs.core.truth_(truncated_QMARK_)) {
         return ['"', cljs.core.str.cljs$core$IFn$_invoke$arity$1(s), '…" (', cljs.core.str.cljs$core$IFn$_invoke$arity$1(n), " chars)"].join("");
       } else {
@@ -56202,8 +56746,8 @@ dacite.value.pr_str.cljs$core$IFn$_invoke$arity$2 = function(x, limit) {
 };
 dacite.value.pr_str.cljs$lang$maxFixedArity = 2;
 dacite.value.get_in = function dacite$value$get_in(var_args) {
-  var G__6448 = arguments.length;
-  switch(G__6448) {
+  var G__3483 = arguments.length;
+  switch(G__3483) {
     case 2:
       return dacite.value.get_in.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -56232,10 +56776,10 @@ dacite.value.get_in.cljs$core$IFn$_invoke$arity$3 = function(v, ks, not_found) {
           if (cljs.core._EQ_.call(null, nxt, new cljs.core.Keyword("dacite.value", "missing", "dacite.value/missing", 248052712))) {
             return not_found;
           } else {
-            var G__6450 = nxt;
-            var G__6451 = cljs.core.next.call(null, ks__$1);
-            cur = G__6450;
-            ks__$1 = G__6451;
+            var G__3485 = nxt;
+            var G__3486 = cljs.core.next.call(null, ks__$1);
+            cur = G__3485;
+            ks__$1 = G__3486;
             continue;
           }
         }
@@ -56263,8 +56807,8 @@ dacite.value.assoc_in = function dacite$value$assoc_in(v, ks, x) {
   }
 };
 dacite.value.update = function dacite$value$update(var_args) {
-  var G__6459 = arguments.length;
-  switch(G__6459) {
+  var G__3494 = arguments.length;
+  switch(G__3494) {
     case 3:
       return dacite.value.update.cljs$core$IFn$_invoke$arity$3(arguments[0], arguments[1], arguments[2]);
       break;
@@ -56276,13 +56820,13 @@ dacite.value.update = function dacite$value$update(var_args) {
       break;
     default:
       var args_arr__5751__auto__ = [];
-      var len__5726__auto___6461 = arguments.length;
-      var i__5727__auto___6462 = 0;
+      var len__5726__auto___3496 = arguments.length;
+      var i__5727__auto___3497 = 0;
       while (true) {
-        if (i__5727__auto___6462 < len__5726__auto___6461) {
-          args_arr__5751__auto__.push(arguments[i__5727__auto___6462]);
-          var G__6463 = i__5727__auto___6462 + 1;
-          i__5727__auto___6462 = G__6463;
+        if (i__5727__auto___3497 < len__5726__auto___3496) {
+          args_arr__5751__auto__.push(arguments[i__5727__auto___3497]);
+          var G__3498 = i__5727__auto___3497 + 1;
+          i__5727__auto___3497 = G__3498;
           continue;
         } else {
         }
@@ -56304,30 +56848,30 @@ dacite.value.update.cljs$core$IFn$_invoke$arity$5 = function(v, k, f, a, b) {
 dacite.value.update.cljs$core$IFn$_invoke$arity$variadic = function(v, k, f, a, b, more) {
   return dacite.value.assoc.call(null, v, k, cljs.core.apply.call(null, f, dacite.value.get.call(null, v, k), a, b, more));
 };
-dacite.value.update.cljs$lang$applyTo = function(seq6453) {
-  var G__6454 = cljs.core.first.call(null, seq6453);
-  var seq6453__$1 = cljs.core.next.call(null, seq6453);
-  var G__6455 = cljs.core.first.call(null, seq6453__$1);
-  var seq6453__$2 = cljs.core.next.call(null, seq6453__$1);
-  var G__6456 = cljs.core.first.call(null, seq6453__$2);
-  var seq6453__$3 = cljs.core.next.call(null, seq6453__$2);
-  var G__6457 = cljs.core.first.call(null, seq6453__$3);
-  var seq6453__$4 = cljs.core.next.call(null, seq6453__$3);
-  var G__6458 = cljs.core.first.call(null, seq6453__$4);
-  var seq6453__$5 = cljs.core.next.call(null, seq6453__$4);
+dacite.value.update.cljs$lang$applyTo = function(seq3488) {
+  var G__3489 = cljs.core.first.call(null, seq3488);
+  var seq3488__$1 = cljs.core.next.call(null, seq3488);
+  var G__3490 = cljs.core.first.call(null, seq3488__$1);
+  var seq3488__$2 = cljs.core.next.call(null, seq3488__$1);
+  var G__3491 = cljs.core.first.call(null, seq3488__$2);
+  var seq3488__$3 = cljs.core.next.call(null, seq3488__$2);
+  var G__3492 = cljs.core.first.call(null, seq3488__$3);
+  var seq3488__$4 = cljs.core.next.call(null, seq3488__$3);
+  var G__3493 = cljs.core.first.call(null, seq3488__$4);
+  var seq3488__$5 = cljs.core.next.call(null, seq3488__$4);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__6454, G__6455, G__6456, G__6457, G__6458, seq6453__$5);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__3489, G__3490, G__3491, G__3492, G__3493, seq3488__$5);
 };
 dacite.value.update.cljs$lang$maxFixedArity = 5;
 dacite.value.update_in = function dacite$value$update_in(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___6468 = arguments.length;
-  var i__5727__auto___6469 = 0;
+  var len__5726__auto___3503 = arguments.length;
+  var i__5727__auto___3504 = 0;
   while (true) {
-    if (i__5727__auto___6469 < len__5726__auto___6468) {
-      args__5732__auto__.push(arguments[i__5727__auto___6469]);
-      var G__6470 = i__5727__auto___6469 + 1;
-      i__5727__auto___6469 = G__6470;
+    if (i__5727__auto___3504 < len__5726__auto___3503) {
+      args__5732__auto__.push(arguments[i__5727__auto___3504]);
+      var G__3505 = i__5727__auto___3504 + 1;
+      i__5727__auto___3504 = G__3505;
       continue;
     } else {
     }
@@ -56340,15 +56884,15 @@ dacite.value.update_in.cljs$core$IFn$_invoke$arity$variadic = function(v, ks, f,
   return dacite.value.assoc_in.call(null, v, ks, cljs.core.apply.call(null, f, dacite.value.get_in.call(null, v, ks), args));
 };
 dacite.value.update_in.cljs$lang$maxFixedArity = 3;
-dacite.value.update_in.cljs$lang$applyTo = function(seq6464) {
-  var G__6465 = cljs.core.first.call(null, seq6464);
-  var seq6464__$1 = cljs.core.next.call(null, seq6464);
-  var G__6466 = cljs.core.first.call(null, seq6464__$1);
-  var seq6464__$2 = cljs.core.next.call(null, seq6464__$1);
-  var G__6467 = cljs.core.first.call(null, seq6464__$2);
-  var seq6464__$3 = cljs.core.next.call(null, seq6464__$2);
+dacite.value.update_in.cljs$lang$applyTo = function(seq3499) {
+  var G__3500 = cljs.core.first.call(null, seq3499);
+  var seq3499__$1 = cljs.core.next.call(null, seq3499);
+  var G__3501 = cljs.core.first.call(null, seq3499__$1);
+  var seq3499__$2 = cljs.core.next.call(null, seq3499__$1);
+  var G__3502 = cljs.core.first.call(null, seq3499__$2);
+  var seq3499__$3 = cljs.core.next.call(null, seq3499__$2);
   var self__5711__auto__ = this;
-  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__6465, G__6466, G__6467, seq6464__$3);
+  return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__3500, G__3501, G__3502, seq3499__$3);
 };
 dacite.value.root_ref_QMARK_ = dacite.value.root_ref.root_ref_QMARK_;
 dacite.value.ref_deref = dacite.value.root_ref.ref_deref;
@@ -56358,16 +56902,16 @@ dacite.value.ref_swap_info_BANG_ = dacite.value.root_ref.ref_swap_info_BANG_;
 dacite.value.ref_cas_BANG_ = dacite.value.root_ref.ref_cas_BANG_;
 dacite.value.ref_add_watch = dacite.value.root_ref.ref_add_watch;
 dacite.value.ref_remove_watch = dacite.value.root_ref.ref_remove_watch;
-var ret__5781__auto___6479 = function() {
+var ret__5781__auto___3514 = function() {
   dacite.value.with_store = function dacite$value$with_store(var_args) {
     var args__5732__auto__ = [];
-    var len__5726__auto___6480 = arguments.length;
-    var i__5727__auto___6481 = 0;
+    var len__5726__auto___3515 = arguments.length;
+    var i__5727__auto___3516 = 0;
     while (true) {
-      if (i__5727__auto___6481 < len__5726__auto___6480) {
-        args__5732__auto__.push(arguments[i__5727__auto___6481]);
-        var G__6482 = i__5727__auto___6481 + 1;
-        i__5727__auto___6481 = G__6482;
+      if (i__5727__auto___3516 < len__5726__auto___3515) {
+        args__5732__auto__.push(arguments[i__5727__auto___3516]);
+        var G__3517 = i__5727__auto___3516 + 1;
+        i__5727__auto___3516 = G__3517;
         continue;
       } else {
       }
@@ -56376,22 +56920,22 @@ var ret__5781__auto___6479 = function() {
     var argseq__5733__auto__ = 3 < args__5732__auto__.length ? new cljs.core.IndexedSeq(args__5732__auto__.slice(3), 0, null) : null;
     return dacite.value.with_store.cljs$core$IFn$_invoke$arity$variadic(arguments[0], arguments[1], arguments[2], argseq__5733__auto__);
   };
-  dacite.value.with_store.cljs$core$IFn$_invoke$arity$variadic = function(_AMPERSAND_form, _AMPERSAND_env, p__6475, body) {
-    var vec__6476 = p__6475;
-    var sym = cljs.core.nth.call(null, vec__6476, 0, null);
-    var init = cljs.core.nth.call(null, vec__6476, 1, null);
+  dacite.value.with_store.cljs$core$IFn$_invoke$arity$variadic = function(_AMPERSAND_form, _AMPERSAND_env, p__3510, body) {
+    var vec__3511 = p__3510;
+    var sym = cljs.core.nth.call(null, vec__3511, 0, null);
+    var init = cljs.core.nth.call(null, vec__3511, 1, null);
     return cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, new cljs.core.Symbol("dacite.store", "with-store", "dacite.store/with-store", 999270340, null), null, 1, null), new cljs.core.List(null, cljs.core.vec.call(null, cljs.core.sequence.call(null, cljs.core.seq.call(null, cljs.core.concat.call(null, new cljs.core.List(null, sym, null, 1, null), new cljs.core.List(null, init, null, 1, null))))), null, 1, null), body)));
   };
   dacite.value.with_store.cljs$lang$maxFixedArity = 3;
-  dacite.value.with_store.cljs$lang$applyTo = function(seq6471) {
-    var G__6472 = cljs.core.first.call(null, seq6471);
-    var seq6471__$1 = cljs.core.next.call(null, seq6471);
-    var G__6473 = cljs.core.first.call(null, seq6471__$1);
-    var seq6471__$2 = cljs.core.next.call(null, seq6471__$1);
-    var G__6474 = cljs.core.first.call(null, seq6471__$2);
-    var seq6471__$3 = cljs.core.next.call(null, seq6471__$2);
+  dacite.value.with_store.cljs$lang$applyTo = function(seq3506) {
+    var G__3507 = cljs.core.first.call(null, seq3506);
+    var seq3506__$1 = cljs.core.next.call(null, seq3506);
+    var G__3508 = cljs.core.first.call(null, seq3506__$1);
+    var seq3506__$2 = cljs.core.next.call(null, seq3506__$1);
+    var G__3509 = cljs.core.first.call(null, seq3506__$2);
+    var seq3506__$3 = cljs.core.next.call(null, seq3506__$2);
     var self__5711__auto__ = this;
-    return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__6472, G__6473, G__6474, seq6471__$3);
+    return self__5711__auto__.cljs$core$IFn$_invoke$arity$variadic(G__3507, G__3508, G__3509, seq3506__$3);
   };
   return null;
 }();
@@ -56404,8 +56948,8 @@ dacite.examples.todo.todo_entry_QMARK_ = function dacite$examples$todo$todo_entr
   return dacite.value.dacite_value_QMARK_.call(null, x) && (cljs.core._EQ_.call(null, "map", dacite.value.value_type.call(null, x)) && !(dacite.value.get.call(null, x, "title") == null));
 };
 dacite.examples.todo.add_todo = function dacite$examples$todo$add_todo(var_args) {
-  var G__6486 = arguments.length;
-  switch(G__6486) {
+  var G__3521 = arguments.length;
+  switch(G__3521) {
     case 2:
       return dacite.examples.todo.add_todo.cljs$core$IFn$_invoke$arity$2(arguments[0], arguments[1]);
       break;
@@ -56469,10 +57013,10 @@ dacite.examples.todo.seed_items = function dacite$examples$todo$seed_items() {
   ["run under nbb", false], null), new cljs.core.PersistentVector(null, 2, 5, cljs.core.PersistentVector.EMPTY_NODE, ["durable todo root", false], null)], null);
 };
 dacite.examples.todo.build = function dacite$examples$todo$build(peer, items) {
-  return cljs.core.reduce.call(null, function(todos, p__6488) {
-    var vec__6489 = p__6488;
-    var title = cljs.core.nth.call(null, vec__6489, 0, null);
-    var done_QMARK_ = cljs.core.nth.call(null, vec__6489, 1, null);
+  return cljs.core.reduce.call(null, function(todos, p__3523) {
+    var vec__3524 = p__3523;
+    var title = cljs.core.nth.call(null, vec__3524, 0, null);
+    var done_QMARK_ = cljs.core.nth.call(null, vec__3524, 1, null);
     return dacite.examples.todo.add_todo.call(null, todos, title, done_QMARK_);
   }, dacite.value.vector_via.call(null, peer), items);
 };
@@ -56531,13 +57075,13 @@ dacite.examples.todo.parse_args = function dacite$examples$todo$parse_args(args)
 };
 dacite.examples.todo._main = function dacite$examples$todo$_main(var_args) {
   var args__5732__auto__ = [];
-  var len__5726__auto___6497 = arguments.length;
-  var i__5727__auto___6498 = 0;
+  var len__5726__auto___3532 = arguments.length;
+  var i__5727__auto___3533 = 0;
   while (true) {
-    if (i__5727__auto___6498 < len__5726__auto___6497) {
-      args__5732__auto__.push(arguments[i__5727__auto___6498]);
-      var G__6499 = i__5727__auto___6498 + 1;
-      i__5727__auto___6498 = G__6499;
+    if (i__5727__auto___3533 < len__5726__auto___3532) {
+      args__5732__auto__.push(arguments[i__5727__auto___3533]);
+      var G__3534 = i__5727__auto___3533 + 1;
+      i__5727__auto___3533 = G__3534;
       continue;
     } else {
     }
@@ -56547,10 +57091,10 @@ dacite.examples.todo._main = function dacite$examples$todo$_main(var_args) {
   return dacite.examples.todo._main.cljs$core$IFn$_invoke$arity$variadic(argseq__5733__auto__);
 };
 dacite.examples.todo._main.cljs$core$IFn$_invoke$arity$variadic = function(args) {
-  var map__6493 = dacite.examples.todo.parse_args.call(null, args);
-  var map__6493__$1 = cljs.core.__destructure_map.call(null, map__6493);
-  var reset_QMARK_ = cljs.core.get.call(null, map__6493__$1, new cljs.core.Keyword(null, "reset?", "reset?", -1051875415));
-  var path = cljs.core.get.call(null, map__6493__$1, new cljs.core.Keyword(null, "path", "path", -188191168));
+  var map__3528 = dacite.examples.todo.parse_args.call(null, args);
+  var map__3528__$1 = cljs.core.__destructure_map.call(null, map__3528);
+  var reset_QMARK_ = cljs.core.get.call(null, map__3528__$1, new cljs.core.Keyword(null, "reset?", "reset?", -1051875415));
+  var path = cljs.core.get.call(null, map__3528__$1, new cljs.core.Keyword(null, "path", "path", -188191168));
   if (cljs.core.truth_(reset_QMARK_)) {
     dacite.examples.todo.reset_store_dir_BANG_.call(null, path);
     cljs.core.println.call(null, "reset store at", path);
@@ -56558,17 +57102,17 @@ dacite.examples.todo._main.cljs$core$IFn$_invoke$arity$variadic = function(args)
   }
   var rs = dacite.examples.todo.open_store.call(null, path);
   var todos_ref = dacite.value.root_ref.call(null, rs);
-  var vec__6494 = dacite.examples.todo.load_or_seed_BANG_.call(null, todos_ref);
-  var todos = cljs.core.nth.call(null, vec__6494, 0, null);
-  var seeded_QMARK_ = cljs.core.nth.call(null, vec__6494, 1, null);
+  var vec__3529 = dacite.examples.todo.load_or_seed_BANG_.call(null, todos_ref);
+  var todos = cljs.core.nth.call(null, vec__3529, 0, null);
+  var seeded_QMARK_ = cljs.core.nth.call(null, vec__3529, 1, null);
   cljs.core.println.call(null, cljs.core.truth_(seeded_QMARK_) ? ["seeded new store at ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(path)].join("") : ["loaded store at ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(path)].join(""));
   cljs.core.println.call(null, dacite.examples.todo.render.call(null, todos));
   return cljs.core.println.call(null, "interactive (nbb): npm run todo");
 };
 dacite.examples.todo._main.cljs$lang$maxFixedArity = 0;
-dacite.examples.todo._main.cljs$lang$applyTo = function(seq6492) {
+dacite.examples.todo._main.cljs$lang$applyTo = function(seq3527) {
   var self__5712__auto__ = this;
-  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq6492));
+  return self__5712__auto__.cljs$core$IFn$_invoke$arity$variadic(cljs.core.seq.call(null, seq3527));
 };
 goog.provide("dacite.examples.todo_web");
 goog.require("cljs.core");
@@ -56660,11 +57204,11 @@ dacite.examples.todo_web.set_html_BANG_ = function dacite$examples$todo_web$set_
 dacite.examples.todo_web.escape_html = function dacite$examples$todo_web$escape_html(s) {
   return clojure.string.replace.call(null, clojure.string.replace.call(null, clojure.string.replace.call(null, clojure.string.replace.call(null, cljs.core.str.cljs$core$IFn$_invoke$arity$1(s), "\x26", "\x26amp;"), "\x3c", "\x26lt;"), "\x3e", "\x26gt;"), '"', "\x26quot;");
 };
-dacite.examples.todo_web.note_bw_BANG_ = function dacite$examples$todo_web$note_bw_BANG_(p__3040, label) {
-  var map__3041 = p__3040;
-  var map__3041__$1 = cljs.core.__destructure_map.call(null, map__3041);
-  var delta = cljs.core.get.call(null, map__3041__$1, new cljs.core.Keyword(null, "delta", "delta", 108939957));
-  var totals = cljs.core.get.call(null, map__3041__$1, new cljs.core.Keyword(null, "totals", "totals", 1978625999));
+dacite.examples.todo_web.note_bw_BANG_ = function dacite$examples$todo_web$note_bw_BANG_(p__3537, label) {
+  var map__3538 = p__3537;
+  var map__3538__$1 = cljs.core.__destructure_map.call(null, map__3538);
+  var delta = cljs.core.get.call(null, map__3538__$1, new cljs.core.Keyword(null, "delta", "delta", 108939957));
+  var totals = cljs.core.get.call(null, map__3538__$1, new cljs.core.Keyword(null, "totals", "totals", 1978625999));
   cljs.core.swap_BANG_.call(null, dacite.examples.todo_web._BANG_state, cljs.core.assoc, new cljs.core.Keyword(null, "bw-totals", "bw-totals", 1690490193), totals, new cljs.core.Keyword(null, "bw-last", "bw-last", 1394141010), delta, new cljs.core.Keyword(null, "bw-last-label", "bw-last-label", 1657233171), label);
   var temp__5825__auto__ = dacite.examples.todo_web.by_id.call(null, "bandwidth");
   if (cljs.core.truth_(temp__5825__auto__)) {
@@ -56680,15 +57224,15 @@ dacite.examples.todo_web.with_bw = function dacite$examples$todo_web$with_bw(lab
   return (new cljs.core.Keyword(null, "result", "result", 1415092211)).cljs$core$IFn$_invoke$arity$1(m);
 };
 dacite.examples.todo_web.render_list_BANG_ = function dacite$examples$todo_web$render_list_BANG_() {
-  var map__3042 = cljs.core.deref.call(null, dacite.examples.todo_web._BANG_state);
-  var map__3042__$1 = cljs.core.__destructure_map.call(null, map__3042);
-  var todos = cljs.core.get.call(null, map__3042__$1, new cljs.core.Keyword(null, "todos", "todos", 630308868));
-  var root = cljs.core.get.call(null, map__3042__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
-  var error = cljs.core.get.call(null, map__3042__$1, new cljs.core.Keyword(null, "error", "error", -978969032));
-  var status = cljs.core.get.call(null, map__3042__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var bw_totals = cljs.core.get.call(null, map__3042__$1, new cljs.core.Keyword(null, "bw-totals", "bw-totals", 1690490193));
-  var bw_last = cljs.core.get.call(null, map__3042__$1, new cljs.core.Keyword(null, "bw-last", "bw-last", 1394141010));
-  var bw_last_label = cljs.core.get.call(null, map__3042__$1, new cljs.core.Keyword(null, "bw-last-label", "bw-last-label", 1657233171));
+  var map__3539 = cljs.core.deref.call(null, dacite.examples.todo_web._BANG_state);
+  var map__3539__$1 = cljs.core.__destructure_map.call(null, map__3539);
+  var todos = cljs.core.get.call(null, map__3539__$1, new cljs.core.Keyword(null, "todos", "todos", 630308868));
+  var root = cljs.core.get.call(null, map__3539__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
+  var error = cljs.core.get.call(null, map__3539__$1, new cljs.core.Keyword(null, "error", "error", -978969032));
+  var status = cljs.core.get.call(null, map__3539__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var bw_totals = cljs.core.get.call(null, map__3539__$1, new cljs.core.Keyword(null, "bw-totals", "bw-totals", 1690490193));
+  var bw_last = cljs.core.get.call(null, map__3539__$1, new cljs.core.Keyword(null, "bw-last", "bw-last", 1394141010));
+  var bw_last_label = cljs.core.get.call(null, map__3539__$1, new cljs.core.Keyword(null, "bw-last-label", "bw-last-label", 1657233171));
   var root_hex = cljs.core.truth_(root) ? dacite.store.hash__GT_hex.call(null, root) : null;
   var status_el = dacite.examples.todo_web.by_id.call(null, "status");
   if (cljs.core.truth_(status_el)) {
@@ -56702,13 +57246,13 @@ dacite.examples.todo_web.render_list_BANG_ = function dacite$examples$todo_web$r
     }();
   } else {
   }
-  var temp__5825__auto___3043 = dacite.examples.todo_web.by_id.call(null, "bandwidth");
-  if (cljs.core.truth_(temp__5825__auto___3043)) {
-    var el_3044 = temp__5825__auto___3043;
+  var temp__5825__auto___3540 = dacite.examples.todo_web.by_id.call(null, "bandwidth");
+  if (cljs.core.truth_(temp__5825__auto___3540)) {
+    var el_3541 = temp__5825__auto___3540;
     if (cljs.core.truth_(bw_totals)) {
-      el_3044.textContent = ["bw · ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(dacite.examples.todo_web.format_bw_stats.call(null, bw_totals)), cljs.core.truth_(bw_last) ? [" · last ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(dacite.examples.todo_web.format_bw_delta.call(null, bw_last, bw_last_label))].join("") : null].join("");
+      el_3541.textContent = ["bw · ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(dacite.examples.todo_web.format_bw_stats.call(null, bw_totals)), cljs.core.truth_(bw_last) ? [" · last ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(dacite.examples.todo_web.format_bw_delta.call(null, bw_last, bw_last_label))].join("") : null].join("");
     } else {
-      el_3044.textContent = "bw · (no store traffic yet)";
+      el_3541.textContent = "bw · (no store traffic yet)";
     }
   } else {
   }
@@ -56730,21 +57274,21 @@ dacite.examples.todo_web.render_list_BANG_ = function dacite$examples$todo_web$r
     return dacite.examples.todo_web.set_html_BANG_.call(null, "todo-list", cljs.core.apply.call(null, cljs.core.str, items));
   }
 };
-dacite.examples.todo_web.apply_value_result_BANG_ = function dacite$examples$todo_web$apply_value_result_BANG_(p__3045) {
-  var map__3046 = p__3045;
-  var map__3046__$1 = cljs.core.__destructure_map.call(null, map__3046);
-  var status = cljs.core.get.call(null, map__3046__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
-  var todos = cljs.core.get.call(null, map__3046__$1, new cljs.core.Keyword(null, "todos", "todos", 630308868));
-  var root = cljs.core.get.call(null, map__3046__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
-  var error = cljs.core.get.call(null, map__3046__$1, new cljs.core.Keyword(null, "error", "error", -978969032));
+dacite.examples.todo_web.apply_value_result_BANG_ = function dacite$examples$todo_web$apply_value_result_BANG_(p__3542) {
+  var map__3543 = p__3542;
+  var map__3543__$1 = cljs.core.__destructure_map.call(null, map__3543);
+  var status = cljs.core.get.call(null, map__3543__$1, new cljs.core.Keyword(null, "status", "status", -1997798413));
+  var todos = cljs.core.get.call(null, map__3543__$1, new cljs.core.Keyword(null, "todos", "todos", 630308868));
+  var root = cljs.core.get.call(null, map__3543__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
+  var error = cljs.core.get.call(null, map__3543__$1, new cljs.core.Keyword(null, "error", "error", -978969032));
   cljs.core.swap_BANG_.call(null, dacite.examples.todo_web._BANG_state, cljs.core.assoc, new cljs.core.Keyword(null, "todos", "todos", 630308868), todos, new cljs.core.Keyword(null, "root", "root", -448657453), root, new cljs.core.Keyword(null, "error", "error", -978969032), error, new cljs.core.Keyword(null, "status", "status", -1997798413), cljs.core.name.call(null, status));
   return dacite.examples.todo_web.render_list_BANG_.call(null);
 };
 dacite.examples.todo_web.persist_BANG_ = function dacite$examples$todo_web$persist_BANG_(todos) {
-  var map__3047 = cljs.core.deref.call(null, dacite.examples.todo_web._BANG_state);
-  var map__3047__$1 = cljs.core.__destructure_map.call(null, map__3047);
-  var store = cljs.core.get.call(null, map__3047__$1, new cljs.core.Keyword(null, "store", "store", 1512230022));
-  var root = cljs.core.get.call(null, map__3047__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
+  var map__3544 = cljs.core.deref.call(null, dacite.examples.todo_web._BANG_state);
+  var map__3544__$1 = cljs.core.__destructure_map.call(null, map__3544);
+  var store = cljs.core.get.call(null, map__3544__$1, new cljs.core.Keyword(null, "store", "store", 1512230022));
+  var root = cljs.core.get.call(null, map__3544__$1, new cljs.core.Keyword(null, "root", "root", -448657453));
   var new_h = dacite.examples.todo_web.commit_todos_BANG_.call(null, store, root, todos);
   if (cljs.core.truth_(new_h)) {
     cljs.core.swap_BANG_.call(null, dacite.examples.todo_web._BANG_state, cljs.core.assoc, new cljs.core.Keyword(null, "todos", "todos", 630308868), todos, new cljs.core.Keyword(null, "root", "root", -448657453), new_h, new cljs.core.Keyword(null, "error", "error", -978969032), null, new cljs.core.Keyword(null, "status", "status", -1997798413), "saved");
@@ -56759,8 +57303,8 @@ dacite.examples.todo_web.persist_BANG_ = function dacite$examples$todo_web$persi
 dacite.examples.todo_web.with_ui_error = function dacite$examples$todo_web$with_ui_error(label, f) {
   try {
     return f.call(null);
-  } catch (e3048) {
-    var e = e3048;
+  } catch (e3545) {
+    var e = e3545;
     var msg = [cljs.core.str.cljs$core$IFn$_invoke$arity$1(label), " failed: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(function() {
       var or__5002__auto__ = e.message;
       if (cljs.core.truth_(or__5002__auto__)) {
@@ -56855,8 +57399,8 @@ dacite.examples.todo_web.on_list_click_BANG_ = function dacite$examples$todo_web
       return and__5000__auto__;
     }
   }())) {
-    var G__3049 = action;
-    switch(G__3049) {
+    var G__3546 = action;
+    switch(G__3546) {
       case "toggle":
         return dacite.examples.todo_web.on_toggle_BANG_.call(null, i);
         break;
@@ -56877,23 +57421,23 @@ dacite.examples.todo_web.init_BANG_ = function dacite$examples$todo_web$init_BAN
   dacite.examples.todo_web.render_list_BANG_.call(null);
   try {
     dacite.examples.todo_web.do_load_or_seed_BANG_.call(null);
-  } catch (e3051) {
-    var e_3052 = e3051;
-    cljs.core.swap_BANG_.call(null, dacite.examples.todo_web._BANG_state, cljs.core.assoc, new cljs.core.Keyword(null, "error", "error", -978969032), ["Load failed: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(e_3052.message)].join(""), new cljs.core.Keyword(null, "status", "status", -1997798413), "error");
+  } catch (e3548) {
+    var e_3549 = e3548;
+    cljs.core.swap_BANG_.call(null, dacite.examples.todo_web._BANG_state, cljs.core.assoc, new cljs.core.Keyword(null, "error", "error", -978969032), ["Load failed: ", cljs.core.str.cljs$core$IFn$_invoke$arity$1(e_3549.message)].join(""), new cljs.core.Keyword(null, "status", "status", -1997798413), "error");
     dacite.examples.todo_web.render_list_BANG_.call(null);
   }
-  var temp__5825__auto___3053 = dacite.examples.todo_web.by_id.call(null, "add-btn");
-  if (cljs.core.truth_(temp__5825__auto___3053)) {
-    var btn_3054 = temp__5825__auto___3053;
-    btn_3054.addEventListener("click", function(_) {
+  var temp__5825__auto___3550 = dacite.examples.todo_web.by_id.call(null, "add-btn");
+  if (cljs.core.truth_(temp__5825__auto___3550)) {
+    var btn_3551 = temp__5825__auto___3550;
+    btn_3551.addEventListener("click", function(_) {
       return dacite.examples.todo_web.on_add_BANG_.call(null);
     });
   } else {
   }
-  var temp__5825__auto___3055 = dacite.examples.todo_web.by_id.call(null, "new-title");
-  if (cljs.core.truth_(temp__5825__auto___3055)) {
-    var input_3056 = temp__5825__auto___3055;
-    input_3056.addEventListener("keydown", function(e) {
+  var temp__5825__auto___3552 = dacite.examples.todo_web.by_id.call(null, "new-title");
+  if (cljs.core.truth_(temp__5825__auto___3552)) {
+    var input_3553 = temp__5825__auto___3552;
+    input_3553.addEventListener("keydown", function(e) {
       if (cljs.core._EQ_.call(null, "Enter", e.key)) {
         e.preventDefault();
         return dacite.examples.todo_web.on_add_BANG_.call(null);
@@ -56903,10 +57447,10 @@ dacite.examples.todo_web.init_BANG_ = function dacite$examples$todo_web$init_BAN
     });
   } else {
   }
-  var temp__5825__auto___3057 = dacite.examples.todo_web.by_id.call(null, "todo-list");
-  if (cljs.core.truth_(temp__5825__auto___3057)) {
-    var ul_3058 = temp__5825__auto___3057;
-    ul_3058.addEventListener("click", dacite.examples.todo_web.on_list_click_BANG_);
+  var temp__5825__auto___3554 = dacite.examples.todo_web.by_id.call(null, "todo-list");
+  if (cljs.core.truth_(temp__5825__auto___3554)) {
+    var ul_3555 = temp__5825__auto___3554;
+    ul_3555.addEventListener("click", dacite.examples.todo_web.on_list_click_BANG_);
   } else {
   }
   var temp__5825__auto__ = dacite.examples.todo_web.by_id.call(null, "reload-btn");

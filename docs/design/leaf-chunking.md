@@ -358,12 +358,6 @@ body toward **~2k**.
 nodes are literals. After a fat `:node` crosses 1k, the walk keeps
 **children-first** until ~2k — a 64-char string prefix fits in one GET.
 
-**`?near=` (pack-under-or-near).** The store has no parent pointers (leaves
-are interned). Collection `seq` / `realize` bind `store/*pack-near*` to the
-value hash; a remote miss then `GET /node/{h}?near={value}`. The server
-fills under `near` when that chunk still installs `h` (parent literal or
-siblings). A char miss packs the title prefix, not a bare leaf.
-
 Remaining-budget skip-if-does-not-fit and GET `have` are deferred.
 
 ### 2f notes (shipped)

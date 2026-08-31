@@ -114,11 +114,7 @@
         (let [hdrs (if binary?
                      (assoc headers "Accept" bin/content-type-chunk-v1)
                      (assoc headers "Accept" "application/edn"))
-              near store/*pack-near*
-              q (when (and near
-                           (not= (store/hash->hex near) (store/hash->hex h)))
-                  (str "near=" (store/hash->hex near)))
-              {:keys [status body]} (request client "GET" (node-url base-url h q) nil hdrs)]
+              {:keys [status body]} (request client "GET" (node-url base-url h) nil hdrs)]
           (when (= 200 status)
             (apply-get-body! pack-local h body binary?)))))
 

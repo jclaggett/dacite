@@ -68,12 +68,6 @@ Sequence literals pack contiguous same-type leaves as nested `run` /
 Client applies the chunk locally (`apply-chunk!`) then reads the requested
 hash.
 
-**`?near={64-hex}`:** fill under that enclosing value (or parent node) if
-the resulting chunk still installs `{hash-hex}`. Used when the client
-already has a collection header and the miss is a child: the store has
-no parent pointers, so the walker supplies `near`. A small parent that
-fits as a literal covers siblings; otherwise `pack-under(near)`.
-
 **Response 200 (`?raw=1`):** bare store node EDN (debug / simple tools).
 
 **Response 200 (`?nodes=1`):** pack chunk whose items are all `:node`
