@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -182,57 +182,48 @@
                     <main>
                         <h1 id="anatomy-of-a-dacite-app"><a class="header" href="#anatomy-of-a-dacite-app">Anatomy of a Dacite app</a></h1>
 <p>Every portable example in this repo splits <strong>Values</strong> from <strong>Store</strong>. Domain
-code builds and updates Dacite values. Wiring opens a store and commits a
-root. The two meet at a <code>root-ref</code>.</p>
+code builds and updates Dacite values. Wiring opens a <strong>rooted</strong> store.
+The two meet at <code>v/root</code>.</p>
 <p>Copy this shape. Do not start from a single namespace that both <code>assoc</code>s
 fields and chooses a file path.</p>
 <h2 id="public-api-only"><a class="header" href="#public-api-only">Public API only</a></h2>
-<p>Application code may require:</p>
 <pre><code class="language-clojure">(require '[dacite.value :as v]
-         '[dacite.store :as store])
+         '[dacite.store :as s])
 </code></pre>
 <p>If a domain function needs <code>dacite.value.collections</code>, <code>dacite.store.pack</code>,
-or <code>dac-&gt;clj</code>, that is a library hole. Promote a function on <code>dacite.value</code>
-(or wrap the store) in the same change. See <a href="../the-dacite-way.html">The Dacite way</a>.</p>
+or <code>dacite.convert</code>, that is a library hole. Promote a function on
+<code>dacite.value</code> (or wrap the store) in the same change. See
+<a href="../the-dacite-way.html">The Dacite way</a>.</p>
 <h2 id="1-domain-functions-take-and-return-values"><a class="header" href="#1-domain-functions-take-and-return-values">1. Domain functions take and return values</a></h2>
-<p>New nodes are allocated <strong>relative to a peer</strong> that already has a store —
-another value, a <code>root-ref</code>, or an <code>IStore</code>:</p>
+<p>Constructors take a <strong>context</strong> first — a store, a root, or another value.
+New nodes persist into that store:</p>
 <pre><code class="language-clojure">(defn add-todo [todos title]
-  (v/conj todos (v/hash-map-via todos "title" title "done" false)))
+  (v/conj todos (v/map todos "title" title "done" false)))
 </code></pre>
-<p><code>hash-map-via</code> / <code>vector-via</code> / <code>string-via</code> / <code>i64-via</code> persist into the
-peer’s store. You do not thread the store through every call.</p>
 <p>Reads name a field, not the whole tree:</p>
-<pre><code class="language-clojure">(v/as-str (v/get todo "title"))
+<pre><code class="language-clojure">(v/native (v/get todo "title"))
 (boolean (v/native (v/get todo "done")))
 </code></pre>
 <h2 id="2-bootstrap-once"><a class="header" href="#2-bootstrap-once">2. Bootstrap once</a></h2>
-<p>The first allocation needs an explicit store. After that, <code>*-via</code> is enough.</p>
-<p>At a REPL (nbb or JVM):</p>
-<pre><code class="language-clojure">(require '[dacite.store :as store]
+<pre><code class="language-clojure">(require '[dacite.store :as s]
          '[dacite.value :as v])
 
-(def st (store/mem-store))
-(def doc (v/hash-map-via st
-                         "title" (v/string-via st "Hello")
-                         "done" false))
+(def rs (s/mem))
+(def r (v/root rs))
+(def doc (v/map r
+                "title" (v/string r "Hello")
+                "done" false))
 
-(v/as-str (v/get doc "title"))
+(v/native (v/get doc "title"))
 ;; =&gt; "Hello"
 
-(store/hash-&gt;hex (v/dacite-hash doc))
+(s/hash-&gt;hex (v/hash doc))
 </code></pre>
-<p>Bare constructors such as <code>(v/vector 1 2 3)</code> use the dynamic <code>store/*store*</code>
-(a mem store by default). Prefer <code>*-via</code> / <code>*-with-store</code> in real programs so
-the store is obvious.</p>
-<h2 id="3-one-rooted-store-one-root-ref"><a class="header" href="#3-one-rooted-store-one-root-ref">3. One rooted store, one <code>root-ref</code></a></h2>
-<p>The store keeps a mutable <strong>hash</strong>. Wrap it once for value-level ops:</p>
-<pre><code class="language-clojure">(def rs (store/rooted-store st))
-(def r (v/root-ref rs))
-
-(v/ref-cas! r nil doc)          ; seed empty root (works locally and remote)
-(v/ref-swap! r add-todo "milk") ; CAS-retry
-(v/ref-deref r)                 ; current Dacite value, or nil
+<p>Every constructor takes the context. There is no implicit <code>*store*</code> form.</p>
+<h2 id="3-one-rooted-store-one-vroot"><a class="header" href="#3-one-rooted-store-one-vroot">3. One rooted store, one <code>v/root</code></a></h2>
+<pre><code class="language-clojure">(v/cas! r nil doc)          ; seed empty root (local and remote)
+(v/swap! r add-todo "milk") ; CAS-retry
+(v/deref r)                 ; current Dacite value, or nil
 </code></pre>
 <div class="table-wrapper">
 <table>
@@ -240,41 +231,35 @@ the store is obvious.</p>
 <tr><th>Op</th><th>Use</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ref-deref</code></td><td>Current value</td></tr>
-<tr><td><code>ref-swap!</code></td><td>Apply a function; retry on conflict</td></tr>
-<tr><td><code>ref-cas!</code></td><td>Compare-and-set at the value level (seed from <code>nil</code>)</td></tr>
-<tr><td><code>ref-reset!</code></td><td>Unconditional set — <strong>local only</strong>; remote throws</td></tr>
-<tr><td><code>ref-swap-info!</code></td><td>Same loop as <code>ref-swap!</code>, plus <code>{:retries n}</code></td></tr>
+<tr><td><code>deref</code></td><td>Current value</td></tr>
+<tr><td><code>swap!</code></td><td>Apply a function; retry on conflict</td></tr>
+<tr><td><code>cas!</code></td><td>Compare-and-set (seed from <code>nil</code>)</td></tr>
+<tr><td><code>swap-info!</code></td><td>Same loop as <code>swap!</code>, plus <code>{:retries n}</code></td></tr>
 </tbody>
 </table>
 </div>
-<p>Local single-writer apps may <code>ref-reset!</code> after each edit. Anything that
-might race (HTTP, two processes) uses <code>ref-swap!</code> or <code>ref-cas!</code>.</p>
+<p>There is no unconditional <code>reset!</code> on the value API. Seed with <code>cas!</code> from
+<code>nil</code>; update with <code>swap!</code>.</p>
+<p>On the JVM, <code>@r</code> and <code>swap!</code> on the root object still work.</p>
 <h2 id="4-store-section-is-a-different-concern"><a class="header" href="#4-store-section-is-a-different-concern">4. Store section is a different concern</a></h2>
-<p>Open mem, file, LMDB, or HTTP <strong>without mentioning the domain type</strong>:</p>
-<pre><code class="language-clojure">;; local durable
-(store/rooted-store (store/file-store "target/my-app"))
-
-;; HTTP (JVM); write-back is the usual client policy
-(store/remote-rooted-store "http://127.0.0.1:8080")
+<pre><code class="language-clojure">(s/mem)
+(s/file "target/my-app")
+(s/file "target/my-app" {:reset true})
+(s/remote "http://127.0.0.1:8080")   ; JVM; write-back by default
 </code></pre>
-<p>The domain namespace should still compile if you swap file for HTTP. Config
-and notes already do this with a <code>--url</code> flag.</p>
-<p>On write-back HTTP, <code>s-put</code> stays in local memory until commit. Flush packs
-literals and <code>POST /nodes</code>, then <code>POST /root/cas</code>. Domain code does not call
-<code>flush-from!</code> or import pack. <code>remote-cas-root!</code> / <code>ref-swap!</code> on a write-back
-store do that underneath.</p>
+<p>The domain namespace should still compile if you swap file for HTTP.</p>
+<p>On write-back HTTP, puts stay in local memory until commit. Flush packs
+literals and <code>POST /nodes</code>, then <code>POST /root/cas</code>. Domain code does not
+call pack.</p>
 <h2 id="5-the-whole-loop"><a class="header" href="#5-the-whole-loop">5. The whole loop</a></h2>
-<pre><code class="language-text">(open-store …)           ; Store section
-(def r (v/root-ref rs))  ; Value section
+<pre><code class="language-text">(def rs (s/file path))     ; Store section
+(def r (v/root rs))        ; Value section
 (load-or-seed! r)
-(v/ref-swap! r domain-op …)
+(v/swap! r domain-op …)
 </code></pre>
-<p><code>load-or-seed!</code> is <code>ref-deref</code> or, if empty, build a value via the ref and
-<code>ref-cas!</code> from <code>nil</code> (remote) / <code>ref-reset!</code> (local).</p>
+<p><code>load-or-seed!</code> is <code>deref</code> or, if empty, <code>cas!</code> from <code>nil</code>.</p>
 <p>That is the architecture in
-<a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/todo.cljc">todo.cljc</a>,
-<a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/config.cljc">config.cljc</a>,
+<a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/todo.cljc">todo.cljc</a>
 and the other portable examples.</p>
 <h2 id="next"><a class="header" href="#next">Next</a></h2>
 <ul>

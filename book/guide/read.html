@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -189,18 +189,18 @@ rest of the program can use it.”</p>
 <tr><th>You need</th><th>Call</th></tr>
 </thead>
 <tbody>
-<tr><td>Type name</td><td><code>(v/value-type x)</code></td></tr>
+<tr><td>Type name</td><td><code>(v/type x)</code></td></tr>
 <tr><td>How many</td><td><code>(v/count x)</code> — O(1)</td></tr>
 <tr><td>Map field / set member / vector index</td><td><code>(v/get x k)</code> — still a Dacite value</td></tr>
 <tr><td>Vector/string/blob index</td><td><code>(v/nth x i)</code></td></tr>
-<tr><td>Scalar or short string as host</td><td><code>(v/native x)</code> / <code>(v/as-str x)</code></td></tr>
+<tr><td>Scalar or short string as host</td><td><code>(v/native x)</code> / <code>(v/native x)</code></td></tr>
 <tr><td>Blob bytes</td><td><code>(v/as-bytes x)</code></td></tr>
 <tr><td>A page of a vector</td><td><code>(v/subvec v start end)</code></td></tr>
 <tr><td>To walk</td><td><code>(v/seq x)</code> — lazy; elements are values</td></tr>
 </tbody>
 </table>
 </div>
-<p><code>native</code> and <code>as-str</code> take an optional char limit (or
+<p><code>native</code> takes an optional char limit (or
 <code>v/*string-char-limit*</code>). They throw if a string is longer than the
 limit — that is the point: field-sized text, not a 3k title dumped into
 RAM. <code>pr-str</code> never throws; long strings print as <code>"prefix…" (n chars)</code>.</p>
@@ -210,7 +210,7 @@ an explicit full traversal. Prefer <code>subvec</code> / <code>nth</code> / <cod
 <p>Missing blobs from <code>as-bytes</code> throw <code>ex-info</code> with <code>:dacite/missing</code>.
 Other missing nodes still surface as store exceptions — a library hole
 until an app pulls a uniform error.</p>
-<p>See <a href="../tutorial/config.html">config</a> (<code>as-str</code> / <code>native</code> / <code>get-in</code>),
+<p>See <a href="../tutorial/config.html">config</a> (<code>native</code> / <code>get-in</code>),
 <a href="../tutorial/event-log.html">event log</a> (<code>subvec</code> / <code>nth</code>),
 <a href="../tutorial/sync.html">sync</a> (<code>as-bytes</code>).</p>
 

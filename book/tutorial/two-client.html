@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -182,7 +182,7 @@
                     <main>
                         <h1 id="two-writers-one-cas"><a class="header" href="#two-writers-one-cas">Two writers, one CAS</a></h1>
 <p>Two processes must append without silent clobbering. Dacite’s move:
-<strong>compare-and-set is the whole distributed update.</strong> <code>ref-swap!</code> retries
+<strong>compare-and-set is the whole distributed update.</strong> <code>swap!</code> retries
 on conflict; SSE (<code>GET /events</code>) tells a third process the root moved.
 There is no lock and no CRDT in the core.</p>
 <p>Two writers append to the <a href="event-log.html">event log</a> on one HTTP root.
@@ -210,7 +210,7 @@ clojure -M:log -- --url http://127.0.0.1:8080 --n 0 append credit 1 from-a
 <pre><code class="language-bash">cd impl/clojure
 clojure -M:log -- --url http://127.0.0.1:8080 append debit 1 from-b
 </code></pre>
-<p>Each <code>append</code> uses <code>v/ref-swap-info!</code>: read the current ledger, conj,
+<p>Each <code>append</code> uses <code>v/swap-info!</code>: read the current ledger, conj,
 CAS the new root. If the other writer landed first, CAS fails, the fn
 runs again on the new ledger, and both events stay in the log. When a
 retry happened the CLI prints <code>cas retried N time(s)</code>.</p>
@@ -233,8 +233,8 @@ Append in another terminal and this one reprints.</p>
 </thead>
 <tbody>
 <tr><td>Notice a remote root without polling</td><td><code>GET /events</code> + <code>dacite.store.remote/watch-root</code></td></tr>
-<tr><td>Apply a domain fn under contention</td><td><code>v/ref-swap!</code> (already the rebase loop)</td></tr>
-<tr><td>Show that a collision was recovered</td><td><code>v/ref-swap-info!</code> → <code>:retries</code></td></tr>
+<tr><td>Apply a domain fn under contention</td><td><code>v/swap!</code> (already the rebase loop)</td></tr>
+<tr><td>Show that a collision was recovered</td><td><code>v/swap-info!</code> → <code>:retries</code></td></tr>
 </tbody>
 </table>
 </div>

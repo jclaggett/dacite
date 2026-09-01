@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -227,7 +227,7 @@ should name <strong>what you need</strong>:</p>
 <tr><th>You need</th><th>Use</th></tr>
 </thead>
 <tbody>
-<tr><td>A scalar or short string field</td><td><code>native</code> / <code>as-str</code></td></tr>
+<tr><td>A scalar or short string field</td><td><code>native</code></td></tr>
 <tr><td>A blob’s bytes</td><td><code>as-bytes</code></td></tr>
 <tr><td>One element</td><td><code>nth</code> / <code>get</code></td></tr>
 <tr><td>A page of a vector</td><td><code>subvec</code></td></tr>
@@ -248,17 +248,16 @@ code that reaches for it has found a hole in <code>dacite.value</code> — fill 
 hash</strong> on a rooted store. “Save” means: compute a new value, then
 compare-and-set the root to its hash.</p>
 <p>Several writers coordinate on that one hash. The portable update is
-<code>ref-swap!</code> (retry on conflict). There is no distributed lock and no CRDT
+<code>swap!</code> (retry on conflict). There is no distributed lock and no CRDT
 in the core. Two clients appending to a log interleave with compare-and-set;
 lost updates show up as retries, not silent clobbering.</p>
-<p>Remote stores refuse unconditional <code>ref-reset!</code>. Seeding an empty remote
-root uses <code>ref-cas!</code> from <code>nil</code>.</p>
+<p>Seed an empty root with <code>cas!</code> from <code>nil</code>. There is no unconditional reset.</p>
 <h2 id="stores-are-wiring"><a class="header" href="#stores-are-wiring">Stores are wiring</a></h2>
 <p>Mem, file, LMDB, and HTTP all speak the same store protocol. Domain functions
 take and return values. They do not open files or build URLs.</p>
 <p>A typical app splits in two, as <a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/todo.cljc">todo.cljc</a> does:</p>
 <ul>
-<li><strong>Values</strong> — <code>add-todo</code>, <code>toggle-at</code>, seed data, <code>root-ref</code> swap. Only
+<li><strong>Values</strong> — <code>add-todo</code>, <code>toggle-at</code>, seed data, <code>v/root</code> + <code>swap!</code>. Only
 <code>dacite.value</code>.</li>
 <li><strong>Store</strong> — path, <code>--url</code>, write-back policy, reset. No todo shape.</li>
 </ul>

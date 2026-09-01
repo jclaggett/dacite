@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -194,9 +194,9 @@ and the <a href="../guide/read.html">cookbook</a>. Internals:
 <tr><th>Property</th><th>Access</th></tr>
 </thead>
 <tbody>
-<tr><td>Content hash</td><td><code>(v/dacite-hash v)</code></td></tr>
+<tr><td>Content hash</td><td><code>(v/hash v)</code></td></tr>
 <tr><td>Owning store</td><td><code>(v/dacite-store v)</code></td></tr>
-<tr><td>Type name</td><td><code>(v/dacite-type v)</code> or <code>(v/value-type v)</code></td></tr>
+<tr><td>Type name</td><td><code>(v/type v)</code></td></tr>
 <tr><td>Host content</td><td><code>(v/realize v)</code> — explicit, never implicit deref</td></tr>
 </tbody>
 </table>
@@ -208,67 +208,51 @@ the old ones. Laziness is natural: you only need the nodes you access.</p>
 </code></pre>
 <hr>
 <h2 id="constructors"><a class="header" href="#constructors">Constructors</a></h2>
-<h3 id="relative--via--preferred-in-domain-code"><a class="header" href="#relative--via--preferred-in-domain-code">Relative (<code>*-via</code>) — preferred in domain code</a></h3>
-<p>Use an existing Dacite value, a root-ref, or an <code>IStore</code> as the peer:</p>
+<p>Every constructor takes a <strong>context</strong> first: a rooted store, a <code>v/root</code>,
+or another Dacite value. New nodes go into that store.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Form</th><th>Role</th></tr>
 </thead>
 <tbody>
-<tr><td><code>(v/vector-via peer &amp; xs)</code></td><td>Vector in peer’s store</td></tr>
-<tr><td><code>(v/hash-map-via peer &amp; kvs)</code></td><td>Map</td></tr>
-<tr><td><code>(v/set-via peer &amp; xs)</code></td><td>Set</td></tr>
-<tr><td><code>(v/string-via peer s)</code> / <code>(v/blob-via peer bs)</code></td><td>Sequences</td></tr>
-<tr><td><code>(v/i64-via peer n)</code> (and other scalars)</td><td>Typed scalars</td></tr>
+<tr><td><code>(v/vector ctx &amp; xs)</code></td><td>Vector</td></tr>
+<tr><td><code>(v/map ctx &amp; kvs)</code></td><td>Map</td></tr>
+<tr><td><code>(v/set ctx &amp; xs)</code></td><td>Set</td></tr>
+<tr><td><code>(v/string ctx s)</code> / <code>(v/blob ctx bs)</code></td><td>Sequences</td></tr>
+<tr><td><code>(v/i64 ctx n)</code> (and other scalars)</td><td>Typed scalars</td></tr>
 </tbody>
 </table>
 </div>
 <pre><code class="language-clojure">(defn add-todo [todos title]
-  (v/conj todos (v/hash-map-via todos "title" title "done" false)))
-</code></pre>
-<h3 id="bootstrap--with-store"><a class="header" href="#bootstrap--with-store">Bootstrap (<code>*-with-store</code>)</a></h3>
-<p>When there is no peer yet (first allocation):</p>
-<pre><code class="language-clojure">(v/vector-with-store st 1 2 3)
-(v/i64-with-store st 42)
-</code></pre>
-<h3 id="repl-convenience"><a class="header" href="#repl-convenience">REPL convenience</a></h3>
-<p>Bare constructors use the dynamic <code>store/*store*</code> (default mem store):</p>
-<pre><code class="language-clojure">(v/vector 1 2 3)
-(v/hash-map :a 1)
-(store/with-store [_ (store/mem-store)]
-  (v/vector 1 2 3))
+  (v/conj todos (v/map todos "title" title "done" false)))
+
+(v/vector rs 1 2 3)
+(v/i64 rs 42)
 </code></pre>
 <hr>
-<h2 id="root-reference-value-level"><a class="header" href="#root-reference-value-level">Root reference (value-level)</a></h2>
-<p>The store layer keeps a mutable <strong>hash</strong>. Wrap it once for value-level ops:</p>
-<pre><code class="language-clojure">(def rooted (store/rooted-store (store/mem-store)))
-(def r (v/root-ref rooted))
+<h2 id="root-value-level"><a class="header" href="#root-value-level">Root (value-level)</a></h2>
+<p>The store layer keeps a mutable <strong>hash</strong>. Wrap it once:</p>
+<pre><code class="language-clojure">(def r (v/root (s/mem)))
 
-(v/ref-reset! r (v/vector-via r))
-(v/ref-swap! r v/conj (v/i64-via r 1))
-(v/ref-deref r)   ; =&gt; current Dacite value or nil
+(v/cas! r nil (v/vector r))
+(v/swap! r v/conj (v/i64 r 1))
+(v/deref r)   ; =&gt; current Dacite value or nil
 </code></pre>
-<p>On the <strong>JVM</strong>, <code>RootRef</code> also implements atom interfaces:</p>
-<pre><code class="language-clojure">@r
-(swap! r v/conj 2)
-(reset! r (v/hash-map-via r "k" "v"))
-(add-watch r :ui (fn [k ref old new] …))   ; old/new are values
-</code></pre>
-<p>Portable function API (nbb / babashka / all hosts):</p>
+<p>On the <strong>JVM</strong>, the root also implements atom interfaces (<code>@r</code>, <code>swap!</code>).
+There is no portable unconditional reset — seed with <code>cas!</code> from <code>nil</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Function</th><th>Role</th></tr>
 </thead>
 <tbody>
-<tr><td><code>root-ref</code></td><td>Wrap a local or remote rooted store</td></tr>
-<tr><td><code>ref-deref</code></td><td>Current value or nil</td></tr>
-<tr><td><code>ref-reset!</code></td><td>Unconditional set (<strong>local only</strong> — throws on remote)</td></tr>
-<tr><td><code>ref-swap!</code></td><td>CAS-retry apply</td></tr>
-<tr><td><code>ref-swap-info!</code></td><td>Same, but <code>{:value new :retries n}</code> — retries are lost-update recoveries</td></tr>
-<tr><td><code>ref-cas!</code></td><td>Value-level compare-and-set (use from <code>nil</code> to seed a remote)</td></tr>
-<tr><td><code>ref-add-watch</code> / <code>ref-remove-watch</code></td><td>Watch value transitions</td></tr>
+<tr><td><code>root</code></td><td>Wrap a rooted store</td></tr>
+<tr><td><code>deref</code></td><td>Current value or nil</td></tr>
+<tr><td><code>swap!</code></td><td>CAS-retry apply</td></tr>
+<tr><td><code>swap-info!</code></td><td>Same, plus <code>{:value new :retries n}</code></td></tr>
+<tr><td><code>cas!</code></td><td>Compare-and-set (seed from <code>nil</code>)</td></tr>
+<tr><td><code>add-watch</code> / <code>remove-watch</code></td><td>Watch value transitions</td></tr>
 </tbody>
 </table>
 </div>
@@ -300,7 +284,6 @@ the old ones. Laziness is natural: you only need the nodes you access.</p>
 <tr><td><code>subvec</code></td><td><code>[start, end)</code> as a new vector (shared leaves; O(k log n))</td></tr>
 <tr><td><code>keys</code> / <code>vals</code></td><td>Map keys or values as wrapped sequences</td></tr>
 <tr><td><code>native</code></td><td>Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char <code>limit</code> (or <code>*string-char-limit*</code>) realizes at most that prefix, then throws if the string is longer.</td></tr>
-<tr><td><code>as-str</code></td><td><code>(str (native x))</code> — same optional limit. Field-sized text only.</td></tr>
 <tr><td><code>as-bytes</code></td><td>Host bytes for a blob. Optional limit; missing nodes throw <code>:dacite/missing</code>.</td></tr>
 <tr><td><code>pr-str</code></td><td>Bounded debug render. Never throws. Long strings: <code>"prefix…" (n chars)</code>.</td></tr>
 <tr><td><code>get-in</code> / <code>assoc-in</code></td><td>Nested path lookup / update (creates intermediate maps)</td></tr>
@@ -310,7 +293,7 @@ the old ones. Laziness is natural: you only need the nodes you access.</p>
 </div>
 <p>Example:</p>
 <pre><code class="language-clojure">(let [st (store/mem-store)
-      vec (v/vector-with-store st 10 20 30)
+      vec (v/vector st 10 20 30)
       v2  (v/conj vec 40)]
   [(v/count vec) (v/count v2)
    (v/realize (v/nth v2 3))])

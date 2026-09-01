@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -182,7 +182,7 @@
                     <main>
                         <h1 id="commit-loops"><a class="header" href="#commit-loops">Commit loops</a></h1>
 <p>The store’s mutable cell is a <strong>hash</strong>. Wrap it once:</p>
-<pre><code class="language-clojure">(def r (v/root-ref rs))
+<pre><code class="language-clojure">(def r (v/root rs))
 </code></pre>
 <div class="table-wrapper">
 <table>
@@ -190,32 +190,26 @@
 <tr><th>Situation</th><th>Op</th></tr>
 </thead>
 <tbody>
-<tr><td>Read current value</td><td><code>ref-deref</code> (nil if unset)</td></tr>
-<tr><td>Local single writer</td><td><code>ref-reset!</code></td></tr>
-<tr><td>Might race (HTTP, two processes)</td><td><code>ref-swap!</code></td></tr>
-<tr><td>Seed empty remote</td><td><code>ref-cas!</code> from <code>nil</code></td></tr>
-<tr><td>Show conflict cost</td><td><code>ref-swap-info!</code> → <code>{:value :retries}</code></td></tr>
+<tr><td>Read current value</td><td><code>deref</code> (nil if unset)</td></tr>
+<tr><td>Might race (always)</td><td><code>swap!</code></td></tr>
+<tr><td>Seed empty root</td><td><code>cas!</code> from <code>nil</code></td></tr>
+<tr><td>Show conflict cost</td><td><code>swap-info!</code> → <code>{:value :retries}</code></td></tr>
 </tbody>
 </table>
 </div>
-<p><code>ref-reset!</code> throws on a remote store. Seeding:</p>
-<pre><code class="language-clojure">(or (v/ref-deref r)
-    (let [seed (v/hash-map-via r "theme" "dark")]
-      (v/ref-cas! r nil seed)
+<pre><code class="language-clojure">(or (v/deref r)
+    (let [seed (v/map r "theme" "dark")]
+      (v/cas! r nil seed)
       seed))
 </code></pre>
-<p><code>ref-swap!</code> is read → apply <code>f</code> → CAS. If another writer landed first,
-<code>f</code> runs again on the new current value. Domain functions must be
+<p><code>swap!</code> is read → apply <code>f</code> → CAS. If another writer landed first, <code>f</code>
+runs again on the new current value. Domain functions must be
 <strong>retries-safe</strong>: compute the next value from the argument, do not close
 over a stale copy.</p>
-<pre><code class="language-clojure">(v/ref-swap! r add-todo "milk")
+<pre><code class="language-clojure">(v/swap! r add-todo "milk")
 ;; add-todo is (fn [todos title] (v/conj todos …))
 </code></pre>
-<p>Two HTTP clients appending an event log use this loop;
-<code>:retries</code> is the UX when they collide. See
-<a href="../tutorial/two-client.html">Two writers, one CAS</a>.</p>
-<p>On write-back HTTP, <code>ref-swap!</code> / remote CAS flushes packed nodes, then
-CAS the root. Domain code does not call <code>flush-from!</code>.</p>
+<p>See <a href="../tutorial/two-client.html">Two writers, one CAS</a>.</p>
 
                     </main>
 

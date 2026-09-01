@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -183,24 +183,24 @@
                         <h1 id="update-and-share-identity"><a class="header" href="#update-and-share-identity">Update and share identity</a></h1>
 <p>Updates return <strong>new</strong> values. The old value is still in the store. Unchanged
 children keep their hashes.</p>
-<pre><code class="language-clojure">(def v2 (v/conj todos (v/hash-map-via todos "title" "milk" "done" false)))
-(v/dacite-hash todos)   ; unchanged
-(v/dacite-hash v2)      ; new root of the vector
+<pre><code class="language-clojure">(def v2 (v/conj todos (v/map todos "title" "milk" "done" false)))
+(v/hash todos)   ; unchanged
+(v/hash v2)      ; new root of the vector
 </code></pre>
 <p>Nested documents:</p>
 <pre><code class="language-clojure">(v/assoc-in config ["features" 0] "c")
-(v/update config "timeout" (fn [n] (v/i64-via config (inc (v/native n)))))
+(v/update config "timeout" (fn [n] (v/i64 config (inc (v/native n)))))
 </code></pre>
 <p><code>assoc-in</code> creates intermediate maps as needed. Path ops were pulled by
 the config app; use them instead of a hand-rolled walk.</p>
 <p>Print hashes when you need to <em>see</em> sharing:</p>
-<pre><code class="language-clojure">(store/hash-&gt;hex (v/dacite-hash (v/get doc "body")))
+<pre><code class="language-clojure">(store/hash-&gt;hex (v/hash (v/get doc "body")))
 </code></pre>
 <p>A title-only edit in <a href="../tutorial/notes.html">notes</a> leaves that body hash
 put and adds fewer store nodes than rewriting the body. History is
 another vector of document values: restore means <code>assoc</code> the notebook’s
 <code>"doc"</code> back to a historical value (same hash), not replaying a diff.</p>
-<p>New nodes go into the peer’s store via <code>*-via</code> / <code>conj</code> / <code>assoc</code>. You do
+<p>New nodes go into the peer’s store via constructors / <code>conj</code> / <code>assoc</code>. You do
 not call <code>s-put</code> from domain code.</p>
 
                     </main>

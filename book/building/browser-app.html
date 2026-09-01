@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -215,7 +215,7 @@ A tree click is not a GET if that neighborhood is already local.</li>
 <li>Commit: write-back flush <code>POST /nodes</code> (same Layer 1 literals as GET),
 then <code>POST /root/cas</code>.</li>
 </ol>
-<p>Todo CLI uses <code>v/root-ref</code> on a file store. The browser todo still
+<p>Todo CLI uses <code>v/root</code> on a file store. The browser todo still
 coordinates hashes at the CAS layer in places — a library hole, not a
 reason to invent a JS model. Explorer is read-only on whatever root the
 service already has (todo, notes, the type gallery).</p>

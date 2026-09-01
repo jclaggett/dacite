@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -217,10 +217,10 @@ value structure — that is part of the Dacite porting contract.</p>
 </code></pre>
 </li>
 <li>
-<p><strong>Build values</strong> — bootstrap with an explicit store, then <code>*-via</code> for peers:</p>
-<pre><code class="language-clojure">(def v (v/vector-with-store st 1 2 3))
-(def m (v/hash-map-via v
-                       "hello" (v/i64-via v 42)
+<p><strong>Build values</strong> — first argument is always a store or peer value:</p>
+<pre><code class="language-clojure">(def v (v/vector st 1 2 3))
+(def m (v/map v
+                       "hello" (v/i64 v 42)
                        "vec" v))
 </code></pre>
 </li>
@@ -233,7 +233,7 @@ value structure — that is part of the Dacite porting contract.</p>
 </li>
 <li>
 <p><strong>Content hash</strong> — identity is the hash, independent of store location:</p>
-<pre><code class="language-clojure">(store/hash-&gt;hex (v/dacite-hash v))
+<pre><code class="language-clojure">(store/hash-&gt;hex (v/hash v))
 </code></pre>
 </li>
 </ol>
@@ -242,16 +242,16 @@ value structure — that is part of the Dacite porting contract.</p>
 (require '[dacite.store :as store]
          '[dacite.value :as v])
 (let [st (store/mem-store)
-      vec (v/vector-with-store st 1 2 3)]
+      vec (v/vector st 1 2 3)]
   (println (v/count vec))
-  (println (store/hash-&gt;hex (v/dacite-hash vec))))
+  (println (store/hash-&gt;hex (v/hash vec))))
 "
 </code></pre>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
 <li><a href="../building/anatomy.html">Anatomy of a Dacite app</a> — add a root and persist</li>
 <li><a href="config.html">Persist and update a document</a> — nested map, file or HTTP</li>
-<li><a href="../reference/values.html">Values API</a> — constructors, <code>*-via</code>, collection ops</li>
+<li><a href="../reference/values.html">Values API</a> — constructors, collection ops</li>
 </ul>
 
                     </main>

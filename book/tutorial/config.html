@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -183,7 +183,7 @@
                         <h1 id="persist-and-update-a-document"><a class="header" href="#persist-and-update-a-document">Persist and update a document</a></h1>
 <p>You have a nested config map. You want to change one field, persist it, and
 run the <strong>same domain</strong> against a file or against HTTP. Dacite’s move:
-<code>get-in</code> / <code>assoc-in</code> / <code>native</code> on values, a <code>root-ref</code> for the snapshot,
+<code>get-in</code> / <code>assoc-in</code> / <code>native</code> on values, a <code>v/root</code> for the snapshot,
 store wiring in a separate section.</p>
 <p>This example is the first claim-proving app in the
 <a href="../../roadmap.html">roadmap</a>: the server publishes a root hash; clients
@@ -205,8 +205,8 @@ pull only what they need.</p>
 <pre><code class="language-text">{"theme" "dark", "timeout" 30, "features" ["a" "b"]}
 </code></pre>
 <p>Domain code lives in <code>dacite.examples.config</code> and uses only <code>dacite.value</code>
-— <code>get-in</code> / <code>assoc-in</code> / <code>native</code> / <code>as-str</code> / <code>root-ref</code>. It never calls
-<code>dac-&gt;clj</code>. Store wiring (file path vs HTTP URL) is a separate section of
+— <code>get-in</code> / <code>assoc-in</code> / <code>native</code> / <code>v/root</code>. It never calls
+<code>dacite.convert</code>. Store wiring (file path vs HTTP URL) is a separate section of
 the same namespace.</p>
 <h2 id="local-file"><a class="header" href="#local-file">Local file</a></h2>
 <p>From the repo root:</p>
@@ -242,10 +242,9 @@ clojure -M:service --port 8080 --store mem
 clojure -M:config -- --url http://127.0.0.1:8080 show
 clojure -M:config -- --url http://127.0.0.1:8080 set timeout 90
 </code></pre>
-<p><code>store/remote-rooted-store</code> implements the same root protocol as a local
-rooted store, so <code>v/root-ref</code>, <code>v/ref-swap!</code>, and <code>v/ref-cas!</code> work
-unchanged. <code>v/ref-reset!</code> is local-only and throws on a remote store;
-the app seeds with compare-and-set from <code>nil</code>.</p>
+<p><code>s/remote</code> implements the same root protocol as a local rooted store, so
+<code>v/root</code>, <code>v/swap!</code>, and <code>v/cas!</code> work unchanged. The app seeds with
+compare-and-set from <code>nil</code>.</p>
 <h2 id="a-second-process-sees-the-new-root"><a class="header" href="#a-second-process-sees-the-new-root">A second process sees the new root</a></h2>
 <p>Terminal 3:</p>
 <pre><code class="language-bash">cd impl/clojure
@@ -265,14 +264,14 @@ prove.</p>
          '[dacite.examples.config :as cfg])
 
 ;; local
-(def r (v/root-ref (cfg/open-file "target/dacite-config")))
+(def r (v/root (cfg/open-file "target/dacite-config")))
 
 ;; remote (JVM)
-(def r (v/root-ref (store/remote-rooted-store "http://127.0.0.1:8080")))
+(def r (v/root (store/remote-rooted-store "http://127.0.0.1:8080")))
 
 (cfg/load-or-seed! r)
-(v/ref-swap! r cfg/set-path ["timeout"] 60)
-(cfg/timeout (v/ref-deref r))
+(v/swap! r cfg/set-path ["timeout"] 60)
+(cfg/timeout (v/deref r))
 ;; =&gt; 60
 </code></pre>
 <p>One domain namespace. Two store wirings.</p>
@@ -283,16 +282,15 @@ prove.</p>
 <tr><th>Why</th><th>Utility</th></tr>
 </thead>
 <tbody>
-<tr><td>Read <code>theme</code> / <code>timeout</code> without a 20-line <code>realize</code> helper</td><td><code>v/native</code>, <code>v/as-str</code> (<code>as-str</code> is <code>native</code> then stringify)</td></tr>
-<tr><td>Cap how much string is realized</td><td>optional limit or <code>v/*string-char-limit*</code> — <code>native</code>/<code>as-str</code> throw if longer</td></tr>
+<tr><td>Read <code>theme</code> / <code>timeout</code> without a 20-line <code>realize</code> helper</td><td><code>v/native</code></td></tr>
+<tr><td>Cap how much string is realized</td><td>optional limit or <code>v/*string-char-limit*</code></td></tr>
 <tr><td>Print a long string without dumping it</td><td><code>v/pr-str</code> → <code>"prefix…" (n chars)</code></td></tr>
 <tr><td>Nested <code>features.0</code></td><td><code>v/get-in</code>, <code>v/assoc-in</code>, <code>v/update</code></td></tr>
-<tr><td>Same <code>root-ref</code> on HTTP</td><td><code>store/remote-rooted-store</code> (<code>IRoot</code>)</td></tr>
+<tr><td>Same <code>v/root</code> on HTTP</td><td><code>s/remote</code></td></tr>
 </tbody>
 </table>
 </div>
-<p><code>dac-&gt;clj</code> is not on this path. Field access uses <code>native</code> / <code>as-str</code>.
-Debug printing uses <code>v/pr-str</code> or bounded <code>print-method</code>.</p>
+<p>Field access uses <code>native</code>. Debug printing uses <code>v/pr-str</code>.</p>
 <h2 id="next"><a class="header" href="#next">Next</a></h2>
 <p><a href="notes.html">History is free</a> — keep the previous document value; restore by hash.</p>
 

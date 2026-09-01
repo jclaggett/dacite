@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -232,40 +232,20 @@ implementation. App wiring: <a href="../building/anatomy.html">Anatomy</a> and
 </table>
 </div>
 <hr>
-<h2 id="rooted-stores"><a class="header" href="#rooted-stores">Rooted stores</a></h2>
-<p>A content store holds immutable nodes. A <strong>root cell</strong> holds one mutable root
-<strong>hash</strong> for application state (compare-and-set, watches, GC). Hash-level ops
-are re-exported on <code>dacite.store</code>:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Op</th><th>Role</th></tr>
-</thead>
-<tbody>
-<tr><td><code>(store/rooted-store content)</code></td><td>Wrap content with ephemeral root</td></tr>
-<tr><td><code>(store/rooted-store content cell)</code></td><td>Wrap with durable root cell</td></tr>
-<tr><td><code>(store/file-root-cell path)</code></td><td>Hex in <code>{base}/ROOT</code></td></tr>
-<tr><td><code>(store/root rs)</code> / <code>(store/cas-root! …)</code> / <code>(store/set-root! …)</code></td><td>Hash-level root</td></tr>
-<tr><td><code>(store/remote-rooted-store url)</code></td><td>HTTP content + server root (<code>IRoot</code>; JVM)</td></tr>
-<tr><td><code>(store/collect-garbage! rs)</code></td><td>Drop unreachable content</td></tr>
-<tr><td><code>(store/sync-reachable! src dest root-h)</code></td><td>Copy the reachable subgraph (pack flush to remotes)</td></tr>
-</tbody>
-</table>
-</div>
-<p><strong>Application value code</strong> should wrap the rooted store once and work with
-values, not hashes:</p>
-<pre><code class="language-clojure">;; local file
-(def r (v/root-ref (store/rooted-store (store/file-store path)
-                                       (store/file-root-cell path))))
+<h2 id="application-stores-always-rooted"><a class="header" href="#application-stores-always-rooted">Application stores (always rooted)</a></h2>
+<pre><code class="language-clojure">(require '[dacite.store :as s]
+         '[dacite.value :as v])
 
-;; same value API over HTTP (JVM)
-(def r (v/root-ref (store/remote-rooted-store "http://127.0.0.1:8080")))
-
-(v/ref-swap! r domain-update)
+(def r (v/root (s/mem)))
+(def r (v/root (s/file "target/my-app")))
+(def r (v/root (s/file "target/my-app" {:reset true})))
+(def r (v/root (s/remote "http://127.0.0.1:8080")))  ; JVM
+(v/cas! r nil seed)
+(v/swap! r domain-update)
 </code></pre>
-<p><code>set-root!</code> / <code>ref-reset!</code> throw on a remote rooted store. Seed with
-<code>ref-cas!</code> from <code>nil</code>; update with <code>ref-swap!</code>.</p>
-<p>See <a href="values.html#root-reference-value-level">Values — root reference</a> and
+<p><code>IStore</code> (<code>s-get</code>, <code>s-put</code>, <code>s-snapshot</code>, …) is the content dictionary used
+by backends. Application code should not call it.</p>
+<p>See <a href="values.html#root-value-level">Values — root</a> and
 <a href="../04-rooted-stores/chapter.html">Rooted Stores chapter</a>.</p>
 <p>Host ctors on <code>dacite.store</code> (JVM): <code>(store/file-store path)</code>,
 <code>(store/lmdb-store path)</code>, <code>(store/lmdb-root-cell lmdb)</code>. On <strong>nbb</strong>, use

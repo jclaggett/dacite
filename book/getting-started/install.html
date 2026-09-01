@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f05fcdb.js";
+            window.path_to_searchindex_js = "../searchindex-561f792c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -224,9 +224,9 @@ npm run todo           # interactive todo UI
 <pre><code class="language-bash">npx nbb -e "(require '[dacite.store :as store]
                      '[dacite.value :as v])
             (let [st (store/mem-store)
-                  vec (v/vector-with-store st 1 2 3)]
+                  vec (v/vector st 1 2 3)]
               (println (v/count vec))
-              (println (store/hash-&gt;hex (v/dacite-hash vec))))"
+              (println (store/hash-&gt;hex (v/hash vec))))"
 </code></pre>
 <p>See <a href="../tutorial/hello-nbb.html">First values</a> for a guided walkthrough.</p>
 <h2 id="jvm-toolsdeps"><a class="header" href="#jvm-toolsdeps">JVM (tools.deps)</a></h2>
@@ -239,9 +239,9 @@ npm run todo           # interactive todo UI
          '[dacite.store :as store])
 
 (let [st (store/mem-store)
-      vec (v/vector-with-store st 1 2 3)]
+      vec (v/vector st 1 2 3)]
   [(v/count vec)
-   (store/hash-&gt;hex (v/dacite-hash vec))])
+   (store/hash-&gt;hex (v/hash vec))])
 </code></pre>
 <h3 id="git-dependency-optional"><a class="header" href="#git-dependency-optional">Git dependency (optional)</a></h3>
 <p>If your tools.deps version supports monorepo <code>:deps/root</code>, you can try:</p>
