@@ -11,26 +11,26 @@
             [dacite.value :as v]))
 
 (deftest gallery-covers-every-public-type
-  (let [r (v/root-ref (ex/open-mem))
+  (let [r (v/root (ex/open-mem))
         [g seeded?] (ex/load-or-seed! r)
         types (ex/collect-types g)]
     (is (true? seeded?))
-    (is (= "map" (v/value-type g)))
+    (is (= "map" (v/type g)))
     (is (= ex/public-types types)
         (str "missing " (set/difference ex/public-types types)
              " extra " (set/difference types ex/public-types)))
     (is (= ex/page-me-count (v/count (v/get g "page-me"))))))
 
 (deftest load-or-seed-does-not-overwrite
-  (let [r (v/root-ref (ex/open-mem))
+  (let [r (v/root (ex/open-mem))
         [g _] (ex/load-or-seed! r)
-        h (v/dacite-hash g)
+        h (v/hash g)
         [g2 seeded?] (ex/load-or-seed! r)]
     (is (false? seeded?))
-    (is (= h (v/dacite-hash g2)))))
+    (is (= h (v/hash g2)))))
 
 (deftest row-summary-does-not-seq-children
-  (let [r (v/root-ref (ex/open-mem))
+  (let [r (v/root (ex/open-mem))
         [g _] (ex/load-or-seed! r)
         row (ex/row-summary g)
         s (ex/row-summary (v/get g "string"))
@@ -49,7 +49,7 @@
     (is (= "-64" (:native i64)))))
 
 (deftest child-page-bounds-vector
-  (let [r (v/root-ref (ex/open-mem))
+  (let [r (v/root (ex/open-mem))
         [g _] (ex/load-or-seed! r)
         page-me (v/get g "page-me")
         p0 (ex/child-page page-me 0)
@@ -64,38 +64,38 @@
     (is (true? (:done? (ex/child-page page-me 96))))))
 
 (deftest child-page-map-keys-are-values
-  (let [r (v/root-ref (ex/open-mem))
+  (let [r (v/root (ex/open-mem))
         [g _] (ex/load-or-seed! r)
         m (v/get g "map")
         {:keys [items total]} (ex/child-page m 0)]
     (is (= 2 total))
     (is (every? #(v/dacite-value? (:label %)) items))
-    (is (some #(= "vector" (v/value-type (:label %))) items))
-    (is (some #(= "string" (v/value-type (:label %))) items))))
+    (is (some #(= "vector" (v/type (:label %))) items))
+    (is (some #(= "string" (v/type (:label %))) items))))
 
 (deftest remote-expand-page-cheaper-than-full-seq
   (let [rooted (svc/make-demo-rooted)
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted
                                                      :throttle false})]
     (try
-      (let [writer (v/root-ref (store/remote-rooted-store base-url))]
+      (let [writer (v/root (store/remote-rooted-store base-url))]
         (ex/load-or-seed! writer)
         (stats/reset-stats!)
-        (let [cold-page (v/root-ref (store/remote-rooted-store base-url
-                                                               {:policy :none}))
+        (let [cold-page (v/root (store/remote-rooted-store base-url
+                                                           {:policy :none}))
               page-delta (:delta
                           (stats/measure
                            (fn []
-                             (let [g (v/ref-deref cold-page)
+                             (let [g (v/deref cold-page)
                                    page-me (v/get g "page-me")]
                                (ex/child-page page-me 0)))))
               _ (stats/reset-stats!)
-              cold-all (v/root-ref (store/remote-rooted-store base-url
-                                                              {:policy :none}))
+              cold-all (v/root (store/remote-rooted-store base-url
+                                                          {:policy :none}))
               all-delta (:delta
                          (stats/measure
                           (fn []
-                            (let [g (v/ref-deref cold-all)
+                            (let [g (v/deref cold-all)
                                   page-me (v/get g "page-me")]
                               (count (or (v/seq page-me) ()))))))]
           (is (pos? (:bytes-recv page-delta)))
@@ -113,14 +113,14 @@
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted
                                                      :throttle false})]
     (try
-      (let [w (v/root-ref (store/remote-rooted-store base-url))]
-        (v/ref-cas! w nil (todo/build w (todo/seed-items))))
+      (let [w (v/root (store/remote-rooted-store base-url))]
+        (v/cas! w nil (todo/build w (todo/seed-items))))
       (stats/reset-stats!)
-      (let [cold (v/root-ref (store/remote-rooted-store base-url {:policy :none}))
+      (let [cold (v/root (store/remote-rooted-store base-url {:policy :none}))
             d (:delta
                (stats/measure
                 (fn []
-                  (let [todos (v/ref-deref cold)
+                  (let [todos (v/deref cold)
                         item0 (v/nth todos 0)]
                     (ex/row-summary todos)
                     (ex/child-page todos 0)
@@ -148,20 +148,20 @@
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted
                                                      :throttle false})]
     (try
-      (let [w (v/root-ref (store/remote-rooted-store base-url))]
-        (v/ref-cas! w nil (todo/add-todo (todo/build w (todo/seed-items))
-                                         long-title false)))
-      (let [r (v/root-ref (store/remote-rooted-store base-url {:policy :none}))
+      (let [w (v/root (store/remote-rooted-store base-url))]
+        (v/cas! w nil (todo/add-todo (todo/build w (todo/seed-items))
+                                     long-title false)))
+      (let [r (v/root (store/remote-rooted-store base-url {:policy :none}))
             d-list (:delta
                     (stats/measure
                      (fn []
-                       (let [todos (v/ref-deref r)]
+                       (let [todos (v/deref r)]
                          (ex/row-summary todos)
                          (ex/child-page todos 0)))))
             d-open (:delta
                     (stats/measure
                      (fn []
-                       (let [todos (v/ref-deref r)
+                       (let [todos (v/deref r)
                              item (v/nth todos 5)]
                          (ex/row-summary item)
                          (doseq [{:keys [label value]} (:items (ex/child-page item 0))]
@@ -173,11 +173,11 @@
             (str "title preview should pack in one neighborhood GET, not 64 leaf GETs; got +"
                  (:requests d-open))))
       (stats/reset-stats!)
-      (let [cold (v/root-ref (store/remote-rooted-store base-url {:policy :none}))
+      (let [cold (v/root (store/remote-rooted-store base-url {:policy :none}))
             d-str (:delta
                    (stats/measure
                     (fn []
-                      (todo/title-str (v/nth (v/ref-deref cold) 5)))))]
+                      (todo/title-str (v/nth (v/deref cold) 5)))))]
         (is (<= (:requests d-str) 40)
             (str "as-str of 1893-char title should beat pre-2e 52 GETs; got "
                  (:requests d-str))))

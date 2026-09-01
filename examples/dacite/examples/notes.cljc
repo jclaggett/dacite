@@ -49,28 +49,28 @@
 (defn default-doc
   "Seed document relative to `peer`."
   [peer]
-  (v/hash-map-via peer
-                  "title" "Welcome"
-                  "body" seed-body
-                  "tags" (v/vector-via peer "intro")
-                  "edited-at" 0))
+  (v/map peer
+         "title" "Welcome"
+         "body" seed-body
+         "tags" (v/vector peer "intro")
+         "edited-at" 0))
 
 (defn empty-notebook
   "Notebook with a seed doc and empty history."
   [peer]
-  (v/hash-map-via peer
-                  "doc" (default-doc peer)
-                  "history" (v/vector-via peer)))
+  (v/map peer
+         "doc" (default-doc peer)
+         "history" (v/vector peer)))
 
 (defn load-or-seed!
   "Load notebook from a root-ref, or CAS-seed defaults. Returns [nb seeded?]."
   [nb-ref]
-  (if-let [prior (v/ref-deref nb-ref)]
+  (if-let [prior (v/deref nb-ref)]
     [prior false]
     (let [nb (empty-notebook nb-ref)]
-      (if (v/ref-cas! nb-ref nil nb)
+      (if (v/cas! nb-ref nil nb)
         [nb true]
-        [(v/ref-deref nb-ref) false]))))
+        [(v/deref nb-ref) false]))))
 
 (defn current-doc
   "The current document value."
@@ -80,7 +80,7 @@
 (defn history
   "History vector of previous docs (oldest first; conj appends). Empty if none."
   [nb]
-  (or (v/get nb "history") (v/vector-via nb)))
+  (or (v/get nb "history") (v/vector nb)))
 
 (defn version-count
   "Current plus previous snapshots."
@@ -101,8 +101,8 @@
                       {:idx idx :versions (inc n)}))
       :else (v/nth hist (- n idx)))))
 
-(defn title [doc] (v/as-str (v/get doc "title")))
-(defn body [doc] (v/as-str (v/get doc "body")))
+(defn title [doc] (v/native (v/get doc "title")))
+(defn body [doc] (v/native (v/get doc "body")))
 (defn edited-at [doc] (or (v/native (v/get doc "edited-at")) 0))
 (defn tags [doc] (v/get doc "tags"))
 
@@ -146,7 +146,7 @@
   "Content hash of document field k, or nil."
   [doc k]
   (when-let [x (v/get doc k)]
-    (v/dacite-hash x)))
+    (v/hash x)))
 
 (defn field-changed?
   "True if field k differs by content hash."
@@ -193,15 +193,15 @@
   (let [ts (or (v/seq (tags doc)) ())]
     (str "title:      " (title doc) "\n"
          "edited-at:  " (edited-at doc) "\n"
-         "tags:       " (str/join ", " (map v/as-str ts)) "\n"
+         "tags:       " (str/join ", " (map v/native ts)) "\n"
          "body:       " (v/pr-str (v/get doc "body") 80) "\n"
-         "doc:        " (short-hex (v/dacite-hash doc)) "\n")))
+         "doc:        " (short-hex (v/hash doc)) "\n")))
 
 (defn render
   [nb]
   (str (render-doc (current-doc nb))
        "history:    " (v/count (history nb)) " previous\n"
-       "root:       " (store/hash->hex (v/dacite-hash nb)) "\n"))
+       "root:       " (store/hash->hex (v/hash nb)) "\n"))
 
 (defn render-list
   [nb]
@@ -211,7 +211,7 @@
                      (let [d (doc-at nb i)]
                        (str "  " i ". [" (edited-at d) "] "
                             (title d) "  "
-                            (short-hex (v/dacite-hash d)) "…\n")))
+                            (short-hex (v/hash d)) "…\n")))
                    (range (version-count nb))))))
 
 (defn render-diff
@@ -407,7 +407,7 @@
         (reset-store-dir! path))
       (println "reset store at" local))
     (let [rs (open-store opts)
-          nb-ref (v/root-ref rs)
+          nb-ref (v/root rs)
           [_ seeded?] (load-or-seed! nb-ref)]
       (when lmdb?
         (println "lmdb" local))
@@ -417,19 +417,19 @@
                    (str "seeded new store at " local))))
       (case cmd
         "show"
-        (print! (render (v/ref-deref nb-ref)))
+        (print! (render (v/deref nb-ref)))
 
         "list"
-        (print! (render-list (v/ref-deref nb-ref)))
+        (print! (render-list (v/deref nb-ref)))
 
         "get"
         (let [ks (parse-path (or (first cmd-args) ""))]
           (when (empty? ks)
             (throw (ex-info "get requires a path, e.g. title or tags.0" {})))
-          (let [x (v/get-in (current-doc (v/ref-deref nb-ref)) ks)]
+          (let [x (v/get-in (current-doc (v/deref nb-ref)) ks)]
             (println (if (and (v/dacite-value? x)
-                              (#{"string" "i64" "bool"} (v/value-type x)))
-                       (v/as-str x)
+                              (#{"string" "i64" "bool"} (v/type x)))
+                       (v/native x)
                        (v/pr-str x 80)))))
 
         "set"
@@ -438,27 +438,27 @@
           (when (or (nil? field) (str/blank? text))
             (throw (ex-info "set requires FIELD VALUE" {:args cmd-args})))
           (let [nb' (case field
-                      "title" (v/ref-swap! nb-ref set-title text)
-                      "body" (v/ref-swap! nb-ref set-body text)
+                      "title" (v/swap! nb-ref set-title text)
+                      "body" (v/swap! nb-ref set-body text)
                       (throw (ex-info "set field must be title or body" {:field field})))]
             (print! (render nb'))))
 
         "add-tag"
         (let [name (or (first cmd-args)
                        (throw (ex-info "add-tag requires a name" {})))]
-          (print! (render (v/ref-swap! nb-ref add-tag name))))
+          (print! (render (v/swap! nb-ref add-tag name))))
 
         "diff"
         (let [a (parse-int (or (first cmd-args) "0"))
               b (parse-int (or (second cmd-args) "1"))]
-          (print! (render-diff (v/ref-deref nb-ref) a b)))
+          (print! (render-diff (v/deref nb-ref) a b)))
 
         "restore"
         (let [idx (parse-int (or (first cmd-args)
                                  (throw (ex-info "restore requires a version index" {}))))]
-          (print! (render (v/ref-swap! nb-ref restore idx))))
+          (print! (render (v/swap! nb-ref restore idx))))
 
         "bench"
-        (let [nb (v/ref-deref nb-ref)
+        (let [nb (v/deref nb-ref)
               m (measure-sharing nb)]
           (print! (render-bench m)))))))

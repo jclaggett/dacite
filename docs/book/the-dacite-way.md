@@ -53,7 +53,7 @@ should name **what you need**:
 
 | You need | Use |
 |----------|-----|
-| A scalar or short string field | `native` / `as-str` |
+| A scalar or short string field | `native` |
 | A blob’s bytes | `as-bytes` |
 | One element | `nth` / `get` |
 | A page of a vector | `subvec` |
@@ -76,12 +76,11 @@ hash** on a rooted store. “Save” means: compute a new value, then
 compare-and-set the root to its hash.
 
 Several writers coordinate on that one hash. The portable update is
-`ref-swap!` (retry on conflict). There is no distributed lock and no CRDT
+`swap!` (retry on conflict). There is no distributed lock and no CRDT
 in the core. Two clients appending to a log interleave with compare-and-set;
 lost updates show up as retries, not silent clobbering.
 
-Remote stores refuse unconditional `ref-reset!`. Seeding an empty remote
-root uses `ref-cas!` from `nil`.
+Seed an empty root with `cas!` from `nil`. There is no unconditional reset.
 
 ## Stores are wiring
 
@@ -90,7 +89,7 @@ take and return values. They do not open files or build URLs.
 
 A typical app splits in two, as [todo.cljc](https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/todo.cljc) does:
 
-- **Values** — `add-todo`, `toggle-at`, seed data, `root-ref` swap. Only
+- **Values** — `add-todo`, `toggle-at`, seed data, `v/root` + `swap!`. Only
   `dacite.value`.
 - **Store** — path, `--url`, write-back policy, reset. No todo shape.
 

@@ -188,7 +188,7 @@
 (defn- fixture-large-string
   []
   (let [st (store/mem-store)
-        s (v/string-with-store st (apply str (repeat 3000 \x)))
+        s (v/string st (apply str (repeat 3000 \x)))
         h (types/dacite-hash s)]
     {:name :string-3000
      :store st
@@ -199,7 +199,7 @@
   []
   (let [st (store/mem-store)
         xs (mapv #(str "item-" %) (range 40))
-        vec-v (apply v/vector-with-store st xs)
+        vec-v (apply v/vector st xs)
         h (types/dacite-hash vec-v)]
     {:name :vector-40-strings
      :store st
@@ -209,7 +209,7 @@
 (defn- fixture-vector-200-i64
   []
   (let [st (store/mem-store)
-        vec-v (apply v/vector-with-store st (range 200))
+        vec-v (apply v/vector st (range 200))
         h (types/dacite-hash vec-v)]
     {:name :vector-200-i64
      :store st

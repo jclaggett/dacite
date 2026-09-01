@@ -6,6 +6,19 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+### Public API (breaking, alpha)
+
+- One constructor family: `(v/vector ctx …)`, `(v/map ctx …)`, `(v/i64 ctx n)`,
+  … — context is a store, `v/root`, or another value. Dropped `*-via`,
+  `*-with-store`, and implicit `*store*` constructors.
+- `v/type` and `v/hash` replace `v/value-type` and `v/dacite-hash`.
+- Root handle: `v/root`, `v/deref`, `v/swap!`, `v/cas!`, `v/swap-info!`,
+  `v/add-watch`. Dropped `ref-` prefix and `ref-reset!`.
+- Dropped `v/as-str` (use `v/native`). `dac->clj` / `clj->dac` stay on
+  `dacite.convert`, not `dacite.value`.
+- Application stores are rooted: `s/mem`, `s/file`, `s/remote`. Apps should
+  not call `IStore` (`s-get`, `s-snapshot`, …).
+
 ### Documentation
 
 - Book inverted for app authors: [The Dacite way](docs/book/the-dacite-way.md)
@@ -24,7 +37,7 @@ stability promise: public APIs may still change before 1.0.
 - Browser explorer uses the same pack-filled `GET /node` as todo
   (realized literals, write-back cache). Values are walked locally;
   HTTP ships neighborhood *data*.
-- Browser ClojureScript does not re-export `v/scalar` / `v/root-ref`
+- Browser ClojureScript does not re-export `v/scalar` / `v/root`
   (they smash the `dacite.value.scalar` / `.root-ref` namespaces). nbb
   and JVM keep the vars. Rooted re-exports on `dacite.store` are stubs
   in the browser (nbb still requires at call time).
@@ -108,7 +121,7 @@ stability promise: public APIs may still change before 1.0.
 
 - **`GET /events`** — SSE root announcements on `dacite.service`
 - **`dacite.store.remote/watch-root`** — JVM SSE client
-- **`v/ref-swap-info!`** — CAS-retry with `{:value :retries}`
+- **`v/swap-info!`** — CAS-retry with `{:value :retries}`
 - Event log **`watch`** and **`contend`** — two remotes, no lost appends
 - Tutorial: [docs/book/tutorial/two-client.md](docs/book/tutorial/two-client.md)
 
@@ -133,7 +146,7 @@ stability promise: public APIs may still change before 1.0.
 - **`dacite.examples.config`** — same domain against a file-rooted store
   and `store/remote-rooted-store` (HTTP). Seed with `ref-cas!` from nil;
   CLI: `show` / `get` / `set` / `add-feature` / `watch`.
-- **`v/native`**, **`v/as-str`**, **`v/pr-str`**, **`v/get-in`**,
+- **`v/native`**, **`v/native`**, **`v/pr-str`**, **`v/get-in`**,
   **`v/assoc-in`**, **`v/update`**, **`v/update-in`** — field and path ops
   that stay on Dacite values (not `dac->clj`). `as-str` is `native` then
   stringify. `*string-char-limit*` / an optional limit realizes at most
@@ -158,9 +171,9 @@ stability promise: public APIs may still change before 1.0.
 ### API cleanup (two public namespaces)
 
 - **Public surface** is now `dacite.value` + `dacite.store` for application code
-- **`*-via` constructors** — `(v/vector-via peer …)` allocates in the peer’s store
+- **`*-via` constructors** — `(v/vector peer …)` allocates in the peer’s store
   (peer = Dacite value, root-ref, or `IStore`)
-- **Value-level root-ref** — `(v/root-ref rooted)` with `ref-deref` / `ref-swap!` /
+- **Value-level root-ref** — `(v/root rooted)` with `ref-deref` / `ref-swap!` /
   `ref-reset!` / watches; JVM also supports `@` / `swap!` / `reset!`
 - **`dacite.store`** re-exports rooted ops and common host ctors (`file-store`,
   `lmdb-store` on JVM)

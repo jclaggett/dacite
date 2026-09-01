@@ -30,10 +30,10 @@
 (defn default-config
   "Seed config relative to `peer` (value, root-ref, or IStore)."
   [peer]
-  (v/hash-map-via peer
-                  "theme" "dark"
-                  "timeout" 30
-                  "features" (v/vector-via peer "a" "b")))
+  (v/map peer
+         "theme" "dark"
+         "timeout" 30
+         "features" (v/vector peer "a" "b")))
 
 (defn load-or-seed!
   "Load config from a value-level root-ref, or CAS-seed defaults.
@@ -41,17 +41,17 @@
    Uses `ref-cas!` from nil (not `ref-reset!`) so the same code works
    against a remote store. Returns [config seeded?]."
   [cfg-ref]
-  (if-let [prior (v/ref-deref cfg-ref)]
+  (if-let [prior (v/deref cfg-ref)]
     [prior false]
     (let [cfg (default-config cfg-ref)]
-      (if (v/ref-cas! cfg-ref nil cfg)
+      (if (v/cas! cfg-ref nil cfg)
         [cfg true]
-        [(v/ref-deref cfg-ref) false]))))
+        [(v/deref cfg-ref) false]))))
 
 (defn theme
   "Theme name as a host string."
   [cfg]
-  (v/as-str (v/get cfg "theme")))
+  (v/native (v/get cfg "theme")))
 
 (defn timeout
   "Timeout as a host number."
@@ -81,7 +81,7 @@
 (defn config-hash
   "Content hash of a config value."
   [cfg]
-  (v/dacite-hash cfg))
+  (v/hash cfg))
 
 (defn render
   "Plain-text listing. Field access via native/as-str — not dac->clj."
@@ -89,7 +89,7 @@
   (let [fs (or (v/seq (features cfg)) ())]
     (str "theme:    " (theme cfg) "\n"
          "timeout:  " (timeout cfg) "\n"
-         "features: " (str/join ", " (map v/as-str fs)) "\n"
+         "features: " (str/join ", " (map v/native fs)) "\n"
          "root:     " (store/hash->hex (config-hash cfg)) "\n")))
 
 (defn render-field
@@ -99,10 +99,10 @@
     (cond
       (nil? x) "(missing)"
       (not (v/dacite-value? x)) (str x)
-      (= "vector" (v/value-type x))
-      (str/join ", " (map v/as-str (or (v/seq x) ())))
-      (#{"map" "set" "blob"} (v/value-type x))
-      (str "(" (v/value-type x) ", " (v/count x) " entries)")
+      (= "vector" (v/type x))
+      (str/join ", " (map v/native (or (v/seq x) ())))
+      (#{"map" "set" "blob"} (v/type x))
+      (str "(" (v/type x) ", " (v/count x) " entries)")
       :else (str (v/native x)))))
 
 ;; =============================================================================
@@ -130,7 +130,7 @@
 
 #?(:clj
    (defn open-remote
-     "HTTP remote + server root. Same `v/root-ref` as a local file store."
+     "HTTP remote + server root. Same `v/root` as a local file store."
      [url]
      (store/remote-rooted-store url))
    :default
@@ -275,11 +275,11 @@
    (defn- watch-loop!
      [cfg-ref]
      (println "watching root (Ctrl-C to stop)…")
-     (loop [prev (some-> (v/ref-deref cfg-ref) config-hash)]
+     (loop [prev (some-> (v/deref cfg-ref) config-hash)]
        (Thread/sleep 500)
-       (let [cur (some-> (v/ref-deref cfg-ref) config-hash)]
+       (let [cur (some-> (v/deref cfg-ref) config-hash)]
          (when (not= prev cur)
-           (if-let [cfg (v/ref-deref cfg-ref)]
+           (if-let [cfg (v/deref cfg-ref)]
              (print-cfg! "updated:" cfg)
              (println "root cleared")))
          (recur cur))))
@@ -299,7 +299,7 @@
         (reset-store-dir! path))
       (println "reset store at" local))
     (let [rs (open-store opts)
-          cfg-ref (v/root-ref rs)
+          cfg-ref (v/root rs)
           [cfg seeded?] (load-or-seed! cfg-ref)]
       (when lmdb?
         (println "lmdb" local))
@@ -309,29 +309,29 @@
                    (str "seeded new store at " local))))
       (case cmd
         "show"
-        (print-cfg! nil (v/ref-deref cfg-ref))
+        (print-cfg! nil (v/deref cfg-ref))
 
         "get"
         (let [ks (parse-path (or (first cmd-args) ""))]
           (when (empty? ks)
             (throw (ex-info "get requires a path, e.g. theme or features.0" {})))
-          (println (render-field (v/ref-deref cfg-ref) ks)))
+          (println (render-field (v/deref cfg-ref) ks)))
 
         "set"
         (let [ks (parse-path (first cmd-args))
               val (parse-cli-value (second cmd-args))]
           (when (or (empty? ks) (nil? (second cmd-args)))
             (throw (ex-info "set requires PATH VALUE" {:args cmd-args})))
-          (let [cfg' (v/ref-swap! cfg-ref set-path ks val)]
+          (let [cfg' (v/swap! cfg-ref set-path ks val)]
             (print-cfg! nil cfg')))
 
         "add-feature"
         (let [name (or (first cmd-args)
                        (throw (ex-info "add-feature requires a name" {})))
-              cfg' (v/ref-swap! cfg-ref add-feature name)]
+              cfg' (v/swap! cfg-ref add-feature name)]
           (print-cfg! nil cfg'))
 
         "watch"
         (do
-          (print-cfg! nil (or (v/ref-deref cfg-ref) cfg))
+          (print-cfg! nil (or (v/deref cfg-ref) cfg))
           (watch-loop! cfg-ref))))))

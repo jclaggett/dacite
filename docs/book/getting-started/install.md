@@ -53,9 +53,9 @@ Ad-hoc scripts:
 npx nbb -e "(require '[dacite.store :as store]
                      '[dacite.value :as v])
             (let [st (store/mem-store)
-                  vec (v/vector-with-store st 1 2 3)]
+                  vec (v/vector st 1 2 3)]
               (println (v/count vec))
-              (println (store/hash->hex (v/dacite-hash vec))))"
+              (println (store/hash->hex (v/hash vec))))"
 ```
 
 See [First values](../tutorial/hello-nbb.md) for a guided walkthrough.
@@ -76,9 +76,9 @@ Then:
          '[dacite.store :as store])
 
 (let [st (store/mem-store)
-      vec (v/vector-with-store st 1 2 3)]
+      vec (v/vector st 1 2 3)]
   [(v/count vec)
-   (store/hash->hex (v/dacite-hash vec))])
+   (store/hash->hex (v/hash vec))])
 ```
 
 ### Git dependency (optional)

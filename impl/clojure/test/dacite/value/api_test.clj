@@ -81,6 +81,6 @@
           h (types/dacite-hash v)
           v' (d/get-value h)]
       (is (some? v'))
-      (is (= h (d/dacite-hash v')))
+      (is (= h (d/hash v')))
       (is (= [1 2 3] (map realized (d/seq v'))))
       (is (nil? (d/get-value (store/hex->hash (apply str (repeat 64 "0")))))))))

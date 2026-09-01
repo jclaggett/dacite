@@ -42,10 +42,10 @@
   (let [t0 (now-ms)
         rs (store/rooted-store (open-fn path)
                                (store/file-root-cell path))
-        r (v/root-ref rs)
+        r (v/root rs)
         [tree _] (fs/load-or-seed! r)
         ms (- (now-ms) t0)
-        hex (store/hash->hex (v/dacite-hash tree))]
+        hex (store/hash->hex (v/hash tree))]
     {:ms ms :hex hex :path path}))
 
 (defn -main [& args]
@@ -56,10 +56,10 @@
                        _ (rm-rf lmdb-path)
                        st (lmdb/lmdb-store lmdb-path)
                        rs (store/rooted-store st (lmdb/lmdb-root-cell st))
-                       r (v/root-ref rs)
+                       r (v/root rs)
                        [tree _] (fs/load-or-seed! r)
                        ms (- (now-ms) t0)
-                       hex (store/hash->hex (v/dacite-hash tree))]
+                       hex (store/hash->hex (v/hash tree))]
                    (let [root-h (lmdb/lmdb-get-meta st "root")]
                      (lmdb/lmdb-close st)
                      {:ms ms :hex hex :path lmdb-path

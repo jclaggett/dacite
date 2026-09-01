@@ -9,29 +9,29 @@
             [dacite.value :as v]))
 
 (deftest domain-on-mem
-  (let [r (v/root-ref (cfg/open-mem))
+  (let [r (v/root (cfg/open-mem))
         [seeded seeded?] (cfg/load-or-seed! r)]
     (is (true? seeded?))
     (is (= "dark" (cfg/theme seeded)))
     (is (= 30 (cfg/timeout seeded)))
-    (is (= "a" (v/as-str (v/nth (cfg/features seeded) 0))))
-    (let [cfg' (v/ref-swap! r cfg/set-path ["timeout"] 60)]
+    (is (= "a" (v/native (v/nth (cfg/features seeded) 0))))
+    (let [cfg' (v/swap! r cfg/set-path ["timeout"] 60)]
       (is (= 60 (cfg/timeout cfg')))
-      (is (= (v/dacite-hash cfg') (v/dacite-hash (v/ref-deref r)))))
-    (let [cfg' (v/ref-swap! r cfg/add-feature "c")]
+      (is (= (v/hash cfg') (v/hash (v/deref r)))))
+    (let [cfg' (v/swap! r cfg/add-feature "c")]
       (is (= 3 (v/count (cfg/features cfg'))))
-      (is (= "c" (v/as-str (v/nth (cfg/features cfg') 2)))))))
+      (is (= "c" (v/native (v/nth (cfg/features cfg') 2)))))))
 
 (deftest file-reopen-same-hash
   (let [dir (io/file (str "target/dacite-config-test-" (System/nanoTime)))]
     (try
-      (let [r1 (v/root-ref (cfg/open-file (.getPath dir)))]
+      (let [r1 (v/root (cfg/open-file (.getPath dir)))]
         (cfg/load-or-seed! r1)
-        (v/ref-swap! r1 cfg/set-path ["theme"] "light")
-        (let [h1 (v/dacite-hash (v/ref-deref r1))
-              r2 (v/root-ref (cfg/open-file (.getPath dir)))
-              loaded (v/ref-deref r2)]
-          (is (= h1 (v/dacite-hash loaded)))
+        (v/swap! r1 cfg/set-path ["theme"] "light")
+        (let [h1 (v/hash (v/deref r1))
+              r2 (v/root (cfg/open-file (.getPath dir)))
+              loaded (v/deref r2)]
+          (is (= h1 (v/hash loaded)))
           (is (= "light" (cfg/theme loaded)))))
       (finally
         (cfg/reset-store-dir! (.getPath dir))))))
@@ -40,23 +40,20 @@
   (let [rooted (svc/make-demo-rooted)
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
     (try
-      (let [writer (v/root-ref (store/remote-rooted-store base-url))
-            reader (v/root-ref (store/remote-rooted-store base-url))]
-        (is (nil? (v/ref-deref writer)))
+      (let [writer (v/root (store/remote-rooted-store base-url))
+            reader (v/root (store/remote-rooted-store base-url))]
+        (is (nil? (v/deref writer)))
         (let [[seeded seeded?] (cfg/load-or-seed! writer)]
           (is (true? seeded?))
           (is (= "dark" (cfg/theme seeded))))
-        (v/ref-swap! writer cfg/set-path ["timeout"] 90)
-        (v/ref-swap! writer cfg/add-feature "remote")
-        (let [w (v/ref-deref writer)
-              r (v/ref-deref reader)]
+        (v/swap! writer cfg/set-path ["timeout"] 90)
+        (v/swap! writer cfg/add-feature "remote")
+        (let [w (v/deref writer)
+              r (v/deref reader)]
           (is (some? r) "reader materializes the remote root")
-          (is (= (v/dacite-hash w) (v/dacite-hash r)))
+          (is (= (v/hash w) (v/hash r)))
           (is (= 90 (cfg/timeout r)))
-          (is (= "remote" (v/as-str (v/nth (cfg/features r) 2)))))
-        (is (thrown? clojure.lang.ExceptionInfo
-                     (v/ref-reset! writer (cfg/default-config writer)))
-            "ref-reset! is local-only on a remote store"))
+          (is (= "remote" (v/native (v/nth (cfg/features r) 2))))))
       (finally
         (stop!)))))
 

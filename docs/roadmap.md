@@ -98,7 +98,7 @@ why without materializing the whole value.
 | Why (so far) | Targeted utility | Status |
 |---|---|---|
 | REPL / `println` / logs | Bounded render (`dacite.value.render`, `toString`, `print-method`) | Shipped — the model |
-| Read a scalar or short string field | `v/native` / `v/as-str` (optional char limit; `as-str` via `native`) | Shipped (pulled by remote config) |
+| Read a scalar or short string field | `v/native` / `v/native` (optional char limit; `as-str` via `native`) | Shipped (pulled by remote config) |
 | Bounded print of long strings | `v/pr-str` (truncates; never dumps the tree) | Shipped (pulled by remote config) |
 | Nested document edit | `get-in` / `assoc-in` / `update` / `update-in` | Shipped (pulled by remote config) |
 | Show a page of a large vector | `v/subvec` | Shipped (pulled by event log) |
@@ -187,15 +187,15 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | [sync](../examples/dacite/examples/sync.cljc) | List without bodies; one-file < clone | Opaque-byte file store |
 | [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
-| Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, `v/root-ref` |
+| Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, `v/root` |
 | [explorer](../examples/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
 
 Library-pain already visible in those apps (fix in the library, not with
 more helpers — **when an app pulls it**):
 
-- ~~`title-str` / `field-native` — ~20 lines to read a string field~~ (now `v/as-str` / `v/native`)
+- ~~`title-str` / `field-native` — ~20 lines to read a string field~~ (now `v/native` / `v/native`)
 - Cards shuffle dumps to a host vector
-- Browser todo commits at the hash/CAS level, not `v/root-ref`
+- Browser todo commits at the hash/CAS level, not `v/root`
 - Sync XHR blocks the main thread
 
 ---
@@ -210,7 +210,7 @@ These six apps are history. Do not start a seventh demo to “complete the set.�
 need. Same domain against mem, file, and HTTP.
 
 Shipped: [config.cljc](../examples/dacite/examples/config.cljc),
-`store/remote-rooted-store`, `v/native` / `v/as-str` / `get-in` /
+`store/remote-rooted-store`, `v/native` / `v/native` / `get-in` /
 `assoc-in` / `update` / `update-in`, tutorial
 [config.md](book/tutorial/config.md). Two HTTP clients see the same
 config hash (`dacite.examples.config-test`). Seed uses `ref-cas!` from
@@ -248,7 +248,7 @@ error type.
 **Claim:** compare-and-set is the whole distributed update story.
 
 Shipped: `GET /events` (SSE), `store.remote/watch-root`,
-`v/ref-swap-info!`, event-log `watch` / `contend`, tutorial
+`v/swap-info!`, event-log `watch` / `contend`, tutorial
 [two-client.md](book/tutorial/two-client.md). Two remotes can interleave
 appends without lost events; a third process reprints on SSE. The rebase
 loop was already `ref-swap!`; `:retries` is the conflict UX.
@@ -295,7 +295,7 @@ is the next milestone.
 
 | Gap | Why | Status |
 |---|---|---|
-| `v/as-str` / `v/native` | Stop writing `title-str` | Done (config) |
+| `v/native` / `v/native` | Stop writing `title-str` | Done (config) |
 | `get-in` / `assoc-in` / `update` / `update-in` | Nested documents | Done (config) |
 | Remote `root-ref` | Domain must not drop to hashes for HTTP | Done (`IRoot` + `remote-rooted-store`) |
 
@@ -320,7 +320,7 @@ is the next milestone.
 |---|---|---|
 | `/app/` directory `index.html` | Nested static app next to todo | Done (`handle-static`) |
 | Browser `require` inside `dacite.store` | JVM ClojureScript forbids it | Done (browser stubs; nbb unchanged) |
-| `v/scalar` / `v/root-ref` smash child nses in cljs | Pack literal `put-scalar!` vanished | Done (omit those two defs in the browser) |
+| `v/scalar` / `v/root` smash child nses in cljs | Pack literal `put-scalar!` vanished | Done (omit those two defs in the browser) |
 | Pack literals hash-mismatch on cljs | JVM strings rematerialize differently | Done (host-string + `put-scalar!` smash); explorer uses default pack |
 | String/blob “read more” | Longer prefix, still a leaf | Deferred |
 | Async browser store | Expand without blocking the tab | Still deferred |

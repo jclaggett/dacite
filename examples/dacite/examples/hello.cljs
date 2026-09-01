@@ -11,12 +11,12 @@
   [& _args]
   (let [st (store/mem-store)
         ;; Bootstrap with an explicit store; then use *-via from peers
-        v  (v/vector-with-store st 1 2 3)
-        m  (v/hash-map-via v
-                           "hello" (v/i64-via v 42)
-                           "vec" v)
-        vh (v/dacite-hash v)
-        mh (v/dacite-hash m)]
+        v  (v/vector st 1 2 3)
+        m  (v/map v
+                  "hello" (v/i64 v 42)
+                  "vec" v)
+        vh (v/hash v)
+        mh (v/hash m)]
     (println "Dacite Hello World")
     (println "  vector count :" (v/count v))
     (println "  vector hash  :" (store/hash->hex vh))

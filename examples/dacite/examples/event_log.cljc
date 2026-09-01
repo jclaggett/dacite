@@ -44,26 +44,26 @@
 
 (defn empty-view
   [peer]
-  (v/hash-map-via peer
-                  "size" 0
-                  "credits" 0
-                  "debits" 0
-                  "balance" 0))
+  (v/map peer
+         "size" 0
+         "credits" 0
+         "debits" 0
+         "balance" 0))
 
 (defn empty-ledger
   [peer]
-  (v/hash-map-via peer
-                  "log" (v/vector-via peer)
-                  "view" (empty-view peer)))
+  (v/map peer
+         "log" (v/vector peer)
+         "view" (empty-view peer)))
 
 (defn event
   "A credit or debit relative to `peer`."
   ([peer type amount] (event peer type amount ""))
   ([peer type amount note]
-   (v/hash-map-via peer
-                   "type" (name type)
-                   "amount" amount
-                   "note" (str note))))
+   (v/map peer
+          "type" (name type)
+          "amount" amount
+          "note" (str note))))
 
 (defn seed-event
   "Deterministic event i: even → credit, odd → debit, amount 1..9."
@@ -73,9 +73,9 @@
          (inc (mod i 9))
          (str "e-" i)))
 
-(defn event-type [ev] (v/as-str (v/get ev "type")))
+(defn event-type [ev] (v/native (v/get ev "type")))
 (defn event-amount [ev] (or (v/native (v/get ev "amount")) 0))
-(defn event-note [ev] (or (v/as-str (v/get ev "note")) ""))
+(defn event-note [ev] (or (v/native (v/get ev "note")) ""))
 
 (defn view-size [view] (or (v/native (v/get view "size")) 0))
 (defn view-credits [view] (or (v/native (v/get view "credits")) 0))
@@ -91,16 +91,16 @@
         debits (view-debits view)
         balance (view-balance view)]
     (case (event-type ev)
-      "credit" (v/hash-map-via view
-                               "size" size
-                               "credits" (+ credits amt)
-                               "debits" debits
-                               "balance" (+ balance amt))
-      "debit" (v/hash-map-via view
-                              "size" size
-                              "credits" credits
-                              "debits" (+ debits amt)
-                              "balance" (- balance amt))
+      "credit" (v/map view
+                      "size" size
+                      "credits" (+ credits amt)
+                      "debits" debits
+                      "balance" (+ balance amt))
+      "debit" (v/map view
+                     "size" size
+                     "credits" credits
+                     "debits" (+ debits amt)
+                     "balance" (- balance amt))
       (throw (ex-info "unknown event type" {:type (event-type ev)})))))
 
 (defn append
@@ -122,12 +122,12 @@
   "Load ledger from a root-ref, or CAS-seed `n` events (default default-seed-n)."
   ([led-ref] (load-or-seed! led-ref default-seed-n))
   ([led-ref n]
-   (if-let [prior (v/ref-deref led-ref)]
+   (if-let [prior (v/deref led-ref)]
      [prior false]
      (let [led (build led-ref n)]
-       (if (v/ref-cas! led-ref nil led)
+       (if (v/cas! led-ref nil led)
          [led true]
-         [(v/ref-deref led-ref) false])))))
+         [(v/deref led-ref) false])))))
 
 (defn log-of [ledger] (v/get ledger "log"))
 (defn view-of [ledger] (v/get ledger "view"))
@@ -144,7 +144,7 @@
          start (* (long page-n) (long page-size))
          end (min n (+ start (long page-size)))]
      (if (>= start n)
-       (v/vector-via ledger)
+       (v/vector ledger)
        (v/subvec log start end)))))
 
 (defn replay
@@ -208,7 +208,7 @@
   [ledger]
   (str (render-view (view-of ledger))
        "log:      " (log-count ledger) " events\n"
-       "root:     " (store/hash->hex (v/dacite-hash ledger)) "\n"))
+       "root:     " (store/hash->hex (v/hash ledger)) "\n"))
 
 (defn render-page
   [ledger page-n page-size]
@@ -222,7 +222,7 @@
                 (map-indexed (fn [j ev]
                                (render-event (+ start j) ev))
                              (or (v/seq evs) ())))
-         "page-hash: " (short-hex (v/dacite-hash evs)) "\n")))
+         "page-hash: " (short-hex (v/hash evs)) "\n")))
 
 (defn render-bench
   [samples]
@@ -388,13 +388,13 @@
   #?(:clj
      (do
        (println "watching GET /events (Ctrl-C to stop)…")
-       (let [r (v/root-ref rs)]
-         (when-let [led (v/ref-deref r)]
+       (let [r (v/root rs)]
+         (when-let [led (v/deref r)]
            (print! (render led)))
          (let [w (remote/watch-root
                   rs
                   (fn [_h]
-                    (if-let [led (v/ref-deref r)]
+                    (if-let [led (v/deref r)]
                       (print! (str "updated:\n" (render led)))
                       (println "root cleared"))))]
            (try
@@ -410,24 +410,24 @@
   "Two remote clients each append `n` events. Prints retries and final count."
   [url n]
   #?(:clj
-     (let [a (v/root-ref (store/remote-rooted-store url))
-           b (v/root-ref (store/remote-rooted-store url))]
+     (let [a (v/root (store/remote-rooted-store url))
+           b (v/root (store/remote-rooted-store url))]
        (load-or-seed! a 0)
-       (let [n0 (log-count (v/ref-deref a))
+       (let [n0 (log-count (v/deref a))
              retries (atom 0)
              fa (future
                   (dotimes [i n]
-                    (let [info (v/ref-swap-info!
+                    (let [info (v/swap-info!
                                 a append (event a "credit" 1 (str "a-" i)))]
                       (swap! retries + (:retries info)))))
              fb (future
                   (dotimes [i n]
-                    (let [info (v/ref-swap-info!
+                    (let [info (v/swap-info!
                                 b append (event b "debit" 1 (str "b-" i)))]
                       (swap! retries + (:retries info)))))]
          @fa
          @fb
-         (let [final (v/ref-deref (v/root-ref (store/remote-rooted-store url)))]
+         (let [final (v/deref (v/root (store/remote-rooted-store url)))]
            (println "started:" n0
                     "appended:" (* 2 n)
                     "final:" (log-count final)
@@ -439,25 +439,25 @@
 (defn- run-cmd!
   [rs led-ref url cmd cmd-args]
   (case cmd
-    "show" (print! (render (v/ref-deref led-ref)))
+    "show" (print! (render (v/deref led-ref)))
     "page" (let [p (if (seq cmd-args) (parse-int (first cmd-args)) 0)
                  sz (if (next cmd-args) (parse-int (second cmd-args)) default-page-size)]
-             (print! (render-page (v/ref-deref led-ref) p sz)))
+             (print! (render-page (v/deref led-ref) p sz)))
     "append" (let [typ (first cmd-args)
                    amt (parse-int (or (second cmd-args)
                                       (throw (ex-info "append requires TYPE AMOUNT" {}))))
                    note (str/join " " (drop 2 cmd-args))]
                (when-not (#{"credit" "debit"} typ)
                  (throw (ex-info "type must be credit or debit" {:type typ})))
-               (let [info (v/ref-swap-info! led-ref append
-                                            (event led-ref typ amt note))]
+               (let [info (v/swap-info! led-ref append
+                                        (event led-ref typ amt note))]
                  (when (pos? (:retries info))
                    (println "cas retried" (:retries info) "time(s)"))
                  (print! (render (:value info)))))
     "replay" (let [end (if (seq cmd-args)
                          (parse-int (first cmd-args))
-                         (log-count (v/ref-deref led-ref)))]
-               (print! (render (v/ref-swap! led-ref replay end))))
+                         (log-count (v/deref led-ref)))]
+               (print! (render (v/swap! led-ref replay end))))
     "watch" (watch-sse! rs)
     "contend" (do
                 (when-not url
@@ -477,7 +477,7 @@
     (if (= cmd "bench")
       (print! (render-bench (measure-append (store/mem-store) [100 500 1000 2000])))
       (let [rs (open-store opts)
-            led-ref (v/root-ref rs)
+            led-ref (v/root rs)
             [_ seeded?] (load-or-seed! led-ref n)]
         (when lmdb?
           (println "lmdb" local))

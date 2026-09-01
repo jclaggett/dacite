@@ -47,7 +47,7 @@
   [x]
   (if-not (v/dacite-value? x)
     :host
-    (case (v/value-type x)
+    (case (v/type x)
       "vector" :vector
       "map"    :map
       "set"    :set
@@ -116,7 +116,7 @@
 (defn- scalar-native-str
   "Display string for a scalar's native host value."
   [v]
-  (let [t (v/value-type v)
+  (let [t (v/type v)
         n (v/native v)]
     (case t
       "null"     "nil"
@@ -156,10 +156,10 @@
   (when-not (v/dacite-value? v)
     (throw (ex-info "row-summary expects a Dacite value" {:value v})))
   (let [kind (node-kind v)
-        t (v/value-type v)
+        t (v/type v)
         base {:type t
               :kind kind
-              :hash (v/dacite-hash v)}]
+              :hash (v/hash v)}]
     (case kind
       :scalar (assoc base :native (scalar-native-str v))
       :string (let [{:keys [preview truncated?]} (string-preview v)]
@@ -208,7 +208,7 @@
 (defn- walk-types
   [x acc]
   (when (v/dacite-value? x)
-    (swap! acc conj (v/value-type x))
+    (swap! acc conj (v/type x))
     (when (expandable? x)
       (doseq [{:keys [label value]} (:items (child-page x 0 (v/count x)))]
         (walk-types label acc)
@@ -225,39 +225,39 @@
 (defn gallery-via
   "Type-coverage map relative to `peer` (value, root-ref, or IStore)."
   [peer]
-  (let [vk (v/vector-via peer "nested" "key")
-        inner (v/hash-map-via peer "k" "v")
+  (let [vk (v/vector peer "nested" "key")
+        inner (v/map peer "k" "v")
         page (reduce (fn [acc m] (v/conj acc m))
-                     (v/vector-via peer)
-                     (map (fn [i] (v/hash-map-via peer "n" i))
+                     (v/vector peer)
+                     (map (fn [i] (v/map peer "n" i))
                           (range page-me-count)))]
-    (v/hash-map-via
+    (v/map
      peer
      "scalars"
-     (v/hash-map-via
+     (v/map
       peer
-      "null" (v/null-via peer)
-      "bool" (v/bool-via peer true)
-      "char" (v/dacite-char-via peer #?(:clj \A :cljs "A"))
-      "i8" (v/i8-via peer -8)
-      "i16" (v/i16-via peer -16)
-      "i32" (v/i32-via peer -32)
-      "i64" (v/i64-via peer -64)
-      "u8" (v/u8-via peer 8)
-      "u16" (v/u16-via peer 16)
-      "u32" (v/u32-via peer 32)
-      "u64" (v/u64-via peer 64)
-      "u256" (v/u256-via peer (u256-bytes))
-      "f32" (v/f32-via peer 1.5)
-      "f64" (v/f64-via peer 2.5)
-      "negative" (v/negative-via peer))
-     "string" (v/string-via peer (long-string))
-     "blob" (v/blob-via peer (blob-bytes))
-     "vector" (v/vector-via peer 1 2 inner)
-     "map" (v/hash-map-via peer
-                           vk (v/i64-via peer 7)
-                           "plain" (v/bool-via peer false))
-     "set" (v/set-via peer 1 "two" inner)
+      "null" (v/null peer)
+      "bool" (v/bool peer true)
+      "char" (v/char peer #?(:clj \A :cljs "A"))
+      "i8" (v/i8 peer -8)
+      "i16" (v/i16 peer -16)
+      "i32" (v/i32 peer -32)
+      "i64" (v/i64 peer -64)
+      "u8" (v/u8 peer 8)
+      "u16" (v/u16 peer 16)
+      "u32" (v/u32 peer 32)
+      "u64" (v/u64 peer 64)
+      "u256" (v/u256 peer (u256-bytes))
+      "f32" (v/f32 peer 1.5)
+      "f64" (v/f64 peer 2.5)
+      "negative" (v/negative peer))
+     "string" (v/string peer (long-string))
+     "blob" (v/blob peer (blob-bytes))
+     "vector" (v/vector peer 1 2 inner)
+     "map" (v/map peer
+                  vk (v/i64 peer 7)
+                  "plain" (v/bool peer false))
+     "set" (v/set peer 1 "two" inner)
      "page-me" page)))
 
 (defn load-or-seed!
@@ -267,12 +267,12 @@
    remote store. An existing root is never overwritten. Returns
    [value seeded?]."
   [root-ref]
-  (if-let [prior (v/ref-deref root-ref)]
+  (if-let [prior (v/deref root-ref)]
     [prior false]
     (let [g (gallery-via root-ref)]
-      (if (v/ref-cas! root-ref nil g)
+      (if (v/cas! root-ref nil g)
         [g true]
-        [(v/ref-deref root-ref) false]))))
+        [(v/deref root-ref) false]))))
 
 ;; =============================================================================
 ;; Store

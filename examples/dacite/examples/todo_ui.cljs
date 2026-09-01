@@ -60,7 +60,7 @@
   (try
     (let [n (v/count todos)
           open (todo/open-count todos)
-          root-hex (store/hash->hex (v/dacite-hash todos))]
+          root-hex (store/hash->hex (v/hash todos))]
       (println)
       (println (c "bold.white" "Dacite todos")
                (c "dim" (str "  " path)))
@@ -176,7 +176,7 @@
       (case action
         "quit"
         (do (println (c "dim" "Saved. Bye."))
-            (println (c "dim" (str "root " (store/hash->hex (v/dacite-hash todos)))))
+            (println (c "dim" (str "root " (store/hash->hex (v/hash todos)))))
             nil)
 
         "refresh"
@@ -209,7 +209,7 @@
       (todo/reset-store-dir! path)
       (println (c "yellow" (str "reset store at " path))))
     (let [rs (todo/open-store path)
-          todos-ref (v/root-ref rs)
+          todos-ref (v/root rs)
           [todos seeded?] (todo/load-or-seed! todos-ref)]
       (when seeded?
         (println (c "green" (str "seeded new store at " path))))

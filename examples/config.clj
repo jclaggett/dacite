@@ -9,9 +9,9 @@
 (defn make-config-ref
   "Mem rooted store wrapped as a value-level root-ref."
   []
-  (v/root-ref (cfg/open-mem)))
+  (v/root (cfg/open-mem)))
 
 (def init-config! cfg/load-or-seed!)
-(def get-config v/ref-deref)
+(def get-config v/deref)
 (defn update-config! [cfg-ref k val]
-  (v/ref-swap! cfg-ref cfg/set-path [k] val))
+  (v/swap! cfg-ref cfg/set-path [k] val))

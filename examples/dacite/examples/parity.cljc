@@ -13,13 +13,13 @@
   (store/bind-store st
                     (v/vector 0 1 -1 255 256
                               (v/string "hello")
-                              (v/hash-map "k" 42 "nested" (v/vector 7 8 9))
+                              (v/map "k" 42 "nested" (v/vector 7 8 9))
                               (v/set 1 2 3))))
 
 (defn canonical-hex
   "Root hash (64-char hex) of the canonical value."
   []
-  (store/hash->hex (v/dacite-hash (canonical-value (store/mem-store)))))
+  (store/hash->hex (v/hash (canonical-value (store/mem-store)))))
 
 (defn -main [& _]
   (println (canonical-hex)))

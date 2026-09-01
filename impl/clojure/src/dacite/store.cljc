@@ -1,25 +1,17 @@
 (ns dacite.store
   "Public store API for Dacite (pair with `dacite.value` for values).
 
-   The IStore protocol defines content-addressed storage. Rooted stores
-   add a single mutable root **hash** (Chapter 4). Application value code
-   should wrap a rooted store with `dacite.value/root-ref` and then work
-   with Dacite values rather than hashes.
+   Application code opens a **rooted** store and wraps it with `v/root`:
 
-   Portable:
-   - mem-store, layered-store
-   - rooted-store, root, cas-root!, set-root!, file-root-cell, mem-root-cell
-   - sync-reachable! (copy a subgraph; pack flush to remotes)
-   - *store*, with-store, hash→hex helpers
+     (require '[dacite.store :as s]
+              '[dacite.value :as v])
+     (def r (v/root (s/mem)))          ; or (s/file path), (s/remote url)
 
-   Host backends:
-   - file-store / lmdb-store / lmdb-root-cell (JVM re-exports)
-   - remote-rooted-store (JVM HTTP + server root; use with value/root-ref)
-   - nbb file: dacite.store.nbb/file-store (require directly)
-   - browser remote: dacite.store.browser
+   IStore (s-get, s-put, …) is the content-dictionary protocol used by
+   backends and the value layer. Apps should not call it.
 
-   Advanced composition stays in sub-namespaces:
-   dacite.store.lru, .pack, .client-cache, .remote, .browser, .rate-limit."
+   Application constructors: mem, file, lmdb, remote.
+   Internals: mem-store, rooted-store, hash→hex, sync-reachable!."
   (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
@@ -379,13 +371,13 @@
        ((jvm-var 'lmdb-close) st))
 
      (defn remote-rooted-store
-       "HTTP content + server root as a rooted store. Use with `dacite.value/root-ref`.
+       "HTTP content + server root as a rooted store. Use with `dacite.value/root`.
 
-        Same value API as a local rooted store. `set-root!` / `ref-reset!` throw
-        (local-only). Default client-cache policy is `:write-back`.
+        Same value API as a local rooted store. Seed with `v/cas!` from nil;
+        update with `v/swap!`. Default client-cache policy is `:write-back`.
 
-        (store/remote-rooted-store \"http://127.0.0.1:8080\")
-        (store/remote-rooted-store url {:policy :none})"
+        (store/remote \"http://127.0.0.1:8080\")
+        (store/remote url {:policy :none})"
        [& args]
        (apply (requiring-resolve 'dacite.store.remote/remote-rooted-store) args))
 
@@ -394,3 +386,53 @@
         Packed flush when dest is a remote; otherwise per-node copy."
        [src dest root-h]
        ((requiring-resolve 'dacite.store.sync/sync-reachable!) src dest root-h))))
+
+;; =============================================================================
+;; Application stores — always rooted
+;; =============================================================================
+
+(defn mem
+  "In-memory rooted store."
+  []
+  (rooted-store (mem-store)))
+
+#?(:org.babashka/nbb
+   (defn file
+     "File-backed rooted store. opts: {:reset true} wipes content and root."
+     [path & [{:keys [reset]}]]
+     (require 'dacite.store.nbb)
+     (let [content ((resolve 'dacite.store.nbb/file-store) path)]
+       (when reset
+         (s-reset content)
+         (rc-put! (file-root-cell path) nil))
+       (rooted-store content (file-root-cell path))))
+   :cljs
+   (defn file
+     [_path & _]
+     (throw (js/Error. "store/file is not available in the browser")))
+   :default
+   (defn file
+     "File-backed rooted store. opts: {:reset true} wipes content and root."
+     [path & [{:keys [reset]}]]
+     (let [content (file-store path)]
+       (when reset
+         (s-reset content)
+         (rc-put! (file-root-cell path) nil))
+       (rooted-store content (file-root-cell path)))))
+
+#?(:clj
+   (do
+     (defn lmdb
+       "LMDB rooted store. opts: {:reset true} wipes content and root."
+       [path & [{:keys [reset]}]]
+       (let [content (lmdb-store path)
+             cell (lmdb-root-cell content)]
+         (when reset
+           (s-reset content)
+           (rc-put! cell nil))
+         (rooted-store content cell)))
+
+     (defn remote
+       "HTTP rooted store. Same value API as file/mem. Seed with v/cas! from nil."
+       [url & [opts]]
+       (remote-rooted-store url (or opts {})))))

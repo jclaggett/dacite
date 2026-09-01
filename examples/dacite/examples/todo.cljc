@@ -9,9 +9,9 @@
 
    Local single-writer recipe:
      1. (open-store path)              ; Store section
-     2. (def todos (v/root-ref rs))    ; Value section
+     2. (def todos (v/root rs))    ; Value section
      3. (load-or-seed! todos)
-     4. (v/ref-swap! todos add-todo \"milk\")
+     4. (v/swap! todos add-todo \"milk\")
 
    Hosts: JVM / babashka / nbb (file store). Browser uses todo-web with an
    HTTP store (same Values API, different Store wiring).
@@ -43,22 +43,22 @@
   "True if x is a todo map (has a \"title\" field)."
   [x]
   (and (v/dacite-value? x)
-       (= "map" (v/value-type x))
+       (= "map" (v/type x))
        (some? (v/get x "title"))))
 
 (defn add-todo
   "Append {title, done} to todos. New nodes go into todos' store."
   ([todos title] (add-todo todos title false))
   ([todos title done?]
-   (v/conj todos (v/hash-map-via todos "title" title "done" done?))))
+   (v/conj todos (v/map todos "title" title "done" done?))))
 
 (defn title-str
   "Title of a todo entry as a native string."
   [todo]
   (if-not (todo-entry? todo)
     (throw (ex-info "not a todo entry" {:type (when (v/dacite-value? todo)
-                                                (v/value-type todo))}))
-    (or (v/as-str (v/get todo "title")) "<?no-title?>")))
+                                                (v/type todo))}))
+    (or (v/native (v/get todo "title")) "<?no-title?>")))
 
 (defn done?
   [todo]
@@ -102,13 +102,13 @@
    from a seq of [title done?] pairs."
   [peer items]
   (reduce (fn [todos [title done?]] (add-todo todos title done?))
-          (v/vector-via peer)
+          (v/vector peer)
           items))
 
 (defn empty-todos
   "Empty todos vector allocated relative to `peer`."
   [peer]
-  (v/vector-via peer))
+  (v/vector peer))
 
 (defn load-todos
   "Materialize the todos value at `root-hash` from `store`, or nil.
@@ -120,23 +120,23 @@
 (defn todos-hash
   "Content hash of a todos value (for root pointers / CAS)."
   [todos]
-  (v/dacite-hash todos))
+  (v/hash todos))
 
 (defn load-or-seed!
   "Load todos from a value-level root-ref, or seed sample data and commit.
 
    `todos-ref` is a `dacite.value/root-ref`. Returns [todos seeded?]."
   [todos-ref]
-  (if-let [prior (v/ref-deref todos-ref)]
+  (if-let [prior (v/deref todos-ref)]
     [prior false]
     (let [t (build todos-ref (seed-items))]
-      (v/ref-reset! todos-ref t)
+      (v/cas! todos-ref nil t)
       [t true])))
 
 (defn commit-todos!
-  "Single-writer: set the root-ref to `todos`. Returns todos."
+  "Single-writer: CAS-install `todos` as the root. Returns todos."
   [todos-ref todos]
-  (v/ref-reset! todos-ref todos)
+  (v/swap! todos-ref (fn [_] todos))
   todos)
 
 (defn render
@@ -149,7 +149,7 @@
                (fn [i t]
                  (str "  " i ". [" (if (done? t) "x" " ") "] " (title-str t) "\n"))
                (v/seq todos)))
-       "root: " (store/hash->hex (v/dacite-hash todos))))
+       "root: " (store/hash->hex (v/hash todos))))
 
 ;; =============================================================================
 ;; Store
@@ -218,7 +218,7 @@
       (reset-store-dir! path)
       (println "reset store at" path))
     (let [rs (open-store path)
-          todos-ref (v/root-ref rs)
+          todos-ref (v/root rs)
           [todos seeded?] (load-or-seed! todos-ref)]
       (println (if seeded?
                  (str "seeded new store at " path)

@@ -14,8 +14,8 @@
         wiped (v/assoc led "view" (elog/empty-view led))
         replayed (elog/replay wiped)]
     (is (= 80 (elog/log-count led)))
-    (is (= (v/dacite-hash (elog/view-of led))
-           (v/dacite-hash (elog/view-of replayed))))))
+    (is (= (v/hash (elog/view-of led))
+           (v/hash (elog/view-of replayed))))))
 
 (deftest prefix-subvec-matches-fresh-build
   (let [st (store/mem-store)
@@ -23,17 +23,17 @@
         pre (elog/prefix full 20)
         fresh (elog/log-of (elog/build st 20))]
     (is (= 20 (v/count pre)))
-    (is (= (v/dacite-hash fresh) (v/dacite-hash pre))
+    (is (= (v/hash fresh) (v/hash pre))
         "first 20 events have the same hash whether sliced or built")))
 
 (deftest page-is-a-window
   (let [led (elog/build (elog/open-mem) 100)
         p (elog/page led 2 20)]
     (is (= 20 (v/count p)))
-    (is (= (v/dacite-hash (v/nth (elog/log-of led) 40))
-           (v/dacite-hash (v/nth p 0))))
-    (is (= (v/dacite-hash (v/nth (elog/log-of led) 59))
-           (v/dacite-hash (v/nth p 19))))))
+    (is (= (v/hash (v/nth (elog/log-of led) 40))
+           (v/hash (v/nth p 0))))
+    (is (= (v/hash (v/nth (elog/log-of led) 59))
+           (v/hash (v/nth p 19))))))
 
 (deftest append-delta-stays-small
   (let [samples (elog/measure-append (store/mem-store) [100 500 2000])
@@ -48,13 +48,13 @@
 (deftest file-reopen
   (let [dir (io/file (str "target/dacite-log-test-" (System/nanoTime)))]
     (try
-      (let [r1 (v/root-ref (elog/open-file (.getPath dir)))]
+      (let [r1 (v/root (elog/open-file (.getPath dir)))]
         (elog/load-or-seed! r1 30)
-        (v/ref-swap! r1 elog/append (elog/event r1 "credit" 4 "tip"))
-        (let [h1 (v/dacite-hash (v/ref-deref r1))
-              r2 (v/root-ref (elog/open-file (.getPath dir)))
-              loaded (v/ref-deref r2)]
-          (is (= h1 (v/dacite-hash loaded)))
+        (v/swap! r1 elog/append (elog/event r1 "credit" 4 "tip"))
+        (let [h1 (v/hash (v/deref r1))
+              r2 (v/root (elog/open-file (.getPath dir)))
+              loaded (v/deref r2)]
+          (is (= h1 (v/hash loaded)))
           (is (= 31 (elog/log-count loaded)))))
       (finally
         (elog/reset-store-dir! (.getPath dir))))))
@@ -63,23 +63,23 @@
   (let [rooted (svc/make-demo-rooted)
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
     (try
-      (let [writer (v/root-ref (store/remote-rooted-store base-url))]
+      (let [writer (v/root (store/remote-rooted-store base-url))]
         (elog/load-or-seed! writer 200)
         (stats/reset-stats!)
-        (let [cold-page (v/root-ref (store/remote-rooted-store base-url
-                                                               {:policy :none}))
+        (let [cold-page (v/root (store/remote-rooted-store base-url
+                                                           {:policy :none}))
               page-delta (:delta
                           (stats/measure
                            (fn []
-                             (let [led (v/ref-deref cold-page)]
+                             (let [led (v/deref cold-page)]
                                (v/count (elog/page led 0 20))))))
               _ (stats/reset-stats!)
-              cold-all (v/root-ref (store/remote-rooted-store base-url
-                                                              {:policy :none}))
+              cold-all (v/root (store/remote-rooted-store base-url
+                                                          {:policy :none}))
               all-delta (:delta
                          (stats/measure
                           (fn []
-                            (let [log (elog/log-of (v/ref-deref cold-all))]
+                            (let [log (elog/log-of (v/deref cold-all))]
                               (count (or (v/seq log) ()))))))]
           (is (pos? (:bytes-recv page-delta)))
           (is (< (:bytes-recv page-delta) (:bytes-recv all-delta))
@@ -92,24 +92,24 @@
         (stop!)))))
 
 (deftest two-writers-keep-every-append
-  (let [r (v/root-ref (elog/open-mem))]
-    (v/ref-reset! r (elog/empty-ledger r))
+  (let [r (v/root (elog/open-mem))]
+    (v/cas! r nil (elog/empty-ledger r))
     (let [retries (atom 0)
           fa (future
                (dotimes [i 20]
                  (swap! retries +
-                        (:retries (v/ref-swap-info!
+                        (:retries (v/swap-info!
                                    r elog/append
                                    (elog/event r "credit" 1 (str "a-" i)))))))
           fb (future
                (dotimes [i 20]
                  (swap! retries +
-                        (:retries (v/ref-swap-info!
+                        (:retries (v/swap-info!
                                    r elog/append
                                    (elog/event r "debit" 1 (str "b-" i)))))))]
       @fa
       @fb
-      (is (= 40 (elog/log-count (v/ref-deref r)))
+      (is (= 40 (elog/log-count (v/deref r)))
           "CAS retry must not drop an append")
       (is (pos? @retries)
           "two writers on one root should collide at least once"))))
@@ -118,21 +118,21 @@
   (let [rooted (svc/make-demo-rooted)
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
     (try
-      (let [a (v/root-ref (store/remote-rooted-store base-url))
-            b (v/root-ref (store/remote-rooted-store base-url))]
+      (let [a (v/root (store/remote-rooted-store base-url))
+            b (v/root (store/remote-rooted-store base-url))]
         (elog/load-or-seed! a 0)
         (let [fa (future
                    (dotimes [i 8]
-                     (v/ref-swap! a elog/append
-                                  (elog/event a "credit" 1 (str "a-" i)))))
+                     (v/swap! a elog/append
+                              (elog/event a "credit" 1 (str "a-" i)))))
               fb (future
                    (dotimes [i 8]
-                     (v/ref-swap! b elog/append
-                                  (elog/event b "debit" 1 (str "b-" i)))))]
+                     (v/swap! b elog/append
+                              (elog/event b "debit" 1 (str "b-" i)))))]
           @fa
           @fb
-          (let [reader (v/root-ref (store/remote-rooted-store base-url))]
-            (is (= 16 (elog/log-count (v/ref-deref reader)))
+          (let [reader (v/root (store/remote-rooted-store base-url))]
+            (is (= 16 (elog/log-count (v/deref reader)))
                 "both remotes' appends must land"))))
       (finally
         (stop!)))))
@@ -141,7 +141,7 @@
   (let [rooted (svc/make-demo-rooted)
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
     (try
-      (let [writer (v/root-ref (store/remote-rooted-store base-url))
+      (let [writer (v/root (store/remote-rooted-store base-url))
             seen (atom [])
             first-ev (promise)
             later (promise)
@@ -157,7 +157,7 @@
           (is (not= :timeout (deref first-ev 5000 :timeout))
               "SSE should emit the current root first")
           (elog/load-or-seed! writer 0)
-          (v/ref-swap! writer elog/append (elog/event writer "credit" 1 "sse"))
+          (v/swap! writer elog/append (elog/event writer "credit" 1 "sse"))
           (is (not= :timeout (deref later 8000 :timeout))
               "SSE client should see a root after CAS")
           (is (>= (count @seen) 2))

@@ -48,12 +48,12 @@ Source: [`examples/dacite/examples/hello.cljs`](https://github.com/jclaggett/dac
    (def st (store/mem-store))
    ```
 
-2. **Build values** — bootstrap with an explicit store, then `*-via` for peers:
+2. **Build values** — first argument is always a store or peer value:
 
    ```clojure
-   (def v (v/vector-with-store st 1 2 3))
-   (def m (v/hash-map-via v
-                          "hello" (v/i64-via v 42)
+   (def v (v/vector st 1 2 3))
+   (def m (v/map v
+                          "hello" (v/i64 v 42)
                           "vec" v))
    ```
 
@@ -68,7 +68,7 @@ Source: [`examples/dacite/examples/hello.cljs`](https://github.com/jclaggett/dac
 4. **Content hash** — identity is the hash, independent of store location:
 
    ```clojure
-   (store/hash->hex (v/dacite-hash v))
+   (store/hash->hex (v/hash v))
    ```
 
 ## Try it in a one-liner
@@ -78,9 +78,9 @@ npx nbb -e "
 (require '[dacite.store :as store]
          '[dacite.value :as v])
 (let [st (store/mem-store)
-      vec (v/vector-with-store st 1 2 3)]
+      vec (v/vector st 1 2 3)]
   (println (v/count vec))
-  (println (store/hash->hex (v/dacite-hash vec))))
+  (println (store/hash->hex (v/hash vec))))
 "
 ```
 
@@ -88,4 +88,4 @@ npx nbb -e "
 
 - [Anatomy of a Dacite app](../building/anatomy.md) — add a root and persist
 - [Persist and update a document](config.md) — nested map, file or HTTP
-- [Values API](../reference/values.md) — constructors, `*-via`, collection ops
+- [Values API](../reference/values.md) — constructors, collection ops

@@ -804,11 +804,11 @@
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted
                                                      :throttle false})]
     (try
-      (let [r (v/root-ref (store/remote-rooted-store base-url {:policy :write-back}))]
-        (v/ref-cas! r nil (todo/empty-todos r))
-        (v/ref-swap! r todo/add-todo title false)
-        (let [cold (v/root-ref (store/remote-rooted-store base-url {:policy :none}))
-              t (v/ref-deref cold)]
+      (let [r (v/root (store/remote-rooted-store base-url {:policy :write-back}))]
+        (v/cas! r nil (todo/empty-todos r))
+        (v/swap! r todo/add-todo title false)
+        (let [cold (v/root (store/remote-rooted-store base-url {:policy :none}))
+              t (v/deref cold)]
           (is (= 1 (v/count t)))
           (is (= (count title) (count (todo/title-str (v/nth t 0)))))))
       (finally

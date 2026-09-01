@@ -13,10 +13,10 @@
   "fe0532ab564af43a7fb7c94541eaf63d63fa70d24e1290e6899747a571f4f196")
 
 (deftest sample-tree-shares-identical-blobs
-  (let [r (v/root-ref (fs/open-mem))
+  (let [r (v/root (fs/open-mem))
         [t _] (fs/load-or-seed! r)
         m (fs/measure-sharing t)]
-    (is (= sample-root-hex (store/hash->hex (v/dacite-hash t))))
+    (is (= sample-root-hex (store/hash->hex (v/hash t))))
     (is (= #{"readme.txt" "copy.txt" "data.bin" "sub"} (set (:names m))))
     (is (true? (:shared-blob? m)))
     (is (= 13 (:readme-bytes m)))
@@ -25,14 +25,14 @@
     (is (pos? (fs/entry-size (fs/lookup t ["sub" "note.txt"]))))))
 
 (deftest ls-does-not-need-as-bytes
-  (let [r (v/root-ref (fs/open-mem))
+  (let [r (v/root (fs/open-mem))
         [t _] (fs/load-or-seed! r)
         rows (fs/list-entries t)]
     (is (some #(= "readme.txt" (:name %)) rows))
     (is (every? #(or (= "dir" (:kind %)) (pos? (:size %))) rows))))
 
 (deftest cat-round-trip
-  (let [r (v/root-ref (fs/open-mem))
+  (let [r (v/root (fs/open-mem))
         [t _] (fs/load-or-seed! r)
         bs (fs/cat-file t ["readme.txt"])]
     (is (= "hello dacite\n" (String. ^bytes bs "UTF-8")))))
@@ -40,7 +40,7 @@
 (deftest second-local-sync-copies-nothing
   (let [src (fs/open-mem)
         dest (store/mem-store)]
-    (fs/load-or-seed! (v/root-ref src))
+    (fs/load-or-seed! (v/root src))
     (let [h (store/root src)
           first (store/sync-reachable! src dest h)
           second (store/sync-reachable! src dest h)]
@@ -51,8 +51,8 @@
 
 (deftest missing-blob-is-catchable
   (let [empty (store/mem-store)
-        ghost (v/blob-via empty (byte-array [1]))]
-    (store/s-delete empty (v/dacite-hash ghost))
+        ghost (v/blob empty (byte-array [1]))]
+    (store/s-delete empty (v/hash ghost))
     (try
       (v/as-bytes ghost)
       (is false "expected missing-blob throw")
@@ -63,12 +63,12 @@
   (let [rooted (svc/make-demo-rooted)
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
     (try
-      (let [writer (v/root-ref (store/remote-rooted-store base-url))]
+      (let [writer (v/root (store/remote-rooted-store base-url))]
         (fs/load-or-seed! writer)
-        (let [tree (v/ref-deref writer)
-              h-readme (v/dacite-hash (fs/entry-blob (fs/lookup tree ["readme.txt"])))
-              h-note (v/dacite-hash (fs/entry-blob (fs/lookup tree ["sub" "note.txt"])))
-              h-data (v/dacite-hash (fs/entry-blob (fs/lookup tree ["data.bin"])))]
+        (let [tree (v/deref writer)
+              h-readme (v/hash (fs/entry-blob (fs/lookup tree ["readme.txt"])))
+              h-note (v/hash (fs/entry-blob (fs/lookup tree ["sub" "note.txt"])))
+              h-data (v/hash (fs/entry-blob (fs/lookup tree ["data.bin"])))]
           (stats/reset-stats!)
           (let [one (:delta
                      (stats/measure
@@ -90,12 +90,12 @@
 (deftest file-reopen-keeps-tree
   (let [dir (io/file (str "target/dacite-sync-test-" (System/nanoTime)))]
     (try
-      (let [r1 (v/root-ref (fs/open-file (.getPath dir)))]
+      (let [r1 (v/root (fs/open-file (.getPath dir)))]
         (fs/load-or-seed! r1)
-        (let [h1 (v/dacite-hash (v/ref-deref r1))
-              r2 (v/root-ref (fs/open-file (.getPath dir)))
-              loaded (v/ref-deref r2)]
-          (is (= h1 (v/dacite-hash loaded)))
+        (let [h1 (v/hash (v/deref r1))
+              r2 (v/root (fs/open-file (.getPath dir)))
+              loaded (v/deref r2)]
+          (is (= h1 (v/hash loaded)))
           (is (= "hello dacite\n"
                  (String. ^bytes (fs/cat-file loaded ["readme.txt"]) "UTF-8")))))
       (finally
@@ -109,7 +109,7 @@
       (spit (io/file src "a.txt") "aaa")
       (spit (io/file src "b.txt") "aaa")
       (spit (io/file src "d/c.txt") "ccc")
-      (let [r (v/root-ref (fs/open-mem))
+      (let [r (v/root (fs/open-mem))
             t (fs/ingest-tree r (.getPath src))]
         (is (= #{"a.txt" "b.txt" "d"} (set (map :name (fs/list-entries t)))))
         (is (= (fs/blob-hash (fs/lookup t ["a.txt"]))

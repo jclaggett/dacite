@@ -108,5 +108,5 @@ until a remote page actually needs a catchable “not local” signal.
 
 ## Next
 
-[Two writers, one CAS](two-client.md) — `ref-swap!` retries; SSE watches
+[Two writers, one CAS](two-client.md) — `swap!` retries; SSE watches
 the root.

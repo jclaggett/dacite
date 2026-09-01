@@ -42,20 +42,20 @@
                 :cljs content))
         n #?(:clj (alength ^bytes bs)
              :cljs (or (.-length bs) (count bs)))]
-    (v/hash-map-via peer
-                    "kind" "file"
-                    "size" n
-                    "blob" (v/blob-via peer bs))))
+    (v/map peer
+           "kind" "file"
+           "size" n
+           "blob" (v/blob peer bs))))
 
 (defn dir-entry
   "A directory entry from a seq of [name entry] pairs."
   [peer children]
-  (v/hash-map-via peer
-                  "kind" "dir"
-                  "entries" (apply v/hash-map-via peer (mapcat identity children))))
+  (v/map peer
+         "kind" "dir"
+         "entries" (apply v/map peer (mapcat identity children))))
 
-(defn dir? [e] (= "dir" (v/as-str (v/get e "kind"))))
-(defn file? [e] (= "file" (v/as-str (v/get e "kind"))))
+(defn dir? [e] (= "dir" (v/native (v/get e "kind"))))
+(defn file? [e] (= "file" (v/native (v/get e "kind"))))
 (defn entry-size [e] (or (v/native (v/get e "size")) 0))
 (defn entry-blob [e] (v/get e "blob"))
 (defn entries [e] (v/get e "entries"))
@@ -87,12 +87,12 @@
 (defn load-or-seed!
   "Load the tree from a root-ref, or CAS-seed `sample-tree`."
   [tree-ref]
-  (if-let [prior (v/ref-deref tree-ref)]
+  (if-let [prior (v/deref tree-ref)]
     [prior false]
     (let [t (sample-tree tree-ref)]
-      (if (v/ref-cas! tree-ref nil t)
+      (if (v/cas! tree-ref nil t)
         [t true]
-        [(v/ref-deref tree-ref) false]))))
+        [(v/deref tree-ref) false]))))
 
 (defn parse-rel-path
   [s]
@@ -112,7 +112,7 @@
 (defn child-names
   "Names in a dir, without realizing blobs."
   [dir]
-  (mapv v/as-str (or (v/keys (entries dir)) ())))
+  (mapv v/native (or (v/keys (entries dir)) ())))
 
 (defn list-entries
   "[{:name :kind :size}] for a dir. Does not realize blobs."
@@ -120,7 +120,7 @@
   (mapv (fn [name]
           (let [e (v/get (entries dir) name)]
             {:name name
-             :kind (v/as-str (v/get e "kind"))
+             :kind (v/native (v/get e "kind"))
              :size (when (file? e) (entry-size e))}))
         (child-names dir)))
 
@@ -135,7 +135,7 @@
 
 (defn blob-hash
   [file-e]
-  (v/dacite-hash (entry-blob file-e)))
+  (v/hash (entry-blob file-e)))
 
 (defn node-count [v]
   (count (store/s-snapshot (v/dacite-store v))))
@@ -384,7 +384,7 @@
                          (str "  " name "/\n")
                          (str "  " name "  " size " B\n")))
                      rows))
-         "root: " (store/hash->hex (v/dacite-hash dir)) "\n")))
+         "root: " (store/hash->hex (v/hash dir)) "\n")))
 
 (defn render-bench [m]
   (str "sync bench\n"
@@ -407,7 +407,7 @@
     (when lmdb?
       (println "lmdb" local))
     (let [rs (open-store opts)
-          tree-ref (v/root-ref rs)]
+          tree-ref (v/root rs)]
       (case cmd
         "seed"
         (let [[t seeded?] (load-or-seed! tree-ref)]
@@ -423,7 +423,7 @@
                              (or (first cmd-args) ""))))
 
         "cat"
-        (let [t (or (v/ref-deref tree-ref)
+        (let [t (or (v/deref tree-ref)
                     (throw (ex-info "empty store; run seed or put" {})))
               segs (parse-rel-path (or (first cmd-args)
                                        (throw (ex-info "cat requires a path" {}))))
@@ -439,9 +439,9 @@
         (let [host (or (first cmd-args)
                        (throw (ex-info "put requires a host directory" {})))
               t (ingest-tree tree-ref host)]
-          (if (v/ref-deref tree-ref)
-            (v/ref-swap! tree-ref (fn [_] t))
-            (v/ref-cas! tree-ref nil t))
+          (if (v/deref tree-ref)
+            (v/swap! tree-ref (fn [_] t))
+            (v/cas! tree-ref nil t))
           (print! (render-ls t "")))
 
         "push"
@@ -473,7 +473,7 @@
                          "but local CAS failed")))))
 
         "export"
-        (let [t (or (v/ref-deref tree-ref)
+        (let [t (or (v/deref tree-ref)
                     (throw (ex-info "empty store" {})))
               dest (or out
                        (when (= "--out" (first cmd-args)) (second cmd-args))
@@ -483,6 +483,6 @@
           (println "exported to" dest))
 
         "bench"
-        (let [t (or (v/ref-deref tree-ref)
+        (let [t (or (v/deref tree-ref)
                     (let [[s _] (load-or-seed! tree-ref)] s))]
           (print! (render-bench (measure-sharing t))))))))

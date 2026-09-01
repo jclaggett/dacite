@@ -13,7 +13,7 @@ or store backend will want [How it works](./01-stores/chapter.md) as well.
 1. [The Dacite way](./the-dacite-way.md) — the stance on data.
 2. [Install](./getting-started/install.md) — nbb (fastest) or JVM.
 3. [Anatomy of a Dacite app](./building/anatomy.md) — Values / Store split,
-   `root-ref`, public API.
+   `v/root`, public API.
 4. One tutorial that matches what you are building (a document, history, a
    large sequence, two writers, blobs, a browser UI).
 5. The [cookbook](./guide/read.md) for field reads, updates, and commit loops.

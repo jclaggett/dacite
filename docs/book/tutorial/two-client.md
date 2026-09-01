@@ -1,7 +1,7 @@
 # Two writers, one CAS
 
 Two processes must append without silent clobbering. Dacite’s move:
-**compare-and-set is the whole distributed update.** `ref-swap!` retries
+**compare-and-set is the whole distributed update.** `swap!` retries
 on conflict; SSE (`GET /events`) tells a third process the root moved.
 There is no lock and no CRDT in the core.
 
@@ -39,7 +39,7 @@ cd impl/clojure
 clojure -M:log -- --url http://127.0.0.1:8080 append debit 1 from-b
 ```
 
-Each `append` uses `v/ref-swap-info!`: read the current ledger, conj,
+Each `append` uses `v/swap-info!`: read the current ledger, conj,
 CAS the new root. If the other writer landed first, CAS fails, the fn
 runs again on the new ledger, and both events stay in the log. When a
 retry happened the CLI prints `cas retried N time(s)`.
@@ -68,8 +68,8 @@ Append in another terminal and this one reprints.
 | Why | Utility |
 |---|---|
 | Notice a remote root without polling | `GET /events` + `dacite.store.remote/watch-root` |
-| Apply a domain fn under contention | `v/ref-swap!` (already the rebase loop) |
-| Show that a collision was recovered | `v/ref-swap-info!` → `:retries` |
+| Apply a domain fn under contention | `v/swap!` (already the rebase loop) |
+| Show that a collision was recovered | `v/swap-info!` → `:retries` |
 
 Async browser networking stayed on the shelf. Two JVM remotes plus an
 SSE watch prove the claim; sync XHR is still the browser demo.

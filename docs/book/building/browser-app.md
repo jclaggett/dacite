@@ -34,7 +34,7 @@ Durable service: `--store file` or `--store lmdb`. Details:
 4. Commit: write-back flush `POST /nodes` (same Layer 1 literals as GET),
    then `POST /root/cas`.
 
-Todo CLI uses `v/root-ref` on a file store. The browser todo still
+Todo CLI uses `v/root` on a file store. The browser todo still
 coordinates hashes at the CAS layer in places — a library hole, not a
 reason to invent a JS model. Explorer is read-only on whatever root the
 service already has (todo, notes, the type gallery).

@@ -1,6 +1,6 @@
 # Chapter 4: Rooted Stores
 
-Writing an application? Use `root-ref` / `ref-swap!` — see
+Writing an application? Use `v/root` / `v/swap!` — see
 [Commit loops](../guide/commit.md). This chapter is the rooted-store
 contract (CAS, watches, GC).
 

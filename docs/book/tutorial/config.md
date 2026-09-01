@@ -2,7 +2,7 @@
 
 You have a nested config map. You want to change one field, persist it, and
 run the **same domain** against a file or against HTTP. Dacite’s move:
-`get-in` / `assoc-in` / `native` on values, a `root-ref` for the snapshot,
+`get-in` / `assoc-in` / `native` on values, a `v/root` for the snapshot,
 store wiring in a separate section.
 
 This example is the first claim-proving app in the
@@ -30,8 +30,8 @@ Config is a Dacite map:
 ```
 
 Domain code lives in `dacite.examples.config` and uses only `dacite.value`
-— `get-in` / `assoc-in` / `native` / `as-str` / `root-ref`. It never calls
-`dac->clj`. Store wiring (file path vs HTTP URL) is a separate section of
+— `get-in` / `assoc-in` / `native` / `v/root`. It never calls
+`dacite.convert`. Store wiring (file path vs HTTP URL) is a separate section of
 the same namespace.
 
 ## Local file
@@ -89,10 +89,9 @@ clojure -M:config -- --url http://127.0.0.1:8080 show
 clojure -M:config -- --url http://127.0.0.1:8080 set timeout 90
 ```
 
-`store/remote-rooted-store` implements the same root protocol as a local
-rooted store, so `v/root-ref`, `v/ref-swap!`, and `v/ref-cas!` work
-unchanged. `v/ref-reset!` is local-only and throws on a remote store;
-the app seeds with compare-and-set from `nil`.
+`s/remote` implements the same root protocol as a local rooted store, so
+`v/root`, `v/swap!`, and `v/cas!` work unchanged. The app seeds with
+compare-and-set from `nil`.
 
 ## A second process sees the new root
 
@@ -124,14 +123,14 @@ prove.
          '[dacite.examples.config :as cfg])
 
 ;; local
-(def r (v/root-ref (cfg/open-file "target/dacite-config")))
+(def r (v/root (cfg/open-file "target/dacite-config")))
 
 ;; remote (JVM)
-(def r (v/root-ref (store/remote-rooted-store "http://127.0.0.1:8080")))
+(def r (v/root (store/remote-rooted-store "http://127.0.0.1:8080")))
 
 (cfg/load-or-seed! r)
-(v/ref-swap! r cfg/set-path ["timeout"] 60)
-(cfg/timeout (v/ref-deref r))
+(v/swap! r cfg/set-path ["timeout"] 60)
+(cfg/timeout (v/deref r))
 ;; => 60
 ```
 
@@ -141,14 +140,13 @@ One domain namespace. Two store wirings.
 
 | Why | Utility |
 |---|---|
-| Read `theme` / `timeout` without a 20-line `realize` helper | `v/native`, `v/as-str` (`as-str` is `native` then stringify) |
-| Cap how much string is realized | optional limit or `v/*string-char-limit*` — `native`/`as-str` throw if longer |
+| Read `theme` / `timeout` without a 20-line `realize` helper | `v/native` |
+| Cap how much string is realized | optional limit or `v/*string-char-limit*` |
 | Print a long string without dumping it | `v/pr-str` → `"prefix…" (n chars)` |
 | Nested `features.0` | `v/get-in`, `v/assoc-in`, `v/update` |
-| Same `root-ref` on HTTP | `store/remote-rooted-store` (`IRoot`) |
+| Same `v/root` on HTTP | `s/remote` |
 
-`dac->clj` is not on this path. Field access uses `native` / `as-str`.
-Debug printing uses `v/pr-str` or bounded `print-method`.
+Field access uses `native`. Debug printing uses `v/pr-str`.
 
 ## Next
 

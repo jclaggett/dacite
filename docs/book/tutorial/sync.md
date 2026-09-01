@@ -88,7 +88,7 @@ transfers less than GET of that blob plus its siblings. A second local
 
 | Why | Utility |
 |---|---|
-| Bytes in / bytes out | `v/blob-via`, `v/as-bytes` (limit + `:dacite/missing`) |
+| Bytes in / bytes out | `v/blob`, `v/as-bytes` (limit + `:dacite/missing`) |
 | Copy a tree before moving the root | `dacite.store.sync/sync-reachable!` |
 | List without bodies | walk `kind`/`size`; do not `as-bytes` |
 

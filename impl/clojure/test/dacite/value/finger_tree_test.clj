@@ -12,7 +12,7 @@
 (defn- put-i64
   "Store an i64 and return its value hash."
   [st n]
-  (v/dacite-hash (v/i64-with-store st n)))
+  (v/hash (v/i64 st n)))
 
 (defn- measure-combine [m1 m2]
   {:count (+ (:count m1) (:count m2))
@@ -67,8 +67,8 @@
 (deftest vector-value-hash-stable-without-singles
   ;; Collection value hash depends only on leaf elements_fuse, not spine adapters.
   (let [st (store/mem-store)
-        vec-v (v/vector-with-store st 1 2 3)
-        h (v/dacite-hash vec-v)
+        vec-v (v/vector st 1 2 3)
+        h (v/hash vec-v)
         leaves (mapv #(put-i64 st %) [1 2 3])
         root (ft/ft-from-value-hashes st leaves)
         h2 (types/value-hash "vector" (ft/ft-elements-fuse st root))]
@@ -117,7 +117,7 @@
     (is (thrown-with-msg? Exception #"leaf value hash"
                           (ft/ft-conj-left st empty empty)))
     ;; nesting a public vector is fine
-    (let [inner (v/dacite-hash (v/vector-with-store st 9))
+    (let [inner (v/hash (v/vector st 9))
           root (ft/ft-conj-right st empty inner)]
       (is (= 1 (ft/ft-count st root)))
       (is (= inner (ft/ft-first st root))))
@@ -142,7 +142,7 @@
 (deftest long-string-seq-matches-count
   ;; Overflowed digits mix leaves and nodes; seq must flatten to every char.
   (let [st (store/mem-store)
-        s (v/string-with-store st (apply str (repeat 100 \x)))]
+        s (v/string st (apply str (repeat 100 \x)))]
     (is (= 100 (v/count s)))
     (is (= 100 (count (v/seq s))))
     (is (= 100 (count (v/realize s))))

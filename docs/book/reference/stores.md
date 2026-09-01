@@ -51,40 +51,24 @@ store/*store*          ; current store
 
 ---
 
-## Rooted stores
-
-A content store holds immutable nodes. A **root cell** holds one mutable root
-**hash** for application state (compare-and-set, watches, GC). Hash-level ops
-are re-exported on `dacite.store`:
-
-| Op | Role |
-|----|------|
-| `(store/rooted-store content)` | Wrap content with ephemeral root |
-| `(store/rooted-store content cell)` | Wrap with durable root cell |
-| `(store/file-root-cell path)` | Hex in `{base}/ROOT` |
-| `(store/root rs)` / `(store/cas-root! …)` / `(store/set-root! …)` | Hash-level root |
-| `(store/remote-rooted-store url)` | HTTP content + server root (`IRoot`; JVM) |
-| `(store/collect-garbage! rs)` | Drop unreachable content |
-| `(store/sync-reachable! src dest root-h)` | Copy the reachable subgraph (pack flush to remotes) |
-
-**Application value code** should wrap the rooted store once and work with
-values, not hashes:
+## Application stores (always rooted)
 
 ```clojure
-;; local file
-(def r (v/root-ref (store/rooted-store (store/file-store path)
-                                       (store/file-root-cell path))))
+(require '[dacite.store :as s]
+         '[dacite.value :as v])
 
-;; same value API over HTTP (JVM)
-(def r (v/root-ref (store/remote-rooted-store "http://127.0.0.1:8080")))
-
-(v/ref-swap! r domain-update)
+(def r (v/root (s/mem)))
+(def r (v/root (s/file "target/my-app")))
+(def r (v/root (s/file "target/my-app" {:reset true})))
+(def r (v/root (s/remote "http://127.0.0.1:8080")))  ; JVM
+(v/cas! r nil seed)
+(v/swap! r domain-update)
 ```
 
-`set-root!` / `ref-reset!` throw on a remote rooted store. Seed with
-`ref-cas!` from `nil`; update with `ref-swap!`.
+`IStore` (`s-get`, `s-put`, `s-snapshot`, …) is the content dictionary used
+by backends. Application code should not call it.
 
-See [Values — root reference](values.md#root-reference-value-level) and
+See [Values — root](values.md#root-value-level) and
 [Rooted Stores chapter](../04-rooted-stores/chapter.md).
 
 Host ctors on `dacite.store` (JVM): `(store/file-store path)`,

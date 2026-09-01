@@ -1,17 +1,17 @@
 (ns dacite.value.api
   "Deprecated alias of `dacite.value`.
 
-   Prefer `(require '[dacite.value :as v])`. This namespace re-exports the
-   portable collection surface for one alpha transition period."
+   Prefer `(require '[dacite.value :as v])`."
   (:refer-clojure :exclude [count nth get assoc conj seq peek pop keys vals
                             contains? dissoc empty? get-in assoc-in update update-in
-                            pr-str subvec])
+                            pr-str subvec type hash map deref swap!
+                            vector set])
   (:require [dacite.value :as v]))
 
 (def dacite-value? v/dacite-value?)
-(def value-type    v/value-type)
+(def type          v/type)
+(def hash          v/hash)
 (def realize       v/realize)
-(def dacite-hash   v/dacite-hash)
 (def get-value     v/get-value)
 (def count         v/count)
 (def empty?        v/empty?)
@@ -28,7 +28,6 @@
 (def keys          v/keys)
 (def vals          v/vals)
 (def native        v/native)
-(def as-str        v/as-str)
 (def as-bytes      v/as-bytes)
 (def pr-str        v/pr-str)
 (def get-in        v/get-in)
@@ -36,3 +35,12 @@
 (def update        v/update)
 (def update-in     v/update-in)
 (def subvec        v/subvec)
+(def vector        v/vector)
+(def map           v/map)
+(def set           v/set)
+(def string        v/string)
+(def blob          v/blob)
+(def root          v/root)
+(def deref         v/deref)
+(def swap!         v/swap!)
+(def cas!          v/cas!)

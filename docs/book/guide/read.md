@@ -5,16 +5,16 @@ rest of the program can use it.”
 
 | You need | Call |
 |----------|------|
-| Type name | `(v/value-type x)` |
+| Type name | `(v/type x)` |
 | How many | `(v/count x)` — O(1) |
 | Map field / set member / vector index | `(v/get x k)` — still a Dacite value |
 | Vector/string/blob index | `(v/nth x i)` |
-| Scalar or short string as host | `(v/native x)` / `(v/as-str x)` |
+| Scalar or short string as host | `(v/native x)` / `(v/native x)` |
 | Blob bytes | `(v/as-bytes x)` |
 | A page of a vector | `(v/subvec v start end)` |
 | To walk | `(v/seq x)` — lazy; elements are values |
 
-`native` and `as-str` take an optional char limit (or
+`native` takes an optional char limit (or
 `v/*string-char-limit*`). They throw if a string is longer than the
 limit — that is the point: field-sized text, not a 3k title dumped into
 RAM. `pr-str` never throws; long strings print as `"prefix…" (n chars)`.
@@ -27,6 +27,6 @@ Missing blobs from `as-bytes` throw `ex-info` with `:dacite/missing`.
 Other missing nodes still surface as store exceptions — a library hole
 until an app pulls a uniform error.
 
-See [config](../tutorial/config.md) (`as-str` / `native` / `get-in`),
+See [config](../tutorial/config.md) (`native` / `get-in`),
 [event log](../tutorial/event-log.md) (`subvec` / `nth`),
 [sync](../tutorial/sync.md) (`as-bytes`).

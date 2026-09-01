@@ -13,9 +13,9 @@ A value is **store-aware and content-addressed**:
 
 | Property | Access |
 |----------|--------|
-| Content hash | `(v/dacite-hash v)` |
+| Content hash | `(v/hash v)` |
 | Owning store | `(v/dacite-store v)` |
-| Type name | `(v/dacite-type v)` or `(v/value-type v)` |
+| Type name | `(v/type v)` |
 | Host content | `(v/realize v)` — explicit, never implicit deref |
 
 Values are immutable. Updates return new values that share unchanged nodes with
@@ -30,78 +30,50 @@ the old ones. Laziness is natural: you only need the nodes you access.
 
 ## Constructors
 
-### Relative (`*-via`) — preferred in domain code
-
-Use an existing Dacite value, a root-ref, or an `IStore` as the peer:
+Every constructor takes a **context** first: a rooted store, a `v/root`,
+or another Dacite value. New nodes go into that store.
 
 | Form | Role |
 |------|------|
-| `(v/vector-via peer & xs)` | Vector in peer's store |
-| `(v/hash-map-via peer & kvs)` | Map |
-| `(v/set-via peer & xs)` | Set |
-| `(v/string-via peer s)` / `(v/blob-via peer bs)` | Sequences |
-| `(v/i64-via peer n)` (and other scalars) | Typed scalars |
+| `(v/vector ctx & xs)` | Vector |
+| `(v/map ctx & kvs)` | Map |
+| `(v/set ctx & xs)` | Set |
+| `(v/string ctx s)` / `(v/blob ctx bs)` | Sequences |
+| `(v/i64 ctx n)` (and other scalars) | Typed scalars |
 
 ```clojure
 (defn add-todo [todos title]
-  (v/conj todos (v/hash-map-via todos "title" title "done" false)))
-```
+  (v/conj todos (v/map todos "title" title "done" false)))
 
-### Bootstrap (`*-with-store`)
-
-When there is no peer yet (first allocation):
-
-```clojure
-(v/vector-with-store st 1 2 3)
-(v/i64-with-store st 42)
-```
-
-### REPL convenience
-
-Bare constructors use the dynamic `store/*store*` (default mem store):
-
-```clojure
-(v/vector 1 2 3)
-(v/hash-map :a 1)
-(store/with-store [_ (store/mem-store)]
-  (v/vector 1 2 3))
+(v/vector rs 1 2 3)
+(v/i64 rs 42)
 ```
 
 ---
 
-## Root reference (value-level)
+## Root (value-level)
 
-The store layer keeps a mutable **hash**. Wrap it once for value-level ops:
-
-```clojure
-(def rooted (store/rooted-store (store/mem-store)))
-(def r (v/root-ref rooted))
-
-(v/ref-reset! r (v/vector-via r))
-(v/ref-swap! r v/conj (v/i64-via r 1))
-(v/ref-deref r)   ; => current Dacite value or nil
-```
-
-On the **JVM**, `RootRef` also implements atom interfaces:
+The store layer keeps a mutable **hash**. Wrap it once:
 
 ```clojure
-@r
-(swap! r v/conj 2)
-(reset! r (v/hash-map-via r "k" "v"))
-(add-watch r :ui (fn [k ref old new] …))   ; old/new are values
+(def r (v/root (s/mem)))
+
+(v/cas! r nil (v/vector r))
+(v/swap! r v/conj (v/i64 r 1))
+(v/deref r)   ; => current Dacite value or nil
 ```
 
-Portable function API (nbb / babashka / all hosts):
+On the **JVM**, the root also implements atom interfaces (`@r`, `swap!`).
+There is no portable unconditional reset — seed with `cas!` from `nil`.
 
 | Function | Role |
 |----------|------|
-| `root-ref` | Wrap a local or remote rooted store |
-| `ref-deref` | Current value or nil |
-| `ref-reset!` | Unconditional set (**local only** — throws on remote) |
-| `ref-swap!` | CAS-retry apply |
-| `ref-swap-info!` | Same, but `{:value new :retries n}` — retries are lost-update recoveries |
-| `ref-cas!` | Value-level compare-and-set (use from `nil` to seed a remote) |
-| `ref-add-watch` / `ref-remove-watch` | Watch value transitions |
+| `root` | Wrap a rooted store |
+| `deref` | Current value or nil |
+| `swap!` | CAS-retry apply |
+| `swap-info!` | Same, plus `{:value new :retries n}` |
+| `cas!` | Compare-and-set (seed from `nil`) |
+| `add-watch` / `remove-watch` | Watch value transitions |
 
 ---
 
@@ -130,7 +102,6 @@ First argument is always a Dacite value:
 | `subvec` | `[start, end)` as a new vector (shared leaves; O(k log n)) |
 | `keys` / `vals` | Map keys or values as wrapped sequences |
 | `native` | Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char `limit` (or `*string-char-limit*`) realizes at most that prefix, then throws if the string is longer. |
-| `as-str` | `(str (native x))` — same optional limit. Field-sized text only. |
 | `as-bytes` | Host bytes for a blob. Optional limit; missing nodes throw `:dacite/missing`. |
 | `pr-str` | Bounded debug render. Never throws. Long strings: `"prefix…" (n chars)`. |
 | `get-in` / `assoc-in` | Nested path lookup / update (creates intermediate maps) |
@@ -140,7 +111,7 @@ Example:
 
 ```clojure
 (let [st (store/mem-store)
-      vec (v/vector-with-store st 10 20 30)
+      vec (v/vector st 10 20 30)
       v2  (v/conj vec 40)]
   [(v/count vec) (v/count v2)
    (v/realize (v/nth v2 3))])

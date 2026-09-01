@@ -82,7 +82,7 @@
        :error (str "Root present but value missing: "
                    (subs (store/hash->hex server-root) 0 12) "…")})
     (let [g (ex/gallery-via st)
-          h (v/dacite-hash g)]
+          h (v/hash g)]
       (if (cas-root! st nil h)
         {:status :seeded :value g :root h :error nil}
         (if-let [h2 (get-root st)]
@@ -248,7 +248,7 @@
       (set! (.-textContent status-el)
             (or error
                 (str status
-                     (when value (str " · " (v/value-type value)))
+                     (when value (str " · " (v/type value)))
                      (when root-hex (str " · " (subs root-hex 0 12) "…"))))))
     (when hash-el
       (set! (.-textContent hash-el)

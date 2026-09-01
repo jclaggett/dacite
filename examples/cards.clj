@@ -30,19 +30,19 @@
 (defn- card-label
   "Build a Dacite string card label, e.g. \"K♠\"."
   [peer rank suit]
-  (v/string-via peer (str rank suit)))
+  (v/string peer (str rank suit)))
 
 (defn standard-deck
   "A full 52-card deck as a Dacite vector relative to `peer`."
   [peer]
-  (apply v/vector-via peer
+  (apply v/vector peer
          (for [suit suits rank ranks]
            (card-label peer rank suit))))
 
 (defn shuffle-deck
   "Return a new deck vector with the same cards in random order."
   [deck]
-  (apply v/vector-via deck (shuffle (vec (or (v/seq deck) ())))))
+  (apply v/vector deck (shuffle (vec (or (v/seq deck) ())))))
 
 ;; =============================================================================
 ;; Game state
@@ -54,10 +54,10 @@
 (defn new-game
   "Initial game relative to `peer`: full deck and empty hands."
   [peer]
-  (v/hash-map-via peer
-                  "deck" (shuffle-deck (standard-deck peer))
-                  "player-1" (v/vector-via peer)
-                  "player-2" (v/vector-via peer)))
+  (v/map peer
+         "deck" (shuffle-deck (standard-deck peer))
+         "player-1" (v/vector peer)
+         "player-2" (v/vector peer)))
 
 (defn deck-size [game]
   (v/count (v/get game "deck")))
@@ -105,18 +105,18 @@
 (defn make-game-ref
   "Wrap an open LMDB store as a value-level root-ref."
   [lmdb]
-  (v/root-ref (store/rooted-store lmdb (store/lmdb-root-cell lmdb))))
+  (v/root (store/rooted-store lmdb (store/lmdb-root-cell lmdb))))
 
 (defn get-game
   "Load the current game from the root-ref, or nil if unset."
   [game-ref]
-  (v/ref-deref game-ref))
+  (v/deref game-ref))
 
 (defn init-game!
   "Create a new game and commit it as the root. Returns the game."
   [game-ref]
   (let [game (new-game game-ref)]
-    (v/ref-reset! game-ref game)
+    (v/cas! game-ref nil game)
     game))
 
 (defn load-or-init-game!
@@ -127,7 +127,7 @@
 (defn commit-game!
   "Persist the game as the root. Returns the game."
   [game-ref game]
-  (v/ref-reset! game-ref game)
+  (v/swap! game-ref (fn [_] game))
   game)
 
 ;; =============================================================================
@@ -140,7 +140,7 @@
   (println)
   (with-open [lmdb (store/lmdb-store default-lmdb-path)]
     (let [game-ref (make-game-ref lmdb)
-          had-root? (some? (v/ref-deref game-ref))
+          had-root? (some? (v/deref game-ref))
           game0 (load-or-init-game! game-ref)]
       (println (if had-root?
                  "Resumed game:"
