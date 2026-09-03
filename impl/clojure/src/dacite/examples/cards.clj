@@ -40,9 +40,21 @@
            (card-label peer rank suit))))
 
 (defn shuffle-deck
-  "Return a new deck vector with the same cards in random order."
-  [deck]
-  (apply v/vector deck (shuffle (vec (or (v/seq deck) ())))))
+  "Return a new deck vector with the same cards in random order.
+
+   Fisher-Yates via nth/assoc — the deck stays a Dacite vector. Optional
+   `rng` is (fn [n] idx) with 0 <= idx < n; default is rand-int."
+  ([deck] (shuffle-deck deck rand-int))
+  ([deck rng]
+   (loop [d deck
+          i (dec (v/count d))]
+     (if (<= i 0)
+       d
+       (let [j (rng (inc i))
+             a (v/nth d i)
+             b (v/nth d j)]
+         (recur (-> d (v/assoc i b) (v/assoc j a))
+                (dec i)))))))
 
 ;; =============================================================================
 ;; Game state

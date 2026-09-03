@@ -1,9 +1,37 @@
 (ns dacite.examples.cards-test
-  "Cards domain on a mem store — shuffle aside, the rest is public API."
+  "Cards domain on a mem store."
   (:require [clojure.test :refer [deftest is]]
             [dacite.examples.cards :as cards]
             [dacite.store :as store]
             [dacite.value :as v]))
+
+(defn- card-hashes [deck]
+  (into #{} (map v/hash) (v/seq deck)))
+
+(deftest shuffle-empty-and-one-are-identity
+  (let [st (store/mem)
+        empty (v/vector st)
+        one (v/vector st "A♠")]
+    (is (= (v/hash empty) (v/hash (cards/shuffle-deck empty))))
+    (is (= (v/hash one) (v/hash (cards/shuffle-deck one))))))
+
+(deftest shuffle-is-a-permutation
+  (let [st (store/mem)
+        deck (cards/standard-deck st)
+        shuffled (cards/shuffle-deck deck)]
+    (is (= 52 (v/count shuffled)))
+    (is (= (card-hashes deck) (card-hashes shuffled)))
+    (is (v/dacite-value? shuffled))
+    (is (= "vector" (v/type shuffled)))))
+
+(deftest shuffle-with-rng-is-deterministic
+  (let [st (store/mem)
+        deck (cards/standard-deck st)
+        always-0 (fn [_] 0)
+        a (cards/shuffle-deck deck always-0)
+        b (cards/shuffle-deck deck always-0)]
+    (is (= (v/hash a) (v/hash b)))
+    (is (= (card-hashes deck) (card-hashes a)))))
 
 (deftest deal-and-draw
   (let [r (v/root (store/mem))

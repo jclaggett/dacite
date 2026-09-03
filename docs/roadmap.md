@@ -185,7 +185,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | [event log](../impl/clojure/src/dacite/examples/event_log.cljc) | 2000 events, page via subvec, cheap append | Compact/concat, missing-node UX |
 | Two-client live | Interleaved appends + SSE watch | Async browser store |
 | [sync](../impl/clojure/src/dacite/examples/sync.cljc) | List without bodies; one-file < clone | Opaque-byte file store |
-| [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
+| [cards.clj](../impl/clojure/src/dacite/examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, `v/root` |
 | [explorer](../impl/clojure/src/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
@@ -194,7 +194,7 @@ Library-pain already visible in those apps (fix in the library, not with
 more helpers — **when an app pulls it**):
 
 - ~~`title-str` / `field-native` — ~20 lines to read a string field~~ (now `v/native` / `v/native`)
-- Cards shuffle dumps to a host vector
+- ~~Cards shuffle dumps to a host vector~~ (Fisher-Yates via `nth` / `assoc`)
 - Browser todo commits at the hash/CAS level, not `v/root`
 - Sync XHR blocks the main thread
 

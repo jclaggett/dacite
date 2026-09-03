@@ -12,8 +12,8 @@ Read a field (`native`), a page (`subvec`), or a blob (`as-bytes`).
 
 ## Host collections as the domain
 
-Build Dacite maps and vectors from the start (`v/map`, `v/conj`). Cards’
-shuffle still dumps to a host vector — that is a hole, not a pattern.
+Build Dacite maps and vectors from the start (`v/map`, `v/conj`). Shuffle
+a vector with `nth` / `assoc`, not by dumping to a host collection.
 
 ## Leak internals
 
