@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-561f792c.js";
+            window.path_to_searchindex_js = "../searchindex-7342b6e4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -194,40 +194,37 @@ together with the internal primitives that implement them.</p>
 <p>Every Dacite value carries four pieces of data:</p>
 <ul>
 <li><strong>store</strong> — the store that created and persists it</li>
-<li><strong>hash</strong> — its content-addressed identity (via <code>dacite-hash</code>)</li>
+<li><strong>hash</strong> — its content-addressed identity (<code>v/hash</code>)</li>
 <li><strong>type</strong> — a string identifying its kind (e.g. <code>"i64"</code>, <code>"vector"</code>)</li>
 <li><strong>content</strong> — the value itself, exposed in the host language via
-an explicit call (<code>realize</code> in the reference implementation). A
+an explicit call (<code>v/realize</code>). A
 scalar yields its native value; a collection yields a
 <em>lazy iterable</em> of realized elements (a map yields realized
 <code>[key value]</code> pairs), so sub-collections become nested lazy iterables.
 Laziness keeps access compatible with partial availability — only the
 part you consume is fetched.</li>
 </ul>
-<pre><code class="language-clojure">(def v (dacite/vector 1 2 3))
+<pre><code class="language-clojure">(require '[dacite.store :as s]
+         '[dacite.value :as v])
 
-(dacite-hash v)
+(def st (s/mem))
+(def vec (v/vector st 1 2 3))
+
+(v/hash vec)
 ;; =&gt; [c0 c1 c2 c3]  ; the 4-long hash
 
-(dacite-store v)
-;; =&gt; #&lt;DaciteStore ...&gt;  ; the store that owns this value
+(v/dacite-store vec)
+;; =&gt; the store that owns this value
 
-(dacite-type v)
-;; =&gt; "vector"  ; the value's type name
+(v/type vec)
+;; =&gt; "vector"
 </code></pre>
-<p>Most work happens in the context of a <strong>current store</strong> — a dynamic binding
-(<code>*store*</code> in the reference implementation) that defaults to an in-memory
-store for REPL use. Constructors such as <code>(dacite/vector 1 2 3)</code> persist
-into that store; the resulting value remembers which store created it.
-When you need a specific store — tests, migration, multiple stores — use
-the explicit <code>-with-store</code> variants:</p>
-<pre><code class="language-clojure">(dacite/vector-with-store store 1 2 3)
-</code></pre>
-<p>Use <code>with-store</code> to bind an isolated store for a block of code (see §3.9).</p>
-<p>The store reference enables transparent persistence: when you <code>assoc</code>
-a Dacite map or <code>conj</code> a Dacite vector, the new value is automatically
-stored in the same backing storage. You don’t thread the store through
-every operation — values know where they belong.</p>
+<p>Every constructor takes a <strong>context</strong> first — a rooted store, a <code>v/root</code>,
+or another value. New nodes persist into that store. Collection ops
+(<code>assoc</code>, <code>conj</code>, …) use the value’s store; you do not pass the store
+again.</p>
+<p>There is no implicit <code>*store*</code> constructor. <code>store/*store*</code> exists as a
+test/REPL binding for the content dictionary (see §3.9).</p>
 <p>This also means <strong>values are tied to their store</strong>. A value created in
 store A cannot be directly inserted into store B; you must first migrate
 the underlying content (or use ref push — see Chapter 4).</p>
@@ -666,46 +663,39 @@ tree primitives the collection types are built from:</p>
 </tbody>
 </table>
 </div>
-<p><strong>User value constructors</strong> — implicit forms use the current store; explicit
-<code>-with-store</code> forms take a store as the first argument. Implicit constructors
-are the primary API; most application code never passes a store explicitly.</p>
+<p><strong>User value constructors</strong> take a context first (a rooted store, a
+<code>v/root</code>, or another value). That is the public API. There is no
+implicit <code>*store*</code> form and no <code>-with-store</code> suffix.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Function</th><th>Implicit signature</th><th>Explicit signature</th><th>Kind</th></tr>
+<tr><th>Function</th><th>Signature</th><th>Kind</th></tr>
 </thead>
 <tbody>
-<tr><td><code>null</code></td><td><code>() → Value</code></td><td><code>(store) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>bool</code></td><td><code>(boolean) → Value</code></td><td><code>(store, boolean) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>i64</code>, <code>f64</code>, …</td><td><code>(data) → Value</code></td><td><code>(store, data) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>char</code></td><td><code>(char) → Value</code></td><td><code>(store, char) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>negative</code></td><td><code>() → Value</code></td><td><code>(store) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>string</code></td><td><code>(string) → Value</code></td><td><code>(store, string) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>blob</code></td><td><code>(bytes) → Value</code></td><td><code>(store, bytes) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>vector</code></td><td><code>(values...) → Value</code></td><td><code>(store, values...) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>set</code></td><td><code>(values...) → Value</code></td><td><code>(store, values...) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>map</code></td><td><code>(kvs...) → Value</code></td><td><code>(store, kvs...) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>get-value</code></td><td><code>(hash) → Value | nil</code></td><td><code>(store, hash) → Value | nil</code></td><td>Lookup</td></tr>
+<tr><td><code>null</code></td><td><code>(ctx) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>bool</code></td><td><code>(ctx, boolean) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>i64</code>, <code>f64</code>, …</td><td><code>(ctx, data) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>char</code></td><td><code>(ctx, char) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>negative</code></td><td><code>(ctx) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>string</code></td><td><code>(ctx, string) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>blob</code></td><td><code>(ctx, bytes) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>vector</code></td><td><code>(ctx, values...) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>set</code></td><td><code>(ctx, values...) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>map</code></td><td><code>(ctx, kvs...) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>get-value</code></td><td><code>(store, hash) → Value | nil</code></td><td>Lookup</td></tr>
 </tbody>
 </table>
 </div>
-<p>Examples:</p>
-<pre><code class="language-clojure">;; implicit — uses *store* (default or bound)
-(dacite/i64 42)
-(dacite/vector 1 2 3)
-(dacite/hash-map "a" 1 "b" 2)
+<pre><code class="language-clojure">(require '[dacite.store :as s]
+         '[dacite.value :as v])
 
-;; explicit — when the store matters
-(dacite/i64-with-store store 42)
-(dacite/vector-with-store store 1 2 3)
-
-;; isolated context (testing, transactions)
-(store/with-store [s (store/mem-store)]
-  (dacite/vector 1 2 3))
+(def st (s/mem))
+(v/i64 st 42)
+(v/vector st 1 2 3)
+(v/map st "a" 1 "b" 2)
 </code></pre>
-<p>The <code>-with-store</code> suffix avoids the varargs ambiguity that would arise if
-store were an optional first argument to the same function — <code>(vector 1)</code> must
-mean a one-element vector, not an empty vector in store <code>1</code>.</p>
+<p>Context-first avoids the varargs ambiguity that would arise if store were
+optional — <code>(v/vector 1)</code> must not mean “empty vector in store <code>1</code>”.</p>
 <p><strong>Value accessors</strong></p>
 <div class="table-wrapper">
 <table>
@@ -713,17 +703,16 @@ mean a one-element vector, not an empty vector in store <code>1</code>.</p>
 <tr><th>Function</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dacite-hash</code></td><td><code>Value → Hash</code></td><td>Content-addressed identity (4-long hash)</td></tr>
+<tr><td><code>hash</code></td><td><code>Value → Hash</code></td><td>Content-addressed identity (4-long hash)</td></tr>
 <tr><td><code>dacite-store</code></td><td><code>Value → Store</code></td><td>The store that created and persists this value</td></tr>
-<tr><td><code>dacite-type</code></td><td><code>Value → String</code></td><td>The value’s type name</td></tr>
+<tr><td><code>type</code></td><td><code>Value → String</code></td><td>The value’s type name</td></tr>
 <tr><td><code>realize</code></td><td><code>Value → native</code></td><td>Expose content (explicit; values are not references). Scalar → native value; collection → lazy iterable of realized elements (map → <code>[k v]</code> pairs); empty → nil. Lazy, so partial-availability-friendly</td></tr>
 </tbody>
 </table>
 </div>
 <p>The store reference enables transparent persistence. When you <code>assoc</code>
 a map or <code>conj</code> a vector, the resulting value is automatically stored
-in the same backing storage — no store parameter needed for operations
-or for construction in the common case.</p>
+in the same backing storage — no store parameter needed for operations.</p>
 <p><strong>Set operations</strong> — derived from HAMT primitives + <code>dac-negative</code>:</p>
 <div class="table-wrapper">
 <table>

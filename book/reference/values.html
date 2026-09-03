@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-561f792c.js";
+            window.path_to_searchindex_js = "../searchindex-7342b6e4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -204,7 +204,7 @@ and the <a href="../guide/read.html">cookbook</a>. Internals:
 <p>Values are immutable. Updates return new values that share unchanged nodes with
 the old ones. Laziness is natural: you only need the nodes you access.</p>
 <pre><code class="language-clojure">(require '[dacite.value :as v]
-         '[dacite.store :as store])
+         '[dacite.store :as s])
 </code></pre>
 <hr>
 <h2 id="constructors"><a class="header" href="#constructors">Constructors</a></h2>
@@ -266,10 +266,10 @@ There is no portable unconditional reset — seed with <code>cas!</code> from <c
 </thead>
 <tbody>
 <tr><td><code>dacite-value?</code></td><td>Predicate</td></tr>
-<tr><td><code>value-type</code> / <code>dacite-type</code></td><td>Type name string</td></tr>
+<tr><td><code>type</code></td><td>Type name string</td></tr>
 <tr><td><code>realize</code></td><td>Host content</td></tr>
-<tr><td><code>dacite-hash</code></td><td>Content hash</td></tr>
-<tr><td><code>get-value</code></td><td>Rehydrate hash from store → value (<code>[h]</code> or <code>[st h]</code>)</td></tr>
+<tr><td><code>hash</code></td><td>Content hash</td></tr>
+<tr><td><code>get-value</code></td><td>Rehydrate hash from store → value (<code>[st h]</code>)</td></tr>
 <tr><td><code>count</code></td><td>Element/entry count, O(1)</td></tr>
 <tr><td><code>empty?</code></td><td>Zero elements?</td></tr>
 <tr><td><code>seq</code></td><td>Elements or map entries as wrapped values</td></tr>
@@ -292,7 +292,7 @@ There is no portable unconditional reset — seed with <code>cas!</code> from <c
 </table>
 </div>
 <p>Example:</p>
-<pre><code class="language-clojure">(let [st (store/mem-store)
+<pre><code class="language-clojure">(let [st (s/mem)
       vec (v/vector st 10 20 30)
       v2  (v/conj vec 40)]
   [(v/count vec) (v/count v2)
@@ -304,8 +304,8 @@ There is no portable unconditional reset — seed with <code>cas!</code> from <c
 <ul>
 <li>Two values with the same type and content have the <strong>same hash</strong> on every
 host (see <code>bin/hash-parity.sh</code>).</li>
-<li>Print / log hashes with <code>(store/hash-&gt;hex h)</code> and parse with
-<code>(store/hex-&gt;hash s)</code>.</li>
+<li>Print / log hashes with <code>(s/hash-&gt;hex h)</code> and parse with
+<code>(s/hex-&gt;hash s)</code>.</li>
 </ul>
 <hr>
 <h2 id="not-part-of-the-public-value-api"><a class="header" href="#not-part-of-the-public-value-api">Not part of the public value API</a></h2>
@@ -318,8 +318,7 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 <tr><td>Finger-tree / HAMT node types</td><td>Internal store entries</td></tr>
 <tr><td>Wire codecs</td><td><code>dacite.wire</code> / <code>dacite.wire.binary</code></td></tr>
 <tr><td><code>dacite.value.types</code> / <code>.scalar</code> / <code>.collections</code></td><td>Implementation</td></tr>
-<tr><td><code>dacite.value.api</code></td><td>Deprecated alias of this namespace</td></tr>
-<tr><td><code>dacite.core</code></td><td>Deprecated convenience re-export</td></tr>
+<tr><td><code>dacite.convert</code></td><td>JVM test hatch (<code>dac-&gt;clj</code> / <code>clj-&gt;dac</code>), not app code</td></tr>
 </tbody>
 </table>
 </div>

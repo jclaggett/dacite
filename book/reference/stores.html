@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-561f792c.js";
+            window.path_to_searchindex_js = "../searchindex-7342b6e4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -186,52 +186,6 @@ implementation. App wiring: <a href="../building/anatomy.html">Anatomy</a> and
 <a href="../guide/local-or-http.html">Same domain, local or HTTP</a>. Internals:
 <a href="../01-stores/chapter.html">Content Stores</a>,
 <a href="../04-rooted-stores/chapter.html">Rooted Stores</a>.</p>
-<h2 id="istore-protocol"><a class="header" href="#istore-protocol"><code>IStore</code> protocol</a></h2>
-<p>Namespace: <code>dacite.store</code></p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Op</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>(s-get st h)</code></td><td>Node at hash, or nil</td></tr>
-<tr><td><code>(s-put st h value)</code></td><td>Store entry; returns store</td></tr>
-<tr><td><code>(s-has? st h)</code></td><td>Presence</td></tr>
-<tr><td><code>(s-delete st h)</code></td><td>Remove entry</td></tr>
-<tr><td><code>(s-snapshot st)</code></td><td>Bulk map of contents (implementation-defined keys)</td></tr>
-<tr><td><code>(s-merge st m)</code></td><td>Merge map of hash→value</td></tr>
-<tr><td><code>(s-reset st)</code></td><td>Clear</td></tr>
-</tbody>
-</table>
-</div>
-<p>Hashes are 4-word vectors (<code>[w0 w1 w2 w3]</code>). Helpers:</p>
-<pre><code class="language-clojure">(store/hash-&gt;hex h)
-(store/hex-&gt;hash "…64 hex chars…")
-</code></pre>
-<p>Dynamic binding:</p>
-<pre><code class="language-clojure">store/*store*          ; current store
-(store/with-store [st (store/mem-store)] …)
-(store/set-store! st)
-(store/reset-store!)
-</code></pre>
-<hr>
-<h2 id="built-in-stores"><a class="header" href="#built-in-stores">Built-in stores</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Store</th><th>Host</th><th>Namespace / ctor</th></tr>
-</thead>
-<tbody>
-<tr><td><strong>mem</strong></td><td>all</td><td><code>(store/mem-store)</code></td></tr>
-<tr><td><strong>layered</strong></td><td>all</td><td><code>(store/layered-store [fast … durable])</code> — read-through, write-through</td></tr>
-<tr><td><strong>LRU</strong></td><td>all</td><td><code>(dacite.store.lru/lru-store n)</code></td></tr>
-<tr><td><strong>file</strong></td><td>JVM, babashka</td><td><code>(dacite.store.file/file-store path)</code> — <code>{base}/aa/bb/{hex}.edn</code></td></tr>
-<tr><td><strong>file</strong></td><td>nbb</td><td><code>(dacite.store.nbb/file-store path)</code></td></tr>
-<tr><td><strong>LMDB</strong></td><td>JVM</td><td><code>(dacite.store.jvm/lmdb-store path)</code> — content values = <strong>wire-v1 node payload</strong> only; keys = 32-byte hash; root meta = 32-byte hash</td></tr>
-</tbody>
-</table>
-</div>
-<hr>
 <h2 id="application-stores-always-rooted"><a class="header" href="#application-stores-always-rooted">Application stores (always rooted)</a></h2>
 <pre><code class="language-clojure">(require '[dacite.store :as s]
          '[dacite.value :as v])
@@ -239,21 +193,42 @@ implementation. App wiring: <a href="../building/anatomy.html">Anatomy</a> and
 (def r (v/root (s/mem)))
 (def r (v/root (s/file "target/my-app")))
 (def r (v/root (s/file "target/my-app" {:reset true})))
+(def r (v/root (s/lmdb "target/my-lmdb")))           ; JVM, nbb
 (def r (v/root (s/remote "http://127.0.0.1:8080")))  ; JVM
 (v/cas! r nil seed)
 (v/swap! r domain-update)
 </code></pre>
-<p><code>IStore</code> (<code>s-get</code>, <code>s-put</code>, <code>s-snapshot</code>, …) is the content dictionary used
-by backends. Application code should not call it.</p>
+<p>Hashes are 4-word vectors (<code>[w0 w1 w2 w3]</code>). Helpers:</p>
+<pre><code class="language-clojure">(s/hash-&gt;hex h)
+(s/hex-&gt;hash "…64 hex chars…")
+</code></pre>
 <p>See <a href="values.html#root-value-level">Values — root</a> and
 <a href="../04-rooted-stores/chapter.html">Rooted Stores chapter</a>.</p>
-<p>Host ctors on <code>dacite.store</code> (JVM): <code>(store/file-store path)</code>,
-<code>(store/lmdb-store path)</code>, <code>(store/lmdb-root-cell lmdb)</code>. On <strong>nbb</strong>, use
-<code>(dacite.store.nbb/file-store path)</code> (SCI cannot re-export circular host
-backends cleanly). Optional nbb LMDB (same <code>data.mdb</code> layout as JVM, wire-v1
-nodes): <code>(dacite.store.nbb.lmdb/lmdb-store path)</code> after
-<code>LMDB_DATA_V1=true npm rebuild lmdb</code> (prebuilt <code>lmdb</code> is format v2 and will
-not open a lmdbjava env).</p>
+<hr>
+<h2 id="not-part-of-the-app-api"><a class="header" href="#not-part-of-the-app-api">Not part of the app API</a></h2>
+<p><code>IStore</code> (<code>s-get</code>, <code>s-put</code>, <code>s-snapshot</code>, …) is the content dictionary used
+by backends. Application code should not call it.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Store</th><th>Host</th><th>Internal ctor</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>mem</strong> content</td><td>all</td><td><code>(store/mem-store)</code></td></tr>
+<tr><td><strong>layered</strong></td><td>all</td><td><code>(store/layered-store …)</code></td></tr>
+<tr><td><strong>LRU</strong></td><td>all</td><td><code>(dacite.store.lru/lru-store n)</code></td></tr>
+<tr><td><strong>file</strong> content</td><td>JVM, babashka</td><td><code>(dacite.store.file/file-store path)</code></td></tr>
+<tr><td><strong>file</strong> content</td><td>nbb</td><td><code>(dacite.store.nbb/file-store path)</code></td></tr>
+<tr><td><strong>LMDB</strong> content</td><td>JVM</td><td><code>(dacite.store.jvm/lmdb-store path)</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>store/*store*</code> and <code>store/with-store</code> are test/REPL bindings for the
+content dictionary, not the way to write an app. Use <code>s/mem</code> / <code>s/file</code>
+and pass that context to constructors.</p>
+<p>nbb LMDB uses the same <code>data.mdb</code> layout as JVM (wire-v1 nodes). Prebuilt
+<code>lmdb</code> npm binaries are format v2 — rebuild with
+<code>LMDB_DATA_V1=true npm rebuild lmdb</code>.</p>
 <hr>
 <h2 id="client-composition-remote--sync"><a class="header" href="#client-composition-remote--sync">Client composition (remote / sync)</a></h2>
 <p>Interactive clients usually stack:</p>

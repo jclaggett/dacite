@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-561f792c.js";
+            window.path_to_searchindex_js = "../searchindex-7342b6e4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -209,19 +209,19 @@ Done.
 <p>The exact hashes are stable across hosts (JVM, babashka, nbb) for the same
 value structure — that is part of the Dacite porting contract.</p>
 <h2 id="what-the-code-does"><a class="header" href="#what-the-code-does">What the code does</a></h2>
-<p>Source: <a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/hello.cljs"><code>examples/dacite/examples/hello.cljs</code></a>.</p>
+<p>Source: <a href="https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/hello.cljc"><code>hello.cljc</code></a>.</p>
 <ol>
 <li>
-<p><strong>Create a mem store</strong> — an in-memory <code>hash → node</code> dictionary.</p>
-<pre><code class="language-clojure">(def st (store/mem-store))
+<p><strong>Create a mem store</strong> — an in-memory rooted store.</p>
+<pre><code class="language-clojure">(def st (store/mem))
 </code></pre>
 </li>
 <li>
-<p><strong>Build values</strong> — first argument is always a store or peer value:</p>
+<p><strong>Build values</strong> — first argument is always a store, root, or peer value:</p>
 <pre><code class="language-clojure">(def v (v/vector st 1 2 3))
 (def m (v/map v
-                       "hello" (v/i64 v 42)
-                       "vec" v))
+              "hello" (v/i64 v 42)
+              "vec" v))
 </code></pre>
 </li>
 <li>
@@ -241,7 +241,7 @@ value structure — that is part of the Dacite porting contract.</p>
 <pre><code class="language-bash">npx nbb -e "
 (require '[dacite.store :as store]
          '[dacite.value :as v])
-(let [st (store/mem-store)
+(let [st (store/mem)
       vec (v/vector st 1 2 3)]
   (println (v/count vec))
   (println (store/hash-&gt;hex (v/hash vec))))

@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-561f792c.js";
+            window.path_to_searchindex_js = "../searchindex-7342b6e4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -218,12 +218,12 @@ npm run todo:batch     # durable todo list (non-interactive)
 npm run todo           # interactive todo UI
 </code></pre>
 <p>Sources are on the nbb path via <code>nbb.edn</code>:</p>
-<pre><code class="language-clojure">{:paths ["impl/clojure/src" "examples"]}
+<pre><code class="language-clojure">{:paths ["impl/clojure/src"]}
 </code></pre>
 <p>Ad-hoc scripts:</p>
 <pre><code class="language-bash">npx nbb -e "(require '[dacite.store :as store]
                      '[dacite.value :as v])
-            (let [st (store/mem-store)
+            (let [st (store/mem)
                   vec (v/vector st 1 2 3)]
               (println (v/count vec))
               (println (store/hash-&gt;hex (v/hash vec))))"
@@ -236,12 +236,12 @@ npm run todo           # interactive todo UI
 </code></pre>
 <p>Then:</p>
 <pre><code class="language-clojure">(require '[dacite.value :as v]
-         '[dacite.store :as store])
+         '[dacite.store :as s])
 
-(let [st (store/mem-store)
+(let [st (s/mem)
       vec (v/vector st 1 2 3)]
   [(v/count vec)
-   (store/hash-&gt;hex (v/hash vec))])
+   (s/hash-&gt;hex (v/hash vec))])
 </code></pre>
 <h3 id="git-dependency-optional"><a class="header" href="#git-dependency-optional">Git dependency (optional)</a></h3>
 <p>If your tools.deps version supports monorepo <code>:deps/root</code>, you can try:</p>

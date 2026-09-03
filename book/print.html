@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-561f792c.js";
+            window.path_to_searchindex_js = "searchindex-7342b6e4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -280,7 +280,7 @@ lost updates show up as retries, not silent clobbering.</p>
 <h2 id="stores-are-wiring"><a class="header" href="#stores-are-wiring">Stores are wiring</a></h2>
 <p>Mem, file, LMDB, and HTTP all speak the same store protocol. Domain functions
 take and return values. They do not open files or build URLs.</p>
-<p>A typical app splits in two, as <a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/todo.cljc">todo.cljc</a> does:</p>
+<p>A typical app splits in two, as <a href="https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/todo.cljc">todo.cljc</a> does:</p>
 <ul>
 <li><strong>Values</strong> — <code>add-todo</code>, <code>toggle-at</code>, seed data, <code>v/root</code> + <code>swap!</code>. Only
 <code>dacite.value</code>.</li>
@@ -355,12 +355,12 @@ npm run todo:batch     # durable todo list (non-interactive)
 npm run todo           # interactive todo UI
 </code></pre>
 <p>Sources are on the nbb path via <code>nbb.edn</code>:</p>
-<pre><code class="language-clojure">{:paths ["impl/clojure/src" "examples"]}
+<pre><code class="language-clojure">{:paths ["impl/clojure/src"]}
 </code></pre>
 <p>Ad-hoc scripts:</p>
 <pre><code class="language-bash">npx nbb -e "(require '[dacite.store :as store]
                      '[dacite.value :as v])
-            (let [st (store/mem-store)
+            (let [st (store/mem)
                   vec (v/vector st 1 2 3)]
               (println (v/count vec))
               (println (store/hash-&gt;hex (v/hash vec))))"
@@ -373,12 +373,12 @@ npm run todo           # interactive todo UI
 </code></pre>
 <p>Then:</p>
 <pre><code class="language-clojure">(require '[dacite.value :as v]
-         '[dacite.store :as store])
+         '[dacite.store :as s])
 
-(let [st (store/mem-store)
+(let [st (s/mem)
       vec (v/vector st 1 2 3)]
   [(v/count vec)
-   (store/hash-&gt;hex (v/hash vec))])
+   (s/hash-&gt;hex (v/hash vec))])
 </code></pre>
 <h3 id="git-dependency-optional"><a class="header" href="#git-dependency-optional">Git dependency (optional)</a></h3>
 <p>If your tools.deps version supports monorepo <code>:deps/root</code>, you can try:</p>
@@ -492,7 +492,7 @@ call pack.</p>
 </code></pre>
 <p><code>load-or-seed!</code> is <code>deref</code> or, if empty, <code>cas!</code> from <code>nil</code>.</p>
 <p>That is the architecture in
-<a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/todo.cljc">todo.cljc</a>
+<a href="https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/todo.cljc">todo.cljc</a>
 and the other portable examples.</p>
 <h2 id="next-1"><a class="header" href="#next-1">Next</a></h2>
 <ul>
@@ -530,19 +530,19 @@ Done.
 <p>The exact hashes are stable across hosts (JVM, babashka, nbb) for the same
 value structure — that is part of the Dacite porting contract.</p>
 <h2 id="what-the-code-does"><a class="header" href="#what-the-code-does">What the code does</a></h2>
-<p>Source: <a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/hello.cljs"><code>examples/dacite/examples/hello.cljs</code></a>.</p>
+<p>Source: <a href="https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/hello.cljc"><code>hello.cljc</code></a>.</p>
 <ol>
 <li>
-<p><strong>Create a mem store</strong> — an in-memory <code>hash → node</code> dictionary.</p>
-<pre><code class="language-clojure">(def st (store/mem-store))
+<p><strong>Create a mem store</strong> — an in-memory rooted store.</p>
+<pre><code class="language-clojure">(def st (store/mem))
 </code></pre>
 </li>
 <li>
-<p><strong>Build values</strong> — first argument is always a store or peer value:</p>
+<p><strong>Build values</strong> — first argument is always a store, root, or peer value:</p>
 <pre><code class="language-clojure">(def v (v/vector st 1 2 3))
 (def m (v/map v
-                       "hello" (v/i64 v 42)
-                       "vec" v))
+              "hello" (v/i64 v 42)
+              "vec" v))
 </code></pre>
 </li>
 <li>
@@ -562,7 +562,7 @@ value structure — that is part of the Dacite porting contract.</p>
 <pre><code class="language-bash">npx nbb -e "
 (require '[dacite.store :as store]
          '[dacite.value :as v])
-(let [st (store/mem-store)
+(let [st (store/mem)
       vec (v/vector st 1 2 3)]
   (println (v/count vec))
   (println (store/hash-&gt;hex (v/hash vec))))
@@ -1013,7 +1013,7 @@ without changing the app.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="browse-without-dumping"><a class="header" href="#browse-without-dumping">Browse without dumping</a></h1>
 <p>You want to see the current root as <strong>typed values</strong>, expand a collection,
-and not download the whole tree. Dacite’s move: walk with <code>value-type</code>,
+and not download the whole tree. Dacite’s move: walk with <code>v/type</code>,
 <code>count</code>, <code>nth</code>, paged <code>seq</code>; never <code>dac-&gt;clj</code>. HTTP <code>GET /node</code> returns a
 packed neighborhood; the UI then walks values locally.</p>
 <p>This is the sixth claim-proving app in the
@@ -1038,7 +1038,7 @@ map that includes every public type, plus <code>"page-me"</code> (128 small maps
 so paging is forced. An existing root (notes, event log, sync, todo) is
 left alone.</p>
 <p>Domain code lives in <code>dacite.examples.explorer</code> and uses only
-<code>dacite.value</code>: <code>value-type</code>, <code>count</code>, <code>nth</code>, paged <code>seq</code>, lazy
+<code>dacite.value</code>: <code>type</code>, <code>count</code>, <code>nth</code>, paged <code>seq</code>, lazy
 <code>realize</code> prefixes for strings/blobs. It never calls <code>dac-&gt;clj</code>.</p>
 <p>The browser store is the same as the todo demo: write-back cache plus
 default pack-filled <code>GET /node</code>. One request returns <strong>data</strong> — realized
@@ -1159,7 +1159,7 @@ rest of the program can use it.”</p>
 <tr><td>How many</td><td><code>(v/count x)</code> — O(1)</td></tr>
 <tr><td>Map field / set member / vector index</td><td><code>(v/get x k)</code> — still a Dacite value</td></tr>
 <tr><td>Vector/string/blob index</td><td><code>(v/nth x i)</code></td></tr>
-<tr><td>Scalar or short string as host</td><td><code>(v/native x)</code> / <code>(v/native x)</code></td></tr>
+<tr><td>Scalar or short string as host</td><td><code>(v/native x)</code></td></tr>
 <tr><td>Blob bytes</td><td><code>(v/as-bytes x)</code></td></tr>
 <tr><td>A page of a vector</td><td><code>(v/subvec v start end)</code></td></tr>
 <tr><td>To walk</td><td><code>(v/seq x)</code> — lazy; elements are values</td></tr>
@@ -1194,7 +1194,7 @@ children keep their hashes.</p>
 <p><code>assoc-in</code> creates intermediate maps as needed. Path ops were pulled by
 the config app; use them instead of a hand-rolled walk.</p>
 <p>Print hashes when you need to <em>see</em> sharing:</p>
-<pre><code class="language-clojure">(store/hash-&gt;hex (v/hash (v/get doc "body")))
+<pre><code class="language-clojure">(s/hash-&gt;hex (v/hash (v/get doc "body")))
 </code></pre>
 <p>A title-only edit in <a href="#history-is-free">notes</a> leaves that body hash
 put and adds fewer store nodes than rewriting the body. History is
@@ -1237,11 +1237,10 @@ over a stale copy.</p>
 <h1 id="same-domain-local-or-http"><a class="header" href="#same-domain-local-or-http">Same domain, local or HTTP</a></h1>
 <p>Point one namespace at a file store <strong>or</strong> at the HTTP service. Domain
 functions do not change.</p>
-<pre><code class="language-clojure">;; file
-(store/rooted-store (store/file-store "target/dacite-config"))
+<pre><code class="language-clojure">(require '[dacite.store :as s])
 
-;; HTTP (JVM default policy is write-back)
-(store/remote-rooted-store "http://127.0.0.1:8080")
+(s/file "target/dacite-config")
+(s/remote "http://127.0.0.1:8080")   ; JVM; write-back by default
 </code></pre>
 <p>Config, notes, event log, and sync all take <code>--url</code>. Example:</p>
 <pre><code class="language-bash">cd impl/clojure
@@ -1309,7 +1308,7 @@ and the <a href="#read-without-dumping">cookbook</a>. Internals:
 <p>Values are immutable. Updates return new values that share unchanged nodes with
 the old ones. Laziness is natural: you only need the nodes you access.</p>
 <pre><code class="language-clojure">(require '[dacite.value :as v]
-         '[dacite.store :as store])
+         '[dacite.store :as s])
 </code></pre>
 <hr>
 <h2 id="constructors"><a class="header" href="#constructors">Constructors</a></h2>
@@ -1371,10 +1370,10 @@ There is no portable unconditional reset — seed with <code>cas!</code> from <c
 </thead>
 <tbody>
 <tr><td><code>dacite-value?</code></td><td>Predicate</td></tr>
-<tr><td><code>value-type</code> / <code>dacite-type</code></td><td>Type name string</td></tr>
+<tr><td><code>type</code></td><td>Type name string</td></tr>
 <tr><td><code>realize</code></td><td>Host content</td></tr>
-<tr><td><code>dacite-hash</code></td><td>Content hash</td></tr>
-<tr><td><code>get-value</code></td><td>Rehydrate hash from store → value (<code>[h]</code> or <code>[st h]</code>)</td></tr>
+<tr><td><code>hash</code></td><td>Content hash</td></tr>
+<tr><td><code>get-value</code></td><td>Rehydrate hash from store → value (<code>[st h]</code>)</td></tr>
 <tr><td><code>count</code></td><td>Element/entry count, O(1)</td></tr>
 <tr><td><code>empty?</code></td><td>Zero elements?</td></tr>
 <tr><td><code>seq</code></td><td>Elements or map entries as wrapped values</td></tr>
@@ -1397,7 +1396,7 @@ There is no portable unconditional reset — seed with <code>cas!</code> from <c
 </table>
 </div>
 <p>Example:</p>
-<pre><code class="language-clojure">(let [st (store/mem-store)
+<pre><code class="language-clojure">(let [st (s/mem)
       vec (v/vector st 10 20 30)
       v2  (v/conj vec 40)]
   [(v/count vec) (v/count v2)
@@ -1409,8 +1408,8 @@ There is no portable unconditional reset — seed with <code>cas!</code> from <c
 <ul>
 <li>Two values with the same type and content have the <strong>same hash</strong> on every
 host (see <code>bin/hash-parity.sh</code>).</li>
-<li>Print / log hashes with <code>(store/hash-&gt;hex h)</code> and parse with
-<code>(store/hex-&gt;hash s)</code>.</li>
+<li>Print / log hashes with <code>(s/hash-&gt;hex h)</code> and parse with
+<code>(s/hex-&gt;hash s)</code>.</li>
 </ul>
 <hr>
 <h2 id="not-part-of-the-public-value-api"><a class="header" href="#not-part-of-the-public-value-api">Not part of the public value API</a></h2>
@@ -1423,8 +1422,7 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 <tr><td>Finger-tree / HAMT node types</td><td>Internal store entries</td></tr>
 <tr><td>Wire codecs</td><td><code>dacite.wire</code> / <code>dacite.wire.binary</code></td></tr>
 <tr><td><code>dacite.value.types</code> / <code>.scalar</code> / <code>.collections</code></td><td>Implementation</td></tr>
-<tr><td><code>dacite.value.api</code></td><td>Deprecated alias of this namespace</td></tr>
-<tr><td><code>dacite.core</code></td><td>Deprecated convenience re-export</td></tr>
+<tr><td><code>dacite.convert</code></td><td>JVM test hatch (<code>dac-&gt;clj</code> / <code>clj-&gt;dac</code>), not app code</td></tr>
 </tbody>
 </table>
 </div>
@@ -1444,52 +1442,6 @@ implementation. App wiring: <a href="#anatomy-of-a-dacite-app">Anatomy</a> and
 <a href="#same-domain-local-or-http">Same domain, local or HTTP</a>. Internals:
 <a href="#chapter-1-content-stores">Content Stores</a>,
 <a href="#chapter-4-rooted-stores">Rooted Stores</a>.</p>
-<h2 id="istore-protocol"><a class="header" href="#istore-protocol"><code>IStore</code> protocol</a></h2>
-<p>Namespace: <code>dacite.store</code></p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Op</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>(s-get st h)</code></td><td>Node at hash, or nil</td></tr>
-<tr><td><code>(s-put st h value)</code></td><td>Store entry; returns store</td></tr>
-<tr><td><code>(s-has? st h)</code></td><td>Presence</td></tr>
-<tr><td><code>(s-delete st h)</code></td><td>Remove entry</td></tr>
-<tr><td><code>(s-snapshot st)</code></td><td>Bulk map of contents (implementation-defined keys)</td></tr>
-<tr><td><code>(s-merge st m)</code></td><td>Merge map of hash→value</td></tr>
-<tr><td><code>(s-reset st)</code></td><td>Clear</td></tr>
-</tbody>
-</table>
-</div>
-<p>Hashes are 4-word vectors (<code>[w0 w1 w2 w3]</code>). Helpers:</p>
-<pre><code class="language-clojure">(store/hash-&gt;hex h)
-(store/hex-&gt;hash "…64 hex chars…")
-</code></pre>
-<p>Dynamic binding:</p>
-<pre><code class="language-clojure">store/*store*          ; current store
-(store/with-store [st (store/mem-store)] …)
-(store/set-store! st)
-(store/reset-store!)
-</code></pre>
-<hr>
-<h2 id="built-in-stores"><a class="header" href="#built-in-stores">Built-in stores</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Store</th><th>Host</th><th>Namespace / ctor</th></tr>
-</thead>
-<tbody>
-<tr><td><strong>mem</strong></td><td>all</td><td><code>(store/mem-store)</code></td></tr>
-<tr><td><strong>layered</strong></td><td>all</td><td><code>(store/layered-store [fast … durable])</code> — read-through, write-through</td></tr>
-<tr><td><strong>LRU</strong></td><td>all</td><td><code>(dacite.store.lru/lru-store n)</code></td></tr>
-<tr><td><strong>file</strong></td><td>JVM, babashka</td><td><code>(dacite.store.file/file-store path)</code> — <code>{base}/aa/bb/{hex}.edn</code></td></tr>
-<tr><td><strong>file</strong></td><td>nbb</td><td><code>(dacite.store.nbb/file-store path)</code></td></tr>
-<tr><td><strong>LMDB</strong></td><td>JVM</td><td><code>(dacite.store.jvm/lmdb-store path)</code> — content values = <strong>wire-v1 node payload</strong> only; keys = 32-byte hash; root meta = 32-byte hash</td></tr>
-</tbody>
-</table>
-</div>
-<hr>
 <h2 id="application-stores-always-rooted"><a class="header" href="#application-stores-always-rooted">Application stores (always rooted)</a></h2>
 <pre><code class="language-clojure">(require '[dacite.store :as s]
          '[dacite.value :as v])
@@ -1497,21 +1449,42 @@ implementation. App wiring: <a href="#anatomy-of-a-dacite-app">Anatomy</a> and
 (def r (v/root (s/mem)))
 (def r (v/root (s/file "target/my-app")))
 (def r (v/root (s/file "target/my-app" {:reset true})))
+(def r (v/root (s/lmdb "target/my-lmdb")))           ; JVM, nbb
 (def r (v/root (s/remote "http://127.0.0.1:8080")))  ; JVM
 (v/cas! r nil seed)
 (v/swap! r domain-update)
 </code></pre>
-<p><code>IStore</code> (<code>s-get</code>, <code>s-put</code>, <code>s-snapshot</code>, …) is the content dictionary used
-by backends. Application code should not call it.</p>
+<p>Hashes are 4-word vectors (<code>[w0 w1 w2 w3]</code>). Helpers:</p>
+<pre><code class="language-clojure">(s/hash-&gt;hex h)
+(s/hex-&gt;hash "…64 hex chars…")
+</code></pre>
 <p>See <a href="#root-value-level">Values — root</a> and
 <a href="#chapter-4-rooted-stores">Rooted Stores chapter</a>.</p>
-<p>Host ctors on <code>dacite.store</code> (JVM): <code>(store/file-store path)</code>,
-<code>(store/lmdb-store path)</code>, <code>(store/lmdb-root-cell lmdb)</code>. On <strong>nbb</strong>, use
-<code>(dacite.store.nbb/file-store path)</code> (SCI cannot re-export circular host
-backends cleanly). Optional nbb LMDB (same <code>data.mdb</code> layout as JVM, wire-v1
-nodes): <code>(dacite.store.nbb.lmdb/lmdb-store path)</code> after
-<code>LMDB_DATA_V1=true npm rebuild lmdb</code> (prebuilt <code>lmdb</code> is format v2 and will
-not open a lmdbjava env).</p>
+<hr>
+<h2 id="not-part-of-the-app-api"><a class="header" href="#not-part-of-the-app-api">Not part of the app API</a></h2>
+<p><code>IStore</code> (<code>s-get</code>, <code>s-put</code>, <code>s-snapshot</code>, …) is the content dictionary used
+by backends. Application code should not call it.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Store</th><th>Host</th><th>Internal ctor</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>mem</strong> content</td><td>all</td><td><code>(store/mem-store)</code></td></tr>
+<tr><td><strong>layered</strong></td><td>all</td><td><code>(store/layered-store …)</code></td></tr>
+<tr><td><strong>LRU</strong></td><td>all</td><td><code>(dacite.store.lru/lru-store n)</code></td></tr>
+<tr><td><strong>file</strong> content</td><td>JVM, babashka</td><td><code>(dacite.store.file/file-store path)</code></td></tr>
+<tr><td><strong>file</strong> content</td><td>nbb</td><td><code>(dacite.store.nbb/file-store path)</code></td></tr>
+<tr><td><strong>LMDB</strong> content</td><td>JVM</td><td><code>(dacite.store.jvm/lmdb-store path)</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>store/*store*</code> and <code>store/with-store</code> are test/REPL bindings for the
+content dictionary, not the way to write an app. Use <code>s/mem</code> / <code>s/file</code>
+and pass that context to constructors.</p>
+<p>nbb LMDB uses the same <code>data.mdb</code> layout as JVM (wire-v1 nodes). Prebuilt
+<code>lmdb</code> npm binaries are format v2 — rebuild with
+<code>LMDB_DATA_V1=true npm rebuild lmdb</code>.</p>
 <hr>
 <h2 id="client-composition-remote--sync"><a class="header" href="#client-composition-remote--sync">Client composition (remote / sync)</a></h2>
 <p>Interactive clients usually stack:</p>
@@ -2050,40 +2023,37 @@ together with the internal primitives that implement them.</p>
 <p>Every Dacite value carries four pieces of data:</p>
 <ul>
 <li><strong>store</strong> — the store that created and persists it</li>
-<li><strong>hash</strong> — its content-addressed identity (via <code>dacite-hash</code>)</li>
+<li><strong>hash</strong> — its content-addressed identity (<code>v/hash</code>)</li>
 <li><strong>type</strong> — a string identifying its kind (e.g. <code>"i64"</code>, <code>"vector"</code>)</li>
 <li><strong>content</strong> — the value itself, exposed in the host language via
-an explicit call (<code>realize</code> in the reference implementation). A
+an explicit call (<code>v/realize</code>). A
 scalar yields its native value; a collection yields a
 <em>lazy iterable</em> of realized elements (a map yields realized
 <code>[key value]</code> pairs), so sub-collections become nested lazy iterables.
 Laziness keeps access compatible with partial availability — only the
 part you consume is fetched.</li>
 </ul>
-<pre><code class="language-clojure">(def v (dacite/vector 1 2 3))
+<pre><code class="language-clojure">(require '[dacite.store :as s]
+         '[dacite.value :as v])
 
-(dacite-hash v)
+(def st (s/mem))
+(def vec (v/vector st 1 2 3))
+
+(v/hash vec)
 ;; =&gt; [c0 c1 c2 c3]  ; the 4-long hash
 
-(dacite-store v)
-;; =&gt; #&lt;DaciteStore ...&gt;  ; the store that owns this value
+(v/dacite-store vec)
+;; =&gt; the store that owns this value
 
-(dacite-type v)
-;; =&gt; "vector"  ; the value's type name
+(v/type vec)
+;; =&gt; "vector"
 </code></pre>
-<p>Most work happens in the context of a <strong>current store</strong> — a dynamic binding
-(<code>*store*</code> in the reference implementation) that defaults to an in-memory
-store for REPL use. Constructors such as <code>(dacite/vector 1 2 3)</code> persist
-into that store; the resulting value remembers which store created it.
-When you need a specific store — tests, migration, multiple stores — use
-the explicit <code>-with-store</code> variants:</p>
-<pre><code class="language-clojure">(dacite/vector-with-store store 1 2 3)
-</code></pre>
-<p>Use <code>with-store</code> to bind an isolated store for a block of code (see §3.9).</p>
-<p>The store reference enables transparent persistence: when you <code>assoc</code>
-a Dacite map or <code>conj</code> a Dacite vector, the new value is automatically
-stored in the same backing storage. You don’t thread the store through
-every operation — values know where they belong.</p>
+<p>Every constructor takes a <strong>context</strong> first — a rooted store, a <code>v/root</code>,
+or another value. New nodes persist into that store. Collection ops
+(<code>assoc</code>, <code>conj</code>, …) use the value’s store; you do not pass the store
+again.</p>
+<p>There is no implicit <code>*store*</code> constructor. <code>store/*store*</code> exists as a
+test/REPL binding for the content dictionary (see §3.9).</p>
 <p>This also means <strong>values are tied to their store</strong>. A value created in
 store A cannot be directly inserted into store B; you must first migrate
 the underlying content (or use ref push — see Chapter 4).</p>
@@ -2522,46 +2492,39 @@ tree primitives the collection types are built from:</p>
 </tbody>
 </table>
 </div>
-<p><strong>User value constructors</strong> — implicit forms use the current store; explicit
-<code>-with-store</code> forms take a store as the first argument. Implicit constructors
-are the primary API; most application code never passes a store explicitly.</p>
+<p><strong>User value constructors</strong> take a context first (a rooted store, a
+<code>v/root</code>, or another value). That is the public API. There is no
+implicit <code>*store*</code> form and no <code>-with-store</code> suffix.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Function</th><th>Implicit signature</th><th>Explicit signature</th><th>Kind</th></tr>
+<tr><th>Function</th><th>Signature</th><th>Kind</th></tr>
 </thead>
 <tbody>
-<tr><td><code>null</code></td><td><code>() → Value</code></td><td><code>(store) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>bool</code></td><td><code>(boolean) → Value</code></td><td><code>(store, boolean) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>i64</code>, <code>f64</code>, …</td><td><code>(data) → Value</code></td><td><code>(store, data) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>char</code></td><td><code>(char) → Value</code></td><td><code>(store, char) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>negative</code></td><td><code>() → Value</code></td><td><code>(store) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>string</code></td><td><code>(string) → Value</code></td><td><code>(store, string) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>blob</code></td><td><code>(bytes) → Value</code></td><td><code>(store, bytes) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>vector</code></td><td><code>(values...) → Value</code></td><td><code>(store, values...) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>set</code></td><td><code>(values...) → Value</code></td><td><code>(store, values...) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>map</code></td><td><code>(kvs...) → Value</code></td><td><code>(store, kvs...) → Value</code></td><td>Collection</td></tr>
-<tr><td><code>get-value</code></td><td><code>(hash) → Value | nil</code></td><td><code>(store, hash) → Value | nil</code></td><td>Lookup</td></tr>
+<tr><td><code>null</code></td><td><code>(ctx) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>bool</code></td><td><code>(ctx, boolean) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>i64</code>, <code>f64</code>, …</td><td><code>(ctx, data) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>char</code></td><td><code>(ctx, char) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>negative</code></td><td><code>(ctx) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>string</code></td><td><code>(ctx, string) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>blob</code></td><td><code>(ctx, bytes) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>vector</code></td><td><code>(ctx, values...) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>set</code></td><td><code>(ctx, values...) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>map</code></td><td><code>(ctx, kvs...) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>get-value</code></td><td><code>(store, hash) → Value | nil</code></td><td>Lookup</td></tr>
 </tbody>
 </table>
 </div>
-<p>Examples:</p>
-<pre><code class="language-clojure">;; implicit — uses *store* (default or bound)
-(dacite/i64 42)
-(dacite/vector 1 2 3)
-(dacite/hash-map "a" 1 "b" 2)
+<pre><code class="language-clojure">(require '[dacite.store :as s]
+         '[dacite.value :as v])
 
-;; explicit — when the store matters
-(dacite/i64-with-store store 42)
-(dacite/vector-with-store store 1 2 3)
-
-;; isolated context (testing, transactions)
-(store/with-store [s (store/mem-store)]
-  (dacite/vector 1 2 3))
+(def st (s/mem))
+(v/i64 st 42)
+(v/vector st 1 2 3)
+(v/map st "a" 1 "b" 2)
 </code></pre>
-<p>The <code>-with-store</code> suffix avoids the varargs ambiguity that would arise if
-store were an optional first argument to the same function — <code>(vector 1)</code> must
-mean a one-element vector, not an empty vector in store <code>1</code>.</p>
+<p>Context-first avoids the varargs ambiguity that would arise if store were
+optional — <code>(v/vector 1)</code> must not mean “empty vector in store <code>1</code>”.</p>
 <p><strong>Value accessors</strong></p>
 <div class="table-wrapper">
 <table>
@@ -2569,17 +2532,16 @@ mean a one-element vector, not an empty vector in store <code>1</code>.</p>
 <tr><th>Function</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dacite-hash</code></td><td><code>Value → Hash</code></td><td>Content-addressed identity (4-long hash)</td></tr>
+<tr><td><code>hash</code></td><td><code>Value → Hash</code></td><td>Content-addressed identity (4-long hash)</td></tr>
 <tr><td><code>dacite-store</code></td><td><code>Value → Store</code></td><td>The store that created and persists this value</td></tr>
-<tr><td><code>dacite-type</code></td><td><code>Value → String</code></td><td>The value’s type name</td></tr>
+<tr><td><code>type</code></td><td><code>Value → String</code></td><td>The value’s type name</td></tr>
 <tr><td><code>realize</code></td><td><code>Value → native</code></td><td>Expose content (explicit; values are not references). Scalar → native value; collection → lazy iterable of realized elements (map → <code>[k v]</code> pairs); empty → nil. Lazy, so partial-availability-friendly</td></tr>
 </tbody>
 </table>
 </div>
 <p>The store reference enables transparent persistence. When you <code>assoc</code>
 a map or <code>conj</code> a vector, the resulting value is automatically stored
-in the same backing storage — no store parameter needed for operations
-or for construction in the common case.</p>
+in the same backing storage — no store parameter needed for operations.</p>
 <p><strong>Set operations</strong> — derived from HAMT primitives + <code>dac-negative</code>:</p>
 <div class="table-wrapper">
 <table>

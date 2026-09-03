@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-561f792c.js";
+            window.path_to_searchindex_js = "../searchindex-7342b6e4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -183,11 +183,10 @@
                         <h1 id="same-domain-local-or-http"><a class="header" href="#same-domain-local-or-http">Same domain, local or HTTP</a></h1>
 <p>Point one namespace at a file store <strong>or</strong> at the HTTP service. Domain
 functions do not change.</p>
-<pre><code class="language-clojure">;; file
-(store/rooted-store (store/file-store "target/dacite-config"))
+<pre><code class="language-clojure">(require '[dacite.store :as s])
 
-;; HTTP (JVM default policy is write-back)
-(store/remote-rooted-store "http://127.0.0.1:8080")
+(s/file "target/dacite-config")
+(s/remote "http://127.0.0.1:8080")   ; JVM; write-back by default
 </code></pre>
 <p>Config, notes, event log, and sync all take <code>--url</code>. Example:</p>
 <pre><code class="language-bash">cd impl/clojure

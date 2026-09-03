@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-561f792c.js";
+            window.path_to_searchindex_js = "../searchindex-7342b6e4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -194,7 +194,7 @@ children keep their hashes.</p>
 <p><code>assoc-in</code> creates intermediate maps as needed. Path ops were pulled by
 the config app; use them instead of a hand-rolled walk.</p>
 <p>Print hashes when you need to <em>see</em> sharing:</p>
-<pre><code class="language-clojure">(store/hash-&gt;hex (v/hash (v/get doc "body")))
+<pre><code class="language-clojure">(s/hash-&gt;hex (v/hash (v/get doc "body")))
 </code></pre>
 <p>A title-only edit in <a href="../tutorial/notes.html">notes</a> leaves that body hash
 put and adds fewer store nodes than rewriting the body. History is

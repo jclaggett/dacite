@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-561f792c.js";
+            window.path_to_searchindex_js = "searchindex-7342b6e4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -255,7 +255,7 @@ lost updates show up as retries, not silent clobbering.</p>
 <h2 id="stores-are-wiring"><a class="header" href="#stores-are-wiring">Stores are wiring</a></h2>
 <p>Mem, file, LMDB, and HTTP all speak the same store protocol. Domain functions
 take and return values. They do not open files or build URLs.</p>
-<p>A typical app splits in two, as <a href="https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/todo.cljc">todo.cljc</a> does:</p>
+<p>A typical app splits in two, as <a href="https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/todo.cljc">todo.cljc</a> does:</p>
 <ul>
 <li><strong>Values</strong> — <code>add-todo</code>, <code>toggle-at</code>, seed data, <code>v/root</code> + <code>swap!</code>. Only
 <code>dacite.value</code>.</li>
