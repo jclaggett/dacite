@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-7342b6e4.js";
+            window.path_to_searchindex_js = "searchindex-dff8eb9f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -1266,8 +1266,8 @@ code. Do not <code>(into [] (v/realize v))</code> to “get a Clojure value.” 
 assumes the tree fits in RAM and is fully local.</p>
 <p>Read a field (<code>native</code>), a page (<code>subvec</code>), or a blob (<code>as-bytes</code>).</p>
 <h2 id="host-collections-as-the-domain"><a class="header" href="#host-collections-as-the-domain">Host collections as the domain</a></h2>
-<p>Build Dacite maps and vectors from the start (<code>v/map</code>, <code>v/conj</code>). Cards’
-shuffle still dumps to a host vector — that is a hole, not a pattern.</p>
+<p>Build Dacite maps and vectors from the start (<code>v/map</code>, <code>v/conj</code>). Shuffle
+a vector with <code>nth</code> / <code>assoc</code>, not by dumping to a host collection.</p>
 <h2 id="leak-internals"><a class="header" href="#leak-internals">Leak internals</a></h2>
 <p>Domain code must not require:</p>
 <ul>
