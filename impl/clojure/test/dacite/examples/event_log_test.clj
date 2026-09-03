@@ -17,7 +17,7 @@
     (is (= (v/hash (elog/view-of led))
            (v/hash (elog/view-of replayed))))))
 
-(deftest prefix-subvec-matches-fresh-build
+(deftest prefix-slice-matches-fresh-build
   (let [st (store/mem-store)
         full (elog/build st 50)
         pre (elog/prefix full 20)

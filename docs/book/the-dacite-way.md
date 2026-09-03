@@ -56,7 +56,7 @@ should name **what you need**:
 | A scalar or short string field | `native` |
 | A blob’s bytes | `as-bytes` |
 | One element | `nth` / `get` |
-| A page of a vector | `subvec` |
+| A page of a vector, string, or blob | `slice` |
 | To walk | lazy `seq` (elements are still Dacite values) |
 
 `realize` on a scalar yields a host atom. `realize` on a collection yields a

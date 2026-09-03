@@ -111,5 +111,5 @@ No `dac->clj`. History is a vector of documents in the same store.
 
 ## Next
 
-[Large sequences stay cheap](event-log.md) — page with `subvec`; do not
+[Large sequences stay cheap](event-log.md) — page with `slice`; do not
 `seq` the whole log.

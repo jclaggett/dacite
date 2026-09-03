@@ -7,7 +7,7 @@
 
    Events are {\"type\" \"credit\"|\"debit\" \"amount\" n \"note\" s}.
    Append updates the view incrementally. Replay rebuilds the view from
-   a prefix via nth/subvec — it does not seq the whole log.
+   a prefix via nth/slice — it does not seq the whole log.
 
    **Store** — file-rooted or HTTP remote-rooted.
 
@@ -130,7 +130,7 @@
 
 (defn page
   "Page `page-n` (0-based) of the log as a Dacite vector (shared leaves).
-   Uses subvec — does not seq the whole log."
+   Uses slice — does not seq the whole log."
   ([ledger] (page ledger 0 default-page-size))
   ([ledger page-n] (page ledger page-n default-page-size))
   ([ledger page-n page-size]
@@ -140,7 +140,7 @@
          end (min n (+ start (long page-size)))]
      (if (>= start n)
        (v/vector ledger)
-       (v/subvec log start end)))))
+       (v/slice log start end)))))
 
 (defn replay
   "Rebuild the view from log[0, end). Uses nth, not seq of the whole log."
@@ -156,7 +156,7 @@
 (defn prefix
   "First `end` events as a Dacite vector (same hash as a freshly built prefix)."
   [ledger end]
-  (v/subvec (log-of ledger) 0 end))
+  (v/slice (log-of ledger) 0 end))
 
 (defn node-count
   [v]

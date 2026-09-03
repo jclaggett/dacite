@@ -15,7 +15,7 @@
    Collection ops take a Dacite value first: `conj`, `get`, `nth`, `count`, …"
   (:refer-clojure :exclude [vector set count nth get assoc conj seq
                             peek pop keys vals contains? dissoc empty?
-                            get-in assoc-in update update-in pr-str subvec
+                            get-in assoc-in update update-in pr-str
                             type hash map deref swap! add-watch remove-watch char])
   (:require [dacite.store :as store]
             [dacite.value.types :as types]
@@ -229,17 +229,18 @@
     (coll/seq-remove-nth (types/dacite-store v) (types/dacite-hash v) i)
     (throw (ex-info "remove-nth unsupported for type" {:type (type v)}))))
 
-(defn subvec
-  "Elements [start, end) of a vector as a new Dacite vector.
+(defn slice
+  "Elements [start, end) of a vector, string, or blob as a new value of
+   the same type.
 
    One-arg end defaults to the count. Leaves are shared. Any page is
-   O((end-start) log n) via nth — it does not seq the whole vector."
-  ([v start] (subvec v start (count v)))
+   O((end-start) log n) via nth — it does not seq the whole collection."
+  ([v start] (slice v start (count v)))
   ([v start end]
    (case (type v)
-     "vector" (coll/vec-subvec (types/dacite-store v) (types/dacite-hash v)
-                               start end)
-     (throw (ex-info "subvec unsupported for type" {:type (type v)})))))
+     ("vector" "string" "blob")
+     (coll/seq-slice (types/dacite-store v) (types/dacite-hash v) start end)
+     (throw (ex-info "slice unsupported for type" {:type (type v)})))))
 
 (defn keys
   "Wrapped keys of a map, or nil if empty."

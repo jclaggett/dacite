@@ -74,20 +74,42 @@
     (let [cfg' (v/update-in cfg ["features" 0] (fn [_] "z"))]
       (is (= "z" (v/native (v/get-in cfg' ["features" 0])))))))
 
-(deftest subvec-shares-leaves-and-bounds
+(deftest slice-shares-leaves-and-bounds
   (let [st (store/mem-store)
         vec (v/vector st 0 1 2 3 4 5 6 7 8 9)
-        mid (v/subvec vec 3 7)]
+        mid (v/slice vec 3 7)]
+    (is (= "vector" (v/type mid)))
     (is (= 4 (v/count mid)))
     (is (= 3 (v/native (v/nth mid 0))))
     (is (= 6 (v/native (v/nth mid 3))))
-    (is (= (v/hash vec) (v/hash (v/subvec vec 0))))
-    (is (zero? (v/count (v/subvec vec 4 4))))
+    (is (= (v/hash vec) (v/hash (v/slice vec 0))))
+    (is (zero? (v/count (v/slice vec 4 4))))
     (let [built (v/vector st 3 4 5 6)]
       (is (= (v/hash built) (v/hash mid))
           "slice of the same elements has the same value hash"))
-    (is (thrown? clojure.lang.ExceptionInfo (v/subvec vec 3 11)))
-    (is (thrown? clojure.lang.ExceptionInfo (v/subvec vec -1 3)))))
+    (is (thrown? clojure.lang.ExceptionInfo (v/slice vec 3 11)))
+    (is (thrown? clojure.lang.ExceptionInfo (v/slice vec -1 3)))
+    (is (thrown? clojure.lang.ExceptionInfo (v/slice (v/map st "k" 1) 0 1)))))
+
+(deftest slice-string-preserves-type-and-hash
+  (let [st (store/mem-store)
+        s (v/string st "hello world")
+        mid (v/slice s 6 11)]
+    (is (= "string" (v/type mid)))
+    (is (= "world" (v/native mid)))
+    (is (= (v/hash (v/string st "world")) (v/hash mid)))
+    (is (= (v/hash s) (v/hash (v/slice s 0))))
+    (is (zero? (v/count (v/slice s 3 3))))
+    (is (= "" (v/native (v/slice s 3 3))))))
+
+(deftest slice-blob-preserves-type-and-hash
+  (let [st (store/mem-store)
+        b (v/blob st (byte-array [1 2 3 4 5]))
+        mid (v/slice b 1 4)]
+    (is (= "blob" (v/type mid)))
+    (is (= [2 3 4] (map #(bit-and % 0xFF) (v/as-bytes mid))))
+    (is (= (v/hash (v/blob st (byte-array [2 3 4]))) (v/hash mid)))
+    (is (= (v/hash b) (v/hash (v/slice b 0))))))
 
 (deftest as-bytes-blob
   (let [st (store/mem-store)

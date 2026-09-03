@@ -8,7 +8,7 @@ Do not reach for `dacite.convert` (`dac->clj` / `clj->dac`) in application
 code. Do not `(into [] (v/realize v))` to “get a Clojure value.” That
 assumes the tree fits in RAM and is fully local.
 
-Read a field (`native`), a page (`subvec`), or a blob (`as-bytes`).
+Read a field (`native`), a page (`slice`), or a blob (`as-bytes`).
 
 ## Host collections as the domain
 

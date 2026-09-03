@@ -11,7 +11,7 @@ rest of the program can use it.”
 | Vector/string/blob index | `(v/nth x i)` |
 | Scalar or short string as host | `(v/native x)` |
 | Blob bytes | `(v/as-bytes x)` |
-| A page of a vector | `(v/subvec v start end)` |
+| A page of a vector, string, or blob | `(v/slice v start end)` |
 | To walk | `(v/seq x)` — lazy; elements are values |
 
 `native` takes an optional char limit (or
@@ -21,12 +21,12 @@ RAM. `pr-str` never throws; long strings print as `"prefix…" (n chars)`.
 
 `realize` on a scalar is a host atom. `realize` on a collection is a
 **lazy** seq of realized elements. `(into [] (v/realize big-vector))` is
-an explicit full traversal. Prefer `subvec` / `nth` / `seq`.
+an explicit full traversal. Prefer `slice` / `nth` / `seq`.
 
 Missing blobs from `as-bytes` throw `ex-info` with `:dacite/missing`.
 Other missing nodes still surface as store exceptions — a library hole
 until an app pulls a uniform error.
 
 See [config](../tutorial/config.md) (`native` / `get-in`),
-[event log](../tutorial/event-log.md) (`subvec` / `nth`),
+[event log](../tutorial/event-log.md) (`slice` / `nth`),
 [sync](../tutorial/sync.md) (`as-bytes`).

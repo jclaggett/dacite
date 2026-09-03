@@ -160,30 +160,34 @@
   [store h i]
   (seq-remove-nth store h i))
 
-(defn vec-subvec
-  "Elements [start, end) of a vector as a new DaciteVector.
+(defn seq-slice
+  "Elements [start, end) of a sequence (vector, string, or blob) as a
+   new value of the same type.
 
    Leaves are shared (hashes only). Structural nodes for the slice are
    rebuilt in O((end-start) log n) via nth — any page costs that, not O(n).
-   The full-range slice is the original vector."
+   The full-range slice is the original value."
   [store h start end]
-  (let [n (coll-count store h)
+  (let [type-name (types/entry-type (store/s-get store h))
+        n (coll-count store h)
         start (long start)
         end (long end)]
     (when (or (neg? start) (neg? end) (> start end) (> end n))
-      (throw (ex-info "subvec out of bounds"
-                      {:start start :end end :count n})))
+      (throw (ex-info "slice out of bounds"
+                      {:start start :end end :count n :type type-name})))
     (cond
       (and (zero? start) (= end n))
-      (->DaciteVector store h)
+      (types/wrap-entry type-name store h)
 
       (= start end)
-      (vec-of-refs-with-store store [])
+      (types/wrap-entry type-name store
+                        (store-seq-node! store type-name (ft/ft-empty store)))
 
       :else
       (let [root (node-root store h)
-            refs (mapv #(ft/ft-nth store root %) (range start end))]
-        (vec-of-refs-with-store store refs)))))
+            refs (mapv #(ft/ft-nth store root %) (range start end))
+            new-h (store-seq-node! store type-name (ft-build! store refs))]
+        (types/wrap-entry type-name store new-h)))))
 
 (defn map-get
   "Look up key k in a map (wrapped value), or not-found."

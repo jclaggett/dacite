@@ -99,7 +99,7 @@ First argument is always a Dacite value:
 | `conj` | Append / add entry |
 | `peek` / `pop` | Vector end |
 | `remove-nth` | Vector without index |
-| `subvec` | `[start, end)` as a new vector (shared leaves; O(k log n)) |
+| `slice` | `[start, end)` of a vector, string, or blob (same type; shared leaves; O(k log n)) |
 | `keys` / `vals` | Map keys or values as wrapped sequences |
 | `native` | Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char `limit` (or `*string-char-limit*`) realizes at most that prefix, then throws if the string is longer. |
 | `as-bytes` | Host bytes for a blob. Optional limit; missing nodes throw `:dacite/missing`. |

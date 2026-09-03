@@ -23,6 +23,8 @@ stability promise: public APIs may still change before 1.0.
 - Examples live in `impl/clojure/src/dacite/examples/` (compiled and tested
   with the library). They open stores with `s/mem` / `s/file` / `s/lmdb` /
   `s/remote`.
+- `v/slice` replaces `v/subvec`: `[start, end)` of a vector, string, or
+  blob, same type, shared leaves.
 
 ### Documentation
 
@@ -133,10 +135,8 @@ stability promise: public APIs may still change before 1.0.
 ### Event log app
 
 - **`dacite.examples.event-log`** — append-only credit/debit log + derived
-  view. Page via `v/subvec`; replay via `nth`. Bench shows one append
+  view. Page via `v/slice`; replay via `nth`. Bench shows one append
   adds a handful of nodes at n=100 and n=2000.
-- **`v/subvec`** — `[start, end)` as a new vector; leaves shared;
-  O(k log n), does not seq the whole vector.
 - Tutorial: [docs/book/tutorial/event-log.md](docs/book/tutorial/event-log.md)
 
 ### Versioned notes app

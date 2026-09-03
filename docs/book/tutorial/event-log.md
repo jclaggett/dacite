@@ -1,7 +1,7 @@
 # Large sequences stay cheap
 
 You have thousands of events. You need a page of them and a derived balance,
-not the whole log in RAM. Dacite’s move: `v/subvec` and `nth` on a vector;
+not the whole log in RAM. Dacite’s move: `v/slice` and `nth` on a vector;
 append is `conj`. Do not `seq` the log to print page 0.
 
 This is the third claim-proving app in the
@@ -10,7 +10,7 @@ This is the third claim-proving app in the
 You will:
 
 1. Seed **2000** events (not five).
-2. Page the log with `v/subvec` — no `seq` of the whole vector.
+2. Page the log with `v/slice` — no `seq` of the whole vector.
 3. Replay the view from a prefix via `nth`.
 4. See that one more append adds a handful of nodes at n=100 and at n=2000.
 
@@ -30,7 +30,7 @@ Append updates the view incrementally. Replay rebuilds the view from
 `log[0, end)` without walking the tail.
 
 Domain code lives in `dacite.examples.event-log` and uses only
-`dacite.value`. Pagination pulled `v/subvec`.
+`dacite.value`. Pagination pulled `v/slice`.
 
 ## Local file
 
@@ -99,7 +99,7 @@ alone (hash fusion is shape-independent).
 
 | Why | Utility |
 |---|---|
-| Page without `seq` of the whole vector | `v/subvec` — O(k log n), shared leaves |
+| Page without `seq` of the whole vector | `v/slice` — O(k log n), shared leaves |
 | Replay a prefix | `v/nth` in a range |
 | Prove append is cheap | node-delta of one `conj` at several sizes |
 

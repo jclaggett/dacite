@@ -101,7 +101,7 @@ why without materializing the whole value.
 | Read a scalar or short string field | `v/native` / `v/native` (optional char limit; `as-str` via `native`) | Shipped (pulled by remote config) |
 | Bounded print of long strings | `v/pr-str` (truncates; never dumps the tree) | Shipped (pulled by remote config) |
 | Nested document edit | `get-in` / `assoc-in` / `update` / `update-in` | Shipped (pulled by remote config) |
-| Show a page of a large vector | `v/subvec` | Shipped (pulled by event log) |
+| Show a page of a large vector, string, or blob | `v/slice` | Shipped (pulled by event log; strings/blobs for the library) |
 | Export / interop (JSON, files) | A *specific* encoder that streams or bounds | Only if an app needs it |
 
 `realize` stays: scalars yield a host atom; collections yield a **lazy** seq of
@@ -182,7 +182,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | Hello nbb | Constructors, `realize`, hash identity | Persistence, sync, a user |
 | [config](../impl/clojure/src/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX |
 | [notes](../impl/clojure/src/dacite/examples/notes.cljc) | Snapshots, restore by hash, title-only sharing | Multi-writer, web UI |
-| [event log](../impl/clojure/src/dacite/examples/event_log.cljc) | 2000 events, page via subvec, cheap append | Compact/concat, missing-node UX |
+| [event log](../impl/clojure/src/dacite/examples/event_log.cljc) | 2000 events, page via slice, cheap append | Compact/concat, missing-node UX |
 | Two-client live | Interleaved appends + SSE watch | Async browser store |
 | [sync](../impl/clojure/src/dacite/examples/sync.cljc) | List without bodies; one-file < clone | Opaque-byte file store |
 | [cards.clj](../impl/clojure/src/dacite/examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
@@ -234,11 +234,11 @@ bounded string render from config were enough.
 whole log.
 
 Shipped: [event_log.cljc](../impl/clojure/src/dacite/examples/event_log.cljc),
-`v/subvec`, tutorial [event-log.md](book/tutorial/event-log.md). Seed
-2000 credit/debit events. Page uses `subvec`; replay folds with `nth`.
+`v/slice`, tutorial [event-log.md](book/tutorial/event-log.md). Seed
+2000 credit/debit events. Page uses `slice`; replay folds with `nth`.
 Append node-delta stays small from n=100 to n=2000. A remote test shows
 page 0 receives fewer bytes than `seq` of the whole log. Prefix
-`subvec` has the same hash as a freshly built prefix.
+`slice` has the same hash as a freshly built prefix.
 
 Missing-node errors stayed on the shelf — page/replay did not need a new
 error type.
@@ -303,7 +303,7 @@ is the next milestone.
 
 | Gap | Why | Status |
 |---|---|---|
-| Range / slice on vectors | Pagination without realizing the log | Done (`v/subvec`) |
+| Range / slice on sequences | Pagination without realizing the log | Done (`v/slice` — vector, string, blob) |
 | Catchable missing-node errors | Partial availability is currently an exception from `s-get` | Still deferred |
 
 **Pulled by two clients**
