@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dff8eb9f.js";
+            window.path_to_searchindex_js = "../searchindex-539fc322.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -182,14 +182,14 @@
                     <main>
                         <h1 id="large-sequences-stay-cheap"><a class="header" href="#large-sequences-stay-cheap">Large sequences stay cheap</a></h1>
 <p>You have thousands of events. You need a page of them and a derived balance,
-not the whole log in RAM. Dacite’s move: <code>v/subvec</code> and <code>nth</code> on a vector;
+not the whole log in RAM. Dacite’s move: <code>v/slice</code> and <code>nth</code> on a vector;
 append is <code>conj</code>. Do not <code>seq</code> the log to print page 0.</p>
 <p>This is the third claim-proving app in the
 <a href="../../roadmap.html">roadmap</a>.</p>
 <p>You will:</p>
 <ol>
 <li>Seed <strong>2000</strong> events (not five).</li>
-<li>Page the log with <code>v/subvec</code> — no <code>seq</code> of the whole vector.</li>
+<li>Page the log with <code>v/slice</code> — no <code>seq</code> of the whole vector.</li>
 <li>Replay the view from a prefix via <code>nth</code>.</li>
 <li>See that one more append adds a handful of nodes at n=100 and at n=2000.</li>
 </ol>
@@ -205,7 +205,7 @@ append is <code>conj</code>. Do not <code>seq</code> the log to print page 0.</p
 <p>Append updates the view incrementally. Replay rebuilds the view from
 <code>log[0, end)</code> without walking the tail.</p>
 <p>Domain code lives in <code>dacite.examples.event-log</code> and uses only
-<code>dacite.value</code>. Pagination pulled <code>v/subvec</code>.</p>
+<code>dacite.value</code>. Pagination pulled <code>v/slice</code>.</p>
 <h2 id="local-file"><a class="header" href="#local-file">Local file</a></h2>
 <pre><code class="language-bash">cd impl/clojure
 clojure -M:log -- --reset show
@@ -254,7 +254,7 @@ alone (hash fusion is shape-independent).</p>
 <tr><th>Why</th><th>Utility</th></tr>
 </thead>
 <tbody>
-<tr><td>Page without <code>seq</code> of the whole vector</td><td><code>v/subvec</code> — O(k log n), shared leaves</td></tr>
+<tr><td>Page without <code>seq</code> of the whole vector</td><td><code>v/slice</code> — O(k log n), shared leaves</td></tr>
 <tr><td>Replay a prefix</td><td><code>v/nth</code> in a range</td></tr>
 <tr><td>Prove append is cheap</td><td>node-delta of one <code>conj</code> at several sizes</td></tr>
 </tbody>

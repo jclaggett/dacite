@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dff8eb9f.js";
+            window.path_to_searchindex_js = "../searchindex-539fc322.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -195,7 +195,7 @@ rest of the program can use it.”</p>
 <tr><td>Vector/string/blob index</td><td><code>(v/nth x i)</code></td></tr>
 <tr><td>Scalar or short string as host</td><td><code>(v/native x)</code></td></tr>
 <tr><td>Blob bytes</td><td><code>(v/as-bytes x)</code></td></tr>
-<tr><td>A page of a vector</td><td><code>(v/subvec v start end)</code></td></tr>
+<tr><td>A page of a vector, string, or blob</td><td><code>(v/slice v start end)</code></td></tr>
 <tr><td>To walk</td><td><code>(v/seq x)</code> — lazy; elements are values</td></tr>
 </tbody>
 </table>
@@ -206,12 +206,12 @@ limit — that is the point: field-sized text, not a 3k title dumped into
 RAM. <code>pr-str</code> never throws; long strings print as <code>"prefix…" (n chars)</code>.</p>
 <p><code>realize</code> on a scalar is a host atom. <code>realize</code> on a collection is a
 <strong>lazy</strong> seq of realized elements. <code>(into [] (v/realize big-vector))</code> is
-an explicit full traversal. Prefer <code>subvec</code> / <code>nth</code> / <code>seq</code>.</p>
+an explicit full traversal. Prefer <code>slice</code> / <code>nth</code> / <code>seq</code>.</p>
 <p>Missing blobs from <code>as-bytes</code> throw <code>ex-info</code> with <code>:dacite/missing</code>.
 Other missing nodes still surface as store exceptions — a library hole
 until an app pulls a uniform error.</p>
 <p>See <a href="../tutorial/config.html">config</a> (<code>native</code> / <code>get-in</code>),
-<a href="../tutorial/event-log.html">event log</a> (<code>subvec</code> / <code>nth</code>),
+<a href="../tutorial/event-log.html">event log</a> (<code>slice</code> / <code>nth</code>),
 <a href="../tutorial/sync.html">sync</a> (<code>as-bytes</code>).</p>
 
                     </main>

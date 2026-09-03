@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dff8eb9f.js";
+            window.path_to_searchindex_js = "../searchindex-539fc322.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -281,7 +281,7 @@ There is no portable unconditional reset — seed with <code>cas!</code> from <c
 <tr><td><code>conj</code></td><td>Append / add entry</td></tr>
 <tr><td><code>peek</code> / <code>pop</code></td><td>Vector end</td></tr>
 <tr><td><code>remove-nth</code></td><td>Vector without index</td></tr>
-<tr><td><code>subvec</code></td><td><code>[start, end)</code> as a new vector (shared leaves; O(k log n))</td></tr>
+<tr><td><code>slice</code></td><td><code>[start, end)</code> of a vector, string, or blob (same type; shared leaves; O(k log n))</td></tr>
 <tr><td><code>keys</code> / <code>vals</code></td><td>Map keys or values as wrapped sequences</td></tr>
 <tr><td><code>native</code></td><td>Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char <code>limit</code> (or <code>*string-char-limit*</code>) realizes at most that prefix, then throws if the string is longer.</td></tr>
 <tr><td><code>as-bytes</code></td><td>Host bytes for a blob. Optional limit; missing nodes throw <code>:dacite/missing</code>.</td></tr>

@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-dff8eb9f.js";
+            window.path_to_searchindex_js = "searchindex-539fc322.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -255,7 +255,7 @@ should name <strong>what you need</strong>:</p>
 <tr><td>A scalar or short string field</td><td><code>native</code></td></tr>
 <tr><td>A blob’s bytes</td><td><code>as-bytes</code></td></tr>
 <tr><td>One element</td><td><code>nth</code> / <code>get</code></td></tr>
-<tr><td>A page of a vector</td><td><code>subvec</code></td></tr>
+<tr><td>A page of a vector, string, or blob</td><td><code>slice</code></td></tr>
 <tr><td>To walk</td><td>lazy <code>seq</code> (elements are still Dacite values)</td></tr>
 </tbody>
 </table>
@@ -775,19 +775,19 @@ history conj. The body node is the same hash.</p>
 </div>
 <p>No <code>dac-&gt;clj</code>. History is a vector of documents in the same store.</p>
 <h2 id="next-3"><a class="header" href="#next-3">Next</a></h2>
-<p><a href="#large-sequences-stay-cheap">Large sequences stay cheap</a> — page with <code>subvec</code>; do not
+<p><a href="#large-sequences-stay-cheap">Large sequences stay cheap</a> — page with <code>slice</code>; do not
 <code>seq</code> the whole log.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="large-sequences-stay-cheap"><a class="header" href="#large-sequences-stay-cheap">Large sequences stay cheap</a></h1>
 <p>You have thousands of events. You need a page of them and a derived balance,
-not the whole log in RAM. Dacite’s move: <code>v/subvec</code> and <code>nth</code> on a vector;
+not the whole log in RAM. Dacite’s move: <code>v/slice</code> and <code>nth</code> on a vector;
 append is <code>conj</code>. Do not <code>seq</code> the log to print page 0.</p>
 <p>This is the third claim-proving app in the
 <a href="../roadmap.html">roadmap</a>.</p>
 <p>You will:</p>
 <ol>
 <li>Seed <strong>2000</strong> events (not five).</li>
-<li>Page the log with <code>v/subvec</code> — no <code>seq</code> of the whole vector.</li>
+<li>Page the log with <code>v/slice</code> — no <code>seq</code> of the whole vector.</li>
 <li>Replay the view from a prefix via <code>nth</code>.</li>
 <li>See that one more append adds a handful of nodes at n=100 and at n=2000.</li>
 </ol>
@@ -803,7 +803,7 @@ append is <code>conj</code>. Do not <code>seq</code> the log to print page 0.</p
 <p>Append updates the view incrementally. Replay rebuilds the view from
 <code>log[0, end)</code> without walking the tail.</p>
 <p>Domain code lives in <code>dacite.examples.event-log</code> and uses only
-<code>dacite.value</code>. Pagination pulled <code>v/subvec</code>.</p>
+<code>dacite.value</code>. Pagination pulled <code>v/slice</code>.</p>
 <h2 id="local-file-2"><a class="header" href="#local-file-2">Local file</a></h2>
 <pre><code class="language-bash">cd impl/clojure
 clojure -M:log -- --reset show
@@ -852,7 +852,7 @@ alone (hash fusion is shape-independent).</p>
 <tr><th>Why</th><th>Utility</th></tr>
 </thead>
 <tbody>
-<tr><td>Page without <code>seq</code> of the whole vector</td><td><code>v/subvec</code> — O(k log n), shared leaves</td></tr>
+<tr><td>Page without <code>seq</code> of the whole vector</td><td><code>v/slice</code> — O(k log n), shared leaves</td></tr>
 <tr><td>Replay a prefix</td><td><code>v/nth</code> in a range</td></tr>
 <tr><td>Prove append is cheap</td><td>node-delta of one <code>conj</code> at several sizes</td></tr>
 </tbody>
@@ -1161,7 +1161,7 @@ rest of the program can use it.”</p>
 <tr><td>Vector/string/blob index</td><td><code>(v/nth x i)</code></td></tr>
 <tr><td>Scalar or short string as host</td><td><code>(v/native x)</code></td></tr>
 <tr><td>Blob bytes</td><td><code>(v/as-bytes x)</code></td></tr>
-<tr><td>A page of a vector</td><td><code>(v/subvec v start end)</code></td></tr>
+<tr><td>A page of a vector, string, or blob</td><td><code>(v/slice v start end)</code></td></tr>
 <tr><td>To walk</td><td><code>(v/seq x)</code> — lazy; elements are values</td></tr>
 </tbody>
 </table>
@@ -1172,12 +1172,12 @@ limit — that is the point: field-sized text, not a 3k title dumped into
 RAM. <code>pr-str</code> never throws; long strings print as <code>"prefix…" (n chars)</code>.</p>
 <p><code>realize</code> on a scalar is a host atom. <code>realize</code> on a collection is a
 <strong>lazy</strong> seq of realized elements. <code>(into [] (v/realize big-vector))</code> is
-an explicit full traversal. Prefer <code>subvec</code> / <code>nth</code> / <code>seq</code>.</p>
+an explicit full traversal. Prefer <code>slice</code> / <code>nth</code> / <code>seq</code>.</p>
 <p>Missing blobs from <code>as-bytes</code> throw <code>ex-info</code> with <code>:dacite/missing</code>.
 Other missing nodes still surface as store exceptions — a library hole
 until an app pulls a uniform error.</p>
 <p>See <a href="#persist-and-update-a-document">config</a> (<code>native</code> / <code>get-in</code>),
-<a href="#large-sequences-stay-cheap">event log</a> (<code>subvec</code> / <code>nth</code>),
+<a href="#large-sequences-stay-cheap">event log</a> (<code>slice</code> / <code>nth</code>),
 <a href="#sync-a-tree-of-blobs">sync</a> (<code>as-bytes</code>).</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="update-and-share-identity"><a class="header" href="#update-and-share-identity">Update and share identity</a></h1>
@@ -1264,7 +1264,7 @@ HTTP clients in those examples are the JVM <code>--url</code> path today.</p>
 <p>Do not reach for <code>dacite.convert</code> (<code>dac-&gt;clj</code> / <code>clj-&gt;dac</code>) in application
 code. Do not <code>(into [] (v/realize v))</code> to “get a Clojure value.” That
 assumes the tree fits in RAM and is fully local.</p>
-<p>Read a field (<code>native</code>), a page (<code>subvec</code>), or a blob (<code>as-bytes</code>).</p>
+<p>Read a field (<code>native</code>), a page (<code>slice</code>), or a blob (<code>as-bytes</code>).</p>
 <h2 id="host-collections-as-the-domain"><a class="header" href="#host-collections-as-the-domain">Host collections as the domain</a></h2>
 <p>Build Dacite maps and vectors from the start (<code>v/map</code>, <code>v/conj</code>). Shuffle
 a vector with <code>nth</code> / <code>assoc</code>, not by dumping to a host collection.</p>
@@ -1385,7 +1385,7 @@ There is no portable unconditional reset — seed with <code>cas!</code> from <c
 <tr><td><code>conj</code></td><td>Append / add entry</td></tr>
 <tr><td><code>peek</code> / <code>pop</code></td><td>Vector end</td></tr>
 <tr><td><code>remove-nth</code></td><td>Vector without index</td></tr>
-<tr><td><code>subvec</code></td><td><code>[start, end)</code> as a new vector (shared leaves; O(k log n))</td></tr>
+<tr><td><code>slice</code></td><td><code>[start, end)</code> of a vector, string, or blob (same type; shared leaves; O(k log n))</td></tr>
 <tr><td><code>keys</code> / <code>vals</code></td><td>Map keys or values as wrapped sequences</td></tr>
 <tr><td><code>native</code></td><td>Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char <code>limit</code> (or <code>*string-char-limit*</code>) realizes at most that prefix, then throws if the string is longer.</td></tr>
 <tr><td><code>as-bytes</code></td><td>Host bytes for a blob. Optional limit; missing nodes throw <code>:dacite/missing</code>.</td></tr>

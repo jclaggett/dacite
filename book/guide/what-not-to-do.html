@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dff8eb9f.js";
+            window.path_to_searchindex_js = "../searchindex-539fc322.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -186,7 +186,7 @@
 <p>Do not reach for <code>dacite.convert</code> (<code>dac-&gt;clj</code> / <code>clj-&gt;dac</code>) in application
 code. Do not <code>(into [] (v/realize v))</code> to “get a Clojure value.” That
 assumes the tree fits in RAM and is fully local.</p>
-<p>Read a field (<code>native</code>), a page (<code>subvec</code>), or a blob (<code>as-bytes</code>).</p>
+<p>Read a field (<code>native</code>), a page (<code>slice</code>), or a blob (<code>as-bytes</code>).</p>
 <h2 id="host-collections-as-the-domain"><a class="header" href="#host-collections-as-the-domain">Host collections as the domain</a></h2>
 <p>Build Dacite maps and vectors from the start (<code>v/map</code>, <code>v/conj</code>). Shuffle
 a vector with <code>nth</code> / <code>assoc</code>, not by dumping to a host collection.</p>
