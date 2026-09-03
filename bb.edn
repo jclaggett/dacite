@@ -1,4 +1,4 @@
-{:paths ["impl/clojure/src" "examples"]
+{:paths ["impl/clojure/src"]
  :tasks
  {todo    {:doc "Run the durable todo example under babashka (args: [path] [--reset])"
            :requires ([dacite.examples.todo :as todo])

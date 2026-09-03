@@ -16,10 +16,10 @@ together with the internal primitives that implement them.
 Every Dacite value carries four pieces of data:
 
 - **store** — the store that created and persists it
-- **hash** — its content-addressed identity (via `dacite-hash`)
+- **hash** — its content-addressed identity (`v/hash`)
 - **type** — a string identifying its kind (e.g. `"i64"`, `"vector"`)
 - **content** — the value itself, exposed in the host language via
-  an explicit call (`realize` in the reference implementation). A
+  an explicit call (`v/realize`). A
   scalar yields its native value; a collection yields a
   *lazy iterable* of realized elements (a map yields realized
   `[key value]` pairs), so sub-collections become nested lazy iterables.
@@ -27,35 +27,29 @@ Every Dacite value carries four pieces of data:
   part you consume is fetched.
 
 ```clojure
-(def v (dacite/vector 1 2 3))
+(require '[dacite.store :as s]
+         '[dacite.value :as v])
 
-(dacite-hash v)
+(def st (s/mem))
+(def vec (v/vector st 1 2 3))
+
+(v/hash vec)
 ;; => [c0 c1 c2 c3]  ; the 4-long hash
 
-(dacite-store v)
-;; => #<DaciteStore ...>  ; the store that owns this value
+(v/dacite-store vec)
+;; => the store that owns this value
 
-(dacite-type v)
-;; => "vector"  ; the value's type name
+(v/type vec)
+;; => "vector"
 ```
 
-Most work happens in the context of a **current store** — a dynamic binding
-(`*store*` in the reference implementation) that defaults to an in-memory
-store for REPL use. Constructors such as `(dacite/vector 1 2 3)` persist
-into that store; the resulting value remembers which store created it.
-When you need a specific store — tests, migration, multiple stores — use
-the explicit `-with-store` variants:
+Every constructor takes a **context** first — a rooted store, a `v/root`,
+or another value. New nodes persist into that store. Collection ops
+(`assoc`, `conj`, …) use the value’s store; you do not pass the store
+again.
 
-```clojure
-(dacite/vector-with-store store 1 2 3)
-```
-
-Use `with-store` to bind an isolated store for a block of code (see §3.9).
-
-The store reference enables transparent persistence: when you `assoc`
-a Dacite map or `conj` a Dacite vector, the new value is automatically
-stored in the same backing storage. You don't thread the store through
-every operation — values know where they belong.
+There is no implicit `*store*` constructor. `store/*store*` exists as a
+test/REPL binding for the content dictionary (see §3.9).
 
 This also means **values are tied to their store**. A value created in
 store A cannot be directly inserted into store B; you must first migrate
@@ -543,58 +537,49 @@ Convenience functions that compose from the primitives:
 |----------|------------|-------------|
 | `hamt-count` | `(hamt-measure m).count` | Entry count, O(1) |
 
-**User value constructors** — implicit forms use the current store; explicit
-`-with-store` forms take a store as the first argument. Implicit constructors
-are the primary API; most application code never passes a store explicitly.
+**User value constructors** take a context first (a rooted store, a
+`v/root`, or another value). That is the public API. There is no
+implicit `*store*` form and no `-with-store` suffix.
 
-| Function | Implicit signature | Explicit signature | Kind |
-|----------|-------------------|-------------------|------|
-| `null` | `() → Value` | `(store) → Value` | Scalar |
-| `bool` | `(boolean) → Value` | `(store, boolean) → Value` | Scalar |
-| `i64`, `f64`, … | `(data) → Value` | `(store, data) → Value` | Scalar |
-| `char` | `(char) → Value` | `(store, char) → Value` | Scalar |
-| `negative` | `() → Value` | `(store) → Value` | Scalar |
-| `string` | `(string) → Value` | `(store, string) → Value` | Collection |
-| `blob` | `(bytes) → Value` | `(store, bytes) → Value` | Collection |
-| `vector` | `(values...) → Value` | `(store, values...) → Value` | Collection |
-| `set` | `(values...) → Value` | `(store, values...) → Value` | Collection |
-| `map` | `(kvs...) → Value` | `(store, kvs...) → Value` | Collection |
-| `get-value` | `(hash) → Value \| nil` | `(store, hash) → Value \| nil` | Lookup |
-
-Examples:
+| Function | Signature | Kind |
+|----------|-----------|------|
+| `null` | `(ctx) → Value` | Scalar |
+| `bool` | `(ctx, boolean) → Value` | Scalar |
+| `i64`, `f64`, … | `(ctx, data) → Value` | Scalar |
+| `char` | `(ctx, char) → Value` | Scalar |
+| `negative` | `(ctx) → Value` | Scalar |
+| `string` | `(ctx, string) → Value` | Collection |
+| `blob` | `(ctx, bytes) → Value` | Collection |
+| `vector` | `(ctx, values...) → Value` | Collection |
+| `set` | `(ctx, values...) → Value` | Collection |
+| `map` | `(ctx, kvs...) → Value` | Collection |
+| `get-value` | `(store, hash) → Value \| nil` | Lookup |
 
 ```clojure
-;; implicit — uses *store* (default or bound)
-(dacite/i64 42)
-(dacite/vector 1 2 3)
-(dacite/hash-map "a" 1 "b" 2)
+(require '[dacite.store :as s]
+         '[dacite.value :as v])
 
-;; explicit — when the store matters
-(dacite/i64-with-store store 42)
-(dacite/vector-with-store store 1 2 3)
-
-;; isolated context (testing, transactions)
-(store/with-store [s (store/mem-store)]
-  (dacite/vector 1 2 3))
+(def st (s/mem))
+(v/i64 st 42)
+(v/vector st 1 2 3)
+(v/map st "a" 1 "b" 2)
 ```
 
-The `-with-store` suffix avoids the varargs ambiguity that would arise if
-store were an optional first argument to the same function — `(vector 1)` must
-mean a one-element vector, not an empty vector in store `1`.
+Context-first avoids the varargs ambiguity that would arise if store were
+optional — `(v/vector 1)` must not mean “empty vector in store `1`”.
 
 **Value accessors**
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `dacite-hash` | `Value → Hash` | Content-addressed identity (4-long hash) |
+| `hash` | `Value → Hash` | Content-addressed identity (4-long hash) |
 | `dacite-store` | `Value → Store` | The store that created and persists this value |
-| `dacite-type` | `Value → String` | The value's type name |
+| `type` | `Value → String` | The value's type name |
 | `realize` | `Value → native` | Expose content (explicit; values are not references). Scalar → native value; collection → lazy iterable of realized elements (map → `[k v]` pairs); empty → nil. Lazy, so partial-availability-friendly |
 
 The store reference enables transparent persistence. When you `assoc`
 a map or `conj` a vector, the resulting value is automatically stored
-in the same backing storage — no store parameter needed for operations
-or for construction in the common case.
+in the same backing storage — no store parameter needed for operations.
 
 **Set operations** — derived from HAMT primitives + `dac-negative`:
 

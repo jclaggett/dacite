@@ -9,7 +9,7 @@ rest of the program can use it.”
 | How many | `(v/count x)` — O(1) |
 | Map field / set member / vector index | `(v/get x k)` — still a Dacite value |
 | Vector/string/blob index | `(v/nth x i)` |
-| Scalar or short string as host | `(v/native x)` / `(v/native x)` |
+| Scalar or short string as host | `(v/native x)` |
 | Blob bytes | `(v/as-bytes x)` |
 | A page of a vector | `(v/subvec v start end)` |
 | To walk | `(v/seq x)` — lazy; elements are values |

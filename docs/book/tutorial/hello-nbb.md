@@ -40,21 +40,21 @@ value structure — that is part of the Dacite porting contract.
 
 ## What the code does
 
-Source: [`examples/dacite/examples/hello.cljs`](https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/hello.cljs).
+Source: [`hello.cljc`](https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/hello.cljc).
 
-1. **Create a mem store** — an in-memory `hash → node` dictionary.
+1. **Create a mem store** — an in-memory rooted store.
 
    ```clojure
-   (def st (store/mem-store))
+   (def st (store/mem))
    ```
 
-2. **Build values** — first argument is always a store or peer value:
+2. **Build values** — first argument is always a store, root, or peer value:
 
    ```clojure
    (def v (v/vector st 1 2 3))
    (def m (v/map v
-                          "hello" (v/i64 v 42)
-                          "vec" v))
+                 "hello" (v/i64 v 42)
+                 "vec" v))
    ```
 
 3. **Read with `dacite.value`** — collection ops take the value first:
@@ -77,7 +77,7 @@ Source: [`examples/dacite/examples/hello.cljs`](https://github.com/jclaggett/dac
 npx nbb -e "
 (require '[dacite.store :as store]
          '[dacite.value :as v])
-(let [st (store/mem-store)
+(let [st (store/mem)
       vec (v/vector st 1 2 3)]
   (println (v/count vec))
   (println (store/hash->hex (v/hash vec))))

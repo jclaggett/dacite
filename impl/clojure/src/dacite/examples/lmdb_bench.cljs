@@ -6,7 +6,6 @@
    npx nbb -m dacite.examples.lmdb-bench -- /tmp/dacite-lmdb-interop"
   (:require [dacite.examples.sync :as fs]
             [dacite.store :as store]
-            [dacite.store.nbb :as nbb-store]
             [dacite.store.nbb.lmdb :as lmdb]
             [dacite.value :as v]))
 
@@ -40,9 +39,7 @@
 (defn- seed-into [open-fn path]
   (rm-rf path)
   (let [t0 (now-ms)
-        rs (store/rooted-store (open-fn path)
-                               (store/file-root-cell path))
-        r (v/root rs)
+        r (v/root (open-fn path))
         [tree _] (fs/load-or-seed! r)
         ms (- (now-ms) t0)
         hex (store/hash->hex (v/hash tree))]
@@ -51,24 +48,18 @@
 (defn -main [& args]
   (let [file-path "target/dacite-sync-file-bench"
         lmdb-path "target/dacite-sync-lmdb-bench"
-        file-res (seed-into nbb-store/file-store file-path)
+        file-res (seed-into store/file file-path)
         lmdb-res (let [t0 (now-ms)
                        _ (rm-rf lmdb-path)
-                       st (lmdb/lmdb-store lmdb-path)
-                       rs (store/rooted-store st (lmdb/lmdb-root-cell st))
+                       rs (store/lmdb lmdb-path)
                        r (v/root rs)
                        [tree _] (fs/load-or-seed! r)
                        ms (- (now-ms) t0)
-                       hex (store/hash->hex (v/hash tree))]
-                   (let [root-h (lmdb/lmdb-get-meta st "root")]
-                     (lmdb/lmdb-close st)
-                     {:ms ms :hex hex :path lmdb-path
-                      :meta-hex (when root-h (store/hash->hex root-h))
-                      :reopen-n (let [st2 (lmdb/lmdb-store lmdb-path)
-                                      h (store/hex->hash hex)
-                                      ok? (store/s-has? st2 h)]
-                                  (lmdb/lmdb-close st2)
-                                  ok?)}))]
+                       hex (store/hash->hex (v/hash tree))
+                       root-h (store/root rs)]
+                   {:ms ms :hex hex :path lmdb-path
+                    :meta-hex (when root-h (store/hash->hex root-h))
+                    :reopen-n (store/s-has? rs (store/hex->hash hex))})]
     (println "file-store")
     (println "  ms     " (:ms file-res))
     (println "  files  " (file-count file-path))

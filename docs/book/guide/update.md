@@ -22,7 +22,7 @@ the config app; use them instead of a hand-rolled walk.
 Print hashes when you need to *see* sharing:
 
 ```clojure
-(store/hash->hex (v/hash (v/get doc "body")))
+(s/hash->hex (v/hash (v/get doc "body")))
 ```
 
 A title-only edit in [notes](../tutorial/notes.md) leaves that body hash

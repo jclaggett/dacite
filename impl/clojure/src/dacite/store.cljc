@@ -391,21 +391,39 @@
 ;; Application stores — always rooted
 ;; =============================================================================
 
-(defn mem
-  "In-memory rooted store."
-  []
-  (rooted-store (mem-store)))
+#?(:org.babashka/nbb
+   (defn- nbb-rooted [sym]
+     (require 'dacite.rooted)
+     (resolve (symbol "dacite.rooted" (name sym)))))
+
+#?(:org.babashka/nbb
+   (defn mem
+     "In-memory rooted store."
+     []
+     ((nbb-rooted 'rooted-store) (mem-store)))
+   :cljs
+   (defn mem
+     "In-memory rooted store. Not available in compiled browser CLJS
+      (rooted-store is a stub; use dacite.store.browser)."
+     []
+     (throw (js/Error. "store/mem is JVM/nbb; the browser uses dacite.store.browser")))
+   :default
+   (defn mem
+     "In-memory rooted store."
+     []
+     (rooted-store (mem-store))))
 
 #?(:org.babashka/nbb
    (defn file
      "File-backed rooted store. opts: {:reset true} wipes content and root."
      [path & [{:keys [reset]}]]
      (require 'dacite.store.nbb)
-     (let [content ((resolve 'dacite.store.nbb/file-store) path)]
+     (let [content ((resolve 'dacite.store.nbb/file-store) path)
+           cell ((nbb-rooted 'file-root-cell) path)]
        (when reset
          (s-reset content)
-         (rc-put! (file-root-cell path) nil))
-       (rooted-store content (file-root-cell path))))
+         ((nbb-rooted 'rc-put!) cell nil))
+       ((nbb-rooted 'rooted-store) content cell)))
    :cljs
    (defn file
      [_path & _]
@@ -420,19 +438,38 @@
          (rc-put! (file-root-cell path) nil))
        (rooted-store content (file-root-cell path)))))
 
-#?(:clj
-   (do
-     (defn lmdb
-       "LMDB rooted store. opts: {:reset true} wipes content and root."
-       [path & [{:keys [reset]}]]
-       (let [content (lmdb-store path)
-             cell (lmdb-root-cell content)]
-         (when reset
-           (s-reset content)
-           (rc-put! cell nil))
-         (rooted-store content cell)))
+#?(:org.babashka/nbb
+   (defn lmdb
+     "LMDB rooted store. opts: {:reset true} wipes content and root."
+     [path & [{:keys [reset]}]]
+     (require 'dacite.store.nbb.lmdb)
+     (let [content ((resolve 'dacite.store.nbb.lmdb/lmdb-store) path)
+           cell ((resolve 'dacite.store.nbb.lmdb/lmdb-root-cell) content)]
+       (when reset
+         (s-reset content)
+         ((nbb-rooted 'rc-put!) cell nil))
+       ((nbb-rooted 'rooted-store) content cell)))
+   :clj
+   (defn lmdb
+     "LMDB rooted store. opts: {:reset true} wipes content and root."
+     [path & [{:keys [reset]}]]
+     (let [content (lmdb-store path)
+           cell (lmdb-root-cell content)]
+       (when reset
+         (s-reset content)
+         (rc-put! cell nil))
+       (rooted-store content cell)))
+   :cljs
+   (defn lmdb
+     [_path & _]
+     (throw (js/Error. "store/lmdb is not available in the browser"))))
 
-     (defn remote
-       "HTTP rooted store. Same value API as file/mem. Seed with v/cas! from nil."
-       [url & [opts]]
-       (remote-rooted-store url (or opts {})))))
+#?(:clj
+   (defn remote
+     "HTTP rooted store. Same value API as file/mem. Seed with v/cas! from nil."
+     [url & [opts]]
+     (remote-rooted-store url (or opts {})))
+   :default
+   (defn remote
+     [_url & _]
+     (throw (ex-info "store/remote is JVM-only (java.net.http)" {}))))

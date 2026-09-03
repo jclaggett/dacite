@@ -2,7 +2,8 @@
            :unused-public-var {:level :warning}
            :unused-binding {:level :off}}
  :lint-as {clojure.test.check.clojure-test/defspec clj-kondo.lint-as/def-catch-all
-           dacite.core/with-store clojure.core/let
            dacite.store/with-store clojure.core/let
-           dacite.value/with-store clojure.core/let
+           promesa.core/let clojure.core/let
+           promesa.core/loop clojure.core/loop
+           promesa.core/recur clojure.core/recur
            dacite.core-test/in-store clj-kondo.lint-as/def-catch-all}}

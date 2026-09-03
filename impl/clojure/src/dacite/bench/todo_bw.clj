@@ -24,7 +24,6 @@
             [dacite.store.client-cache :as client-cache]
             [dacite.examples.todo :as todo]
             [dacite.value :as v]
-            [dacite.value.api :as d]
             [dacite.value.types :as types])
   (:gen-class))
 
@@ -51,8 +50,8 @@
 (defn- realize-todos!
   "Touch fields like the UI does when rendering."
   [todos]
-  (dotimes [i (d/count todos)]
-    (let [t (d/nth todos i)]
+  (dotimes [i (v/count todos)]
+    (let [t (v/nth todos i)]
       (todo/title-str t)
       (todo/done? t)))
   todos)
@@ -88,14 +87,14 @@
            (stats/measure
             (fn []
               (let [root @!root
-                    todos (d/get-value client root)
+                    todos (v/get-value client root)
                     todos' (todo/add-todo todos "bw bench item" false)
                     h (types/dacite-hash todos')
                     ok (remote/remote-cas-root! client root h)]
                 (when-not ok
                   (throw (ex-info "add CAS failed" {})))
                 (reset! !root h)
-                (todo/title-str (d/nth todos' (dec (d/count todos'))))
+                (todo/title-str (v/nth todos' (dec (v/count todos'))))
                 todos'))))]
       (swap! results assoc :add-warm (primary delta)))
 
@@ -110,7 +109,7 @@
               (let [h (or (remote/remote-get-root cold)
                           (throw (ex-info "missing root" {})))
                     ;; Normal materialize: each miss pack-fills a neighborhood
-                    todos (d/get-value cold h)]
+                    todos (v/get-value cold h)]
                 (when-not todos
                   (throw (ex-info "root missing after get" {:hash h})))
                 (realize-todos! todos)

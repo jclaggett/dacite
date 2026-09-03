@@ -4,11 +4,10 @@ Point one namespace at a file store **or** at the HTTP service. Domain
 functions do not change.
 
 ```clojure
-;; file
-(store/rooted-store (store/file-store "target/dacite-config"))
+(require '[dacite.store :as s])
 
-;; HTTP (JVM default policy is write-back)
-(store/remote-rooted-store "http://127.0.0.1:8080")
+(s/file "target/dacite-config")
+(s/remote "http://127.0.0.1:8080")   ; JVM; write-back by default
 ```
 
 Config, notes, event log, and sync all take `--url`. Example:

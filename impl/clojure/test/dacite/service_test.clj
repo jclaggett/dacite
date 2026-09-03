@@ -8,7 +8,7 @@
             [dacite.store.client-cache :as client-cache]
             [dacite.store.pack :as pack]
             [dacite.value.collections :as coll]
-            [dacite.value.api :as d]
+            [dacite.value :as d]
             [dacite.value.types :as types]
             [dacite.wire :as wire]
             [dacite.wire.binary :as bin]

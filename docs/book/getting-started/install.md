@@ -44,7 +44,7 @@ npm run todo           # interactive todo UI
 Sources are on the nbb path via `nbb.edn`:
 
 ```clojure
-{:paths ["impl/clojure/src" "examples"]}
+{:paths ["impl/clojure/src"]}
 ```
 
 Ad-hoc scripts:
@@ -52,7 +52,7 @@ Ad-hoc scripts:
 ```bash
 npx nbb -e "(require '[dacite.store :as store]
                      '[dacite.value :as v])
-            (let [st (store/mem-store)
+            (let [st (store/mem)
                   vec (v/vector st 1 2 3)]
               (println (v/count vec))
               (println (store/hash->hex (v/hash vec))))"
@@ -73,12 +73,12 @@ Then:
 
 ```clojure
 (require '[dacite.value :as v]
-         '[dacite.store :as store])
+         '[dacite.store :as s])
 
-(let [st (store/mem-store)
+(let [st (s/mem)
       vec (v/vector st 1 2 3)]
   [(v/count vec)
-   (store/hash->hex (v/hash vec))])
+   (s/hash->hex (v/hash vec))])
 ```
 
 ### Git dependency (optional)

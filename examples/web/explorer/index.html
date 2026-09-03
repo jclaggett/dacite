@@ -24,14 +24,14 @@
     <div id="tree" class="tree"></div>
 
     <footer>
-      <p><strong>Values</strong> — walk with <code>dacite.value</code> (<code>value-type</code>, <code>count</code>, <code>nth</code>, paged <code>seq</code>). No whole-tree dump.</p>
+      <p><strong>Values</strong> — walk with <code>dacite.value</code> (<code>type</code>, <code>count</code>, <code>nth</code>, paged <code>seq</code>). No whole-tree dump.</p>
       <p><strong>Store</strong> — HTTP remote + write-back cache; pack-filled <code>GET /node</code> (literals), root CAS. HTTP ships data; the tree walks local values.</p>
     </footer>
   </main>
   <script>
     window.DACITE_API_BASE = window.DACITE_API_BASE || "";
   </script>
-  <script src="/app/explorer/js/main.js?v=explorer-15"
+  <script src="/app/explorer/js/main.js?v=explorer-16"
           onerror="var s=document.getElementById('status'); if(s){s.textContent='JS failed to load — open http://127.0.0.1:8080/app/explorer/ (note the trailing slash).'; s.className='status error';}"></script>
 </body>
 </html>

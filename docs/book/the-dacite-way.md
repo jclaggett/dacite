@@ -87,7 +87,7 @@ Seed an empty root with `cas!` from `nil`. There is no unconditional reset.
 Mem, file, LMDB, and HTTP all speak the same store protocol. Domain functions
 take and return values. They do not open files or build URLs.
 
-A typical app splits in two, as [todo.cljc](https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/todo.cljc) does:
+A typical app splits in two, as [todo.cljc](https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/todo.cljc) does:
 
 - **Values** — `add-todo`, `toggle-at`, seed data, `v/root` + `swap!`. Only
   `dacite.value`.

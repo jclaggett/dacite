@@ -17,13 +17,13 @@ Dacite lets applications work with **immutable Values** functionally while **Sto
 
 **Alpha 0.1** — Clojure / SCI reference implementation: hash fusion, content
 stores, values, rooted stores, pack transport, wire-v1 binary packs (JVM +
-browser), remote HTTP service (**460+ tests**). Soft pack budget default
+browser), remote HTTP service (**480+ tests**). Soft pack budget default
 **1024**. APIs may change; see [CHANGELOG.md](CHANGELOG.md).
 
 ## Documentation
 
 - **[The Dacite way](https://dacite.io/book/the-dacite-way.html)** — how to think about data ([source](docs/book/the-dacite-way.md))
-- **[Anatomy of a Dacite app](https://dacite.io/book/building/anatomy.html)** — Values / Store split, `root-ref`
+- **[Anatomy of a Dacite app](https://dacite.io/book/building/anatomy.html)** — Values / Store split, `v/root`
 - **[Install](https://dacite.io/book/getting-started/install.html)** — nbb + JVM setup ([source](docs/book/getting-started/install.md))
 - **[First values](https://dacite.io/book/tutorial/hello-nbb.html)** — five-minute tutorial
 - **[Building apps](https://dacite.io/book/building/anatomy.html)** — document · history · large seq · CAS · blobs · explorer · browser
@@ -60,7 +60,7 @@ From `impl/clojure`:
 clojure -M:cards    # durable LMDB rooted-store card game
 ```
 
-See [examples/](examples/) for `cards.clj` and the portable config/todo apps.
+See [impl/clojure/src/dacite/examples/](impl/clojure/src/dacite/examples/) for the portable apps (compiled and tested with the library). Browser UI assets live in [examples/web/](examples/web/).
 
 Portable examples run on every host (JVM, babashka, nbb). Config and todo are
 **durable** rooted-store apps (file content + `ROOT`). Config is the same

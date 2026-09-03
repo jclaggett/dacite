@@ -55,7 +55,7 @@ A good next app has all of:
 5. A measurement (bandwidth, time-to-first-paint, conflict rate,
    domain-vs-wiring line count).
 
-A bad next app is another walkthrough of `conj` / `assoc` / `ref-swap!` on a
+A bad next app is another walkthrough of `conj` / `assoc` / `swap!` on a
 tiny tree.
 
 ### Rules of engagement
@@ -66,7 +66,7 @@ tiny tree.
    not leak.
 2. **No app-local `title-str`.** When domain code grows a twenty-line helper
    to read a field, fix `dacite.value` in the same change.
-3. **Keep the Values / Store split.** [todo.cljc](../examples/dacite/examples/todo.cljc)
+3. **Keep the Values / Store split.** [todo.cljc](../impl/clojure/src/dacite/examples/todo.cljc)
    already has the architecture. Copy that, not a single-file demo.
 4. **Measure the claim.** The bandwidth harness (`dacite.bench.todo-bw`) is
    the pattern. Clone it per app. If you cannot measure sharing, lazy fetch,
@@ -180,15 +180,15 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | App | What it proves | What it does not |
 |---|---|---|
 | Hello nbb | Constructors, `realize`, hash identity | Persistence, sync, a user |
-| [config](../examples/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX |
-| [notes](../examples/dacite/examples/notes.cljc) | Snapshots, restore by hash, title-only sharing | Multi-writer, web UI |
-| [event log](../examples/dacite/examples/event_log.cljc) | 2000 events, page via subvec, cheap append | Compact/concat, missing-node UX |
+| [config](../impl/clojure/src/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX |
+| [notes](../impl/clojure/src/dacite/examples/notes.cljc) | Snapshots, restore by hash, title-only sharing | Multi-writer, web UI |
+| [event log](../impl/clojure/src/dacite/examples/event_log.cljc) | 2000 events, page via subvec, cheap append | Compact/concat, missing-node UX |
 | Two-client live | Interleaved appends + SSE watch | Async browser store |
-| [sync](../examples/dacite/examples/sync.cljc) | List without bodies; one-file < clone | Opaque-byte file store |
+| [sync](../impl/clojure/src/dacite/examples/sync.cljc) | List without bodies; one-file < clone | Opaque-byte file store |
 | [cards.clj](../examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, `v/root` |
-| [explorer](../examples/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
+| [explorer](../impl/clojure/src/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
 
 Library-pain already visible in those apps (fix in the library, not with
 more helpers — **when an app pulls it**):
@@ -209,7 +209,7 @@ These six apps are history. Do not start a seventh demo to “complete the set.�
 **Claim:** the server publishes a root hash; clients pull only what they
 need. Same domain against mem, file, and HTTP.
 
-Shipped: [config.cljc](../examples/dacite/examples/config.cljc),
+Shipped: [config.cljc](../impl/clojure/src/dacite/examples/config.cljc),
 `store/remote-rooted-store`, `v/native` / `v/native` / `get-in` /
 `assoc-in` / `update` / `update-in`, tutorial
 [config.md](book/tutorial/config.md). Two HTTP clients see the same
@@ -221,7 +221,7 @@ nil — `ref-reset!` stays local-only.
 **Claim:** every root hash is a complete snapshot; unchanged subtrees are
 free.
 
-Shipped: [notes.cljc](../examples/dacite/examples/notes.cljc), tutorial
+Shipped: [notes.cljc](../impl/clojure/src/dacite/examples/notes.cljc), tutorial
 [notes.md](book/tutorial/notes.md). Notebook is `{doc, history}`; restore
 reinstalls the historical doc value (same hash). `bench` / tests show a
 title-only edit shares the body hash and adds fewer store nodes than a
@@ -233,7 +233,7 @@ bounded string render from config were enough.
 **Claim:** large sequences stay cheap to append; you need not realize the
 whole log.
 
-Shipped: [event_log.cljc](../examples/dacite/examples/event_log.cljc),
+Shipped: [event_log.cljc](../impl/clojure/src/dacite/examples/event_log.cljc),
 `v/subvec`, tutorial [event-log.md](book/tutorial/event-log.md). Seed
 2000 credit/debit events. Page uses `subvec`; replay folds with `nth`.
 Append node-delta stays small from n=100 to n=2000. A remote test shows
@@ -260,7 +260,7 @@ the claim; sync XHR remains the browser demo.
 
 **Claim:** trees of blobs + maps sync cheaper than a whole-tree copy.
 
-Shipped: [sync.cljc](../examples/dacite/examples/sync.cljc), `v/as-bytes`,
+Shipped: [sync.cljc](../impl/clojure/src/dacite/examples/sync.cljc), `v/as-bytes`,
 `store/sync-reachable!`, tutorial [sync.md](book/tutorial/sync.md). `ls`
 reads `kind`/`size` only; `cat` realizes one blob. Identical files share
 a hash. A second local sync copies 0 nodes. Remote GET of one blob
@@ -275,7 +275,7 @@ need them.
 **Claim:** lazy access — browse the root as typed Dacite values without
 realizing the whole tree.
 
-Shipped: [explorer.cljc](../examples/dacite/examples/explorer.cljc),
+Shipped: [explorer.cljc](../impl/clojure/src/dacite/examples/explorer.cljc),
 `/app/explorer/`, tutorial [explorer.md](book/tutorial/explorer.md).
 Empty root CAS-seeds a type gallery; an existing root is displayed.
 Vectors/maps/sets expand in pages of 32. Strings and blobs are truncated

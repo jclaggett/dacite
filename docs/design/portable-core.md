@@ -138,9 +138,9 @@ across all hosts and future language ports.
 
 ---
 
-## The functional API (`dacite.value.api`)
+## The functional API (`dacite.value`)
 
-`dacite.value.api` is the **canonical, cross-language surface** over Dacite
+`dacite.value` is the **canonical, cross-language surface** over Dacite
 collections. On the JVM, Dacite collections *also* implement the native
 `clojure.lang.*` interfaces, so plain `get`/`conj`/`nth`/`count` work; but on
 SCI hosts those interfaces are unavailable, so all portable code — and any
@@ -149,10 +149,10 @@ future port — uses this API:
 ```
 count  empty?  seq  nth  get  contains?
 assoc  dissoc  conj  peek  pop  remove-nth  keys  vals
-realize  value-type  dacite-value?  dacite-hash  get-value
+realize  type  dacite-value?  hash  get-value
 ```
 
-Each takes a Dacite value first and dispatches on its `value-type` (`"vector"`,
+Each takes a Dacite value first and dispatches on its `type` (`"vector"`,
 `"map"`, `"set"`, `"string"`, `"blob"`). Accessors return **wrapped** Dacite
 values; call `realize` to recover native content. `get-value` rehydrates a
 hash from a store (used after loading a rooted-store root).
@@ -165,12 +165,13 @@ root  cas-root!  set-root!  update-root!
 ```
 
 ```clojure
-(require '[dacite.value.api :as d]
-         '[dacite.value :as v])
+(require '[dacite.value :as v]
+         '[dacite.store :as s])
 
-(let [xs (-> (v/vector) (d/conj 1) (d/conj 2) (d/conj 3))]
-  (d/count xs)          ; => 3
-  (d/realize (d/nth xs 0)))  ; => 1
+(let [st (s/mem)
+      xs (-> (v/vector st) (v/conj 1) (v/conj 2) (v/conj 3))]
+  (v/count xs)          ; => 3
+  (v/realize (v/nth xs 0)))  ; => 1
 ```
 
 Host collection adapters (`clojure.lang.*` on the JVM; `cljs.core` protocols
@@ -247,7 +248,7 @@ bb todo
 npx nbb -m dacite.examples.todo
 ```
 
-Portable examples live in [`examples/dacite/examples/`](../../examples/dacite/examples):
+Portable examples live in [`impl/clojure/src/dacite/examples/`](../../impl/clojure/src/dacite/examples/):
 `todo.cljc` (durable file store + rooted commit/resume) and `parity.cljc`
 (canonical root hash). Todo writes under `target/dacite-todo/` by default;
 pass `--reset` to wipe.

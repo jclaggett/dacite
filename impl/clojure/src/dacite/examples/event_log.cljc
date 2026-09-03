@@ -25,12 +25,7 @@
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.value :as v]
-            #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]
-                                   [dacite.store.nbb.lmdb :as lmdb]]
-                :cljs []
-                :clj [[dacite.store.remote :as remote]
-                      [clojure.java.io :as io]]
-                :default [])))
+            #?(:clj [dacite.store.remote :as remote])))
 
 ;; =============================================================================
 ;; Values
@@ -119,7 +114,7 @@
           (range n)))
 
 (defn load-or-seed!
-  "Load ledger from a root-ref, or CAS-seed `n` events (default default-seed-n)."
+  "Load ledger from a root, or CAS-seed `n` events (default default-seed-n)."
   ([led-ref] (load-or-seed! led-ref default-seed-n))
   ([led-ref n]
    (if-let [prior (v/deref led-ref)]
@@ -239,83 +234,20 @@
 (def default-path
   "target/dacite-log")
 
-#?(:org.babashka/nbb
-   (defn open-file
-     [path]
-     (store/rooted-store (host-store/file-store path)
-                         (store/file-root-cell path)))
-   :cljs
-   (defn open-file
-     [_path]
-     (throw (js/Error. "event-log/open-file is for JVM/nbb file backends only")))
-   :default
-   (defn open-file
-     [path]
-     (store/rooted-store (store/file-store path)
-                         (store/file-root-cell path))))
+(defn open-mem [] (store/mem))
+(defn open-file [path] (store/file path))
+(defn open-remote [url] (store/remote url))
+(defn open-lmdb [path] (store/lmdb path))
 
-#?(:clj
-   (defn open-remote
-     [url]
-     (store/remote-rooted-store url))
-   :default
-   (defn open-remote
-     [_url]
-     (throw (ex-info "remote event-log store is JVM-only (java.net.http)" {}))))
+(defn reset-store-dir!
+  [path]
+  (store/file path {:reset true})
+  nil)
 
-(defn open-mem
-  []
-  (store/rooted-store (store/mem-store)))
-
-#?(:org.babashka/nbb
-   (defn reset-store-dir!
-     [path]
-     (let [content (host-store/file-store path)]
-       (store/s-reset content)
-       (store/rc-put! (store/file-root-cell path) nil)
-       nil))
-   :cljs
-   (defn reset-store-dir! [_path] nil)
-   :default
-   (defn reset-store-dir!
-     [path]
-     (let [content (store/file-store path)]
-       (store/s-reset content)
-       (store/rc-put! (store/file-root-cell path) nil)
-       nil)))
-
-#?(:org.babashka/nbb
-   (defn open-lmdb
-     [path]
-     (let [st (lmdb/lmdb-store path)]
-       (store/rooted-store st (lmdb/lmdb-root-cell st))))
-   :clj
-   (defn open-lmdb
-     [path]
-     (let [st (store/lmdb-store path)]
-       (store/rooted-store st (store/lmdb-root-cell st))))
-   :default
-   (defn open-lmdb
-     [_path]
-     (throw (ex-info "LMDB is nbb or JVM only" {}))))
-
-#?(:org.babashka/nbb
-   (defn reset-lmdb-dir!
-     [path]
-     (let [fs (js/require "fs")]
-       (when (.existsSync fs path)
-         (.rmSync fs path #js {:recursive true :force true}))
-       nil))
-   :clj
-   (defn reset-lmdb-dir!
-     [path]
-     (let [dir (io/file path)]
-       (when (.exists dir)
-         (doseq [f (reverse (file-seq dir))]
-           (.delete ^java.io.File f)))
-       nil))
-   :default
-   (defn reset-lmdb-dir! [_path] nil))
+(defn reset-lmdb-dir!
+  [path]
+  (store/lmdb path {:reset true})
+  nil)
 
 (defn local-path
   [{:keys [lmdb? path]}]
@@ -410,8 +342,8 @@
   "Two remote clients each append `n` events. Prints retries and final count."
   [url n]
   #?(:clj
-     (let [a (v/root (store/remote-rooted-store url))
-           b (v/root (store/remote-rooted-store url))]
+     (let [a (v/root (store/remote url))
+           b (v/root (store/remote url))]
        (load-or-seed! a 0)
        (let [n0 (log-count (v/deref a))
              retries (atom 0)
@@ -427,7 +359,7 @@
                       (swap! retries + (:retries info)))))]
          @fa
          @fb
-         (let [final (v/deref (v/root (store/remote-rooted-store url)))]
+         (let [final (v/deref (v/root (store/remote url)))]
            (println "started:" n0
                     "appended:" (* 2 n)
                     "final:" (log-count final)
@@ -475,7 +407,7 @@
         (reset-store-dir! path))
       (println "reset store at" local))
     (if (= cmd "bench")
-      (print! (render-bench (measure-append (store/mem-store) [100 500 1000 2000])))
+      (print! (render-bench (measure-append (store/mem) [100 500 1000 2000])))
       (let [rs (open-store opts)
             led-ref (v/root rs)
             [_ seeded?] (load-or-seed! led-ref n)]

@@ -103,7 +103,7 @@ call pack.
 `load-or-seed!` is `deref` or, if empty, `cas!` from `nil`.
 
 That is the architecture in
-[todo.cljc](https://github.com/jclaggett/dacite/blob/main/examples/dacite/examples/todo.cljc)
+[todo.cljc](https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/todo.cljc)
 and the other portable examples.
 
 ## Next

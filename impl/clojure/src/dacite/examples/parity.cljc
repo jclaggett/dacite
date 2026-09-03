@@ -10,16 +10,15 @@
 (defn canonical-value
   "Build a fixed, representative nested value in the given store."
   [st]
-  (store/bind-store st
-                    (v/vector 0 1 -1 255 256
-                              (v/string "hello")
-                              (v/map "k" 42 "nested" (v/vector 7 8 9))
-                              (v/set 1 2 3))))
+  (v/vector st 0 1 -1 255 256
+            (v/string st "hello")
+            (v/map st "k" 42 "nested" (v/vector st 7 8 9))
+            (v/set st 1 2 3)))
 
 (defn canonical-hex
   "Root hash (64-char hex) of the canonical value."
   []
-  (store/hash->hex (v/hash (canonical-value (store/mem-store)))))
+  (store/hash->hex (v/hash (canonical-value (store/mem)))))
 
 (defn -main [& _]
   (println (canonical-hex)))

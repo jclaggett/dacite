@@ -1,4 +1,4 @@
-(ns examples.cards
+(ns dacite.examples.cards
   "Two-player card game modeled entirely as Dacite values (value API).
 
    The deck and each player's hand are Dacite vectors. Game state is a Dacite
@@ -103,12 +103,12 @@
 ;; =============================================================================
 
 (defn make-game-ref
-  "Wrap an open LMDB store as a value-level root-ref."
-  [lmdb]
-  (v/root (store/rooted-store lmdb (store/lmdb-root-cell lmdb))))
+  "Wrap a rooted store as a value-level root."
+  [rs]
+  (v/root rs))
 
 (defn get-game
-  "Load the current game from the root-ref, or nil if unset."
+  "Load the current game from the root, or nil if unset."
   [game-ref]
   (v/deref game-ref))
 
@@ -138,43 +138,41 @@
   [& _]
   (println "=== Dacite cards (value) ===")
   (println)
-  (with-open [lmdb (store/lmdb-store default-lmdb-path)]
-    (let [game-ref (make-game-ref lmdb)
-          had-root? (some? (v/deref game-ref))
-          game0 (load-or-init-game! game-ref)]
-      (println (if had-root?
-                 "Resumed game:"
-                 "New game:")
-               (pr-str (show-game game0)))
+  (let [game-ref (v/root (store/lmdb default-lmdb-path))
+        had-root? (some? (v/deref game-ref))
+        game0 (load-or-init-game! game-ref)]
+    (println (if had-root?
+               "Resumed game:"
+               "New game:")
+             (pr-str (show-game game0)))
+    (println)
+    (let [final-game
+          (loop [game game0
+                 round 1]
+            (cond
+              (zero? (deck-size game))
+              (do
+                (println "Deck empty.")
+                game)
+
+              (> round 5)
+              (do
+                (println "Stopped after 5 rounds.")
+                game)
+
+              :else
+              (let [game' (commit-game! game-ref (draw-round game))]
+                (println (str "Round " round ":")
+                         (pr-str (show-game game')))
+                (recur game' (inc round)))))]
       (println)
-      (let [final-game
-            (loop [game game0
-                   round 1]
-              (cond
-                (zero? (deck-size game))
-                (do
-                  (println "Deck empty.")
-                  game)
-
-                (> round 5)
-                (do
-                  (println "Stopped after 5 rounds.")
-                  game)
-
-                :else
-                (let [game' (commit-game! game-ref (draw-round game))]
-                  (println (str "Round " round ":")
-                           (pr-str (show-game game')))
-                  (recur game' (inc round)))))]
-        (println)
-        (println "Final state:" (pr-str (show-game final-game)))))))
+      (println "Final state:" (pr-str (show-game final-game))))))
 
 (comment
   ;; Primary entry point: clojure -M:cards (from impl/clojure)
-  (with-open [lmdb (store/lmdb-store default-lmdb-path)]
-    (let [game-ref (make-game-ref lmdb)
-          game (-> (load-or-init-game! game-ref)
-                   (draw-card "player-1")
-                   (draw-card "player-2"))]
-      (commit-game! game-ref game)
-      (show-game game))))
+  (let [game-ref (v/root (store/lmdb default-lmdb-path))
+        game (-> (load-or-init-game! game-ref)
+                 (draw-card "player-1")
+                 (draw-card "player-2"))]
+    (commit-game! game-ref game)
+    (show-game game)))

@@ -1,7 +1,7 @@
 (ns dacite.examples.todo
   "Portable todo demo — two concerns, deliberately separated:
 
-   **Values** — domain ops, seed data, root-ref swap/reset. Uses only
+   **Values** — domain ops, seed data, root swap/CAS. Uses only
    `dacite.value` (no IStore plumbing in domain fns).
 
    **Store** — open and configure the durable (or remote) store: path, reset,
@@ -24,19 +24,14 @@
    Run (interactive nbb):
      npm run todo"
   (:require [dacite.store :as store]
-            [dacite.value :as v]
-            ;; Host file backend: nbb uses store.nbb; JVM/bb use store.file
-            ;; (re-exported as store/file-store on JVM). Pure browser: no file.
-            #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]]
-                :cljs []
-                :default [])))
+            [dacite.value :as v]))
 
 ;; =============================================================================
 ;; Values
 ;;
 ;; Todo list is a Dacite vector of maps {"title" string, "done" bool}.
-;; Domain ops take/return values; new nodes go into the peer value's store
-;; via *-via / collection ops. Root access uses a value-level root-ref.
+;; Domain ops take/return values; new nodes go into the peer value's store.
+;; Root access uses `v/root`.
 ;; =============================================================================
 
 (defn todo-entry?
@@ -98,7 +93,7 @@
    ["durable todo root" false]])
 
 (defn build
-  "Build a todos vector relative to `peer` (value, root-ref, or IStore)
+  "Build a todos vector relative to `peer` (store, root, or value)
    from a seq of [title done?] pairs."
   [peer items]
   (reduce (fn [todos [title done?]] (add-todo todos title done?))
@@ -123,9 +118,9 @@
   (v/hash todos))
 
 (defn load-or-seed!
-  "Load todos from a value-level root-ref, or seed sample data and commit.
+  "Load todos from a root, or seed sample data and commit.
 
-   `todos-ref` is a `dacite.value/root-ref`. Returns [todos seeded?]."
+   `todos-ref` is a `v/root`. Returns [todos seeded?]."
   [todos-ref]
   (if-let [prior (v/deref todos-ref)]
     [prior false]
@@ -161,42 +156,16 @@
   "Default directory for sharded content + ROOT file."
   "target/dacite-todo")
 
-#?(:org.babashka/nbb
-   (defn open-store
-     "Open a durable rooted store at path (Node file store + ROOT)."
-     [path]
-     (store/rooted-store (host-store/file-store path)
-                         (store/file-root-cell path)))
-   :cljs
-   (defn open-store
-     "Not available in the browser — wire an HTTP store in todo-web."
-     [_path]
-     (throw (js/Error. "todo/open-store is for JVM/nbb file backends only")))
-   :default
-   (defn open-store
-     "Open a durable rooted store at path (file content + ROOT cell)."
-     [path]
-     (store/rooted-store (store/file-store path)
-                         (store/file-root-cell path))))
+(defn open-store
+  "Open a durable rooted file store at path. Browser todo uses todo-web."
+  [path]
+  (store/file path))
 
-#?(:org.babashka/nbb
-   (defn reset-store-dir!
-     "Wipe content + root under path (demo --reset)."
-     [path]
-     (let [content (host-store/file-store path)]
-       (store/s-reset content)
-       (store/rc-put! (store/file-root-cell path) nil)
-       nil))
-   :cljs
-   (defn reset-store-dir! [_path] nil)
-   :default
-   (defn reset-store-dir!
-     "Wipe content + root under path (demo --reset). No domain knowledge."
-     [path]
-     (let [content (store/file-store path)]
-       (store/s-reset content)
-       (store/rc-put! (store/file-root-cell path) nil)
-       nil)))
+(defn reset-store-dir!
+  "Wipe content + root under path (demo --reset)."
+  [path]
+  (store/file path {:reset true})
+  nil)
 
 (defn parse-args
   "CLI store options: [path] [--reset|-r]. Defaults path to default-path."

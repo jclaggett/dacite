@@ -22,7 +22,7 @@ fi
 
 echo "Computing canonical root hash on each host..."
 
-jvm_hex="$(clojure -Sdeps '{:paths ["impl/clojure/src" "examples"]}' \
+jvm_hex="$(clojure -Sdeps '{:paths ["impl/clojure/src"]}' \
   -M -e "(require (quote dacite.examples.parity))(println (dacite.examples.parity/canonical-hex))" \
   2>/dev/null | tail -1)"
 echo "  JVM      : $jvm_hex"

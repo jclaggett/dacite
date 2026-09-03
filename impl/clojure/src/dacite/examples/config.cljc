@@ -17,18 +17,14 @@
      npx nbb -m dacite.examples.config -- --lmdb show"
   (:require [clojure.string :as str]
             [dacite.store :as store]
-            [dacite.value :as v]
-            #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]
-                                   [dacite.store.nbb.lmdb :as lmdb]]
-                :cljs []
-                :default [[clojure.java.io :as io]])))
+            [dacite.value :as v]))
 
 ;; =============================================================================
 ;; Values
 ;; =============================================================================
 
 (defn default-config
-  "Seed config relative to `peer` (value, root-ref, or IStore)."
+  "Seed config relative to `peer` (store, root, or value)."
   [peer]
   (v/map peer
          "theme" "dark"
@@ -36,10 +32,10 @@
          "features" (v/vector peer "a" "b")))
 
 (defn load-or-seed!
-  "Load config from a value-level root-ref, or CAS-seed defaults.
+  "Load config from a root, or CAS-seed defaults from nil.
 
-   Uses `ref-cas!` from nil (not `ref-reset!`) so the same code works
-   against a remote store. Returns [config seeded?]."
+   Seed with `cas!` so the same code works against a remote store.
+   Returns [config seeded?]."
   [cfg-ref]
   (if-let [prior (v/deref cfg-ref)]
     [prior false]
@@ -84,7 +80,7 @@
   (v/hash cfg))
 
 (defn render
-  "Plain-text listing. Field access via native/as-str — not dac->clj."
+  "Plain-text listing. Field access via native — not a tree dump."
   [cfg]
   (let [fs (or (v/seq (features cfg)) ())]
     (str "theme:    " (theme cfg) "\n"
@@ -93,7 +89,7 @@
          "root:     " (store/hash->hex (config-hash cfg)) "\n")))
 
 (defn render-field
-  "Print one path: scalars/strings via native/as-str; collections as a listing."
+  "Print one path: scalars/strings via native; collections as a listing."
   [cfg ks]
   (let [x (get-path cfg ks)]
     (cond
@@ -113,85 +109,33 @@
   "Default directory for sharded content + ROOT file."
   "target/dacite-config")
 
-#?(:org.babashka/nbb
-   (defn open-file
-     [path]
-     (store/rooted-store (host-store/file-store path)
-                         (store/file-root-cell path)))
-   :cljs
-   (defn open-file
-     [_path]
-     (throw (js/Error. "config/open-file is for JVM/nbb file backends only")))
-   :default
-   (defn open-file
-     [path]
-     (store/rooted-store (store/file-store path)
-                         (store/file-root-cell path))))
-
-#?(:clj
-   (defn open-remote
-     "HTTP remote + server root. Same `v/root` as a local file store."
-     [url]
-     (store/remote-rooted-store url))
-   :default
-   (defn open-remote
-     [_url]
-     (throw (ex-info "remote config store is JVM-only (java.net.http)" {}))))
-
 (defn open-mem
   "Ephemeral rooted store (tests, REPL)."
   []
-  (store/rooted-store (store/mem-store)))
+  (store/mem))
 
-#?(:org.babashka/nbb
-   (defn reset-store-dir!
-     [path]
-     (let [content (host-store/file-store path)]
-       (store/s-reset content)
-       (store/rc-put! (store/file-root-cell path) nil)
-       nil))
-   :cljs
-   (defn reset-store-dir! [_path] nil)
-   :default
-   (defn reset-store-dir!
-     [path]
-     (let [content (store/file-store path)]
-       (store/s-reset content)
-       (store/rc-put! (store/file-root-cell path) nil)
-       nil)))
+(defn open-file
+  [path]
+  (store/file path))
 
-#?(:org.babashka/nbb
-   (defn open-lmdb
-     [path]
-     (let [st (lmdb/lmdb-store path)]
-       (store/rooted-store st (lmdb/lmdb-root-cell st))))
-   :clj
-   (defn open-lmdb
-     [path]
-     (let [st (store/lmdb-store path)]
-       (store/rooted-store st (store/lmdb-root-cell st))))
-   :default
-   (defn open-lmdb
-     [_path]
-     (throw (ex-info "LMDB is nbb or JVM only" {}))))
+(defn open-remote
+  "HTTP remote + server root. Same `v/root` as a local file store."
+  [url]
+  (store/remote url))
 
-#?(:org.babashka/nbb
-   (defn reset-lmdb-dir!
-     [path]
-     (let [fs (js/require "fs")]
-       (when (.existsSync fs path)
-         (.rmSync fs path #js {:recursive true :force true}))
-       nil))
-   :clj
-   (defn reset-lmdb-dir!
-     [path]
-     (let [dir (io/file path)]
-       (when (.exists dir)
-         (doseq [f (reverse (file-seq dir))]
-           (.delete ^java.io.File f)))
-       nil))
-   :default
-   (defn reset-lmdb-dir! [_path] nil))
+(defn open-lmdb
+  [path]
+  (store/lmdb path))
+
+(defn reset-store-dir!
+  [path]
+  (store/file path {:reset true})
+  nil)
+
+(defn reset-lmdb-dir!
+  [path]
+  (store/lmdb path {:reset true})
+  nil)
 
 (defn local-path
   "Directory for the local store. `--lmdb` without `--path` uses `<default>-lmdb`."

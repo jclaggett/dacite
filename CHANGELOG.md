@@ -16,8 +16,13 @@ stability promise: public APIs may still change before 1.0.
   `v/add-watch`. Dropped `ref-` prefix and `ref-reset!`.
 - Dropped `v/as-str` (use `v/native`). `dac->clj` / `clj->dac` stay on
   `dacite.convert`, not `dacite.value`.
-- Application stores are rooted: `s/mem`, `s/file`, `s/remote`. Apps should
-  not call `IStore` (`s-get`, `s-snapshot`, …).
+- Application stores are rooted: `s/mem`, `s/file`, `s/lmdb`, `s/remote`.
+  Apps should not call `IStore` (`s-get`, `s-snapshot`, …).
+- Removed `dacite.core` and the `dacite.value.api` alias. Require
+  `dacite.value` + `dacite.store` only.
+- Examples live in `impl/clojure/src/dacite/examples/` (compiled and tested
+  with the library). They open stores with `s/mem` / `s/file` / `s/lmdb` /
+  `s/remote`.
 
 ### Documentation
 

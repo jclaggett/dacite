@@ -23,7 +23,7 @@ the old ones. Laziness is natural: you only need the nodes you access.
 
 ```clojure
 (require '[dacite.value :as v]
-         '[dacite.store :as store])
+         '[dacite.store :as s])
 ```
 
 ---
@@ -84,10 +84,10 @@ First argument is always a Dacite value:
 | Function | Role |
 |----------|------|
 | `dacite-value?` | Predicate |
-| `value-type` / `dacite-type` | Type name string |
+| `type` | Type name string |
 | `realize` | Host content |
-| `dacite-hash` | Content hash |
-| `get-value` | Rehydrate hash from store → value (`[h]` or `[st h]`) |
+| `hash` | Content hash |
+| `get-value` | Rehydrate hash from store → value (`[st h]`) |
 | `count` | Element/entry count, O(1) |
 | `empty?` | Zero elements? |
 | `seq` | Elements or map entries as wrapped values |
@@ -110,7 +110,7 @@ First argument is always a Dacite value:
 Example:
 
 ```clojure
-(let [st (store/mem-store)
+(let [st (s/mem)
       vec (v/vector st 10 20 30)
       v2  (v/conj vec 40)]
   [(v/count vec) (v/count v2)
@@ -124,8 +124,8 @@ Example:
 
 - Two values with the same type and content have the **same hash** on every
   host (see `bin/hash-parity.sh`).
-- Print / log hashes with `(store/hash->hex h)` and parse with
-  `(store/hex->hash s)`.
+- Print / log hashes with `(s/hash->hex h)` and parse with
+  `(s/hex->hash s)`.
 
 ---
 
@@ -136,8 +136,7 @@ Example:
 | Finger-tree / HAMT node types | Internal store entries |
 | Wire codecs | `dacite.wire` / `dacite.wire.binary` |
 | `dacite.value.types` / `.scalar` / `.collections` | Implementation |
-| `dacite.value.api` | Deprecated alias of this namespace |
-| `dacite.core` | Deprecated convenience re-export |
+| `dacite.convert` | JVM test hatch (`dac->clj` / `clj->dac`), not app code |
 
 ---
 

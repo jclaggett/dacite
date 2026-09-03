@@ -130,7 +130,7 @@
 (def set-difference coll/set-difference)
 
 ;; =============================================================================
-;; Collection API (from former dacite.value.api)
+;; Collection API
 ;; =============================================================================
 
 (defn count
@@ -431,12 +431,3 @@
 (def add-watch  root-ref/ref-add-watch)
 (def remove-watch root-ref/ref-remove-watch)
 
-;; =============================================================================
-;; Store isolation (thin sugar)
-;; =============================================================================
-
-(defmacro with-store
-  "Execute body with an isolated store. init can be an IStore or a map
-   (wrapped in a mem-store). Returns [snapshot last-value]."
-  [[sym init] & body]
-  `(store/with-store [~sym ~init] ~@body))

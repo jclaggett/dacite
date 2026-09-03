@@ -1,7 +1,7 @@
 # Browse without dumping
 
 You want to see the current root as **typed values**, expand a collection,
-and not download the whole tree. Dacite’s move: walk with `value-type`,
+and not download the whole tree. Dacite’s move: walk with `v/type`,
 `count`, `nth`, paged `seq`; never `dac->clj`. HTTP `GET /node` returns a
 packed neighborhood; the UI then walks values locally.
 
@@ -30,7 +30,7 @@ so paging is forced. An existing root (notes, event log, sync, todo) is
 left alone.
 
 Domain code lives in `dacite.examples.explorer` and uses only
-`dacite.value`: `value-type`, `count`, `nth`, paged `seq`, lazy
+`dacite.value`: `type`, `count`, `nth`, paged `seq`, lazy
 `realize` prefixes for strings/blobs. It never calls `dac->clj`.
 
 The browser store is the same as the todo demo: write-back cache plus

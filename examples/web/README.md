@@ -155,6 +155,6 @@ Browser: `open-store` (HTTP + `:write-back`) → `load-or-seed!` (CAS) → same 
 | Browser remote store | `impl/clojure/src/dacite/store/browser.cljs` |
 | JVM remote store | `impl/clojure/src/dacite/store/remote.clj` |
 | Wire EDN | `impl/clojure/src/dacite/wire.cljc` |
-| Todo Values + file Store | `examples/dacite/examples/todo.cljc` |
-| Web UI (Store + Values + DOM) | `examples/dacite/examples/todo_web.cljs` |
-| nbb interactive UI | `examples/dacite/examples/todo_ui.cljs` |
+| Todo Values + file Store | `impl/clojure/src/dacite/examples/todo.cljc` |
+| Web UI (Store + Values + DOM) | `impl/clojure/src/dacite/examples/todo_web.cljs` |
+| nbb interactive UI | `impl/clojure/src/dacite/examples/todo_ui.cljs` |

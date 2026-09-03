@@ -26,11 +26,7 @@
      npx nbb -m dacite.examples.notes -- --lmdb show"
   (:require [clojure.string :as str]
             [dacite.store :as store]
-            [dacite.value :as v]
-            #?@(:org.babashka/nbb [[dacite.store.nbb :as host-store]
-                                   [dacite.store.nbb.lmdb :as lmdb]]
-                :cljs []
-                :default [[clojure.java.io :as io]])))
+            [dacite.value :as v]))
 
 ;; =============================================================================
 ;; Values
@@ -63,7 +59,7 @@
          "history" (v/vector peer)))
 
 (defn load-or-seed!
-  "Load notebook from a root-ref, or CAS-seed defaults. Returns [nb seeded?]."
+  "Load notebook from a root, or CAS-seed defaults. Returns [nb seeded?]."
   [nb-ref]
   (if-let [prior (v/deref nb-ref)]
     [prior false]
@@ -249,83 +245,20 @@
 (def default-path
   "target/dacite-notes")
 
-#?(:org.babashka/nbb
-   (defn open-file
-     [path]
-     (store/rooted-store (host-store/file-store path)
-                         (store/file-root-cell path)))
-   :cljs
-   (defn open-file
-     [_path]
-     (throw (js/Error. "notes/open-file is for JVM/nbb file backends only")))
-   :default
-   (defn open-file
-     [path]
-     (store/rooted-store (store/file-store path)
-                         (store/file-root-cell path))))
+(defn open-mem [] (store/mem))
+(defn open-file [path] (store/file path))
+(defn open-remote [url] (store/remote url))
+(defn open-lmdb [path] (store/lmdb path))
 
-#?(:clj
-   (defn open-remote
-     [url]
-     (store/remote-rooted-store url))
-   :default
-   (defn open-remote
-     [_url]
-     (throw (ex-info "remote notes store is JVM-only (java.net.http)" {}))))
+(defn reset-store-dir!
+  [path]
+  (store/file path {:reset true})
+  nil)
 
-(defn open-mem
-  []
-  (store/rooted-store (store/mem-store)))
-
-#?(:org.babashka/nbb
-   (defn reset-store-dir!
-     [path]
-     (let [content (host-store/file-store path)]
-       (store/s-reset content)
-       (store/rc-put! (store/file-root-cell path) nil)
-       nil))
-   :cljs
-   (defn reset-store-dir! [_path] nil)
-   :default
-   (defn reset-store-dir!
-     [path]
-     (let [content (store/file-store path)]
-       (store/s-reset content)
-       (store/rc-put! (store/file-root-cell path) nil)
-       nil)))
-
-#?(:org.babashka/nbb
-   (defn open-lmdb
-     [path]
-     (let [st (lmdb/lmdb-store path)]
-       (store/rooted-store st (lmdb/lmdb-root-cell st))))
-   :clj
-   (defn open-lmdb
-     [path]
-     (let [st (store/lmdb-store path)]
-       (store/rooted-store st (store/lmdb-root-cell st))))
-   :default
-   (defn open-lmdb
-     [_path]
-     (throw (ex-info "LMDB is nbb or JVM only" {}))))
-
-#?(:org.babashka/nbb
-   (defn reset-lmdb-dir!
-     [path]
-     (let [fs (js/require "fs")]
-       (when (.existsSync fs path)
-         (.rmSync fs path #js {:recursive true :force true}))
-       nil))
-   :clj
-   (defn reset-lmdb-dir!
-     [path]
-     (let [dir (io/file path)]
-       (when (.exists dir)
-         (doseq [f (reverse (file-seq dir))]
-           (.delete ^java.io.File f)))
-       nil))
-   :default
-   (defn reset-lmdb-dir! [_path] nil))
+(defn reset-lmdb-dir!
+  [path]
+  (store/lmdb path {:reset true})
+  nil)
 
 (defn local-path
   [{:keys [lmdb? path]}]

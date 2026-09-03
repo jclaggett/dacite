@@ -40,8 +40,8 @@
   (let [rooted (svc/make-demo-rooted)
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
     (try
-      (let [writer (v/root (store/remote-rooted-store base-url))
-            reader (v/root (store/remote-rooted-store base-url))]
+      (let [writer (v/root (store/remote base-url))
+            reader (v/root (store/remote base-url))]
         (is (nil? (v/deref writer)))
         (let [[seeded seeded?] (cfg/load-or-seed! writer)]
           (is (true? seeded?))

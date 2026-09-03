@@ -11,7 +11,7 @@
    Portable core: the value protocol, encodings (via dacite.host), and
    coercions work on every host. The native clojure.lang.* interfaces
    (hasheq/equals/toString) are a JVM-only adapter guarded by reader
-   conditionals; SCI hosts use dacite.value.api for equality etc."
+   conditionals; SCI hosts use dacite.value for equality etc."
   (:require [dacite.host :as host]
             [dacite.store :as store]
             [dacite.value.types :as types]

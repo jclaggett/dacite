@@ -18,7 +18,7 @@
    finger-tree / HAMT cores. The native clojure.lang.* collection
    interfaces (so plain get/conj/nth/count work on the JVM) are a JVM-only
    adapter guarded with reader conditionals. SCI hosts use the functional
-   surface in dacite.value.api, which calls the portable operation fns
+   surface in dacite.value, which calls the portable operation fns
    defined here."
   (:refer-clojure :exclude [vector hash-map])
   (:require [dacite.store :as store]
@@ -94,7 +94,7 @@
   (map #(types/realize (wrap-hash store %)) hs))
 
 ;; =============================================================================
-;; Portable operations (the basis of dacite.value.api; the JVM native
+;; Portable operations (the basis of dacite.value; the JVM native
 ;; collection interfaces below mirror these with host-idiomatic exceptions).
 ;; =============================================================================
 

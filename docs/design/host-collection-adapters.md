@@ -17,10 +17,10 @@ language’s normal collection dispatch:
 |------|-----------|
 | JVM Clojure | `clojure.lang.*` interfaces on `deftype` |
 | Compiled ClojureScript | `cljs.core` protocols on the same deftypes |
-| SCI (babashka, nbb) | **No adapter** — use `dacite.value.api` |
+| SCI (babashka, nbb) | **No adapter** — use `dacite.value` |
 | Future ports (Python, C, …) | Language-native adapters later; not this doc |
 
-The **canonical, portable surface** remains `dacite.value.api` (and the same
+The **canonical, portable surface** remains `dacite.value` (and the same
 operations under other language names). Adapters are **host sugar**: one
 implementation of behavior, multiple entry points.
 
@@ -56,7 +56,7 @@ implementation of behavior, multiple entry points.
   transients, every `IKVReduce` / transducer edge case).
 - Promising that `(conj dacite-vec x)` works under **SCI** (babashka, nbb)
   without a separate, evidence-based spike.
-- Replacing or deprecating `dacite.value.api`.
+- Replacing or deprecating `dacite.value`.
 - Cross-language adapters (Python `Sequence`, etc.) — same *idea*, later
   docs.
 
@@ -208,7 +208,7 @@ Land design + link from portable-core. No behavior change required.
 
 - Fill clear gaps (e.g. `IPersistentSet` / `disjoin` for sets if straightforward).
 - Tests: for each op, native core fn on Dacite value **agrees with**
-  `dacite.value.api` (same content hash of result, same store).
+  `dacite.value` (same content hash of result, same store).
 - Document equality and “elements are Dacite wrappers” in the book or
   API docstrings.
 - Keep `:bb []` exclusion unless a dedicated SCI spike says otherwise.
@@ -235,7 +235,7 @@ Land design + link from portable-core. No behavior change required.
 
 | Code style | When |
 |------------|------|
-| `d/conj`, `d/get`, … | Portable examples (todo), SCI, any code shared across hosts |
+| `v/conj`, `v/get`, … | Portable examples (todo), SCI, any code shared across hosts |
 | `(conj v x)`, `(get m k)` | JVM-only or compiled-CLJS-only modules, after Phase 1/2 tests |
 
 Apps must still handle **store affinity**: plain data conj’d onto a Dacite

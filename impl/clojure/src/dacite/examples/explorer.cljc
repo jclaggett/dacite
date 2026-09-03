@@ -223,7 +223,7 @@
     @acc))
 
 (defn gallery-via
-  "Type-coverage map relative to `peer` (value, root-ref, or IStore)."
+  "Type-coverage map relative to `peer` (store, root, or value)."
   [peer]
   (let [vk (v/vector peer "nested" "key")
         inner (v/map peer "k" "v")
@@ -263,9 +263,8 @@
 (defn load-or-seed!
   "Load the current root, or CAS-seed the type gallery from nil.
 
-   Uses `ref-cas!` (not `ref-reset!`) so the same code works against a
-   remote store. An existing root is never overwritten. Returns
-   [value seeded?]."
+   Seed with `cas!` so the same code works against a remote store.
+   An existing root is never overwritten. Returns [value seeded?]."
   [root-ref]
   (if-let [prior (v/deref root-ref)]
     [prior false]
@@ -278,13 +277,7 @@
 ;; Store
 ;; =============================================================================
 
-#?(:cljs
-   (defn open-mem
-     "Not available in the browser — wire an HTTP store in explorer-web."
-     []
-     (throw (js/Error. "explorer/open-mem is for JVM tests")))
-   :default
-   (defn open-mem
-     "In-memory rooted store for tests and REPL."
-     []
-     (store/rooted-store (store/mem-store))))
+(defn open-mem
+  "In-memory rooted store for tests and REPL. Browser uses explorer-web."
+  []
+  (store/mem))
