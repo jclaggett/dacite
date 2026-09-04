@@ -60,6 +60,15 @@
                     "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
          :main-opts ["-m" "dacite.examples.sync"]}
 
+  ;; Public-domain library: sets are tables, title index is a vector
+  ;;   clojure -M:library -- --reset shelf
+  ;;   clojure -M:library -- toc
+  ;;   clojure -M:library -- read --chapter 1 --page 0
+  ;;   clojure -M:library -- bench
+  :library {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
+                       "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
+            :main-opts ["-m" "dacite.examples.library"]}
+
   ;; HTTP service + static todo web UI
   ;;   cd impl/clojure && clojure -M:service
   ;;   clojure -M:service --port 8080 --store mem

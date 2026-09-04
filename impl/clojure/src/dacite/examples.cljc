@@ -15,4 +15,5 @@
    | dacite.examples.sync         | tree of blobs                    |
    | dacite.examples.todo         | Values / Store split             |
    | dacite.examples.explorer     | walk without dumping             |
-   | dacite.examples.cards        | durable LMDB game                |")
+   | dacite.examples.cards        | durable LMDB game                |
+   | dacite.examples.library      | sets as tables, vectors as indexes |")

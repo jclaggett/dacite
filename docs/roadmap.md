@@ -1,10 +1,10 @@
 # Dacite Roadmap
 
-*Last updated: 2026-08-31*
+*Last updated: 2026-09-04*
 
 ## Current direction
 
-**Teach how to write programs, then wait for a real one.** The four layers
+**Teach how to write programs, then write a real one.** The four layers
 (content stores, hash fusion, values, rooted stores) plus pack transport and
 a demo HTTP service are an alpha vertical slice. Six claim-proving apps are
 shipped. The next work is not more store middleware and not a seventh demo.
@@ -13,8 +13,9 @@ It is:
 1. **Invert the book** so a reader learns a Dacite perspective on data and
    how to build an app, then optionally how the store works. See
    [The Dacite Book](book/).
-2. **Hold for a real app** — a program with a user who would notice if it
-   broke. Library work is pulled by that app.
+2. **Public-domain library** — a catalog someone would notice if it
+   broke. CLI is in `dacite.examples.library`; browser reader next.
+   Library work is pulled by that app.
 
 The README thesis is still unproven as *utility*:
 
@@ -189,6 +190,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, `v/root` |
 | [explorer](../impl/clojure/src/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
+| [library](../impl/clojure/src/dacite/examples/library.cljc) | Sets as tables, title index as vector, page via `slice` | Browser reader, EPUB zip ingest, extra indexes |
 
 Library-pain already visible in those apps (fix in the library, not with
 more helpers — **when an app pulls it**):
@@ -370,9 +372,9 @@ Remote config … value explorer                     ✓  (claim demos)
 Invert the book for app authors                    ✓
         → The Dacite way, anatomy, tutorials as
           patterns, cookbook, pack/HTTP as internals
-Hold for a real app                                ← current
-        → user who would notice; public API only;
-          measure the claim; tutorial from the app
+Public-domain library                              ← current
+        → catalog root (epubs/books sets, title index);
+          CLI shelf/toc/read/slice; browser reader next
 ```
 
 Do not invent “app 7” to fill the tree.

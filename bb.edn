@@ -15,6 +15,9 @@
   sync    {:doc "Run the directory/blob sync example (file store)"
            :requires ([dacite.examples.sync :as sync])
            :task (apply sync/-main *command-line-args*)}
+  library {:doc "Run the public-domain library example (file store)"
+           :requires ([dacite.examples.library :as library])
+           :task (apply library/-main *command-line-args*)}
   parity  {:doc "Print the canonical root hash (for cross-host parity)"
            :requires ([dacite.examples.parity :as parity])
            :task (apply parity/-main *command-line-args*)}}}

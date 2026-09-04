@@ -25,6 +25,9 @@ stability promise: public APIs may still change before 1.0.
   `s/remote`.
 - `v/slice` replaces `v/subvec`: `[start, end)` of a vector, string, or
   blob, same type, shared leaves.
+- **`dacite.examples.library`** — public-domain catalog: `epubs` / `books`
+  sets (tables), `indexes.title` vector (sorted records), a page is
+  `v/slice` of the reading string. Duplicate file ingest is identity.
 
 ### Documentation
 
