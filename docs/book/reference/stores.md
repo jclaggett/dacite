@@ -21,6 +21,11 @@ implementation. App wiring: [Anatomy](../building/anatomy.md) and
 (v/swap! r domain-update)
 ```
 
+`s/file` and `s/lmdb` persist **pack Layer-1 items** (budget 1024) on
+root commit, not every constructor node. Reopen hydrates literals on
+read. Raw `file-store` / `lmdb-store` remain exploded content
+dictionaries.
+
 Hashes are 4-word vectors (`[w0 w1 w2 w3]`). Helpers:
 
 ```clojure
@@ -51,7 +56,8 @@ by backends. Application code should not call it.
 content dictionary, not the way to write an app. Use `s/mem` / `s/file`
 and pass that context to constructors.
 
-nbb LMDB uses the same `data.mdb` layout as JVM (wire-v1 nodes). Prebuilt
+nbb LMDB uses the same `data.mdb` layout as JVM (wire-v1 node payloads or
+pack items). Prebuilt
 `lmdb` npm binaries are format v2 — rebuild with
 `LMDB_DATA_V1=true npm rebuild lmdb`.
 

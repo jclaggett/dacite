@@ -1,5 +1,5 @@
 (ns dacite.store.chunk-test
-  "Pack-literal durable layout — experiment, not the default store."
+  "Pack-literal durable layout — default for s/file and s/lmdb."
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is]]
             [dacite.examples.library :as lib]
@@ -7,6 +7,7 @@
             [dacite.store :as store]
             [dacite.store.chunk :as chunk]
             [dacite.store.file :as file]
+            [dacite.store.jvm :as jvm]
             [dacite.store.pack :as pack]
             [dacite.value :as v]))
 
@@ -132,4 +133,47 @@
       (finally
         (doseq [d [dir-e dir-c]
                 f (reverse (file-seq d))]
+          (.delete ^java.io.File f))))))
+
+(deftest app-file-store-flushes-pack-items-on-cas
+  (let [dir (io/file (str "target/dacite-chunk-app-file-" (System/nanoTime)))]
+    (try
+      (let [r (v/root (store/file (.getPath dir)))]
+        (lib/load-or-seed! r)
+        (is (= 48 (count (edn-files dir)))
+            "s/file persists pack items, not construction debris")
+        (let [r2 (v/root (store/file (.getPath dir)))
+              loaded (v/deref r2)
+              book (v/nth (lib/title-index loaded) 0)]
+          (is (true? (lib/library-root? loaded)))
+          (is (= lib/seed-title (lib/book-title book)))
+          (is (seq (lib/chapter-page book 0 0 40)))))
+      (finally
+        (doseq [f (reverse (file-seq dir))]
+          (.delete ^java.io.File f))))))
+
+(deftest app-lmdb-store-flushes-pack-items-on-cas
+  (let [dir (io/file (str "target/dacite-chunk-app-lmdb-" (System/nanoTime)))
+        path (.getPath dir)]
+    (.mkdirs dir)
+    (try
+      (let [rs (store/lmdb path)
+            inner (chunk/inner (:content rs))]
+        (try
+          (lib/load-or-seed! (v/root rs))
+          (is (= 48 (:entries (jvm/lmdb-db-stat inner))))
+          (finally
+            (store/lmdb-close inner))))
+      (let [rs2 (store/lmdb path)
+            inner2 (chunk/inner (:content rs2))]
+        (try
+          (let [loaded (v/deref (v/root rs2))
+                book (v/nth (lib/title-index loaded) 0)]
+            (is (true? (lib/library-root? loaded)))
+            (is (= lib/seed-title (lib/book-title book)))
+            (is (seq (lib/chapter-page book 0 0 40))))
+          (finally
+            (store/lmdb-close inner2))))
+      (finally
+        (doseq [f (reverse (file-seq dir))]
           (.delete ^java.io.File f))))))

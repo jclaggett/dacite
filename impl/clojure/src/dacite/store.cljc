@@ -355,8 +355,8 @@
        (requiring-resolve (symbol "dacite.store.jvm" (name sym))))
 
      (defn lmdb-store
-       "LMDB content store (JVM). Values are wire-v1 node payloads.
-        Not available on babashka (native LMDB)."
+       "LMDB content store (JVM). Values are wire-v1 node payloads or
+        pack Layer-1 items. Not available on babashka (native LMDB)."
        [& args]
        (apply (jvm-var 'lmdb-store) args))
 
@@ -415,10 +415,13 @@
 
 #?(:org.babashka/nbb
    (defn file
-     "File-backed rooted store. opts: {:reset true} wipes content and root."
+     "File-backed rooted store. Pack-literal inner; flush on root commit.
+      opts: {:reset true} wipes content and root."
      [path & [{:keys [reset]}]]
      (require 'dacite.store.nbb)
-     (let [content ((resolve 'dacite.store.nbb/file-store) path)
+     (require 'dacite.store.chunk)
+     (let [inner ((resolve 'dacite.store.nbb/file-store) path)
+           content ((resolve 'dacite.store.chunk/chunked) inner)
            cell ((nbb-rooted 'file-root-cell) path)]
        (when reset
          (s-reset content)
@@ -430,31 +433,39 @@
      (throw (js/Error. "store/file is not available in the browser")))
    :default
    (defn file
-     "File-backed rooted store. opts: {:reset true} wipes content and root."
+     "File-backed rooted store. Pack-literal inner; flush on root commit.
+      opts: {:reset true} wipes content and root."
      [path & [{:keys [reset]}]]
-     (let [content (file-store path)]
+     (let [inner (file-store path)
+           content ((requiring-resolve 'dacite.store.chunk/chunked) inner)
+           cell (file-root-cell path)]
        (when reset
          (s-reset content)
-         (rc-put! (file-root-cell path) nil))
-       (rooted-store content (file-root-cell path)))))
+         (rc-put! cell nil))
+       (rooted-store content cell))))
 
 #?(:org.babashka/nbb
    (defn lmdb
-     "LMDB rooted store. opts: {:reset true} wipes content and root."
+     "LMDB rooted store. Pack-literal inner; flush on root commit.
+      opts: {:reset true} wipes content and root."
      [path & [{:keys [reset]}]]
      (require 'dacite.store.nbb.lmdb)
-     (let [content ((resolve 'dacite.store.nbb.lmdb/lmdb-store) path)
-           cell ((resolve 'dacite.store.nbb.lmdb/lmdb-root-cell) content)]
+     (require 'dacite.store.chunk)
+     (let [inner ((resolve 'dacite.store.nbb.lmdb/lmdb-store) path)
+           content ((resolve 'dacite.store.chunk/chunked) inner)
+           cell ((resolve 'dacite.store.nbb.lmdb/lmdb-root-cell) inner)]
        (when reset
          (s-reset content)
          ((nbb-rooted 'rc-put!) cell nil))
        ((nbb-rooted 'rooted-store) content cell)))
    :clj
    (defn lmdb
-     "LMDB rooted store. opts: {:reset true} wipes content and root."
+     "LMDB rooted store. Pack-literal inner; flush on root commit.
+      opts: {:reset true} wipes content and root."
      [path & [{:keys [reset]}]]
-     (let [content (lmdb-store path)
-           cell (lmdb-root-cell content)]
+     (let [inner (lmdb-store path)
+           content ((requiring-resolve 'dacite.store.chunk/chunked) inner)
+           cell (lmdb-root-cell inner)]
        (when reset
          (s-reset content)
          (rc-put! cell nil))

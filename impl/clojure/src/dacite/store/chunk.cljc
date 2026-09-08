@@ -1,13 +1,14 @@
 (ns dacite.store.chunk
-  "Experimental durable layout: persist pack Layer-1 items instead of an
-   exploded tree.
+  "Durable layout: persist pack Layer-1 items instead of an exploded tree.
 
    Working overlay is a normal mem store (constructors, nth). Inner holds
    only `encode-reachable` items (literals and oversized nodes). `flush!`
-   from a root rewrites inner. `s-get` hydrates inner items into the overlay.
+   from a root writes those items additively then drops inner keys that
+   are not in the new set. `s-get` hydrates inner items into the overlay.
 
-   Not the default for file/LMDB/HTTP. Budget defaults to pack/default-budget
-   (1024)."
+   `s/file` and `s/lmdb` wrap this overlay; rooted commit flushes. Raw
+   `file-store` / `lmdb-store` stay exploded. Budget defaults to
+   pack/default-budget (1024)."
   (:require [dacite.store :as store]
             [dacite.store.pack :as pack]
             [dacite.rooted.gc :as gc]))
@@ -88,23 +89,54 @@
 (defn inner [cs] (:inner cs))
 (defn budget [cs] (:budget cs))
 
-(defn flush!
-  "Rewrite inner from overlay nodes reachable at `root-h`. Returns
-   {:items n :literals n :nodes n :covered n}."
+(defn chunked-store?
+  "True if `st` is a pack-literal overlay (the default s/file and s/lmdb content)."
+  [st]
+  (instance? ChunkedStore st))
+
+(defn put-reachable!
+  "Write pack items for `root-h` into inner without deleting extras.
+
+   Encodes via this store (hydrate on miss) so a reopen+edit still sees
+   literals that were never copied into the overlay. Returns
+   {:items :covered :keep}."
   [cs root-h]
-  (let [ov (overlay cs)
+  (let [b (budget cs)
+        {:keys [items covered]} (pack/encode-reachable cs root-h #{} b)
         in (inner cs)
-        b (budget cs)
-        {:keys [items covered]} (pack/encode-reachable ov root-h #{} b)
-        sum (pack/summarize-items items)]
-    (store/s-reset in)
+        keep (into #{} (map #(store/hex->hash (:hash %)) items))]
     (doseq [item items]
       (store/s-put in (store/hex->hash (:hash item)) item))
-    {:items (count items)
-     :literals (:literals sum)
-     :nodes (:nodes sum)
-     :covered (count covered)
+    {:items items
+     :covered covered
+     :keep keep
      :budget b}))
+
+(defn retain-inner!
+  "Delete inner keys not in `keep` (hash vectors)."
+  [cs keep]
+  (let [in (inner cs)
+        keep (into #{} (map gc/->hash keep))]
+    (doseq [k (keys (store/s-snapshot in))]
+      (let [h (gc/->hash k)]
+        (when-not (contains? keep h)
+          (store/s-delete in h))))
+    cs))
+
+(defn flush!
+  "Persist pack items for `root-h` and drop other inner keys. Returns
+   {:items n :literals n :nodes n :covered n}. No-op when root-h is nil."
+  [cs root-h]
+  (if (nil? root-h)
+    {:items 0 :literals 0 :nodes 0 :covered 0 :budget (budget cs)}
+    (let [{:keys [items covered keep budget]} (put-reachable! cs root-h)
+          sum (pack/summarize-items items)]
+      (retain-inner! cs keep)
+      {:items (count items)
+       :literals (:literals sum)
+       :nodes (:nodes sum)
+       :covered (count covered)
+       :budget budget})))
 
 (defn- edn-bytes
   [snap]

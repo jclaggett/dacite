@@ -16,6 +16,7 @@
    See docs/book/04-rooted-stores/chapter.md."
   (:require [dacite.rooted.gc :as gc]
             [dacite.store :as store]
+            [dacite.store.chunk :as chunk]
             [clojure.string :as str]
             ;; java.io on JVM + babashka (file-root-cell). LMDB root cells
             ;; live in dacite.store.jvm so this ns stays free of native deps.
@@ -120,8 +121,21 @@
                 :cljs (js/Error. "Invalid reference state")))))
   v)
 
+(defn- persist-chunked!
+  "Write pack items for `new` before the cell, then drop extras after.
+
+   Additive put first so a crash still leaves the previous inner tree.
+   Retain after the cell so a crash leaves debris, not a missing root."
+  [content new]
+  (when (and new (chunk/chunked-store? content))
+    (let [{:keys [keep]} (chunk/put-reachable! content new)]
+      keep)))
+
 (defn- commit! [this old new]
-  (rc-put! (:cell this) new)
+  (let [keep (persist-chunked! (:content this) new)]
+    (rc-put! (:cell this) new)
+    (when keep
+      (chunk/retain-inner! (:content this) keep)))
   (doseq [[k f] @(:watches this)]
     (f k this old new))
   new)

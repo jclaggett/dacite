@@ -1304,6 +1304,39 @@
   [item]
   (byte-len (encode-item (pack-item->wire-item item))))
 
+(defn- pack-item-map?
+  [v]
+  (and (map? v)
+       (contains? v :encoding)
+       (contains? v :hash)))
+
+(defn encode-store-value
+  "LMDB (and other binary inners): pack Layer-1 item as encode-item bytes,
+   otherwise a node payload."
+  [v]
+  (if (pack-item-map? v)
+    (encode-item (pack-item->wire-item v))
+    (encode-node-bytes v)))
+
+(defn decode-store-value
+  "Inverse of encode-store-value. Pack items are recognized when the
+   value looks like encode-item and the embedded hash equals `h` (the
+   LMDB key). Otherwise node payload. Old exploded LMDB envs still load."
+  [h bs]
+  (let [bs (as-wire-bytes bs)
+        looks-pack? (and (>= (byte-len bs) 37)
+                         (let [enc (bget bs 0)]
+                           (or (= enc enc-node) (= enc enc-literal))))]
+    (if-not looks-pack?
+      (decode-node-bytes bs)
+      (try
+        (let [edn (wire-item->pack-item (decode-item (wrap-bytes bs)))]
+          (if (= h (store/hex->hash (:hash edn)))
+            edn
+            (decode-node-bytes bs)))
+        (catch #?(:clj Throwable :cljs :default) _
+          (decode-node-bytes bs))))))
+
 (defn pack-chunk-wire-bytes
   "Sent size of a pack chunk envelope on wire-v1."
   [chunk]

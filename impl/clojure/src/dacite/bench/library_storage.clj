@@ -12,10 +12,10 @@
    LMDB used-bytes = content DBI page-size × (branch + leaf + overflow).
    data.mdb does not shrink on delete; gc-live-fresh is the fair LMDB size.
 
-   Chunked LMDB is not the default lmdb-store (node payloads only). This
-   bench writes pack items as wire-v1 encode-item bytes so used-pages are
-   real, then closes the env. Do not default file/LMDB to chunked from
-   these numbers alone.
+   Raw `lmdb-store` still stores node payloads. `s/lmdb` wraps a chunked
+   overlay and flushes pack `encode-item` bytes. This bench writes that
+   layout directly so used-pages are comparable without going through
+   `s/lmdb`.
 
      cd impl/clojure
      clojure -M:library-storage
@@ -325,8 +325,8 @@
          "    file snapshot includes construction debris and 64-hex filenames.\n"
          "    LMDB gc-live is in-place delete: used-pages drop, data.mdb does not.\n"
          "    LMDB gc-live-fresh is a new env of reachable exploded nodes.\n"
-         "    chunked LMDB writes pack encode-item bytes (not default lmdb-store).\n"
-         "    Do not default file/LMDB to chunked from the seed catalog alone.\n")))
+         "    chunked LMDB writes pack encode-item bytes (s/lmdb default layout).\n"
+         "    Raw file-store / lmdb-store stay exploded; s/file and s/lmdb flush on root commit.\n")))
 
 (defn- write-edn!
   [path suite]

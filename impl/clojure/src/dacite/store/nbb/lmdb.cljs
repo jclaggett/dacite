@@ -5,8 +5,8 @@
      data.mdb + lock.mdb
      named DBs \"dacite\" (nodes) and \"meta\" (root hashes)
 
-   Keys are 32-byte big-endian hashes. Values are wire-v1 **node
-   payloads** (dacite.wire.binary), not EDN and not chunk envelopes.
+   Keys are 32-byte big-endian hashes. Values are wire-v1 node payloads
+   or pack Layer-1 items (same dual codec as dacite.store.jvm).
 
    Requires the npm `lmdb` addon built for LMDB **data format v1**
    (lmdbjava 0.9.x). Prebuilt `lmdb` binaries are format v2 and cannot
@@ -50,10 +50,10 @@
   store/IStore
   (s-get [_ h]
     (when-let [buf (.get db (hash->buf h))]
-      (bin/decode-node-bytes buf)))
+      (bin/decode-store-value h buf)))
 
   (s-put [this h value]
-    (.putSync db (hash->buf h) (js/Buffer.from (bin/encode-node-bytes value)))
+    (.putSync db (hash->buf h) (js/Buffer.from (bin/encode-store-value value)))
     this)
 
   (s-has? [_ h]
@@ -73,7 +73,7 @@
             (let [e (.-value step)]
               (vswap! out assoc
                       (store/hash->hex (buf->hash (.-key e)))
-                      (bin/decode-node-bytes (.-value e))))
+                      (bin/decode-store-value (buf->hash (.-key e)) (.-value e))))
             (recur))))
       @out))
 
@@ -82,7 +82,7 @@
                       (fn []
                         (doseq [[h v] m]
                           (.putSync db (hash->buf h)
-                                    (js/Buffer.from (bin/encode-node-bytes v))))))
+                                    (js/Buffer.from (bin/encode-store-value v))))))
     this)
 
   (s-reset [this]

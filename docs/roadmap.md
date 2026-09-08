@@ -15,9 +15,9 @@ It is:
    [The Dacite Book](book/).
 2. **Public-domain library** — a catalog someone would notice if it
    broke. CLI and browser reader (`/app/library/`) in
-   `dacite.examples.library`. Storage chunking is **measured** on the
-   seed catalog (file + LMDB); not default. Next is the default-or-not
-   decision (more books if one seed is not enough), then EPUB ingest.
+   `dacite.examples.library`. Storage chunking is the **default** for
+   `s/file` and `s/lmdb` (pack-literal flush on root commit). Next
+   library-pulled work is EPUB ingest, extra indexes, upload form.
 
 The README thesis is still unproven as *utility*:
 
@@ -202,9 +202,8 @@ more helpers — **when an app pulls it**):
 - Browser todo commits at the hash/CAS level, not `v/root`
 - Sync XHR blocks the main thread
 - Seed catalog: ~7779 store entries after build, ~365 live, **48** pack
-  items at budget 1024 (`dacite.store.chunk` trial; not default). File
-  and LMDB size: see the storage table under *Pulled by the library
-  catalog*.
+  items at budget 1024 (`s/file` and `s/lmdb` default). File and LMDB
+  size: see the storage table under *Pulled by the library catalog*.
 
 ---
 
@@ -345,10 +344,10 @@ is the next milestone.
 
 | Gap | Why | Status |
 |---|---|---|
-| Pack literals as durable layout | Exploded FT/HAMT + construction debris dwarf the catalog | Trial: `dacite.store.chunk` (overlay + `flush!` at 1024). Not default |
+| Pack literals as durable layout | Exploded FT/HAMT + construction debris dwarf the catalog | **Done** — `dacite.store.chunk`; `s/file` and `s/lmdb` flush on root commit. Raw `file-store` / `lmdb-store` stay exploded |
 | File + LMDB size benchmarks | EDN file 380× is debris + hex names, not LMDB pages | **Done** — `dacite.bench.library-storage` (seed catalog, budget 1024). See table below |
-| GC on flush / drop build spines | `conj-right` leaves every intermediate node | Bench: LMDB snapshot used-pages is **22×** a fresh live copy; in-place GC does not shrink `data.mdb`. Still deferred as a product change |
-| Default chunked file/LMDB | Only if benchmarks hold for real books, not just the seed | **Next** — seed catalog is ~16× vs live; do not default yet |
+| GC on flush / drop build spines | `conj-right` leaves every intermediate node | Overlay still holds construction debris in RAM; inner is pack items. Deferred as a product change |
+| Default chunked file/LMDB | Only if benchmarks hold for real books, not just the seed | **Done** — seed catalog ~16× vs live; defaulted |
 
 Seed catalog, budget 1024 (`clojure -M:library-storage`):
 
@@ -362,7 +361,7 @@ Seed catalog, budget 1024 (`clojure -M:library-storage`):
 | gc-live-fresh | lmdb | 365 | 140,015 | 442,368 | 245,760 |
 | chunked | lmdb | 48 | 8,654 | 131,072 | 16,384 |
 
-Fair live-vs-chunked: file data **16.23×**, LMDB used-pages **15.00×**, wire **16.18×**. File snapshot/chunked **378.50×** is debris + hex names. LMDB chunked writes pack `encode-item` bytes (not the default node-payload `lmdb-store`).
+Fair live-vs-chunked: file data **16.23×**, LMDB used-pages **15.00×**, wire **16.18×**. File snapshot/chunked **378.50×** is debris + hex names. `s/lmdb` writes pack `encode-item` bytes; raw `lmdb-store` still accepts exploded node payloads.
 
 Infrastructure from the old Phase 2.5 list (pack as middleware polish, root
 slot, layered write policies, spec v0.5, GET `have`, remaining-budget skip)
@@ -403,12 +402,11 @@ Invert the book for app authors                    ✓
           patterns, cookbook, pack/HTTP as internals
 Public-domain library                              ✓ CLI + /app/library/
         → catalog root (epubs/books sets, title index)
-Storage: chunked durable layout                    ✓ measured (seed catalog)
+Storage: chunked durable layout                    ✓ s/file + s/lmdb default
         → ~16× vs GC-live on file data and LMDB used
-          pages; 380× is file snapshot debris. Not default.
-        → default or not (more books if one seed is
-          not enough)                              ← current
-Library next                                       EPUB ingest, extra indexes
+          pages; 380× is file snapshot debris.
+Library next                                       ← current
+        → EPUB ingest, extra indexes, upload form
 ```
 
 Do not invent “app 7” to fill the tree.

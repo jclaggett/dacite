@@ -29,14 +29,15 @@ stability promise: public APIs may still change before 1.0.
   sets (tables), `indexes.title` vector (sorted records), a page is
   `v/slice` of the reading string. Duplicate file ingest is identity.
   Browser reader at `/app/library/` (shelf → TOC → page).
-- **`dacite.store.chunk`** (experiment, not default) — persist pack Layer-1
-  items (`encode-reachable` at budget 1024) in an inner store; hydrate on
-  `s-get`. Seed catalog flushes to 48 entries vs ~365 live exploded.
+- **`dacite.store.chunk`** — persist pack Layer-1 items (`encode-reachable`
+  at budget 1024) in an inner store; hydrate on `s-get`. **Default for
+  `s/file` and `s/lmdb`:** constructors write an overlay; root commit
+  flushes pack items. Raw `file-store` / `lmdb-store` stay exploded.
+  Seed catalog flushes to 48 entries vs ~365 live exploded.
 - **`dacite.bench.library-storage`** — file + LMDB size of the seed catalog
   (`snapshot` / `gc-live` / pack-literal flush). Fair live-vs-chunked ratio
   is ~16× on file data and ~15× on LMDB used pages; the ~380× file figure
-  is snapshot debris + hex names. `clojure -M:library-storage`. Still not
-  the default for file/LMDB.
+  is snapshot debris + hex names. `clojure -M:library-storage`.
 
 ### Documentation
 

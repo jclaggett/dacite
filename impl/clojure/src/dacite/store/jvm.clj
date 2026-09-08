@@ -4,9 +4,9 @@
 
    On-disk layout (content DB):
      key   = 32-byte big-endian content hash
-     value = wire-v1 **node payload only** (dacite.wire.binary
-             encode-node-bytes / decode-node-bytes). No chunk envelope,
-             no literals.
+     value = wire-v1 node payload (encode-node-bytes) **or** a pack
+             Layer-1 item (encode-item) when the chunked overlay flushes.
+             Decode: pack item if the embedded hash equals the key.
 
    Root meta DB:
      key   = UTF-8 string (default \"root\")
@@ -82,14 +82,14 @@
     bs))
 
 (defn- entry->lmdb-val
-  "Serialize a store entry [type data] as wire-v1 node payload bytes."
-  ^ByteBuffer [entry]
-  (bytes->direct-bb (bin/encode-node-bytes entry)))
+  "Serialize a store entry or pack Layer-1 item as LMDB value bytes."
+  ^ByteBuffer [value]
+  (bytes->direct-bb (bin/encode-store-value value)))
 
 (defn- lmdb-val->entry
-  "Deserialize wire-v1 node payload bytes to a store entry."
-  [^ByteBuffer buf]
-  (bin/decode-node-bytes (bb->bytes buf)))
+  "Deserialize LMDB value bytes: pack item if the embedded hash is `h`."
+  [h ^ByteBuffer buf]
+  (bin/decode-store-value h (bb->bytes buf)))
 
 (defn- string-meta-key
   ^ByteBuffer [^String key]
@@ -105,7 +105,7 @@
   (s-get [_ h]
     (with-open [txn (.txnRead env)]
       (when-let [buf (.get db txn (hash->lmdb-key h))]
-        (lmdb-val->entry buf))))
+        (lmdb-val->entry h buf))))
 
   (s-put [this h value]
     (let [^ByteBuffer k (hash->lmdb-key h)
@@ -131,7 +131,7 @@
         (loop [result (transient {})]
           (if (.next cursor)
             (let [k (lmdb-key->hash (.key cursor))
-                  v (lmdb-val->entry (.val cursor))]
+                  v (lmdb-val->entry k (.val cursor))]
               (recur (assoc! result k v)))
             (persistent! result))))))
 

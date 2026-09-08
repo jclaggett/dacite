@@ -17,6 +17,7 @@
             [dacite.store :as store]
             [dacite.store.file :as file]
             [dacite.store.jvm :as jvm]
+            [dacite.store.chunk :as chunk]
             [dacite.store.pack :as pack]
             [dacite.rooted :as rs]
             [dacite.wire :as wire]
@@ -520,10 +521,14 @@
   (rs/rooted-store (store/mem-store) (rs/mem-root-cell)))
 
 (defn make-file-rooted
-  "File-backed content + file root cell under dir."
+  "File-backed content + file root cell under dir.
+
+   Inner layout is pack literals; constructors write an overlay and root
+   commit flushes."
   [dir]
   (let [path (str dir)]
-    (rs/rooted-store (file/file-store path) (rs/file-root-cell path))))
+    (rs/rooted-store (chunk/chunked (file/file-store path))
+                     (rs/file-root-cell path))))
 
 (def default-file-path
   "Default directory when CLI uses --store file without a path."
@@ -545,7 +550,7 @@
   (let [path (str (or dir default-lmdb-path))
         _ (.mkdirs (io/file path))
         st (jvm/lmdb-store path)]
-    {:rooted (rs/rooted-store st (jvm/lmdb-root-cell st))
+    {:rooted (rs/rooted-store (chunk/chunked st) (jvm/lmdb-root-cell st))
      :close! (fn [] (jvm/lmdb-close st))
      :backend :lmdb
      :path path}))
