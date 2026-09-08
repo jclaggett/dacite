@@ -32,6 +32,11 @@ stability promise: public APIs may still change before 1.0.
 - **`dacite.store.chunk`** (experiment, not default) — persist pack Layer-1
   items (`encode-reachable` at budget 1024) in an inner store; hydrate on
   `s-get`. Seed catalog flushes to 48 entries vs ~365 live exploded.
+- **`dacite.bench.library-storage`** — file + LMDB size of the seed catalog
+  (`snapshot` / `gc-live` / pack-literal flush). Fair live-vs-chunked ratio
+  is ~16× on file data and ~15× on LMDB used pages; the ~380× file figure
+  is snapshot debris + hex names. `clojure -M:library-storage`. Still not
+  the default for file/LMDB.
 
 ### Documentation
 

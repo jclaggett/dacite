@@ -208,6 +208,30 @@
   [store]
   (.close ^java.io.Closeable store))
 
+(defn lmdb-db-stat
+  "Page stats for the content DBI (not the env, not the meta db).
+
+   :used-bytes is page-size × (branch + leaf + overflow). That is the
+   occupied tree, not data.mdb length — deletes free pages in-place but
+   do not shrink the map file."
+  [store]
+  (let [^Env env (:env store)
+        ^Dbi db (:db store)
+        map-size (.-mapSize (.info env))]
+    (with-open [txn (.txnRead env)]
+      (let [st (.stat db txn)
+            ps (long (.-pageSize st))
+            branch (long (.-branchPages st))
+            leaf (long (.-leafPages st))
+            overflow (long (.-overflowPages st))]
+        {:page-size ps
+         :branch-pages branch
+         :leaf-pages leaf
+         :overflow-pages overflow
+         :entries (long (.-entries st))
+         :used-bytes (* ps (+ branch leaf overflow))
+         :map-size map-size}))))
+
 ;; =============================================================================
 ;; LMDB root cell (IRootCell) — kept here so dacite.rooted stays free of LMDB
 ;; =============================================================================

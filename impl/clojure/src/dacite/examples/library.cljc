@@ -8,7 +8,8 @@
 
    A record is {title, author, epub, text, source, license, chapters}.
    `epub` is the same blob as the set member (shared hash). `text` is the
-   linearized reading string; a page is `v/slice`, not a host dump.
+   linearized reading string. The shelf is `v/slice` of the title index;
+   a display page is `nth` of characters (slice would hash a new spine).
 
    **Store** — file-rooted or HTTP remote-rooted.
 
@@ -17,6 +18,7 @@
      clojure -M:library -- toc
      clojure -M:library -- read --chapter 1 --page 0
      clojure -M:library -- bench
+     clojure -M:library-storage
      clojure -M:library -- ingest --file book.txt --title T --author A
      bb library --reset shelf
      npx nbb -m dacite.examples.library -- --reset shelf
