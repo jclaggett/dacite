@@ -89,6 +89,11 @@
   ;;   cd impl/clojure && clojure -M:cljs-explorer
   :cljs-explorer {:extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}
                   :main-opts ["-e" "(require '[cljs.build.api :as b]) (b/build (b/inputs \"src\") {:main 'dacite.examples.explorer-web :output-to \"../../examples/web/explorer/js/main.js\" :output-dir \"../../examples/web/explorer/js/out\" :asset-path \"/app/explorer/js/out\" :optimizations :whitespace :pretty-print true}) (println \"Wrote examples/web/explorer/js/main.js\")"]}
+
+  ;; Compile library reader UI
+  ;;   cd impl/clojure && clojure -M:cljs-library
+  :cljs-library {:extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}
+                 :main-opts ["-e" "(require '[cljs.build.api :as b]) (b/build (b/inputs \"src\") {:main 'dacite.examples.library-web :output-to \"../../examples/web/library/js/main.js\" :output-dir \"../../examples/web/library/js/out\" :asset-path \"/app/library/js/out\" :optimizations :whitespace :pretty-print true}) (println \"Wrote examples/web/library/js/main.js\")"]}
   
   :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}}
           :ns-default build}

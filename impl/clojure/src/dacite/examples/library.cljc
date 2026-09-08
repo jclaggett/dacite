@@ -19,11 +19,14 @@
      clojure -M:library -- bench
      clojure -M:library -- ingest --file book.txt --title T --author A
      bb library --reset shelf
-     npx nbb -m dacite.examples.library -- --reset shelf"
+     npx nbb -m dacite.examples.library -- --reset shelf
+     clojure -M:cljs-library
+     clojure -M:service   ; then /app/library/"
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.value :as v]
-            #?(:clj [clojure.java.io :as io])))
+            #?(:clj [clojure.java.io :as io])
+            #?(:clj [dacite.store.chunk :as chunk])))
 
 ;; =============================================================================
 ;; Values
@@ -90,6 +93,20 @@ enough that slice and a full native are different amounts of work.
 (defn books-of [lib] (v/get lib "books"))
 (defn title-index [lib] (v/get-in lib ["indexes" "title"]))
 
+(defn library-root?
+  "True if x is a library catalog map (epubs + books sets, indexes map)."
+  [x]
+  (and (v/dacite-value? x)
+       (= "map" (v/type x))
+       (let [ep (v/get x "epubs")
+             bk (v/get x "books")
+             ix (v/get x "indexes")]
+         (boolean
+          (and ep bk ix
+               (= "set" (v/type ep))
+               (= "set" (v/type bk))
+               (= "map" (v/type ix)))))))
+
 (defn book-title [book] (or (v/native (v/get book "title")) ""))
 (defn book-author [book] (or (v/native (v/get book "author")) ""))
 (defn book-source [book] (or (v/native (v/get book "source")) ""))
@@ -99,12 +116,16 @@ enough that slice and a full native are different amounts of work.
 (defn book-chapters [book] (v/get book "chapters"))
 
 (defn- utf8-bytes
-  "UTF-8 code units as 0–255 ints."
+  "UTF-8 code units as 0–255 ints. Browser uses TextEncoder; nbb uses Buffer."
   [s]
-  #?(:cljs (let [buf (.from js/Buffer s "utf8")]
-             (mapv #(aget buf %) (range (.-length buf))))
-     :default (mapv #(Byte/toUnsignedInt %)
-                    (.getBytes ^String (str s) "UTF-8"))))
+  #?(:cljs
+     (let [u8 (if (exists? js/Buffer)
+                (.from js/Buffer s "utf8")
+                (.encode (js/TextEncoder.) s))]
+       (mapv #(aget u8 %) (range (.-length u8))))
+     :default
+     (mapv #(Byte/toUnsignedInt %)
+           (.getBytes ^String (str s) "UTF-8"))))
 
 (defn- utf8-string
   "Host string from `v/as-bytes` (byte array or 0–255 ints)."
@@ -115,9 +136,11 @@ enough that slice and a full native are different amounts of work.
                  (byte-array (map unchecked-byte bs)))]
        (String. ^bytes arr "UTF-8"))
      :cljs
-     (let [v (if (array? bs) (vec bs) (vec bs))
-           buf (js/Buffer.from (into-array v))]
-       (.toString buf "utf8"))))
+     (let [nums (vec bs)
+           arr (into-array nums)]
+       (if (exists? js/Buffer)
+         (.toString (js/Buffer.from arr) "utf8")
+         (.decode (js/TextDecoder.) (js/Uint8Array.from arr))))))
 
 (defn parse-chapters
   "Heading lines `CHAPTER …` / `Chapter …` → [{:title :start} …].
@@ -254,8 +277,30 @@ enough that slice and a full native are different amounts of work.
       (chapter-start book (inc i))
       text-n)))
 
+(defn- chars-window
+  "Host string of `text[start, end)` via nth. Does not build a new Dacite string."
+  [text start end]
+  (if (>= start end)
+    ""
+    #?(:clj
+       (let [sb (StringBuilder. (int (- end start)))]
+         (loop [i start]
+           (if (< i end)
+             (do (.append sb (str (v/native (v/nth text i))))
+                 (recur (inc i)))
+             (.toString sb))))
+       :cljs
+       (let [out #js []]
+         (loop [i start]
+           (if (< i end)
+             (do (.push out (str (v/native (v/nth text i))))
+                 (recur (inc i)))
+             (.join out "")))))))
+
 (defn page
-  "Host string for `text[start, start+n)`. Empty if start is past the end."
+  "Host string for `text[start, start+n)`. Empty if start is past the end.
+
+   Uses nth of each character — not slice (that would hash a new spine)."
   ([book start] (page book start default-page-size))
   ([book start n]
    (let [text (book-text book)
@@ -264,7 +309,21 @@ enough that slice and a full native are different amounts of work.
          end (min c (+ start (long n)))]
      (if (>= start c)
        ""
-       (v/native (v/slice text start end))))))
+       (chars-window text start end)))))
+
+(defn chapter-title
+  [book i]
+  (or (v/native (v/get (v/nth (book-chapters book) i) "title")) ""))
+
+(defn pages-in-chapter
+  "How many viewer pages fit in chapter `i` at `page-size`."
+  ([book i] (pages-in-chapter book i default-page-size))
+  ([book i page-size]
+   (let [len (max 0 (- (chapter-end book i) (chapter-start book i)))
+         sz (max 1 (long page-size))]
+     (if (zero? len)
+       1
+       (long (Math/ceil (/ (double len) sz)))))))
 
 (defn chapter-page
   "Page `page-n` (0-based) of chapter `chapter-i`."
@@ -303,6 +362,24 @@ enough that slice and a full native are different amounts of work.
   [x]
   (count (store/s-snapshot (v/dacite-store x))))
 
+#?(:clj
+   (defn- chunked-seed-stats
+     "Flush the seed catalog through a 1k chunked store (experiment)."
+     []
+     (let [cs (chunk/chunked (store/mem-store))
+           catalog (seed-library cs)
+           h (v/hash catalog)
+           debris (:entries (chunk/overlay-stats cs))
+           live (chunk/live-count cs h)
+           flushed (chunk/flush! cs h)
+           inner (chunk/inner-stats cs)]
+       {:overlay-debris debris
+        :live-exploded live
+        :chunked-entries (:entries inner)
+        :chunked-edn-bytes (:edn-bytes inner)
+        :chunked-literals (:literals flushed)
+        :chunked-nodes (:nodes flushed)})))
+
 (defn measure
   "Shelf vs one page vs whole text; second add-epub is identity."
   [lib]
@@ -311,13 +388,15 @@ enough that slice and a full native are different amounts of work.
         n (v/count text)
         pg (page book 0 default-page-size)
         lib2 (add-epub lib (book-epub book))]
-    {:text-chars n
-     :page-chars (count pg)
-     :epubs (v/count (epubs-of lib))
-     :books (v/count (books-of lib))
-     :shelf (v/count (title-index lib))
-     :same-epub-noop? (= (v/hash lib) (v/hash lib2))
-     :nodes (node-count lib)}))
+    (merge {:text-chars n
+            :page-chars (count pg)
+            :epubs (v/count (epubs-of lib))
+            :books (v/count (books-of lib))
+            :shelf (v/count (title-index lib))
+            :same-epub-noop? (= (v/hash lib) (v/hash lib2))
+            :nodes (node-count lib)}
+           #?(:clj (chunked-seed-stats)
+              :default {}))))
 
 (defn short-hex [h]
   (when h
@@ -375,7 +454,13 @@ enough that slice and a full native are different amounts of work.
        "  page chars:        " (:page-chars m)
        "  (window " default-page-size ")\n"
        "  store nodes:       " (:nodes m) "\n"
-       "  same epub add-epub is identity: " (:same-epub-noop? m) "\n"))
+       "  same epub add-epub is identity: " (:same-epub-noop? m) "\n"
+       (when (:chunked-entries m)
+         (str "  chunked (1k):      " (:chunked-entries m) " entries ("
+              (:chunked-literals m) " literals / " (:chunked-nodes m) " nodes, "
+              (:chunked-edn-bytes m) " EDN bytes)\n"
+              "  live exploded:     " (:live-exploded m) "\n"
+              "  overlay debris:    " (:overlay-debris m) "\n"))))
 
 ;; =============================================================================
 ;; Store

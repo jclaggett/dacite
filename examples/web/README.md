@@ -1,12 +1,13 @@
 # Dacite browser demos
 
-Two UIs share the HTTP content-store + root CAS protocol
+Three UIs share the HTTP content-store + root CAS protocol
 (`docs/design/service.md`):
 
 | URL | App |
 |---|---|
 | http://127.0.0.1:8080/app/ | Todo — write Dacite values, CAS the root |
 | http://127.0.0.1:8080/app/explorer/ | **Value explorer** — typed tree of the current root |
+| http://127.0.0.1:8080/app/library/ | **Library** — shelf → TOC → page via `v/slice` |
 
 ---
 
@@ -43,6 +44,13 @@ cd impl/clojure && clojure -M:cljs-explorer
 ```
 
 See [docs/book/tutorial/explorer.md](../../docs/book/tutorial/explorer.md).
+
+Library reader (empty root seeds the sample catalog; a non-library root is left alone):
+
+```bash
+cd impl/clojure && clojure -M:cljs-library
+# open http://127.0.0.1:8080/app/library/
+```
 
 After pulling server/client pack changes, recompile the UI (`clojure -M:cljs-web`)
 and **hard-refresh** the browser (cached `main.js` will break load/add if the

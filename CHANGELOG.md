@@ -28,6 +28,10 @@ stability promise: public APIs may still change before 1.0.
 - **`dacite.examples.library`** — public-domain catalog: `epubs` / `books`
   sets (tables), `indexes.title` vector (sorted records), a page is
   `v/slice` of the reading string. Duplicate file ingest is identity.
+  Browser reader at `/app/library/` (shelf → TOC → page).
+- **`dacite.store.chunk`** (experiment, not default) — persist pack Layer-1
+  items (`encode-reachable` at budget 1024) in an inner store; hydrate on
+  `s-get`. Seed catalog flushes to 48 entries vs ~365 live exploded.
 
 ### Documentation
 

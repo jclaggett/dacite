@@ -3,6 +3,7 @@
   (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [dacite.examples.library :as lib]
+            [dacite.service :as svc]
             [dacite.store :as store]
             [dacite.value :as v]))
 
@@ -19,6 +20,22 @@
    :source "test"
    :license "public-domain"
    :text "CHAPTER I. Stripes\n\nHello from zebra.\n"})
+
+(deftest library-root-predicate
+  (let [st (store/mem)
+        catalog (lib/empty-library st)]
+    (is (true? (lib/library-root? catalog)))
+    (is (false? (lib/library-root? (v/vector st 1 2))))
+    (is (false? (lib/library-root? nil)))))
+
+(deftest pages-in-chapter-covers-text
+  (let [st (store/mem)
+        catalog (lib/ingest (lib/empty-library st) mini-a)
+        book (lib/book-of catalog "Apple Tales")
+        n (lib/pages-in-chapter book 0 8)]
+    (is (pos? n))
+    (is (seq (lib/chapter-page book 0 0 8)))
+    (is (string? (lib/chapter-title book 0)))))
 
 (deftest empty-shape
   (let [st (store/mem)
@@ -114,3 +131,31 @@
           (is (some? (lib/book-of loaded "Zebra Notes")))))
       (finally
         (lib/reset-store-dir! (.getPath dir))))))
+
+(defn- http-no-follow
+  [url]
+  (let [conn ^java.net.HttpURLConnection (.openConnection (java.net.URL. url))]
+    (.setInstanceFollowRedirects conn false)
+    (.setRequestMethod conn "GET")
+    (let [code (.getResponseCode conn)
+          loc (.getHeaderField conn "Location")]
+      (.disconnect conn)
+      {:status code :location loc})))
+
+(deftest static-library-index
+  (let [rooted (svc/make-demo-rooted)
+        static (io/file "../../examples/web")
+        {:keys [base-url stop!]} (svc/start-server! {:port 0
+                                                     :rooted rooted
+                                                     :static-dir static
+                                                     :throttle false})]
+    (try
+      (let [slash (slurp (str base-url "/app/library/"))
+            noslash (http-no-follow (str base-url "/app/library"))]
+        (is (re-find #"Dacite Library" slash))
+        (is (re-find #"/app/library/js/main.js" slash)
+            "script URL must be root-absolute")
+        (is (= 301 (:status noslash)))
+        (is (re-find #"/app/library/$" (:location noslash))))
+      (finally
+        (stop!)))))

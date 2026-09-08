@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dacite Library</title>
+  <link rel="stylesheet" href="/app/library/style.css"/>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>Dacite Library</h1>
+      <p class="tagline">Public-domain catalog. Sets are tables; the title index is a vector; a page is <code>slice</code>.</p>
+      <noscript><p class="status error">JavaScript is required. Allow scripts for this site (Brave Shields).</p></noscript>
+      <p id="status" class="status">loading…</p>
+      <p id="root-hash" class="root-hash" title="Full root content hash"></p>
+      <p id="bandwidth" class="bandwidth" title="Store-protocol body sizes only (node + root), not static assets">bw · …</p>
+      <p class="actions">
+        <span id="crumb" class="muted">Shelf</span>
+        <button id="reload-btn" type="button" class="secondary">Reload</button>
+        <a class="muted todo-link" href="/app/">Todo</a>
+        <a class="muted todo-link" href="/app/explorer/">Explorer</a>
+      </p>
+    </header>
+
+    <div id="view" class="view"></div>
+
+    <footer>
+      <p><strong>Values</strong> — <code>dacite.examples.library</code>: shelf from the title index, a page via <code>v/slice</code> of the reading string. Never native the whole book.</p>
+      <p><strong>Store</strong> — HTTP remote + write-back cache; pack-filled <code>GET /node</code>, root CAS. Empty root seeds the sample work; a non-library root is left alone.</p>
+    </footer>
+  </main>
+  <script>
+    window.DACITE_API_BASE = window.DACITE_API_BASE || "";
+  </script>
+  <script src="/app/library/js/main.js?v=library-3"
+          onerror="var s=document.getElementById('status'); if(s){s.textContent='JS failed to load — open http://127.0.0.1:8080/app/library/ (note the trailing slash).'; s.className='status error';}"></script>
+</body>
+</html>

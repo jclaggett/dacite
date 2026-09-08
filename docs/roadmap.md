@@ -1,6 +1,6 @@
 # Dacite Roadmap
 
-*Last updated: 2026-09-04*
+*Last updated: 2026-09-08*
 
 ## Current direction
 
@@ -14,8 +14,9 @@ It is:
    how to build an app, then optionally how the store works. See
    [The Dacite Book](book/).
 2. **Public-domain library** — a catalog someone would notice if it
-   broke. CLI is in `dacite.examples.library`; browser reader next.
-   Library work is pulled by that app.
+   broke. CLI and browser reader (`/app/library/`) in
+   `dacite.examples.library`. Next library-pulled work is **storage**:
+   pack-literal chunking, driven by file and LMDB benchmarks.
 
 The README thesis is still unproven as *utility*:
 
@@ -190,7 +191,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, `v/root` |
 | [explorer](../impl/clojure/src/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
-| [library](../impl/clojure/src/dacite/examples/library.cljc) | Sets as tables, title index as vector, page via `slice` | Browser reader, EPUB zip ingest, extra indexes |
+| [library](../impl/clojure/src/dacite/examples/library.cljc) | Sets as tables, title index as vector, page via `slice`; browser shelf/TOC/reader | EPUB zip ingest, extra indexes, upload form |
 
 Library-pain already visible in those apps (fix in the library, not with
 more helpers — **when an app pulls it**):
@@ -199,6 +200,8 @@ more helpers — **when an app pulls it**):
 - ~~Cards shuffle dumps to a host vector~~ (Fisher-Yates via `nth` / `assoc`)
 - Browser todo commits at the hash/CAS level, not `v/root`
 - Sync XHR blocks the main thread
+- Seed catalog: ~7779 store entries after build, ~365 live, **48** pack
+  items at budget 1024 (`dacite.store.chunk` trial; not default)
 
 ---
 
@@ -335,6 +338,15 @@ is the next milestone.
 | Copy reachable subgraph | `push-ref` without a sync helper is incomplete | Done (`sync-reachable!`) |
 | Opaque-byte store bodies | File store as EDN is a host-local dead end for blobs | Still deferred |
 
+**Pulled by the library catalog**
+
+| Gap | Why | Status |
+|---|---|---|
+| Pack literals as durable layout | Exploded FT/HAMT + construction debris dwarf the catalog | Trial: `dacite.store.chunk` (overlay + `flush!` at 1024). Not default |
+| File + LMDB size benchmarks | EDN file 380× is debris + hex names, not LMDB pages | **Next** — measure data-file bytes: snapshot vs GC-live vs chunked flush |
+| GC on flush / drop build spines | `conj-right` leaves every intermediate node | Deferred until the benchmark says it matters beside chunking |
+| Default chunked file/LMDB | Only if benchmarks hold for real books, not just the seed | Not yet |
+
 Infrastructure from the old Phase 2.5 list (pack as middleware polish, root
 slot, layered write policies, spec v0.5, GET `have`, remaining-budget skip)
 stays on the shelf until a real app reaches for it. Pack query opt-outs
@@ -372,9 +384,12 @@ Remote config … value explorer                     ✓  (claim demos)
 Invert the book for app authors                    ✓
         → The Dacite way, anatomy, tutorials as
           patterns, cookbook, pack/HTTP as internals
-Public-domain library                              ← current
-        → catalog root (epubs/books sets, title index);
-          CLI shelf/toc/read/slice; browser reader next
+Public-domain library                              ✓ CLI + /app/library/
+        → catalog root (epubs/books sets, title index)
+Storage: chunked durable layout                    ← current
+        → file + LMDB benchmarks (snapshot / live /
+          pack-literal flush); then default or not
+Library next                                       EPUB ingest, extra indexes
 ```
 
 Do not invent “app 7” to fill the tree.
