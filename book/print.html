@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-539fc322.js";
+            window.path_to_searchindex_js = "searchindex-73ca106f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -1454,6 +1454,10 @@ implementation. App wiring: <a href="#anatomy-of-a-dacite-app">Anatomy</a> and
 (v/cas! r nil seed)
 (v/swap! r domain-update)
 </code></pre>
+<p><code>s/file</code> and <code>s/lmdb</code> persist <strong>pack Layer-1 items</strong> (budget 1024) on
+root commit, not every constructor node. Reopen hydrates literals on
+read. Raw <code>file-store</code> / <code>lmdb-store</code> remain exploded content
+dictionaries.</p>
 <p>Hashes are 4-word vectors (<code>[w0 w1 w2 w3]</code>). Helpers:</p>
 <pre><code class="language-clojure">(s/hash-&gt;hex h)
 (s/hex-&gt;hash "…64 hex chars…")
@@ -1482,7 +1486,8 @@ by backends. Application code should not call it.</p>
 <p><code>store/*store*</code> and <code>store/with-store</code> are test/REPL bindings for the
 content dictionary, not the way to write an app. Use <code>s/mem</code> / <code>s/file</code>
 and pass that context to constructors.</p>
-<p>nbb LMDB uses the same <code>data.mdb</code> layout as JVM (wire-v1 nodes). Prebuilt
+<p>nbb LMDB uses the same <code>data.mdb</code> layout as JVM (wire-v1 node payloads or
+pack items). Prebuilt
 <code>lmdb</code> npm binaries are format v2 — rebuild with
 <code>LMDB_DATA_V1=true npm rebuild lmdb</code>.</p>
 <hr>
