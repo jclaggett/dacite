@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-73ca106f.js";
+            window.path_to_searchindex_js = "searchindex-0df09446.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -194,7 +194,7 @@ or store backend will want <a href="#chapter-1-content-stores">How it works</a> 
 <li>One tutorial that matches what you are building (a document, history, a
 large sequence, two writers, blobs, a browser UI).</li>
 <li>The <a href="#read-without-dumping">cookbook</a> for field reads, updates, and commit loops.</li>
-<li><a href="#values-api-reference-01-alpha">Values</a> and <a href="#stores-api-reference-01-alpha">Stores</a> when
+<li><a href="#values-api-reference-02-alpha">Values</a> and <a href="#stores-api-reference-02-alpha">Stores</a> when
 you need a function.</li>
 </ol>
 <p><a href="#chapter-1-content-stores">How it works</a> is the four-layer model (content
@@ -312,13 +312,13 @@ you should not load all of it to change one field.</p>
 <li><a href="#install">Install</a> — nbb or JVM.</li>
 <li><a href="#first-values">First values</a> — five minutes, no service.</li>
 <li><a href="#read-without-dumping">Cookbook</a> — field reads, updates, commit loops.</li>
-<li><a href="#values-api-reference-01-alpha">Values API</a> when you need a function name.</li>
+<li><a href="#values-api-reference-02-alpha">Values API</a> when you need a function name.</li>
 </ul>
 <p>If you are implementing a hash function or a new store backend, start at
 <a href="#chapter-1-content-stores">Content Stores</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="install"><a class="header" href="#install">Install</a></h1>
-<p>This page is the supported on-ramp for <strong>Dacite 0.1 alpha</strong>. Read
+<p>This page is the supported on-ramp for <strong>Dacite 0.2 alpha</strong>. Read
 <a href="#the-dacite-way">The Dacite way</a> for the stance on data, then come
 back here to run something.</p>
 <p>The library lives in a monorepo under <code>impl/clojure</code>; for alpha we recommend
@@ -341,7 +341,7 @@ a clone plus either <strong>nbb</strong> (fastest) or <strong>tools.deps</strong
 <pre><code class="language-bash">git clone https://github.com/jclaggett/dacite.git
 cd dacite
 # optional: check out a release tag when available
-# git checkout v0.1.0-alpha
+# git checkout v0.2.0-alpha
 </code></pre>
 <h2 id="nbb-node--sci"><a class="header" href="#nbb-node--sci">nbb (Node / SCI)</a></h2>
 <p>From the repo root:</p>
@@ -383,7 +383,7 @@ npm run todo           # interactive todo UI
 <h3 id="git-dependency-optional"><a class="header" href="#git-dependency-optional">Git dependency (optional)</a></h3>
 <p>If your tools.deps version supports monorepo <code>:deps/root</code>, you can try:</p>
 <pre><code class="language-clojure">{io.github.jclaggett/dacite
- {:git/tag "v0.1.0-alpha"
+ {:git/tag "v0.2.0-alpha"
   :git/sha "REPLACE_WITH_TAG_SHA"
   :deps/root "impl/clojure"}}
 </code></pre>
@@ -409,7 +409,7 @@ Pack GET/POST use <strong>wire-v1 binary</strong> by default.</p>
 <li><a href="#the-dacite-way">The Dacite way</a> — how to think about data</li>
 <li><a href="#anatomy-of-a-dacite-app">Anatomy of a Dacite app</a> — Values / Store split</li>
 <li><a href="#first-values">First values</a></li>
-<li><a href="#values-api-reference-01-alpha">Values API</a> / <a href="#stores-api-reference-01-alpha">Stores API</a></li>
+<li><a href="#values-api-reference-02-alpha">Values API</a> / <a href="#stores-api-reference-02-alpha">Stores API</a></li>
 <li><a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">CHANGELOG</a> — alpha scope and known limits</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -498,7 +498,7 @@ and the other portable examples.</p>
 <ul>
 <li><a href="#first-values">First values</a> — constructors and hashes, no root.</li>
 <li><a href="#persist-and-update-a-document">Persist and update a document</a> — nested map, file or HTTP.</li>
-<li><a href="#values-api-reference-01-alpha">Values API</a> / <a href="#stores-api-reference-01-alpha">Stores API</a>.</li>
+<li><a href="#values-api-reference-02-alpha">Values API</a> / <a href="#stores-api-reference-02-alpha">Stores API</a>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="first-values"><a class="header" href="#first-values">First values</a></h1>
@@ -572,7 +572,7 @@ value structure — that is part of the Dacite porting contract.</p>
 <ul>
 <li><a href="#anatomy-of-a-dacite-app">Anatomy of a Dacite app</a> — add a root and persist</li>
 <li><a href="#persist-and-update-a-document">Persist and update a document</a> — nested map, file or HTTP</li>
-<li><a href="#values-api-reference-01-alpha">Values API</a> — constructors, collection ops</li>
+<li><a href="#values-api-reference-02-alpha">Values API</a> — constructors, collection ops</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="persist-and-update-a-document"><a class="header" href="#persist-and-update-a-document">Persist and update a document</a></h1>
@@ -1094,7 +1094,7 @@ walk.</p>
 <h2 id="related"><a class="header" href="#related">Related</a></h2>
 <ul>
 <li><a href="#a-browser-app">A browser app</a> — todo + explorer on one service</li>
-<li><a href="#values-api-reference-01-alpha">Values API</a></li>
+<li><a href="#values-api-reference-02-alpha">Values API</a></li>
 <li><a href="#anatomy-of-a-dacite-app">Anatomy of a Dacite app</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -1284,7 +1284,7 @@ with <code>swap!</code>.</p>
 <p><code>GET /node/{hex}</code> is always a pack-filled chunk. There is no <code>?raw=</code>,
 <code>?nodes=</code>, or <code>?near=</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="values-api-reference-01-alpha"><a class="header" href="#values-api-reference-01-alpha">Values API reference (0.1 alpha)</a></h1>
+<h1 id="values-api-reference-02-alpha"><a class="header" href="#values-api-reference-02-alpha">Values API reference (0.2 alpha)</a></h1>
 <p>Practical API for Dacite values as implemented in the Clojure / SCI reference
 library. For how to <em>use</em> values, start at <a href="#the-dacite-way">The Dacite way</a>
 and the <a href="#read-without-dumping">cookbook</a>. Internals:
@@ -1429,14 +1429,14 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 <hr>
 <h2 id="related-1"><a class="header" href="#related-1">Related</a></h2>
 <ul>
-<li><a href="#stores-api-reference-01-alpha">Stores API</a></li>
+<li><a href="#stores-api-reference-02-alpha">Stores API</a></li>
 <li><a href="#the-dacite-way">The Dacite way</a></li>
 <li><a href="#anatomy-of-a-dacite-app">Anatomy of a Dacite app</a></li>
 <li><a href="#read-without-dumping">Cookbook</a></li>
 <li><a href="#install">Install</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="stores-api-reference-01-alpha"><a class="header" href="#stores-api-reference-01-alpha">Stores API reference (0.1 alpha)</a></h1>
+<h1 id="stores-api-reference-02-alpha"><a class="header" href="#stores-api-reference-02-alpha">Stores API reference (0.2 alpha)</a></h1>
 <p>Practical API for content stores and client composition in the reference
 implementation. App wiring: <a href="#anatomy-of-a-dacite-app">Anatomy</a> and
 <a href="#same-domain-local-or-http">Same domain, local or HTTP</a>. Internals:
@@ -1553,7 +1553,7 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
 <hr>
 <h2 id="related-2"><a class="header" href="#related-2">Related</a></h2>
 <ul>
-<li><a href="#values-api-reference-01-alpha">Values API</a></li>
+<li><a href="#values-api-reference-02-alpha">Values API</a></li>
 <li><a href="#http-service">HTTP service</a></li>
 <li><a href="#anatomy-of-a-dacite-app">Anatomy of a Dacite app</a></li>
 <li><a href="#install">Install</a></li>
@@ -2015,7 +2015,7 @@ updates, and cross-type comparisons.</li>
 strings, blobs, maps, and sets built on them — on this foundation.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="chapter-3-values"><a class="header" href="#chapter-3-values">Chapter 3: Values</a></h1>
-<p>Writing an application? The public API is <a href="#values-api-reference-01-alpha">Values</a>;
+<p>Writing an application? The public API is <a href="#values-api-reference-02-alpha">Values</a>;
 the stance is <a href="#the-dacite-way">The Dacite way</a>. This chapter is the
 representation (finger trees, HAMTs, typing).</p>
 <p>Chapter 1 gave us the <strong>content store</strong> — an immutable content-addressed

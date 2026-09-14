@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73ca106f.js";
+            window.path_to_searchindex_js = "../searchindex-0df09446.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -181,7 +181,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="install"><a class="header" href="#install">Install</a></h1>
-<p>This page is the supported on-ramp for <strong>Dacite 0.1 alpha</strong>. Read
+<p>This page is the supported on-ramp for <strong>Dacite 0.2 alpha</strong>. Read
 <a href="../the-dacite-way.html">The Dacite way</a> for the stance on data, then come
 back here to run something.</p>
 <p>The library lives in a monorepo under <code>impl/clojure</code>; for alpha we recommend
@@ -204,7 +204,7 @@ a clone plus either <strong>nbb</strong> (fastest) or <strong>tools.deps</strong
 <pre><code class="language-bash">git clone https://github.com/jclaggett/dacite.git
 cd dacite
 # optional: check out a release tag when available
-# git checkout v0.1.0-alpha
+# git checkout v0.2.0-alpha
 </code></pre>
 <h2 id="nbb-node--sci"><a class="header" href="#nbb-node--sci">nbb (Node / SCI)</a></h2>
 <p>From the repo root:</p>
@@ -246,7 +246,7 @@ npm run todo           # interactive todo UI
 <h3 id="git-dependency-optional"><a class="header" href="#git-dependency-optional">Git dependency (optional)</a></h3>
 <p>If your tools.deps version supports monorepo <code>:deps/root</code>, you can try:</p>
 <pre><code class="language-clojure">{io.github.jclaggett/dacite
- {:git/tag "v0.1.0-alpha"
+ {:git/tag "v0.2.0-alpha"
   :git/sha "REPLACE_WITH_TAG_SHA"
   :deps/root "impl/clojure"}}
 </code></pre>
