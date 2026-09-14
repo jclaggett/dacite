@@ -1,6 +1,6 @@
 # Install
 
-This page is the supported on-ramp for **Dacite 0.1 alpha**. Read
+This page is the supported on-ramp for **Dacite 0.2 alpha**. Read
 [The Dacite way](../the-dacite-way.md) for the stance on data, then come
 back here to run something.
 
@@ -23,7 +23,7 @@ Alpha means: useful for experiments; APIs may still change. Pin a git tag or SHA
 git clone https://github.com/jclaggett/dacite.git
 cd dacite
 # optional: check out a release tag when available
-# git checkout v0.1.0-alpha
+# git checkout v0.2.0-alpha
 ```
 
 ## nbb (Node / SCI)
@@ -87,7 +87,7 @@ If your tools.deps version supports monorepo `:deps/root`, you can try:
 
 ```clojure
 {io.github.jclaggett/dacite
- {:git/tag "v0.1.0-alpha"
+ {:git/tag "v0.2.0-alpha"
   :git/sha "REPLACE_WITH_TAG_SHA"
   :deps/root "impl/clojure"}}
 ```

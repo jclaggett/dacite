@@ -1,4 +1,4 @@
-# Stores API reference (0.1 alpha)
+# Stores API reference (0.2 alpha)
 
 Practical API for content stores and client composition in the reference
 implementation. App wiring: [Anatomy](../building/anatomy.md) and

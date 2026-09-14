@@ -1,4 +1,4 @@
-# Values API reference (0.1 alpha)
+# Values API reference (0.2 alpha)
 
 Practical API for Dacite values as implemented in the Clojure / SCI reference
 library. For how to *use* values, start at [The Dacite way](../the-dacite-way.md)

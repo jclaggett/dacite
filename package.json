@@ -1,6 +1,6 @@
 {
   "name": "dacite-sci",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha",
   "private": true,
   "description": "Run the portable Dacite core under nbb (SCI on Node).",
   "scripts": {
