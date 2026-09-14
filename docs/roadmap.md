@@ -115,7 +115,7 @@ emergencies. Application code that reaches for it has found a hole in
 
 ---
 
-## Where we are (alpha 0.1)
+## Where we are (alpha 0.2)
 
 ### Value layer (Chapter 3)
 

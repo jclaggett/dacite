@@ -6,6 +6,8 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+## [0.2.0-alpha] — 2026-09-14
+
 ### Public API (breaking, alpha)
 
 - One constructor family: `(v/vector ctx …)`, `(v/map ctx …)`, `(v/i64 ctx n)`,
@@ -26,8 +28,9 @@ stability promise: public APIs may still change before 1.0.
 - `v/slice` replaces `v/subvec`: `[start, end)` of a vector, string, or
   blob, same type, shared leaves.
 - **`dacite.examples.library`** — public-domain catalog: `epubs` / `books`
-  sets (tables), `indexes.title` vector (sorted records), a page is
-  `v/slice` of the reading string. Duplicate file ingest is identity.
+  sets (tables), `indexes.title` vector (sorted records). Display pages use
+  `v/nth` per character (not `v/slice` of the reading string); shelf uses
+  `v/slice` on the title index. Duplicate file ingest is identity.
   Browser reader at `/app/library/` (shelf → TOC → page).
 - **`dacite.store.chunk`** — persist pack Layer-1 items (`encode-reachable`
   at budget 1024) in an inner store; hydrate on `s-get`. **Default for
