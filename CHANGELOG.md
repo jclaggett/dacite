@@ -6,6 +6,13 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **`s/lens`** — a lens over a rooted store at a path. Same `root` /
+  `cas-root!` / `v/root` API; the document cell is unchanged. Client
+  convenience (hygiene in one process), not an HTTP path. `path` is a
+  Dacite vector of keys (or a host seq). Empty path is the original
+  store. Nested lenses concatenate. Over `s/remote` the lens still
+  CASes the document hash.
+
 ## [0.2.0-alpha] — 2026-09-14
 
 ### Public API (breaking, alpha)

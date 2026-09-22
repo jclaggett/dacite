@@ -139,7 +139,17 @@ Because the target may itself be changing, a push can lose the CAS and need to b
 
 This is the seam through which peers coordinate: a source installs a new root (via CAS), then pushes that hash; subscribers on the target observe the new root and fetch whatever content they lack.
 
-## 4.8 What This Layer Provides
+## 4.8 Lenses
+
+A **lens** is the same rooted-store API aimed at a nested path. There is still one cell. `(s/lens rs path)` answers `root` / `cas-root` with the hash of `get-in` at `path`; a successful CAS `assoc-in`s that subtree and CASes the document cell. Two local lenses on disjoint paths do not reject each other; two writers on the same path still contend. Empty path is `rs`. Nested lenses concatenate paths. Content-store ops (`s-get` by hash) are unchanged — hashes are global.
+
+Path keys are Dacite values (a key may itself be any value). A Dacite vector argument **is the path**, not a request to focus that vector as the document root. A host seq is the same sugar `get-in` already takes.
+
+A lens is not a second root cell and not an HTTP path: `GET /root` and `POST /root/cas` still name the document hash. Over a remote store a lens still CASes that document hash.
+
+See [Commit loops](../guide/commit.md).
+
+## 4.9 What This Layer Provides
 
 1. A single mutable **root** — one hash — over an immutable content store.
 2. A **two-operation portable core** — `root` and `cas-root` — sufficient for any store, local or remote; `cas-root` is the one update primitive.
@@ -147,6 +157,7 @@ This is the seam through which peers coordinate: a source installs a new root (v
 4. **Durable roots** via a root cell, kept separate from content persistence.
 5. **Content-store delegation**, so a rooted store is a drop-in content store that also has a root.
 6. **Push** as an atomic, CAS-based sync primitive between stores.
+7. **Lenses** — the same two-op core at a nested path (client convenience; not an HTTP path).
 
 With this, Dacite has both halves of its model: an immutable world of content-addressed values, and one mutable pointer — governed by compare-and-set — that lets that world evolve and be shared. Future work (see the roadmap) builds distribution and event flows on exactly this root-and-CAS foundation.
 

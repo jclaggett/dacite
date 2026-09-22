@@ -26,6 +26,17 @@ root commit, not every constructor node. Reopen hydrates literals on
 read. Raw `file-store` / `lmdb-store` remain exploded content
 dictionaries.
 
+```clojure
+(def books (s/lens rs (v/vector rs "books")))
+(v/swap! (v/root books) v/conj record)
+```
+
+`(s/lens rs path)` is the same rooted API at a nested path (one document
+cell). `path` is a Dacite vector of Dacite keys; a host seq is the same
+sugar `v/get-in` already takes. Empty path is `rs`. Nested lenses
+concatenate. This is local convenience, not an HTTP path: a lens over
+`s/remote` still CASes the document hash.
+
 Hashes are 4-word vectors (`[w0 w1 w2 w3]`). Helpers:
 
 ```clojure

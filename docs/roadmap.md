@@ -348,6 +348,7 @@ is the next milestone.
 | File + LMDB size benchmarks | EDN file 380× is debris + hex names, not LMDB pages | **Done** — `dacite.bench.library-storage` (seed catalog, budget 1024). See table below |
 | GC on flush / drop build spines | `conj-right` leaves every intermediate node | Overlay still holds construction debris in RAM; inner is pack items. Deferred as a product change |
 | Default chunked file/LMDB | Only if benchmarks hold for real books, not just the seed | **Done** — seed catalog ~16× vs live; defaulted |
+| Nested root / lens | Clients CAS a subtree; disjoint paths do not reject | **Local `s/lens` done.** HTTP stays document GET/CAS. |
 
 Seed catalog, budget 1024 (`clojure -M:library-storage`):
 
@@ -405,6 +406,8 @@ Public-domain library                              ✓ CLI + /app/library/
 Storage: chunked durable layout                    ✓ s/file + s/lmdb default
         → ~16× vs GC-live on file data and LMDB used
           pages; 380× is file snapshot debris.
+Lens over a rooted store                           ✓ local s/lens
+        → client convenience; HTTP is still document GET/CAS
 Library next                                       ← current
         → EPUB ingest, extra indexes, upload form
 ```

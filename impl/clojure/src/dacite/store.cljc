@@ -11,6 +11,8 @@
    backends and the value layer. Apps should not call it.
 
    Application constructors: mem, file, lmdb, remote.
+   A lens `(s/lens rs path)` is local convenience at a nested path
+   (`path` is a Dacite vector, or a host seq).
    Internals: mem-store, rooted-store, hash→hex, sync-reachable!."
   (:require [dacite.hash :as hash]))
 
@@ -254,7 +256,15 @@
      (defn rc-put!
        "Persist root hash into an IRootCell."
        [cell h]
-       ((rooted-var 'rc-put!) cell h)))
+       ((rooted-var 'rc-put!) cell h))
+
+     (defn lens
+       "Lens over a rooted store at `path`. Same IRoot + IStore API at
+        a nested path (client convenience). `path` is a Dacite vector
+        of keys, or a host seq. Empty path returns rs. Nested lenses
+        concatenate. Not an HTTP path."
+       [rs path]
+       ((requiring-resolve 'dacite.store.lens/lens) rs path)))
 
    :org.babashka/nbb
    (do
@@ -309,7 +319,13 @@
        "Copy nodes reachable from root-h in src into dest."
        [src dest root-h]
        (require 'dacite.store.sync)
-       ((resolve 'dacite.store.sync/sync-reachable!) src dest root-h)))
+       ((resolve 'dacite.store.sync/sync-reachable!) src dest root-h))
+
+     (defn lens
+       "Lens over a rooted store at `path`."
+       [rs path]
+       (require 'dacite.store.lens)
+       ((resolve 'dacite.store.lens/lens) rs path)))
 
    :cljs
    (do
@@ -333,7 +349,8 @@
        ([_ _] (rooted-browser-stub "collect-garbage!")))
      (defn rc-get [_] (rooted-browser-stub "rc-get"))
      (defn rc-put! [_ _] (rooted-browser-stub "rc-put!"))
-     (defn sync-reachable! [_ _ _] (rooted-browser-stub "sync-reachable!"))))
+     (defn sync-reachable! [_ _ _] (rooted-browser-stub "sync-reachable!"))
+     (defn lens [_ _] (rooted-browser-stub "lens"))))
 
 ;; =============================================================================
 ;; Host backends (when available on this host)
