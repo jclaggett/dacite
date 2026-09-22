@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-0df09446.js";
+            window.path_to_searchindex_js = "searchindex-0a7ccb9d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -1206,6 +1206,7 @@ not call <code>s-put</code> from domain code.</p>
 <h1 id="commit-loops"><a class="header" href="#commit-loops">Commit loops</a></h1>
 <p>The store’s mutable cell is a <strong>hash</strong>. Wrap it once:</p>
 <pre><code class="language-clojure">(def r (v/root rs))
+(def books (v/root (s/lens rs (v/vector rs "books"))))  ; same ops, nested path
 </code></pre>
 <div class="table-wrapper">
 <table>
@@ -1232,6 +1233,11 @@ over a stale copy.</p>
 <pre><code class="language-clojure">(v/swap! r add-todo "milk")
 ;; add-todo is (fn [todos title] (v/conj todos …))
 </code></pre>
+<p>A <strong>lens</strong> (<code>s/lens rs path</code>) is a rooted store whose <code>root</code> / <code>cas!</code> /
+<code>swap!</code> talk about the nested value. <code>path</code> is a Dacite vector of keys
+(or a host seq). The document cell is unchanged. This is client
+convenience, not an HTTP path. See
+<a href="#48-lenses">Rooted stores — lenses</a>.</p>
 <p>See <a href="#two-writers-one-cas">Two writers, one CAS</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="same-domain-local-or-http"><a class="header" href="#same-domain-local-or-http">Same domain, local or HTTP</a></h1>
@@ -1458,6 +1464,14 @@ implementation. App wiring: <a href="#anatomy-of-a-dacite-app">Anatomy</a> and
 root commit, not every constructor node. Reopen hydrates literals on
 read. Raw <code>file-store</code> / <code>lmdb-store</code> remain exploded content
 dictionaries.</p>
+<pre><code class="language-clojure">(def books (s/lens rs (v/vector rs "books")))
+(v/swap! (v/root books) v/conj record)
+</code></pre>
+<p><code>(s/lens rs path)</code> is the same rooted API at a nested path (one document
+cell). <code>path</code> is a Dacite vector of Dacite keys; a host seq is the same
+sugar <code>v/get-in</code> already takes. Empty path is <code>rs</code>. Nested lenses
+concatenate. This is local convenience, not an HTTP path: a lens over
+<code>s/remote</code> still CASes the document hash.</p>
 <p>Hashes are 4-word vectors (<code>[w0 w1 w2 w3]</code>). Helpers:</p>
 <pre><code class="language-clojure">(s/hash-&gt;hex h)
 (s/hex-&gt;hash "…64 hex chars…")
@@ -2722,7 +2736,12 @@ rooted-store(content-store, lmdb-root-cell(lmdb)) # durable root beside LMDB con
 </code></pre>
 <p>Because the target may itself be changing, a push can lose the CAS and need to be reconciled just like any other update — there is no privileged “force set” for a shared target. Push deliberately transfers only a <strong>hash</strong>; the underlying content must already be present at the target or be synced separately. Deciding when to push, and how to move the content a new root depends on, are application concerns; the rooted store provides only the atomic root move.</p>
 <p>This is the seam through which peers coordinate: a source installs a new root (via CAS), then pushes that hash; subscribers on the target observe the new root and fetch whatever content they lack.</p>
-<h2 id="48-what-this-layer-provides"><a class="header" href="#48-what-this-layer-provides">4.8 What This Layer Provides</a></h2>
+<h2 id="48-lenses"><a class="header" href="#48-lenses">4.8 Lenses</a></h2>
+<p>A <strong>lens</strong> is the same rooted-store API aimed at a nested path. There is still one cell. <code>(s/lens rs path)</code> answers <code>root</code> / <code>cas-root</code> with the hash of <code>get-in</code> at <code>path</code>; a successful CAS <code>assoc-in</code>s that subtree and CASes the document cell. Two local lenses on disjoint paths do not reject each other; two writers on the same path still contend. Empty path is <code>rs</code>. Nested lenses concatenate paths. Content-store ops (<code>s-get</code> by hash) are unchanged — hashes are global.</p>
+<p>Path keys are Dacite values (a key may itself be any value). A Dacite vector argument <strong>is the path</strong>, not a request to focus that vector as the document root. A host seq is the same sugar <code>get-in</code> already takes.</p>
+<p>A lens is not a second root cell and not an HTTP path: <code>GET /root</code> and <code>POST /root/cas</code> still name the document hash. Over a remote store a lens still CASes that document hash.</p>
+<p>See <a href="#commit-loops">Commit loops</a>.</p>
+<h2 id="49-what-this-layer-provides"><a class="header" href="#49-what-this-layer-provides">4.9 What This Layer Provides</a></h2>
 <ol>
 <li>A single mutable <strong>root</strong> — one hash — over an immutable content store.</li>
 <li>A <strong>two-operation portable core</strong> — <code>root</code> and <code>cas-root</code> — sufficient for any store, local or remote; <code>cas-root</code> is the one update primitive.</li>
@@ -2730,6 +2749,7 @@ rooted-store(content-store, lmdb-root-cell(lmdb)) # durable root beside LMDB con
 <li><strong>Durable roots</strong> via a root cell, kept separate from content persistence.</li>
 <li><strong>Content-store delegation</strong>, so a rooted store is a drop-in content store that also has a root.</li>
 <li><strong>Push</strong> as an atomic, CAS-based sync primitive between stores.</li>
+<li><strong>Lenses</strong> — the same two-op core at a nested path (client convenience; not an HTTP path).</li>
 </ol>
 <p>With this, Dacite has both halves of its model: an immutable world of content-addressed values, and one mutable pointer — governed by compare-and-set — that lets that world evolve and be shared. Future work (see the roadmap) builds distribution and event flows on exactly this root-and-CAS foundation.</p>
 <h2 id="reference-implementation-clojure"><a class="header" href="#reference-implementation-clojure">Reference Implementation (Clojure)</a></h2>
@@ -3104,7 +3124,7 @@ Dacite’s authorization is <strong>structural</strong>: prove you <em>possess</
 <li>Garbage collection will be based on root reachability</li>
 </ul>
 <p><strong>Depends on Layers 1–3.</strong> All verification logic is built on top of the store abstraction.</p>
-<h2 id="49-what-this-layer-provides"><a class="header" href="#49-what-this-layer-provides">4.9 What This Layer Provides</a></h2>
+<h2 id="49-what-this-layer-provides-1"><a class="header" href="#49-what-this-layer-provides-1">4.9 What This Layer Provides</a></h2>
 <ol>
 <li><strong>Secure stores</strong> — proof of possession prevents “hash-as-capability” attacks</li>
 <li><strong>Stateless authorization</strong> — roots + chains, no server-side session state required</li>

@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0df09446.js";
+            window.path_to_searchindex_js = "../searchindex-0a7ccb9d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -202,6 +202,14 @@ implementation. App wiring: <a href="../building/anatomy.html">Anatomy</a> and
 root commit, not every constructor node. Reopen hydrates literals on
 read. Raw <code>file-store</code> / <code>lmdb-store</code> remain exploded content
 dictionaries.</p>
+<pre><code class="language-clojure">(def books (s/lens rs (v/vector rs "books")))
+(v/swap! (v/root books) v/conj record)
+</code></pre>
+<p><code>(s/lens rs path)</code> is the same rooted API at a nested path (one document
+cell). <code>path</code> is a Dacite vector of Dacite keys; a host seq is the same
+sugar <code>v/get-in</code> already takes. Empty path is <code>rs</code>. Nested lenses
+concatenate. This is local convenience, not an HTTP path: a lens over
+<code>s/remote</code> still CASes the document hash.</p>
 <p>Hashes are 4-word vectors (<code>[w0 w1 w2 w3]</code>). Helpers:</p>
 <pre><code class="language-clojure">(s/hash-&gt;hex h)
 (s/hex-&gt;hash "…64 hex chars…")

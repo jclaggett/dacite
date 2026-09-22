@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0df09446.js";
+            window.path_to_searchindex_js = "../searchindex-0a7ccb9d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -183,6 +183,7 @@
                         <h1 id="commit-loops"><a class="header" href="#commit-loops">Commit loops</a></h1>
 <p>The store’s mutable cell is a <strong>hash</strong>. Wrap it once:</p>
 <pre><code class="language-clojure">(def r (v/root rs))
+(def books (v/root (s/lens rs (v/vector rs "books"))))  ; same ops, nested path
 </code></pre>
 <div class="table-wrapper">
 <table>
@@ -209,6 +210,11 @@ over a stale copy.</p>
 <pre><code class="language-clojure">(v/swap! r add-todo "milk")
 ;; add-todo is (fn [todos title] (v/conj todos …))
 </code></pre>
+<p>A <strong>lens</strong> (<code>s/lens rs path</code>) is a rooted store whose <code>root</code> / <code>cas!</code> /
+<code>swap!</code> talk about the nested value. <code>path</code> is a Dacite vector of keys
+(or a host seq). The document cell is unchanged. This is client
+convenience, not an HTTP path. See
+<a href="../04-rooted-stores/chapter.html#48-lenses">Rooted stores — lenses</a>.</p>
 <p>See <a href="../tutorial/two-client.html">Two writers, one CAS</a>.</p>
 
                     </main>
