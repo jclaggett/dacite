@@ -634,11 +634,12 @@
                     (:items ch))]
     (is (true? (:dacite.wire/chunk-v1 ch)))
     (is (> (count (:items ch)) 2)
-        "wire-sized seal BFS-es past string+ft/deep into digits/chars")
+        "wire-sized seal BFS-es past string+ft/deep into digits")
     (is (some #{:literal} encs)
         (str "neighborhood includes literals, got " types))
-    (is (>= n-wire 1024)
-        "large string seals one soft-budget chunk on sent (wire) bytes")
+    (is (some #{"ft/digit"} types)
+        "1k char pages ship as ft/digit literals")
+    (is (pos? n-wire))
     (is (<= n-wire (* 2 1024))
         "include-then-seal overshoot stays within ~2×budget")))
 
@@ -659,14 +660,14 @@
         (str "explorer 64-char preview should be in the first pack; got " n-hit))
     (is (some (fn [it]
                 (and (= :literal (:encoding it))
-                     (= "ft/node" (:type it))))
+                     (= "ft/digit" (:type it))))
               (:items ch))
-        "bottom-level ft/node of char leaves is a literal")
+        "1k char pages ship as ft/digit literals")
     (let [st3 (store/mem-store)
           back (bin/decode-pack-edn (bin/encode-pack-edn ch))]
       (pack/apply-chunk! st3 back)
       (is (store/s-has? st3 h)
-          "wire-v1 ft/node literal applies at the claimed hash"))))
+          "wire-v1 digit literal applies at the claimed hash"))))
 
 (deftest pack-under-budget-zero-is-single-item
   (let [st (store/mem-store)

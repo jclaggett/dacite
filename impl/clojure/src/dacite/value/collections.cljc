@@ -606,8 +606,8 @@
 (defn string-with-store
   "Create a Dacite string from a host string in an explicit store."
   [store s]
-  (let [refs (mapv #(scalar/put-scalar! store "char" %) (seq s))]
-    (->DaciteString store (store-seq-node! store "string" (ft-build! store refs)))))
+  (let [root (ft/ft-from-run store "char" (str s))]
+    (->DaciteString store (store-seq-node! store "string" root))))
 
 (defmethod types/coerce-and-store! :string
   [store x]
@@ -621,11 +621,8 @@
 (defn blob-with-store
   "Create a Dacite blob from a byte array in an explicit store."
   [store bs]
-  (let [refs (mapv #(scalar/put-scalar! store "u8"
-                                        #?(:clj (Byte/toUnsignedInt %)
-                                           :cljs (bit-and % 0xFF)))
-                   (seq bs))]
-    (->DaciteBlob store (store-seq-node! store "blob" (ft-build! store refs)))))
+  (let [root (ft/ft-from-run store "u8" bs)]
+    (->DaciteBlob store (store-seq-node! store "blob" root))))
 
 (defn blob
   "Create a Dacite blob using the current store."

@@ -15,6 +15,7 @@
             [dacite.value.scalar :as scalar]
             [dacite.value.collections :as coll]
             [dacite.value.finger-tree :as ft]
+            [dacite.value.lit :as lit]
             [dacite.value.hamt :as hamt]
             [dacite.rooted.gc :as gc]))
 
@@ -182,17 +183,7 @@
   [entry budget]
   (> (size-cue entry) (long budget)))
 
-(defn- join-chars
-  "Concatenate characters without `apply str` (CLJS apply of a long
-   lazy seq can throw RangeError / silently stop around 52 args)."
-  [cs]
-  #?(:clj
-     (let [sb (StringBuilder.)]
-       (doseq [ch cs]
-         (.append sb (str ch)))
-       (.toString sb))
-     :cljs
-     (.join (to-array (map str cs)) "")))
+(def ^:private join-chars lit/join-chars)
 
 (defn- host-string
   "Full host string via index access (avoids ft-seq truncation)."
@@ -224,124 +215,17 @@
 ;; Type-run collapse (sequence bodies) — nested Lit {:type "run"| "repeat"}
 ;; =============================================================================
 
-(def ^:private rle-seq-types
-  "Store types whose literal body is an ordered list of nested lits."
-  #{"vector" "set"
-    "ft/empty" "ft/digit" "ft/node" "ft/deep"
-    "hamt/empty"})
+(def rle-lits
+  "Collapse contiguous same-type nested lits into run/repeat.
+   Re-export of dacite.value.lit/rle-lits (page bodies use the same algebra)."
+  lit/rle-lits)
 
-(defn- run-form? [x]
-  (and (map? x)
-       (let [t (str (:type x))]
-         (or (= t "run") (= t "repeat")))))
+(def expand-rle-seq
+  "Expand run/repeat elements in an ordered lit list.
+   Re-export of dacite.value.lit/expand-rle-seq."
+  lit/expand-rle-seq)
 
-(defn- pack-run-values
-  "Compact :values for a type-run of lits that share `of`."
-  [of lits]
-  (if (= of "char")
-    (join-chars (map :body lits))
-    (mapv :body lits)))
-
-(declare rle-form)
-
-(defn- all-bodies-equal?
-  [lits]
-  (let [bs (mapv :body lits)]
-    (and (seq bs) (apply = bs))))
-
-(defn rle-lits
-  "Collapse contiguous same-type nested lits into run (or repeat if all
-   bodies are equal). Length-1 groups stay unwrapped. Recurses into
-   collection / map bodies first. Idempotent: existing run/repeat lits
-   are not merged with neighbors."
-  [lits]
-  (let [lits (mapv rle-form (or lits []))]
-    (if (empty? lits)
-      []
-      (loop [remaining (seq lits)
-             out []]
-        (if-let [x (first remaining)]
-          (if (run-form? x)
-            (recur (next remaining) (conj out x))
-            (let [t (str (:type x))
-                  [same rst] (split-with (fn [y]
-                                           (and (not (run-form? y))
-                                                (= t (str (:type y)))))
-                                         remaining)]
-              (cond
-                (= 1 (count same))
-                (recur rst (conj out x))
-
-                (all-bodies-equal? same)
-                (recur rst
-                       (conj out {:type "repeat"
-                                  :body {:of t
-                                         :n (count same)
-                                         :value (:body (first same))}}))
-
-                :else
-                (recur rst
-                       (conj out {:type "run"
-                                  :body {:of t
-                                         :values (pack-run-values t same)}})))))
-          out)))))
-
-(defn- rle-form
-  "RLE nested sequence/map bodies of a typed literal. Scalars unchanged."
-  [form]
-  (if-not (and (map? form) (contains? form :type) (contains? form :body))
-    form
-    (let [t (str (:type form))
-          b (:body form)]
-      (cond
-        (run-form? form) form
-
-        (contains? rle-seq-types t)
-        {:type t :body (rle-lits b)}
-
-        (or (= t "map") (= t "hamt/bitmap"))
-        {:type t
-         :body (mapv (fn [pair]
-                       [(rle-form (nth pair 0))
-                        (rle-form (nth pair 1))])
-                     (or b []))}
-
-        (= t "hamt/entry")
-        {:type t :body [(rle-form (nth b 0)) (rle-form (nth b 1))]}
-
-        :else form))))
-
-(defn- expand-run
-  "Expand a type-run to n nested {:type :body} lits."
-  [{:keys [body]}]
-  (let [of (str (:of body))
-        values (:values body)]
-    (if (= of "char")
-      (mapv (fn [ch] {:type "char" :body ch}) (seq (str values)))
-      (mapv (fn [v] {:type of :body v}) (or values [])))))
-
-(defn- expand-repeat
-  "Expand a value-repeat to n copies of one nested lit."
-  [{:keys [body]}]
-  (let [of (str (:of body))
-        n (long (or (:n body) 0))
-        v (:value body)]
-    (vec (repeat n {:type of :body v}))))
-
-(defn expand-rle-seq
-  "Expand run/repeat elements in an ordered lit list. Non-run lits stay.
-   Does not recurse into map/vector bodies (those expand at materialize)."
-  [xs]
-  (into []
-        (mapcat (fn [x]
-                  (if-not (and (map? x) (contains? x :type))
-                    [x]
-                    (let [t (str (:type x))]
-                      (cond
-                        (= t "run") (expand-run x)
-                        (= t "repeat") (expand-repeat x)
-                        :else [x]))))
-                (or xs []))))
+(def ^:private rle-form lit/rle-form)
 
 (defn- nested-literal
   "Recursive typed literal for child value at eh, or nil if not a value type."

@@ -10,8 +10,8 @@
     (print (storage/render suite))
     (flush)
 
-    (is (= 48 (get-in file [:chunked :entries])))
-    (is (= 48 (get-in lmdb [:chunked :entries])))
+    (is (= 36 (get-in file [:chunked :entries])))
+    (is (= 36 (get-in lmdb [:chunked :entries])))
 
     (is (< (get-in file [:gc-live :entries])
            (get-in file [:snapshot :entries])))

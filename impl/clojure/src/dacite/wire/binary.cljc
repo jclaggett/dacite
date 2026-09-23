@@ -352,7 +352,8 @@
    0x42 "hamt/bitmap"
    ;; Nested sequence packing (not top-level store types)
    0x50 "run"
-   0x51 "repeat"})
+   0x51 "repeat"
+   0x52 "ref"})
 
 (def public-scalar-types
   "Public scalar type names supported on the wire (node + literal)."
@@ -720,6 +721,12 @@
         (put-bytes buf packed)
         (finish buf))
 
+      "ref"
+      (let [buf (bb 33)]
+        (put-u8 buf tid)
+        (put-hash buf body)
+        (finish buf))
+
       (throw (ex-info "unsupported literal type" {:type type :form form})))))
 
 (defn- decode-run-values
@@ -845,6 +852,9 @@
             value (decode-lit-body of buf)]
         {:of of :n n :value value})
 
+      "ref"
+      (get-hash buf)
+
       (throw (ex-info "unsupported literal type" {:type tname})))))
 
 (defn decode-lit
@@ -899,18 +909,31 @@
       (let [sub (or (name->ft-subtype t)
                     (throw (ex-info "unknown ft type" {:type t})))
             m (:measure data)
-            children (case t
-                       "ft/empty" []
-                       "ft/deep" [(:left data) (:spine data) (:right data)]
-                       (:children data))
-            n (count children)
-            buf (bb (+ 2 48 1 (* 32 n)))]
-        (put-u8 buf kind-ft)
-        (put-u8 buf sub)
-        (put-measure buf m)
-        (put-u8 buf n)
-        (doseq [h children] (put-hash buf h))
-        (finish buf))
+            packed? (and (contains? #{"ft/digit" "ft/node"} t)
+                         (contains? data :body)
+                         (not (:children data)))]
+        (if packed?
+          (let [lits (mapv encode-lit-bytes (or (:body data) []))
+                total (reduce + (+ 2 48 1) (map byte-len lits))
+                buf (bb total)]
+            (put-u8 buf kind-ft)
+            (put-u8 buf sub)
+            (put-measure buf m)
+            (put-u8 buf 0)
+            (doseq [lb lits] (put-bytes buf lb))
+            (finish buf))
+          (let [children (case t
+                           "ft/empty" []
+                           "ft/deep" [(:left data) (:spine data) (:right data)]
+                           (or (:children data) []))
+                n (count children)
+                buf (bb (+ 2 48 1 (* 32 n)))]
+            (put-u8 buf kind-ft)
+            (put-u8 buf sub)
+            (put-measure buf m)
+            (put-u8 buf n)
+            (doseq [h children] (put-hash buf h))
+            (finish buf))))
 
       (str/starts-with? t "hamt/")
       (case t
@@ -1002,17 +1025,25 @@
             tname (or (ft-subtype->name sub)
                       (throw (ex-info "unknown ft subtype" {:sub sub})))
             m (get-measure buf)
-            n (get-u8 buf)
-            children (mapv (fn [_] (get-hash buf)) (range n))]
-        (when (pos? (remaining buf))
-          (throw (ex-info "trailing garbage in ft node" {})))
-        (case tname
-          "ft/empty" [tname {:measure m}]
-          "ft/deep" [tname {:left (nth children 0)
-                            :spine (nth children 1)
-                            :right (nth children 2)
-                            :measure m}]
-          [tname {:children children :measure m}]))
+            n (get-u8 buf)]
+        (if (and (zero? n)
+                 (pos? (remaining buf))
+                 (contains? #{"ft/digit" "ft/node"} tname))
+          (let [body (loop [acc []]
+                       (if (zero? (remaining buf))
+                         acc
+                         (recur (conj acc (decode-lit buf)))))]
+            [tname {:body body :measure m}])
+          (let [children (mapv (fn [_] (get-hash buf)) (range n))]
+            (when (pos? (remaining buf))
+              (throw (ex-info "trailing garbage in ft node" {})))
+            (case tname
+              "ft/empty" [tname {:measure m}]
+              "ft/deep" [tname {:left (nth children 0)
+                                :spine (nth children 1)
+                                :right (nth children 2)
+                                :measure m}]
+              [tname {:children children :measure m}]))))
 
       0x02 ; hamt
       (let [sub (get-u8 buf)

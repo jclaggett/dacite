@@ -27,6 +27,11 @@
 ;; Store protocol
 ;; =============================================================================
 
+(def ^:dynamic *cache-only*
+  "When true, s-put may cache locally without a durable/network write.
+   Used when intern-ing scalars out of a packed page body."
+  false)
+
 (defprotocol IStore
   "Protocol for content-addressed storage."
   (s-get [this h] "Retrieve value by hash. Returns nil if not found.")

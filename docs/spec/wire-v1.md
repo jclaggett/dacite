@@ -199,10 +199,15 @@ Ft =
 |-----------|------|-----|---------------------|
 | `0x00` | `ft/empty` | 0 | — |
 | `0x01` | **reserved** (legacy ft/single) | — | **Must reject** |
-| `0x02` | `ft/digit` | 1..32 | child hashes (leaves or nodes) |
-| `0x03` | `ft/node` | 2..32 | child hashes |
+| `0x02` | `ft/digit` | 1..32 hashes, or **0** + Lit body | child hashes, or packed page body |
+| `0x03` | `ft/node` | 2..32 hashes, or **0** + Lit body | child hashes, or packed page body |
 | `0x04` | `ft/deep` | 3 | left, spine, right |
 | other | error | | |
+
+When `n = 0` on `ft/digit` or `ft/node` and bytes remain after the
+measure, the remainder is a sequence of `Lit` items (the page body):
+runs, repeats, nested value lits, and `ref` (type id `0x52`). Legacy
+pointer pages still use `n` child hashes.
 
 ### HAMT (`kind = 0x02`)
 
@@ -297,6 +302,7 @@ variable sections use their own length fields.
 | `0x42` | `hamt/bitmap` | `u32 n` ++ (`Lit` key ++ `Lit` val) × n (same pair layout as `map`) |
 | `0x50` | `run` | `inner_type_id u8` ++ `n u32` ++ packed inner payloads (no repeated type tags). **Nested only** — not a store type. |
 | `0x51` | `repeat` | `inner_type_id u8` ++ `n u32` ++ one packed inner payload (`n ≥ 2` copies). **Nested only**. |
+| `0x52` | `ref` | Hash32 of a child that is not inlined. **Nested only**. |
 | other | error | |
 
 `run` / `repeat` pack contiguous same-type leaves inside sequence bodies (`vector`, `set`, `ft/*`, `hamt/empty`). The parent item’s type stays the store type (`ft/node`, `vector`, …). Decode expands to `n` nested lits before materialize.

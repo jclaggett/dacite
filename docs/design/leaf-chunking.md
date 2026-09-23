@@ -160,6 +160,9 @@ realized form fits and coverage saves descendant sends.
 
 **No leaf-packs / fragments.** Large values: walk with `:node` items, or one
 oversized literal if policy allows. No separate “range of a blob” wire kind in MVP.
+Durable `ft/digit` / `ft/node` pages are now the same sequence literals
+(see `docs/design/dense-sequence-leaves.md`); packing no longer inflates
+one-element leaves on materialize of a packed page.
 
 ### Layer 2 — Chunking (pool → ship)
 

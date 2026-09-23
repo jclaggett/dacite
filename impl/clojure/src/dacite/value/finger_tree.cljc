@@ -12,8 +12,10 @@
 
    Node types (stored as [type-name data]):
    - [\"ft/empty\"  {:measure m}]
-   - [\"ft/digit\"  {:children [h...] :measure m}]
+   - [\"ft/digit\"  {:children [h...] :measure m}]  ; pointer page (legacy)
+   - [\"ft/digit\"  {:body lit :measure m}]         ; 1k literal page
    - [\"ft/node\"   {:children [h...] :measure m}]
+   - [\"ft/node\"   {:body lit :measure m}]
    - [\"ft/deep\"   {:left h :spine h :right h :measure m}]
 
    Leaf elision: digit/node children and 1-element roots are bare value
@@ -22,12 +24,15 @@
    collection nodes (vector/string/blob/…), never a bare ft/* spine.
    See docs/design/ft-single-elision.md.
 
-   Digits hold 1-32 children and nodes 2-32 — wider than the classic
-   finger tree, trading the amortized O(1) proof for shallower trees."
+   A digit or node is a page of about 1,024 encoded bytes. Writers still
+   emit pointer pages (`:children`, 1–32 hashes). Readers dual-read
+   `:body` sequence literals (run/repeat/ref/nested lits). See
+   docs/design/dense-sequence-leaves.md."
   (:require [dacite.hash :as hash]
             [dacite.host :as host]
             [dacite.store :as store]
             [dacite.value.types :as types]
+            [dacite.value.lit :as lit]
             [clojure.string :as str]))
 
 ;; =============================================================================
@@ -59,6 +64,8 @@
         h (types/node-hash type-name ef)]
     (store/s-put store h node)
     h))
+
+(declare ft-seq)
 
 (defn- lookup [store h] (store/s-get store h))
 (defn- node-type [node] (first node))
@@ -103,7 +110,152 @@
                       {:type t :hash h})))
     h))
 
-(defn- get-children [store h] (:children (node-data (lookup store h))))
+(defn- page-child-hashes
+  "Direct child hashes of a digit/node. Pointer pages (`:children`) are
+   used as-is. Literal pages (`:body`) intern inlined scalars."
+  [store data]
+  (if-let [ch (:children data)]
+    (vec ch)
+    (lit/body-child-hashes store (or (:body data) []))))
+
+(defn- get-children [store h]
+  (page-child-hashes store (node-data (lookup store h))))
+
+(defn- page-refs
+  "Reachable hashes a pack/GC walk should follow. Pointer pages list every
+   child; literal pages list only `ref` items (inlined payload stays in body)."
+  [data]
+  (if-let [ch (:children data)]
+    (vec ch)
+    (lit/body-refs (:body data))))
+
+(defn- hash->item
+  "Preferred page-body encoding of a stored child hash."
+  [store h]
+  (let [entry (lookup store h)]
+    (if (nil? entry)
+      {:type "ref" :body h}
+      (let [t (node-type entry)]
+        (cond
+          (ft-type? t) {:type "ref" :body h}
+
+          (contains? lit/scalar-types t)
+          (if (< (types/dacite-size entry) 32)
+            {:type t :body (types/entry-data entry)}
+            {:type "ref" :body h})
+
+          (= t "string")
+          (let [sb (long (or (:size-bytes (node-data entry)) 0))]
+            (if (<= sb lit/page-budget)
+              {:type "string"
+               :body (lit/join-chars
+                      (map (fn [ch]
+                             (types/entry-data (lookup store ch)))
+                           (ft-seq store (:root (node-data entry)))))}
+              {:type "ref" :body h}))
+
+          (= t "blob")
+          (let [sb (long (or (:size-bytes (node-data entry)) 0))]
+            (if (<= sb lit/page-budget)
+              {:type "blob"
+               :body (mapv (fn [bh]
+                             (types/entry-data (lookup store bh)))
+                           (ft-seq store (:root (node-data entry))))}
+              {:type "ref" :body h}))
+
+          :else {:type "ref" :body h})))))
+
+(defn- page-body-from-data
+  "Literal body of a digit/node, converting legacy `:children` to items."
+  [store data]
+  (or (:body data)
+      (lit/rle-lits (mapv #(hash->item store %) (or (:children data) [])))))
+
+(defn- item-measure
+  [store item]
+  (let [t (str (:type item))
+        b (:body item)]
+    (cond
+      (= t "ref") (measure-of store b)
+
+      (contains? lit/scalar-types t)
+      (let [h (types/scalar-value-hash [t b])]
+        {:count 1
+         :size-bytes (types/dacite-size [t b])
+         :elements-fuse h})
+
+      (= t "string")
+      (let [s (str b)
+            ef (reduce (fn [a ch]
+                         (hash/unchecked-fuse
+                          a (types/scalar-value-hash ["char" ch])))
+                       host/zero-hash
+                       (seq s))]
+        {:count 1
+         :size-bytes (count (host/utf8-bytes s))
+         :elements-fuse (types/value-hash "string" ef)})
+
+      (= t "blob")
+      (let [xs (vec b)
+            ef (reduce (fn [a n]
+                         (hash/unchecked-fuse
+                          a (types/scalar-value-hash ["u8" (int n)])))
+                       host/zero-hash
+                       xs)]
+        {:count 1
+         :size-bytes (count xs)
+         :elements-fuse (types/value-hash "blob" ef)})
+
+      :else
+      (measure-of store (lit/intern-lit-item! store item)))))
+
+(defn- body-measure
+  [store body]
+  (measure-seq (map #(item-measure store %) (lit/expand-rle-seq body))))
+
+(defn- make-digit-body!
+  [store body]
+  (add-node! store ["ft/digit" {:body (vec body)
+                                :measure (body-measure store body)}]))
+
+(defn- make-node-body!
+  [store body]
+  (add-node! store ["ft/node" {:body (vec body)
+                               :measure (body-measure store body)}]))
+
+(defn- persist-spill!
+  "Persist an overflow prefix as a spine element. A single ref is used
+   as-is; any other payload becomes an ft/node page."
+  [store body]
+  (let [items (lit/expand-rle-seq body)]
+    (cond
+      (empty? items) nil
+      (and (= 1 (count items))
+           (= "ref" (str (:type (first items)))))
+      (:body (first items))
+      :else (make-node-body! store body))))
+
+(defn- try-append
+  "Append item to body if the page stays within budget. Falls back to a
+   ref of `h` when the inlined form does not fit. Nil means overflow."
+  [body item h]
+  (let [b1 (lit/append-item body item)]
+    (if (<= (lit/payload-bytes b1) lit/page-budget)
+      b1
+      (when-not (= "ref" (str (:type item)))
+        (let [b2 (lit/append-item body {:type "ref" :body h})]
+          (when (<= (lit/payload-bytes b2) lit/page-budget)
+            b2))))))
+
+(defn- try-prepend
+  [body item h]
+  (let [b1 (lit/prepend-item body item)]
+    (if (<= (lit/payload-bytes b1) lit/page-budget)
+      b1
+      (when-not (= "ref" (str (:type item)))
+        (let [b2 (lit/prepend-item body {:type "ref" :body h})]
+          (when (<= (lit/payload-bytes b2) lit/page-budget)
+            b2))))))
 
 ;; =============================================================================
 ;; Node constructors (persist, return hash)
@@ -113,13 +265,28 @@
   (add-node! store ["ft/empty" {:measure measure-identity}]))
 
 (defn- make-digit! [store child-hashes child-measures]
-  (add-node! store ["ft/digit" {:children (vec child-hashes)
-                                :measure (measure-seq child-measures)}]))
+  (let [body (lit/rle-lits (mapv #(hash->item store %) child-hashes))]
+    (add-node! store ["ft/digit" {:body body
+                                  :measure (measure-seq child-measures)}])))
 
 (defn- make-node! [store child-hashes child-measures]
-  {:pre [(<= 2 (count child-hashes) 32)]}
-  (add-node! store ["ft/node" {:children (vec child-hashes)
-                               :measure (measure-seq child-measures)}]))
+  {:pre [(<= 1 (count child-hashes))]}
+  (let [body (lit/rle-lits (mapv #(hash->item store %) child-hashes))]
+    (add-node! store ["ft/node" {:body body
+                                 :measure (measure-seq child-measures)}])))
+
+(defn- as-digit!
+  "Ensure `h` is an ft/digit page. An existing digit is reused. An ft/node
+   is re-wrapped (different type ⇒ different hash). A leaf becomes a
+   one-element digit. Never a digit of one ref to another digit — that
+   collides with the inner page under type+elements_fuse hashing."
+  [store h]
+  (let [node (lookup store h)
+        t (node-type node)]
+    (case t
+      "ft/digit" h
+      "ft/node" (make-digit-body! store (page-body-from-data store (node-data node)))
+      (make-digit! store [h] [(measure-of store h)]))))
 
 (defn- make-deep! [store left spine right left-m spine-m right-m]
   (add-node! store ["ft/deep" {:left left
@@ -138,7 +305,6 @@
 
 (defn- digit-first [store dh] (first (get-children store dh)))
 (defn- digit-last [store dh] (peek (get-children store dh)))
-(defn- digit-count [store dh] (count (get-children store dh)))
 
 (defn- digit-rest!
   "Drop the first child. Returns the new digit hash, or nil if it would
@@ -158,25 +324,18 @@
       (let [nc (pop children)]
         (make-digit! store nc (mapv #(measure-of store %) nc))))))
 
-(defn- digit-conj-left! [store dh elem]
-  (let [nc (into [elem] (get-children store dh))]
-    (make-digit! store nc (mapv #(measure-of store %) nc))))
-
-(defn- digit-conj-right! [store dh elem]
-  (let [nc (conj (get-children store dh) elem)]
-    (make-digit! store nc (mapv #(measure-of store %) nc))))
-
 ;; =============================================================================
 ;; Tree operations (internal — operate on element/single hashes)
 ;; =============================================================================
 
-(declare tree-conj-left! tree-conj-right!)
+(declare tree-conj-left! tree-conj-right! ft-seq)
 
 (defn- tree-first* [store root]
   (let [node (lookup store root)]
     (case (node-type node)
       "ft/empty" nil
       "ft/deep" (digit-first store (:left (node-data node)))
+      ("ft/digit" "ft/node") (first (get-children store root))
       root)))
 
 (defn- tree-last* [store root]
@@ -184,6 +343,7 @@
     (case (node-type node)
       "ft/empty" nil
       "ft/deep" (digit-last store (:right (node-data node)))
+      ("ft/digit" "ft/node") (peek (get-children store root))
       root)))
 
 (defn- to-tree-from-digit!
@@ -197,6 +357,8 @@
   (let [node (lookup store root)]
     (case (node-type node)
       "ft/empty" root
+      ("ft/digit" "ft/node")
+      (or (digit-rest! store root) (make-empty! store))
       "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
             new-left (digit-rest! store left)]
@@ -221,6 +383,8 @@
   (let [node (lookup store root)]
     (case (node-type node)
       "ft/empty" root
+      ("ft/digit" "ft/node")
+      (or (digit-butlast! store root) (make-empty! store))
       "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
             new-right (digit-butlast! store right)]
@@ -246,28 +410,32 @@
     (case (node-type node)
       "ft/empty" elem
       "ft/deep"
-      (let [{:keys [left spine right]} (node-data node)]
-        (if (< (digit-count store left) 32)
-          (let [new-left (digit-conj-left! store left elem)]
+      (let [{:keys [left spine right]} (node-data node)
+            old-body (page-body-from-data store (node-data (lookup store left)))
+            item (hash->item store elem)
+            fitted (try-prepend old-body item elem)]
+        (if fitted
+          (let [new-left (make-digit-body! store fitted)]
             (make-deep! store new-left spine right
                         (measure-of store new-left)
                         (measure-of store spine)
                         (measure-of store right)))
-          (let [lc (get-children store left)
-                new-left-children (into [elem] (subvec lc 0 7))
-                new-left (make-digit! store new-left-children
-                                      (mapv #(measure-of store %) new-left-children))
-                node-children (subvec lc 7 32)
-                new-node (make-node! store node-children
-                                     (mapv #(measure-of store %) node-children))
-                new-spine (tree-conj-left! store spine new-node)]
+          (let [old-pb (max 1 (lit/payload-bytes old-body))
+                [keep spill] (lit/split-body-at old-body (quot old-pb 3))
+                new-node (persist-spill! store spill)
+                new-spine (if new-node
+                            (tree-conj-left! store spine new-node)
+                            spine)
+                keep' (or (try-prepend keep item elem)
+                          (lit/prepend-item keep {:type "ref" :body elem}))
+                new-left (make-digit-body! store keep')]
             (make-deep! store new-left new-spine right
                         (measure-of store new-left)
                         (measure-of store new-spine)
                         (measure-of store right)))))
-      (let [left (make-digit! store [elem] [(measure-of store elem)])
+      (let [left (as-digit! store elem)
             spine (make-empty! store)
-            right (make-digit! store [root] [(measure-of store root)])]
+            right (as-digit! store root)]
         (make-deep! store left spine right
                     (measure-of store left)
                     (measure-of store spine)
@@ -278,28 +446,32 @@
     (case (node-type node)
       "ft/empty" elem
       "ft/deep"
-      (let [{:keys [left spine right]} (node-data node)]
-        (if (< (digit-count store right) 32)
-          (let [new-right (digit-conj-right! store right elem)]
+      (let [{:keys [left spine right]} (node-data node)
+            old-body (page-body-from-data store (node-data (lookup store right)))
+            item (hash->item store elem)
+            fitted (try-append old-body item elem)]
+        (if fitted
+          (let [new-right (make-digit-body! store fitted)]
             (make-deep! store left spine new-right
                         (measure-of store left)
                         (measure-of store spine)
                         (measure-of store new-right)))
-          (let [rc (get-children store right)
-                node-children (subvec rc 0 24)
-                new-node (make-node! store node-children
-                                     (mapv #(measure-of store %) node-children))
-                new-spine (tree-conj-right! store spine new-node)
-                new-right-children (conj (subvec rc 24 32) elem)
-                new-right (make-digit! store new-right-children
-                                       (mapv #(measure-of store %) new-right-children))]
+          (let [old-pb (max 1 (lit/payload-bytes old-body))
+                [spill keep] (lit/split-body-at old-body (quot (* 2 old-pb) 3))
+                new-node (persist-spill! store spill)
+                new-spine (if new-node
+                            (tree-conj-right! store spine new-node)
+                            spine)
+                keep' (or (try-append keep item elem)
+                          (lit/append-item keep {:type "ref" :body elem}))
+                new-right (make-digit-body! store keep')]
             (make-deep! store left new-spine new-right
                         (measure-of store left)
                         (measure-of store new-spine)
                         (measure-of store new-right)))))
-      (let [left (make-digit! store [root] [(measure-of store root)])
+      (let [left (as-digit! store root)
             spine (make-empty! store)
-            right (make-digit! store [elem] [(measure-of store elem)])]
+            right (as-digit! store elem)]
         (make-deep! store left spine right
                     (measure-of store left)
                     (measure-of store spine)
@@ -498,13 +670,19 @@
   "Hash of the first element, or nil if empty."
   [store root]
   (when-let [s (tree-first* store root)]
-    (as-leaf-hash store s)))
+    (let [t (node-type (lookup store s))]
+      (if (ft-type? t)
+        (ft-first store s)
+        (as-leaf-hash store s)))))
 
 (defn ft-last
   "Hash of the last element, or nil if empty."
   [store root]
   (when-let [s (tree-last* store root)]
-    (as-leaf-hash store s)))
+    (let [t (node-type (lookup store s))]
+      (if (ft-type? t)
+        (ft-last store s)
+        (as-leaf-hash store s)))))
 
 (defn ft-rest
   "Remove the first element. Returns the new root hash."
@@ -575,11 +753,67 @@
         t (node-type node)]
     (case t
       "ft/empty" []
-      "ft/digit" (mapcat #(ft-leaves store %) (:children (node-data node)))
-      "ft/node" (mapcat #(ft-leaves store %) (:children (node-data node)))
+      "ft/digit" (mapcat #(ft-leaves store %) (page-child-hashes store (node-data node)))
+      "ft/node" (mapcat #(ft-leaves store %) (page-child-hashes store (node-data node)))
       "ft/deep" (ft-seq store h)
       ;; non-ft/*: already a leaf value
       [h])))
+
+(defn- u8-run-item
+  "A packed u8 run item for bytes in [start, end)."
+  [bs start end]
+  (let [n (- end start)
+        vs (mapv (fn [i]
+                   #?(:clj (Byte/toUnsignedInt (aget ^bytes bs i))
+                      :cljs (bit-and (aget bs i) 0xFF)))
+                 (range start end))]
+    (if (= 1 n)
+      {:type "u8" :body (first vs)}
+      {:type "run" :body {:of "u8" :values vs}})))
+
+(defn- as-node!
+  "Ensure `h` is an ft/node page (spine element). A digit is re-wrapped."
+  [store h]
+  (let [node (lookup store h)
+        t (node-type node)]
+    (case t
+      "ft/node" h
+      "ft/digit" (make-node-body! store (page-body-from-data store (node-data node)))
+      (make-node! store [h] [(measure-of store h)]))))
+
+(defn ft-from-run
+  "Build a finger-tree root from a homogeneous scalar run, packed into
+   1k pages in one write per page (no per-element conj history).
+
+   Pages are assembled as Deep(first, spine-of-middles, last) so overflow
+   never mixes a char run with a ref to another page."
+  [store type-name values]
+  (let [type-name (str type-name)
+        chunks
+        (if (and (= type-name "u8")
+                 #?(:clj (bytes? values) :cljs false))
+          (let [n #?(:clj (alength ^bytes values) :cljs 0)
+                b lit/page-budget]
+            (mapv (fn [i]
+                    (u8-run-item values i (min n (+ i b))))
+                  (range 0 n b)))
+          (lit/chunk-run type-name values lit/page-budget))
+        pages (mapv #(make-digit-body! store [%]) chunks)
+        n (count pages)]
+    (cond
+      (zero? n) (ft-empty store)
+      (= 1 n) (first pages)
+      :else
+      (let [left (first pages)
+            right (peek pages)
+            mids (mapv #(as-node! store %) (subvec pages 1 (dec n)))
+            spine (reduce (fn [root nh] (tree-conj-right! store root nh))
+                          (make-empty! store)
+                          mids)]
+        (make-deep! store left spine right
+                    (measure-of store left)
+                    (measure-of store spine)
+                    (measure-of store right))))))
 
 (defn ft-from-value-hashes
   "Build a finger-tree root by conj-right of the given leaf value hashes
@@ -601,7 +835,7 @@
     (make-digit! store vhs (mapv #(measure-of store %) vhs))))
 
 (defn ft-node-from-value-hashes
-  "Build an ft/node whose children are exactly these leaf hashes (2–32).
+  "Build an ft/node page whose logical children are these leaf hashes.
 
    Hash is fuse(type, elements_fuse), so a bottom-level node of char/byte
    leaves round-trips as a pack literal. conj-right (ft-from-value-hashes)
@@ -609,8 +843,8 @@
   [store value-hashes]
   (let [vhs (vec value-hashes)
         n (count vhs)]
-    (when-not (<= 2 n 32)
-      (throw (ex-info "ft/node literal needs 2–32 leaves" {:count n})))
+    (when-not (<= 1 n)
+      (throw (ex-info "ft/node literal needs at least one leaf" {:count n})))
     (doseq [vh vhs] (assert-leaf-value! store vh))
     (make-node! store vhs (mapv #(measure-of store %) vhs))))
 
@@ -629,10 +863,10 @@
 (defmethod types/child-hashes "ft/empty" [_] [])
 
 (defmethod types/child-hashes "ft/digit" [[_ data]]
-  (:children data))
+  (page-refs data))
 
 (defmethod types/child-hashes "ft/node" [[_ data]]
-  (:children data))
+  (page-refs data))
 
 (defmethod types/child-hashes "ft/deep" [[_ data]]
   [(:left data) (:spine data) (:right data)])

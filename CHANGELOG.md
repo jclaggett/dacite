@@ -6,6 +6,12 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **1k literal pages** — `ft/digit` and `ft/node` are pages of about
+  1,024 payload bytes: a sequence literal (`run` / `repeat` / nested
+  lits / `ref`) of the direct children. Collection value hashes are
+  unchanged (`elements_fuse` of the logical leaves). Strings and blobs
+  pack a book without one store entry per character. Wire-v1: nested
+  `ref` (`0x52`); packed digit/node nodes use `n = 0` plus a Lit body.
 - **`s/lens`** — a lens over a rooted store at a path. Same `root` /
   `cas-root!` / `v/root` API; the document cell is unchanged. Client
   convenience (hygiene in one process), not an HTTP path. `path` is a

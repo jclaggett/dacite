@@ -117,13 +117,15 @@
             (apply-get-body! pack-local h body binary?)))))
 
   (s-put [_ h value]
-    (let [{:keys [status body]} (request client "PUT" (node-url base-url h)
-                                         (.getBytes (wire/write-edn value) "UTF-8")
-                                         (assoc headers "Content-Type" "application/edn"))]
-      ;; 200 + novelty body (preferred); 204 legacy
-      (when-not (or (= 200 status) (= 204 status))
-        (throw (ex-info "Remote s-put failed" {:status status :hash h})))
-      (store/s-put pack-local h value))
+    (if store/*cache-only*
+      (store/s-put pack-local h value)
+      (let [{:keys [status body]} (request client "PUT" (node-url base-url h)
+                                           (.getBytes (wire/write-edn value) "UTF-8")
+                                           (assoc headers "Content-Type" "application/edn"))]
+        ;; 200 + novelty body (preferred); 204 legacy
+        (when-not (or (= 200 status) (= 204 status))
+          (throw (ex-info "Remote s-put failed" {:status status :hash h})))
+        (store/s-put pack-local h value)))
     _)
 
   (s-has? [_ h]

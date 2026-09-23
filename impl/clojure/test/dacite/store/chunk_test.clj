@@ -43,7 +43,7 @@
               :chunked-edn-bytes (:edn-bytes inner)
               :flush flushed})
     (is (= (count (:items packed)) (:items flushed) (:entries inner)))
-    (is (= 48 (:entries inner))
+    (is (= 36 (:entries inner))
         "encode-reachable at 1024 for the seed catalog")
     (is (< (:entries inner) live))
     (is (< live debris))))
@@ -127,7 +127,7 @@
         (println "file store seed catalog"
                  {:exploded-files e-files :exploded-bytes e-bytes
                   :chunked-files c-files :chunked-bytes c-bytes})
-        (is (= 48 c-files))
+        (is (= 36 c-files))
         (is (< c-files e-files))
         (is (< c-bytes e-bytes)))
       (finally
@@ -140,7 +140,7 @@
     (try
       (let [r (v/root (store/file (.getPath dir)))]
         (lib/load-or-seed! r)
-        (is (= 48 (count (edn-files dir)))
+        (is (= 36 (count (edn-files dir)))
             "s/file persists pack items, not construction debris")
         (let [r2 (v/root (store/file (.getPath dir)))
               loaded (v/deref r2)
@@ -161,7 +161,7 @@
             inner (chunk/inner (:content rs))]
         (try
           (lib/load-or-seed! (v/root rs))
-          (is (= 48 (:entries (jvm/lmdb-db-stat inner))))
+          (is (= 36 (:entries (jvm/lmdb-db-stat inner))))
           (finally
             (store/lmdb-close inner))))
       (let [rs2 (store/lmdb path)

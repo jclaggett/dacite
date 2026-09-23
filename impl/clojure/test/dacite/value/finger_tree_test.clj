@@ -1,12 +1,14 @@
 (ns dacite.value.finger-tree-test
   "Tests for store-backed finger trees with implicit leaf singles
    (bare value hashes as 1-elem roots and digit children)."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest is testing]]
             [dacite.hash :as hash]
             [dacite.host :as host]
             [dacite.store :as store]
             [dacite.value :as v]
             [dacite.value.finger-tree :as ft]
+            [dacite.value.lit :as lit]
             [dacite.value.types :as types]))
 
 (defn- put-i64
@@ -178,3 +180,120 @@
     (is (nil? (get by-type "ft/single")))
     (is (= n (get by-type "i64")))
     (is (pos? (get by-type "ft/deep" 0)))))
+
+(defn- put-char [st ch]
+  (v/hash (v/char st ch)))
+
+(defn- put-digit-of-char-run!
+  "Plant an ft/digit whose body is a char run/repeat (literal page)."
+  [st s]
+  (let [chs (vec (seq s))
+        vhs (mapv #(put-char st %) chs)
+        ms (mapv (fn [h]
+                   (leaf-measure h (types/dacite-size (store/s-get st h))))
+                 vhs)
+        m (reduce measure-combine
+                  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
+                  ms)
+        body (lit/rle-lits (mapv (fn [ch] {:type "char" :body ch}) chs))
+        dh (types/node-hash "ft/digit" (:elements-fuse m))]
+    (store/s-put st dh ["ft/digit" {:body body :measure m}])
+    dh))
+
+(deftest packed-char-run-digit-dual-read
+  (let [st (store/mem-store)
+        s "abc"
+        dh (put-digit-of-char-run! st s)
+        vhs (mapv #(put-char st %) (seq s))]
+    (is (= vhs (vec (ft/ft-leaves st dh))))
+    (is (= (nth vhs 0) (ft/ft-nth st dh 0)))
+    (is (= (nth vhs 2) (ft/ft-nth st dh 2)))
+    (is (= 3 (:count (ft/ft-measure st dh))))
+    (is (empty? (types/child-hashes (store/s-get st dh))))
+    (let [pointer (put-digit-of-leaves! st vhs)]
+      (is (= pointer dh) "same elements_fuse ⇒ same digit hash"))))
+
+(deftest packed-char-repeat-digit-dual-read
+  (let [st (store/mem-store)
+        s "xxxx"
+        dh (put-digit-of-char-run! st s)
+        entry (store/s-get st dh)]
+    (is (= "repeat" (:type (first (:body (types/entry-data entry))))))
+    (is (= 4 (count (ft/ft-leaves st dh))))
+    (is (= (put-char st \x) (ft/ft-nth st dh 1)))))
+
+(defn- live-ft-entries
+  "Store entries reachable from a collection's tree root (not historical conj debris)."
+  [st coll]
+  (let [root (:root (types/entry-data (store/s-get st (v/hash coll))))]
+    (loop [hs [root] seen #{} acc []]
+      (if (empty? hs)
+        acc
+        (let [h (first hs)]
+          (if (or (nil? h) (contains? seen h))
+            (recur (rest hs) seen acc)
+            (let [e (store/s-get st h)
+                  t (when e (types/entry-type e))]
+              (if (and e (str/starts-with? (str t) "ft/"))
+                (recur (into (rest hs) (types/child-hashes e))
+                       (conj seen h)
+                       (conj acc [h e]))
+                (recur (rest hs) (conj seen h) acc)))))))))
+
+(deftest packed-string-hash-stable-and-dense
+  (let [st (store/mem-store)
+        n 2000
+        s (apply str (repeat n \x))
+        dv (v/string st s)
+        ch (put-char st \x)
+        ef (reduce (fn [a _] (hash/unchecked-fuse a ch))
+                   host/zero-hash
+                   (range n))
+        live (live-ft-entries st dv)
+        digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) live)
+        pointer-slots (reduce + 0 (map (fn [[_ e]]
+                                         (count (:children (types/entry-data e) [])))
+                                       digits))]
+    (is (= n (v/count dv)))
+    (is (= s (v/native dv)))
+    (is (= (nth s 0) (v/realize (v/nth dv 0))))
+    (is (= (nth s (dec n)) (v/realize (v/nth dv (dec n)))))
+    (is (= (types/value-hash "string" ef) (v/hash dv)))
+    (is (< (count live) 8) "a 2k ASCII string is a handful of 1k pages")
+    (is (zero? pointer-slots) "writers emit :body, not :children")))
+
+(deftest packed-i64-vector-fills-payload
+  (let [st (store/mem-store)
+        n 200
+        dv (apply v/vector st (range n))
+        snap (store/s-snapshot st)
+        digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)
+        bodies (map (fn [[_ e]] (:body (types/entry-data e))) digits)]
+    (is (= n (v/count dv)))
+    (is (= 0 (v/realize (v/nth dv 0))))
+    (is (= (dec n) (v/realize (v/nth dv (dec n)))))
+    (is (some (fn [body]
+                (some (fn [item]
+                        (and (= "run" (:type item))
+                             (= "i64" (get-in item [:body :of]))))
+                      body))
+              bodies)
+        "i64s inline as a run, not 32 refs")))
+
+(deftest packed-ref-run-digit-dual-read
+  (let [st (store/mem-store)
+        a (put-i64 st 1)
+        b (put-i64 st 2)
+        c (put-i64 st 3)
+        ms (mapv (fn [h]
+                   (leaf-measure h (types/dacite-size (store/s-get st h))))
+                 [a b c])
+        m (reduce measure-combine
+                  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
+                  ms)
+        body [{:type "run" :body {:of "ref" :values [a b c]}}]
+        dh (types/node-hash "ft/digit" (:elements-fuse m))]
+    (store/s-put st dh ["ft/digit" {:body body :measure m}])
+    (is (= [a b c] (vec (ft/ft-leaves st dh))))
+    (is (= [a b c] (types/child-hashes (store/s-get st dh))))
+    (is (= b (ft/ft-nth st dh 1)))))

@@ -314,22 +314,21 @@ levels means fewer network round trips — and that's the dominant cost.
 | Node | Description | Children |
 |------|-------------|----------|
 | `ft/empty` | Empty seq | 0 |
-| `ft/digit` | Finger (end access) | 1–32 leaf or node hashes |
-| `ft/node` | Internal node | 2–32 children |
+| `ft/digit` | Finger (end access) | 1k literal page |
+| `ft/node` | Spine page | 1k literal page |
 | `ft/deep` | Full tree | 3 (left, spine, right) |
 
 There is no `ft/single` adapter. A one-element sequence uses the **leaf
-value hash** as the tree root. Digit and node children are either bare
-leaf hashes (scalars or public collection nodes such as `vector`) or
-structural `ft/node` hashes on the spine. Discrimination: non-`ft/*` means
-implicit single; `ft/*` means structure. Nested collections must be wrapped
-in a public collection node — never a bare `ft/deep` as a user value.
+value hash** as the tree root. Digits and nodes are pages of about 1,024
+payload bytes: a sequence literal of the direct children (`run` /
+`repeat` / nested value lits / `ref`). A hash is stored only for a child
+that does not fit. Discrimination: non-`ft/*` means implicit single;
+`ft/*` means structure. Nested collections must be wrapped in a public
+collection node — never a bare `ft/deep` as a user value.
 
 Every structural node is stored in the content-addressed store as its own
-entry. Children are hash references — no node ever contains inline data.
-This means every structural node has **bounded size** regardless of
-collection size: at most 32 × 32 = 1024 bytes of child hashes, plus ~48
-bytes of measure metadata.
+entry. A page is bounded by the 1,024-byte payload budget (32 hashes × 32
+bytes when every child is a pointer), plus ~48 bytes of measure metadata.
 
 ### The Measure Monoid
 
