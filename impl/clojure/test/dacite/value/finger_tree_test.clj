@@ -240,6 +240,25 @@
                        (conj acc [h e]))
                 (recur (rest hs) (conj seen h) acc)))))))))
 
+(deftest chunk-run-fills-forward-without-overshoot
+  (let [border (str (apply str (repeat 1023 \a)) \u03bb "bc")
+        long (str (apply str (repeat 2500 \x)) \u03bb)
+        chunks-b (lit/chunk-run "char" border lit/page-budget)
+        chunks-l (lit/chunk-run "char" long lit/page-budget)
+        text-of (fn [item]
+                  (let [b (:body item)]
+                    (case (:type item)
+                      "char" (str b)
+                      "run" (str (:values b)))))]
+    (is (= ["aaa" "\u03bbb" "c"]
+           (mapv text-of (lit/chunk-run "char" (str "aaa" \u03bb "bc") 3)))
+        "a 2-byte character that would cross the budget starts the next chunk")
+    (is (= border (apply str (map text-of chunks-b))))
+    (is (= long (apply str (map text-of chunks-l))))
+    (is (every? #(<= (lit/item-payload-bytes %) lit/page-budget)
+                (concat chunks-b chunks-l)))
+    (is (= 3 (count chunks-l)))))
+
 (deftest packed-string-hash-stable-and-dense
   (let [st (store/mem-store)
         n 2000

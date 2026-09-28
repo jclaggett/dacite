@@ -432,12 +432,10 @@
       (= "ft/digit" type)
       (ft/ft-digit-from-value-hashes st leaf-hs)
 
-      ;; Bottom-level nodes are 2–32 leaves; rebuild the node cell, not a
-      ;; conj-right spine (that dry-run-fails and ships as a fat :node).
+      ;; A node page is one cell, including a 1k run of leaves. conj-right
+      ;; would build a different spine and re-measure every prefix.
       (= "ft/node" type)
-      (if (<= 2 (count leaf-hs) 32)
-        (ft/ft-node-from-value-hashes st leaf-hs)
-        (ft/ft-from-value-hashes st leaf-hs))
+      (ft/ft-node-from-value-hashes st leaf-hs)
 
       (= "ft/deep" type)
       (ft/ft-from-value-hashes st leaf-hs)

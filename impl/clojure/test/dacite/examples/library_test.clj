@@ -21,6 +21,16 @@
    :license "public-domain"
    :text "CHAPTER I. Stripes\n\nHello from zebra.\n"})
 
+(deftest contents-list-is-not-chapters
+  (let [toc (apply str (map #(str "CHAPTER " % ". Title.\n") (range 1 6)))
+        pad (apply str (repeat 250 \x))
+        body (str toc "\n" pad "\n"
+                  "CHAPTER 1. Loomings.\n\n" pad "\n"
+                  "CHAPTER 2. The Carpet-Bag.\n\n" pad "\n")
+        heads (lib/parse-chapters body "Front")]
+    (is (= ["Front" "CHAPTER 1. Loomings." "CHAPTER 2. The Carpet-Bag."]
+           (mapv :title heads)))))
+
 (deftest library-root-predicate
   (let [st (store/mem)
         catalog (lib/empty-library st)]

@@ -118,7 +118,8 @@ enough that slice and a full native are different amounts of work.
 (defn book-chapters [book] (v/get book "chapters"))
 
 (defn- utf8-bytes
-  "UTF-8 code units as 0–255 ints. Browser uses TextEncoder; nbb uses Buffer."
+  "UTF-8 bytes of `s`. JVM and babashka return a byte array so blob
+   construction can slice it. ClojureScript returns 0–255 ints."
   [s]
   #?(:cljs
      (let [u8 (if (exists? js/Buffer)
@@ -126,8 +127,7 @@ enough that slice and a full native are different amounts of work.
                 (.encode (js/TextEncoder.) s))]
        (mapv #(aget u8 %) (range (.-length u8))))
      :default
-     (mapv #(Byte/toUnsignedInt %)
-           (.getBytes ^String (str s) "UTF-8"))))
+     (.getBytes ^String (str s) "UTF-8")))
 
 (defn- utf8-string
   "Host string from `v/as-bytes` (byte array or 0–255 ints)."
@@ -144,22 +144,47 @@ enough that slice and a full native are different amounts of work.
          (.toString (js/Buffer.from arr) "utf8")
          (.decode (js/TextDecoder.) (js/Uint8Array.from arr))))))
 
+(defn- tight-run-length
+  "How many headings, starting at `heads`, are separated by less than
+   `min-body` characters. A contents list is one of these runs."
+  [heads min-body]
+  (loop [xs (seq heads) n 1]
+    (let [b (second xs)]
+      (if (and b (< (- (:start b) (:start (first xs))) min-body))
+        (recur (next xs) (inc n))
+        n))))
+
+(defn- without-contents-lists
+  "Drop runs of three or more headings with almost no text between them.
+   Gutenberg files repeat every chapter title in a contents list before
+   the novel. A real chapter has a body before the next heading."
+  [heads]
+  (loop [hs (seq heads) out []]
+    (if-not (seq hs)
+      out
+      (let [n (tight-run-length hs 200)]
+        (if (>= n 3)
+          (recur (seq (drop n hs)) out)
+          (recur (next hs) (conj out (first hs))))))))
+
 (defn parse-chapters
   "Heading lines `CHAPTER …` / `Chapter …` → [{:title :start} …].
    Character offsets into `text`. A preamble before the first heading
-   becomes Preface at 0. No headings → one chapter at 0 named `fallback`."
+   becomes Preface at 0. No headings → one chapter at 0 named `fallback`.
+   A contents list of bare headings is not a sequence of chapters."
   ([text] (parse-chapters text "Preface"))
   ([text fallback]
    (let [heads
-         (loop [from 0 acc []]
-           (let [s (subs text from)
-                 m (re-find #"(?m)^(?:CHAPTER|Chapter) .+$" s)]
-             (if-not m
-               acc
-               (let [rel (str/index-of s m)
-                     start (+ from rel)]
-                 (recur (+ start (count m))
-                        (conj acc {:title (str/trim m) :start start}))))))]
+         (without-contents-lists
+          (loop [from 0 acc []]
+            (let [s (subs text from)
+                  m (re-find #"(?m)^(?:CHAPTER|Chapter) .+$" s)]
+              (if-not m
+                acc
+                (let [rel (str/index-of s m)
+                      start (+ from rel)]
+                  (recur (+ start (count m))
+                         (conj acc {:title (str/trim m) :start start})))))))]
      (cond
        (empty? heads)
        [{:title fallback :start 0}]

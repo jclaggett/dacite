@@ -329,29 +329,75 @@
       :else
       [item nil])))
 
+(defn- utf8-units
+  "UTF-8 code units of one UTF-16 code unit. A supplementary character is
+   two units here and four bytes on the wire, so a chunk that stops between
+   the pair stays inside the budget."
+  [ch]
+  (let [c (int ch)]
+    (cond
+      (< c 0x80) 1
+      (< c 0x800) 2
+      :else 3)))
+
+(defn- chunk-item
+  [of piece]
+  (if (= 1 (count piece))
+    {:type of :body (nth piece 0)}
+    {:type "run" :body {:of of :values piece}}))
+
+(defn- chunk-chars
+  "One left-to-right pass. Each chunk is a fresh substring, so the tail of
+   a book is not copied on every split."
+  [s budget]
+  (let [n (count s)
+        budget (max 1 (long budget))]
+    (loop [from 0 out (transient [])]
+      (if (>= from n)
+        (persistent! out)
+        (let [end (loop [i from acc 0]
+                    (if (>= i n)
+                      i
+                      (let [u (utf8-units (nth s i))]
+                        (if (and (pos? acc) (> (+ acc u) budget))
+                          i
+                          (recur (inc i) (+ acc u))))))
+              piece (subs s from end)]
+          (recur end (conj! out (chunk-item "char" piece))))))))
+
+(defn- copy-range
+  "A new vector of `vs[start, end)`. A subvec would keep the whole source
+   array alive for as long as any page body is."
+  [vs start end]
+  (mapv #(nth vs %) (range start end)))
+
+(defn- chunk-elems
+  [of vs budget]
+  (let [n (count vs)
+        elem (case of
+               "u8" 1
+               "ref" 32
+               (scalar-payload-bytes of nil))
+        step (max 1 (if (pos? (long elem)) (quot (long budget) (long elem)) n))]
+    (loop [start 0 out (transient [])]
+      (if (>= start n)
+        (persistent! out)
+        (let [end (min n (+ start step))
+              piece (copy-range vs start end)]
+          (recur end (conj! out (chunk-item of piece))))))))
+
 (defn chunk-run
   "Split a homogeneous run (`of` + `values`) into items each within `budget`
-   payload bytes. Used to persist 1k pages without per-element conj."
+   payload bytes. One forward pass: a long string or byte vector is not
+   re-copied from the cut to the end on every page."
   [of values budget]
-  (let [of (str of)
-        values (if (= of "char") (str values) (vec values))
-        item (let [n (if (= of "char") (count values) (count values))]
-               (cond
-                 (zero? n) nil
-                 (= n 1) {:type of :body (if (= of "char") (first values) (first values))}
-                 :else {:type "run" :body {:of of :values values}}))]
-    (if (nil? item)
-      []
-      (loop [item item
-             out []]
-        (if (or (nil? item) (zero? (item-payload-bytes item)))
-          out
-          (if (<= (item-payload-bytes item) budget)
-            (conj out item)
-            (let [[l r] (split-item-at item budget)]
-              (if (nil? l)
-                (conj out item)
-                (recur r (conj out l))))))))))
+  (let [of (str of)]
+    (if (= of "char")
+      (chunk-chars (str values) budget)
+      (let [vs (vec values)]
+        (if (zero? (count vs))
+          []
+          (chunk-elems of vs budget))))))
 
 (defn split-body-at
   "Split a page body so the left side's payload is about `target` bytes.
