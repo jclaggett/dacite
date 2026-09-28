@@ -13,7 +13,7 @@
             [dacite.value.types :as types]
             ;; Register wrap-entry for collections/scalars
             [dacite.value.scalar]
-            [dacite.value.collections]))
+            [dacite.value.collections :as coll]))
 
 ;; =============================================================================
 ;; dac->clj
@@ -36,7 +36,9 @@
                                 (dac->clj-unsafe (val e))]))
                      (seq x))
       "string" (if-let [cs (types/realize x)] (apply str cs) "")
-      "blob"   (byte-array (map unchecked-byte (types/realize x)))
+      "blob"   (or (coll/blob-host-bytes (types/dacite-store x)
+                                         (types/dacite-hash x))
+                   (byte-array (map unchecked-byte (types/realize x))))
       ;; scalars realize directly to their native value
       (types/realize x))
     x))

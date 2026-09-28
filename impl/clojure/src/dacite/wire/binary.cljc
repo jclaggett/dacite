@@ -13,6 +13,7 @@
             [dacite.host :as host]
             [dacite.store :as store]
             [dacite.store.pack :as pack]
+            [dacite.value.lit :as lit]
             [dacite.value.types :as types]
             #?(:clj [clojure.java.io :as io])))
 
@@ -219,8 +220,8 @@
         n (byte-len bs)
         p @(:pos buf)
         arr (:arr buf)]
-    (dotimes [i n]
-      (bset arr (+ p i) (bget bs i)))
+    #?(:clj (System/arraycopy ^bytes bs 0 ^bytes arr (int p) (int n))
+       :cljs (.set arr bs p))
     (vreset! (:pos buf) (+ p n))))
 
 (defn- get-u8
@@ -285,8 +286,8 @@
   (let [a (make-bytes n)
         p @(:pos buf)
         src (:arr buf)]
-    (dotimes [i n]
-      (bset a i (bget src (+ p i))))
+    #?(:clj (System/arraycopy ^bytes src (int p) ^bytes a 0 (int n))
+       :cljs (.set a (.subarray src p (+ p n))))
     (vreset! (:pos buf) (+ p n))
     a))
 
@@ -529,10 +530,12 @@
         (finish buf))
 
       "u8"
-      (let [vals (vec (or values []))
-            buf (bb (count vals))]
-        (doseq [x vals]
-          (put-u8 buf (bit-and 0xff (int x))))
+      (let [n (lit/u8-count values)
+            buf (bb n)
+            raw (if (lit/u8-bytes? values)
+                  values
+                  (lit/copy-u8-range values 0 n))]
+        (put-bytes buf raw)
         (finish buf))
 
       (concat-wire-bytes
@@ -697,9 +700,10 @@
             values (:values body)
             inner (or (name->type-id of)
                       (throw (ex-info "unknown run inner type" {:of of})))
-            n (if (= of "char")
-                (count (str values))
-                (count (or values [])))
+            n (cond
+                (= of "char") (count (str values))
+                (= of "u8") (lit/u8-count values)
+                :else (count (or values [])))
             packed (encode-run-packed of n values)
             buf (bb (+ 1 1 4 (byte-len packed)))]
         (put-u8 buf tid)
@@ -745,8 +749,7 @@
         s)
 
       "u8"
-      (let [bs (get-bytes buf n)]
-        (mapv #(bget bs %) (range (byte-len bs))))
+      (get-bytes buf n)
 
       (mapv (fn [_] (decode-lit-body of buf)) (range n)))))
 

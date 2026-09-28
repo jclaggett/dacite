@@ -8,6 +8,7 @@
    LMDB lives in dacite.store.jvm — keep this ns free of native deps so
    babashka can load it."
   (:require [dacite.store :as store]
+            [dacite.wire :as wire]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
   (:import [java.io File]))
@@ -15,7 +16,23 @@
 ;; nbb writes 64-bit words as #dacite/u64 "…"; accept them so a store
 ;; directory can be opened from either host (unsigned → signed long bits).
 (def ^:private edn-opts
-  {:readers {'dacite/u64 (fn [s] (Long/parseUnsignedLong (str s)))}})
+  {:readers {'dacite/u64 (fn [s] (Long/parseUnsignedLong (str s)))
+             'dacite/bytes wire/bytes-from-edn}})
+
+(defn- tag-byte-arrays
+  "Replace byte arrays with `#dacite/bytes` so `pr-str` round-trips.
+   Page bodies keep the arrays in memory; only the EDN file sees the vector."
+  [x]
+  (cond
+    (bytes? x) (tagged-literal 'dacite/bytes (wire/bytes->vec x))
+    (map? x) (reduce-kv (fn [m k v]
+                          (assoc m (tag-byte-arrays k) (tag-byte-arrays v)))
+                        {}
+                        x)
+    (vector? x) (mapv tag-byte-arrays x)
+    (set? x) (into #{} (map tag-byte-arrays) x)
+    (seq? x) (doall (map tag-byte-arrays x))
+    :else x))
 
 (defn- read-edn [s]
   (edn/read-string edn-opts s))
@@ -44,7 +61,7 @@
   (s-put [this h value]
     (let [f (hash->path base-dir h)]
       (ensure-parent-dirs f)
-      (spit f (pr-str value))
+      (spit f (pr-str (tag-byte-arrays value)))
       this))
 
   (s-has? [_ h]

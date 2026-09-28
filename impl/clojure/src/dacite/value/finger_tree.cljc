@@ -26,7 +26,8 @@
 
    A digit or node is a page of about 1,024 encoded bytes. Writers still
    emit pointer pages (`:children`, 1–32 hashes). Readers dual-read
-   `:body` sequence literals (run/repeat/ref/nested lits). See
+   `:body` sequence literals (run/repeat/ref/nested lits). A u8 run's
+   `:values` is a copied byte array (Uint8Array on CLJS). See
    docs/design/dense-sequence-leaves.md."
   (:require [dacite.hash :as hash]
             [dacite.host :as host]
@@ -209,9 +210,72 @@
       :else
       (measure-of store (lit/intern-lit-item! store item)))))
 
+(defn- u8-hash-table
+  "The 256 u8 scalar value hashes, indexed by unsigned byte."
+  []
+  (let [hs (mapv (fn [i] (types/scalar-value-hash ["u8" i])) (range 256))]
+    #?(:clj (into-array Object hs)
+       :cljs (into-array hs))))
+
+(def ^:private u8-scalar-hashes
+  "Computed once. A page measure fuses these in place."
+  (delay (u8-hash-table)))
+
+(defn- u8-hash-at [n]
+  #?(:clj (aget ^objects @u8-scalar-hashes (int n))
+     :cljs (aget @u8-scalar-hashes n)))
+
+#?(:clj
+   (defn- fuse-u8-array
+     "Fuse per-byte u8 scalar hashes of a byte array. No per-byte map or
+      Integer is retained."
+     [^bytes bs]
+     (let [^objects hs @u8-scalar-hashes
+           n (alength bs)]
+       (loop [i (int 0) acc host/zero-hash]
+         (if (== i n)
+           acc
+           (recur (unchecked-inc-int i)
+                  (hash/unchecked-fuse
+                   acc
+                   (aget hs (Byte/toUnsignedInt (aget bs i)))))))))
+   :cljs
+   (defn- fuse-u8-array [bs]
+     (let [hs @u8-scalar-hashes
+           n (lit/u8-count bs)]
+       (loop [i 0 acc host/zero-hash]
+         (if (== i n)
+           acc
+           (recur (inc i)
+                  (hash/unchecked-fuse acc (aget hs (lit/u8-nth bs i)))))))))
+
+(defn- u8-run-measure
+  "Measure of a u8 run: count and size are the byte length, and
+   elements-fuse is the fuse of the per-byte u8 scalar hashes."
+  [values]
+  (let [n (lit/u8-count values)
+        ef (if (lit/u8-bytes? values)
+             (fuse-u8-array values)
+             (loop [i 0 acc host/zero-hash]
+               (if (== i n)
+                 acc
+                 (recur (inc i)
+                        (hash/unchecked-fuse
+                         acc (u8-hash-at (lit/u8-nth values i)))))))]
+    {:count n :size-bytes n :elements-fuse ef}))
+
 (defn- body-measure
   [store body]
-  (measure-seq (map #(item-measure store %) (lit/expand-rle-seq body))))
+  (measure-seq
+   (map (fn [item]
+          (if (lit/u8-run? item)
+            (u8-run-measure (:values (:body item)))
+            (item-measure store item)))
+        (mapcat (fn [item]
+                  (if (lit/u8-run? item)
+                    [item]
+                    (lit/expand-rle-seq [item])))
+                (or body [])))))
 
 (defn- make-digit-body!
   [store body]
@@ -222,6 +286,18 @@
   [store body]
   (add-node! store ["ft/node" {:body (vec body)
                                :measure (body-measure store body)}]))
+
+(defn ft-digit-from-body!
+  "Persist an ft/digit from a literal page body.
+   A u8 run is measured by scanning its byte buffer."
+  [store body]
+  (make-digit-body! store body))
+
+(defn ft-node-from-body!
+  "Persist an ft/node from a literal page body.
+   A u8 run is measured by scanning its byte buffer."
+  [store body]
+  (make-node-body! store body))
 
 (defn- persist-spill!
   "Persist an overflow prefix as a spine element. A single ref is used
@@ -510,23 +586,47 @@
             (as-leaf-hash store c)))
         (recur (next cs) (- remaining c-count))))))
 
+(defn- intern-u8!
+  "Cache the u8 scalar for one unsigned byte and return its value hash."
+  [store n]
+  (let [n (bit-and 0xff (int n))
+        h (u8-hash-at n)]
+    (binding [store/*cache-only* true]
+      (store/s-put store h ["u8" n]))
+    h))
+
+(defn- u8-page-nth
+  "Value hash of the u8 at `idx` when that index lands in a u8 piece.
+   Nil when the index sits at a non-u8 item, so the caller expands.
+   Only the returned byte is boxed and interned."
+  [store data idx]
+  (when-let [body (and (not (:children data)) (:body data))]
+    (loop [items (seq body) i (long idx)]
+      (when-let [item (first items)]
+        (if-not (lit/u8-piece? item)
+          nil
+          (let [c (lit/u8-piece-count item)]
+            (if (< i c)
+              (intern-u8! store (lit/u8-piece-nth item i))
+              (recur (next items) (- i c)))))))))
+
 (defn- tree-nth* [store root idx]
   (let [node (lookup store root)
         t (node-type node)]
     (case t
-      "ft/node" (scan-children store (get-children store root) idx)
-      "ft/digit" (scan-children store (get-children store root) idx)
+      ("ft/node" "ft/digit")
+      (or (u8-page-nth store (node-data node) idx)
+          (scan-children store (get-children store root) idx))
       "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
             left-count (:count (measure-of store left))]
         (if (< idx left-count)
-          (scan-children store (get-children store left) idx)
+          (tree-nth* store left idx)
           (let [spine-count (:count (measure-of store spine))
                 spine-idx (- idx left-count)]
             (if (< spine-idx spine-count)
               (tree-nth* store spine spine-idx)
-              (scan-children store (get-children store right)
-                             (- spine-idx spine-count))))))
+              (tree-nth* store right (- spine-idx spine-count))))))
       ;; bare leaf as 1-element tree root
       (if (zero? idx)
         (as-leaf-hash store root)
@@ -759,17 +859,109 @@
       ;; non-ft/*: already a leaf value
       [h])))
 
-(defn- u8-run-item
-  "A packed u8 run item for bytes in [start, end)."
-  [bs start end]
-  (let [n (- end start)
-        vs (mapv (fn [i]
-                   #?(:clj (Byte/toUnsignedInt (aget ^bytes bs i))
-                      :cljs (bit-and (aget bs i) 0xFF)))
-                 (range start end))]
-    (if (= 1 n)
-      {:type "u8" :body (first vs)}
-      {:type "run" :body {:of "u8" :values vs}})))
+(defn- bset-u8 [dest i v]
+  #?(:clj (aset-byte ^bytes dest (int i) (unchecked-byte (bit-and 0xff (int v))))
+     :cljs (aset dest i (bit-and 0xff (int v)))))
+
+(defn- copy-u8-into
+  "Copy `m` bytes from `src` at `src-from` into `dest` at `dest-at`."
+  [src src-from dest dest-at m]
+  #?(:clj
+     (if (bytes? src)
+       (System/arraycopy ^bytes src (int src-from) ^bytes dest (int dest-at) (int m))
+       (dotimes [j m]
+         (bset-u8 dest (+ dest-at j) (lit/u8-nth src (+ src-from j)))))
+     :cljs
+     (if (instance? js/Uint8Array src)
+       (.set dest (.subarray src src-from (+ src-from m)) dest-at)
+       (dotimes [j m]
+         (bset-u8 dest (+ dest-at j) (lit/u8-nth src (+ src-from j)))))))
+
+(declare export-u8-node)
+
+(defn- export-u8-body
+  "Copy u8 leaves of a page body into `dest`. Returns the next index, or
+   nil when an item is not u8 payload or a ref to more of the same."
+  [store body dest at limit]
+  (loop [items (seq body) at at]
+    (cond
+      (nil? at) nil
+      (>= at limit) at
+      (nil? items) at
+      :else
+      (let [item (first items)
+            t (str (:type item))
+            b (:body item)
+            next-at
+            (cond
+              (lit/u8-piece? item)
+              (let [c (lit/u8-piece-count item)
+                    m (min c (- limit at))]
+                (case t
+                  "u8"
+                  (do (bset-u8 dest at b) (inc at))
+
+                  "repeat"
+                  (do (dotimes [j m]
+                        (bset-u8 dest (+ at j) (:value b)))
+                      (+ at m))
+
+                  (do (copy-u8-into (:values b) 0 dest at m)
+                      (+ at m))))
+
+              (= t "ref")
+              (export-u8-node store b dest at limit)
+
+              (and (= t "run") (= "ref" (str (:of b))))
+              (loop [hs (seq (:values b)) at at]
+                (cond
+                  (or (nil? at) (>= at limit) (nil? hs)) at
+                  :else (recur (next hs)
+                               (export-u8-node store (first hs) dest at limit))))
+
+              :else nil)]
+        (recur (next items) next-at)))))
+
+(defn- export-u8-node
+  [store h dest at limit]
+  (if (or (nil? at) (>= at limit))
+    at
+    (let [node (lookup store h)
+          t (node-type node)
+          data (node-data node)]
+      (case t
+        "ft/empty" at
+        ("ft/digit" "ft/node")
+        (if-let [ch (:children data)]
+          (loop [hs (seq ch) at at]
+            (cond
+              (or (nil? at) (>= at limit) (nil? hs)) at
+              :else (recur (next hs)
+                           (export-u8-node store (first hs) dest at limit))))
+          (export-u8-body store (:body data) dest at limit))
+        "ft/deep"
+        (let [{:keys [left spine right]} data]
+          (when-let [a (export-u8-node store left dest at limit)]
+            (when-let [b (export-u8-node store spine dest a limit)]
+              (export-u8-node store right dest b limit))))
+        (if (= t "u8")
+          (do (bset-u8 dest at data)
+              (inc at))
+          nil)))))
+
+(defn ft-export-u8
+  "Copy `n` u8 leaves under `root` into a fresh byte buffer.
+   Returns nil when the tree is not a u8 page tree (caller can walk
+   leaves instead). Empty `n` is an empty buffer."
+  [store root n]
+  (let [n (long n)
+        dest #?(:clj (byte-array (int n))
+                :cljs (js/Uint8Array. n))
+        wrote (if (or (zero? n) (nil? root))
+                0
+                (export-u8-node store root dest 0 n))]
+    (when (= wrote n)
+      dest)))
 
 (defn- as-node!
   "Ensure `h` is an ft/node page (spine element). A digit is re-wrapped."
@@ -789,15 +981,7 @@
    never mixes a char run with a ref to another page."
   [store type-name values]
   (let [type-name (str type-name)
-        chunks
-        (if (and (= type-name "u8")
-                 #?(:clj (bytes? values) :cljs false))
-          (let [n #?(:clj (alength ^bytes values) :cljs 0)
-                b lit/page-budget]
-            (mapv (fn [i]
-                    (u8-run-item values i (min n (+ i b))))
-                  (range 0 n b)))
-          (lit/chunk-run type-name values lit/page-budget))
+        chunks (lit/chunk-run type-name values lit/page-budget)
         pages (mapv #(make-digit-body! store [%]) chunks)
         n (count pages)]
     (cond

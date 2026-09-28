@@ -259,6 +259,42 @@
                 (concat chunks-b chunks-l)))
     (is (= 3 (count chunks-l)))))
 
+(defn- u8-run-buffers
+  "Byte buffers stored as u8 run payloads under live ft pages."
+  [st coll]
+  (into []
+        (comp (map (fn [[_ e]] (:body (types/entry-data e) [])))
+              (mapcat identity)
+              (filter #(and (= "run" (:type %))
+                            (= "u8" (get-in % [:body :of]))))
+              (map #(get-in % [:body :values])))
+        (live-ft-entries st coll)))
+
+(deftest packed-blob-keeps-copied-bytes
+  (let [st (store/mem-store)
+        n 5000
+        nums (mapv #(bit-and 0xff %) (range n))
+        src (byte-array (map unchecked-byte nums))
+        blob (v/blob st src)
+        hs (map #(types/scalar-value-hash ["u8" (int %)]) nums)
+        ef (reduce hash/unchecked-fuse host/zero-hash hs)
+        bufs (u8-run-buffers st blob)]
+    (aset src 0 (unchecked-byte 9))
+    (is (= n (v/count blob)))
+    (is (seq bufs))
+    (is (every? bytes? bufs))
+    (is (every? #(<= (alength ^bytes %) lit/page-budget) bufs))
+    (is (= 0 (v/realize (v/nth blob 0))) "the stored page is a copy")
+    (is (= 255 (v/realize (v/nth blob 255))))
+    (is (= 128 (v/realize (v/nth blob 128))))
+    (is (= (bit-and 0xff (dec n)) (v/realize (v/nth blob (dec n)))))
+    (is (= (types/value-hash "blob" ef) (v/hash blob)))
+    (let [root (:root (types/entry-data (store/s-get st (v/hash blob))))
+          out (ft/ft-export-u8 st root n)]
+      (is (bytes? out))
+      (is (= nums (mapv #(bit-and 0xff (aget ^bytes out %)) (range n))))
+      (is (= nums (mapv #(bit-and 0xff (aget ^bytes (v/as-bytes blob) %)) (range n)))))))
+
 (deftest packed-string-hash-stable-and-dense
   (let [st (store/mem-store)
         n 2000

@@ -33,6 +33,21 @@
   (is (= 0x50 (get bin/name->type-id "run")))
   (is (= 0x51 (get bin/name->type-id "repeat"))))
 
+(deftest u8-run-lit-keeps-raw-bytes
+  (let [raw (byte-array (map unchecked-byte [0 1 127 128 255]))
+        form {:type "run" :body {:of "u8" :values raw}}
+        bs (bin/encode-lit-bytes form)
+        back (bin/decode-lit-bytes bs)
+        vals (get-in back [:body :values])
+        from-vec (bin/encode-lit-bytes
+                  {:type "run" :body {:of "u8" :values [0 1 127 128 255]}})]
+    (is (= "u8" (get-in back [:body :of])))
+    (is (bytes? vals))
+    (is (= [0 1 127 128 255]
+           (mapv #(Byte/toUnsignedInt (aget ^bytes vals %)) (range 5))))
+    (is (= (bin/bytes->hex bs) (bin/bytes->hex from-vec)))
+    (is (= (bin/bytes->hex bs) (bin/bytes->hex (bin/encode-lit-bytes back))))))
+
 (deftest run-repeat-lit-bytes-round-trip
   (doseq [form [{:type "run" :body {:of "char" :values "hello"}}
                 {:type "run" :body {:of "i64" :values [1 2 3]}}

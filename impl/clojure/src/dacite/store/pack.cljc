@@ -263,8 +263,11 @@
       {:type t :body []}
 
       (str/starts-with? (str t) "ft/")
-      (let [leaves (vec (ft/ft-leaves st h))]
-        {:type t :body (rle-lits (leaf-literals st leaves))})
+      (let [body (:body (types/entry-data entry))]
+        (if (lit/self-contained-body? body)
+          {:type t :body body}
+          (let [leaves (vec (ft/ft-leaves st h))]
+            {:type t :body (rle-lits (leaf-literals st leaves))})))
 
       (= "hamt/empty" t)
       {:type t :body []}
@@ -522,9 +525,14 @@
         (types/dacite-hash (apply coll/hash-map-with-store st kvs)))
 
       (str/starts-with? type "ft/")
-      (let [leaf-hs (mapv #(materialize-nested! st %)
-                          (expand-rle-seq (or body [])))]
-        (materialize-ft! st type leaf-hs))
+      (if (and (#{"ft/digit" "ft/node"} type)
+               (lit/self-contained-body? body))
+        (if (= type "ft/digit")
+          (ft/ft-digit-from-body! st body)
+          (ft/ft-node-from-body! st body))
+        (let [leaf-hs (mapv #(materialize-nested! st %)
+                            (expand-rle-seq (or body [])))]
+          (materialize-ft! st type leaf-hs)))
 
       (str/starts-with? type "hamt/")
       (materialize-hamt! st type (or body []))

@@ -116,6 +116,14 @@
   [store h i]
   (wrap-hash store (ft/ft-nth store (node-root store h) i)))
 
+(defn blob-host-bytes
+  "Host byte buffer for blob `h`, or nil if its tree is not u8 pages.
+   Copies each page buffer. Does not box the bytes."
+  [store h]
+  (let [data (types/entry-data (store/s-get store h))
+        n (long (or (:count data) 0))]
+    (ft/ft-export-u8 store (:root data) n)))
+
 (defn vec-conj
   "Append val to a vector, returning a new DaciteVector."
   [store h val]

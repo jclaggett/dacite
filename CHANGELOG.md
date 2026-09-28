@@ -12,6 +12,8 @@ stability promise: public APIs may still change before 1.0.
   unchanged (`elements_fuse` of the logical leaves). Strings and blobs
   pack a book without one store entry per character. Wire-v1: nested
   `ref` (`0x52`); packed digit/node nodes use `n = 0` plus a Lit body.
+  A u8 run payload is a copied byte buffer, measured by fusing the 256
+  `u8` scalar hashes in place.
 - **`s/lens`** — a lens over a rooted store at a path. Same `root` /
   `cas-root!` / `v/root` API; the document cell is unchanged. Client
   convenience (hygiene in one process), not an HTTP path. `path` is a

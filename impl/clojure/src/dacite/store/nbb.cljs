@@ -20,11 +20,17 @@
 (defn- bigint? [x]
   (= (type x) js/BigInt))
 
+(defn- u8-array? [x]
+  (instance? js/Uint8Array x))
+
 (defn- encode-value
-  "Walk a store value, wrapping BigInts as #dacite/u64 tagged literals."
+  "Walk a store value, wrapping BigInts as #dacite/u64 and byte buffers
+   as #dacite/bytes."
   [x]
   (cond
     (bigint? x) (tagged-literal 'dacite/u64 (str x))
+    (u8-array? x)
+    (tagged-literal 'dacite/bytes (mapv #(aget x %) (range (.-length x))))
     (vector? x) (mapv encode-value x)
     (map? x) (into {} (map (fn [[k v]] [(encode-value k) (encode-value v)]) x))
     (set? x) (into #{} (map encode-value) x)
@@ -35,6 +41,7 @@
   "Walk a store value after EDN read (tagged literals already expanded)."
   [x]
   (cond
+    (u8-array? x) x
     (vector? x) (mapv decode-value x)
     (map? x) (into {} (map (fn [[k v]] [(decode-value k) (decode-value v)]) x))
     (set? x) (into #{} (map decode-value) x)
@@ -42,7 +49,12 @@
     :else x))
 
 (def ^:private edn-readers
-  {'dacite/u64 (fn [s] (js/BigInt s))})
+  {'dacite/u64 (fn [s] (js/BigInt s))
+   'dacite/bytes (fn [xs]
+                   (let [out (js/Uint8Array. (count xs))]
+                     (dotimes [i (count xs)]
+                       (aset out i (bit-and 0xff (nth xs i))))
+                     out))})
 
 (defn- write-edn [file-path value]
   (.writeFileSync fs file-path (pr-str (encode-value value)) "utf8"))

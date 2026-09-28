@@ -2,7 +2,8 @@
 
 **Status:** implemented. Digits and nodes are 1k literal pages.
 
-**Related:** `docs/design/leaf-chunking.md` (transport only; durable model
+**Related:** `docs/design/boxed-u8-runs.md` (u8 run payload is a copied
+byte buffer), `docs/design/leaf-chunking.md` (transport only; durable model
 unchanged), `impl/clojure/src/dacite/value/collections.cljc`
 (`string-with-store`, `blob-with-store`),
 `impl/clojure/src/dacite/value/finger_tree.cljc` (digits 1–32, nodes 2–32).

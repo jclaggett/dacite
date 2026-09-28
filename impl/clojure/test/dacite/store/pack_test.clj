@@ -449,6 +449,31 @@
 ;; 2c — large trees / blobs: refuse root literal, mix :node + child :literal
 ;; ---------------------------------------------------------------------------
 
+(deftest multi-page-blob-round-trips-as-byte-runs
+  (let [st (store/mem-store)
+        n 2500
+        nums (mapv #(bit-and 0xff %) (range n))
+        blob (coll/blob-with-store st (byte-array (map unchecked-byte nums)))
+        h (types/dacite-hash blob)
+        {:keys [items]} (pack/encode-reachable st h)
+        runs (vec (for [it items
+                        :when (= :literal (:encoding it))
+                        :let [body (:body it)]
+                        item (if (sequential? body) body [])
+                        :when (and (map? item)
+                                   (= "run" (:type item))
+                                   (= "u8" (get-in item [:body :of])))]
+                    (get-in item [:body :values])))
+        st2 (store/mem-store)]
+    (is (seq runs))
+    (is (every? bytes? runs))
+    (doseq [ch (pack/pack-items items)]
+      (pack/apply-chunk! st2 ch))
+    (is (store/s-has? st2 h))
+    (is (= 255 (types/realize (coll/seq-nth st2 h 255))))
+    (is (= 128 (types/realize (coll/seq-nth st2 h 128))))
+    (is (= (bit-and 0xff (dec n)) (types/realize (coll/seq-nth st2 h (dec n)))))))
+
 (deftest large-string-refuses-literal-at-default-budget
   (let [st (store/mem-store)
         body (apply str (repeat 3000 "x"))

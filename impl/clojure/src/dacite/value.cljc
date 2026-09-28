@@ -346,9 +346,10 @@
          (when (and limit (> n limit))
            (throw (ex-info "blob exceeds byte limit"
                            {:count n :limit limit})))
-         (let [nums (mapv long (take take-n (or (realize x) ())))]
-           #?(:clj (byte-array (clojure.core/map unchecked-byte nums))
-              :cljs nums)))))))
+         (or (coll/blob-host-bytes st h)
+             (let [nums (mapv long (take take-n (or (realize x) ())))]
+               #?(:clj (byte-array (clojure.core/map unchecked-byte nums))
+                  :cljs nums))))))))
 
 (defn pr-str
   "Bounded debug render. Never throws. Does not dump the tree into RAM.

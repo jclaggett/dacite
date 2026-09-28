@@ -40,18 +40,43 @@
   #?(:clj  (Long/parseUnsignedLong (str s))
      :cljs (.asUintN js/BigInt 64 (js/BigInt (str s)))))
 
+(defn- byte-buffer?
+  [x]
+  #?(:clj (bytes? x)
+     :cljs (instance? js/Uint8Array x)))
+
+(defn bytes->vec
+  "Unsigned 0..255 vector of a host byte buffer, for EDN."
+  [bs]
+  #?(:clj (let [n (alength ^bytes bs)]
+            (mapv #(Byte/toUnsignedInt (aget ^bytes bs %)) (range n)))
+     :cljs (let [n (.-length bs)]
+             (mapv #(aget bs %) (range n)))))
+
+(defn bytes-from-edn
+  "Host byte buffer from an EDN `#dacite/bytes` payload (vector of 0..255)."
+  [xs]
+  #?(:clj (byte-array (map #(unchecked-byte (bit-and 0xff (int %))) xs))
+     :cljs (let [out (js/Uint8Array. (count xs))]
+             (dotimes [i (count xs)]
+               (aset out i (bit-and 0xff (nth xs i))))
+             out)))
+
 (defn encode
-  "Walk a store value, tagging host words as #dacite/u64."
+  "Walk a store value, tagging host words as #dacite/u64 and byte buffers
+   as #dacite/bytes."
   [x]
   (walk/prewalk
    (fn [v]
-     (if (host-word? v)
-       (tagged-literal 'dacite/u64 (word->wire-str v))
-       v))
+     (cond
+       (host-word? v) (tagged-literal 'dacite/u64 (word->wire-str v))
+       (byte-buffer? v) (tagged-literal 'dacite/bytes (bytes->vec v))
+       :else v))
    x))
 
 (def readers
-  {'dacite/u64 (fn [s] (->word s))})
+  {'dacite/u64 (fn [s] (->word s))
+   'dacite/bytes bytes-from-edn})
 
 (defn read-edn
   "Parse EDN store body with dacite/u64 readers."

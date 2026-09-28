@@ -35,18 +35,153 @@
      :cljs
      (.join (to-array (map str cs)) "")))
 
+(defn u8-bytes?
+  "True when `x` is a host byte buffer (JVM `byte[]`, CLJS `Uint8Array`)."
+  [x]
+  #?(:clj (bytes? x)
+     :cljs (instance? js/Uint8Array x)))
+
+(defn u8-count
+  "Number of bytes in a u8 run payload (byte buffer or seq of 0..255)."
+  [vs]
+  (cond
+    (nil? vs) 0
+    (u8-bytes? vs) #?(:clj (alength ^bytes vs) :cljs (.-length vs))
+    :else (count vs)))
+
+(defn u8-nth
+  "Unsigned byte 0..255 at `i`. Boxes that one value."
+  [vs i]
+  (if (u8-bytes? vs)
+    #?(:clj (Byte/toUnsignedInt (aget ^bytes vs (int i)))
+       :cljs (aget vs i))
+    (bit-and 0xff (int (nth vs i)))))
+
+(defn copy-u8-range
+  "Fresh byte buffer of `vs[start, end)`. A later write to `vs` does not
+   change the copy."
+  [vs start end]
+  (let [start (long start)
+        end (long end)
+        n (- end start)]
+    #?(:clj
+       (if (bytes? vs)
+         (java.util.Arrays/copyOfRange ^bytes vs (int start) (int end))
+         (let [out (byte-array n)]
+           (dotimes [i n]
+             (aset-byte out i (unchecked-byte (u8-nth vs (+ start i)))))
+           out))
+       :cljs
+       (let [out (js/Uint8Array. n)]
+         (if (instance? js/Uint8Array vs)
+           (.set out (.subarray vs start end))
+           (dotimes [i n]
+             (aset out i (u8-nth vs (+ start i)))))
+         out))))
+
+(defn u8-run?
+  "True when `item` is a run of u8 values."
+  [item]
+  (and (map? item)
+       (= "run" (str (:type item)))
+       (= "u8" (str (:of (:body item))))))
+
+(defn u8-piece?
+  "True when `item` is one u8, a u8 run, or a u8 repeat."
+  [item]
+  (let [t (str (:type item))]
+    (or (= t "u8")
+        (and (or (= t "run") (= t "repeat"))
+             (= "u8" (str (:of (:body item))))))))
+
+(defn u8-piece-count
+  [item]
+  (let [t (str (:type item))
+        b (:body item)]
+    (case t
+      "u8" 1
+      "run" (u8-count (:values b))
+      "repeat" (long (or (:n b) 0)))))
+
+(defn u8-piece-nth
+  "Unsigned byte at index `i` of a u8 piece. Boxes that one value."
+  [item i]
+  (let [t (str (:type item))
+        b (:body item)]
+    (case t
+      "u8" (bit-and 0xff (int b))
+      "run" (u8-nth (:values b) i)
+      "repeat" (bit-and 0xff (int (:value b))))))
+
+(defn- u8-run-item
+  "One u8 lit for `[start, end)`. Length 1 stays a scalar; longer spans
+   are a run whose payload is a copied byte buffer."
+  [vs start end]
+  (let [n (- (long end) (long start))]
+    (if (= 1 n)
+      {:type "u8" :body (u8-nth vs start)}
+      {:type "run" :body {:of "u8" :values (copy-u8-range vs start end)}})))
+
+(defn u8-page-items
+  "Split a u8 source into page items of at most `budget` bytes.
+   One forward pass. Each page is a copy of its range."
+  [vs budget]
+  (let [vs (cond
+             (u8-bytes? vs) vs
+             (vector? vs) vs
+             :else (vec vs))
+        n (u8-count vs)
+        step (max 1 (long budget))]
+    (loop [start 0 out (transient [])]
+      (if (>= start n)
+        (persistent! out)
+        (let [end (min n (+ start step))]
+          (recur end (conj! out (u8-run-item vs start end))))))))
+
+(defn self-contained-body?
+  "True when every page item can be measured without looking up a hash.
+   A `ref` names another store entry; scalar runs do not."
+  [body]
+  (and (sequential? body)
+       (seq body)
+       (every? (fn [item]
+                 (and (map? item)
+                      (contains? item :type)
+                      (let [t (str (:type item))
+                            of (str (:of (:body item)))]
+                        (not (or (= t "ref")
+                                 (and (or (= t "run") (= t "repeat"))
+                                      (= of "ref")))))))
+               body)))
+
 (defn run-form?
   [x]
   (and (map? x)
        (let [t (str (:type x))]
          (or (= t "run") (= t "repeat")))))
 
+(defn- pack-u8-values
+  "Copied byte buffer of the bodies of u8 lits."
+  [lits]
+  (let [n (count lits)]
+    #?(:clj
+       (let [out (byte-array n)]
+         (dotimes [i n]
+           (aset-byte out i (unchecked-byte (bit-and 0xff (int (:body (nth lits i)))))))
+         out)
+       :cljs
+       (let [out (js/Uint8Array. n)]
+         (dotimes [i n]
+           (aset out i (bit-and 0xff (int (:body (nth lits i))))))
+         out))))
+
 (defn- pack-run-values
   "Compact :values for a type-run of lits that share `of`."
   [of lits]
-  (if (= of "char")
-    (join-chars (map :body lits))
-    (mapv :body lits)))
+  (cond
+    (= of "char") (join-chars (map :body lits))
+    (= of "u8") (pack-u8-values lits)
+    :else (mapv :body lits)))
 
 (declare rle-form) ; public: pack uses it on nested pair lits
 
@@ -122,8 +257,15 @@
   [{:keys [body]}]
   (let [of (str (:of body))
         values (:values body)]
-    (if (= of "char")
+    (cond
+      (= of "char")
       (mapv (fn [ch] {:type "char" :body ch}) (seq (str values)))
+
+      (= of "u8")
+      (let [n (u8-count values)]
+        (mapv (fn [i] {:type "u8" :body (u8-nth values i)}) (range n)))
+
+      :else
       (mapv (fn [v] {:type of :body v}) (or values [])))))
 
 (defn- expand-repeat
@@ -223,7 +365,7 @@
             vs (:values b)]
         (case of
           "char" (utf8-len vs)
-          "u8" (count (or vs []))
+          "u8" (u8-count vs)
           "ref" (* 32 (count (or vs [])))
           (* (scalar-payload-bytes of nil)
              (count (or vs [])))))
@@ -295,6 +437,21 @@
                (if (= 1 (count r))
                  {:type "char" :body (first r)}
                  {:type "run" :body {:of "char" :values r}}))])
+
+          "u8"
+          (let [n (u8-count vs)
+                k (if (pos? n)
+                    (min n (max 1 (long target)))
+                    0)
+                rn (- n k)]
+            [(when (pos? k)
+               (if (= 1 k)
+                 {:type "u8" :body (u8-nth vs 0)}
+                 {:type "run" :body {:of "u8" :values (copy-u8-range vs 0 k)}}))
+             (when (pos? rn)
+               (if (= 1 rn)
+                 {:type "u8" :body (u8-nth vs k)}
+                 {:type "run" :body {:of "u8" :values (copy-u8-range vs k n)}}))])
 
           (let [elem (case of
                        "u8" 1
@@ -389,11 +546,15 @@
 (defn chunk-run
   "Split a homogeneous run (`of` + `values`) into items each within `budget`
    payload bytes. One forward pass: a long string or byte vector is not
-   re-copied from the cut to the end on every page."
+   re-copied from the cut to the end on every page.
+
+   A u8 run's payload is a copied byte buffer, not a vector of integers."
   [of values budget]
   (let [of (str of)]
-    (if (= of "char")
-      (chunk-chars (str values) budget)
+    (cond
+      (= of "char") (chunk-chars (str values) budget)
+      (= of "u8") (u8-page-items values budget)
+      :else
       (let [vs (vec values)]
         (if (zero? (count vs))
           []
