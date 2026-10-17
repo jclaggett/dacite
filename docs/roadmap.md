@@ -1,23 +1,28 @@
 # Dacite Roadmap
 
-*Last updated: 2026-09-08*
+*Last updated: 2026-10-16*
 
 ## Current direction
 
-**Teach how to write programs, then write a real one.** The four layers
-(content stores, hash fusion, values, rooted stores) plus pack transport and
-a demo HTTP service are an alpha vertical slice. Six claim-proving apps are
-shipped. The next work is not more store middleware and not a seventh demo.
-It is:
+**The public-domain library is the app.** The four layers (content stores,
+hash fusion, values, rooted stores) plus pack transport and a demo HTTP
+service are an alpha vertical slice. Six claim-proving apps are shipped.
+The book is inverted for app authors. The library CLI and browser reader
+(`/app/library/`) live in `dacite.examples.library`. Storage chunking is
+the **default** for `s/file` and `s/lmdb` (pack-literal flush on root
+commit). Sequences are ~1,024-byte literal pages, and a `u8` run payload
+is a copied byte buffer.
 
-1. **Invert the book** so a reader learns a Dacite perspective on data and
-   how to build an app, then optionally how the store works. See
-   [The Dacite Book](book/).
-2. **Public-domain library** — a catalog someone would notice if it
-   broke. CLI and browser reader (`/app/library/`) in
-   `dacite.examples.library`. Storage chunking is the **default** for
-   `s/file` and `s/lmdb` (pack-literal flush on root commit). Next
-   library-pulled work is EPUB ingest, extra indexes, upload form.
+Library-pulled work still open:
+
+1. **EPUB ingest.** `ingest` takes a title and a UTF-8 string. A zip, a
+   spine, and resource blobs are not in this example.
+2. **Extra indexes.** The catalog has a title index.
+3. **Upload form.** The browser reader is shelf, table of contents, and
+   page.
+
+A seventh demo is out of scope. Further store work shows up when this app
+pulls it.
 
 The README thesis is still unproven as *utility*:
 
@@ -28,18 +33,25 @@ Shipped examples show that values persist, hashes are stable, and packed
 GET/POST can be cheap. They do not yet show that Dacite is a better way to
 write a program someone would miss.
 
-**Architecture (unchanged):** dedicated stores per user, not a shared
-multi-user map. Authorization and sharing chapters remain archived; see
+**Architecture:** dedicated stores per user. A shared multi-user map stays
+off this list. Authorization and sharing chapters remain archived; see
 [book/archive/](book/archive/).
 
-**Value model (unchanged):** store-aware values; constructors persist into a
-bound store; collections are finger trees / HAMTs with bare value hashes at
-the leaves.
+**Value model:** store-aware values; constructors persist into a bound
+store. Maps and sets are HAMTs. Sequences are finger trees. `ft/deep` is
+three hashes. `ft/digit` and `ft/node` are ~1,024-byte literal pages
+(`run` / `repeat` / nested lits / `ref`). A child that is already a page
+is a hash. Collection hashes are `fuse(type, elements_fuse)` of the logical
+leaves, so the hash does not depend on page width. A `u8` run of length
+≥ 2 stores a copied `byte[]` (JVM) or `Uint8Array` (ClojureScript). One
+byte stays a `u8` scalar. Measure fuses the 256 `u8` scalar hashes in
+place.
 
-**Transport (unchanged in policy, simplified in API):** leaf-chunking packs,
-soft budget **1024**, pack-filled `GET /node/{hex}` (no query opt-outs),
-write novelty `:created` / `:exists`. Write-back flush uses the same Layer 1
-literals as GET. `pack-under` with budget **0** is a single item.
+**Transport:** leaf-chunking packs, soft budget **1024**, pack-filled
+`GET /node/{hex}` (no query opt-outs), write novelty `:created` /
+`:exists`. Write-back flush uses the same Layer 1 literals as GET.
+`pack-under` with budget **0** is a single item. Durable pages are the
+value encoding; pack ships those literals.
 
 ---
 
@@ -123,6 +135,10 @@ emergencies. Application code that reaches for it has found a hole in
 - [x] Scalars, strings, blobs, vectors, maps, sets
 - [x] Finger-tree and HAMT internal nodes with `child-hashes` for graph walks
 - [x] Implicit leaf singles (`ft/single` removed — see [ft-single-elision.md](design/ft-single-elision.md))
+- [x] `ft/digit` and `ft/node` are ~1,024-byte literal pages. `ft/deep`
+      stays three hashes. See [dense-sequence-leaves.md](design/dense-sequence-leaves.md)
+- [x] A `u8` run payload is a copied byte buffer. See
+      [boxed-u8-runs.md](design/boxed-u8-runs.md)
 - [x] Lazy deep `realize` for partial availability
 - [x] Bounded `toString` / REPL print (`dacite.value.render`)
 - [x] Public surface `dacite.value` + `dacite.store`; `*-via` constructors;
@@ -192,7 +208,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
 | Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, `v/root` |
 | [explorer](../impl/clojure/src/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
-| [library](../impl/clojure/src/dacite/examples/library.cljc) | Sets as tables, title index as vector, shelf via `slice`, page via `nth`; browser shelf/TOC/reader | EPUB zip ingest, extra indexes, upload form |
+| [library](../impl/clojure/src/dacite/examples/library.cljc) | Sets as tables, title index as vector, shelf via `slice`, page via `nth`; plain-text Moby Dick under a 512 MB heap; browser shelf/TOC/reader | EPUB zip ingest, extra indexes, upload form |
 
 Library-pain already visible in those apps (fix in the library, not with
 more helpers — **when an app pulls it**):
@@ -201,9 +217,11 @@ more helpers — **when an app pulls it**):
 - ~~Cards shuffle dumps to a host vector~~ (Fisher-Yates via `nth` / `assoc`)
 - Browser todo commits at the hash/CAS level, not `v/root`
 - Sync XHR blocks the main thread
-- Seed catalog: ~7779 store entries after build, ~365 live, **48** pack
-  items at budget 1024 (`s/file` and `s/lmdb` default). File and LMDB
-  size: see the storage table under *Pulled by the library catalog*.
+- Seed catalog at budget 1024 (`clojure -M:library-storage`): snapshot
+  **109** file entries, GC-live **85**, chunked **36**. File data is
+  **1.48×** live-vs-chunked. The 0.2.0 figures (7,779 / 365 / 48, about
+  16×) were the one-element-leaf catalog. See the table under *Pulled by
+  the library catalog*.
 
 ---
 
@@ -344,25 +362,27 @@ is the next milestone.
 
 | Gap | Why | Status |
 |---|---|---|
-| Pack literals as durable layout | Exploded FT/HAMT + construction debris dwarf the catalog | **Done** — `dacite.store.chunk`; `s/file` and `s/lmdb` flush on root commit. Raw `file-store` / `lmdb-store` stay exploded |
-| File + LMDB size benchmarks | EDN file 380× is debris + hex names, not LMDB pages | **Done** — `dacite.bench.library-storage` (seed catalog, budget 1024). See table below |
+| Pack literals as durable layout | Inner store keeps pack items; raw stores stay exploded | **Done** — `dacite.store.chunk`; `s/file` and `s/lmdb` flush on root commit. Raw `file-store` / `lmdb-store` stay exploded |
+| File + LMDB size benchmarks | Compare snapshot, GC-live, and chunked on the seed | **Done** — `dacite.bench.library-storage`, remeasured 2026-10-16. See table below |
 | GC on flush / drop build spines | `conj-right` leaves every intermediate node | Overlay still holds construction debris in RAM; inner is pack items. Deferred as a product change |
-| Default chunked file/LMDB | Only if benchmarks hold for real books, not just the seed | **Done** — seed catalog ~16× vs live; defaulted |
+| Default chunked file/LMDB | One durable layout for app stores | **Done** — defaulted. On this seed, file data is 1.48× live-vs-chunked. The book-scale evidence is plain-text Moby Dick under a 512 MB heap |
+| 1k literal pages | One scalar per character made a novel a multi-GB live graph | **Done** — `ft/digit` and `ft/node` hold ~1,024 payload bytes. Gutenberg Moby Dick plain text (~1.26M characters) ingests in about 24 seconds under `-Xmx512m`, peaking near 550 MB RSS, 136 chapters |
+| `u8` byte buffers | A blob page kept each byte as a boxed integer | **Done** — copied `byte[]` / `Uint8Array`; measure fuses the 256 `u8` scalar hashes in place. The illustrated EPUB (~47 MB, 157 JPEGs) was measured before this change and has not been re-run |
 | Nested root / lens | Clients CAS a subtree; disjoint paths do not reject | **Local `s/lens` done.** HTTP stays document GET/CAS. |
 
-Seed catalog, budget 1024 (`clojure -M:library-storage`):
+Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
 
 | Layout | Store | Entries | Wire bytes | Data file | Used pages |
 |---|---|---|---|---|---|
-| snapshot | file | 7,779 | 3,227,144 | 8,691,559 | — |
-| gc-live | file | 365 | 140,015 | 372,582 | — |
-| chunked | file | 48 | 8,654 | 22,963 | — |
-| snapshot | lmdb | 7,779 | 3,227,144 | 5,603,328 | 5,406,720 |
-| gc-live (in place) | lmdb | 365 | 140,015 | 5,619,712 | 491,520 |
-| gc-live-fresh | lmdb | 365 | 140,015 | 442,368 | 245,760 |
-| chunked | lmdb | 48 | 8,654 | 131,072 | 16,384 |
+| snapshot | file | 109 | 13,522 | 36,871 | — |
+| gc-live | file | 85 | 10,770 | 29,111 | — |
+| chunked | file | 36 | 7,531 | 19,614 | — |
+| snapshot | lmdb | 109 | 13,522 | 245,760 | 49,152 |
+| gc-live (in place) | lmdb | 85 | 10,770 | 245,760 | 49,152 |
+| gc-live-fresh | lmdb | 85 | 10,770 | 180,224 | 16,384 |
+| chunked | lmdb | 36 | 7,531 | 131,072 | 16,384 |
 
-Fair live-vs-chunked: file data **16.23×**, LMDB used-pages **15.00×**, wire **16.18×**. File snapshot/chunked **378.50×** is debris + hex names. `s/lmdb` writes pack `encode-item` bytes; raw `lmdb-store` still accepts exploded node payloads.
+Fair live-vs-chunked on this seed: file data **1.48×**, wire **1.43×**. LMDB used-pages **1.00×** (both 16,384; a catalog this small ties on page rounding). File snapshot/chunked **1.88×**. The 0.2.0 table (7,779 / 365 / 48, about 16× live-vs-chunked, about 380× snapshot-vs-chunked) measured the one-element-leaf catalog. `s/lmdb` writes pack `encode-item` bytes; raw `lmdb-store` still accepts exploded node payloads.
 
 Infrastructure from the old Phase 2.5 list (pack as middleware polish, root
 slot, layered write policies, spec v0.5, GET `have`, remaining-budget skip)
@@ -404,10 +424,14 @@ Invert the book for app authors                    ✓
 Public-domain library                              ✓ CLI + /app/library/
         → catalog root (epubs/books sets, title index)
 Storage: chunked durable layout                    ✓ s/file + s/lmdb default
-        → ~16× vs GC-live on file data and LMDB used
-          pages; 380× is file snapshot debris.
+        → seed catalog is 109 / 85 / 36 entries;
+          file data 1.48× live-vs-chunked
 Lens over a rooted store                           ✓ local s/lens
         → client convenience; HTTP is still document GET/CAS
+Literal pages                                      ✓ ft/digit and ft/node ~1k
+        → plain-text Moby Dick under a 512 MB heap
+u8 run payload                                     ✓ copied byte buffer
+        → measure fuses the 256 u8 hashes in place
 Library next                                       ← current
         → EPUB ingest, extra indexes, upload form
 ```
@@ -423,5 +447,7 @@ Do not invent “app 7” to fill the tree.
 - [stores-phase-2.md](design/stores-phase-2.md) — shipped store/transport work
 - [service.md](design/service.md) — HTTP MVP including SSE `GET /events`
 - [leaf-chunking.md](design/leaf-chunking.md) — pack literals, budget 1024
+- [dense-sequence-leaves.md](design/dense-sequence-leaves.md) — 1k literal pages
+- [boxed-u8-runs.md](design/boxed-u8-runs.md) — `u8` run payload is a copied byte buffer
 - [value-realization-and-computation.md](design/value-realization-and-computation.md)
   — `realize`, partial availability, bounded print
