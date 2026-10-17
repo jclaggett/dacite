@@ -20,6 +20,15 @@ Library-pulled work still open:
 2. **Extra indexes.** The catalog has a title index.
 3. **Upload form.** The browser reader is shelf, table of contents, and
    page.
+4. **Stream a pack on one HTTP response.** A remote chapter or image is
+   one `GET /node/{hex}` per ~1–2 KB chunk. The server
+   (`com.sun.net.httpserver.HttpServer`) and the JVM client (HTTP/1.1,
+   `ofByteArray`) buffer that chunk. The task is chunked transfer of
+   successive wire-v1 pack items under the asked hash, bounded by a byte
+   budget, applied as the body arrives. `GET /events` already streams on
+   this server. `POST /nodes/get` stays the demoted bulk snapshot. The
+   browser demo is sync XHR, so it sees the stream once that client reads
+   incrementally.
 
 A seventh demo is out of scope. Further store work shows up when this app
 pulls it.
@@ -51,7 +60,8 @@ place.
 `GET /node/{hex}` (no query opt-outs), write novelty `:created` /
 `:exists`. Write-back flush uses the same Layer 1 literals as GET.
 `pack-under` with budget **0** is a single item. Durable pages are the
-value encoding; pack ships those literals.
+value encoding; pack ships those literals. The next client/server speed
+task streams those pack items on one response (see the open library list).
 
 ---
 
@@ -335,7 +345,7 @@ is the next milestone.
 
 | Gap | Why | Status |
 |---|---|---|
-| Async remote store | Browser must not block the page | Still deferred |
+| Async remote store | Browser must not block the page | Still deferred. A streamed pack body needs this incremental read; sync XHR waits for the whole response |
 | SSE (or a documented poll helper) | Watches across the network | Done (`GET /events`) |
 | Value-level CAS retry that rebases | `ref-swap!` / `ref-swap-info!` | Done (same loop on remote) |
 
@@ -348,7 +358,7 @@ is the next milestone.
 | `v/scalar` / `v/root` smash child nses in cljs | Pack literal `put-scalar!` vanished | Done (omit those two defs in the browser) |
 | Pack literals hash-mismatch on cljs | JVM strings rematerialize differently | Done (host-string + `put-scalar!` smash); explorer uses default pack |
 | String/blob “read more” | Longer prefix, still a leaf | Deferred |
-| Async browser store | Expand without blocking the tab | Still deferred |
+| Async browser store | Expand without blocking the tab | Still deferred. Same incremental read as a streamed pack body |
 
 **Pulled by file sync**
 
@@ -369,6 +379,7 @@ is the next milestone.
 | 1k literal pages | One scalar per character made a novel a multi-GB live graph | **Done** — `ft/digit` and `ft/node` hold ~1,024 payload bytes. Gutenberg Moby Dick plain text (~1.26M characters) ingests in about 24 seconds under `-Xmx512m`, peaking near 550 MB RSS, 136 chapters |
 | `u8` byte buffers | A blob page kept each byte as a boxed integer | **Done** — copied `byte[]` / `Uint8Array`; measure fuses the 256 `u8` scalar hashes in place. The illustrated EPUB (~47 MB, 157 JPEGs) was measured before this change and has not been re-run |
 | Nested root / lens | Clients CAS a subtree; disjoint paths do not reject | **Local `s/lens` done.** HTTP stays document GET/CAS. |
+| Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **Open** — chunked wire-v1 under the asked hash, bounded by a byte budget, applied as bytes arrive. HTTP/1.1 on the current server. Browser benefit waits on the async client |
 
 Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
 
@@ -434,6 +445,9 @@ u8 run payload                                     ✓ copied byte buffer
         → measure fuses the 256 u8 hashes in place
 Library next                                       ← current
         → EPUB ingest, extra indexes, upload form
+Stream a pack on one HTTP response
+        → chunked wire-v1 under the asked hash,
+          applied as the body arrives
 ```
 
 Do not invent “app 7” to fill the tree.
