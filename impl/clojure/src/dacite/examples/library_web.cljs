@@ -58,9 +58,6 @@
 (defn reset-bw-stats! []
   (browser/reset-stats!))
 
-(defn measure-bw [f]
-  (browser/measure f))
-
 (defn format-bw-stats [totals]
   (browser/format-stats totals))
 
@@ -72,10 +69,11 @@
 ;; =============================================================================
 
 (defn load-or-seed!
-  "Load a library catalog from the server root, or CAS-seed one from nil.
+  "Load a library catalog from `server-root`, or CAS-seed one from nil.
+   The caller resolves `server-root` once per `drive`.
    Does not overwrite a non-library root (todo, explorer gallery, …)."
-  [st]
-  (if-let [server-root (get-root st)]
+  [st server-root]
+  (if server-root
     (if-let [val (v/get-value st server-root)]
       (if (lib/library-root? val)
         {:status :loaded :library val :root server-root :error nil}
@@ -132,11 +130,30 @@
                (when delta
                  (str " · last " (format-bw-delta delta label)))))))
 
+(declare render-view!)
+
 (defn- with-bw
+  "Drive `f` over fetch and note bandwidth. Returns a promise.
+   A cache miss suspends inside `f`; the tab is not blocked."
   [label f]
-  (let [m (measure-bw f)]
-    (note-bw! m label)
-    (:result m)))
+  (let [before (browser/get-stats)]
+    (-> (browser/drive f)
+        (.then (fn [result]
+                 (let [after (browser/get-stats)]
+                   (note-bw! {:delta (browser/stats-diff before after)
+                              :totals after}
+                             label))
+                 result))
+        (.catch (fn [e]
+                  (let [msg (str label " failed: "
+                                 (or (ex-message e) (.-message e) e))]
+                    (js/console.error msg e)
+                    (swap! !state assoc :error msg :status "error")
+                    (try
+                      (render-view!)
+                      (catch :default render-e
+                        (js/console.error render-e)))
+                    nil))))))
 
 (defn- current-book
   [{:keys [library book-i]}]
@@ -284,64 +301,54 @@
   (render-view!))
 
 (defn- do-load-or-seed! []
-  (with-bw "load/seed"
-    (fn []
-      (let [st (:store @!state)
-            result (load-or-seed! st)]
-        (apply-value-result! result)
-        (:status result)))))
-
-(defn- open-book! [i]
-  (swap! !state assoc :view :toc :book-i i :chapter 0 :page 0)
-  (with-bw "toc"
-    (fn []
-      (render-view!)
-      true)))
-
-(defn- open-chapter! [i]
-  (swap! !state assoc :view :read :chapter i :page 0)
-  (with-bw "page"
-    (fn []
-      (render-view!)
-      true)))
-
-(defn- go-page! [p]
-  (swap! !state assoc :page p :view :read)
-  (with-bw "page"
-    (fn []
-      (render-view!)
-      true)))
-
-(defn- go-chapter! [c]
-  (swap! !state assoc :chapter c :page 0 :view :read)
-  (with-bw "page"
-    (fn []
-      (render-view!)
-      true)))
+  (let [phase (atom :decide)
+        seen (atom nil)]
+    (with-bw "load/seed"
+      (fn []
+        (let [st (:store @!state)]
+          (when (= :decide @phase)
+            (reset! seen (get-root st))
+            (reset! phase :apply))
+          (let [result (load-or-seed! st @seen)]
+            (apply-value-result! result)
+            (:status result)))))))
 
 (defn- on-view-click! [e]
   (let [t (.-target e)
         btn (.closest t "button")
         action (when btn (.getAttribute btn "data-action"))]
     (when action
-      (let [{:keys [chapter page page-size shelf-start] :as st} @!state
-            book (current-book st)
-            nch (when book (v/count (lib/book-chapters book)))
-            np (when book (lib/pages-in-chapter book chapter page-size))]
-        (case action
-          "open-book" (open-book! (js/parseInt (.getAttribute btn "data-i") 10))
-          "open-chapter" (open-chapter! (js/parseInt (.getAttribute btn "data-i") 10))
-          "back-shelf" (do (swap! !state assoc :view :shelf)
-                           (render-view!))
-          "back-toc" (do (swap! !state assoc :view :toc)
-                         (render-view!))
-          "shelf-more" (do (swap! !state assoc :shelf-start (+ shelf-start shelf-page-size))
-                           (render-view!))
-          "prev-page" (when (pos? page) (go-page! (dec page)))
-          "next-page" (when (and np (< (inc page) np)) (go-page! (inc page)))
-          "prev-chapter" (when (pos? chapter) (go-chapter! (dec chapter)))
-          "next-chapter" (when (and nch (< (inc chapter) nch)) (go-chapter! (inc chapter)))
-          nil)))))
+      (let [applied (atom false)
+            label (case action
+                    ("open-book" "back-toc") "toc"
+                    ("back-shelf" "shelf-more") "shelf"
+                    "page")]
+        (with-bw label
+          (fn []
+            (when-not @applied
+              (let [{:keys [chapter page page-size shelf-start] :as st} @!state
+                    book (current-book st)
+                    nch (when book (v/count (lib/book-chapters book)))
+                    np (when book (lib/pages-in-chapter book chapter page-size))
+                    i (js/parseInt (.getAttribute btn "data-i") 10)]
+                (case action
+                  "open-book" (swap! !state assoc :view :toc :book-i i :chapter 0 :page 0)
+                  "open-chapter" (swap! !state assoc :view :read :chapter i :page 0)
+                  "back-shelf" (swap! !state assoc :view :shelf)
+                  "back-toc" (swap! !state assoc :view :toc)
+                  "shelf-more" (swap! !state assoc :shelf-start (+ shelf-start shelf-page-size))
+                  "prev-page" (when (pos? page)
+                                (swap! !state assoc :page (dec page) :view :read))
+                  "next-page" (when (and np (< (inc page) np))
+                                (swap! !state assoc :page (inc page) :view :read))
+                  "prev-chapter" (when (pos? chapter)
+                                   (swap! !state assoc :chapter (dec chapter) :page 0 :view :read))
+                  "next-chapter" (when (and nch (< (inc chapter) nch))
+                                   (swap! !state assoc :chapter (inc chapter) :page 0 :view :read))
+                  nil)
+                (reset! applied true)))
+            (render-view!)
+            true))))))
 
 (defn ^:export init! []
   (let [st (open-store)]
@@ -349,12 +356,7 @@
     (swap! !state assoc :store st :status "connecting"
            :bw-totals nil :bw-last nil :bw-last-label nil)
     (render-view!)
-    (try
-      (do-load-or-seed!)
-      (catch :default e
-        (swap! !state assoc :error (str "Load failed: " (.-message e))
-               :status "error")
-        (render-view!)))
+    (do-load-or-seed!)
     (when-let [view (by-id "view")]
       (.addEventListener view "click" on-view-click!))
     (when-let [rel (by-id "reload-btn")]

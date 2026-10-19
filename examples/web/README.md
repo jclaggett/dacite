@@ -76,8 +76,10 @@ uses **wire-v1 binary** by default
 bodies, `/root`, and CAS stay EDN. Pass `{:binary false}` to
 `dacite.store.browser/remote-store` for legacy EDN packs.
 
-Binary GET uses synchronous XHR with `overrideMimeType(… charset=x-user-defined)`
-(browsers reject `responseType = "arraybuffer"` on sync XHR from a document).
+Binary GET uses `fetch`. The store reads `response.body` as chunks arrive.
+`IStore` stays synchronous: a miss suspends, `dacite.store.browser/drive`
+waits for that body, then reruns the op against the cache. The UI calls
+`drive` so the tab is not blocked.
 
 ## Bandwidth display
 

@@ -26,7 +26,7 @@
     (when (pos? ms)
       #?(:clj (Thread/sleep ms)
          :cljs
-         ;; Sync XHR demos: busy-wait (no real sleep in browser JS).
+         ;; Browser: busy-wait. The main thread cannot sleep.
          (let [deadline (+ (default-now-ms) ms)]
            (loop []
              (when (< (default-now-ms) deadline)

@@ -56,9 +56,6 @@
 (defn reset-bw-stats! []
   (browser/reset-stats!))
 
-(defn measure-bw [f]
-  (browser/measure f))
-
 (defn format-bw-stats [totals]
   (browser/format-stats totals))
 
@@ -70,10 +67,11 @@
 ;; =============================================================================
 
 (defn load-or-seed!
-  "If server root is set, load it; else CAS the type gallery from nil.
+  "If `server-root` is set, load it; else CAS the type gallery from nil.
+   The caller resolves `server-root` once per `drive`.
    Returns {:status :loaded|:seeded|:error :value :root :error}."
-  [st]
-  (if-let [server-root (get-root st)]
+  [st server-root]
+  (if server-root
     (if-let [val (v/get-value st server-root)]
       {:status :loaded :value val :root server-root :error nil}
       {:status :error
@@ -215,9 +213,11 @@
           (str "<div class=\"tree-node\">" head
                "<div class=\"tree-children\">" kids more "</div></div>"))))
     (catch :default e
-      (str "<div class=\"tree-node\"><div class=\"tree-row error\">"
-           (escape-html (or (.-message e) (str e)))
-           "</div></div>"))))
+      (if (browser/suspended? e)
+        (throw e)
+        (str "<div class=\"tree-node\"><div class=\"tree-row error\">"
+             (escape-html (or (ex-message e) (.-message e) (str e)))
+             "</div></div>")))))
 
 (defn- note-bw!
   [{:keys [delta totals]} label]
@@ -232,11 +232,30 @@
                (when delta
                  (str " · last " (format-bw-delta delta label)))))))
 
+(declare render-tree!)
+
 (defn- with-bw
+  "Drive `f` over fetch and note bandwidth. Returns a promise.
+   A cache miss suspends inside `f`; the tab is not blocked."
   [label f]
-  (let [m (measure-bw f)]
-    (note-bw! m label)
-    (:result m)))
+  (let [before (browser/get-stats)]
+    (-> (browser/drive f)
+        (.then (fn [result]
+                 (let [after (browser/get-stats)]
+                   (note-bw! {:delta (browser/stats-diff before after)
+                              :totals after}
+                             label))
+                 result))
+        (.catch (fn [e]
+                  (let [msg (str label " failed: "
+                                 (or (ex-message e) (.-message e) e))]
+                    (js/console.error msg e)
+                    (swap! !state assoc :error msg :status "error")
+                    (try
+                      (render-tree!)
+                      (catch :default render-e
+                        (js/console.error render-e)))
+                    nil))))))
 
 (defn- render-tree! []
   (let [{:keys [value root error status bw-totals bw-last bw-last-label
@@ -278,12 +297,17 @@
   (render-tree!))
 
 (defn- do-load-or-seed! []
-  (with-bw "load/seed"
-    (fn []
-      (let [st (:store @!state)
-            result (load-or-seed! st)]
-        (apply-value-result! result)
-        (:status result)))))
+  (let [phase (atom :decide)
+        seen (atom nil)]
+    (with-bw "load/seed"
+      (fn []
+        (let [st (:store @!state)]
+          (when (= :decide @phase)
+            (reset! seen (get-root st))
+            (reset! phase :apply))
+          (let [result (load-or-seed! st @seen)]
+            (apply-value-result! result)
+            (:status result)))))))
 
 (defn- on-toggle! [path]
   (swap! !state update :expanded
@@ -320,12 +344,7 @@
     (swap! !state assoc :store st :status "connecting"
            :bw-totals nil :bw-last nil :bw-last-label nil)
     (render-tree!)
-    (try
-      (do-load-or-seed!)
-      (catch :default e
-        (swap! !state assoc :error (str "Load failed: " (.-message e))
-               :status "error")
-        (render-tree!)))
+    (do-load-or-seed!)
     (when-let [tree (by-id "tree")]
       (.addEventListener tree "click" on-tree-click!))
     (when-let [rel (by-id "reload-btn")]

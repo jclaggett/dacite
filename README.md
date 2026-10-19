@@ -29,7 +29,7 @@ browser), remote HTTP service (**480+ tests**). Soft pack budget default
 - **[Building apps](https://dacite.io/book/building/anatomy.html)** — document · history · large seq · CAS · blobs · explorer · browser
 - **[Values](https://dacite.io/book/reference/values.html)** / **[Stores](https://dacite.io/book/reference/stores.html)** API reference
 - **[The Dacite Book](https://dacite.io/book/)** — also under [docs/book/](docs/book/)
-- **[Roadmap](docs/roadmap.md)** — the library is the app; next is EPUB ingest
+- **[Roadmap](docs/roadmap.md)** — next is an HTTP/3 server, then a QUIC reveal client
 - **[Design docs](docs/design/)** — store/transport internals
 - **[Portable core](docs/design/portable-core.md)** — JVM / babashka / nbb
 

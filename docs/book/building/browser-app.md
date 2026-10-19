@@ -39,8 +39,9 @@ coordinates hashes at the CAS layer in places — a library hole, not a
 reason to invent a JS model. Explorer is read-only on whatever root the
 service already has (todo, notes, the type gallery).
 
-Sync XHR keeps `IStore` blocking so value ops stay synchronous. That is
-demo-only; an async remote is deferred until an app pulls it.
+`fetch` reads `response.body` as bytes arrive. `IStore` stays synchronous:
+a miss suspends, and `dacite.store.browser/drive` reruns the value op once
+that body is cached. The tab is not blocked on the request.
 
 ## Next
 

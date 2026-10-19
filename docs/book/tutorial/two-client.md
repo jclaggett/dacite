@@ -71,8 +71,8 @@ Append in another terminal and this one reprints.
 | Apply a domain fn under contention | `v/swap!` (already the rebase loop) |
 | Show that a collision was recovered | `v/swap-info!` → `:retries` |
 
-Async browser networking stayed on the shelf. Two JVM remotes plus an
-SSE watch prove the claim; sync XHR is still the browser demo.
+The browser demos use `fetch` inside `drive`. Two JVM remotes plus an
+SSE watch prove this claim.
 
 ## Next
 

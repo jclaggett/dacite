@@ -97,7 +97,7 @@ remote HTTP store        (dacite.store.remote | dacite.store.browser)
 | `dacite.store.rate-limit` | Throttle **send** path (outermost `IChunkTransport` wins). Server inbound admit is `dacite.service.throttle` (429), not this wrapper. |
 | `dacite.store.stats` | Bandwidth accounting for store-protocol bodies |
 | `dacite.store.remote` | JVM HTTP client (`:binary true` default for packs); `watch-root` is GET /events |
-| `dacite.store.browser` | Browser sync XHR demo client (`:binary true` default) |
+| `dacite.store.browser` | Browser `fetch` client (`:binary true` default). `drive` keeps `IStore` synchronous |
 
 `pack/flush-from!` finds the outermost `IChunkTransport` and sends budgeted
 chunks (default soft budget **1024** bytes).
@@ -126,7 +126,7 @@ Service dual-stack: `dacite.service` honors `Content-Type` / `Accept`.
 ## Alpha quality notes
 
 - HTTP service and remotes are **experimental** but usable for demos and tests
-- Browser remote is **sync XHR** (main-thread blocking) — not production networking
+- Browser remote uses **`fetch`** inside `drive` — not production networking
 - APIs may change before 1.0; see [CHANGELOG](https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md)
 
 ---

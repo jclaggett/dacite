@@ -1,37 +1,87 @@
 # Dacite Roadmap
 
-*Last updated: 2026-10-16*
+*Last updated: 2026-10-19*
 
 ## Current direction
 
-**The public-domain library is the app.** The four layers (content stores,
-hash fusion, values, rooted stores) plus pack transport and a demo HTTP
-service are an alpha vertical slice. Six claim-proving apps are shipped.
-The book is inverted for app authors. The library CLI and browser reader
-(`/app/library/`) live in `dacite.examples.library`. Storage chunking is
-the **default** for `s/file` and `s/lmdb` (pack-literal flush on root
-commit). Sequences are ~1,024-byte literal pages, and a `u8` run payload
-is a copied byte buffer.
+**Client/server reveal is the work.** The public-domain library is large
+enough to show the transport cost, and that cost is the current problem.
+A remote chapter or image is one `GET /node/{hex}` per ~1–2 KB chunk.
+Browser `fetch` is done: `dacite.store.browser` uses `fetch`, and `drive`
+reads `response.body` as the bytes arrive, then runs the value op again
+against that exchange. `IStore` stays synchronous. Pack decode still
+waits for the full `Content-Length` body. The demo server speaks
+HTTP/1.1 only, so a reveal cannot be its own stream.
 
-Library-pulled work still open:
+The four layers (content stores, hash fusion, values, rooted stores) plus
+pack transport and the demo HTTP service are an alpha vertical slice. Six
+claim-proving apps are shipped. The book is inverted for app authors. The
+library CLI and browser reader (`/app/library/`) live in
+`dacite.examples.library`. Storage chunking is the **default** for
+`s/file` and `s/lmdb` (pack-literal flush on root commit). Sequences are
+~1,024-byte literal pages, and a `u8` run payload is a copied byte buffer.
+
+Do these next:
+
+1. **HTTP/3 server.** Replace `com.sun.net.httpserver.HttpServer` with
+   Jetty or Netty. That server is HTTP/1.1 only. Java 26 added HTTP/3 to
+   `HttpClient` only. The JVM client can opt into `HTTP_3` once a server
+   offers it. Browsers negotiate it themselves.
+2. **QUIC reveal client.** After the server speaks HTTP/3, `remote-store`
+   maps the reveal rule onto QUIC. One connection stays open. Each
+   focused child collection is a stream. Resetting the stream cancels
+   that reveal. The root-notice stream stays up beside those reveals.
+   This is one carrier of the child and byte limits, not a new demo.
+
+**Stream a pack on one HTTP response** follows those two. It is the
+HTTP/1.1 carrier of the byte limit in *How every client reveals a value*.
+The server (`com.sun.net.httpserver.HttpServer`) buffers the chunk and
+sends it with `Content-Length`. JVM `s-get` reads it with `ofByteArray`.
+`watch-root` is the call that pins `HTTP_1_1` and reads `ofInputStream`.
+`GET /events` already streams on this server. `POST /nodes/get` stays the
+demoted bulk snapshot.
+
+The library project waits until that communication work is done, including
+the streamed pack. Come back to it for:
 
 1. **EPUB ingest.** `ingest` takes a title and a UTF-8 string. A zip, a
    spine, and resource blobs are not in this example.
 2. **Extra indexes.** The catalog has a title index.
 3. **Upload form.** The browser reader is shelf, table of contents, and
    page.
-4. **Stream a pack on one HTTP response.** A remote chapter or image is
-   one `GET /node/{hex}` per ~1–2 KB chunk. The server
-   (`com.sun.net.httpserver.HttpServer`) and the JVM client (HTTP/1.1,
-   `ofByteArray`) buffer that chunk. The task is chunked transfer of
-   successive wire-v1 pack items under the asked hash, bounded by a byte
-   budget, applied as the body arrives. `GET /events` already streams on
-   this server. `POST /nodes/get` stays the demoted bulk snapshot. The
-   browser demo is sync XHR, so it sees the stream once that client reads
-   incrementally.
 
-A seventh demo is out of scope. Further store work shows up when this app
-pulls it.
+A seventh demo is out of scope. The library stays the app that pulled
+this communication work, and the app to return to.
+
+## How every client reveals a value
+
+A Dacite value may be very large. Every client, local or remote, reveals
+it from its root and decides how far the reveal goes. The rule names no
+transport. A byte budget, a chunked body, `fetch`, and a QUIC stream are
+carriers, listed above.
+
+Revealing a hash yields that value's own node: the type, the measure, the
+literal body that fits there, and the child hashes. It does not yield the
+transitive contents.
+
+The client limits **bytes** of this value's own body. Internal finger-tree
+pages belong to this value and count against that limit. A sequence of
+characters or a blob of bytes stays in this reveal.
+
+The client limits **children**. A nested map, vector, set, string, or blob
+arrives as a hash and stays a hash until the client reveals it. Each
+reveal has its own byte limit and its own children.
+
+The client owns the scope. A value outside the scope is not requested.
+Cancelling a reveal stops further bytes. Bytes already stored stay in the
+cache.
+
+A new document root is a notice of the new hash. The client reveals that
+hash and then chooses which children are still in scope. Unchanged child
+hashes are already stored, so those reveals are not repeated.
+
+A local client follows the same rule in memory. `nth` and a bounded slice
+are reveals. Realizing an entire large value is a reveal with no limit.
 
 The README thesis is still unproven as *utility*:
 
@@ -60,8 +110,10 @@ place.
 `GET /node/{hex}` (no query opt-outs), write novelty `:created` /
 `:exists`. Write-back flush uses the same Layer 1 literals as GET.
 `pack-under` with budget **0** is a single item. Durable pages are the
-value encoding; pack ships those literals. The next client/server speed
-task streams those pack items on one response (see the open library list).
+value encoding; pack ships those literals. How a client bounds a large
+value is *How every client reveals a value*. The open carriers, in order:
+browser `fetch`, an HTTP/3 server, a QUIC reveal client, then a chunked
+pack GET.
 
 ---
 
@@ -193,7 +245,7 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 - [x] Pack-filled `GET /node/{hex}` only (no `?raw=`, `?nodes=`, `?near=`)
 - [x] Write-back flush (`flush-from!`) uses the same `encode-item` as GET
 - [x] `GET /events` SSE root announcements; JVM `watch-root`
-- [x] JVM + browser remotes (browser is **sync XHR**, demo only)
+- [x] JVM + browser remotes (browser `fetch` inside `drive`, demo only)
 
 ### Documentation
 
@@ -212,11 +264,11 @@ See [design/stores-phase-1.md](design/stores-phase-1.md) and
 | [config](../impl/clojure/src/dacite/examples/config.cljc) | Same domain on file + HTTP; two clients, same hash | Multi-writer UX |
 | [notes](../impl/clojure/src/dacite/examples/notes.cljc) | Snapshots, restore by hash, title-only sharing | Multi-writer, web UI |
 | [event log](../impl/clojure/src/dacite/examples/event_log.cljc) | 2000 events, page via slice, cheap append | Compact/concat, missing-node UX |
-| Two-client live | Interleaved appends + SSE watch | Async browser store |
+| Two-client live | Interleaved appends + SSE watch | Browser UI |
 | [sync](../impl/clojure/src/dacite/examples/sync.cljc) | List without bodies; one-file < clone | Opaque-byte file store |
 | [cards.clj](../impl/clojure/src/dacite/examples/cards.clj) | LMDB root, `peek`/`pop`/`conj` | Multi-player, history, anything large |
 | Todo CLI | Durable file root, Values/Store split | Scale, sync, two writers |
-| Browser todo | HTTP + write-back + CAS + bandwidth | Async I/O, two clients, `v/root` |
+| Browser todo | HTTP + write-back + CAS + bandwidth; `fetch` via `drive` | Two clients, `v/root` |
 | [explorer](../impl/clojure/src/dacite/examples/explorer.cljc) | Typed tree of the root; page expand < full seq | Edit, SSE, string/blob “read more” |
 | [library](../impl/clojure/src/dacite/examples/library.cljc) | Sets as tables, title index as vector, shelf via `slice`, page via `nth`; plain-text Moby Dick under a 512 MB heap; browser shelf/TOC/reader | EPUB zip ingest, extra indexes, upload form |
 
@@ -226,7 +278,6 @@ more helpers — **when an app pulls it**):
 - ~~`title-str` / `field-native` — ~20 lines to read a string field~~ (now `v/native` / `v/native`)
 - ~~Cards shuffle dumps to a host vector~~ (Fisher-Yates via `nth` / `assoc`)
 - Browser todo commits at the hash/CAS level, not `v/root`
-- Sync XHR blocks the main thread
 - Seed catalog at budget 1024 (`clojure -M:library-storage`): snapshot
   **109** file entries, GC-live **85**, chunked **36**. File data is
   **1.48×** live-vs-chunked. The 0.2.0 figures (7,779 / 365 / 48, about
@@ -288,8 +339,8 @@ Shipped: `GET /events` (SSE), `store.remote/watch-root`,
 appends without lost events; a third process reprints on SSE. The rebase
 loop was already `ref-swap!`; `:retries` is the conflict UX.
 
-Async browser store stayed on the shelf — two JVM remotes plus SSE prove
-the claim; sync XHR remains the browser demo.
+Two JVM remotes plus an SSE watch prove the claim. The browser demos
+use `fetch` inside `drive`.
 
 ### 5. Directory / blob sync — done
 
@@ -345,7 +396,7 @@ is the next milestone.
 
 | Gap | Why | Status |
 |---|---|---|
-| Async remote store | Browser must not block the page | Still deferred. A streamed pack body needs this incremental read; sync XHR waits for the whole response |
+| Async remote store | Browser must not block the page | **Done** — `fetch` inside `drive`. `response.body` is read as bytes arrive. Pack decode still waits for the full `Content-Length` body |
 | SSE (or a documented poll helper) | Watches across the network | Done (`GET /events`) |
 | Value-level CAS retry that rebases | `ref-swap!` / `ref-swap-info!` | Done (same loop on remote) |
 
@@ -358,7 +409,7 @@ is the next milestone.
 | `v/scalar` / `v/root` smash child nses in cljs | Pack literal `put-scalar!` vanished | Done (omit those two defs in the browser) |
 | Pack literals hash-mismatch on cljs | JVM strings rematerialize differently | Done (host-string + `put-scalar!` smash); explorer uses default pack |
 | String/blob “read more” | Longer prefix, still a leaf | Deferred |
-| Async browser store | Expand without blocking the tab | Still deferred. Same incremental read as a streamed pack body |
+| Async browser store | Expand without blocking the tab | **Done** — todo, explorer, and library call `drive` |
 
 **Pulled by file sync**
 
@@ -379,7 +430,11 @@ is the next milestone.
 | 1k literal pages | One scalar per character made a novel a multi-GB live graph | **Done** — `ft/digit` and `ft/node` hold ~1,024 payload bytes. Gutenberg Moby Dick plain text (~1.26M characters) ingests in about 24 seconds under `-Xmx512m`, peaking near 550 MB RSS, 136 chapters |
 | `u8` byte buffers | A blob page kept each byte as a boxed integer | **Done** — copied `byte[]` / `Uint8Array`; measure fuses the 256 `u8` scalar hashes in place. The illustrated EPUB (~47 MB, 157 JPEGs) was measured before this change and has not been re-run |
 | Nested root / lens | Clients CAS a subtree; disjoint paths do not reject | **Local `s/lens` done.** HTTP stays document GET/CAS. |
-| Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **Open** — chunked wire-v1 under the asked hash, bounded by a byte budget, applied as bytes arrive. HTTP/1.1 on the current server. Browser benefit waits on the async client |
+| Reveal requirements | Every client must bound a large value | **Captured** — *How every client reveals a value*. Bytes and children are the two limits. Transport is a carrier |
+| Browser `fetch` | The browser store has to read a body while the tab stays responsive | **Done** — `dacite.store.browser` uses `fetch` and `drive`. Independent of HTTP/3 |
+| HTTP/3 server | `com.sun.net.httpserver.HttpServer` is HTTP/1.1 only | **Next** — Jetty or Netty. Java 26 added HTTP/3 to `HttpClient` only |
+| QUIC reveal client | A focused child collection is its own stream | **Next, after the HTTP/3 server** — `remote-store`: one connection, one stream per focused child, reset cancels, root notice stays up |
+| Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the trio** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
 
 Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
 
@@ -443,11 +498,18 @@ Literal pages                                      ✓ ft/digit and ft/node ~1k
         → plain-text Moby Dick under a 512 MB heap
 u8 run payload                                     ✓ copied byte buffer
         → measure fuses the 256 u8 hashes in place
-Library next                                       ← current
+Reveal requirements                                ✓ this roadmap
+        → bytes and children; transport is a carrier
+Browser fetch                                      ✓
+        → fetch inside drive; IStore stays synchronous
+HTTP/3 server                                      ← current
+        → Jetty or Netty
+QUIC reveal client                                 next, after HTTP/3
+        → one connection, a stream per focused child
+Stream a pack on one HTTP response                 after HTTP/3 and QUIC
+        → HTTP/1.1 carrier of the byte limit
+Library, resumed                                   paused
         → EPUB ingest, extra indexes, upload form
-Stream a pack on one HTTP response
-        → chunked wire-v1 under the asked hash,
-          applied as the body arrives
 ```
 
 Do not invent “app 7” to fill the tree.

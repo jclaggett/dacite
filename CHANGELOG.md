@@ -6,6 +6,11 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Browser `fetch`** — `dacite.store.browser` no longer uses synchronous
+  XHR. `drive` runs a value op, reads `response.body` as bytes arrive, and
+  reruns the op against the cached exchange. Todo, explorer, and library
+  call `drive`, so a miss does not block the tab. Pack decode still waits
+  for the full Content-Length body.
 - **1k literal pages** — `ft/digit` and `ft/node` are pages of about
   1,024 payload bytes: a sequence literal (`run` / `repeat` / nested
   lits / `ref`) of the direct children. Collection value hashes are

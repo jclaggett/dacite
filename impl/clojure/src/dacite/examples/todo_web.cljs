@@ -62,9 +62,6 @@
 (defn reset-bw-stats! []
   (browser/reset-stats!))
 
-(defn measure-bw [f]
-  (browser/measure f))
-
 (defn format-bw-stats [totals]
   (browser/format-stats totals))
 
@@ -92,10 +89,12 @@
       new-h)))
 
 (defn load-or-seed!
-  "If server root is set, load todos; else build seed items and CAS root.
+  "If `server-root` is set, load todos; else build seed items and CAS root.
+   The caller resolves `server-root` once per `drive`. A retry must not
+   read GET /root again: the CAS from this attempt is already there.
    Returns {:status :loaded|:seeded|:error :todos :root :error}."
-  [store]
-  (if-let [server-root (get-root store)]
+  [store server-root]
+  (if server-root
     (if-let [todos (load-todos store server-root)]
       {:status :loaded :todos todos :root server-root :error nil}
       {:status :error
@@ -140,11 +139,30 @@
                (when delta
                  (str " · last " (format-bw-delta delta label)))))))
 
+(declare render-list!)
+
 (defn- with-bw
+  "Drive `f` over fetch and note bandwidth. Returns a promise.
+   A cache miss suspends inside `f`; the tab is not blocked."
   [label f]
-  (let [m (measure-bw f)]
-    (note-bw! m label)
-    (:result m)))
+  (let [before (browser/get-stats)]
+    (-> (browser/drive f)
+        (.then (fn [result]
+                 (let [after (browser/get-stats)]
+                   (note-bw! {:delta (browser/stats-diff before after)
+                              :totals after}
+                             label))
+                 result))
+        (.catch (fn [e]
+                  (let [msg (str label " failed: "
+                                 (or (ex-message e) (.-message e) e))]
+                    (js/console.error msg e)
+                    (swap! !state assoc :error msg :status "error")
+                    (try
+                      (render-list!)
+                      (catch :default render-e
+                        (js/console.error render-e)))
+                    nil))))))
 
 (defn- render-list! []
   (let [{:keys [todos root error status bw-totals bw-last bw-last-label]} @!state
@@ -192,69 +210,72 @@
   (render-list!))
 
 (defn- persist!
-  "Commit todos via CAS; update state on success."
+  "Commit todos via CAS; update state on success. Does not render —
+   `drive` may rerun the caller, and the caller renders after the commit
+   is marked done."
   [todos]
   (let [{:keys [store root]} @!state
         new-h (commit-todos! store root todos)]
     (if new-h
       (do (swap! !state assoc :todos todos :root new-h :error nil :status "saved")
-          (render-list!)
           true)
       (do (swap! !state assoc :error "CAS conflict — reload and retry" :status "conflict")
-          (render-list!)
           false))))
 
-(defn- with-ui-error
-  "Run f; on throw, show the message in the status line (Add used to fail silently)."
-  [label f]
-  (try
-    (f)
-    (catch :default e
-      (let [msg (str label " failed: " (or (.-message e) e))]
-        (js/console.error msg e)
-        (swap! !state assoc :error msg :status "error")
-        (render-list!)
-        nil))))
-
 (defn- do-load-or-seed! []
-  (with-bw "load/seed"
-    (fn []
-      (let [store (:store @!state)
-            result (load-or-seed! store)]
-        (apply-value-result! result)
-        (:status result)))))
+  (let [phase (atom :decide)
+        seen (atom nil)]
+    (with-bw "load/seed"
+      (fn []
+        (let [store (:store @!state)]
+          (when (= :decide @phase)
+            (reset! seen (get-root store))
+            (reset! phase :apply))
+          (let [result (load-or-seed! store @seen)]
+            (apply-value-result! result)
+            (:status result)))))))
 
 (defn- on-add! []
   (let [input (by-id "new-title")
         title (when input (str/trim (.-value input)))]
     (when (and title (seq title) (:todos @!state))
-      (with-ui-error "Add"
-        (fn []
-          (swap! !state assoc :status "saving" :error nil)
-          (render-list!)
-          (with-bw "add"
-            (fn []
-              (let [todos' (todo/add-todo (:todos @!state) title false)
-                    ok (persist! todos')]
-                (when ok
-                  (set! (.-value input) ""))
-                ok))))))))
+      (let [phase (atom :commit)]
+        (with-bw "add"
+          (fn []
+            (if (= :commit @phase)
+              (do
+                (swap! !state assoc :status "saving" :error nil)
+                (let [ok (persist! (todo/add-todo (:todos @!state) title false))]
+                  (when ok
+                    (set! (.-value input) ""))
+                  (reset! phase :render)
+                  (render-list!)
+                  ok))
+              (do (render-list!) true))))))))
 
 (defn- on-toggle! [i]
-  (when-let [todos (:todos @!state)]
-    (with-ui-error "Toggle"
-      (fn []
-        (with-bw "toggle"
-          (fn []
-            (persist! (todo/toggle-at todos i))))))))
+  (when (:todos @!state)
+    (let [phase (atom :commit)]
+      (with-bw "toggle"
+        (fn []
+          (if (= :commit @phase)
+            (let [ok (persist! (todo/toggle-at (:todos @!state) i))]
+              (reset! phase :render)
+              (render-list!)
+              ok)
+            (do (render-list!) true)))))))
 
 (defn- on-remove! [i]
-  (when-let [todos (:todos @!state)]
-    (with-ui-error "Remove"
-      (fn []
-        (with-bw "remove"
-          (fn []
-            (persist! (todo/remove-at todos i))))))))
+  (when (:todos @!state)
+    (let [phase (atom :commit)]
+      (with-bw "remove"
+        (fn []
+          (if (= :commit @phase)
+            (let [ok (persist! (todo/remove-at (:todos @!state) i))]
+              (reset! phase :render)
+              (render-list!)
+              ok)
+            (do (render-list!) true)))))))
 
 (defn- on-list-click! [e]
   (let [t (.-target e)
@@ -273,11 +294,7 @@
     (swap! !state assoc :store store :status "connecting"
            :bw-totals nil :bw-last nil :bw-last-label nil)
     (render-list!)
-    (try
-      (do-load-or-seed!)
-      (catch :default e
-        (swap! !state assoc :error (str "Load failed: " (.-message e)) :status "error")
-        (render-list!)))
+    (do-load-or-seed!)
     (when-let [btn (by-id "add-btn")]
       (.addEventListener btn "click" (fn [_] (on-add!))))
     (when-let [input (by-id "new-title")]

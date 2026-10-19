@@ -1,8 +1,9 @@
 (ns dacite.store.stats
-  "Store-protocol bandwidth counters shared by browser XHR and JVM remote.
+  "Store-protocol bandwidth counters shared by the browser fetch client and the JVM remote.
 
    Counts request/response body sizes (approx UTF-8 via string length / byte
-   array length). Does not count static assets."
+   array length). Does not count static assets. Browser and JVM remotes both
+   call `record!`."
   (:require [clojure.string :as str]))
 
 (defn empty-stats

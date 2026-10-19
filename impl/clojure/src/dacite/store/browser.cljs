@@ -1,5 +1,5 @@
 (ns dacite.store.browser
-  "Browser remote IStore using synchronous XHR (demo only).
+  "Browser remote IStore. HTTP is fetch; IStore stays synchronous.
 
    Same protocol as docs/design/service.md and dacite.store.remote:
    GET/PUT/HEAD/DELETE /node/{hex}, GET /root, POST /root/cas, POST /nodes.
@@ -13,11 +13,16 @@
        (application/vnd.dacite.chunk.v1). Novelty / root CAS stay EDN.
      :binary false — EDN packs (legacy demos).
 
-   Sync XHR keeps IStore blocking so Dacite value ops work unchanged in the
-   browser. Not for production (main-thread blocking).
+   Value ops call s-get and expect a node. fetch cannot block the tab, so
+   a miss throws a suspension. `drive` reads `response.body` as bytes
+   arrive, caches that exchange, and runs the op again. The server still
+   sends one Content-Length pack; the reader is where a later streamed
+   pack applies bytes before the response ends.
 
-   Bandwidth: every store-protocol XHR records request/response body sizes
-   via dacite.store.stats. Static /app assets are not counted.
+   Call store ops from `drive`. A request outside `drive` throws.
+
+   Bandwidth: every store-protocol exchange records request/response body
+   sizes via dacite.store.stats. Static /app assets are not counted.
 
    Prefer (client-cache/wrap (remote-store base) :write-back) for the demo."
   (:require [clojure.string :as str]
@@ -46,7 +51,7 @@
   (str (trim-base base-url) "/node/" (store/hash->hex h)))
 
 (defn- body-byte-len
-  "Byte length of an XHR request or response body."
+  "Byte length of a fetch request or response body."
   [body]
   (cond
     (nil? body) 0
@@ -55,45 +60,209 @@
     (instance? js/ArrayBuffer body) (.-byteLength body)
     :else (count (str body))))
 
-(defn- binary-response-text->u8
-  "Convert responseText from charset=x-user-defined into a Uint8Array.
+(def ^:dynamic *http-cache*
+  "Atom of completed exchanges for the current `drive`, or nil outside it.
+   Retries reuse a response instead of sending it again."
+  nil)
 
-   Browsers forbid responseType=arraybuffer on synchronous XHR (the demo
-   needs sync so IStore stays blocking). overrideMimeType + this conversion
-   is the portable way to read binary bodies on a sync request."
-  [s]
-  (let [n (if s (.-length s) 0)
-        a (js/Uint8Array. n)]
-    (dotimes [i n]
-      (aset a i (bit-and 0xff (.charCodeAt s i))))
-    a))
+(def ^:private max-suspensions
+  "Safety cap so a cache-key miss cannot refetch forever."
+  10000)
 
-(defn- xhr
-  "Synchronous XHR.
-   body — string (EDN) or Uint8Array (wire-v1).
-   opts: :binary-response true — wire-v1 bytes via overrideMimeType
-   (cannot use responseType=arraybuffer on sync XHR from a document).
-   Returns {:status n :body string|Uint8Array|nil}."
+(defn- concat-u8
+  "Copy `chunks` (a JS array of Uint8Array) into one Uint8Array."
+  [chunks]
+  (let [n (loop [i 0 s 0]
+            (if (< i (.-length chunks))
+              (recur (inc i) (+ s (.-length (aget chunks i))))
+              s))
+        out (js/Uint8Array. n)]
+    (loop [i 0 off 0]
+      (when (< i (.-length chunks))
+        (let [c (aget chunks i)]
+          (.set out c off)
+          (recur (inc i) (+ off (.-length c))))))
+    out))
+
+(defn- read-response-body
+  "Read `response.body` while later bytes are still arriving.
+
+   Each `reader.read()` chunk is appended as it shows up. The promise
+   resolves to the full body once the stream ends: a Uint8Array when
+   `binary?`, a string otherwise, nil when there is no body. Decoding
+   the pack still waits for the last byte; the current server sends one
+   Content-Length body."
+  [response binary?]
+  (let [stream (.-body response)]
+    (if (nil? stream)
+      (js/Promise.resolve nil)
+      (let [reader (.getReader stream)
+            chunks #js []]
+        (js/Promise.
+         (fn [ok err]
+           (letfn [(finish []
+                     (let [bytes (if (zero? (.-length chunks))
+                                   nil
+                                   (concat-u8 chunks))]
+                       (cond
+                         (nil? bytes) (ok nil)
+                         binary? (ok bytes)
+                         :else (ok (.decode (js/TextDecoder. "utf-8") bytes)))))
+                   (pump []
+                     (-> (.read reader)
+                         (.then (fn [r]
+                                  (if (.-done r)
+                                    (finish)
+                                    (do (.push chunks (.-value r))
+                                        (pump)))))
+                         (.catch err)))]
+             (pump))))))))
+
+(defn- js-headers
+  [headers]
+  (let [o #js {}]
+    (doseq [[k v] headers]
+      (aset o (name k) (str v)))
+    o))
+
+(defn- fetch-exchange
+  "One fetch. Records bandwidth when the body stream ends.
+   Resolves to {:status n :body string|Uint8Array|nil}.
+
+   `cache` is `no-store`: GET /root is a mutable pointer, and the demos
+   count bytes for this action rather than a previous response."
+  [method url body headers binary?]
+  (let [init #js {:method method
+                  :headers (js-headers headers)
+                  :cache "no-store"}]
+    (when (some? body)
+      (aset init "body" body))
+    (-> (js/fetch url init)
+        (.then (fn [resp]
+                 (-> (read-response-body resp binary?)
+                     (.then (fn [resp-body]
+                              (stats/record! (stats/classify-url method url)
+                                             (body-byte-len body)
+                                             (body-byte-len resp-body))
+                              {:status (.-status resp)
+                               :body resp-body}))))))))
+
+(defn- body-eq
+  "True when two request bodies are the same bytes or the same string."
+  [a b]
+  (cond
+    (and (nil? a) (nil? b)) true
+    (and (string? a) (string? b)) (= a b)
+    (and (instance? js/Uint8Array a) (instance? js/Uint8Array b))
+    (and (= (.-length a) (.-length b))
+         (loop [i 0]
+           (cond
+             (= i (.-length a)) true
+             (not= (aget a i) (aget b i)) false
+             :else (recur (inc i)))))
+    :else false))
+
+(defn- headers-key
+  [headers]
+  (str/join "\n"
+            (sort (map (fn [[k v]] (str (name k) ": " v)) headers))))
+
+(defn- cache-get
+  [cache method url body headers binary?]
+  (let [hk (headers-key headers)]
+    (some (fn [entry]
+            (when (and (= method (:method entry))
+                       (= url (:url entry))
+                       (= hk (:headers entry))
+                       (= (boolean binary?) (:binary? entry))
+                       (body-eq body (:body entry)))
+              (:resp entry)))
+          @cache)))
+
+(defn- root-url-for-cas
+  "GET /root URL for a POST /root/cas URL, or nil."
+  [url]
+  (when (str/ends-with? url "/root/cas")
+    (subs url 0 (- (count url) 4))))
+
+(defn- cache-put!
+  "Remember one finished exchange.
+
+   A root CAS drops any cached GET /root. The drive retries the whole
+   op, and that GET must not still answer \"no root\" after the CAS."
+  [cache method url body headers binary? resp]
+  (swap! cache
+         (fn [entries]
+           (let [drop-root (when (= method "POST") (root-url-for-cas url))
+                 entries (if drop-root
+                           (filterv (fn [entry]
+                                      (not (and (= "GET" (:method entry))
+                                                (= drop-root (:url entry)))))
+                                    entries)
+                           entries)]
+             (conj entries {:method method
+                            :url url
+                            :body body
+                            :headers (headers-key headers)
+                            :binary? (boolean binary?)
+                            :resp resp})))))
+
+(defn- suspend-promise
+  [e]
+  (when-let [data (ex-data e)]
+    (:dacite/suspend data)))
+
+(defn suspended?
+  "True if `e` is a fetch suspension thrown inside `drive`."
+  [e]
+  (boolean (suspend-promise e)))
+
+(defn- http
+  "Store-protocol request. Returns {:status :body} from this drive's
+   cache, or throws a suspension whose promise resolves after fetch
+   reads the body stream. Requires `*http-cache*` (`drive` binds it)."
   ([method url body headers]
-   (xhr method url body headers nil))
+   (http method url body headers nil))
   ([method url body headers {:keys [binary-response]}]
-   (let [x (js/XMLHttpRequest.)]
-     (.open x method url false)
-     ;; Do NOT set responseType — throws on sync XHR in modern browsers.
-     (when binary-response
-       (.overrideMimeType x "text/plain; charset=x-user-defined"))
-     (doseq [[k v] headers]
-       (.setRequestHeader x (name k) (str v)))
-     (.send x (when body body))
-     (let [raw (.-responseText x)
-           resp (if binary-response
-                  (binary-response-text->u8 raw)
-                  raw)
-           sent (body-byte-len body)
-           recv (body-byte-len resp)]
-       (stats/record! (stats/classify-url method url) sent recv)
-       {:status (.-status x)
-        :body resp}))))
+   (let [cache *http-cache*]
+     (when-not cache
+       (throw (ex-info "browser store HTTP requires dacite.store.browser/drive"
+                       {:method method :url url})))
+     (if-let [hit (cache-get cache method url body headers binary-response)]
+       hit
+       (let [p (-> (fetch-exchange method url body headers binary-response)
+                   (.then (fn [resp]
+                            (cache-put! cache method url body headers
+                                        binary-response resp)
+                            resp)))]
+         (throw (ex-info "browser fetch suspended"
+                         {:dacite/suspend p})))))))
+
+(defn drive
+  "Run `f`, fetching over HTTP without blocking the tab.
+
+   `f` must be synchronous and free of its own try/catch around store
+   calls: a cache miss throws, `drive` waits for that response body, then
+   calls `f` again. Completed exchanges are reused, so a POST is not sent
+   twice. Returns a promise of `f`'s value."
+  [f]
+  (let [cache (atom [])
+        steps (atom 0)]
+    (js/Promise.
+     (fn [ok err]
+       (letfn [(step []
+                 (if (>= @steps max-suspensions)
+                   (err (ex-info "browser drive exceeded fetch suspensions"
+                                 {:suspensions max-suspensions}))
+                   (do
+                     (swap! steps inc)
+                     (try
+                       (ok (binding [*http-cache* cache] (f)))
+                       (catch :default e
+                         (if-let [p (suspend-promise e)]
+                           (-> p (.then step) (.catch err))
+                           (err e)))))))]
+         (step))))))
 
 (defn- edn-body [body]
   (when (and body (pos? (body-byte-len body)))
@@ -139,16 +308,16 @@
                      (assoc headers "Accept" bin/content-type-chunk-v1)
                      (assoc headers "Accept" "application/edn"))
               opts (when use-bin? {:binary-response true})
-              {:keys [status body]} (xhr "GET"
-                                         (node-url base-url h)
-                                         nil hdrs opts)]
+              {:keys [status body]} (http "GET"
+                                          (node-url base-url h)
+                                          nil hdrs opts)]
           (when (= 200 status)
             (apply-get-body! pack-local h body use-bin?)))))
 
   (s-put [this h value]
-    (let [{:keys [status body]} (xhr "PUT" (node-url base-url h)
-                                     (wire/write-edn value)
-                                     (assoc headers "Content-Type" "application/edn"))]
+    (let [{:keys [status body]} (http "PUT" (node-url base-url h)
+                                      (wire/write-edn value)
+                                      (assoc headers "Content-Type" "application/edn"))]
       ;; 200 + novelty body (preferred); 204 legacy
       (when-not (or (= 200 status) (= 204 status))
         (throw (ex-info "Browser remote s-put failed"
@@ -158,10 +327,10 @@
 
   (s-has? [_ h]
     (or (store/s-has? pack-local h)
-        (= 200 (:status (xhr "HEAD" (node-url base-url h) nil headers)))))
+        (= 200 (:status (http "HEAD" (node-url base-url h) nil headers)))))
 
   (s-delete [this h]
-    (let [{:keys [status]} (xhr "DELETE" (node-url base-url h) nil headers)]
+    (let [{:keys [status]} (http "DELETE" (node-url base-url h) nil headers)]
       (when (and (not= 204 status) (not= 404 status))
         (throw (ex-info "Browser remote s-delete failed" {:status status :hash h})))
       (store/s-delete pack-local h))
@@ -183,18 +352,18 @@
           (if binary?
             (let [bs (bin/encode-pack-edn chunk)
                   {:keys [status body]}
-                  (xhr "POST" url bs
-                       (assoc headers
-                              "Content-Type" bin/content-type-chunk-v1
-                              "Accept" "application/edn"))]
+                  (http "POST" url bs
+                        (assoc headers
+                               "Content-Type" bin/content-type-chunk-v1
+                               "Accept" "application/edn"))]
               (when-not (= 200 status)
                 (throw (ex-info "Browser send-chunk! failed"
                                 {:status status :body body})))
               (when (and body (pos? (body-byte-len body)))
                 (edn-body body)))
             (let [{:keys [status body]}
-                  (xhr "POST" url (wire/write-edn chunk)
-                       (assoc headers "Content-Type" "application/edn"))]
+                  (http "POST" url (wire/write-edn chunk)
+                        (assoc headers "Content-Type" "application/edn"))]
               (when-not (= 200 status)
                 (throw (ex-info "Browser send-chunk! failed"
                                 {:status status :body body})))
@@ -267,9 +436,9 @@
          payload {:roots root-hexes
                   :have have-hexes
                   :budget (or budget pack/default-budget)}
-         {:keys [status body]} (xhr "POST" url (wire/write-edn payload)
-                                    (assoc (:headers rs)
-                                           "Content-Type" "application/edn"))]
+         {:keys [status body]} (http "POST" url (wire/write-edn payload)
+                                     (assoc (:headers rs)
+                                            "Content-Type" "application/edn"))]
      (when-not (= 200 status)
        (throw (ex-info "Browser pack-get failed" {:status status :body body})))
      (let [data (edn-body body)
@@ -292,7 +461,7 @@
   [remote]
   (let [rs (unwrap-remote remote)
         url (str (trim-base (:base-url rs)) "/root")
-        {:keys [status body]} (xhr "GET" url nil (:headers rs))]
+        {:keys [status body]} (http "GET" url nil (:headers rs))]
     (when (= 200 status)
       (when-let [hex (:root (edn-body body))]
         (store/hex->hash hex)))))
@@ -307,9 +476,9 @@
         url (str (trim-base (:base-url rs)) "/root/cas")
         payload {:expected (when expected (store/hash->hex expected))
                  :new (store/hash->hex new-root)}
-        {:keys [status body]} (xhr "POST" url (wire/write-edn payload)
-                                   (assoc (:headers rs)
-                                          "Content-Type" "application/edn"))]
+        {:keys [status body]} (http "POST" url (wire/write-edn payload)
+                                    (assoc (:headers rs)
+                                           "Content-Type" "application/edn"))]
     (cond
       (= 200 status) (true? (:ok (edn-body body)))
       (= 409 status) false
