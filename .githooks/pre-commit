@@ -63,7 +63,23 @@ run_test_check() {
     echo ""
     echo "Running unit tests..."
 
-    if ! (cd "$CLJ_DIR" && clojure -M:dev:cov 2>&1); then
+    # The checkout may be a 9p Mac share. LMDB mmap returns EINVAL there, so
+    # this run bind-mounts impl/clojure/target onto a local cache directory.
+    local fstype cache
+    fstype=$(findmnt -n -o FSTYPE -T "$CLJ_DIR" 2>/dev/null || true)
+    if [ "$fstype" = "9p" ] && command -v unshare >/dev/null 2>&1; then
+        cache="${XDG_CACHE_HOME:-$HOME/.cache}/dacite/clojure-target"
+        mkdir -p "$cache" "$CLJ_DIR/target"
+        # -r maps this user to root inside the namespace, and the JVM then
+        # takes user.home from the root account. Point both the classpath
+        # JVM and the test JVM back at the real home so Maven uses ~/.m2.
+        if ! unshare -r -m bash -c \
+            "export CLJ_JVM_OPTS=-Duser.home=$(printf %q "$HOME") JAVA_OPTS=-Duser.home=$(printf %q "$HOME") && mount --bind $(printf %q "$cache") $(printf %q "$CLJ_DIR/target") && cd $(printf %q "$CLJ_DIR") && exec clojure -M:dev:cov"; then
+            echo ""
+            echo "❌ Unit tests failed. Please fix the errors above before committing."
+            return 1
+        fi
+    elif ! (cd "$CLJ_DIR" && clojure -M:dev:cov 2>&1); then
         echo ""
         echo "❌ Unit tests failed. Please fix the errors above before committing."
         return 1
@@ -84,8 +100,12 @@ run_book_build() {
     echo ""
     echo "Building site (book + landing)..."
 
+    # scripts/bin is a local download and may be another OS (this tree is
+    # shared with a Mac). Prepend it only when those binaries actually run.
     local script_bin="$REPO_ROOT/scripts/bin"
-    if [ -d "$script_bin" ]; then
+    if [ -x "$script_bin/mdbook" ] && [ -x "$script_bin/mdbook-mermaid" ] \
+        && "$script_bin/mdbook" --version >/dev/null 2>&1 \
+        && "$script_bin/mdbook-mermaid" --version >/dev/null 2>&1; then
         export PATH="$script_bin:$PATH"
     fi
 
