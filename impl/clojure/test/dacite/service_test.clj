@@ -1,5 +1,5 @@
 (ns dacite.service-test
-  "Protocol tests for dacite.service handlers and live HttpServer."
+  "Protocol tests for dacite.service handlers and the live HTTP server."
   (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [dacite.service :as svc]
@@ -12,7 +12,16 @@
             [dacite.value.types :as types]
             [dacite.wire :as wire]
             [dacite.wire.binary :as bin]
-            [dacite.examples.todo :as todo]))
+            [dacite.examples.todo :as todo])
+  (:import [java.util.function Consumer]
+           [org.eclipse.jetty.client ContentResponse HttpClient]
+           [org.eclipse.jetty.http HttpVersion]
+           [org.eclipse.jetty.http3.client HTTP3Client HTTP3ClientQuicConfiguration]
+           [org.eclipse.jetty.http3.client.transport HttpClientTransportOverHTTP3]
+           [org.eclipse.jetty.io ClientConnector]
+           [org.eclipse.jetty.quic.quiche.client QuicheClientQuicConfiguration
+            QuicheTransport]
+           [org.eclipse.jetty.util.ssl SslContextFactory$Client]))
 
 (deftest handle-request-node-and-root
   (let [rooted (svc/make-demo-rooted)
@@ -66,6 +75,79 @@
     (is (= 200 (:status ignored)))
     (is (true? (:dacite.wire/chunk-v1 ignored-chunk))
         "query flags are ignored; GET stays pack-filled")))
+
+(defn- http3-client
+  "Jetty HTTP/3 client for the local self-signed connector.
+
+   Java 21's java.net.http.HttpClient cannot speak HTTP/3. Quiche needs a
+   PEM work directory even when peer verification is off. Returns
+   {:client :pem}."
+  []
+  (let [pem (io/file (System/getProperty "java.io.tmpdir")
+                     (str "dacite-h3-client-" (System/nanoTime)))
+        _ (.mkdirs pem)
+        ssl (doto (SslContextFactory$Client.)
+              (.setTrustAll true)
+              (.setEndpointIdentificationAlgorithm nil))
+        connector (doto (ClientConnector.)
+                    (.setSslContextFactory ssl))
+        quic (HTTP3ClientQuicConfiguration/configure
+              (QuicheClientQuicConfiguration. (.toPath pem)))
+        http3 (HTTP3Client. quic connector)
+        transport (HttpClientTransportOverHTTP3.
+                   http3
+                   (QuicheTransport. quic))]
+    {:client (HttpClient. transport)
+     :pem pem}))
+
+(deftest live-server-http3-get-root
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [h3-url stop!]} (svc/start-server! {:port 0 :rooted rooted})
+        {:keys [client pem]} (http3-client)]
+    (try
+      (.start client)
+      (let [^ContentResponse resp
+            (-> (.newRequest client (str h3-url "/root"))
+                (.method "GET")
+                (.headers (reify Consumer
+                            (accept [_ headers]
+                              (.put headers "Accept" "application/edn"))))
+                .send)
+            alt (.get (.getHeaders resp) "Alt-Svc")]
+        (is (= HttpVersion/HTTP_3 (.getVersion resp)))
+        (is (= 200 (.getStatus resp)))
+        (is (= {:root nil} (wire/read-edn (.getContentAsString resp))))
+        (is (and alt (.startsWith alt "h3=")) alt)
+        (is (nil? (.get (.getHeaders resp) "Strict-Transport-Security"))))
+      (finally
+        (try (.stop client) (catch Exception _ nil))
+        (stop!)
+        (doseq [f (reverse (file-seq pem))]
+          (.delete f))))))
+
+(deftest live-server-advertises-http3-on-cleartext
+  (let [rooted (svc/make-demo-rooted)
+        {:keys [base-url h3-port stop!]}
+        (svc/start-server! {:port 0 :rooted rooted})
+        tcp-port (Integer/parseInt (subs base-url (inc (.lastIndexOf base-url ":"))))]
+    (try
+      (is (= tcp-port h3-port) "HTTP/3 listens on the cleartext port number")
+      (let [remote (remote/remote-store base-url)
+            node ["bool" true]
+            hex (apply str (repeat 64 "d"))
+            h (store/hex->hash hex)]
+        (store/s-put remote h node)
+        (is (= node (store/s-get remote h)))
+        (let [url (java.net.URI/create (str base-url "/root"))
+              client (.build (java.net.http.HttpClient/newBuilder))
+              req (-> (java.net.http.HttpRequest/newBuilder url) .GET .build)
+              resp (.send client req
+                          (java.net.http.HttpResponse$BodyHandlers/ofString))]
+          (is (= 200 (.statusCode resp)))
+          (is (= (str "h3=\":" h3-port "\"")
+                 (.orElse (.firstValue (.headers resp) "alt-svc") nil)))))
+      (finally
+        (stop!)))))
 
 (deftest live-server-remote-client-roundtrip
   (let [rooted (svc/make-demo-rooted)

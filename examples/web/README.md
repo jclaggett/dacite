@@ -160,7 +160,7 @@ Browser: `open-store` (HTTP + `:write-back`) → `load-or-seed!` (CAS) → same 
 
 | Piece | Path |
 |-------|------|
-| Service handlers + HttpServer | `impl/clojure/src/dacite/service.clj` |
+| Service handlers + Jetty (HTTP/1.1 and HTTP/3) | `impl/clojure/src/dacite/service.clj` |
 | CLI entry | `impl/clojure/src/dacite/service/main.clj` |
 | Browser remote store | `impl/clojure/src/dacite/store/browser.cljs` |
 | JVM remote store | `impl/clojure/src/dacite/store/remote.clj` |

@@ -305,12 +305,17 @@ CLI: `--throttle off`, `--rate`, `--burst`, `--inflight`, `--max-body`,
 
 Local LMDB root cell caches last-known root for offline reopen; remote is source of truth when online.
 
-## Server MVP (planned)
+## Server
 
-1. JDK `HttpServer` or similar — minimal, no framework dependency
-2. One `RootedStore` per provisioned user (LMDB path per user)
-3. Token middleware → select store
-4. Handlers delegate to `IStore` / `compare-and-set!`
+Jetty. Cleartext HTTP/1.1 on the service port, and HTTP/3 on UDP at the
+same port number (`Alt-Svc: h3=":<port>"`). The dev certificate is
+self-signed for `localhost` and `127.0.0.1`.
+
+Still one process-wide `RootedStore` in this demo. Handlers delegate
+to `IStore` / `compare-and-set!`. Not started:
+
+- One `RootedStore` per provisioned user (LMDB path per user)
+- Token middleware to select that store
 
 Archive reference: [impl/clojure/archive/server.clj](../../impl/clojure/archive/server.clj) (node GET only; lacks CAS root, DELETE, auth).
 

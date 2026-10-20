@@ -6,6 +6,11 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **HTTP/3 server** — `dacite.service` is Jetty. Cleartext HTTP/1.1 is
+  still `base-url`. HTTP/3 listens on UDP at that same port number and
+  responses carry `Alt-Svc: h3=":<port>"`. The certificate is a local
+  self-signed keystore (`localhost` and `127.0.0.1`). Pack GET still
+  sends `Content-Length`. Java 21's `HttpClient` has no `HTTP_3`.
 - **Browser `fetch`** — `dacite.store.browser` no longer uses synchronous
   XHR. `drive` runs a value op, reads `response.body` as bytes arrive, and
   reruns the op against the cached exchange. Todo, explorer, and library

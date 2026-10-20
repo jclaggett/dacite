@@ -85,7 +85,7 @@
         {:keys [rooted close! backend path]}
         (svc/make-service-rooted {:store store})
         static-dir (io/file static)
-        {:keys [base-url stop!]}
+        {:keys [base-url h3-url keystore stop!]}
         (svc/start-server! {:port port
                             :rooted rooted
                             :static-dir (when (.exists static-dir) static-dir)
@@ -95,6 +95,8 @@
           (stop!)
           (when close! (close!)))]
     (println "Dacite service listening at" base-url)
+    (println "  HTTP/3:" h3-url "(UDP, self-signed)")
+    (println "  cert: " keystore)
     (println "  API:  GET/PUT /node/{hex}  GET /root  POST /root/cas")
     (when (.exists static-dir)
       (println "  UI:   " (str base-url "/app/"))

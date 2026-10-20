@@ -12,6 +12,8 @@
      POST /root/cas     — {:expected hex-or-nil :new hex} → 200/409
      GET  /events       — SSE root announcements (text/event-stream)
 
+   Cleartext HTTP/1.1 is the `base-url` (existing clients, browser demos).
+   The same handler also speaks HTTP/3 on UDP, advertised with Alt-Svc.
    Also serves static files under /app/* from a configured directory (demo UI)."
   (:require [clojure.java.io :as io]
             [dacite.store :as store]
@@ -23,10 +25,20 @@
             [dacite.wire :as wire]
             [dacite.wire.binary :as bin]
             [dacite.service.throttle :as throttle])
-  (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange Headers]
-           [java.net InetSocketAddress]
+  (:import [java.nio ByteBuffer]
            [java.nio.charset StandardCharsets]
-           [java.util.concurrent Executors]))
+           [org.eclipse.jetty.http3.server HTTP3ServerConnectionFactory
+            HTTP3ServerQuicConfiguration]
+           [org.eclipse.jetty.io Content$Sink Content$Source]
+           [org.eclipse.jetty.quic.quiche.server QuicheServerConnector
+            QuicheServerQuicConfiguration]
+           [org.eclipse.jetty.server ConnectionFactory Handler$Abstract
+            HttpConfiguration HttpConnectionFactory NetworkConnector
+            NetworkConnector$Listener Request Response Server ServerConnector
+            SecureRequestCustomizer]
+           [org.eclipse.jetty.util Callback]
+           [org.eclipse.jetty.util.ssl SslContextFactory$Server]
+           [org.eclipse.jetty.util.thread QueuedThreadPool]))
 
 (def ^:private ct-edn "application/edn; charset=utf-8")
 (def ^:private ct-chunk bin/content-type-chunk-v1)
@@ -34,41 +46,49 @@
 (defn- utf8-bytes ^bytes [^String s]
   (.getBytes s StandardCharsets/UTF_8))
 
-(defn- read-body-bytes [^HttpExchange ex]
-  (.readAllBytes (.getRequestBody ex)))
-
 (defn- header-val
-  "First value of a request header (case-insensitive name), or nil."
-  [^HttpExchange ex name]
-  (when-let [vals (.get (.getRequestHeaders ex) name)]
-    (when (seq vals) (first vals))))
+  "Header value (case-insensitive name), or nil."
+  [^Request request name]
+  (when request
+    (.get (.getHeaders request) ^String name)))
 
-(defn- remote-host [^HttpExchange ex]
-  (when-let [addr (.getRemoteAddress ex)]
-    (when-let [a (.getAddress addr)]
-      (.getHostAddress a))))
+(defn- remote-host [^Request request]
+  (when-let [addr (.getRemoteSocketAddress (.getConnectionMetaData request))]
+    (when (instance? java.net.InetSocketAddress addr)
+      (when-let [a (.getAddress ^java.net.InetSocketAddress addr)]
+        (.getHostAddress a)))))
 
-(defn- send-bytes!
-  ([^HttpExchange ex status ^String content-type ^bytes body]
-   (send-bytes! ex status content-type body nil))
-  ([^HttpExchange ex status ^String content-type ^bytes body extra-headers]
-   (let [^Headers headers (.getResponseHeaders ex)]
-     (when content-type
-       (.set headers "Content-Type" content-type))
-     (doseq [[k v] extra-headers]
-       (.set headers (str k) (str v)))
-     ;; CORS for browser demos (page may be same-origin if served from here)
-     (.set headers "Access-Control-Allow-Origin" "*")
-     (.set headers "Access-Control-Allow-Methods" "GET,PUT,POST,HEAD,DELETE,OPTIONS")
-     (.set headers "Access-Control-Allow-Headers" "Content-Type,Authorization,Accept")
-     (if (and body (pos? (alength body)))
-       (do (.sendResponseHeaders ex status (alength body))
-           (with-open [os (.getResponseBody ex)]
-             (.write os body)))
-       (.sendResponseHeaders ex status -1)))))
+(defn- alt-svc
+  "Advertise HTTP/3 on the UDP port once that connector is open."
+  [^QuicheServerConnector h3]
+  (let [p (.getLocalPort h3)]
+    (when (pos? p)
+      (str "h3=\":" p "\""))))
 
-(defn- send-edn! [^HttpExchange ex status body]
-  (send-bytes! ex status ct-edn (utf8-bytes (wire/write-edn body))))
+(defn- apply-common-headers!
+  [^Response response ^QuicheServerConnector h3 extra-headers]
+  (let [headers (.getHeaders response)]
+    ;; CORS for browser demos (the page may be same-origin if served here).
+    (.put headers "Access-Control-Allow-Origin" "*")
+    (.put headers "Access-Control-Allow-Methods" "GET,PUT,POST,HEAD,DELETE,OPTIONS")
+    (.put headers "Access-Control-Allow-Headers" "Content-Type,Authorization,Accept")
+    (when-let [alt (alt-svc h3)]
+      (.put headers "Alt-Svc" alt))
+    (doseq [[k v] extra-headers]
+      (.put headers (str k) (str v)))))
+
+(defn- write-bytes!
+  "Buffer `body` and send it with Content-Length. A nil or empty body
+   completes with no content. Streaming a pack is a later milestone."
+  [^Response response status content-type body extra-headers h3]
+  (.setStatus response (int status))
+  (apply-common-headers! response h3 extra-headers)
+  (when content-type
+    (.put (.getHeaders response) "Content-Type" (str content-type)))
+  (when (and (bytes? body) (pos? (alength ^bytes body)))
+    (let [^bytes bs body]
+      (.put (.getHeaders response) "Content-Length" (str (alength bs)))
+      (Content$Sink/write response true (ByteBuffer/wrap bs)))))
 
 (def ^:private ct-sse "text/event-stream; charset=utf-8")
 
@@ -103,16 +123,16 @@
                (reset! subs #{}))}))
 
 (defn- handle-sse!
-  "Hold the exchange open and stream root events until the client drops."
-  [^HttpExchange ex hub rooted]
-  (let [^Headers headers (.getResponseHeaders ex)
-        {:keys [subs send! frame]} hub]
-    (.set headers "Content-Type" ct-sse)
-    (.set headers "Cache-Control" "no-cache")
-    (.set headers "Connection" "keep-alive")
-    (.set headers "Access-Control-Allow-Origin" "*")
-    (.sendResponseHeaders ex 200 0)
-    (let [os (.getResponseBody ex)]
+  "Hold the response open and stream root events until the client drops."
+  [^Response response hub rooted h3]
+  (let [{:keys [subs send! frame]} hub
+        headers (.getHeaders response)]
+    (.setStatus response 200)
+    (.put headers "Content-Type" ct-sse)
+    (.put headers "Cache-Control" "no-cache")
+    (.put headers "Connection" "keep-alive")
+    (apply-common-headers! response h3 nil)
+    (let [os (Content$Sink/asOutputStream response)]
       (swap! subs conj os)
       (try
         (send! os (frame (rs/root rooted)))
@@ -358,18 +378,19 @@
               ;; relative `js/main.js` is the *todo* bundle.
               {:status 301 :headers {"Location" (str path "/")}})))))))
 
-(defn- write-response! [^HttpExchange ex resp]
+(defn- write-response!
+  [^Response response resp h3]
   (if-let [f (:body-file resp)]
-    (let [bytes (.readAllBytes (io/input-stream f))]
-      (send-bytes! ex (:status resp) (:content-type resp) bytes (:headers resp)))
+    (write-bytes! response (:status resp) (:content-type resp)
+                  (.readAllBytes (io/input-stream f)) (:headers resp) h3)
     (let [body (:body resp)
-          headers (:headers resp)
           bs (cond
                (nil? body) nil
                (bytes? body) body
                (string? body) (utf8-bytes body)
                :else (utf8-bytes (pr-str body)))]
-      (send-bytes! ex (:status resp) (:content-type resp) bs headers))))
+      (write-bytes! response (:status resp) (:content-type resp) bs
+                    (:headers resp) h3))))
 
 (defn- deny-response
   "Throttle deny map → HTTP response map."
@@ -380,137 +401,262 @@
                                    retry-after-s (assoc :retry-after-s retry-after-s)))}
     retry-after-s (assoc :headers {"Retry-After" (str retry-after-s)})))
 
-(defn- drain-body! [^HttpExchange ex]
+(defn- drain-body! [^Request request]
   (try
-    (.close (.getRequestBody ex))
+    (.close (Content$Source/asInputStream request))
     (catch Exception _ nil)))
 
-(defn- make-executor [th]
-  (if th
-    (let [n (+ (long (get-in th [:opts :max-threads]))
-               (long (get-in th [:opts :max-sse])))]
-      (Executors/newFixedThreadPool (int (max 1 n))))
-    (Executors/newCachedThreadPool)))
+(defn- request-body
+  "Full request body, or nil when this method has none."
+  [^Request request method]
+  (when (#{"PUT" "POST"} method)
+    (.readAllBytes (Content$Source/asInputStream request))))
 
 (defn- handle-plain-request!
   "Read body (unbounded) and dispatch handle-request. No admission."
-  [^HttpExchange exchange rooted method path+q]
-  (let [body (when (#{"PUT" "POST"} method) (read-body-bytes exchange))
-        ct (header-val exchange "Content-type")
-        accept (header-val exchange "Accept")
+  [^Request request ^Response response rooted method path+q h3]
+  (let [body (request-body request method)
+        ct (header-val request "Content-Type")
+        accept (header-val request "Accept")
         resp (handle-request rooted method path+q body
                              {:content-type ct :accept accept})]
-    (write-response! exchange resp)))
+    (write-response! response resp h3)))
 
 (defn- handle-throttled-request!
   "Admit, bounded-read, dispatch. Caller has already acquired API slot."
-  [^HttpExchange exchange th rooted method path+q]
+  [^Request request ^Response response th rooted method path+q h3]
   (let [max-body (get-in th [:opts :max-body-bytes])
-        cl (header-val exchange "Content-length")]
+        cl (header-val request "Content-Length")]
     (if (throttle/content-length-too-large? cl max-body)
-      (do (drain-body! exchange)
-          (write-response! exchange (deny-response (throttle/body-too-large))))
+      (do (drain-body! request)
+          (write-response! response (deny-response (throttle/body-too-large)) h3))
       (let [raw (when (#{"PUT" "POST"} method)
-                  (throttle/read-body-limited (.getRequestBody exchange) max-body))]
+                  (throttle/read-body-limited
+                   (Content$Source/asInputStream request) max-body))]
         (if (= :too-large raw)
-          (do (drain-body! exchange)
-              (write-response! exchange (deny-response (throttle/body-too-large))))
-          (let [ct (header-val exchange "Content-type")
-                accept (header-val exchange "Accept")
+          (do (drain-body! request)
+              (write-response! response (deny-response (throttle/body-too-large)) h3))
+          (let [ct (header-val request "Content-Type")
+                accept (header-val request "Accept")
                 resp (handle-request
                       rooted method path+q raw
                       {:content-type ct
                        :accept accept
                        :pack-get-max-budget (get-in th [:opts :pack-get-max-budget])
                        :pack-get-max-starts (get-in th [:opts :pack-get-max-starts])})]
-            (write-response! exchange resp)))))))
+            (write-response! response resp h3)))))))
 
-(defn- handle-exchange!
-  [^HttpExchange exchange th rooted static hub]
-  (let [method (.getRequestMethod exchange)
-        uri (.getRequestURI exchange)
+(defn- handle-request!
+  [^Request request ^Response response th rooted static hub h3]
+  (let [method (.getMethod request)
+        uri (.getHttpURI request)
         path (.getPath uri)
         q (.getQuery uri)
         path+q (if q (str path "?" q) path)
         ck (when th
-             (throttle/client-key (header-val exchange "Authorization")
-                                  (remote-host exchange)))]
+             (throttle/client-key (header-val request "Authorization")
+                                  (remote-host request)))]
     (cond
       (and (= "GET" method) (= path "/events"))
       (if (nil? th)
-        (handle-sse! exchange hub rooted)
+        (handle-sse! response hub rooted h3)
         (let [adm (throttle/acquire-sse! th ck)]
           (if-not (:ok adm)
-            (do (drain-body! exchange)
-                (write-response! exchange (deny-response adm)))
+            (do (drain-body! request)
+                (write-response! response (deny-response adm) h3))
             (try
-              (handle-sse! exchange hub rooted)
+              (handle-sse! response hub rooted h3)
               (finally
                 (throttle/release-sse! th ck))))))
 
       (and (#{"GET" "HEAD"} method) (handle-static static path))
-      (write-response! exchange (handle-static static path))
+      (write-response! response (handle-static static path) h3)
 
       (= "OPTIONS" method)
-      (write-response! exchange {:status 204})
+      (write-response! response {:status 204} h3)
 
       (nil? th)
-      (handle-plain-request! exchange rooted method path+q)
+      (handle-plain-request! request response rooted method path+q h3)
 
       :else
       (let [adm (throttle/acquire-api! th ck)]
         (if-not (:ok adm)
-          (do (drain-body! exchange)
-              (write-response! exchange (deny-response adm)))
+          (do (drain-body! request)
+              (write-response! response (deny-response adm) h3))
           (try
-            (handle-throttled-request! exchange th rooted method path+q)
+            (handle-throttled-request! request response th rooted method path+q h3)
             (finally
               (throttle/release-api! th ck))))))))
 
+(defn- make-handler [th rooted static hub h3]
+  (proxy [Handler$Abstract] []
+    (handle [^Request request ^Response response ^Callback callback]
+      (try
+        (handle-request! request response th rooted static hub h3)
+        (.succeeded callback)
+        (catch Exception e
+          (try
+            (when-not (.isCommitted response)
+              (write-bytes! response 500 ct-edn
+                            (utf8-bytes (wire/write-edn {:error (.getMessage e)}))
+                            nil h3))
+            (catch Exception _ nil))
+          (if (.isCommitted response)
+            (.succeeded callback)
+            (.failed callback e))))
+      true)))
+
+(def ^:private dev-keystore-password "dacite-dev")
+(def ^:private dev-keystore-lock (Object.))
+
+(defn- delete-tree [^java.io.File f]
+  (when (and f (.exists f))
+    (doseq [c (vec (.listFiles f))]
+      (delete-tree c))
+    (.delete f)))
+
+(defn- dev-keystore-file
+  "Self-signed PKCS12 for the local HTTP/3 connector.
+
+   HTTP/3 is always TLS. The cert names localhost and 127.0.0.1. It lives
+   under java.io.tmpdir so a 9p checkout is not mmapped."
+  []
+  (locking dev-keystore-lock
+    (let [dir (io/file (System/getProperty "java.io.tmpdir") "dacite-http3")
+          ks (io/file dir "dev.p12")]
+      (when-not (.isFile ks)
+        (.mkdirs dir)
+        (let [keytool (.getAbsolutePath
+                       (io/file (System/getProperty "java.home") "bin" "keytool"))
+              pb (doto (ProcessBuilder.
+                        [keytool
+                         "-genkeypair" "-alias" "dacite"
+                         "-keyalg" "EC" "-groupname" "secp256r1"
+                         "-storetype" "PKCS12"
+                         "-keystore" (.getAbsolutePath ks)
+                         "-storepass" dev-keystore-password
+                         "-keypass" dev-keystore-password
+                         "-dname" "CN=localhost"
+                         "-ext" "san=dns:localhost,ip:127.0.0.1"
+                         "-ext" "eku=serverAuth"
+                         "-validity" "3650"
+                         "-noprompt"])
+                   (.redirectErrorStream true))
+              proc (.start pb)
+              out (slurp (.getInputStream proc))
+              code (.waitFor proc)]
+          (when-not (zero? code)
+            (.delete ks)
+            (throw (ex-info "could not generate the HTTP/3 dev certificate"
+                            {:exit code :out out})))))
+      ks)))
+
+(defn- make-thread-pool [th]
+  ;; Sized for API threads + SSE slots so a watcher cannot starve CAS.
+  ;; Throttle off uses Jetty's usual ceiling.
+  (let [n (if th
+            (+ (long (get-in th [:opts :max-threads]))
+               (long (get-in th [:opts :max-sse])))
+            200)]
+    (doto (QueuedThreadPool. (int (max 1 n)) 1)
+      (.setName "dacite-http"))))
+
+(defn- make-http3-connector
+  [^Server server ^SslContextFactory$Server ssl pem-dir]
+  (let [secure (doto (HttpConfiguration.)
+                 (.setSendServerVersion false)
+                 (.setSendDateHeader false)
+                 (.addCustomizer (SecureRequestCustomizer.)))
+        factory (HTTP3ServerConnectionFactory. secure)
+        quic (HTTP3ServerQuicConfiguration/configure
+              (QuicheServerQuicConfiguration. (.toPath (io/file pem-dir))))]
+    (QuicheServerConnector. server ssl quic
+                            (into-array ConnectionFactory [factory]))))
+
 (defn start-server!
-  "Start HttpServer.
+  "Start the Dacite HTTP service.
+
+   Cleartext HTTP/1.1 listens on `:port` (0 = ephemeral). HTTP/3 listens
+   on UDP. When `:port` is 0 the UDP socket takes the TCP port the OS
+   assigned, because one is TCP and the other is UDP. Responses carry
+   `Alt-Svc: h3=\":<udp-port>\"`.
 
    opts:
-     :port (default 0 = ephemeral)
+     :port (default 0)
      :rooted — required RootedStore
      :static-dir — optional File/string for /app/* and /
      :throttle — true/nil (defaults on), false (off), or map merged
                  over dacite.service.throttle/defaults
-   Returns {:server HttpServer :port int :base-url string :rooted ...}"
+
+   Returns {:server :port :base-url :h3-port :h3-url :keystore
+            :keystore-password :rooted :hub :throttle :stop!}.
+   `:base-url` stays http:// so existing clients do not change.
+   `:h3-url` is https:// on the UDP port. The keystore is the self-signed
+   dev certificate a test client can trust."
   [opts]
+  (System/setProperty "org.eclipse.jetty.LEVEL" "WARN")
   (let [{:keys [port rooted static-dir] :or {port 0}} opts
         th (throttle/create (:throttle opts true))]
     (when-not rooted
       (throw (ex-info "rooted store required" {})))
     (let [static (when static-dir (io/file static-dir))
           hub (make-sse-hub rooted)
-          executor (make-executor th)
-          server (HttpServer/create (InetSocketAddress. port) 0)
-          handler (reify HttpHandler
-                    (handle [_ exchange]
-                      (try
-                        (handle-exchange! exchange th rooted static hub)
-                        (catch Exception e
-                          (try
-                            (send-edn! exchange 500 {:error (.getMessage e)})
-                            (catch Exception _ nil))))))]
-      (.createContext server "/" handler)
-      ;; Fixed pool sized for API threads + SSE slots so a watcher cannot
-      ;; starve CAS / node I/O. Cached pool when throttle is off.
-      (.setExecutor server executor)
-      (.start server)
-      (let [bound (.. server getAddress getPort)
-            base (str "http://127.0.0.1:" bound)]
+          ks (dev-keystore-file)
+          pem-dir (io/file (System/getProperty "java.io.tmpdir")
+                           (str "dacite-http3-pem-" (System/nanoTime)))
+          _ (.mkdirs pem-dir)
+          ssl (doto (SslContextFactory$Server.)
+                (.setKeyStorePath (.getAbsolutePath ks))
+                (.setKeyStoreType "PKCS12")
+                (.setKeyStorePassword dev-keystore-password)
+                (.setKeyManagerPassword dev-keystore-password))
+          pool (make-thread-pool th)
+          server (Server. pool)
+          plain-config (doto (HttpConfiguration.)
+                         (.setSendServerVersion false)
+                         (.setSendDateHeader false))
+          http (doto (ServerConnector.
+                      server
+                      (into-array ConnectionFactory
+                                  [(HttpConnectionFactory. plain-config)]))
+                 (.setPort (int port)))
+          h3 (doto (make-http3-connector server ssl pem-dir)
+               (.setPort (int port)))]
+      (.addConnector server http)
+      (.addConnector server h3)
+      ;; Plain opens first. If the caller asked for port 0, copy the
+      ;; assigned TCP port onto the UDP connector before it binds.
+      (.addEventListener
+       http
+       (reify NetworkConnector$Listener
+         (onOpen [_ connector]
+           (when (zero? (.getPort h3))
+             (.setPort h3 (.getLocalPort ^NetworkConnector connector))))))
+      (.setHandler server (make-handler th rooted static hub h3))
+      (try
+        (.start server)
+        (catch Exception e
+          (try (.stop server) (catch Exception _ nil))
+          (delete-tree pem-dir)
+          (throw e)))
+      (let [bound (.getLocalPort http)
+            h3-port (.getLocalPort h3)]
         {:server server
          :port bound
-         :base-url base
+         :base-url (str "http://127.0.0.1:" bound)
+         :h3-port h3-port
+         :h3-url (str "https://127.0.0.1:" h3-port)
+         :keystore (.getAbsolutePath ks)
+         :keystore-password dev-keystore-password
          :rooted rooted
          :hub hub
          :throttle th
          :stop! (fn []
-                  ((:close! hub))
-                  (.stop server 0)
-                  (.shutdownNow executor))}))))
+                  (try
+                    ((:close! hub))
+                    (.stop server)
+                    (finally
+                      (delete-tree pem-dir))))}))))
 
 (defn stop-server! [{:keys [stop!]}]
   (when stop! (stop!)))
