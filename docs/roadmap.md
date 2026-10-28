@@ -11,8 +11,9 @@ Browser `fetch` is done: `dacite.store.browser` uses `fetch`, and `drive`
 reads `response.body` as the bytes arrive, then runs the value op again
 against that exchange. Store methods return promises. The JVM and
 babashka block inside `await`, so the public value API stays synchronous
-there. ClojureScript walks still replay through `drive`. The next
-milestone is an IndexedDB store for the page. Pack decode still waits
+there. ClojureScript walks still replay through `drive`. A page can
+open `dacite.store.idb`. The next milestone is the QUIC reveal client.
+Pack decode still waits
 for the full `Content-Length` body. The demo server is Jetty.
 Cleartext HTTP/1.1 is still the `base-url`. HTTP/3 listens on UDP at
 that same port number, with a self-signed certificate, and responses
@@ -43,13 +44,7 @@ runs the value operation again. The account is
 
 Do this next:
 
-1. **IndexedDB store for web clients.** A page can open an
-   `IndexedDBStore` and use it as a store: on its own, or in front of
-   the remote store, in the same layering as `SmartCacheStore` and
-   `WriteBackStore`. It implements the promise-returning protocol. It
-   is not a new demo.
-
-2. **QUIC reveal client.** The server speaks HTTP/3. `remote-store` maps
+1. **QUIC reveal client.** The server speaks HTTP/3. `remote-store` maps
    the reveal rule onto QUIC. One connection stays open. Each focused
    child collection is a stream. Resetting the stream cancels that
    reveal. The root-notice stream stays up beside those reveals. This
@@ -137,9 +132,10 @@ place.
 `pack-under` with budget **0** is a single item. Durable pages are the
 value encoding; pack ships those literals. How a client bounds a large
 value is *How every client reveals a value*. The open work, in order:
-an IndexedDB store, then a QUIC reveal client, then a chunked pack GET.
-Store methods return promises. Browser `fetch` and the HTTP/3 server
-are done. ClojureScript value walks still replay through `drive`.
+a QUIC reveal client, then a chunked pack GET. Store methods return
+promises. `dacite.store.idb` is the page's IndexedDB dictionary.
+Browser `fetch` and the HTTP/3 server are done. ClojureScript value
+walks still replay through `drive`.
 
 ---
 
@@ -462,8 +458,8 @@ is the next milestone.
 | Browser `fetch` | The browser store has to read a body while the tab stays responsive | **Done** — `dacite.store.browser` uses `fetch` and `drive`. Independent of HTTP/3 |
 | HTTP/3 server | The JDK server is HTTP/1.1 only | **Done** — Jetty. Cleartext HTTP/1.1 stays `base-url`. HTTP/3 is UDP on the same port, `Alt-Svc`, self-signed dev cert. Java 21 `HttpClient` still has no `HTTP_3` |
 | Asynchronous IStore | Every store is the same dictionary, local or remote | **Done** — methods return promises. JVM and babashka block in `await`. A missing required node is `:missing`; a store that cannot answer is `:unavailable`. ClojureScript walks still replay through `drive` |
-| IndexedDB store | A web client needs a durable store of its own | **Next** — `IndexedDBStore` usable as a store, including in front of the remote, on that protocol |
-| QUIC reveal client | A focused child collection is its own stream | **After IndexedDB** — `remote-store`: one connection, one stream per focused child, reset cancels, root notice stays up. The rate-based account is [design/progressive-revelation.md](design/progressive-revelation.md) |
+| IndexedDB store | A web client needs a durable store of its own | **Done** — `dacite.store.idb`. `open` is a rooted store; `idb-store` is the content dictionary a `SmartCacheStore` can put in front of a remote. Ops suspend and `drive` replays them |
+| QUIC reveal client | A focused child collection is its own stream | **Next** — `remote-store`: one connection, one stream per focused child, reset cancels, root notice stays up. The rate-based account is [design/progressive-revelation.md](design/progressive-revelation.md) |
 | Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the trio** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
 
 Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
@@ -538,9 +534,9 @@ HTTP/3 server                                      ✓ Jetty
 Asynchronous IStore                                ✓ promises
         → JVM and babashka still block in await;
           ClojureScript walks still replay through drive
-IndexedDB store for web clients                    ← current
-        → a page's own store, alone or in front of remote
-QUIC reveal client                                 after IndexedDB
+IndexedDB store for web clients                    ✓ dacite.store.idb
+        → rooted open, or the content store in front of remote
+QUIC reveal client                                 ← current
         → one connection, a stream per focused child
 Stream a pack on one HTTP response                 after the reveal client
         → HTTP/1.1 carrier of the byte limit

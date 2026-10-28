@@ -158,7 +158,7 @@ A link is a content hash. The value it names was realized when it was written, a
 
 The cache belongs in the store stack. An `IndexedDBStore` sits in front of the remote store, in the same layering pattern as `SmartCacheStore` and `WriteBackStore` (`dacite.store.client-cache`). A batch of streamed pages becomes puts, one IndexedDB transaction per batch. The store's keys are what the client already holds, which is the client side of dedup across sessions.
 
-`dacite.store.browser` speaks HTTP with `fetch` inside `drive`: a miss suspends, `drive` reads `response.body` as bytes arrive, and the op runs again. The server still sends one `Content-Length` pack per request. That replay is how a page stays responsive until the walks themselves await. Store methods return promises. The [roadmap](../roadmap.md) puts an IndexedDB store next.
+`dacite.store.browser` speaks HTTP with `fetch` inside `drive`: a miss suspends, `drive` reads `response.body` as bytes arrive, and the op runs again. The server still sends one `Content-Length` pack per request. That replay is how a page stays responsive until the walks themselves await. Store methods return promises. `dacite.store.idb` is the page's IndexedDB dictionary, and it suspends through the same `drive`. The [roadmap](../roadmap.md) puts the QUIC reveal client next.
 
 A later direction is a cache on the LAN. Entries are immutable and content-addressed, so any peer's cache is a safe source: the receiver checks each entry against its hash. Alice and Bob on the same LAN can each offer a store in front of their local cache and consult a neighbor before an internet server. Tiers would be memory, then local IndexedDB, then LAN peers, then the internet server. A web page cannot listen for incoming connections. Two ways to reach a peer are a WebRTC data channel (a small signaling introduction, then LAN traffic) and a local companion process discovered on the LAN (for example the existing nbb LMDB store over HTTP). Prior art is IPFS and BitTorrent. This is outside the minimum.
 
@@ -166,7 +166,7 @@ A later direction is a cache on the LAN. Entries are immutable and content-addre
 
 The roadmap section *How every client reveals a value* still holds on these points. The client decides how far a read goes. Bytes already stored stay. A new root is a notice of a hash. Local `nth` and a bounded slice are reveals.
 
-The roadmap's reveal section is unchanged. It still describes a child wall, a fixed byte budget, and cancel as the only stop. Current direction now leads with an IndexedDB store for web clients, then the QUIC reveal client.
+The roadmap's reveal section is unchanged. It still describes a child wall, a fixed byte budget, and cancel as the only stop. Current direction now leads with the QUIC reveal client. The page store is `dacite.store.idb`.
 
 Three points change.
 

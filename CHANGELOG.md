@@ -6,6 +6,12 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **IndexedDB store** — `dacite.store.idb` is a page-local dictionary.
+  `idb-store` is the content store. `open` is a rooted store with the
+  same pack-literal flush as `s/file`. Methods suspend until IndexedDB
+  completes, and `drive` replays the operation. One browser `drive` covers
+  this store and HTTP together, so the page can put IndexedDB in front of
+  the remote store.
 - **Asynchronous `IStore`** — every store method returns a promise.
   `s-get` fulfills with nil when the hash is absent. A required read
   fails as `:missing`. A store that cannot answer rejects as
