@@ -6,6 +6,10 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Reveal order and interest** — `dacite.reveal` names the pages a default
+  reveal would send, and the share of the ceiling each open reveal gets.
+  Below the floor a reveal pauses. Cancel drops its share at once. No
+  path, header, or frame is chosen yet, and no stream is opened.
 - **IndexedDB store** — `dacite.store.idb` is a page-local dictionary.
   `idb-store` is the content store. `open` is a rooted store with the
   same pack-literal flush as `s/file`. Methods suspend until IndexedDB

@@ -178,7 +178,7 @@ The ordinary end of a reveal is its interest falling below the floor. Cancel rem
 
 ## Deferred
 
-No wire layout is chosen here: no HTTP path, no header, no frame layout. Streaming a pack on one response remains a later way to carry the same idea. The minimum implementation, when one is started, is the default policies above and the rate behavior, with no policy field on the request.
+No wire layout is chosen here: no HTTP path, no header, no frame layout. Streaming a pack on one response remains a later way to carry the same idea. The default page order and the interest shares are `dacite.reveal`, with no policy field on a request. That namespace does not open a stream.
 
 Still open:
 
