@@ -1,6 +1,6 @@
 # Dacite Roadmap
 
-*Last updated: 2026-10-20*
+*Last updated: 2026-10-28*
 
 ## Current direction
 
@@ -9,8 +9,9 @@ enough to show the transport cost, and that cost is the current problem.
 A remote chapter or image is one `GET /node/{hex}` per ~1–2 KB chunk.
 Browser `fetch` is done: `dacite.store.browser` uses `fetch`, and `drive`
 reads `response.body` as the bytes arrive, then runs the value op again
-against that exchange. `IStore` stays synchronous. Pack decode still
-waits for the full `Content-Length` body. The demo server is Jetty.
+against that exchange. `IStore` is still synchronous; the next milestone
+makes its methods promises. Pack decode still waits for the full
+`Content-Length` body. The demo server is Jetty.
 Cleartext HTTP/1.1 is still the `base-url`. HTTP/3 listens on UDP at
 that same port number, with a self-signed certificate, and responses
 carry `Alt-Svc`. A pack is still one buffered body. Java 21's
@@ -24,15 +25,43 @@ library CLI and browser reader (`/app/library/`) live in
 `s/file` and `s/lmdb` (pack-literal flush on root commit). Sequences are
 ~1,024-byte literal pages, and a `u8` run payload is a copied byte buffer.
 
+A web client has no durable store of its own. `s/mem`, `s/file`, and
+`s/lmdb` are JVM or nbb. In compiled ClojureScript those constructors
+throw, and the page's store is the remote behind `dacite.store.browser`.
+
+`IStore` is synchronous on every host. `finger_tree` and `hamt` call
+`s-get` and use the node on the next line, and so do count, nth, conj,
+and print. That treats every dictionary as local. A mem store can
+answer on the calling turn. HTTP and IndexedDB complete later. The JVM
+remote store blocks the thread inside `s-get`. The browser cannot, so
+`drive` throws a promise and runs the value operation again. A missing
+hash returns nil, and the next destructure crashes.
+
 Do this next:
 
-1. **QUIC reveal client.** The server speaks HTTP/3. `remote-store` maps
+1. **Asynchronous IStore.** Every store method returns a promise. Mem,
+   file, LMDB, HTTP, and later IndexedDB implement that same protocol.
+   One `await` in the value layer blocks on the JVM and babashka, so
+   `v/nth`, `v/get`, `v/conj`, and `v/seq` still return values there.
+   ClojureScript and nbb return promises. A missing hash fails as
+   `:missing`. A store that cannot answer fails as `:unavailable`.
+   `drive` stays until the walks actually await. The account is
+   [design/progressive-revelation.md](design/progressive-revelation.md).
+
+2. **IndexedDB store for web clients.** A page can open an
+   `IndexedDBStore` and use it as a store: on its own, or in front of
+   the remote store, in the same layering as `SmartCacheStore` and
+   `WriteBackStore`. It implements the promise-returning protocol. It
+   is not a new demo.
+
+3. **QUIC reveal client.** The server speaks HTTP/3. `remote-store` maps
    the reveal rule onto QUIC. One connection stays open. Each focused
    child collection is a stream. Resetting the stream cancels that
    reveal. The root-notice stream stays up beside those reveals. This
    is one carrier of the child and byte limits, not a new demo. Java
    21's `HttpClient` has no `HTTP_3`; the server test uses Jetty's
-   HTTP/3 client.
+   HTTP/3 client. The reveal rule in this file is still the byte and
+   child limits above. The rate-based account is the same design doc.
 
 **Stream a pack on one HTTP response** follows the reveal client. It is
 the HTTP/1.1 carrier of the byte limit in *How every client reveals a
@@ -112,9 +141,10 @@ place.
 `:exists`. Write-back flush uses the same Layer 1 literals as GET.
 `pack-under` with budget **0** is a single item. Durable pages are the
 value encoding; pack ships those literals. How a client bounds a large
-value is *How every client reveals a value*. The open carriers, in order:
-a QUIC reveal client, then a chunked pack GET. Browser `fetch` and the
-HTTP/3 server are done.
+value is *How every client reveals a value*. The open work, in order:
+an asynchronous `IStore`, then an IndexedDB store, then a QUIC reveal
+client, then a chunked pack GET. Browser `fetch` and the HTTP/3 server
+are done.
 
 ---
 
@@ -393,13 +423,13 @@ is the next milestone.
 | Gap | Why | Status |
 |---|---|---|
 | Range / slice on sequences | Pagination without realizing the log | Done (`v/slice` — vector, string, blob) |
-| Catchable missing-node errors | Partial availability is currently an exception from `s-get` | Still deferred |
+| Catchable missing-node errors | Partial availability is currently an exception from `s-get` | Typed `:missing` arrives with Asynchronous IStore. The partial-value policy stays deferred |
 
 **Pulled by two clients**
 
 | Gap | Why | Status |
 |---|---|---|
-| Async remote store | Browser must not block the page | **Done** — `fetch` inside `drive`. `response.body` is read as bytes arrive. Pack decode still waits for the full `Content-Length` body |
+| Async remote store | Browser must not block the page | **Done** — `fetch` inside `drive`. `response.body` is read as bytes arrive. Pack decode still waits for the full `Content-Length` body. Asynchronous IStore replaces this replay |
 | SSE (or a documented poll helper) | Watches across the network | Done (`GET /events`) |
 | Value-level CAS retry that rebases | `ref-swap!` / `ref-swap-info!` | Done (same loop on remote) |
 
@@ -436,7 +466,9 @@ is the next milestone.
 | Reveal requirements | Every client must bound a large value | **Captured** — *How every client reveals a value*. Bytes and children are the two limits. Transport is a carrier |
 | Browser `fetch` | The browser store has to read a body while the tab stays responsive | **Done** — `dacite.store.browser` uses `fetch` and `drive`. Independent of HTTP/3 |
 | HTTP/3 server | The JDK server is HTTP/1.1 only | **Done** — Jetty. Cleartext HTTP/1.1 stays `base-url`. HTTP/3 is UDP on the same port, `Alt-Svc`, self-signed dev cert. Java 21 `HttpClient` still has no `HTTP_3` |
-| QUIC reveal client | A focused child collection is its own stream | **Next** — `remote-store`: one connection, one stream per focused child, reset cancels, root notice stays up |
+| Asynchronous IStore | Every store is the same dictionary, local or remote | **Next** — methods return promises. JVM and babashka block in `await`. ClojureScript and nbb return promises. `:missing` and `:unavailable` |
+| IndexedDB store | A web client needs a durable store of its own | **After Asynchronous IStore** — `IndexedDBStore` usable as a store, including in front of the remote, on that protocol |
+| QUIC reveal client | A focused child collection is its own stream | **After IndexedDB** — `remote-store`: one connection, one stream per focused child, reset cancels, root notice stays up. The rate-based account is [design/progressive-revelation.md](design/progressive-revelation.md) |
 | Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the trio** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
 
 Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
@@ -504,13 +536,17 @@ u8 run payload                                     ✓ copied byte buffer
 Reveal requirements                                ✓ this roadmap
         → bytes and children; transport is a carrier
 Browser fetch                                      ✓
-        → fetch inside drive; IStore stays synchronous
+        → fetch inside drive; replay until IStore awaits
 HTTP/3 server                                      ✓ Jetty
         → cleartext HTTP/1.1 stays the base-url;
           HTTP/3 is UDP on that port, Alt-Svc
-QUIC reveal client                                 ← current
+Asynchronous IStore                                ← current
+        → promises; JVM and babashka still block
+IndexedDB store for web clients                    after Asynchronous IStore
+        → a page's own store, alone or in front of remote
+QUIC reveal client                                 after IndexedDB
         → one connection, a stream per focused child
-Stream a pack on one HTTP response                 after HTTP/3 and QUIC
+Stream a pack on one HTTP response                 after the reveal client
         → HTTP/1.1 carrier of the byte limit
 Library, resumed                                   paused
         → EPUB ingest, extra indexes, upload form
