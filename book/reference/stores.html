@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887eff98.js";
+            window.path_to_searchindex_js = "../searchindex-578a1275.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -266,7 +266,7 @@ remote HTTP store        (dacite.store.remote | dacite.store.browser)
 <tr><td><code>dacite.store.rate-limit</code></td><td>Throttle <strong>send</strong> path (outermost <code>IChunkTransport</code> wins). Server inbound admit is <code>dacite.service.throttle</code> (429), not this wrapper.</td></tr>
 <tr><td><code>dacite.store.stats</code></td><td>Bandwidth accounting for store-protocol bodies</td></tr>
 <tr><td><code>dacite.store.remote</code></td><td>JVM HTTP client (<code>:binary true</code> default for packs); <code>watch-root</code> is GET /events</td></tr>
-<tr><td><code>dacite.store.browser</code></td><td>Browser sync XHR demo client (<code>:binary true</code> default)</td></tr>
+<tr><td><code>dacite.store.browser</code></td><td>Browser <code>fetch</code> client (<code>:binary true</code> default). <code>drive</code> keeps <code>IStore</code> synchronous</td></tr>
 </tbody>
 </table>
 </div>
@@ -299,7 +299,7 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
 <h2 id="alpha-quality-notes"><a class="header" href="#alpha-quality-notes">Alpha quality notes</a></h2>
 <ul>
 <li>HTTP service and remotes are <strong>experimental</strong> but usable for demos and tests</li>
-<li>Browser remote is <strong>sync XHR</strong> (main-thread blocking) — not production networking</li>
+<li>Browser remote uses <strong><code>fetch</code></strong> inside <code>drive</code> — not production networking</li>
 <li>APIs may change before 1.0; see <a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">CHANGELOG</a></li>
 </ul>
 <hr>
