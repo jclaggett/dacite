@@ -238,13 +238,11 @@
    different store (e.g. conj of a map built while *store* pointed elsewhere,
    or after an async UI dropped a dynamic bind-store)."
   [src dst h]
-  (when (and h (not (store/s-has? dst h)))
-    (if-let [node (store/s-get src h)]
-      (do (store/s-put dst h node)
-          (doseq [ch (or (child-hashes node) [])]
-            (ensure-in-store! src dst ch)))
-      (throw (ex-info "Cannot ensure hash in store: missing from source"
-                      {:hash h}))))
+  (when (and h (not (store/await (store/s-has? dst h))))
+    (let [node (store/require-node src h)]
+      (store/await (store/s-put dst h node))
+      (doseq [ch (or (child-hashes node) [])]
+        (ensure-in-store! src dst ch))))
   h)
 
 (defn extract-hash
@@ -258,7 +256,7 @@
   (if (satisfies? IDaciteValue x)
     (let [h (dacite-hash x)
           src (dacite-store x)]
-      (when-not (store/s-has? store h)
+      (when-not (store/await (store/s-has? store h))
         (ensure-in-store! src store h))
       h)
     (coerce-and-store! store x)))

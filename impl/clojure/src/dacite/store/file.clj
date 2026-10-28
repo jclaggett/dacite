@@ -54,48 +54,50 @@
 (defrecord FileStore [base-dir]
   store/IStore
   (s-get [_ h]
-    (let [f (hash->path base-dir h)]
-      (when (.exists f)
-        (read-edn (slurp f)))))
+    (store/completed
+     (let [f (hash->path base-dir h)]
+       (when (.exists f)
+         (read-edn (slurp f))))))
 
   (s-put [this h value]
     (let [f (hash->path base-dir h)]
       (ensure-parent-dirs f)
       (spit f (pr-str (tag-byte-arrays value)))
-      this))
+      (store/completed this)))
 
   (s-has? [_ h]
-    (.exists (hash->path base-dir h)))
+    (store/completed (.exists (hash->path base-dir h))))
 
   (s-delete [this h]
     (let [f (hash->path base-dir h)]
       (when (.exists f)
         (.delete f)))
-    this)
+    (store/completed this))
 
   (s-snapshot [_]
-    (let [files (file-seq base-dir)]
-      (into {}
-            (comp
-             (filter #(.isFile ^File %))
-             (filter #(.endsWith (.getName ^File %) ".edn"))
-             (map (fn [^File f]
-                    (let [hex (subs (.getName f) 0 64)
-                          h (store/hex->hash hex)
-                          v (read-edn (slurp f))]
-                      [h v]))))
-            files)))
+    (store/completed
+     (let [files (file-seq base-dir)]
+       (into {}
+             (comp
+              (filter #(.isFile ^File %))
+              (filter #(.endsWith (.getName ^File %) ".edn"))
+              (map (fn [^File f]
+                     (let [hex (subs (.getName f) 0 64)
+                           h (store/hex->hash hex)
+                           v (read-edn (slurp f))]
+                       [h v]))))
+             files))))
 
   (s-merge [this m]
     (doseq [[h v] m]
-      (store/s-put this h v))
-    this)
+      (store/await (store/s-put this h v)))
+    (store/completed this))
 
   (s-reset [this]
     (doseq [^File f (file-seq base-dir)
             :when (and (.isFile f) (.endsWith (.getName f) ".edn"))]
       (.delete f))
-    this))
+    (store/completed this)))
 
 (defn file-store
   "Create a file-based content-addressed store."

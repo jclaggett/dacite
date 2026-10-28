@@ -75,9 +75,9 @@
                                       :now-fn now-fn
                                       :sleep-fn sleep-fn})
         h [1 0 0 0]]
-    (store/s-put limited h ["i64" 1])
-    (is (= ["i64" 1] (store/s-get limited h)))
-    (is (store/s-has? limited h))
+    (store/await (store/s-put limited h ["i64" 1]))
+    (is (= ["i64" 1] (store/await (store/s-get limited h))))
+    (is (store/await (store/s-has? limited h)))
     (is (empty? @sleeps) "IStore ops do not take tokens")))
 
 (deftest write-back-flush-through-rate-limit
@@ -96,7 +96,7 @@
             h (types/dacite-hash t)
             n (client-cache/flush-reachable! wb h)]
         (is (pos? n))
-        (is (store/s-has? raw h))
+        (is (store/await (store/s-has? raw h)))
         (is (zero? (client-cache/flush-reachable! wb h))))
       (finally
         (stop!)))))

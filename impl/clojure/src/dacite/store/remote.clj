@@ -81,8 +81,26 @@
      :data (when (and body (pos? (alength body)))
              (wire/read-edn (String. body "UTF-8")))}))
 
+(defn- throw-unavailable
+  "Throw the store-failure exception. Used inside a future body."
+  [h cause]
+  (throw (ex-info "store unavailable"
+                  {:reason :unavailable :hash h :cause cause})))
+
+(defn- in-future
+  "Run `f` on another thread. Its value is the get/put/delete result.
+   A failure becomes `{:reason :unavailable}`."
+  [h f]
+  (future
+    (try
+      (f)
+      (catch Exception e
+        (if (= :unavailable (:reason (ex-data e)))
+          (throw e)
+          (throw-unavailable h e))))))
+
 (defn- apply-get-body!
-  "Install GET /node body into pack-local. Return node at h.
+  "Install GET /node body into pack-local. Return node at h, or nil.
    body-bytes — response body; binary? — wire-v1 chunk when true."
   [pack-local h ^bytes body-bytes binary?]
   (when (and body-bytes (pos? (alength body-bytes)))
@@ -90,17 +108,17 @@
       (or binary? (bin/dac1-magic? body-bytes))
       (let [chunk (bin/decode-pack-edn body-bytes)]
         (pack/apply-chunk! pack-local chunk)
-        (store/s-get pack-local h))
+        (store/await (store/s-get pack-local h)))
 
       :else
       (let [data (wire/read-edn (String. body-bytes "UTF-8"))]
         (cond
           (pack/chunk? data)
           (do (pack/apply-chunk! pack-local data)
-              (store/s-get pack-local h))
+              (store/await (store/s-get pack-local h)))
 
           (some? data)
-          (do (store/s-put pack-local h data)
+          (do (store/await (store/s-put pack-local h data))
               data)
 
           :else nil)))))
@@ -108,48 +126,66 @@
 (defrecord RemoteStore [base-url client headers pack-local binary?]
   store/IStore
   (s-get [_ h]
-    (or (store/s-get pack-local h)
-        (let [hdrs (if binary?
-                     (assoc headers "Accept" bin/content-type-chunk-v1)
-                     (assoc headers "Accept" "application/edn"))
-              {:keys [status body]} (request client "GET" (node-url base-url h) nil hdrs)]
-          (when (= 200 status)
-            (apply-get-body! pack-local h body binary?)))))
+    (if-some [hit (store/await (store/s-get pack-local h))]
+      (store/completed hit)
+      (in-future h
+                 (fn []
+                   (let [hdrs (if binary?
+                                (assoc headers "Accept" bin/content-type-chunk-v1)
+                                (assoc headers "Accept" "application/edn"))
+                         {:keys [status body]} (request client "GET" (node-url base-url h) nil hdrs)]
+                     (cond
+                       (= 200 status) (apply-get-body! pack-local h body binary?)
+                       (= 404 status) nil
+                       :else (throw-unavailable h {:status status})))))))
 
-  (s-put [_ h value]
+  (s-put [this h value]
     (if store/*cache-only*
-      (store/s-put pack-local h value)
-      (let [{:keys [status body]} (request client "PUT" (node-url base-url h)
-                                           (.getBytes (wire/write-edn value) "UTF-8")
-                                           (assoc headers "Content-Type" "application/edn"))]
-        ;; 200 + novelty body (preferred); 204 legacy
-        (when-not (or (= 200 status) (= 204 status))
-          (throw (ex-info "Remote s-put failed" {:status status :hash h})))
-        (store/s-put pack-local h value)))
-    _)
+      (do (store/await (store/s-put pack-local h value))
+          (store/completed this))
+      (in-future h
+                 (fn []
+                   (let [{:keys [status]} (request client "PUT" (node-url base-url h)
+                                                   (.getBytes (wire/write-edn value) "UTF-8")
+                                                   (assoc headers "Content-Type" "application/edn"))]
+                     ;; 200 + novelty body (preferred); 204 legacy
+                     (when-not (or (= 200 status) (= 204 status))
+                       (throw-unavailable h {:status status}))
+                     (store/await (store/s-put pack-local h value))
+                     this)))))
 
   (s-has? [_ h]
-    (or (store/s-has? pack-local h)
-        (= 200 (:status (request client "HEAD" (node-url base-url h) nil headers)))))
+    (if (store/await (store/s-has? pack-local h))
+      (store/completed true)
+      (try
+        (let [status (:status (request client "HEAD" (node-url base-url h) nil headers))]
+          (cond
+            (= 200 status) (store/completed true)
+            (= 404 status) (store/completed false)
+            :else (store/unavailable h {:status status})))
+        (catch Exception e
+          (store/unavailable h e)))))
 
-  (s-delete [_ h]
-    (let [{:keys [status]} (request client "DELETE" (node-url base-url h) nil headers)]
-      (when (and (not= 204 status) (not= 404 status))
-        (throw (ex-info "Remote s-delete failed" {:status status :hash h})))
-      (store/s-delete pack-local h))
-    _)
+  (s-delete [this h]
+    (in-future h
+               (fn []
+                 (let [{:keys [status]} (request client "DELETE" (node-url base-url h) nil headers)]
+                   (when (and (not= 204 status) (not= 404 status))
+                     (throw-unavailable h {:status status}))
+                   (store/await (store/s-delete pack-local h))
+                   this))))
 
   (s-snapshot [_]
     (store/s-snapshot pack-local))
 
   (s-merge [this m]
     (doseq [[h v] m]
-      (store/s-put this h v))
-    this)
+      (store/await (store/s-put this h v)))
+    (store/completed this))
 
   (s-reset [this]
-    (store/s-reset pack-local)
-    this)
+    (store/await (store/s-reset pack-local))
+    (store/completed this))
 
   pack/IChunkTransport
   (send-chunk! [this chunk]
@@ -182,19 +218,19 @@
   store/IStore
   (s-get [_ h] (store/s-get content h))
   (s-put [this h value]
-    (store/s-put content h value)
-    this)
+    (store/await (store/s-put content h value))
+    (store/completed this))
   (s-has? [_ h] (store/s-has? content h))
   (s-delete [this h]
-    (store/s-delete content h)
-    this)
+    (store/await (store/s-delete content h))
+    (store/completed this))
   (s-snapshot [_] (store/s-snapshot content))
   (s-merge [this m]
-    (store/s-merge content m)
-    this)
+    (store/await (store/s-merge content m))
+    (store/completed this))
   (s-reset [this]
-    (store/s-reset content)
-    this)
+    (store/await (store/s-reset content))
+    (store/completed this))
 
   pack/IChunkTransport
   (send-chunk! [_ chunk]
@@ -296,7 +332,7 @@
                           (or have
                               (map (fn [k]
                                      (if (string? k) (store/hex->hash k) k))
-                                   (keys (or (store/s-snapshot dest) {})))))
+                                   (keys (or (store/await (store/s-snapshot dest)) {})))))
          url (str (str/replace (:base-url rs) #"/$" "") "/nodes/get")
          body {:roots root-hexes
                :have have-hexes

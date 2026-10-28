@@ -135,7 +135,7 @@
   (v/hash (entry-blob file-e)))
 
 (defn node-count [v]
-  (count (store/s-snapshot (v/dacite-store v))))
+  (count (store/await (store/s-snapshot (v/dacite-store v)))))
 
 (defn measure-sharing
   "Sample tree: copy.txt and readme.txt must share a blob; listing must

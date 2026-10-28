@@ -49,33 +49,35 @@
 (defrecord NbbLmdbStore [env db meta-db]
   store/IStore
   (s-get [_ h]
-    (when-let [buf (.get db (hash->buf h))]
-      (bin/decode-store-value h buf)))
+    (store/completed
+     (when-let [buf (.get db (hash->buf h))]
+       (bin/decode-store-value h buf))))
 
   (s-put [this h value]
     (.putSync db (hash->buf h) (js/Buffer.from (bin/encode-store-value value)))
-    this)
+    (store/completed this))
 
   (s-has? [_ h]
-    (some? (.get db (hash->buf h))))
+    (store/completed (some? (.get db (hash->buf h)))))
 
   (s-delete [this h]
     (.removeSync db (hash->buf h))
-    this)
+    (store/completed this))
 
   (s-snapshot [_]
     ;; Key by hex: BigInt hash words cannot be CLJS/SCI map keys.
-    (let [out (volatile! {})
-          it (.iterator (.getRange db #js {:keyEncoding "binary"}))]
-      (loop []
-        (let [step (.next it)]
-          (when-not (.-done step)
-            (let [e (.-value step)]
-              (vswap! out assoc
-                      (store/hash->hex (buf->hash (.-key e)))
-                      (bin/decode-store-value (buf->hash (.-key e)) (.-value e))))
-            (recur))))
-      @out))
+    (store/completed
+     (let [out (volatile! {})
+           it (.iterator (.getRange db #js {:keyEncoding "binary"}))]
+       (loop []
+         (let [step (.next it)]
+           (when-not (.-done step)
+             (let [e (.-value step)]
+               (vswap! out assoc
+                       (store/hash->hex (buf->hash (.-key e)))
+                       (bin/decode-store-value (buf->hash (.-key e)) (.-value e))))
+             (recur))))
+       @out)))
 
   (s-merge [this m]
     (.transactionSync env
@@ -83,11 +85,11 @@
                         (doseq [[h v] m]
                           (.putSync db (hash->buf h)
                                     (js/Buffer.from (bin/encode-store-value v))))))
-    this)
+    (store/completed this))
 
   (s-reset [this]
     (.clearSync db)
-    this))
+    (store/completed this)))
 
 (defn lmdb-store
   "Open (or create) an LMDB env at `path`. Same named DBs as JVM."

@@ -42,9 +42,9 @@
       (nil? r) nil
 
       (and (record? r) (contains? r :pack-local))
-      (doseq [[k v] (store/s-snapshot (:pack-local r))]
+      (doseq [[k v] (store/await (store/s-snapshot (:pack-local r)))]
         (let [h (snapshot-entry->hash k)]
-          (store/s-put local h v)
+          (store/await (store/s-put local h v))
           (when flushed-atom
             (flushed-conj! flushed-atom h))))
 
@@ -56,80 +56,88 @@
 (defrecord SmartCacheStore [local remote]
   store/IStore
   (s-get [_ h]
-    (if-let [v (store/s-get local h)]
-      v
-      (when-let [v (store/s-get remote h)]
-        (store/s-put local h v)
-        (absorb-remote-pack-cache! local remote nil)
-        v)))
+    (store/completed
+     (if-let [v (store/await (store/s-get local h))]
+       v
+       (when-let [v (store/await (store/s-get remote h))]
+         (store/await (store/s-put local h v))
+         (absorb-remote-pack-cache! local remote nil)
+         v))))
 
   (s-put [this h value]
-    (if (store/s-has? local h)
-      this
-      (do (store/s-put local h value)
-          (store/s-put remote h value)
-          this)))
+    (if (store/await (store/s-has? local h))
+      (store/completed this)
+      (do (store/await (store/s-put local h value))
+          (store/await (store/s-put remote h value))
+          (store/completed this))))
 
   (s-has? [_ h]
-    (or (store/s-has? local h)
-        (store/s-has? remote h)))
+    (store/completed
+     (boolean (or (store/await (store/s-has? local h))
+                  (store/await (store/s-has? remote h))))))
 
   (s-delete [this h]
-    (store/s-delete local h)
-    (store/s-delete remote h)
-    this)
+    (store/await (store/s-delete local h))
+    (store/await (store/s-delete remote h))
+    (store/completed this))
 
   (s-snapshot [_]
-    (merge (store/s-snapshot remote) (store/s-snapshot local)))
+    (store/completed
+     (merge (store/await (store/s-snapshot remote))
+            (store/await (store/s-snapshot local)))))
 
   (s-merge [this m]
     (doseq [[h v] m]
-      (store/s-put this h v))
-    this)
+      (store/await (store/s-put this h v)))
+    (store/completed this))
 
   (s-reset [this]
-    (store/s-reset local)
-    this))
+    (store/await (store/s-reset local))
+    (store/completed this)))
 
 (defrecord WriteBackStore [local remote flushed]
   ;; flushed — atom of set of hex hash keys already uploaded to remote
   store/IStore
   (s-get [_ h]
-    (if-let [v (store/s-get local h)]
-      v
-      (when-let [v (store/s-get remote h)]
-        (store/s-put local h v)
-        (flushed-conj! flushed h)
-        ;; Absorb entire pack neighborhood (not only h) into write-back local
-        (absorb-remote-pack-cache! local remote flushed)
-        v)))
+    (store/completed
+     (if-let [v (store/await (store/s-get local h))]
+       v
+       (when-let [v (store/await (store/s-get remote h))]
+         (store/await (store/s-put local h v))
+         (flushed-conj! flushed h)
+         ;; Absorb entire pack neighborhood (not only h) into write-back local
+         (absorb-remote-pack-cache! local remote flushed)
+         v))))
 
   (s-put [this h value]
-    (store/s-put local h value)
-    this)
+    (store/await (store/s-put local h value))
+    (store/completed this))
 
   (s-has? [_ h]
-    (or (store/s-has? local h)
-        (store/s-has? remote h)))
+    (store/completed
+     (boolean (or (store/await (store/s-has? local h))
+                  (store/await (store/s-has? remote h))))))
 
   (s-delete [this h]
-    (store/s-delete local h)
-    (store/s-delete remote h)
+    (store/await (store/s-delete local h))
+    (store/await (store/s-delete remote h))
     (swap! flushed disj (gc/hash-key h))
-    this)
+    (store/completed this))
 
   (s-snapshot [_]
-    (merge (store/s-snapshot remote) (store/s-snapshot local)))
+    (store/completed
+     (merge (store/await (store/s-snapshot remote))
+            (store/await (store/s-snapshot local)))))
 
   (s-merge [this m]
     (doseq [[h v] m]
-      (store/s-put this h v))
-    this)
+      (store/await (store/s-put this h v)))
+    (store/completed this))
 
   (s-reset [this]
-    (store/s-reset local)
+    (store/await (store/s-reset local))
     (reset! flushed #{})
-    this))
+    (store/completed this)))
 
 (defn write-back-store?
   [s]
@@ -155,7 +163,7 @@
             (swap! flushed into (or (:covered result) #{}))
             (doseq [hex (or (:exists result) [])]
               (let [hv (store/hex->hash hex)]
-                (when (store/s-has? local hv)
+                (when (store/await (store/s-has? local hv))
                   (swap! flushed into (gc/mark-reachable local hv))))))
           (long (:items result 0)))
         ;; Non-chunk remotes: plain per-node PUT of every unflushed live hash.
@@ -163,14 +171,14 @@
               to-send (vec (remove @flushed live))
               pairs (keep (fn [hk]
                             (let [h (gc/->hash hk)]
-                              (when-let [v (store/s-get local h)]
+                              (when-let [v (store/await (store/s-get local h))]
                                 [h v])))
                           to-send)]
           (if (empty? pairs)
             0
             (do
               (doseq [[h v] pairs]
-                (store/s-put remote h v))
+                (store/await (store/s-put remote h v)))
               (swap! flushed into (map (comp gc/hash-key first) pairs))
               (count pairs))))))))
 

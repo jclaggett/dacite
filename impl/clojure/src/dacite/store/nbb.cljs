@@ -98,45 +98,47 @@
 (defrecord FileStore [base]
   store/IStore
   (s-get [_ h]
-    (let [p (hash->path base h)]
-      (when (.existsSync fs p)
-        (read-edn p))))
+    (store/completed
+     (let [p (hash->path base h)]
+       (when (.existsSync fs p)
+         (read-edn p)))))
 
   (s-put [this h value]
     (let [p (hash->path base h)]
       (ensure-parent-dirs! p)
       (write-edn p value)
-      this))
+      (store/completed this)))
 
   (s-has? [_ h]
-    (.existsSync fs (hash->path base h)))
+    (store/completed (.existsSync fs (hash->path base h))))
 
   (s-delete [this h]
     (let [p (hash->path base h)]
       (when (.existsSync fs p)
         (.unlinkSync fs p)))
-    this)
+    (store/completed this))
 
   (s-snapshot [_]
     ;; Key by hex: a hash is a vector of BigInts, which cannot be a
     ;; CLJS/SCI map key (same workaround as dacite.store/mem-store).
-    (into {}
-          (map (fn [p]
-                 (let [name (.basename path p)
-                       hex (.substring name 0 64)
-                       v (read-edn p)]
-                   [hex v])))
-          (walk-edn-files (str base))))
+    (store/completed
+     (into {}
+           (map (fn [p]
+                  (let [name (.basename path p)
+                        hex (.substring name 0 64)
+                        v (read-edn p)]
+                    [hex v])))
+           (walk-edn-files (str base)))))
 
   (s-merge [this m]
     (doseq [[h v] m]
-      (store/s-put this h v))
-    this)
+      (store/await (store/s-put this h v)))
+    (store/completed this))
 
   (s-reset [this]
     (doseq [p (walk-edn-files (str base))]
       (.unlinkSync fs p))
-    this))
+    (store/completed this)))
 
 (defn file-store
   "Create a Node file-backed content-addressed store at path."

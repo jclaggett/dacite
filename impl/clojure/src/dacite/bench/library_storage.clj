@@ -62,7 +62,7 @@
   [src root-h dest]
   (doseq [hk (gc/mark-reachable src root-h)]
     (let [h (gc/->hash hk)]
-      (store/s-put dest h (store/s-get src h))))
+      (store/await (store/s-put dest h (store/await (store/s-get src h))))))
   dest)
 
 (defn- value-wire-bytes
@@ -79,12 +79,12 @@
 
 (defn- store-wire-bytes
   [st]
-  (reduce + 0 (map value-wire-bytes (vals (store/s-snapshot st)))))
+  (reduce + 0 (map value-wire-bytes (vals (store/await (store/s-snapshot st))))))
 
 (defn- file-measure
   [dir st extras]
   (merge {:backend :file
-          :entries (count (store/s-snapshot st))
+          :entries (count (store/await (store/s-snapshot st)))
           :data-file-bytes (file-data-bytes dir)
           :file-count (count (edn-files (io/file dir)))
           :wire-bytes (store-wire-bytes st)}
@@ -116,7 +116,10 @@
 
 (defn- with-lmdb-dir
   [tag f]
-  (let [dir (io/file (str "target/dacite-lib-storage-lmdb-" tag "-"
+  ;; LMDB mmaps data.mdb. A 9p checkout (this tree is shared with a Mac)
+  ;; returns EINVAL for that mmap, so the env stays on the local temp dir.
+  (let [dir (io/file (System/getProperty "java.io.tmpdir")
+                     (str "dacite-lib-storage-lmdb-" tag "-"
                           (System/nanoTime)))]
     (try
       (.mkdirs dir)

@@ -39,7 +39,7 @@
   [store type-name data]
   (let [tv [type-name data]
         h (types/scalar-value-hash tv)]
-    (store/s-put store h tv)
+    (store/await (store/s-put store h tv))
     h))
 
 ;; =============================================================================
@@ -54,9 +54,9 @@
   types/IDaciteValue
   (dacite-hash [_] _hash)
   (dacite-store [_] store)
-  (dacite-type [_] (types/entry-type (store/s-get store _hash)))
+  (dacite-type [_] (types/entry-type (store/require-node store _hash)))
   (realize [_]
-    (let [entry (store/s-get store _hash)]
+    (let [entry (store/require-node store _hash)]
       (if (= "negative" (types/entry-type entry))
         negative-sentinel
         (types/entry-data entry))))
@@ -71,7 +71,7 @@
        (equals [_ other]
                (and (instance? DaciteScalar other)
                     (= _hash (.-_hash ^DaciteScalar other))))
-       (toString [_] (pr-str (store/s-get store _hash)))]))
+       (toString [_] (pr-str (store/require-node store _hash)))]))
 
 (defn wrap-scalar
   "Wrap a raw hash (already in store) as a DaciteScalar."

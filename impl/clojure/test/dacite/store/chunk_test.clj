@@ -24,7 +24,7 @@
   [src root-h dest]
   (doseq [hk (gc/mark-reachable src root-h)]
     (let [h (gc/->hash hk)]
-      (store/s-put dest h (store/s-get src h))))
+      (store/await (store/s-put dest h (store/await (store/s-get src h))))))
   dest)
 
 (deftest seed-catalog-flushes-to-pack-items
@@ -82,14 +82,14 @@
         h (v/hash catalog)
         ch-h (v/hash (v/nth (lib/book-text (v/nth (lib/title-index catalog) 0)) 0))]
     (chunk/flush! cs h)
-    (is (false? (store/s-has? (chunk/inner cs) ch-h))
+    (is (false? (store/await (store/s-has? (chunk/inner cs) ch-h)))
         "a character leaf is covered by an ft/digit literal")
     (let [cs2 (chunk/chunked (chunk/inner cs))
           loaded (v/get-value cs2 h)
           book (v/nth (lib/title-index loaded) 0)
           page (lib/chapter-page book 0 0 40)]
       (is (seq page))
-      (is (true? (store/s-has? (chunk/overlay cs2) ch-h))))))
+      (is (true? (store/await (store/s-has? (chunk/overlay cs2) ch-h)))))))
 
 (deftest chunked-edn-smaller-than-live-exploded
   (let [plain (store/mem-store)
@@ -98,7 +98,7 @@
         live (store/mem-store)
         _ (copy-live plain h live)
         live-bytes (reduce + 0 (map #(count (pr-str %))
-                                    (vals (store/s-snapshot live))))
+                                    (vals (store/await (store/s-snapshot live)))))
         cs (chunk/chunked (store/mem-store))
         c2 (lib/seed-library cs)
         _ (chunk/flush! cs (v/hash c2))
@@ -107,7 +107,7 @@
              "chunked" (:edn-bytes inner)
              "ratio" (format "%.2f" (double (/ live-bytes (max 1 (:edn-bytes inner))))))
     (is (< (:edn-bytes inner) live-bytes))
-    (is (< (:entries inner) (count (store/s-snapshot live))))))
+    (is (< (:entries inner) (count (store/await (store/s-snapshot live)))))))
 
 (deftest chunked-file-smaller-than-exploded-file
   (let [dir-e (io/file (str "target/dacite-chunk-exploded-" (System/nanoTime)))
@@ -153,7 +153,9 @@
           (.delete ^java.io.File f))))))
 
 (deftest app-lmdb-store-flushes-pack-items-on-cas
-  (let [dir (io/file (str "target/dacite-chunk-app-lmdb-" (System/nanoTime)))
+  ;; LMDB mmaps data.mdb. Keep the env off a 9p checkout, which returns EINVAL.
+  (let [dir (io/file (System/getProperty "java.io.tmpdir")
+                     (str "dacite-chunk-app-lmdb-" (System/nanoTime)))
         path (.getPath dir)]
     (.mkdirs dir)
     (try

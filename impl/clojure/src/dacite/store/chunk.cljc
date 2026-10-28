@@ -32,10 +32,10 @@
                           {:expected (store/hash->hex h)
                            :got (store/hash->hex got)
                            :type (:type item)})))
-        (store/s-get overlay h))
+        (store/await (store/s-get overlay h)))
 
       :node
-      (do (store/s-put overlay h (:body item))
+      (do (store/await (store/s-put overlay h (:body item)))
           (:body item))
 
       (throw (ex-info "unsupported chunk encoding"
@@ -44,37 +44,40 @@
 (defrecord ChunkedStore [inner overlay budget]
   store/IStore
   (s-get [_ h]
-    (or (store/s-get overlay h)
-        (when-let [v (store/s-get inner h)]
-          (if (pack-item? v)
-            (hydrate-inner! overlay v h)
-            (do (store/s-put overlay h v)
-                v)))))
+    (store/completed
+     (if-some [v (store/await (store/s-get overlay h))]
+       v
+       (when-let [v (store/await (store/s-get inner h))]
+         (if (pack-item? v)
+           (hydrate-inner! overlay v h)
+           (do (store/await (store/s-put overlay h v))
+               v))))))
 
   (s-put [this h value]
-    (store/s-put overlay h value)
-    this)
+    (store/await (store/s-put overlay h value))
+    (store/completed this))
 
   (s-has? [_ h]
-    (or (store/s-has? overlay h)
-        (store/s-has? inner h)))
+    (store/completed
+     (boolean (or (store/await (store/s-has? overlay h))
+                  (store/await (store/s-has? inner h))))))
 
   (s-delete [this h]
-    (store/s-delete overlay h)
-    (store/s-delete inner h)
-    this)
+    (store/await (store/s-delete overlay h))
+    (store/await (store/s-delete inner h))
+    (store/completed this))
 
   (s-snapshot [_]
     (store/s-snapshot overlay))
 
   (s-merge [this m]
-    (store/s-merge overlay m)
-    this)
+    (store/await (store/s-merge overlay m))
+    (store/completed this))
 
   (s-reset [this]
-    (store/s-reset overlay)
-    (store/s-reset inner)
-    this))
+    (store/await (store/s-reset overlay))
+    (store/await (store/s-reset inner))
+    (store/completed this)))
 
 (defn chunked
   "Wrap `inner` with a mem overlay. Puts go to the overlay; `flush!` writes
@@ -106,7 +109,7 @@
         in (inner cs)
         keep (into #{} (map #(store/hex->hash (:hash %)) items))]
     (doseq [item items]
-      (store/s-put in (store/hex->hash (:hash item)) item))
+      (store/await (store/s-put in (store/hex->hash (:hash item)) item)))
     {:items items
      :covered covered
      :keep keep
@@ -117,10 +120,10 @@
   [cs keep]
   (let [in (inner cs)
         keep (into #{} (map gc/->hash keep))]
-    (doseq [k (keys (store/s-snapshot in))]
+    (doseq [k (keys (store/await (store/s-snapshot in)))]
       (let [h (gc/->hash k)]
         (when-not (contains? keep h)
-          (store/s-delete in h))))
+          (store/await (store/s-delete in h)))))
     cs))
 
 (defn flush!
@@ -145,14 +148,14 @@
 (defn inner-stats
   "Durable (inner) entry count and EDN byte size of values."
   [cs]
-  (let [snap (store/s-snapshot (inner cs))]
+  (let [snap (store/await (store/s-snapshot (inner cs)))]
     {:entries (count snap)
      :edn-bytes (edn-bytes snap)}))
 
 (defn overlay-stats
   "Working overlay entry count and EDN byte size."
   [cs]
-  (let [snap (store/s-snapshot (overlay cs))]
+  (let [snap (store/await (store/s-snapshot (overlay cs)))]
     {:entries (count snap)
      :edn-bytes (edn-bytes snap)}))
 

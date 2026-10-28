@@ -142,11 +142,9 @@ The model allows the client to name the guess for a path, from that closed set. 
 
 ## One dictionary
 
-Every `IStore` is the same dictionary to the value logic, whether the bytes are in memory, on disk, in IndexedDB, or on another machine. `s-get` today returns a node on the calling turn. Finger-tree and HAMT walks use that node on the next line. Mem, file, and LMDB can answer that way. HTTP and IndexedDB complete later. The JVM remote store blocks the thread inside `s-get`. The browser cannot block, so `drive` throws a promise and runs the operation again.
+Every `IStore` is the same dictionary to the value logic, whether the bytes are in memory, on disk, in IndexedDB, or on another machine. Each store method returns a promise of its result. One `await` in the value layer blocks on the JVM and babashka, so `v/nth`, `v/get`, `v/conj`, and `v/seq` still return values there. ClojureScript and nbb return promises once the walks themselves await. Until then `await` only unwraps a promise that is already settled, and `drive` still replays a browser fetch. A mem get is a promise that is already complete. A remote get on the JVM may be a future around the blocking call. The logic does not branch on which store it holds.
 
-The next milestone makes every store method a promise of its result. One `await` in the value layer blocks on the JVM and babashka, so `v/nth`, `v/get`, `v/conj`, and `v/seq` still return values there. ClojureScript and nbb return promises. A mem get is a promise that is already complete. A remote get completes when the neighborhood arrives. The logic does not branch on which store it holds.
-
-`await` is where a result becomes a node or a failure. A missing hash fails as `:missing`. A store that cannot answer (HTTP error, IndexedDB abort, quota, timeout) fails as `:unavailable`, with the cause attached. Walks stop crashing on a nil node. The event log's policy for showing part of a value stays later. `drive` stays until the walks actually await.
+`s-get` fulfills with nil when this dictionary has no such hash, so a layered store, a client cache, and a pack cache can fall through to the next store. A required read uses `require-node`. It awaits `s-get` and fails as `:missing` when the node is absent. A store that cannot answer (HTTP error, IndexedDB abort, quota, timeout) rejects. `await` throws that rejection as `:unavailable`, with the cause attached. Optional reads keep the nil. Walks stop crashing on a nil node. The event log's policy for showing part of a value stays later. `drive` stays until the walks actually await.
 
 IndexedDB is the first store built on that protocol. It is a durable dictionary the page can hold, alone or in front of the remote store.
 
@@ -160,7 +158,7 @@ A link is a content hash. The value it names was realized when it was written, a
 
 The cache belongs in the store stack. An `IndexedDBStore` sits in front of the remote store, in the same layering pattern as `SmartCacheStore` and `WriteBackStore` (`dacite.store.client-cache`). A batch of streamed pages becomes puts, one IndexedDB transaction per batch. The store's keys are what the client already holds, which is the client side of dedup across sessions.
 
-`dacite.store.browser` speaks HTTP with `fetch` inside `drive`: a miss suspends, `drive` reads `response.body` as bytes arrive, and the op runs again. The server still sends one `Content-Length` pack per request. That replay is how a page stays responsive while `IStore` is synchronous. The [roadmap](../roadmap.md) puts an asynchronous `IStore` next, and the IndexedDB store after it.
+`dacite.store.browser` speaks HTTP with `fetch` inside `drive`: a miss suspends, `drive` reads `response.body` as bytes arrive, and the op runs again. The server still sends one `Content-Length` pack per request. That replay is how a page stays responsive until the walks themselves await. Store methods return promises. The [roadmap](../roadmap.md) puts an IndexedDB store next.
 
 A later direction is a cache on the LAN. Entries are immutable and content-addressed, so any peer's cache is a safe source: the receiver checks each entry against its hash. Alice and Bob on the same LAN can each offer a store in front of their local cache and consult a neighbor before an internet server. Tiers would be memory, then local IndexedDB, then LAN peers, then the internet server. A web page cannot listen for incoming connections. Two ways to reach a peer are a WebRTC data channel (a small signaling introduction, then LAN traffic) and a local companion process discovered on the LAN (for example the existing nbb LMDB store over HTTP). Prior art is IPFS and BitTorrent. This is outside the minimum.
 
@@ -168,7 +166,7 @@ A later direction is a cache on the LAN. Entries are immutable and content-addre
 
 The roadmap section *How every client reveals a value* still holds on these points. The client decides how far a read goes. Bytes already stored stay. A new root is a notice of a hash. Local `nth` and a bounded slice are reveals.
 
-The roadmap's reveal section is unchanged. It still describes a child wall, a fixed byte budget, and cancel as the only stop. Current direction now leads with an asynchronous `IStore`, then an IndexedDB store for web clients.
+The roadmap's reveal section is unchanged. It still describes a child wall, a fixed byte budget, and cancel as the only stop. Current direction now leads with an IndexedDB store for web clients, then the QUIC reveal client.
 
 Three points change.
 

@@ -64,12 +64,12 @@
   ([h]
    (wrap-hash store/*store* h))
   ([st h]
-   (types/wrap-entry (types/entry-type (store/s-get st h)) st h)))
+   (types/wrap-entry (types/entry-type (store/require-node st h)) st h)))
 
 (defn get-value-with-store
   "Look up a hash in an explicit store and return the Dacite value, or nil."
   [st h]
-  (when-let [entry (store/s-get st h)]
+  (when-let [entry (store/await (store/s-get st h))]
     (types/wrap-entry (types/entry-type entry) st h)))
 
 (defn get-value
@@ -338,7 +338,7 @@
      :else
      (let [st (dacite-store x)
            h (hash x)]
-       (when-not (store/s-has? st h)
+       (when-not (store/await (store/s-has? st h))
          (throw (ex-info "blob not in store"
                          {:dacite/missing true :hash h})))
        (let [n (count x)

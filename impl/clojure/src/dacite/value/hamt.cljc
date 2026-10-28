@@ -102,10 +102,10 @@
             (hash/unchecked-fuse (types/node-hash type-name ef)
                                  (hash/fuse-bytes (host/int->bytes-be (:bitmap data) 8)))
             (types/node-hash type-name ef))]
-    (store/s-put store h node)
+    (store/await (store/s-put store h node))
     h))
 
-(defn- lookup [store h] (store/s-get store h))
+(defn- lookup [store h] (store/require-node store h))
 (defn- node-type [node] (first node))
 (defn- node-data [node] (second node))
 (defn- get-measure [store h] (:measure (node-data (lookup store h))))

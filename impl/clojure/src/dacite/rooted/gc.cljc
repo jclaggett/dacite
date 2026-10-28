@@ -46,7 +46,7 @@
               hk (hash-key h)]
           (if (contains? live hk)
             (recur queue' live)
-            (if-some [node (store/s-get store h)]
+            (if-some [node (store/await (store/s-get store h))]
               (let [children (or (types/child-hashes node) [])
                     live' (conj live hk)
                     queue'' (into queue' children)]
@@ -58,9 +58,9 @@
    Returns {:removed n :kept n}. No-op when root-hash is nil."
   [store root-hash]
   (let [live (mark-reachable store root-hash)
-        all-hashes (map ->hash (keys (store/s-snapshot store)))
+        all-hashes (map ->hash (keys (store/await (store/s-snapshot store))))
         detached (remove (fn [h] (contains? live (hash-key h))) all-hashes)
         removed (count detached)]
     (doseq [h detached]
-      (store/s-delete store h))
+      (store/await (store/s-delete store h)))
     {:removed removed :kept (count live)}))

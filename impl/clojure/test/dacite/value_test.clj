@@ -71,7 +71,7 @@
         v (v2/i64 s 42)]
     (is (identical? s (v2/dacite-store v)))
     (testing "the value persists in its own store"
-      (is (some? (store/s-get s (v2/hash v)))))))
+      (is (some? (store/await (store/s-get s (v2/hash v))))))))
 
 (deftest get-value-round-trips
   (let [s (store/mem-store)

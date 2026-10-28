@@ -41,7 +41,7 @@
   [st type-name body]
   (let [v (scalar/scalar-with-store st type-name body)
         h (types/dacite-hash v)
-        entry (store/s-get st h)
+        entry (store/await (store/s-get st h))
         form (pack/literal-of st h)]
     [v h entry form]))
 
@@ -140,7 +140,7 @@
                  ["chunk-node-empty-map-header" emh]
                  ["chunk-node-set-123" s123h]
                  ["chunk-node-empty-set-header" esh]]]
-          (write-case! id [(node-item h (store/s-get st h))]
+          (write-case! id [(node-item h (store/await (store/s-get st h)))]
                        :desc (str "{\"title\":\"" id "\"}\n"))
           (swap! cases conj id))
 
@@ -156,10 +156,10 @@
       (let [leaf-hs (mapv #(types/dacite-hash (scalar/i64-with-store st %)) [1 2 3])
             dig (ft/ft-digit-from-value-hashes st leaf-hs)
             dig-h dig
-            dig-entry (store/s-get st dig-h)
+            dig-entry (store/await (store/s-get st dig-h))
             deep-hs (mapv #(types/dacite-hash (scalar/i64-with-store st %)) (range 1 40))
             deep-h (ft/ft-from-value-hashes st deep-hs)
-            deep-entry (store/s-get st deep-h)
+            deep-entry (store/await (store/s-get st deep-h))
             ;; small node: force multi-child node if available
             node-hs (mapv #(types/dacite-hash (scalar/i64-with-store st %)) (range 10))
             node-root (ft/ft-from-value-hashes st node-hs)
@@ -167,9 +167,9 @@
             ft-node-entry (some (fn [[h e]]
                                   (when (= "ft/node" (types/entry-type e))
                                     [h e]))
-                                (store/s-snapshot st))
+                                (store/await (store/s-snapshot st)))
             ft-empty-h (ft/ft-empty st)
-            ft-empty-entry (store/s-get st ft-empty-h)]
+            ft-empty-entry (store/await (store/s-get st ft-empty-h))]
 
         (when dig-entry
           (write-case! "chunk-node-ft-digit"
@@ -219,9 +219,9 @@
       (let [kh (types/dacite-hash (scalar/i64-with-store st 1))
             vh (types/dacite-hash (scalar/i64-with-store st 2))
             empty-h (hamt/hamt-empty st)
-            empty-e (store/s-get st empty-h)
+            empty-e (store/await (store/s-get st empty-h))
             entry-h (hamt/hamt-entry-node st kh kh vh)
-            entry-e (store/s-get st entry-h)
+            entry-e (store/await (store/s-get st entry-h))
             ;; bitmap: several entries
             pairs (mapv (fn [i]
                           (let [k (types/dacite-hash (scalar/i64-with-store st i))
@@ -229,7 +229,7 @@
                             [k k v]))
                         (range 8))
             bitmap-h (hamt/hamt-from-entries st pairs)
-            bitmap-e (store/s-get st bitmap-h)]
+            bitmap-e (store/await (store/s-get st bitmap-h))]
 
         (write-case! "chunk-node-hamt-empty"
                      [(node-item empty-h empty-e)]
@@ -267,8 +267,8 @@
             ah (types/dacite-hash a)
             bh (types/dacite-hash b)]
         (write-case! "chunk-two-node-i64s"
-                     [(node-item ah (store/s-get st ah))
-                      (node-item bh (store/s-get st bh))]
+                     [(node-item ah (store/await (store/s-get st ah)))
+                      (node-item bh (store/await (store/s-get st bh)))]
                      :budget 0
                      :desc "{\"title\":\"two node i64s\"}\n"
                      :hash-hex (store/hash->hex ah))
@@ -276,7 +276,7 @@
         (let [s (coll/string-with-store st "hi")
               sh (types/dacite-hash s)]
           (write-case! "chunk-mixed-node-and-literal"
-                       [(node-item ah (store/s-get st ah))
+                       [(node-item ah (store/await (store/s-get st ah)))
                         (lit-item sh (pack/literal-of st sh))]
                        :desc "{\"title\":\"node i64 + literal string\"}\n"
                        :hash-hex (store/hash->hex ah))
@@ -286,7 +286,7 @@
       (let [v-run (coll/vector-with-store st 1 2 3)
             vh (types/dacite-hash v-run)
             _s-rep (coll/string-with-store st (apply str (repeat 8 \x)))
-            snap (store/s-snapshot st)
+            snap (store/await (store/s-snapshot st))
             digit (some (fn [[h e]]
                           (when (= "ft/digit" (types/entry-type e)) [h e]))
                         snap)]

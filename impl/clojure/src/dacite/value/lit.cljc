@@ -305,7 +305,7 @@
       (let [tv [t body]
             h (types/scalar-value-hash tv)]
         (binding [store/*cache-only* true]
-          (store/s-put store h tv))
+          (store/await (store/s-put store h tv)))
         h)
       (= t "string") (types/coerce-and-store! store (str body))
       :else

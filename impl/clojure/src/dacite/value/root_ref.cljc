@@ -24,7 +24,7 @@
   "Rehydrate hash h from content store st as a Dacite value, or nil."
   [st h]
   (when h
-    (when-let [entry (store/s-get st h)]
+    (when-let [entry (store/await (store/s-get st h))]
       (types/wrap-entry (types/entry-type entry) st h))))
 
 (defn- value->root-hash

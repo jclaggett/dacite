@@ -103,9 +103,10 @@
   (close [_] (.close env))
   store/IStore
   (s-get [_ h]
-    (with-open [txn (.txnRead env)]
-      (when-let [buf (.get db txn (hash->lmdb-key h))]
-        (lmdb-val->entry h buf))))
+    (store/completed
+     (with-open [txn (.txnRead env)]
+       (when-let [buf (.get db txn (hash->lmdb-key h))]
+         (lmdb-val->entry h buf)))))
 
   (s-put [this h value]
     (let [^ByteBuffer k (hash->lmdb-key h)
@@ -113,27 +114,29 @@
       (with-open [txn (.txnWrite env)]
         (.put db txn k v (make-array PutFlags 0))
         (.commit txn)))
-    this)
+    (store/completed this))
 
   (s-has? [_ h]
-    (with-open [txn (.txnRead env)]
-      (some? (.get db txn (hash->lmdb-key h)))))
+    (store/completed
+     (with-open [txn (.txnRead env)]
+       (some? (.get db txn (hash->lmdb-key h))))))
 
   (s-delete [this h]
     (with-open [txn (.txnWrite env)]
       (.delete db txn (hash->lmdb-key h))
       (.commit txn))
-    this)
+    (store/completed this))
 
   (s-snapshot [_]
-    (with-open [txn (.txnRead env)]
-      (with-open [cursor (.openCursor db txn)]
-        (loop [result (transient {})]
-          (if (.next cursor)
-            (let [k (lmdb-key->hash (.key cursor))
-                  v (lmdb-val->entry k (.val cursor))]
-              (recur (assoc! result k v)))
-            (persistent! result))))))
+    (store/completed
+     (with-open [txn (.txnRead env)]
+       (with-open [cursor (.openCursor db txn)]
+         (loop [result (transient {})]
+           (if (.next cursor)
+             (let [k (lmdb-key->hash (.key cursor))
+                   v (lmdb-val->entry k (.val cursor))]
+               (recur (assoc! result k v)))
+             (persistent! result)))))))
 
   (s-merge [this m]
     (with-open [txn (.txnWrite env)]
@@ -142,13 +145,13 @@
               ^ByteBuffer vb (entry->lmdb-val v)]
           (.put db txn kb vb (make-array PutFlags 0))))
       (.commit txn))
-    this)
+    (store/completed this))
 
   (s-reset [this]
     (with-open [txn (.txnWrite env)]
       (.drop db txn)
       (.commit txn))
-    this))
+    (store/completed this)))
 
 (defn lmdb-store
   "Create an LMDB-backed content-addressed store with an optional meta db

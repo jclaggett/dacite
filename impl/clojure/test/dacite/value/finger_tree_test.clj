@@ -29,13 +29,13 @@
   [st leaf-hs]
   (let [vhs (vec leaf-hs)
         ms (mapv (fn [h]
-                   (leaf-measure h (types/dacite-size (store/s-get st h))))
+                   (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  vhs)
         m (reduce measure-combine
                   {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
                   ms)
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
-    (store/s-put st dh ["ft/digit" {:children vhs :measure m}])
+    (store/await (store/s-put st dh ["ft/digit" {:children vhs :measure m}]))
     dh))
 
 (deftest empty-tree
@@ -53,7 +53,7 @@
         r0 (ft/ft-empty st)
         r1 (ft/ft-conj-right st r0 a)
         r2 (ft/ft-conj-right st r1 b)
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         singles (filter (fn [[_ e]] (= "ft/single" (types/entry-type e))) snap)]
     (is (= 1 (ft/ft-count st r1)))
     (is (= r1 a) "1-elem root is the bare value hash")
@@ -76,7 +76,7 @@
         h2 (types/value-hash "vector" (ft/ft-elements-fuse st root))]
     (is (= h h2))
     (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
-                        (store/s-snapshot st))))))
+                        (store/await (store/s-snapshot st)))))))
 
 (deftest bare-leaf-root-ops
   (testing "1-element tree root is a bare value hash"
@@ -139,7 +139,7 @@
       (is (= (nth vhs i) (ft/ft-nth st root i))))
     (is (= vhs (vec (ft/ft-seq st root))))
     (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
-                        (store/s-snapshot st))))))
+                        (store/await (store/s-snapshot st)))))))
 
 (deftest long-string-seq-matches-count
   ;; Overflowed digits mix leaves and nodes; seq must flatten to every char.
@@ -167,7 +167,7 @@
         root (ft/ft-from-value-hashes st vhs)
         mid (ft/ft-remove-nth st root 4)]
     (is (= (concat (range 4) (range 5 10))
-           (map (fn [h] (second (store/s-get st h))) (ft/ft-seq st mid))))))
+           (map (fn [h] (second (store/await (store/s-get st h)))) (ft/ft-seq st mid))))))
 
 (deftest entry-density-no-single-per-element
   ;; n leaf elements must not produce n ft/single nodes.
@@ -175,7 +175,7 @@
         n 50
         vhs (mapv #(put-i64 st %) (range n))
         _ (ft/ft-from-value-hashes st vhs)
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         by-type (frequencies (map (fn [[_ e]] (types/entry-type e)) snap))]
     (is (nil? (get by-type "ft/single")))
     (is (= n (get by-type "i64")))
@@ -190,14 +190,14 @@
   (let [chs (vec (seq s))
         vhs (mapv #(put-char st %) chs)
         ms (mapv (fn [h]
-                   (leaf-measure h (types/dacite-size (store/s-get st h))))
+                   (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  vhs)
         m (reduce measure-combine
                   {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
                   ms)
         body (lit/rle-lits (mapv (fn [ch] {:type "char" :body ch}) chs))
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
-    (store/s-put st dh ["ft/digit" {:body body :measure m}])
+    (store/await (store/s-put st dh ["ft/digit" {:body body :measure m}]))
     dh))
 
 (deftest packed-char-run-digit-dual-read
@@ -209,7 +209,7 @@
     (is (= (nth vhs 0) (ft/ft-nth st dh 0)))
     (is (= (nth vhs 2) (ft/ft-nth st dh 2)))
     (is (= 3 (:count (ft/ft-measure st dh))))
-    (is (empty? (types/child-hashes (store/s-get st dh))))
+    (is (empty? (types/child-hashes (store/await (store/s-get st dh)))))
     (let [pointer (put-digit-of-leaves! st vhs)]
       (is (= pointer dh) "same elements_fuse ⇒ same digit hash"))))
 
@@ -217,7 +217,7 @@
   (let [st (store/mem-store)
         s "xxxx"
         dh (put-digit-of-char-run! st s)
-        entry (store/s-get st dh)]
+        entry (store/await (store/s-get st dh))]
     (is (= "repeat" (:type (first (:body (types/entry-data entry))))))
     (is (= 4 (count (ft/ft-leaves st dh))))
     (is (= (put-char st \x) (ft/ft-nth st dh 1)))))
@@ -225,14 +225,14 @@
 (defn- live-ft-entries
   "Store entries reachable from a collection's tree root (not historical conj debris)."
   [st coll]
-  (let [root (:root (types/entry-data (store/s-get st (v/hash coll))))]
+  (let [root (:root (types/entry-data (store/await (store/s-get st (v/hash coll)))))]
     (loop [hs [root] seen #{} acc []]
       (if (empty? hs)
         acc
         (let [h (first hs)]
           (if (or (nil? h) (contains? seen h))
             (recur (rest hs) seen acc)
-            (let [e (store/s-get st h)
+            (let [e (store/await (store/s-get st h))
                   t (when e (types/entry-type e))]
               (if (and e (str/starts-with? (str t) "ft/"))
                 (recur (into (rest hs) (types/child-hashes e))
@@ -289,7 +289,7 @@
     (is (= 128 (v/realize (v/nth blob 128))))
     (is (= (bit-and 0xff (dec n)) (v/realize (v/nth blob (dec n)))))
     (is (= (types/value-hash "blob" ef) (v/hash blob)))
-    (let [root (:root (types/entry-data (store/s-get st (v/hash blob))))
+    (let [root (:root (types/entry-data (store/await (store/s-get st (v/hash blob)))))
           out (ft/ft-export-u8 st root n)]
       (is (bytes? out))
       (is (= nums (mapv #(bit-and 0xff (aget ^bytes out %)) (range n))))
@@ -321,7 +321,7 @@
   (let [st (store/mem-store)
         n 200
         dv (apply v/vector st (range n))
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)
         bodies (map (fn [[_ e]] (:body (types/entry-data e))) digits)]
     (is (= n (v/count dv)))
@@ -341,14 +341,14 @@
         b (put-i64 st 2)
         c (put-i64 st 3)
         ms (mapv (fn [h]
-                   (leaf-measure h (types/dacite-size (store/s-get st h))))
+                   (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  [a b c])
         m (reduce measure-combine
                   {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
                   ms)
         body [{:type "run" :body {:of "ref" :values [a b c]}}]
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
-    (store/s-put st dh ["ft/digit" {:body body :measure m}])
+    (store/await (store/s-put st dh ["ft/digit" {:body body :measure m}]))
     (is (= [a b c] (vec (ft/ft-leaves st dh))))
-    (is (= [a b c] (types/child-hashes (store/s-get st dh))))
+    (is (= [a b c] (types/child-hashes (store/await (store/s-get st dh)))))
     (is (= b (ft/ft-nth st dh 1)))))

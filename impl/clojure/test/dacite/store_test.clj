@@ -52,18 +52,18 @@
     (let [s (store/mem-store)
           h [1 2 3 4]
           v {:data "test"}]
-      (is (nil? (store/s-get s h)))
-      (is (not (store/s-has? s h)))
-      (store/s-put s h v)
-      (is (store/s-has? s h))
-      (is (= v (store/s-get s h))))))
+      (is (nil? (store/await (store/s-get s h))))
+      (is (not (store/await (store/s-has? s h))))
+      (store/await (store/s-put s h v))
+      (is (store/await (store/s-has? s h)))
+      (is (= v (store/await (store/s-get s h)))))))
 
 (deftest mem-store-snapshot-test
   (testing "snapshot returns plain map"
     (let [s (store/mem-store)]
-      (store/s-put s [1 2 3 4] :a)
-      (store/s-put s [5 6 7 8] :b)
-      (let [snap (store/s-snapshot s)]
+      (store/await (store/s-put s [1 2 3 4] :a))
+      (store/await (store/s-put s [5 6 7 8] :b))
+      (let [snap (store/await (store/s-snapshot s))]
         (is (map? snap))
         (is (= 2 (count snap)))
         (is (= :a (get snap [1 2 3 4])))))))
@@ -71,22 +71,22 @@
 (deftest mem-store-merge-test
   (testing "merge adds multiple entries"
     (let [s (store/mem-store)]
-      (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b})
-      (is (= :a (store/s-get s [1 2 3 4])))
-      (is (= :b (store/s-get s [5 6 7 8]))))))
+      (store/await (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b}))
+      (is (= :a (store/await (store/s-get s [1 2 3 4]))))
+      (is (= :b (store/await (store/s-get s [5 6 7 8])))))))
 
 (deftest mem-store-reset-test
   (testing "reset clears store"
     (let [s (store/mem-store)]
-      (store/s-put s [1 2 3 4] :a)
-      (store/s-reset s)
-      (is (nil? (store/s-get s [1 2 3 4])))
-      (is (= {} (store/s-snapshot s))))))
+      (store/await (store/s-put s [1 2 3 4] :a))
+      (store/await (store/s-reset s))
+      (is (nil? (store/await (store/s-get s [1 2 3 4]))))
+      (is (= {} (store/await (store/s-snapshot s)))))))
 
 (deftest mem-store-init-test
   (testing "mem-store can be initialized with data"
     (let [s (store/mem-store {[1 2 3 4] :a})]
-      (is (= :a (store/s-get s [1 2 3 4]))))))
+      (is (= :a (store/await (store/s-get s [1 2 3 4])))))))
 
 ;; =============================================================================
 ;; FileStore
@@ -97,25 +97,25 @@
     (let [s (sj/file-store (str *temp-dir*))
           h [1 2 3 4]
           v {:data "test"}]
-      (is (not (store/s-has? s h)))
-      (store/s-put s h v)
-      (is (store/s-has? s h))
-      (is (= v (store/s-get s h))))))
+      (is (not (store/await (store/s-has? s h))))
+      (store/await (store/s-put s h v))
+      (is (store/await (store/s-has? s h)))
+      (is (= v (store/await (store/s-get s h)))))))
 
 (deftest file-store-persistence-test
   (testing "file store persists across instances"
     (let [path (str *temp-dir*)
           h [1 2 3 4]
           v {:data "persistent"}]
-      (store/s-put (sj/file-store path) h v)
-      (is (= v (store/s-get (sj/file-store path) h))))))
+      (store/await (store/s-put (sj/file-store path) h v))
+      (is (= v (store/await (store/s-get (sj/file-store path) h)))))))
 
 (deftest file-store-sharding-test
   (testing "file store creates sharded directories"
     (let [s (sj/file-store (str *temp-dir*))
           h [1 2 3 4]
           v {:data 123}]
-      (store/s-put s h v)
+      (store/await (store/s-put s h v))
       (let [hex (store/hash->hex h)
             expected-dir (io/file *temp-dir* (subs hex 0 2) (subs hex 2 4))]
         (is (.exists expected-dir))
@@ -124,17 +124,17 @@
 (deftest file-store-snapshot-test
   (testing "snapshot reads all files"
     (let [s (sj/file-store (str *temp-dir*))]
-      (store/s-put s [1 2 3 4] :a)
-      (store/s-put s [5 6 7 8] :b)
-      (let [snap (store/s-snapshot s)]
+      (store/await (store/s-put s [1 2 3 4] :a))
+      (store/await (store/s-put s [5 6 7 8] :b))
+      (let [snap (store/await (store/s-snapshot s))]
         (is (= 2 (count snap)))))))
 
 (deftest file-store-reset-test
   (testing "reset deletes all files"
     (let [s (sj/file-store (str *temp-dir*))]
-      (store/s-put s [1 2 3 4] :a)
-      (store/s-reset s)
-      (is (nil? (store/s-get s [1 2 3 4]))))))
+      (store/await (store/s-put s [1 2 3 4] :a))
+      (store/await (store/s-reset s))
+      (is (nil? (store/await (store/s-get s [1 2 3 4])))))))
 
 ;; =============================================================================
 ;; LayeredStore
@@ -146,46 +146,46 @@
           slow (store/mem-store {[1 2 3 4] :from-slow})
           s (store/layered-store fast slow)]
       ;; Not in fast, found in slow
-      (is (= :from-slow (store/s-get s [1 2 3 4]))))))
+      (is (= :from-slow (store/await (store/s-get s [1 2 3 4])))))))
 
 (deftest layered-store-read-through-backfill-test
   (testing "slow-layer hit backfills faster layers"
     (let [fast (store/mem-store)
           slow (store/mem-store {[1 2 3 4] :from-slow})
           s (store/layered-store fast slow)]
-      (is (= :from-slow (store/s-get s [1 2 3 4])))
-      (is (= :from-slow (store/s-get fast [1 2 3 4]))))))
+      (is (= :from-slow (store/await (store/s-get s [1 2 3 4]))))
+      (is (= :from-slow (store/await (store/s-get fast [1 2 3 4])))))))
 
 (deftest layered-store-write-all-test
   (testing "writes go to all layers"
     (let [fast (store/mem-store)
           slow (store/mem-store)
           s (store/layered-store fast slow)]
-      (store/s-put s [1 2 3 4] :value)
-      (is (= :value (store/s-get fast [1 2 3 4])))
-      (is (= :value (store/s-get slow [1 2 3 4]))))))
+      (store/await (store/s-put s [1 2 3 4] :value))
+      (is (= :value (store/await (store/s-get fast [1 2 3 4]))))
+      (is (= :value (store/await (store/s-get slow [1 2 3 4])))))))
 
 (deftest layered-store-fast-wins-test
   (testing "fast layer takes precedence"
     (let [fast (store/mem-store {[1 2 3 4] :fast})
           slow (store/mem-store {[1 2 3 4] :slow})
           s (store/layered-store fast slow)]
-      (is (= :fast (store/s-get s [1 2 3 4]))))))
+      (is (= :fast (store/await (store/s-get s [1 2 3 4])))))))
 
 (deftest layered-store-has?-test
   (testing "has? checks all layers"
     (let [fast (store/mem-store)
           slow (store/mem-store {[1 2 3 4] :v})
           s (store/layered-store fast slow)]
-      (is (store/s-has? s [1 2 3 4]))
-      (is (not (store/s-has? s [9 9 9 9]))))))
+      (is (store/await (store/s-has? s [1 2 3 4])))
+      (is (not (store/await (store/s-has? s [9 9 9 9])))))))
 
 (deftest layered-store-snapshot-test
   (testing "snapshot merges all layers, fast wins"
     (let [fast (store/mem-store {[1 2 3 4] :fast})
           slow (store/mem-store {[1 2 3 4] :slow [5 6 7 8] :only-slow})
           s (store/layered-store fast slow)
-          snap (store/s-snapshot s)]
+          snap (store/await (store/s-snapshot s))]
       (is (= :fast (get snap [1 2 3 4])))
       (is (= :only-slow (get snap [5 6 7 8]))))))
 
@@ -194,46 +194,46 @@
     (let [mem (store/mem-store)
           file (sj/file-store (str *temp-dir*))
           s (store/layered-store mem file)]
-      (store/s-put s [1 2 3 4] {:data "layered"})
+      (store/await (store/s-put s [1 2 3 4] {:data "layered"}))
       ;; Both have it
-      (is (= {:data "layered"} (store/s-get mem [1 2 3 4])))
-      (is (= {:data "layered"} (store/s-get file [1 2 3 4])))
+      (is (= {:data "layered"} (store/await (store/s-get mem [1 2 3 4]))))
+      (is (= {:data "layered"} (store/await (store/s-get file [1 2 3 4]))))
       ;; New layered store with empty mem still finds it in file
       (let [s2 (store/layered-store (store/mem-store) file)]
-        (is (= {:data "layered"} (store/s-get s2 [1 2 3 4])))))))
+        (is (= {:data "layered"} (store/await (store/s-get s2 [1 2 3 4]))))))))
 
 (deftest file-store-merge-test
   (testing "merge adds multiple entries to file store"
     (let [s (sj/file-store (str *temp-dir*))]
-      (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b})
-      (is (= :a (store/s-get s [1 2 3 4])))
-      (is (= :b (store/s-get s [5 6 7 8]))))))
+      (store/await (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b}))
+      (is (= :a (store/await (store/s-get s [1 2 3 4]))))
+      (is (= :b (store/await (store/s-get s [5 6 7 8])))))))
 
 (deftest file-store-creates-dir-test
   (testing "file-store creates directory if it doesn't exist"
     (let [path (str *temp-dir* "/nested/subdir")
           s (sj/file-store path)]
       (is (.exists (io/file path)))
-      (store/s-put s [1 2 3 4] :v)
-      (is (= :v (store/s-get s [1 2 3 4]))))))
+      (store/await (store/s-put s [1 2 3 4] :v))
+      (is (= :v (store/await (store/s-get s [1 2 3 4])))))))
 
 (deftest layered-store-merge-test
   (testing "merge writes to all layers"
     (let [fast (store/mem-store)
           slow (store/mem-store)
           s (store/layered-store fast slow)]
-      (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b})
-      (is (= :a (store/s-get fast [1 2 3 4])))
-      (is (= :b (store/s-get slow [5 6 7 8]))))))
+      (store/await (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b}))
+      (is (= :a (store/await (store/s-get fast [1 2 3 4]))))
+      (is (= :b (store/await (store/s-get slow [5 6 7 8])))))))
 
 (deftest layered-store-reset-test
   (testing "reset clears all layers"
     (let [fast (store/mem-store {[1 2 3 4] :a})
           slow (store/mem-store {[5 6 7 8] :b})
           s (store/layered-store fast slow)]
-      (store/s-reset s)
-      (is (= {} (store/s-snapshot fast)))
-      (is (= {} (store/s-snapshot slow))))))
+      (store/await (store/s-reset s))
+      (is (= {} (store/await (store/s-snapshot fast))))
+      (is (= {} (store/await (store/s-snapshot slow)))))))
 
 ;; =============================================================================
 ;; LmdbStore
@@ -245,11 +245,11 @@
           h [1 2 3 4]
           v ["i64" 42]]
       (try
-        (is (nil? (store/s-get s h)))
-        (is (not (store/s-has? s h)))
-        (store/s-put s h v)
-        (is (store/s-has? s h))
-        (is (= v (store/s-get s h)))
+        (is (nil? (store/await (store/s-get s h))))
+        (is (not (store/await (store/s-has? s h))))
+        (store/await (store/s-put s h v))
+        (is (store/await (store/s-has? s h)))
+        (is (= v (store/await (store/s-get s h))))
         (finally
           (sj/lmdb-close s))))))
 
@@ -260,13 +260,13 @@
           v ["i64" 99]]
       (let [s (sj/lmdb-store path)]
         (try
-          (store/s-put s h v)
+          (store/await (store/s-put s h v))
           (finally
             (sj/lmdb-close s))))
       ;; New instance, same path
       (let [s (sj/lmdb-store path)]
         (try
-          (is (= v (store/s-get s h)))
+          (is (= v (store/await (store/s-get s h))))
           (finally
             (sj/lmdb-close s)))))))
 
@@ -274,9 +274,9 @@
   (testing "LMDB snapshot returns all entries"
     (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-snap"))]
       (try
-        (store/s-put s [1 2 3 4] ["i64" 1])
-        (store/s-put s [5 6 7 8] ["i64" 2])
-        (let [snap (store/s-snapshot s)]
+        (store/await (store/s-put s [1 2 3 4] ["i64" 1]))
+        (store/await (store/s-put s [5 6 7 8] ["i64" 2]))
+        (let [snap (store/await (store/s-snapshot s))]
           (is (= 2 (count snap)))
           (is (= ["i64" 1] (get snap [1 2 3 4])))
           (is (= ["i64" 2] (get snap [5 6 7 8]))))
@@ -287,9 +287,9 @@
   (testing "LMDB merge writes multiple entries in single txn"
     (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-merge"))]
       (try
-        (store/s-merge s {[1 2 3 4] ["i64" 10] [5 6 7 8] ["i64" 20]})
-        (is (= ["i64" 10] (store/s-get s [1 2 3 4])))
-        (is (= ["i64" 20] (store/s-get s [5 6 7 8])))
+        (store/await (store/s-merge s {[1 2 3 4] ["i64" 10] [5 6 7 8] ["i64" 20]}))
+        (is (= ["i64" 10] (store/await (store/s-get s [1 2 3 4]))))
+        (is (= ["i64" 20] (store/await (store/s-get s [5 6 7 8]))))
         (finally
           (sj/lmdb-close s))))))
 
@@ -297,10 +297,10 @@
   (testing "LMDB reset clears all entries"
     (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-reset"))]
       (try
-        (store/s-put s [1 2 3 4] ["i64" 1])
-        (store/s-reset s)
-        (is (nil? (store/s-get s [1 2 3 4])))
-        (is (= {} (store/s-snapshot s)))
+        (store/await (store/s-put s [1 2 3 4] ["i64" 1]))
+        (store/await (store/s-reset s))
+        (is (nil? (store/await (store/s-get s [1 2 3 4]))))
+        (is (= {} (store/await (store/s-snapshot s))))
         (finally
           (sj/lmdb-close s))))))
 
@@ -309,33 +309,33 @@
     (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-complex"))]
       (try
         ;; Scalar
-        (store/s-put s [1 0 0 0] ["i64" 42])
-        (is (= ["i64" 42] (store/s-get s [1 0 0 0])))
+        (store/await (store/s-put s [1 0 0 0] ["i64" 42]))
+        (is (= ["i64" 42] (store/await (store/s-get s [1 0 0 0]))))
 
         ;; Collection header
-        (store/s-put s [2 0 0 0] ["vector" {:root [9 8 7 6] :count 3 :size-bytes 24}])
+        (store/await (store/s-put s [2 0 0 0] ["vector" {:root [9 8 7 6] :count 3 :size-bytes 24}]))
         (is (= ["vector" {:root [9 8 7 6] :count 3 :size-bytes 24}]
-               (store/s-get s [2 0 0 0])))
+               (store/await (store/s-get s [2 0 0 0]))))
 
         ;; FT node
-        (store/s-put s [3 0 0 0] ["ft/deep" {:left [1 1 1 1]
-                                             :spine [2 2 2 2]
-                                             :right [3 3 3 3]
-                                             :measure {:count 5
-                                                       :size-bytes 40
-                                                       :elements-fuse [0 0 0 0]}}])
-        (let [v (store/s-get s [3 0 0 0])]
+        (store/await (store/s-put s [3 0 0 0] ["ft/deep" {:left [1 1 1 1]
+                                                          :spine [2 2 2 2]
+                                                          :right [3 3 3 3]
+                                                          :measure {:count 5
+                                                                    :size-bytes 40
+                                                                    :elements-fuse [0 0 0 0]}}]))
+        (let [v (store/await (store/s-get s [3 0 0 0]))]
           (is (= "ft/deep" (first v)))
           (is (= [1 1 1 1] (:left (second v)))))
 
         ;; HAMT node
-        (store/s-put s [4 0 0 0] ["hamt/entry" {:key-hash [5 5 5 5]
-                                                :key-ref [6 6 6 6]
-                                                :val-ref [7 7 7 7]
-                                                :measure {:count 1
-                                                          :size-bytes 8
-                                                          :elements-fuse [0 0 0 0]}}])
-        (let [v (store/s-get s [4 0 0 0])]
+        (store/await (store/s-put s [4 0 0 0] ["hamt/entry" {:key-hash [5 5 5 5]
+                                                             :key-ref [6 6 6 6]
+                                                             :val-ref [7 7 7 7]
+                                                             :measure {:count 1
+                                                                       :size-bytes 8
+                                                                       :elements-fuse [0 0 0 0]}}]))
+        (let [v (store/await (store/s-get s [4 0 0 0]))]
           (is (= "hamt/entry" (first v)))
           (is (= [6 6 6 6] (:key-ref (second v)))))
         (finally
@@ -347,13 +347,13 @@
           lmdb (sj/lmdb-store (str *temp-dir* "/lmdb-layered"))]
       (try
         (let [s (store/layered-store mem lmdb)]
-          (store/s-put s [1 2 3 4] ["i64" 42])
+          (store/await (store/s-put s [1 2 3 4] ["i64" 42]))
           ;; Both have it
-          (is (= ["i64" 42] (store/s-get mem [1 2 3 4])))
-          (is (= ["i64" 42] (store/s-get lmdb [1 2 3 4])))
+          (is (= ["i64" 42] (store/await (store/s-get mem [1 2 3 4]))))
+          (is (= ["i64" 42] (store/await (store/s-get lmdb [1 2 3 4]))))
           ;; New layered with empty mem still finds in LMDB
           (let [s2 (store/layered-store (store/mem-store) lmdb)]
-            (is (= ["i64" 42] (store/s-get s2 [1 2 3 4])))))
+            (is (= ["i64" 42] (store/await (store/s-get s2 [1 2 3 4]))))))
         (finally
           (sj/lmdb-close lmdb))))))
 
@@ -365,10 +365,10 @@
           (try
             (let [s (scalar/i64-with-store st 42)
                   sh (types/dacite-hash s)
-                  se (store/s-get st sh)
+                  se (store/await (store/s-get st sh))
                   v (coll/vector-with-store st 1 2 3)
                   vh (types/dacite-hash v)
-                  ve (store/s-get st vh)]
+                  ve (store/await (store/s-get st vh))]
               (is (= ["i64" 42] se))
               (is (= "vector" (first ve)))
               (is (= 3 (:count (second ve))))
@@ -377,12 +377,12 @@
               (sj/lmdb-close st)))
           st2 (sj/lmdb-store path)]
       (try
-        (is (= scalar-entry (store/s-get st2 scalar-h)))
-        (is (= vec-entry (store/s-get st2 vec-h)))
-        (is (store/s-has? st2 scalar-h))
-        (is (store/s-has? st2 vec-h))
+        (is (= scalar-entry (store/await (store/s-get st2 scalar-h))))
+        (is (= vec-entry (store/await (store/s-get st2 vec-h))))
+        (is (store/await (store/s-has? st2 scalar-h)))
+        (is (store/await (store/s-has? st2 vec-h)))
         ;; full graph still present for vector children
-        (is (store/s-has? st2 (:root (second vec-entry))))
+        (is (store/await (store/s-has? st2 (:root (second vec-entry)))))
         (finally
           (sj/lmdb-close st2))))))
 
@@ -406,8 +406,8 @@
           rooted2 (rs/rooted-store st2 cell2)]
       (try
         (is (= root-h (rs/root rooted2)))
-        (is (store/s-has? st2 root-h))
-        (is (= "vector" (first (store/s-get st2 root-h))))
+        (is (store/await (store/s-has? st2 root-h)))
+        (is (= "vector" (first (store/await (store/s-get st2 root-h)))))
         (finally
           (sj/lmdb-close st2))))))
 
@@ -418,7 +418,7 @@
       (try
         (let [v (scalar/i64-with-store st 42)
               h (types/dacite-hash v)
-              entry (store/s-get st h)
+              entry (store/await (store/s-get st h))
               expected (bin/encode-node-bytes entry)
               ;; raw read from LMDB content DBI
               ^Env env (:env st)
@@ -443,7 +443,7 @@
           ;; close/reopen: re-encode of stored entry matches
           (sj/lmdb-close st)
           (let [st2 (sj/lmdb-store path)
-                entry2 (store/s-get st2 h)]
+                entry2 (store/await (store/s-get st2 h))]
             (try
               (is (= entry entry2))
               (is (= (seq (bin/encode-node-bytes entry))
@@ -461,6 +461,47 @@
 (deftest content-addressing-test
   (testing "same content same hash means single entry"
     (let [s (store/mem-store)]
-      (store/s-put s [1 2 3 4] :v)
-      (store/s-put s [1 2 3 4] :v)
-      (is (= 1 (count (store/s-snapshot s)))))))
+      (store/await (store/s-put s [1 2 3 4] :v))
+      (store/await (store/s-put s [1 2 3 4] :v))
+      (is (= 1 (count (store/await (store/s-snapshot s))))))))
+
+(deftest missing-node-fails-walk-test
+  (testing "a value walk of a hash this store does not hold fails as :missing"
+    (let [s (store/mem-store)
+          h [9 9 9 9]
+          v (types/wrap-entry "vector" s h)]
+      (is (nil? (store/await (store/s-get s h))))
+      (is (= {:reason :missing :hash h}
+             (try
+               (count v)
+               (catch clojure.lang.ExceptionInfo ex
+                 (select-keys (ex-data ex) [:reason :hash]))))))))
+
+(deftest await-future-and-unavailable-test
+  (testing "await reads a JVM future, including nil"
+    (is (= 42 (store/await (future 42))))
+    (is (nil? (store/await (future nil)))))
+  (testing "await throws :unavailable from a rejected promise"
+    (let [h [1 2 3 4]
+          e (try
+              (store/await
+               (store/rejected
+                (ex-info "store unavailable"
+                         {:reason :unavailable :hash h :cause :down})))
+              nil
+              (catch clojure.lang.ExceptionInfo ex
+                ex))]
+      (is (= :unavailable (:reason (ex-data e))))
+      (is (= h (:hash (ex-data e))))))
+  (testing "await unwraps a future that failed as :unavailable"
+    (let [h [1 2 3 4]
+          e (try
+              (store/await
+               (future
+                 (throw (ex-info "store unavailable"
+                                 {:reason :unavailable :hash h :cause :down}))))
+              nil
+              (catch clojure.lang.ExceptionInfo ex
+                ex))]
+      (is (= :unavailable (:reason (ex-data e))))
+      (is (= h (:hash (ex-data e)))))))

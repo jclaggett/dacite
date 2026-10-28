@@ -18,7 +18,7 @@
   (v/type x))
 
 (defn- value-size [x]
-  (types/dacite-size (store/s-get (v/dacite-store x) (v/hash x))))
+  (types/dacite-size (store/await (store/s-get (v/dacite-store x) (v/hash x)))))
 
 ;; =============================================================================
 ;; Scalars

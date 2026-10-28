@@ -59,7 +59,7 @@
                        root-h (store/root rs)]
                    {:ms ms :hex hex :path lmdb-path
                     :meta-hex (when root-h (store/hash->hex root-h))
-                    :reopen-n (store/s-has? rs (store/hex->hash hex))})]
+                    :reopen-n (store/await (store/s-has? rs (store/hex->hash hex)))})]
     (println "file-store")
     (println "  ms     " (:ms file-res))
     (println "  files  " (file-count file-path))
@@ -77,6 +77,6 @@
             ;; known i64 42 from the JVM interop seed
             h (store/hex->hash
                "c325aa0c3ce069bfc934762612f7e78586b4cb6e2189b88f25e67ec3621a0c8d")
-            entry (store/s-get st h)]
+            entry (store/await (store/s-get st h))]
         (println "jvm-env" jvm-path "s-get i64-42 =>" (pr-str entry))
         (lmdb/lmdb-close st)))))

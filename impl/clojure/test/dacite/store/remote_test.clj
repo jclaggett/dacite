@@ -52,7 +52,7 @@
                (and (= "GET" method) (.startsWith path "/node/"))
                (let [hex (subs path 6)
                      h (store/hex->hash hex)
-                     node (store/s-get (:content @state) h)]
+                     node (store/await (store/s-get (:content @state) h))]
                  (if node
                    (let [bytes (.getBytes (wire/write-edn node) "UTF-8")]
                      (.sendResponseHeaders exchange 200 (count bytes))
@@ -64,20 +64,24 @@
                (let [hex (subs path 6)
                      h (store/hex->hash hex)
                      node (read-edn-body exchange)]
-                 (swap! state update :content store/s-put h node)
+                 (swap! state update :content
+                        (fn [st h node] (store/await (store/s-put st h node)))
+                        h node)
                  (.sendResponseHeaders exchange 204 -1))
 
                (and (= "HEAD" method) (.startsWith path "/node/"))
                (let [hex (subs path 6)
                      h (store/hex->hash hex)]
-                 (if (store/s-has? (:content @state) h)
+                 (if (store/await (store/s-has? (:content @state) h))
                    (.sendResponseHeaders exchange 200 -1)
                    (.sendResponseHeaders exchange 404 -1)))
 
                (and (= "DELETE" method) (.startsWith path "/node/"))
                (let [hex (subs path 6)
                      h (store/hex->hash hex)]
-                 (swap! state update :content store/s-delete h)
+                 (swap! state update :content
+                        (fn [st h] (store/await (store/s-delete st h)))
+                        h)
                  (.sendResponseHeaders exchange 204 -1))
 
                :else
@@ -104,9 +108,9 @@
     (let [r (remote/remote-store *base-url*)
           h [1 2 3 4]
           node ["i64" 42]]
-      (store/s-put r h node)
-      (is (= node (store/s-get r h)))
-      (is (store/s-has? r h)))))
+      (store/await (store/s-put r h node))
+      (is (= node (store/await (store/s-get r h))))
+      (is (store/await (store/s-has? r h))))))
 
 (deftest remote-cas-root-test
   (testing "CAS root over HTTP"
@@ -126,7 +130,7 @@
           layered (store/layered-store cache remote-s)
           h [9 9 9 9]
           node ["i64" 7]]
-      (store/s-put remote-s h node)
-      (is (not (store/s-has? cache h)))
-      (is (= node (store/s-get layered h)))
-      (is (= node (store/s-get cache h))))))
+      (store/await (store/s-put remote-s h node))
+      (is (not (store/await (store/s-has? cache h))))
+      (is (= node (store/await (store/s-get layered h))))
+      (is (= node (store/await (store/s-get cache h)))))))

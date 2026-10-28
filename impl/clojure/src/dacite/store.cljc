@@ -14,6 +14,7 @@
    A lens `(s/lens rs path)` is local convenience at a nested path
    (`path` is a Dacite vector, or a host seq).
    Internals: mem-store, rooted-store, hash→hex, sync-reachable!."
+  (:refer-clojure :exclude [await])
   (:require [dacite.hash :as hash]))
 
 ;; =============================================================================
@@ -33,14 +34,76 @@
   false)
 
 (defprotocol IStore
-  "Protocol for content-addressed storage."
-  (s-get [this h] "Retrieve value by hash. Returns nil if not found.")
-  (s-put [this h value] "Store value at hash. Returns the store (or this for mutable stores).")
-  (s-has? [this h] "Check if hash exists.")
-  (s-delete [this h] "Remove entry at hash. Returns the store.")
-  (s-snapshot [this] "Return the current contents as a plain map. Used for bulk reads during construction.")
-  (s-merge [this m] "Merge a map of {hash value} pairs into the store.")
-  (s-reset [this] "Clear all entries. Returns the store."))
+  "Protocol for content-addressed storage.
+
+   Every method returns a promise: a settled map from `completed` or
+   `rejected`, or (on the JVM) a future whose body is the blocking call.
+   Callers unwrap it with `await`. They do not branch on which store they
+   hold. `s-get` fulfills with nil when this dictionary has no such hash."
+  (s-get [this h] "Promise of the value at hash, or nil if this store has none.")
+  (s-put [this h value] "Promise of the store after storing value at hash.")
+  (s-has? [this h] "Promise of true when hash exists in this store.")
+  (s-delete [this h] "Promise of the store after removing hash.")
+  (s-snapshot [this] "Promise of the current contents as a plain map.")
+  (s-merge [this m] "Promise of the store after merging {hash value} pairs.")
+  (s-reset [this] "Promise of the store after clearing all entries."))
+
+;; =============================================================================
+;; Promises
+;; =============================================================================
+
+(defn completed
+  "A settled promise of `v`, which may be nil."
+  [v]
+  {:dacite/result v})
+
+(defn rejected
+  "A settled promise that fails with exception `e`."
+  [e]
+  {:dacite/error e})
+
+(defn unavailable
+  "A rejected promise: this store could not answer for hash `h`."
+  [h cause]
+  (rejected (ex-info "store unavailable"
+                     {:reason :unavailable :hash h :cause cause})))
+
+#?(:clj
+   (defn- deref-future
+     "Deref a future. Unwrap ExecutionException so callers see the cause."
+     [p]
+     (try
+       (deref p)
+       (catch java.util.concurrent.ExecutionException e
+         (throw (or (.getCause e) e))))))
+
+(defn await
+  "Unwrap one store promise.
+
+   A settled promise is a map with `:dacite/result` (the value, nil allowed)
+   or `:dacite/error` (thrown here). A JVM future's body returns the value
+   or throws; `ExecutionException` is unwrapped. An unsettled JavaScript
+   promise is not a store promise."
+  [p]
+  (cond
+    #?@(:clj [(future? p) (deref-future p)])
+    (and (map? p) (contains? p :dacite/error))
+    (throw (:dacite/error p))
+    (and (map? p) (contains? p :dacite/result))
+    (get p :dacite/result)
+    :else
+    (throw (ex-info "not a store promise" {:value p}))))
+
+(defn require-node
+  "Await `s-get`. Return the node, or throw `{:reason :missing}` when absent.
+
+   Required reads use this. Optional reads and cache fallthrough use
+   `await` and keep nil."
+  [st h]
+  (let [node (await (s-get st h))]
+    (if (some? node)
+      node
+      (throw (ex-info "missing store node" {:reason :missing :hash h})))))
 
 ;; =============================================================================
 ;; In-memory store
@@ -57,13 +120,13 @@
 
 (defrecord MemStore [data]
   IStore
-  (s-get [_ h] (get @data (mkey h)))
-  (s-put [this h value] (swap! data assoc (mkey h) value) this)
-  (s-has? [_ h] (contains? @data (mkey h)))
-  (s-delete [this h] (swap! data dissoc (mkey h)) this)
-  (s-snapshot [_] @data)
-  (s-merge [this m] (swap! data merge m) this)
-  (s-reset [this] (reset! data {}) this))
+  (s-get [_ h] (completed (get @data (mkey h))))
+  (s-put [this h value] (swap! data assoc (mkey h) value) (completed this))
+  (s-has? [_ h] (completed (contains? @data (mkey h))))
+  (s-delete [this h] (swap! data dissoc (mkey h)) (completed this))
+  (s-snapshot [_] (completed @data))
+  (s-merge [this m] (swap! data merge m) (completed this))
+  (s-reset [this] (reset! data {}) (completed this)))
 
 (defn mem-store
   "Create an in-memory content-addressed store."
@@ -78,42 +141,45 @@
   ;; layers is a vector of stores, first = fastest (e.g. mem), last = most durable
   IStore
   (s-get [_ h]
-    (loop [seen []
-           [layer & more] layers]
-      (when layer
-        (if-let [v (s-get layer h)]
-          (do (doseq [faster seen] (s-put faster h v))
-              v)
-          (recur (conj seen layer) more)))))
+    (completed
+     (loop [seen []
+            [layer & more] layers]
+       (when layer
+         (if-let [v (await (s-get layer h))]
+           (do (doseq [faster seen]
+                 (await (s-put faster h v)))
+               v)
+           (recur (conj seen layer) more))))))
 
   (s-put [this h value]
     (doseq [layer layers]
-      (s-put layer h value))
-    this)
+      (await (s-put layer h value)))
+    (completed this))
 
   (s-has? [_ h]
-    (some #(s-has? % h) layers))
+    (completed (boolean (some #(await (s-has? % h)) layers))))
 
   (s-delete [this h]
     (doseq [layer layers]
-      (s-delete layer h))
-    this)
+      (await (s-delete layer h)))
+    (completed this))
 
   (s-snapshot [_]
-    (reduce (fn [acc layer]
-              (merge acc (s-snapshot layer)))
-            {}
-            (reverse layers)))
+    (completed
+     (reduce (fn [acc layer]
+               (merge acc (await (s-snapshot layer))))
+             {}
+             (reverse layers))))
 
   (s-merge [this m]
     (doseq [layer layers]
-      (s-merge layer m))
-    this)
+      (await (s-merge layer m)))
+    (completed this))
 
   (s-reset [this]
     (doseq [layer layers]
-      (s-reset layer))
-    this))
+      (await (s-reset layer)))
+    (completed this)))
 
 (defn layered-store
   "Create a layered store. Reads fall through from first to last.
@@ -135,7 +201,7 @@
 (defn reset-store!
   "Reset the current store to empty."
   []
-  (s-reset *store*))
+  (await (s-reset *store*)))
 
 (defn set-store!
   "Replace the current store with a new IStore implementation."
@@ -146,22 +212,22 @@
 (defn get-store
   "Get a value by hash from the current store. Returns nil if absent."
   [h]
-  (s-get *store* h))
+  (await (s-get *store* h)))
 
 (defn put-store!
   "Store a value at hash in the current store."
   [h value]
-  (s-put *store* h value))
+  (await (s-put *store* h value)))
 
 (defn snapshot-store
   "Return a plain {hash value} map snapshot of the current store."
   []
-  (s-snapshot *store*))
+  (await (s-snapshot *store*)))
 
 (defn merge-store!
   "Merge a map of {hash value} pairs into the current store."
   [m]
-  (s-merge *store* m))
+  (await (s-merge *store* m)))
 
 (defmacro bind-store
   "Bind *store* to the given store for the duration of body."
@@ -180,7 +246,7 @@
          ~sym store#]
      (bind-store store#
                  (let [result# (do ~@body)]
-                   [(s-snapshot store#) result#]))))
+                   [(await (s-snapshot store#)) result#]))))
 
 ;; =============================================================================
 ;; Rooted store (hash-level) — deferred re-export from dacite.rooted
@@ -446,7 +512,7 @@
            content ((resolve 'dacite.store.chunk/chunked) inner)
            cell ((nbb-rooted 'file-root-cell) path)]
        (when reset
-         (s-reset content)
+         (await (s-reset content))
          ((nbb-rooted 'rc-put!) cell nil))
        ((nbb-rooted 'rooted-store) content cell)))
    :cljs
@@ -462,7 +528,7 @@
            content ((requiring-resolve 'dacite.store.chunk/chunked) inner)
            cell (file-root-cell path)]
        (when reset
-         (s-reset content)
+         (await (s-reset content))
          (rc-put! cell nil))
        (rooted-store content cell))))
 
@@ -477,7 +543,7 @@
            content ((resolve 'dacite.store.chunk/chunked) inner)
            cell ((resolve 'dacite.store.nbb.lmdb/lmdb-root-cell) inner)]
        (when reset
-         (s-reset content)
+         (await (s-reset content))
          ((nbb-rooted 'rc-put!) cell nil))
        ((nbb-rooted 'rooted-store) content cell)))
    :clj
@@ -489,7 +555,7 @@
            content ((requiring-resolve 'dacite.store.chunk/chunked) inner)
            cell (lmdb-root-cell inner)]
        (when reset
-         (s-reset content)
+         (await (s-reset content))
          (rc-put! cell nil))
        (rooted-store content cell)))
    :cljs

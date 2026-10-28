@@ -173,19 +173,19 @@
   store/IStore
   (s-get [_ h] (store/s-get base h))
   (s-put [this h value]
-    (store/s-put base h value)
-    this)
+    (store/await (store/s-put base h value))
+    (store/completed this))
   (s-has? [_ h] (store/s-has? base h))
   (s-delete [this h]
-    (store/s-delete base h)
-    this)
+    (store/await (store/s-delete base h))
+    (store/completed this))
   (s-snapshot [_] (store/s-snapshot base))
   (s-merge [this m]
-    (store/s-merge base m)
-    this)
+    (store/await (store/s-merge base m))
+    (store/completed this))
   (s-reset [this]
-    (store/s-reset base)
-    this)
+    (store/await (store/s-reset base))
+    (store/completed this))
 
   #?@(:bb []
       :clj

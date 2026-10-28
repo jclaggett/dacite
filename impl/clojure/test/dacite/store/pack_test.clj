@@ -57,8 +57,8 @@
       (is (= :complete (:status r2)))
       (is (empty? (:created r2)))
       (is (= 2 (count (:exists r2)))))
-    (is (= ["bool" true] (store/s-get st h1)))
-    (is (= ["i64" 7] (store/s-get st h2)))))
+    (is (= ["bool" true] (store/await (store/s-get st h1))))
+    (is (= ["i64" 7] (store/await (store/s-get st h2))))))
 
 (deftest literal-of-and-materialize-scalars
   (let [st (store/mem-store)
@@ -112,11 +112,11 @@
     (is (= "string" (get-in run [:body :of])))
     (is (= ["hello" "world"] (get-in run [:body :values])))
     (is (= h (second (round-trip-hash st h))))
-    (let [item (pack/encode-item st h (store/s-get st h))]
+    (let [item (pack/encode-item st h (store/await (store/s-get st h)))]
       (is (= :literal (:encoding item)))
       (let [st2 (store/mem-store)]
         (is (= 1 (:literals (pack/apply-chunk! st2 (pack/make-chunk 1024 [item])))))
-        (is (store/s-has? st2 h))))))
+        (is (store/await (store/s-has? st2 h)))))))
 
 (deftest rle-lits-n1-stays-unwrapped
   (let [st (store/mem-store)
@@ -143,7 +143,7 @@
 (deftest rle-char-run-on-string-spine
   (let [st (store/mem-store)
         s (coll/string-with-store st "abcdefghij")
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         ft (filter (fn [[_ e]]
                      (str/starts-with? (str (types/entry-type e)) "ft/"))
                    snap)]
@@ -201,7 +201,7 @@
 (deftest rle-char-run-wire-round-trip
   (let [st (store/mem-store)
         _s (coll/string-with-store st (apply str (repeat 24 \x)))
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         nodes (filter (fn [[_ e]]
                         (#{"ft/node" "ft/digit"} (types/entry-type e)))
                       snap)]
@@ -215,7 +215,7 @@
         (is (some #(#{"run" "repeat"} (:type %)) (:body form))
             (str "spine literal should contain a char run/repeat, got " (pr-str form)))
         (pack/apply-chunk! st2 back)
-        (is (store/s-has? st2 fh))))))
+        (is (store/await (store/s-has? st2 fh)))))))
 
 (deftest literal-of-map-and-set
   (testing "map"
@@ -259,7 +259,7 @@
   ;; 2c′: spine nodes have leaf-payload literals (not nil).
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (range 20))
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         ft-hs (keep (fn [[h e]]
                       (when (str/starts-with? (str (types/entry-type e)) "ft/")
                         h))
@@ -274,71 +274,71 @@
 (deftest encode-and-apply-literal-scalars
   (let [st (store/mem-store)
         h (scalar/put-scalar! st "i64" 42)
-        item (pack/encode-item st h (store/s-get st h))]
+        item (pack/encode-item st h (store/await (store/s-get st h)))]
     (is (= :literal (:encoding item)))
     (is (= "i64" (:type item)))
     (is (= 42 (:body item)))
     (let [st2 (store/mem-store)
           r (pack/apply-chunk! st2 (pack/make-chunk 1024 [item]))]
       (is (= 1 (:literals r)))
-      (is (= ["i64" 42] (store/s-get st2 h))))))
+      (is (= ["i64" 42] (store/await (store/s-get st2 h)))))))
 
 (deftest encode-and-apply-literal-string
   (let [st (store/mem-store)
         s (coll/string-with-store st "hello")
         h (types/dacite-hash s)
-        item (pack/encode-item st h (store/s-get st h))]
+        item (pack/encode-item st h (store/await (store/s-get st h)))]
     (is (= :literal (:encoding item)))
     (is (= "string" (:type item)))
     (is (= "hello" (:body item)))
     (let [st2 (store/mem-store)
           r (pack/apply-chunk! st2 (pack/make-chunk 1024 [item]))]
       (is (= 1 (:literals r)))
-      (is (store/s-has? st2 h)))))
+      (is (store/await (store/s-has? st2 h))))))
 
 (deftest encode-and-apply-medium-string-literal
   (let [st (store/mem-store)
         body (apply str (repeat 100 "x"))
         s (coll/string-with-store st body)
         h (types/dacite-hash s)
-        item (pack/encode-item st h (store/s-get st h))
+        item (pack/encode-item st h (store/await (store/s-get st h)))
         {:keys [items]} (pack/encode-reachable st h)]
     (is (= :literal (:encoding item)))
     (is (= 100 (count (:body item))))
     (is (= 1 (count items)))
     (let [st2 (store/mem-store)]
       (is (= 1 (:literals (pack/apply-chunk! st2 (pack/make-chunk 1024 [item])))))
-      (is (store/s-has? st2 h)))))
+      (is (store/await (store/s-has? st2 h))))))
 
 (deftest encode-and-apply-literal-vector-map-set
   (testing "vector"
     (let [st (store/mem-store)
           v (coll/vector-with-store st 1 2 3)
           h (types/dacite-hash v)
-          item (pack/encode-item st h (store/s-get st h))]
+          item (pack/encode-item st h (store/await (store/s-get st h)))]
       (is (= :literal (:encoding item)))
       (is (every? map? (:body item)))
       (let [st2 (store/mem-store)]
         (is (= 1 (:literals (pack/apply-chunk! st2 (pack/make-chunk 1024 [item])))))
-        (is (store/s-has? st2 h)))))
+        (is (store/await (store/s-has? st2 h))))))
   (testing "map"
     (let [st (store/mem-store)
           m (coll/hash-map-with-store st "a" 1 "b" 2)
           h (types/dacite-hash m)
-          item (pack/encode-item st h (store/s-get st h))]
+          item (pack/encode-item st h (store/await (store/s-get st h)))]
       (is (= :literal (:encoding item)))
       (let [st2 (store/mem-store)]
         (is (= 1 (:literals (pack/apply-chunk! st2 (pack/make-chunk 1024 [item])))))
-        (is (store/s-has? st2 h)))))
+        (is (store/await (store/s-has? st2 h))))))
   (testing "set"
     (let [st (store/mem-store)
           s (coll/dacite-set-with-store st 1 2 3)
           h (types/dacite-hash s)
-          item (pack/encode-item st h (store/s-get st h))]
+          item (pack/encode-item st h (store/await (store/s-get st h)))]
       (is (= :literal (:encoding item)))
       (let [st2 (store/mem-store)]
         (is (= 1 (:literals (pack/apply-chunk! st2 (pack/make-chunk 1024 [item])))))
-        (is (store/s-has? st2 h))))))
+        (is (store/await (store/s-has? st2 h)))))))
 
 (deftest materialize-accepts-2b-flat-host-bodies
   ;; Wire compat: flat host bodies from 2b still materialize.
@@ -348,7 +348,7 @@
         flat (pack/literal-item h "vector" [1 2 3])
         st2 (store/mem-store)]
     (is (= 1 (:literals (pack/apply-chunk! st2 (pack/make-chunk 1024 [flat])))))
-    (is (store/s-has? st2 h))))
+    (is (store/await (store/s-has? st2 h)))))
 
 (deftest literal-hash-mismatch-throws
   (let [st (store/mem-store)
@@ -362,7 +362,7 @@
   (let [st (store/mem-store)
         s (coll/string-with-store st "ab")
         h (types/dacite-hash s)
-        live (count (store/s-snapshot st))
+        live (count (store/await (store/s-snapshot st)))
         {:keys [items covered]} (pack/encode-reachable st h)]
     (is (= 1 (count items)))
     (is (= :literal (:encoding (first items))))
@@ -375,7 +375,7 @@
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (range 20))
         _h (types/dacite-hash v)
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         ft-entries (filter (fn [[_ e]]
                              (str/starts-with? (str (types/entry-type e)) "ft/"))
                            snap)
@@ -394,20 +394,20 @@
     (is (= 200 (:status resp)))
     (is (true? (:ok (wire/read-edn (:body resp)))))
     (is (= 1 (:applied (wire/read-edn (:body resp)))))
-    (is (= ["i64" 99] (store/s-get rooted h)))))
+    (is (= ["i64" 99] (store/await (store/s-get rooted h))))))
 
 (deftest service-post-nodes-literal
   (let [rooted (svc/make-demo-rooted)
         src (store/mem-store)
         s (coll/string-with-store src "todo")
         h (types/dacite-hash s)
-        item (pack/encode-item src h (store/s-get src h))
+        item (pack/encode-item src h (store/await (store/s-get src h)))
         chunk (pack/make-chunk 1024 [item])
         resp (svc/handle-request rooted "POST" "/nodes" (wire/write-edn chunk))]
     (is (= :literal (:encoding item)))
     (is (= 200 (:status resp)))
     (is (= 1 (:literals (wire/read-edn (:body resp)))))
-    (is (store/s-has? rooted h))))
+    (is (store/await (store/s-has? rooted h)))))
 
 (deftest write-back-flush-uses-fewer-http-requests-than-per-node
   (let [rooted (svc/make-demo-rooted)
@@ -423,7 +423,7 @@
             after (stats/get-stats)
             d (stats/stats-diff before after)
             kinds (:by-kind after {})]
-        (is (true? (store/s-has? raw h)))
+        (is (true? (store/await (store/s-has? raw h))))
         (is (pos? (:requests d)))
         (is (pos? (get kinds :nodes-put 0)))
         (is (< (get kinds :node-put 0) 5)
@@ -438,7 +438,7 @@
         t (todo/build st (todo/seed-items))
         h (types/dacite-hash t)
         form (pack/literal-of st h)
-        item (pack/encode-item st h (store/s-get st h))]
+        item (pack/encode-item st h (store/await (store/s-get st h)))]
     (is (= "vector" (:type form)))
     (is (= :literal (:encoding item)))
     (is (= h (second (round-trip-hash st h))))
@@ -469,7 +469,7 @@
     (is (every? bytes? runs))
     (doseq [ch (pack/pack-items items)]
       (pack/apply-chunk! st2 ch))
-    (is (store/s-has? st2 h))
+    (is (store/await (store/s-has? st2 h)))
     (is (= 255 (types/realize (coll/seq-nth st2 h 255))))
     (is (= 128 (types/realize (coll/seq-nth st2 h 128))))
     (is (= (bit-and 0xff (dec n)) (types/realize (coll/seq-nth st2 h (dec n)))))))
@@ -479,7 +479,7 @@
         body (apply str (repeat 3000 "x"))
         s (coll/string-with-store st body)
         h (types/dacite-hash s)
-        entry (store/s-get st h)
+        entry (store/await (store/s-get st h))
         item (pack/encode-item st h entry)
         sum (pack/encode-summary st h)]
     (is (pack/clearly-oversized? entry pack/default-budget))
@@ -494,7 +494,7 @@
         body (apply str (repeat 3000 "x"))
         s (coll/string-with-store st body)
         h (types/dacite-hash s)
-        item (pack/encode-item st h (store/s-get st h) 5000)
+        item (pack/encode-item st h (store/await (store/s-get st h)) 5000)
         sum (pack/encode-summary st h 5000)]
     (is (= :literal (:encoding item)))
     (is (= 1 (:items sum)))
@@ -507,7 +507,7 @@
         v (apply coll/vector-with-store st (map #(str "item-" %) (range 40)))
         h (types/dacite-hash v)
         budget 200
-        entry (store/s-get st h)
+        entry (store/await (store/s-get st h))
         root-item (pack/encode-item st h entry budget)
         {:keys [items]} (pack/encode-reachable st h #{} budget)
         sum (pack/summarize-items items)
@@ -529,7 +529,7 @@
           chunks (pack/pack-items items budget)]
       (doseq [ch chunks]
         (pack/apply-chunk! st2 ch))
-      (is (store/s-has? st2 h)))))
+      (is (store/await (store/s-has? st2 h))))))
 
 (deftest size-bytes-at-budget-is-literal-one-over-is-node
   (let [st (store/mem-store)
@@ -537,10 +537,10 @@
         over (coll/string-with-store st (apply str (repeat 1025 \x)))
         fh (types/dacite-hash fit)
         oh (types/dacite-hash over)]
-    (is (= 1024 (pack/size-cue (store/s-get st fh))))
-    (is (= :literal (:encoding (pack/encode-item st fh (store/s-get st fh)))))
-    (is (pack/clearly-oversized? (store/s-get st oh) pack/default-budget))
-    (is (= :node (:encoding (pack/encode-item st oh (store/s-get st oh)))))))
+    (is (= 1024 (pack/size-cue (store/await (store/s-get st fh)))))
+    (is (= :literal (:encoding (pack/encode-item st fh (store/await (store/s-get st fh))))))
+    (is (pack/clearly-oversized? (store/await (store/s-get st oh)) pack/default-budget))
+    (is (= :node (:encoding (pack/encode-item st oh (store/await (store/s-get st oh))))))))
 
 (deftest type-run-of-short-strings-fits-tight-budget
   ;; Pre-RLE: 40 tagged string lits exceeded 500 wire bytes while size-bytes
@@ -548,7 +548,7 @@
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (map #(str "item-" %) (range 40)))
         h (types/dacite-hash v)
-        entry (store/s-get st h)
+        entry (store/await (store/s-get st h))
         budget 500
         item (pack/encode-item st h entry budget)
         form (pack/literal-of st h)]
@@ -575,7 +575,7 @@
 (deftest intermediate-ft-digit-round-trip
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (range 12))
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         singles (filter (fn [[_ e]] (= "ft/single" (types/entry-type e))) snap)
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)]
     (is (empty? singles) "ft/single fully removed")
@@ -589,7 +589,7 @@
 (deftest intermediate-ft-deep-round-trip
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (range 20))
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         deeps (filter (fn [[_ e]] (= "ft/deep" (types/entry-type e))) snap)]
     (is (seq deeps))
     (doseq [[fh _] deeps]
@@ -609,7 +609,7 @@
                           (and (= :literal (:encoding it))
                                (str/starts-with? (str (:type it)) "ft/")))
                         (:items (pack/encode-reachable st h #{} budget)))]
-    (is (= :node (:encoding (pack/encode-item st h (store/s-get st h) budget))))
+    (is (= :node (:encoding (pack/encode-item st h (store/await (store/s-get st h)) budget))))
     (is (pos? (count ft-lits)) "walk bottoms out at intermediate ft literals")
     (is (pos? (:literals sum)))
     ;; Apply mixed pack and recover root
@@ -617,12 +617,12 @@
           {:keys [items]} (pack/encode-reachable st h #{} budget)]
       (doseq [ch (pack/pack-items items budget)]
         (pack/apply-chunk! st2 ch))
-      (is (store/s-has? st2 h)))))
+      (is (store/await (store/s-has? st2 h))))))
 
 (deftest intermediate-hamt-entry-round-trip
   (let [st (store/mem-store)
         m (coll/hash-map-with-store st "a" 1 "b" 2)
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         entries (filter (fn [[_ e]] (= "hamt/entry" (types/entry-type e))) snap)]
     (is (seq entries))
     (doseq [[eh _] entries]
@@ -639,12 +639,12 @@
     (is (= 1 (count (:items ch))) "small todo root is one literal chunk")
     (let [st2 (store/mem-store)]
       (pack/apply-chunk! st2 ch)
-      (is (store/s-has? st2 h)))
+      (is (store/await (store/s-has? st2 h))))
     (let [back (bin/decode-pack-edn (bin/encode-pack-edn ch))
           st3 (store/mem-store)]
       (is (= :literal (:encoding (first (:items back)))))
       (pack/apply-chunk! st3 back)
-      (is (store/s-has? st3 h)
+      (is (store/await (store/s-has? st3 h))
           "wire-v1 literal of a todo vector rematerializes at the claimed hash")))
   (let [st (store/mem-store)
         s (coll/string-with-store st (apply str (repeat 3000 \x)))
@@ -678,8 +678,8 @@
         ch (pack/pack-under st h)
         st2 (store/mem-store)
         _ (pack/apply-chunk! st2 ch)
-        root (:root (types/entry-data (store/s-get st2 h)))
-        n-hit (count (filter #(store/s-has? st2 %)
+        root (:root (types/entry-data (store/await (store/s-get st2 h))))
+        n-hit (count (filter #(store/await (store/s-has? st2 %))
                              (take 64 (ft/ft-seq st2 root))))]
     (is (>= n-hit 64)
         (str "explorer 64-char preview should be in the first pack; got " n-hit))
@@ -691,7 +691,7 @@
     (let [st3 (store/mem-store)
           back (bin/decode-pack-edn (bin/encode-pack-edn ch))]
       (pack/apply-chunk! st3 back)
-      (is (store/s-has? st3 h)
+      (is (store/await (store/s-has? st3 h))
           "wire-v1 digit literal applies at the claimed hash"))))
 
 (deftest pack-under-budget-zero-is-single-item
@@ -703,7 +703,7 @@
         "budget 0 seals after the asked hash")
     (let [st2 (store/mem-store)]
       (pack/apply-chunk! st2 ch)
-      (is (store/s-has? st2 h)))))
+      (is (store/await (store/s-has? st2 h))))))
 
 (deftest remote-s-get-pack-fill
   (let [rooted (svc/make-demo-rooted)
@@ -716,7 +716,7 @@
             cold (remote/remote-store base-url)]
         (stats/reset-stats!)
         (let [before (stats/get-stats)
-              node (store/s-get cold h)
+              node (store/await (store/s-get cold h))
               after (stats/get-stats)
               d (stats/stats-diff before after)
               kinds (:by-kind after {})]
@@ -727,7 +727,7 @@
               "pack-filled root get should not fan out many requests")
           ;; Further access hits pack-local
           (stats/reset-stats!)
-          (store/s-get cold h)
+          (store/await (store/s-get cold h))
           (is (zero? (:requests (stats/get-stats))))))
       (finally
         (stop!)))))
@@ -762,7 +762,7 @@
         (is (pos? (:chunks result)))
         (is (= (:chunks result) @n)
             "every sealed chunk hits outermost send-chunk!")
-        (is (store/s-has? raw h))
+        (is (store/await (store/s-has? raw h)))
         ;; Second flush skips covered hashes
         (reset! n 0)
         (let [r2 (pack/flush-from! counted local h (:covered result))]
@@ -784,7 +784,7 @@
             uploaded (client-cache/flush-reachable! wb h)]
         (is (pos? uploaded))
         (is (pos? @n) "write-back flush sends via IChunkTransport middleware")
-        (is (store/s-has? raw h))
+        (is (store/await (store/s-has? raw h)))
         (is (zero? (client-cache/flush-reachable! wb h))
             "second flush is a no-op"))
       (finally
@@ -794,7 +794,7 @@
   (let [st (store/mem-store)
         m (apply coll/hash-map-with-store st
                  (mapcat (fn [i] [(str "k" i) i]) (range 12)))
-        snap (store/s-snapshot st)
+        snap (store/await (store/s-snapshot st))
         bitmaps (filter (fn [[_ e]] (= "hamt/bitmap" (types/entry-type e))) snap)
         results (mapv (fn [[bh _]]
                         (let [form (pack/literal-of st bh)

@@ -387,7 +387,7 @@ enough that slice and a full native are different amounts of work.
 
 (defn node-count
   [x]
-  (count (store/s-snapshot (v/dacite-store x))))
+  (count (store/await (store/s-snapshot (v/dacite-store x)))))
 
 #?(:clj
    (defn- chunked-seed-stats

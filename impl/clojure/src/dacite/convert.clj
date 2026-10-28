@@ -56,7 +56,7 @@
   ([x] (dac->clj x default-max-bytes))
   ([x max-bytes]
    (when (satisfies? types/IDaciteValue x)
-     (let [entry (store/s-get (types/dacite-store x) (types/dacite-hash x))
+     (let [entry (store/require-node (types/dacite-store x) (types/dacite-hash x))
            sb (types/dacite-size entry)]
        (when (> sb max-bytes)
          (throw (ex-info (str "dac->clj: value size " sb
@@ -78,4 +78,4 @@
     x
     (let [st store/*store*
           h (types/coerce-and-store! st x)]
-      (types/wrap-entry (types/entry-type (store/s-get st h)) st h))))
+      (types/wrap-entry (types/entry-type (store/require-node st h)) st h))))

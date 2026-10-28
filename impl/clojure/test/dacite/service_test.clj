@@ -136,8 +136,8 @@
             node ["bool" true]
             hex (apply str (repeat 64 "d"))
             h (store/hex->hash hex)]
-        (store/s-put remote h node)
-        (is (= node (store/s-get remote h)))
+        (store/await (store/s-put remote h node))
+        (is (= node (store/await (store/s-get remote h))))
         (let [url (java.net.URI/create (str base-url "/root"))
               client (.build (java.net.http.HttpClient/newBuilder))
               req (-> (java.net.http.HttpRequest/newBuilder url) .GET .build)
@@ -157,9 +157,9 @@
             node ["bool" true]
             hex (apply str (repeat 64 "c"))
             h (store/hex->hash hex)]
-        (store/s-put remote h node)
-        (is (= node (store/s-get remote h)))
-        (is (true? (store/s-has? remote h)))
+        (store/await (store/s-put remote h node))
+        (is (= node (store/await (store/s-get remote h))))
+        (is (true? (store/await (store/s-has? remote h))))
         (is (nil? (remote/remote-get-root remote)))
         (is (true? (remote/remote-cas-root! remote nil h)))
         (is (= h (remote/remote-get-root remote)))
@@ -180,7 +180,7 @@
                                  {:content-type bin/content-type-chunk-v1})]
     (is (= 200 (:status post)))
     (is (true? (:ok (wire/read-edn (:body post)))))
-    (is (store/s-has? rooted h))
+    (is (store/await (store/s-has? rooted h)))
     (let [get-bin (svc/handle-request rooted "GET"
                                       (str "/node/" (store/hash->hex h))
                                       nil
@@ -208,9 +208,9 @@
             todos (todo/build wb (todo/seed-items))
             h (types/dacite-hash todos)]
         (is (true? (remote/remote-cas-root! wb nil h)))
-        (is (store/s-has? raw h))
+        (is (store/await (store/s-has? raw h)))
         (let [cold (remote/remote-store base-url {:binary true})
-              node (store/s-get cold h)]
+              node (store/await (store/s-get cold h))]
           (is (some? node))
           (is (= "vector" (types/entry-type node)))))
       (finally
@@ -289,7 +289,7 @@
                   hex (store/hash->hex h)]
               (is (true? (remote/remote-cas-root! remote nil h)))
               (is (= h (remote/remote-get-root remote)))
-              (is (some? (store/s-get remote h)))
+              (is (some? (store/await (store/s-get remote h))))
               hex)
             (finally
               (stop!)
@@ -300,10 +300,10 @@
     (try
       (let [remote (remote/remote-store base-url)
             h (store/hex->hash root-hex)
-            node (store/s-get remote h)
+            node (store/await (store/s-get remote h))
             loaded (d/get-value remote h)]
         (is (= h (remote/remote-get-root remote)))
-        (is (store/s-has? remote h))
+        (is (store/await (store/s-has? remote h)))
         (is (some? node))
         (is (= "vector" (types/entry-type node)))
         (is (pos? (d/count loaded))))

@@ -63,12 +63,12 @@
   (let [type-name (first node)
         ef (:elements-fuse (:measure (second node)))
         h (types/node-hash type-name ef)]
-    (store/s-put store h node)
+    (store/await (store/s-put store h node))
     h))
 
 (declare ft-seq)
 
-(defn- lookup [store h] (store/s-get store h))
+(defn- lookup [store h] (store/require-node store h))
 (defn- node-type [node] (first node))
 (defn- node-data [node] (second node))
 
@@ -592,7 +592,7 @@
   (let [n (bit-and 0xff (int n))
         h (u8-hash-at n)]
     (binding [store/*cache-only* true]
-      (store/s-put store h ["u8" n]))
+      (store/await (store/s-put store h ["u8" n])))
     h))
 
 (defn- u8-page-nth

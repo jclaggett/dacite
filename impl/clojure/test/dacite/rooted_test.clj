@@ -158,9 +158,9 @@
   (testing "content ops delegate to inner store"
     (let [content (store/mem-store)
           s (rs/rooted-store content)]
-      (store/s-put s [1 2 3 4] :value)
-      (is (= :value (store/s-get content [1 2 3 4])))
-      (is (= :value (store/s-get s [1 2 3 4]))))))
+      (store/await (store/s-put s [1 2 3 4] :value))
+      (is (= :value (store/await (store/s-get content [1 2 3 4]))))
+      (is (= :value (store/await (store/s-get s [1 2 3 4])))))))
 
 ;; =============================================================================
 ;; push-ref

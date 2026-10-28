@@ -40,7 +40,7 @@
 (declare bounded-to-string)
 
 (defn- node-root [store h]
-  (:root (types/entry-data (store/s-get store h))))
+  (:root (types/entry-data (store/require-node store h))))
 
 (defn- render-scalar [v]
   (pr-str (types/realize v)))
@@ -55,11 +55,11 @@
       (zero? n) ""
       (<= n limit)
       (apply clojure.core/str
-             (map #(types/entry-data (store/s-get store %))
+             (map #(types/entry-data (store/require-node store %))
                   (take n (ft/ft-seq store root))))
       :else
       (let [prefix (apply clojure.core/str
-                          (map #(types/entry-data (store/s-get store %))
+                          (map #(types/entry-data (store/require-node store %))
                                (take limit (ft/ft-seq store root))))]
         (str "\"" prefix "…\" (" n " chars)")))))
 
@@ -72,7 +72,7 @@
         truncated? (> n hex-limit)
         refs (take hex-limit (ft/ft-seq store root))
         hex (str/join " "
-                      (map #(format "%02x" (types/entry-data (store/s-get store %)))
+                      (map #(format "%02x" (types/entry-data (store/require-node store %)))
                            refs))]
     (str "<blob " n " bytes"
          (when (seq refs) (str " 0x" hex (when truncated? " …")))

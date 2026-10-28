@@ -6,6 +6,12 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Asynchronous `IStore`** — every store method returns a promise.
+  `s-get` fulfills with nil when the hash is absent. A required read
+  fails as `:missing`. A store that cannot answer rejects as
+  `:unavailable`. The JVM and babashka block inside `await`, so
+  `v/nth`, `v/get`, `v/conj`, and `v/seq` still return values there.
+  ClojureScript walks still replay through `drive`.
 - **HTTP/3 server** — `dacite.service` is Jetty. Cleartext HTTP/1.1 is
   still `base-url`. HTTP/3 listens on UDP at that same port number and
   responses carry `Alt-Svc: h3=":<port>"`. The certificate is a local

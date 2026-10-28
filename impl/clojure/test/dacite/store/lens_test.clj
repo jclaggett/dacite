@@ -112,8 +112,8 @@
   (let [rs (seed-ab)
         la (s/lens rs ["a"])
         h (s/root la)]
-    (is (= (s/s-get rs h) (s/s-get la h)))
-    (is (s/s-has? la h))))
+    (is (= (s/await (s/s-get rs h)) (s/await (s/s-get la h))))
+    (is (s/await (s/s-has? la h)))))
 
 (deftest vector-index-path
   (let [rs (s/mem)

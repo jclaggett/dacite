@@ -188,7 +188,7 @@
 (defn- host-string
   "Full host string via index access (avoids ft-seq truncation)."
   [st h]
-  (let [n (long (or (:count (types/entry-data (store/s-get st h))) 0))]
+  (let [n (long (or (:count (types/entry-data (store/require-node st h))) 0))]
     (if (zero? n)
       ""
       (join-chars
@@ -203,7 +203,7 @@
 (defn- host-blob-vec
   "Blob as vector of 0..255 ints (EDN-safe)."
   [st h]
-  (let [n (long (or (:count (types/entry-data (store/s-get st h))) 0))]
+  (let [n (long (or (:count (types/entry-data (store/require-node st h))) 0))]
     (if (zero? n)
       []
       (mapv (fn [i]
@@ -230,7 +230,7 @@
 (defn- nested-literal
   "Recursive typed literal for child value at eh, or nil if not a value type."
   [st eh]
-  (when-let [entry (store/s-get st eh)]
+  (when-let [entry (store/await (store/s-get st eh))]
     (let [t (types/entry-type entry)]
       (when (value-type? t)
         (literal-of st eh)))))
@@ -246,7 +246,7 @@
           (or (nested-literal st eh)
               (throw (ex-info "leaf is not a value type"
                               {:leaf eh
-                               :type (when-let [e (store/s-get st eh)]
+                               :type (when-let [e (store/await (store/s-get st eh))]
                                        (types/entry-type e))}))))
         leaf-hs))
 
@@ -305,7 +305,7 @@
    Intermediate spine types (ft/*, hamt/*) (2c′): ordered leaf value literals;
    materialize + dry-run must match claimed hash to emit as :literal."
   [st h]
-  (when-let [entry (store/s-get st h)]
+  (when-let [entry (store/await (store/s-get st h))]
     (let [t (types/entry-type entry)
           data (types/entry-data entry)]
       (cond
@@ -333,7 +333,7 @@
                                 (throw (ex-info "vector child is not a value type"
                                                 {:parent h :child eh
                                                  :child-type (types/entry-type
-                                                              (store/s-get st eh))})))))
+                                                              (store/require-node st eh))})))))
                         (range n))]
           {:type "vector" :body (rle-lits els)})
 
@@ -379,7 +379,7 @@
   ([st h] (fits-literal? st h default-budget))
   ([st h budget]
    (let [budget (long budget)
-         entry (store/s-get st h)
+         entry (store/await (store/s-get st h))
          t (when entry (types/entry-type entry))]
      (when (and entry
                 (or (value-type? t) (tree-internal-type? t))
@@ -502,7 +502,7 @@
         (types/dacite-hash
          (apply coll/dacite-set-with-store st
                 (map #(types/wrap-entry
-                       (types/entry-type (store/s-get st %))
+                       (types/entry-type (store/require-node st %))
                        st %)
                      refs))))
 
@@ -517,9 +517,9 @@
                                 kh (materialize-nested! st k)
                                 vh (materialize-nested! st v)
                                 kw (types/wrap-entry
-                                    (types/entry-type (store/s-get st kh)) st kh)
+                                    (types/entry-type (store/require-node st kh)) st kh)
                                 vw (types/wrap-entry
-                                    (types/entry-type (store/s-get st vh)) st vh)]
+                                    (types/entry-type (store/require-node st vh)) st vh)]
                             [kw vw]))
                         pairs)]
         (types/dacite-hash (apply coll/hash-map-with-store st kvs)))
@@ -612,7 +612,7 @@
                             (not (contains? @visited hk))
                             (not (contains? skip hk)))
                    (swap! visited conj hk)
-                   (when-let [entry (store/s-get st h)]
+                   (when-let [entry (store/await (store/s-get st h))]
                      (let [item (encode-item st h entry budget)]
                        (swap! items conj item)
                        (if (= :literal (:encoding item))
@@ -651,7 +651,7 @@
 (defn- pack-under*
   "Neighborhood fill rooted at `root`. See pack-under."
   [st root have budget size-fn]
-  (when (and root (store/s-has? st root))
+  (when (and root (store/await (store/s-has? st root)))
     (let [budget (long (or budget default-budget))
           size-fn (or size-fn wire-chunk-size)
           visited (atom (into #{} (map gc/hash-key) (or have #{})))
@@ -662,7 +662,7 @@
                 ck (gc/hash-key cur)]
             (if (contains? @visited ck)
               (recur q)
-              (if-let [entry (store/s-get st cur)]
+              (if-let [entry (store/await (store/s-get st cur))]
                 (let [item (encode-item st cur entry budget)
                       trial (conj @items item)
                       sz (long (size-fn (make-chunk budget trial)))
@@ -712,7 +712,7 @@
   ([st h have] (pack-under st h have default-budget nil))
   ([st h have budget] (pack-under st h have budget nil))
   ([st h have budget {:keys [size-fn]}]
-   (when (and h (store/s-has? st h))
+   (when (and h (store/await (store/s-has? st h)))
      (pack-under* st h have budget size-fn))))
 
 ;; =============================================================================
@@ -733,8 +733,8 @@
   [st h body]
   (let [hex (if (string? h) h (store/hash->hex h))
         hv (if (string? h) (store/hex->hash h) h)
-        existed? (store/s-has? st hv)]
-    (store/s-put st hv body)
+        existed? (store/await (store/s-has? st hv))]
+    (store/await (store/s-put st hv body))
     (if existed?
       {:status :complete :created [] :exists [hex] :applied 1}
       {:status :partial :created [hex] :exists [] :applied 1})))
@@ -759,10 +759,10 @@
       (let [enc (keyword (:encoding item))
             hex (:hash item)
             expected (store/hex->hash hex)
-            had? (store/s-has? st expected)]
+            had? (store/await (store/s-has? st expected))]
         (case enc
           :node
-          (do (store/s-put st expected (:body item))
+          (do (store/await (store/s-put st expected (:body item)))
               (swap! nodes inc)
               (if had?
                 (swap! exists conj hex)

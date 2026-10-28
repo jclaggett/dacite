@@ -116,12 +116,20 @@
 
   store/IStore
   (s-get [_ h] (store/s-get inner h))
-  (s-put [this h value] (store/s-put inner h value) this)
+  (s-put [this h value]
+    (store/await (store/s-put inner h value))
+    (store/completed this))
   (s-has? [_ h] (store/s-has? inner h))
-  (s-delete [this h] (store/s-delete inner h) this)
+  (s-delete [this h]
+    (store/await (store/s-delete inner h))
+    (store/completed this))
   (s-snapshot [_] (store/s-snapshot inner))
-  (s-merge [this m] (store/s-merge inner m) this)
-  (s-reset [this] (store/s-reset inner) this))
+  (s-merge [this m]
+    (store/await (store/s-merge inner m))
+    (store/completed this))
+  (s-reset [this]
+    (store/await (store/s-reset inner))
+    (store/completed this)))
 
 (defn rate-limit-store
   "Wrap inner store with a token-bucket limiter on send-chunk!.

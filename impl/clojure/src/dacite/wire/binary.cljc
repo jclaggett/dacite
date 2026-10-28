@@ -1199,10 +1199,10 @@
         exists (atom [])]
     (doseq [{:keys [enc hash entry literal]} items]
       (let [hex (store/hash->hex hash)
-            had? (store/s-has? st hash)]
+            had? (store/await (store/s-has? st hash))]
         (case enc
           :node
-          (do (store/s-put st hash entry)
+          (do (store/await (store/s-put st hash entry))
               (if had?
                 (swap! exists conj hex)
                 (swap! created conj hex)))

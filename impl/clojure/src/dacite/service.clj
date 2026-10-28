@@ -295,12 +295,12 @@
                                          :detail (.getMessage e)})}))
 
              "HEAD"
-             (if (store/s-has? rooted h)
+             (if (store/await (store/s-has? rooted h))
                {:status 200}
                {:status 404})
 
              "DELETE"
-             (do (store/s-delete rooted h)
+             (do (store/await (store/s-delete rooted h))
                  {:status 204})))
 
          :else

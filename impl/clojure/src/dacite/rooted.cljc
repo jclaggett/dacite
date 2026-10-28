@@ -187,19 +187,19 @@
   store/IStore
   (s-get [_ h] (store/s-get content h))
   (s-put [this h value]
-    (store/s-put content h value)
-    this)
+    (store/await (store/s-put content h value))
+    (store/completed this))
   (s-has? [_ h] (store/s-has? content h))
   (s-delete [this h]
-    (store/s-delete content h)
-    this)
+    (store/await (store/s-delete content h))
+    (store/completed this))
   (s-snapshot [_] (store/s-snapshot content))
   (s-merge [this m]
-    (store/s-merge content m)
-    this)
+    (store/await (store/s-merge content m))
+    (store/completed this))
   (s-reset [this]
-    (store/s-reset content)
-    this)
+    (store/await (store/s-reset content))
+    (store/completed this))
 
   #?@(:bb []
       :clj

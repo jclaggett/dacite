@@ -14,10 +14,10 @@
   (let [live (gc/mark-reachable src root-h)]
     (reduce (fn [acc hex]
               (let [h (gc/->hash hex)]
-                (if (store/s-has? dest h)
+                (if (store/await (store/s-has? dest h))
                   (update acc :skipped inc)
-                  (if-let [node (store/s-get src h)]
-                    (do (store/s-put dest h node)
+                  (if-let [node (store/await (store/s-get src h))]
+                    (do (store/await (store/s-put dest h node))
                         (update acc :copied inc))
                     acc))))
             {:copied 0 :skipped 0 :live (count live) :via :nodes}
@@ -34,7 +34,7 @@
     {:copied 0 :skipped 0 :live 0 :via :nodes}
 
     (pack/find-chunk-transport dest)
-    (let [skip (set (map gc/hash-key (keys (or (store/s-snapshot dest) {}))))
+    (let [skip (set (map gc/hash-key (keys (or (store/await (store/s-snapshot dest)) {}))))
           result (pack/flush-from! dest src root-h skip)]
       {:copied (long (:items result 0))
        :skipped 0

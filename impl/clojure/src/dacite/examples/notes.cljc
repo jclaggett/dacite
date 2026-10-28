@@ -162,7 +162,7 @@
 (defn node-count
   "Number of entries in the value's content store (all versions)."
   [v]
-  (count (store/s-snapshot (v/dacite-store v))))
+  (count (store/await (store/s-snapshot (v/dacite-store v)))))
 
 (defn measure-sharing
   "Apply a title-only edit then a body rewrite. Returns node deltas and

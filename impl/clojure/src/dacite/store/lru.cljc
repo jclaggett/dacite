@@ -9,9 +9,10 @@
 (defrecord LruStore [capacity data order]
   store/IStore
   (s-get [_ h]
-    (when-let [v (get @data h)]
-      (swap! order touch-order h)
-      v))
+    (store/completed
+     (when-let [v (get @data h)]
+       (swap! order touch-order h)
+       v)))
 
   (s-put [this h value]
     (let [new-key? (not (contains? @data h))]
@@ -21,28 +22,28 @@
           (swap! order #(vec (rest %)))))
       (swap! data assoc h value)
       (swap! order touch-order h))
-    this)
+    (store/completed this))
 
   (s-has? [_ h]
-    (contains? @data h))
+    (store/completed (contains? @data h)))
 
   (s-delete [this h]
     (swap! data dissoc h)
     (swap! order #(vec (remove (fn [k] (= k h)) %)))
-    this)
+    (store/completed this))
 
   (s-snapshot [_]
-    @data)
+    (store/completed @data))
 
   (s-merge [this m]
     (doseq [[h v] m]
-      (store/s-put this h v))
-    this)
+      (store/await (store/s-put this h v)))
+    (store/completed this))
 
   (s-reset [this]
     (reset! data {})
     (reset! order [])
-    this))
+    (store/completed this)))
 
 (defn lru-store
   "Create an LRU-bounded in-memory store. capacity 0 means unbounded."

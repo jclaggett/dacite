@@ -50,12 +50,12 @@
 (defn- node-root
   "Root tree hash of a stored collection node."
   [store h]
-  (:root (types/entry-data (store/s-get store h))))
+  (:root (types/entry-data (store/require-node store h))))
 
 (defn- wrap-hash
   "Wrap a raw hash in the appropriate Dacite value (internal helper)."
   [store h]
-  (types/wrap-entry (types/entry-type (store/s-get store h)) store h))
+  (types/wrap-entry (types/entry-type (store/require-node store h)) store h))
 
 (defn- store-seq-node!
   "Persist a sequence collection node (string/blob/vector) over a finger
@@ -63,9 +63,9 @@
   [store type-name root]
   (let [ef (ft/ft-elements-fuse store root)
         h (types/value-hash type-name ef)]
-    (store/s-put store h [type-name {:root root
-                                     :count (ft/ft-count store root)
-                                     :size-bytes (ft/ft-size-bytes store root)}])
+    (store/await (store/s-put store h [type-name {:root root
+                                                  :count (ft/ft-count store root)
+                                                  :size-bytes (ft/ft-size-bytes store root)}]))
     h))
 
 (defn- store-assoc-node!
@@ -74,9 +74,9 @@
   [store type-name root]
   (let [ef (hamt/hamt-elements-fuse store root)
         h (types/value-hash type-name ef)]
-    (store/s-put store h [type-name {:root root
-                                     :count (hamt/hamt-count store root)
-                                     :size-bytes (hamt/hamt-size-bytes store root)}])
+    (store/await (store/s-put store h [type-name {:root root
+                                                  :count (hamt/hamt-count store root)
+                                                  :size-bytes (hamt/hamt-size-bytes store root)}]))
     h))
 
 (defn- ft-build!
@@ -101,7 +101,7 @@
 (defn coll-count
   "Element/entry count of any Dacite collection, O(1)."
   [store h]
-  (:count (types/entry-data (store/s-get store h))))
+  (:count (types/entry-data (store/require-node store h))))
 
 (defn seq-vals
   "Wrapped elements of a sequence collection (string/blob/vector), or nil
@@ -120,7 +120,7 @@
   "Host byte buffer for blob `h`, or nil if its tree is not u8 pages.
    Copies each page buffer. Does not box the bytes."
   [store h]
-  (let [data (types/entry-data (store/s-get store h))
+  (let [data (types/entry-data (store/require-node store h))
         n (long (or (:count data) 0))]
     (ft/ft-export-u8 store (:root data) n)))
 
@@ -158,7 +158,7 @@
   "Remove element at index i from a sequence collection (vector/string/blob).
    Returns a new Dacite value of the same type."
   [store h i]
-  (let [type-name (types/entry-type (store/s-get store h))
+  (let [type-name (types/entry-type (store/require-node store h))
         nr (ft/ft-remove-nth store (node-root store h) i)
         new-h (store-seq-node! store type-name nr)]
     (types/wrap-entry type-name store new-h)))
@@ -176,7 +176,7 @@
    rebuilt in O((end-start) log n) via nth — any page costs that, not O(n).
    The full-range slice is the original value."
   [store h start end]
-  (let [type-name (types/entry-type (store/s-get store h))
+  (let [type-name (types/entry-type (store/require-node store h))
         n (coll-count store h)
         start (long start)
         end (long end)]
@@ -267,7 +267,7 @@
   (dacite-store [_] store)
   (dacite-type [_] "string")
   (realize [_]
-    (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
+    (let [{:keys [root count]} (types/entry-data (store/require-node store _hash))]
       (when (pos? count)
         (realize-hashes store (ft/ft-seq store root)))))
 
@@ -277,7 +277,7 @@
        (hasheq [_] (hash/hash->int _hash))
 
        Counted
-       (count [_] (:count (types/entry-data (store/s-get store _hash))))
+       (count [_] (:count (types/entry-data (store/require-node store _hash))))
 
        Seqable
        (seq [this]
@@ -287,11 +287,11 @@
        (length [this] (.count this))
        (charAt [_ i]
                (types/entry-data
-                (store/s-get store
-                             (ft/ft-nth store (node-root store _hash) i))))
+                (store/require-node store
+                                    (ft/ft-nth store (node-root store _hash) i))))
        (subSequence [_ start end]
                     (apply clojure.core/str
-                           (map #(types/entry-data (store/s-get store %))
+                           (map #(types/entry-data (store/require-node store %))
                                 (->> (ft/ft-seq store (node-root store _hash))
                                      (drop start)
                                      (take (- end start))))))
@@ -313,7 +313,7 @@
   (dacite-store [_] store)
   (dacite-type [_] "blob")
   (realize [_]
-    (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
+    (let [{:keys [root count]} (types/entry-data (store/require-node store _hash))]
       (when (pos? count)
         (realize-hashes store (ft/ft-seq store root)))))
 
@@ -323,7 +323,7 @@
        (hasheq [_] (hash/hash->int _hash))
 
        Counted
-       (count [_] (:count (types/entry-data (store/s-get store _hash))))
+       (count [_] (:count (types/entry-data (store/require-node store _hash))))
 
        Seqable
        (seq [this]
@@ -346,7 +346,7 @@
   (dacite-store [_] store)
   (dacite-type [_] "vector")
   (realize [_]
-    (let [{:keys [root count]} (types/entry-data (store/s-get store _hash))]
+    (let [{:keys [root count]} (types/entry-data (store/require-node store _hash))]
       (when (pos? count)
         (realize-hashes store (ft/ft-seq store root)))))
 
@@ -356,7 +356,7 @@
        (hasheq [_] (hash/hash->int _hash))
 
        Counted
-       (count [_] (:count (types/entry-data (store/s-get store _hash))))
+       (count [_] (:count (types/entry-data (store/require-node store _hash))))
 
        Seqable
        (seq [this]
@@ -453,7 +453,7 @@
        (hasheq [_] (hash/hash->int _hash))
 
        Counted
-       (count [_] (:count (types/entry-data (store/s-get store _hash))))
+       (count [_] (:count (types/entry-data (store/require-node store _hash))))
 
        Seqable
        (seq [_]
@@ -546,7 +546,7 @@
        (hasheq [_] (hash/hash->int _hash))
 
        Counted
-       (count [_] (:count (types/entry-data (store/s-get store _hash))))
+       (count [_] (:count (types/entry-data (store/require-node store _hash))))
 
        Seqable
        (seq [_]

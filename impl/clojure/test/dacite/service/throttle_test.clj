@@ -172,7 +172,7 @@
                             "Authorization" "Bearer fat"}
                            body)]
         (is (= 413 (:status resp)))
-        (is (nil? (store/s-get rooted (store/hex->hash hex)))))
+        (is (nil? (store/await (store/s-get rooted (store/hex->hash hex))))))
       (finally
         (stop!)))))
 
@@ -189,10 +189,10 @@
       (let [remote (remote/remote-store base-url {:token "retry-me" :binary false})
             h1 (store/hex->hash (apply str (repeat 64 "1")))
             h2 (store/hex->hash (apply str (repeat 64 "2")))]
-        (store/s-put remote h1 ["i64" 1])
-        (store/s-put remote h2 ["i64" 2])
-        (is (= ["i64" 1] (store/s-get remote h1)))
-        (is (store/s-has? rooted h2)))
+        (store/await (store/s-put remote h1 ["i64" 1]))
+        (store/await (store/s-put remote h2 ["i64" 2]))
+        (is (= ["i64" 1] (store/await (store/s-get remote h1))))
+        (is (store/await (store/s-has? rooted h2))))
       (finally
         (stop!)))))
 
@@ -202,8 +202,8 @@
     (try
       (let [remote (remote/remote-store base-url)
             h (store/hex->hash (apply str (repeat 64 "c")))]
-        (store/s-put remote h ["bool" true])
-        (is (= ["bool" true] (store/s-get remote h)))
+        (store/await (store/s-put remote h ["bool" true]))
+        (is (= ["bool" true] (store/await (store/s-get remote h))))
         (is (true? (remote/remote-cas-root! remote nil h))))
       (finally
         (stop!)))))

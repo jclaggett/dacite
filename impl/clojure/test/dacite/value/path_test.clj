@@ -118,7 +118,7 @@
     (is (thrown? clojure.lang.ExceptionInfo (v/as-bytes b 2)))
     (is (thrown? clojure.lang.ExceptionInfo
                  (v/as-bytes (v/string st "nope"))))
-    (store/s-delete st (v/hash b))
+    (store/await (store/s-delete st (v/hash b)))
     (try
       (v/as-bytes b)
       (is false "expected missing throw")

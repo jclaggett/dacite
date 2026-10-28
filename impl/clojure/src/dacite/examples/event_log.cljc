@@ -160,7 +160,7 @@
 
 (defn node-count
   [v]
-  (count (store/s-snapshot (v/dacite-store v))))
+  (count (store/await (store/s-snapshot (v/dacite-store v)))))
 
 (defn measure-append
   "Node-delta of one append at each size in `sizes`. Builds a fresh ledger

@@ -95,7 +95,7 @@
       (let [st (store/mem-store)]
         (bin/apply-chunk-message! st dec)
         (when (:hash-hex fx)
-          (is (store/s-has? st (store/hex->hash (:hash-hex fx)))
+          (is (store/await (store/s-has? st (store/hex->hash (:hash-hex fx))))
               (str "hash present " id)))))))
 
 (deftest fixture-manifest-covers-public-types
@@ -173,7 +173,7 @@
         _ (bin/apply-chunk-message! st2 dec)]
     (is (= (bin/bytes->hex bs) (bin/bytes->hex (bin/encode-chunk dec)))
         (str "literal re-encode " (types/dacite-type v)))
-    (is (store/s-has? st2 h)
+    (is (store/await (store/s-has? st2 h))
         (str "literal apply " (types/dacite-type v)))
     (is (= h (pack/materialize-literal!
               (store/mem-store)
@@ -191,7 +191,7 @@
 (defn- round-trip-node!
   [st v]
   (let [h (types/dacite-hash v)
-        entry (store/s-get st h)
+        entry (store/await (store/s-get st h))
         msg {:budget 0
              :items [{:enc :node :hash h :entry entry}]}
         bs (bin/encode-chunk msg)
@@ -200,9 +200,9 @@
         _ (bin/apply-chunk-message! st2 dec)]
     (is (= (bin/bytes->hex bs) (bin/bytes->hex (bin/encode-chunk dec)))
         (str "node re-encode " (types/dacite-type v)))
-    (is (store/s-has? st2 h)
+    (is (store/await (store/s-has? st2 h))
         (str "node apply has " (types/dacite-type v)))
-    (is (= (entry-canon entry) (entry-canon (store/s-get st2 h)))
+    (is (= (entry-canon entry) (entry-canon (store/await (store/s-get st2 h))))
         (str "node apply entry " (types/dacite-type v)))))
 
 (deftest live-public-scalars-node-and-literal
@@ -257,7 +257,7 @@
         empty-hamt (hamt/hamt-empty st)
         entry-h (hamt/hamt-entry-node st kh kh vh)]
     (doseq [h [dig-h empty-ft empty-hamt entry-h]]
-      (let [entry (store/s-get st h)
+      (let [entry (store/await (store/s-get st h))
             t (types/entry-type entry)
             v-wrap nil]
         (testing t
@@ -270,7 +270,7 @@
                 (str "node re-encode " t))
             (let [st2 (store/mem-store)]
               (bin/apply-chunk-message! st2 dec)
-              (is (= entry (store/s-get st2 h)))))
+              (is (= entry (store/await (store/s-get st2 h))))))
           (when-let [form (pack/literal-of st h)]
             (let [msg {:budget 1024
                        :items [{:enc :literal :hash h :literal form}]}
@@ -281,7 +281,7 @@
                      (bin/bytes->hex (bin/encode-chunk dec)))
                   (str "literal re-encode " t))
               (bin/apply-chunk-message! st2 dec)
-              (is (store/s-has? st2 h)))))))))
+              (is (store/await (store/s-has? st2 h))))))))))
 
 (deftest fixture-literal-i64-42-matches-and-round-trips
   (let [fx (bin/load-fixture "chunk-literal-i64-42")
@@ -306,8 +306,8 @@
     (let [st (store/mem-store)
           r (bin/apply-chunk-message! st decoded)]
       (is (= 1 (:applied r)))
-      (is (store/s-has? st h))
-      (is (= ["i64" 42] (store/s-get st h))))))
+      (is (store/await (store/s-has? st h)))
+      (is (= ["i64" 42] (store/await (store/s-get st h)))))))
 
 (deftest reject-bad-magic-and-version
   (is (thrown-with-msg? Exception #"bad magic"
@@ -335,7 +335,7 @@
     (is (true? (:dacite.wire/chunk-v1 back)))
     (is (= 1 (count (:items back))))
     (pack/apply-chunk! st2 back)
-    (is (store/s-has? st2 h))
+    (is (store/await (store/s-has? st2 h)))
     (is (= (bin/bytes->hex bs)
            (bin/bytes->hex (bin/encode-pack-edn back))))))
 
@@ -349,7 +349,7 @@
           _ (bin/apply-chunk-message! st dec)
           live (scalar/i8-with-store (store/mem-store) -5)]
       (is (= h (types/dacite-hash live)))
-      (is (= ["i8" -5] (store/s-get st h)))))
+      (is (= ["i8" -5] (store/await (store/s-get st h))))))
   (testing "negative f32 (sign bit set on wire)"
     (let [fx (bin/load-fixture "chunk-literal-f32-neg1.5")
           dec (bin/decode-chunk (:message-bytes fx))
@@ -357,7 +357,7 @@
           st (store/mem-store)
           _ (bin/apply-chunk-message! st dec)
           live (scalar/f32-with-store (store/mem-store) (float -1.5))
-          entry (store/s-get st h)]
+          entry (store/await (store/s-get st h))]
       (is (= h (types/dacite-hash live)))
       (is (= "f32" (first entry)))
       (is (= (float -1.5) (float (second entry))))))
@@ -370,4 +370,4 @@
           live-st (store/mem-store)
           live (coll/hash-map-with-store live-st "a" 1 "b" 2)]
       (is (= h (types/dacite-hash live)))
-      (is (store/s-has? st h)))))
+      (is (store/await (store/s-has? st h))))))

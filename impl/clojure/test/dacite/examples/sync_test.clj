@@ -52,7 +52,7 @@
 (deftest missing-blob-is-catchable
   (let [empty (store/mem-store)
         ghost (v/blob empty (byte-array [1]))]
-    (store/s-delete empty (v/hash ghost))
+    (store/await (store/s-delete empty (v/hash ghost)))
     (try
       (v/as-bytes ghost)
       (is false "expected missing-blob throw")
@@ -72,15 +72,15 @@
           (stats/reset-stats!)
           (let [one (:delta
                      (stats/measure
-                      #(store/s-get (remote/remote-store base-url) h-readme)))
+                      #(store/await (store/s-get (remote/remote-store base-url) h-readme))))
                 _ (stats/reset-stats!)
                 all (:delta
                      (stats/measure
                       (fn []
                         (let [r (remote/remote-store base-url)]
-                          (store/s-get r h-readme)
-                          (store/s-get r h-note)
-                          (store/s-get r h-data)))))]
+                          (store/await (store/s-get r h-readme))
+                          (store/await (store/s-get r h-note))
+                          (store/await (store/s-get r h-data))))))]
             (is (pos? (:bytes-recv one)))
             (is (< (:bytes-recv one) (:bytes-recv all))
                 "fetching one file must not pull sibling blobs"))))

@@ -20,8 +20,8 @@
           dead-v (v/i64 s 99)
           dead-h (v/hash dead-v)]
       (is (= {:removed 1 :kept 1} (gc/collect-garbage! s live-h)))
-      (is (store/s-has? s live-h))
-      (is (not (store/s-has? s dead-h))))))
+      (is (store/await (store/s-has? s live-h)))
+      (is (not (store/await (store/s-has? s dead-h)))))))
 
 (deftest collect-garbage-collection-test
   (testing "removes detached collection tree"
@@ -29,12 +29,12 @@
           v1 (v/vector s 1 2)
           h1 (v/hash v1)]
       (v/vector s 3 4)
-      (let [before (count (store/s-snapshot s))
+      (let [before (count (store/await (store/s-snapshot s)))
             result (gc/collect-garbage! s h1)
-            after (count (store/s-snapshot s))]
+            after (count (store/await (store/s-snapshot s)))]
         (is (< after before))
         (is (pos? (:removed result)))
-        (is (store/s-has? s h1))))))
+        (is (store/await (store/s-has? s h1)))))))
 
 (deftest collect-garbage-rooted-store-test
   (testing "collect-garbage! on rooted store uses content + current root"
@@ -45,7 +45,7 @@
           live-h (v/hash live)]
       (reset! s live-h)
       (is (= {:removed 1 :kept 1} (rs/collect-garbage! s)))
-      (is (store/s-has? s live-h)))))
+      (is (store/await (store/s-has? s live-h))))))
 
 (deftest collect-garbage-nil-root-test
   (testing "nil root removes everything"
