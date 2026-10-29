@@ -61,9 +61,21 @@ Do this next:
    queues a reset or evicted page again. A hash already held, or still
    offered, is skipped. Asking again for a hash still open resumes the
    pages the client does not hold and restarts that clock at the peak.
-   No path, header, or frame is chosen yet. The pages on that stream
-   are the carrier a later peer reuses. Signaling and a peer list stay
-   out of this milestone.
+   `POST /reveal` is that stream. The body is EDN `{:hash "<64 hex>"}`.
+   The response is `application/vnd.dacite.item-stream.v1`: a
+   concatenation of wire-v1 node items, no chunk envelope, and no
+   `Content-Length`. One connection keeps one session. On HTTP/3 the
+   connection is the QUIC session, because each request is its own
+   stream object. A stream that finishes acknowledges the pages it
+   wrote. A stream that fails cancels that reveal and releases those
+   offers. There is no client ack or release message yet, so that
+   completion stands in for one. `remote-store` opts into the stream
+   with `:reveal`: a missing hash is one `POST /reveal` on a kept
+   HTTP/3 connection, and the pages land in its local cache. The
+   default read is still pack GET.
+   `peak`, `tau`, `floor`, and `r-max` are placeholders, not chosen
+   from load. The pages on that stream are the carrier a later peer
+   reuses. Signaling and a peer list stay out of this milestone.
 
 **Stream a pack on one HTTP response** follows the reveal client. It is
 the HTTP/1.1 carrier of the byte limit in *How every client reveals a
@@ -497,7 +509,7 @@ is the next milestone.
 | HTTP/3 server | The JDK server is HTTP/1.1 only | **Done** — Jetty. Cleartext HTTP/1.1 stays `base-url`. HTTP/3 is UDP on the same port, `Alt-Svc`, self-signed dev cert. Java 21 `HttpClient` still has no `HTTP_3` |
 | Asynchronous IStore | Every store is the same dictionary, local or remote | **Done** — methods return promises. JVM and babashka block in `await`. A missing required node is `:missing`; a store that cannot answer is `:unavailable`. ClojureScript walks still replay through `drive` |
 | IndexedDB store | A web client needs a durable store of its own | **Done** — `dacite.store.idb`. `open` is a rooted store; `idb-store` is the content dictionary a `SmartCacheStore` can put in front of a remote. Ops suspend and `drive` replays them |
-| QUIC reveal client | A focused child collection is its own stream | **Next** — `dacite.reveal` is the default page order, the interest shares, and the session clock (whole pages, wire-item bytes, session dedup, resume at the peak). The carrier is still open: `remote-store`, one connection, one stream per focused child, reset cancels, root notice stays up. No path, header, or frame yet. The pages on that stream are the carrier the LAN peer tier reuses. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
+| QUIC reveal client | A focused child collection is its own stream | **Next** — `POST /reveal` streams wire-v1 node items on one connection (the QUIC session on HTTP/3). A finished stream acknowledges its pages; a failed stream cancels and releases them. No client ack or release message yet. `remote-store` opts in with `:reveal` and keeps one HTTP/3 connection; the default read is still pack GET. `peak`, `tau`, `floor`, and `r-max` are placeholders. `dacite.reveal` remains the page order, the shares, and the session clock. The pages on that stream are the carrier the LAN peer tier reuses. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
 | Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the reveal client** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
 | LAN peering | A second reader on the LAN should take pages from a neighbor's cache | **After the reveal stream** — memory, then IndexedDB or LMDB, then one preferred peer, then the origin. One WebRTC data channel carries one reveal. The origin relays signaling and suggests peers by locality. The peer built here is a configured Node process on nbb LMDB. Reads only. Root CAS and `GET /events` stay on the origin. Direct traffic, concurrent peers capped. The account is [design/peering-design-note.md](design/peering-design-note.md) |
 
@@ -577,10 +589,11 @@ Asynchronous IStore                                ✓ promises
 IndexedDB store for web clients                    ✓ dacite.store.idb
         → rooted open, or the content store in front of remote
 QUIC reveal client                                 ← current
-        → dacite.reveal is the page order, the shares,
-          and the session clock; the stream carrier
-          is still open. Pages on that stream are
-          what a peer reuses
+        → POST /reveal streams wire-v1 items on one
+          connection. remote-store opts in with
+          :reveal; the default read is still pack
+          GET. Pages on that stream are what a peer
+          reuses
 Stream a pack on one HTTP response                 after the reveal client
         → HTTP/1.1 carrier of the byte limit
 LAN peering                                        after the reveal stream

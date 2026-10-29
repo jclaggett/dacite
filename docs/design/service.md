@@ -21,12 +21,17 @@ Client                          Server
   +--- HEAD /node/{hex} -------->|  s-has?
   +--- POST /nodes -------------->|  apply pack chunk (write)
   +--- POST /nodes/get ---------->|  bulk pack (demoted; admin/sync only)
+  +--- POST /reveal ------------->|  one reveal stream (wire-v1 items)
   +--- GET /root ---------------->|  @store (root hash or null)
   +--- POST /root/cas ------------>|  compare-and-set! on rooted store
 ```
 
 `GET /events` — SSE root announcements (`event: root`, EDN `{:root hex-or-nil}`).
 First event is the current root; later events fire on successful CAS.
+
+`POST /reveal` — one focused hash. The body is EDN `{:hash "<64 hex>"}`.
+The response is `application/vnd.dacite.item-stream.v1` (concatenated
+wire-v1 node items, no `Content-Length`). See [Reveal](#post-reveal).
 
 ## Authentication
 
@@ -46,6 +51,8 @@ capability). If the header is absent, the bucket is the remote IP. See
 - `application/vnd.dacite.chunk.v1` — wire-v1 binary **chunk** bodies for pack-filled
   `GET /node/{hex}` (when `Accept` prefers it) and `POST /nodes` (when
   `Content-Type` is binary). See [wire-v1.md](../spec/wire-v1.md).
+- `application/vnd.dacite.item-stream.v1` — `POST /reveal` response only.
+  Concatenated wire-v1 items, not a chunk. See [wire-v1.md](../spec/wire-v1.md).
 
 JVM `remote-store` defaults to binary for pack GET/POST; browser demo still uses EDN.
 
@@ -152,6 +159,60 @@ and unbounded server work (DoS-shaped on large roots). Prefer pack-filled
 
 Kept for admin/sync/tools: same request/response as before
 (`:roots`, `:have`, `:budget` → `:chunks`).
+
+## Reveal
+
+### `POST /reveal`
+
+Stream one focused hash. This is the QUIC reveal carrier. It is not pack
+GET. `remote-store` uses it only when opened with `:reveal`.
+
+**Request.** `Content-Type: application/edn`. Body: `{:hash "<64 hex>"}`.
+A body that is not that map, or a hash that is not 64 lowercase hex
+characters, is **400** with `{:error "malformed reveal"}`.
+
+**Response 200.** `Content-Type: application/vnd.dacite.item-stream.v1`.
+No `Content-Length`. The body is a concatenation of wire-v1 **node**
+items, one page each, in reveal order. An empty body is a completed
+reveal that had nothing left to send. `Cache-Control: no-store`.
+
+**Response 404.** The hash is not in the store. No body, same as
+`GET /node/{hex}`.
+
+One HTTP connection keeps one `dacite.reveal` session. A later `POST
+/reveal` on that connection shares the rate and skips hashes the session
+has offered or holds. On HTTP/3 the connection is the QUIC session:
+`ConnectionMetaData.getConnection` is the request stream, a new object
+every time, so the session is keyed by the QUIC session on that stream's
+endpoint. On HTTP/1.1 the metadata connection is the TCP connection.
+
+The handler blocks the request thread until the walk finishes, as
+`GET /events` does. The stream holds one API throttle slot for that
+whole time, not an SSE slot. A body over `:max-body-bytes` is **413**.
+
+When the walk finishes, the server acknowledges the pages that stream
+wrote (`ack-pages`) and ends the response. When the write fails or the
+reveal times out, the server cancels that reveal and releases those
+offers, so a retry on the same connection can send them. There is no
+client-to-server ack or release message yet. That inference is a gap.
+
+`peak`, `tau`, `floor`, and `r-max` are server configuration, merged
+over `:reveal` passed to `start-server!`. The defaults are placeholders:
+`{:peak 1.0 :tau 1.0 :floor 0.0 :r-max 1.0e7}`. A floor at or below 0
+does not pause a reveal. The rate is not derived from load or the pipe.
+`GET /events` stays the root-notice stream. `GET /node/{hex}` stays the
+pack.
+
+`dacite.store.remote` opts in with `:reveal {:url h3-url :client client}`.
+`:url` is the HTTP/3 origin. `:client` is a started Jetty HTTP/3 client
+from `dacite.store.reveal/open-client`, one connection per destination.
+Omitted, the store opens that client (`:trust-all` accepts the dev
+certificate). A missing local hash is one `POST /reveal`. Items are
+read as their bytes arrive, checked, and stored in the pack cache. The
+get returns when the stream ends. A later get of a page that stream
+stored is local. PUT, DELETE, root CAS, and `watch-root` stay on the
+cleartext `base-url` and the JDK client. Without `:reveal`, `s-get` is
+still pack GET.
 
 ## Root endpoints (maps to rooted store)
 
@@ -279,7 +340,8 @@ Body (EDN): `{:ok false :error "rate limited" :retry-after-s n}` (or
 `OPTIONS` and `/app/*` are unmetered. A `/app/` path that is a directory
 serves `index.html` (todo at `/app/`, explorer at `/app/explorer/`).
 `GET /events` counts against the SSE
-caps only (not the request bucket). `POST /nodes/get` `:budget` and start
+caps only (not the request bucket). `POST /reveal` holds one API slot
+for the whole stream. `POST /nodes/get` `:budget` and start
 hash lists are **clamped** to the server maxima (still 200).
 
 JVM `remote-store` retries 429/503 up to 8 times using `Retry-After`.

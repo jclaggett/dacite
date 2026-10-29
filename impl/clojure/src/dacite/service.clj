@@ -11,6 +11,7 @@
      GET  /root         — {:root hex-or-nil}
      POST /root/cas     — {:expected hex-or-nil :new hex} → 200/409
      GET  /events       — SSE root announcements (text/event-stream)
+     POST /reveal       — one reveal stream (wire-v1 items, paced)
 
    Cleartext HTTP/1.1 is the `base-url` (existing clients, browser demos).
    The same handler also speaks HTTP/3 on UDP, advertised with Alt-Svc.
@@ -24,12 +25,14 @@
             [dacite.rooted :as rs]
             [dacite.wire :as wire]
             [dacite.wire.binary :as bin]
-            [dacite.service.throttle :as throttle])
+            [dacite.service.throttle :as throttle]
+            [dacite.service.reveal :as rv])
   (:import [java.nio ByteBuffer]
            [java.nio.charset StandardCharsets]
            [org.eclipse.jetty.http3.server HTTP3ServerConnectionFactory
             HTTP3ServerQuicConfiguration]
            [org.eclipse.jetty.io Content$Sink Content$Source]
+           [org.eclipse.jetty.quic.common StreamEndPoint]
            [org.eclipse.jetty.quic.quiche.server QuicheServerConnector
             QuicheServerQuicConfiguration]
            [org.eclipse.jetty.server ConnectionFactory Handler$Abstract
@@ -51,6 +54,20 @@
   [^Request request name]
   (when request
     (.get (.getHeaders request) ^String name)))
+
+(defn- reveal-conn-key
+  "The connection this request belongs to.
+
+   On HTTP/3, `ConnectionMetaData.getConnection` is the stream, a new
+   object for every request. The QUIC session on that stream's endpoint
+   is the connection, and later reveals on it share one session. On
+   HTTP/1.1 the metadata connection is already the TCP connection."
+  [^Request request]
+  (let [conn (.getConnection (.getConnectionMetaData request))
+        ep (.getEndPoint conn)]
+    (if (instance? StreamEndPoint ep)
+      (.getSession (.getProtocolSession ^StreamEndPoint ep))
+      conn)))
 
 (defn- remote-host [^Request request]
   (when-let [addr (.getRemoteSocketAddress (.getConnectionMetaData request))]
@@ -446,8 +463,77 @@
                        :pack-get-max-starts (get-in th [:opts :pack-get-max-starts])})]
             (write-response! response resp h3)))))))
 
+(defn- serve-reveal!
+  "Stream one reveal of the hash named by the EDN body.
+
+   The body is `{:hash \"<hex>\"}`. The response has no Content-Length.
+   Its bytes are wire-v1 items, written as the session clock covers them."
+  [^Request request ^Response response rooted table params h3]
+  (let [raw (try
+              (.readAllBytes (Content$Source/asInputStream request))
+              (catch Exception _ ::bad))
+        h (when-not (= raw ::bad)
+            (try
+              (let [data (wire/read-edn (String. ^bytes raw StandardCharsets/UTF_8))
+                    hex (:hash data)]
+                (when-not (and (string? hex)
+                               (= 64 (count hex))
+                               (re-matches #"[0-9a-f]+" hex))
+                  (throw (ex-info "reveal hash required" {})))
+                (store/hex->hash hex))
+              (catch Exception _ ::bad)))]
+    (cond
+      (or (= raw ::bad) (= h ::bad))
+      (write-response! response
+                       {:status 400
+                        :content-type ct-edn
+                        :body (wire/write-edn {:error "malformed reveal"})}
+                       h3)
+
+      (not (store/await (store/s-has? rooted h)))
+      (write-response! response {:status 404} h3)
+
+      :else
+      (let [conn (rv/ensure-conn table
+                                 (reveal-conn-key request)
+                                 rooted
+                                 params)
+            headers (.getHeaders response)]
+        (.setStatus response 200)
+        (apply-common-headers! response h3 nil)
+        (.put headers "Content-Type" rv/content-type)
+        (.put headers "Cache-Control" "no-store")
+        (let [out (Content$Sink/asOutputStream response)]
+          (try
+            (rv/begin-reveal! conn h out)
+            (finally
+              (try (.close out) (catch Exception _ nil)))))))))
+
+(defn- handle-reveal!
+  [^Request request ^Response response th rooted table params h3]
+  (let [ck (when th
+             (throttle/client-key (header-val request "Authorization")
+                                  (remote-host request)))]
+    (if (nil? th)
+      (serve-reveal! request response rooted table params h3)
+      (let [adm (throttle/acquire-api! th ck)]
+        (if-not (:ok adm)
+          (do (drain-body! request)
+              (write-response! response (deny-response adm) h3))
+          (try
+            (let [max-body (get-in th [:opts :max-body-bytes])
+                  cl (header-val request "Content-Length")]
+              (if (throttle/content-length-too-large? cl max-body)
+                (do (drain-body! request)
+                    (write-response! response
+                                     (deny-response (throttle/body-too-large))
+                                     h3))
+                (serve-reveal! request response rooted table params h3)))
+            (finally
+              (throttle/release-api! th ck))))))))
+
 (defn- handle-request!
-  [^Request request ^Response response th rooted static hub h3]
+  [^Request request ^Response response th rooted static hub h3 table params]
   (let [method (.getMethod request)
         uri (.getHttpURI request)
         path (.getPath uri)
@@ -457,6 +543,9 @@
              (throttle/client-key (header-val request "Authorization")
                                   (remote-host request)))]
     (cond
+      (and (= "POST" method) (= path "/reveal"))
+      (handle-reveal! request response th rooted table params h3)
+
       (and (= "GET" method) (= path "/events"))
       (if (nil? th)
         (handle-sse! response hub rooted h3)
@@ -488,11 +577,11 @@
             (finally
               (throttle/release-api! th ck))))))))
 
-(defn- make-handler [th rooted static hub h3]
+(defn- make-handler [th rooted static hub h3 table params]
   (proxy [Handler$Abstract] []
     (handle [^Request request ^Response response ^Callback callback]
       (try
-        (handle-request! request response th rooted static hub h3)
+        (handle-request! request response th rooted static hub h3 table params)
         (.succeeded callback)
         (catch Exception e
           (try
@@ -596,7 +685,9 @@
   [opts]
   (System/setProperty "org.eclipse.jetty.LEVEL" "WARN")
   (let [{:keys [port rooted static-dir] :or {port 0}} opts
-        th (throttle/create (:throttle opts true))]
+        th (throttle/create (:throttle opts true))
+        reveals (atom {})
+        reveal-params (merge rv/default-params (:reveal opts))]
     (when-not rooted
       (throw (ex-info "rooted store required" {})))
     (let [static (when static-dir (io/file static-dir))
@@ -632,7 +723,8 @@
          (onOpen [_ connector]
            (when (zero? (.getPort h3))
              (.setPort h3 (.getLocalPort ^NetworkConnector connector))))))
-      (.setHandler server (make-handler th rooted static hub h3))
+      (.setHandler server (make-handler th rooted static hub h3
+                                        reveals reveal-params))
       (try
         (.start server)
         (catch Exception e
@@ -653,6 +745,7 @@
          :throttle th
          :stop! (fn []
                   (try
+                    (rv/stop-all! reveals)
                     ((:close! hub))
                     (.stop server)
                     (finally

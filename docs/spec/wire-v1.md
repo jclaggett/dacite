@@ -27,8 +27,8 @@
 
 ### Chunk-only transport
 
-Every binary HTTP/IPC body is a **chunk message**. A single hash is a **one-item
-chunk**, not a privileged message type.
+Every binary HTTP/IPC body is a **chunk message**, except a reveal stream
+(below). A single hash is a **one-item chunk**, not a privileged message type.
 
 This keeps one decoder path and steers clients toward pack-filled GET and multi-item
 POST rather than per-node PUT storms.
@@ -97,6 +97,16 @@ Implementations may reject messages larger than an application limit (DoS).
 ```text
 application/vnd.dacite.chunk.v1
 ```
+
+### Exception: a reveal stream
+
+`POST /reveal` responds with `application/vnd.dacite.item-stream.v1`. The body
+is a concatenation of `Item`s and nothing else: no chunk envelope, no count,
+and no budget. Each item is one page, a node (`enc = 0x00`). An empty body is
+a finished reveal with nothing left to send. Items are self-delimiting, so the
+decoder stops on an item boundary. This is not a new message type and not a
+multi-chunk streaming frame. Pack GET and `POST /nodes` stay chunks. The
+service account is [service.md](../design/service.md).
 
 ---
 

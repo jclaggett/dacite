@@ -1147,6 +1147,18 @@
       :node {:enc :node :hash h :entry (decode-node-bytes payload)}
       :literal {:enc :literal :hash h :literal (decode-lit-bytes payload)})))
 
+(defn decode-item-stream
+  "Decode a concatenation of wire-v1 items.
+
+   A reveal stream is this sequence and nothing else: no chunk envelope,
+   no count, and no budget. The buffer must end on an item boundary."
+  [bs]
+  (let [buf (wrap-bytes bs)]
+    (loop [items []]
+      (if (zero? (remaining buf))
+        items
+        (recur (conj items (decode-item buf)))))))
+
 (defn decode-chunk
   "Decode full ChunkMessage bytes → map."
   [bs]

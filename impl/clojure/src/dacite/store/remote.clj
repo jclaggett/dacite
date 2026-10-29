@@ -123,21 +123,23 @@
 
           :else nil)))))
 
-(defrecord RemoteStore [base-url client headers pack-local binary?]
+(defrecord RemoteStore [base-url client headers pack-local binary? reveal]
   store/IStore
   (s-get [_ h]
     (if-some [hit (store/await (store/s-get pack-local h))]
       (store/completed hit)
       (in-future h
                  (fn []
-                   (let [hdrs (if binary?
-                                (assoc headers "Accept" bin/content-type-chunk-v1)
-                                (assoc headers "Accept" "application/edn"))
-                         {:keys [status body]} (request client "GET" (node-url base-url h) nil hdrs)]
-                     (cond
-                       (= 200 status) (apply-get-body! pack-local h body binary?)
-                       (= 404 status) nil
-                       :else (throw-unavailable h {:status status})))))))
+                   (if-let [fetch! (:fetch! reveal)]
+                     (fetch! reveal h pack-local)
+                     (let [hdrs (if binary?
+                                  (assoc headers "Accept" bin/content-type-chunk-v1)
+                                  (assoc headers "Accept" "application/edn"))
+                           {:keys [status body]} (request client "GET" (node-url base-url h) nil hdrs)]
+                       (cond
+                         (= 200 status) (apply-get-body! pack-local h body binary?)
+                         (= 404 status) nil
+                         :else (throw-unavailable h {:status status}))))))))
 
   (s-put [this h value]
     (if store/*cache-only*
@@ -275,6 +277,26 @@
       (assoc headers "Authorization" (str "Bearer " token))
       headers)))
 
+(defn- reveal-session
+  "The opt-in HTTP/3 reveal read, or nil when this store uses pack GET.
+
+   Loaded only when `:reveal` is set. `:url` is the HTTP/3 origin.
+   `:client` is a started Jetty client; omitted, one is opened here.
+   That client is one connection per destination, so later reveals share
+   the server session."
+  [headers token reveal]
+  (when reveal
+    (let [url (:url reveal)
+          _ (when-not (string? url)
+              (throw (ex-info "reveal url required" {})))
+          opened (when-not (:client reveal)
+                   ((requiring-resolve 'dacite.store.reveal/open-client) reveal))]
+      {:url (str/replace url #"/$" "")
+       :client (or (:client reveal) (:client opened))
+       :close! (:close! opened)
+       :headers (merge-token-headers headers token)
+       :fetch! (requiring-resolve 'dacite.store.reveal/fetch!)})))
+
 (defn remote-store
   "Create an HTTP-backed remote store.
 
@@ -282,18 +304,24 @@
    opts — {:headers {…}
            :token string          ; Authorization: Bearer <token> (bucket name)
            :client HttpClient
-           :binary true|false  ; default true — wire-v1 for pack GET/POST}
+           :binary true|false  ; default true — wire-v1 for pack GET/POST
+           :reveal {:url https-origin :client jetty-http3-client :trust-all bool}}
 
-   429 and 503 responses retry up to 8 times using Retry-After (seconds)."
-  [base-url & [{:keys [headers client binary token]
+   Without `:reveal`, `s-get` is pack GET. With it, a missing hash is
+   `POST /reveal` on that HTTP/3 client. PUT, DELETE, root CAS, and
+   `watch-root` stay on `base-url`. 429 and 503 responses retry up to
+   8 times using Retry-After (seconds)."
+  [base-url & [{:keys [headers client binary token reveal]
                 :or {headers {}
                      binary true}}]]
-  (->RemoteStore base-url
-                 (or client (.build (.. (HttpClient/newBuilder)
-                                        (connectTimeout (Duration/ofSeconds 10)))))
-                 (merge-token-headers headers token)
-                 (store/mem-store)
-                 (boolean binary)))
+  (let [headers (merge-token-headers headers token)]
+    (->RemoteStore base-url
+                   (or client (.build (.. (HttpClient/newBuilder)
+                                          (connectTimeout (Duration/ofSeconds 10)))))
+                   headers
+                   (store/mem-store)
+                   (boolean binary)
+                   (reveal-session headers token reveal))))
 
 (defn- client-cache-write-back? [remote]
   (client-cache/write-back-store? remote))

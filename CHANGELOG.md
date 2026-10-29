@@ -18,8 +18,19 @@ stability promise: public APIs may still change before 1.0.
   `release-pages` queues a reset or evicted page again. A hash already
   held, or still offered, is skipped. Asking for a hash still open
   resumes the pages the client does not hold and restarts that clock at
-  the peak. Credit already earned stays. No path, header, or frame is
-  chosen yet, and no stream is opened.
+  the peak. Credit already earned stays.
+- **Reveal stream** — `POST /reveal` on the Jetty handler, over HTTP/3
+  and HTTP/1.1. The body is EDN `{:hash "<64 hex>"}`. The response is
+  `application/vnd.dacite.item-stream.v1`: concatenated wire-v1 node
+  items, no chunk envelope, and no `Content-Length`. One connection
+  keeps one `dacite.reveal` session. On HTTP/3 that connection is the
+  QUIC session, not the request stream. A stream that finishes
+  acknowledges the pages it wrote. A stream that fails cancels the
+  reveal and releases those offers. There is no client ack or release
+  message yet. `remote-store` opts into the stream with `:reveal` and
+  keeps one HTTP/3 connection; the default read is still pack
+  `GET /node/{hex}`. `peak`, `tau`, `floor`, and `r-max` are server
+  placeholders. A missing hash is 404. A malformed body is 400.
 - **IndexedDB store** — `dacite.store.idb` is a page-local dictionary.
   `idb-store` is the content store. `open` is a rooted store with the
   same pack-literal flush as `s/file`. Methods suspend until IndexedDB
