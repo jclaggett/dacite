@@ -150,3 +150,125 @@
     (is (= :new (reveal/next-reveal reveals 10 params)))
     (is (nil? (reveal/next-reveal [{:id :old :opened-at 0 :cancelled? true}]
                                   0 params)))))
+
+(def ^:private fast
+  {:peak 1.0 :tau 1.0e6 :floor 0.0 :r-max 1.0e12})
+
+(defn- hashes-of [pages]
+  (mapv :hash pages))
+
+(deftest one-page-waits-until-its-share-covers-it
+  (let [s (store/mem-store)
+        h (v/hash (v/i64 s 42))
+        n (reveal/page-bytes s h)
+        params {:peak 1.0 :tau 100.0 :floor 0.0 :r-max (double n)}
+        opened (reveal/open-reveal (reveal/session) s h 0 params)
+        early (reveal/take-pages (:session opened) 0.5 params)
+        due (reveal/take-pages (:session early) 1 params)]
+    (is (= 1 (:id opened)))
+    (is (empty? (:pages early)))
+    (is (= [h] (hashes-of (:pages due))))
+    (is (= n (:bytes (first (:pages due)))))
+    (is (< (Math/abs (- 1.0 (:at (first (:pages due))))) 1.0e-6))
+    (is (contains? (get-in due [:session :sent]) h))
+    (let [again (reveal/open-reveal (:session due) s h 1 params)
+          later (reveal/take-pages (:session again) 20 params)]
+      (is (empty? (:pages later))))))
+
+(deftest pages-come-out-in-reveal-order
+  (let [s (store/mem-store)
+        h (v/hash (v/string s (apply str (repeat 2000 "a"))))
+        order (reveal/page-order s h)
+        opened (reveal/open-reveal (reveal/session) s h 0 fast)
+        taken (reveal/take-pages (:session opened) 1 fast)]
+    (is (> (count order) 1))
+    (is (= order (hashes-of (:pages taken))))
+    (is (:done? (first (get-in taken [:session :reveals]))))))
+
+(deftest equal-shares-send-one-page-each
+  (let [s (store/mem-store)
+        ha (v/hash (v/i64 s 1))
+        hb (v/hash (v/i64 s 2))
+        n (reveal/page-bytes s ha)
+        params {:peak 1.0 :tau 100.0 :floor 0.0 :r-max (double n)}
+        a (reveal/open-reveal (reveal/session) s ha 0 params)
+        b (reveal/open-reveal (:session a) s hb 0 params)
+        taken (reveal/take-pages (:session b) 2 params)]
+    (is (= [(:id a) (:id b)] (mapv :id (:pages taken))))
+    (is (= [ha hb] (hashes-of (:pages taken))))
+    (is (every? #(< (Math/abs (- 2.0 (:at %))) 1.0e-6) (:pages taken)))))
+
+(deftest below-the-floor-pauses-until-the-hash-is-asked-again
+  (let [s (store/mem-store)
+        h (v/hash (v/i64 s 42))
+        n (double (reveal/page-bytes s h))
+        params {:peak 1.0 :tau 1.0 :floor (Math/exp -0.5) :r-max n}
+        opened (reveal/open-reveal (reveal/session) s h 0 params)
+        paused (reveal/take-pages (:session opened) 10 params)
+        again (reveal/open-reveal (:session paused) s h 10 params)
+        early (reveal/take-pages (:session again) 10.25 params)
+        due (reveal/take-pages (:session early) 10.5 params)]
+    (is (empty? (:pages paused)))
+    (is (empty? (:pages again)))
+    (is (= (:id opened) (:id again)))
+    (is (empty? (:pages early)))
+    (is (= [h] (hashes-of (:pages due))))
+    (is (< (Math/abs (- 10.5 (:at (first (:pages due))))) 1.0e-4))))
+
+(deftest cancel-drops-the-rest-of-that-reveal
+  (let [s (store/mem-store)
+        ha (v/hash (v/i64 s 1))
+        hb (v/hash (v/i64 s 2))
+        n (double (reveal/page-bytes s ha))
+        params {:peak 1.0 :tau 100.0 :floor 0.0 :r-max n}
+        a (reveal/open-reveal (reveal/session) s ha 0 params)
+        b (reveal/open-reveal (:session a) s hb 0 params)
+        stopped (reveal/cancel-reveal (:session b) (:id b) 1 params)
+        taken (reveal/take-pages (:session stopped) 10 params)
+        reopened (reveal/open-reveal (:session taken) s hb 10 params)
+        rest-pages (reveal/take-pages (:session reopened) 12 params)]
+    (is (empty? (:pages stopped)))
+    (is (= [ha] (hashes-of (:pages taken))))
+    (is (not= (:id b) (:id reopened)))
+    (is (= [hb] (hashes-of (:pages rest-pages))))))
+
+(deftest a-hash-already-sent-is-not-sent-again
+  (let [s (store/mem-store)
+        a (v/vector s (v/i64 s 1))
+        b (v/vector s (v/i64 s 2))
+        outer (v/vector s a b)
+        sent (reveal/open-reveal (reveal/session) s (v/hash a) 0 fast)
+        done (reveal/take-pages (:session sent) 1 fast)
+        more (reveal/open-reveal (:session done) s (v/hash outer) 1 fast)
+        pages (reveal/take-pages (:session more) 2 fast)]
+    (is (some #{(v/hash a)} (hashes-of (:pages done))))
+    (is (not (some #{(v/hash a)} (hashes-of (:pages pages)))))
+    (is (some #{(v/hash outer)} (hashes-of (:pages pages))))
+    (is (some #{(v/hash b)} (hashes-of (:pages pages))))))
+
+(deftest a-newer-reveal-gets-the-next-page
+  (let [s (store/mem-store)
+        book (v/hash (v/string s (apply str (repeat 3000 "a"))))
+        chapter (v/hash (v/string s (apply str (repeat 3000 "z"))))
+        nbytes (double (reveal/page-bytes s book))
+        tau 10.0
+        params {:peak 1.0 :tau tau :floor 1.0e-9 :r-max (/ nbytes 30.0)}
+        opened (reveal/open-reveal (reveal/session) s book 0 params)
+        at-first (reveal/take-pages (:session opened) 30 params)
+        ch (reveal/open-reveal (:session at-first) s chapter 30 params)
+        rates (reveal/shares (get-in ch [:session :reveals]) 30 params)
+        nxt (reveal/take-pages (:session ch) 1000 params)]
+    (is (= 1 (count (:pages at-first))))
+    (is (< (Math/abs (- 30.0 (:at (first (:pages at-first))))) 1.0e-4))
+    (is (> (get rates (:id ch)) (get rates (:id opened))))
+    (is (= (:id ch) (:id (first (:pages nxt)))))))
+
+(deftest the-session-clock-moves-forward
+  (let [s (store/mem-store)
+        h (v/hash (v/i64 s 1))
+        opened (reveal/open-reveal (reveal/session) s h 0 fast)]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"clock"
+                          (reveal/take-pages (:session opened) -1 fast)))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"r-max"
+                          (reveal/take-pages (:session opened) 1
+                                             (assoc fast :r-max -1))))))

@@ -178,7 +178,7 @@ The ordinary end of a reveal is its interest falling below the floor. Cancel rem
 
 ## Deferred
 
-No wire layout is chosen here: no HTTP path, no header, no frame layout. Streaming a pack on one response remains a later way to carry the same idea. The default page order and the interest shares are `dacite.reveal`, with no policy field on a request. That namespace does not open a stream.
+No wire layout is chosen here: no HTTP path, no header, no frame layout. Streaming a pack on one response remains a later way to carry the same idea. The default page order, the interest shares, and the session clock are `dacite.reveal`, with no policy field on a request. The clock spends each share in wire-item bytes of whole pages. A hash already sent in the session is skipped. Asking again for a hash still open resumes the unsent pages and restarts that clock at the peak. That namespace does not open a stream.
 
 Still open:
 

@@ -52,8 +52,12 @@ Do this next:
    21's `HttpClient` has no `HTTP_3`; the server test uses Jetty's
    HTTP/3 client. The reveal rule in this file is still the byte and
    child limits above. The rate-based account is the same design doc.
-   `dacite.reveal` is the default page order and the interest shares.
-   No path, header, or frame is chosen yet.
+   `dacite.reveal` is the default page order, the interest shares, and
+   the session clock. A page goes out whole, in wire-item bytes, when
+   its reveal's credit covers it. A hash already sent in the session is
+   skipped. Asking again for a hash still open resumes the unsent pages
+   and restarts that clock at the peak. No path, header, or frame is
+   chosen yet.
 
 **Stream a pack on one HTTP response** follows the reveal client. It is
 the HTTP/1.1 carrier of the byte limit in *How every client reveals a
@@ -461,7 +465,7 @@ is the next milestone.
 | HTTP/3 server | The JDK server is HTTP/1.1 only | **Done** — Jetty. Cleartext HTTP/1.1 stays `base-url`. HTTP/3 is UDP on the same port, `Alt-Svc`, self-signed dev cert. Java 21 `HttpClient` still has no `HTTP_3` |
 | Asynchronous IStore | Every store is the same dictionary, local or remote | **Done** — methods return promises. JVM and babashka block in `await`. A missing required node is `:missing`; a store that cannot answer is `:unavailable`. ClojureScript walks still replay through `drive` |
 | IndexedDB store | A web client needs a durable store of its own | **Done** — `dacite.store.idb`. `open` is a rooted store; `idb-store` is the content dictionary a `SmartCacheStore` can put in front of a remote. Ops suspend and `drive` replays them |
-| QUIC reveal client | A focused child collection is its own stream | **Next** — `dacite.reveal` is the default page order and the interest shares. The carrier is still open: `remote-store`, one connection, one stream per focused child, reset cancels, root notice stays up. No path, header, or frame yet. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
+| QUIC reveal client | A focused child collection is its own stream | **Next** — `dacite.reveal` is the default page order, the interest shares, and the session clock (whole pages, wire-item bytes, session dedup, resume at the peak). The carrier is still open: `remote-store`, one connection, one stream per focused child, reset cancels, root notice stays up. No path, header, or frame yet. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
 | Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the trio** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
 
 Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
@@ -539,8 +543,9 @@ Asynchronous IStore                                ✓ promises
 IndexedDB store for web clients                    ✓ dacite.store.idb
         → rooted open, or the content store in front of remote
 QUIC reveal client                                 ← current
-        → dacite.reveal is the page order and the shares;
-          the stream carrier is still open
+        → dacite.reveal is the page order, the shares,
+          and the session clock; the stream carrier
+          is still open
 Stream a pack on one HTTP response                 after the reveal client
         → HTTP/1.1 carrier of the byte limit
 Library, resumed                                   paused
