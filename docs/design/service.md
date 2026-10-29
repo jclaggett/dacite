@@ -203,8 +203,9 @@ client-to-server ack or release message yet. That inference is a gap.
 over `:reveal` passed to `start-server!`. The defaults are placeholders:
 `{:peak 1.0 :tau 1.0 :floor 0.0 :r-max 1.0e7}`. A floor at or below 0
 does not pause a reveal. The rate is not derived from load or the pipe.
-`GET /events` stays the root-notice stream. `GET /node/{hex}` stays the
-pack.
+`GET /events` stays up on cleartext HTTP/1.1 while a parent reveal and
+a focused child are both open. A root change in that overlap still
+arrives on that stream. `GET /node/{hex}` stays the pack.
 
 `dacite.store.remote` opts in with `:reveal {:url h3-url :client client}`.
 `:url` is the HTTP/3 origin. `:client` is a started Jetty HTTP/3 client

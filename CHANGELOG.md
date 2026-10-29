@@ -32,6 +32,7 @@ stability promise: public APIs may still change before 1.0.
   `GET /node/{hex}`. A second POST on that connection, while the
   first response is still open, is a focused child: the parent stays
   open, and a hash either stream has offered is not sent again.
+  `GET /events` stays up while that parent and child are both open.
   `peak`, `tau`, `floor`, and `r-max` are server
   placeholders. A missing hash is 404. A malformed body is 400.
 - **IndexedDB store** — `dacite.store.idb` is a page-local dictionary.

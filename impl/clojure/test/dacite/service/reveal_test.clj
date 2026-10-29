@@ -1,5 +1,6 @@
 (ns dacite.service.reveal-test
-  "The reveal stream: item bytes, hash checks, and one HTTP/3 session."
+  "The reveal stream: item bytes, hash checks, one HTTP/3 session,
+   and the root notice beside it."
   (:require [clojure.test :refer [deftest is]]
             [dacite.reveal :as reveal]
             [dacite.service :as svc]
@@ -287,5 +288,96 @@
           (is (= (store/require-node rooted parent)
                  (store/await parent-p)))))
       (finally
+        ((:close! primary))
+        (stop!)))))
+
+(deftest root-notice-stays-up-beside-reveals
+  (let [rooted (svc/make-demo-rooted)
+        inner (v/vector rooted (v/i64 rooted 2))
+        child (v/hash inner)
+        parent (v/hash (v/vector rooted (v/i64 rooted 1) inner))
+        notice (v/hash (v/i64 rooted 9))
+        order (reveal/page-order rooted parent)
+        total (reduce + 0 (map #(reveal/page-bytes rooted %) order))
+        ;; The whole parent takes about two seconds, so both reveal
+        ;; bodies are still open when the root changes.
+        r-max (/ (double total) 2.0)
+        {:keys [base-url h3-url stop!]} (svc/start-server!
+                                         {:port 0
+                                          :rooted rooted
+                                          :reveal {:peak 1.0
+                                                   :tau 1.0e6
+                                                   :floor 0.0
+                                                   :r-max r-max}})
+        primary (reveal-client/open-client {:trust-all true})
+        events (remote/remote-store base-url)
+        parent-items (atom [])
+        child-items (atom [])
+        parent-head (atom nil)
+        saw-page (promise)
+        parent-eof (promise)
+        first-ev (promise)
+        noticed (promise)
+        watch (remote/watch-root
+               events
+               (fn [h]
+                 (cond
+                   (not (realized? first-ev)) (deliver first-ev h)
+                   (= h notice) (deliver noticed (System/nanoTime)))))]
+    (try
+      (is (nil? (deref first-ev 5000 :timeout))
+          "the root notice is up before either reveal")
+      (future
+        (try
+          (let [opened (open-reveal (:client primary) h3-url parent)]
+            (reset! parent-head (select-keys opened [:status :type :version]))
+            (try
+              (when-not (= 200 (:status opened))
+                (throw (ex-info "parent reveal failed" opened)))
+              (reveal-client/read-items!
+               (:in opened)
+               (fn [item]
+                 (swap! parent-items conj item)
+                 (when-not (realized? saw-page)
+                   (deliver saw-page true))))
+              (deliver parent-eof (System/nanoTime))
+              (finally
+                (.close (:listener opened)))))
+          (catch Throwable t
+            (when-not (realized? saw-page) (deliver saw-page t))
+            (when-not (realized? parent-eof) (deliver parent-eof t)))))
+      (let [gate (deref saw-page 15000 :timeout)]
+        (is (true? gate))
+        (when (true? gate)
+          (let [opened (open-reveal (:client primary) h3-url child)]
+            (try
+              (is (true? (remote/remote-cas-root! events nil notice)))
+              (let [at (deref noticed 5000 :timeout)]
+                (reveal-client/read-items! (:in opened)
+                                           #(swap! child-items conj %))
+                (let [eof (deref parent-eof 15000 :timeout)
+                      dest (rv/accept-items! (store/mem-store)
+                                             (concat @parent-items
+                                                     @child-items))]
+                  (is (= HttpVersion/HTTP_3 (:version @parent-head)))
+                  (is (= 200 (:status @parent-head)))
+                  (is (= rv/content-type (:type @parent-head)))
+                  (is (= HttpVersion/HTTP_3 (:version opened)))
+                  (is (= 200 (:status opened)))
+                  (is (= rv/content-type (:type opened)))
+                  (is (number? at))
+                  (is (number? eof))
+                  (is (< at eof)
+                      "the new root arrived while the parent reveal was still open")
+                  (is (seq @parent-items))
+                  (is (seq @child-items))
+                  (is (= (store/require-node rooted parent)
+                         (store/require-node dest parent)))
+                  (is (= (store/require-node rooted child)
+                         (store/require-node dest child)))))
+              (finally
+                (.close (:listener opened)))))))
+      (finally
+        ((:stop! watch))
         ((:close! primary))
         (stop!)))))

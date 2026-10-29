@@ -79,6 +79,9 @@ Do this next:
    other. Resetting a stream is not the path this milestone tests: a
    write holds the session lock, so an abandoned read can stall that
    connection.
+   `GET /events` stays up on cleartext HTTP/1.1 while that parent and
+   its focused child are both open. A root CAS in that overlap arrives
+   on the notice stream before the parent response ends.
    `peak`, `tau`, `floor`, and `r-max` are placeholders, not chosen
    from load. The pages on that stream are the carrier a later peer
    reuses. Signaling and a peer list stay out of this milestone.
@@ -515,7 +518,7 @@ is the next milestone.
 | HTTP/3 server | The JDK server is HTTP/1.1 only | **Done** — Jetty. Cleartext HTTP/1.1 stays `base-url`. HTTP/3 is UDP on the same port, `Alt-Svc`, self-signed dev cert. Java 21 `HttpClient` still has no `HTTP_3` |
 | Asynchronous IStore | Every store is the same dictionary, local or remote | **Done** — methods return promises. JVM and babashka block in `await`. A missing required node is `:missing`; a store that cannot answer is `:unavailable`. ClojureScript walks still replay through `drive` |
 | IndexedDB store | A web client needs a durable store of its own | **Done** — `dacite.store.idb`. `open` is a rooted store; `idb-store` is the content dictionary a `SmartCacheStore` can put in front of a remote. Ops suspend and `drive` replays them |
-| QUIC reveal client | A focused child collection is its own stream | **Next** — `POST /reveal` streams wire-v1 node items on one connection (the QUIC session on HTTP/3). A second POST while that response is still open is a focused child: the parent stays open, and a hash either stream has offered is not sent on the other. Resetting a stream is not tested. A finished stream acknowledges its pages; a failed stream cancels and releases them. No client ack or release message yet. `remote-store` opts in with `:reveal` and keeps one HTTP/3 connection; the default read is still pack GET. `peak`, `tau`, `floor`, and `r-max` are placeholders. `dacite.reveal` remains the page order, the shares, and the session clock. The pages on that stream are the carrier the LAN peer tier reuses. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
+| QUIC reveal client | A focused child collection is its own stream | **Next** — `POST /reveal` streams wire-v1 node items on one connection (the QUIC session on HTTP/3). A second POST while that response is still open is a focused child: the parent stays open, and a hash either stream has offered is not sent on the other. `GET /events` stays up while those two reveals are open. Resetting a stream is not tested. A finished stream acknowledges its pages; a failed stream cancels and releases them. No client ack or release message yet. `remote-store` opts in with `:reveal` and keeps one HTTP/3 connection; the default read is still pack GET. `peak`, `tau`, `floor`, and `r-max` are placeholders. `dacite.reveal` remains the page order, the shares, and the session clock. The pages on that stream are the carrier the LAN peer tier reuses. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
 | Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the reveal client** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
 | LAN peering | A second reader on the LAN should take pages from a neighbor's cache | **After the reveal stream** — memory, then IndexedDB or LMDB, then one preferred peer, then the origin. One WebRTC data channel carries one reveal. The origin relays signaling and suggests peers by locality. The peer built here is a configured Node process on nbb LMDB. Reads only. Root CAS and `GET /events` stay on the origin. Direct traffic, concurrent peers capped. The account is [design/peering-design-note.md](design/peering-design-note.md) |
 
@@ -598,6 +601,7 @@ QUIC reveal client                                 ← current
         → POST /reveal streams wire-v1 items on one
           connection. A focused child is a second
           stream while the parent stays open.
+          GET /events stays up beside them.
           remote-store opts in with :reveal; the
           default read is still pack GET. Pages on
           that stream are what a peer reuses
