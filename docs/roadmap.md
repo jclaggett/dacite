@@ -61,7 +61,9 @@ Do this next:
    queues a reset or evicted page again. A hash already held, or still
    offered, is skipped. Asking again for a hash still open resumes the
    pages the client does not hold and restarts that clock at the peak.
-   No path, header, or frame is chosen yet.
+   No path, header, or frame is chosen yet. The pages on that stream
+   are the carrier a later peer reuses. Signaling and a peer list stay
+   out of this milestone.
 
 **Stream a pack on one HTTP response** follows the reveal client. It is
 the HTTP/1.1 carrier of the byte limit in *How every client reveals a
@@ -71,8 +73,32 @@ JVM `s-get` reads it with `ofByteArray`.
 `GET /events` already streams on this server. `POST /nodes/get` stays the
 demoted bulk snapshot.
 
-The library project waits until that communication work is done, including
-the streamed pack. Come back to it for:
+**LAN peering** follows once that reveal stream exists. A read falls
+through memory, then the local store (IndexedDB or LMDB), then one
+preferred peer, then the origin. The peer serves reads only. Root CAS
+and `GET /events` stay on the origin. One WebRTC data channel carries
+one reveal. Each received entry is checked against its hash before it
+is stored, and a bad entry ends that peer. A miss or a short timeout
+falls through to the origin. The origin the client already uses relays
+signaling and suggests peers by network locality. The peer that gets
+built is a configured Node process on the nbb LMDB store. Node peers
+are preferred, concurrent peers are capped, and the traffic is direct.
+The library reader is the measurement: bytes and time from the peer
+against bytes and time from the origin. The account is
+[design/peering-design-note.md](design/peering-design-note.md).
+
+Later on that same line: a `have?` bitmap once more than one peer is a
+candidate, mDNS for Node peers on a LAN, and a tab that serves after
+the user opts in. A DHT stays off this road. `GET have` stays shelved
+with the other pack query opt-outs.
+
+Still open on that line: peer lists by root, whether asking a peer
+exposes the read and who may be asked, whether a peer serves every
+hash it holds, how peer bytes sit in the client rate budget, and
+whether a TURN relay is worth it for a cache.
+
+The library project waits until the reveal client and the streamed pack
+are done. Come back to it for:
 
 1. **EPUB ingest.** `ingest` takes a title and a UTF-8 string. A zip, a
    spine, and resource blobs are not in this example.
@@ -87,8 +113,8 @@ this communication work, and the app to return to.
 
 A Dacite value may be very large. Every client, local or remote, reveals
 it from its root and decides how far the reveal goes. The rule names no
-transport. A byte budget, a chunked body, `fetch`, and a QUIC stream are
-carriers, listed above.
+transport. A byte budget, a chunked body, `fetch`, a QUIC stream, and a
+WebRTC data channel are carriers, listed above.
 
 Revealing a hash yields that value's own node: the type, the measure, the
 literal body that fits there, and the child hashes. It does not yield the
@@ -142,8 +168,10 @@ place.
 `pack-under` with budget **0** is a single item. Durable pages are the
 value encoding; pack ships those literals. How a client bounds a large
 value is *How every client reveals a value*. The open work, in order:
-a QUIC reveal client, then a chunked pack GET. Store methods return
-promises. `dacite.store.idb` is the page's IndexedDB dictionary.
+a QUIC reveal client, then a chunked pack GET, then a LAN peer tier.
+The library resumes after the reveal client and the streamed pack.
+Store methods return promises. `dacite.store.idb` is the page's
+IndexedDB dictionary.
 Browser `fetch` and the HTTP/3 server are done. ClojureScript value
 walks still replay through `drive`.
 
@@ -469,8 +497,9 @@ is the next milestone.
 | HTTP/3 server | The JDK server is HTTP/1.1 only | **Done** — Jetty. Cleartext HTTP/1.1 stays `base-url`. HTTP/3 is UDP on the same port, `Alt-Svc`, self-signed dev cert. Java 21 `HttpClient` still has no `HTTP_3` |
 | Asynchronous IStore | Every store is the same dictionary, local or remote | **Done** — methods return promises. JVM and babashka block in `await`. A missing required node is `:missing`; a store that cannot answer is `:unavailable`. ClojureScript walks still replay through `drive` |
 | IndexedDB store | A web client needs a durable store of its own | **Done** — `dacite.store.idb`. `open` is a rooted store; `idb-store` is the content dictionary a `SmartCacheStore` can put in front of a remote. Ops suspend and `drive` replays them |
-| QUIC reveal client | A focused child collection is its own stream | **Next** — `dacite.reveal` is the default page order, the interest shares, and the session clock (whole pages, wire-item bytes, session dedup, resume at the peak). The carrier is still open: `remote-store`, one connection, one stream per focused child, reset cancels, root notice stays up. No path, header, or frame yet. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
-| Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the trio** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
+| QUIC reveal client | A focused child collection is its own stream | **Next** — `dacite.reveal` is the default page order, the interest shares, and the session clock (whole pages, wire-item bytes, session dedup, resume at the peak). The carrier is still open: `remote-store`, one connection, one stream per focused child, reset cancels, root notice stays up. No path, header, or frame yet. The pages on that stream are the carrier the LAN peer tier reuses. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
+| Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the reveal client** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
+| LAN peering | A second reader on the LAN should take pages from a neighbor's cache | **After the reveal stream** — memory, then IndexedDB or LMDB, then one preferred peer, then the origin. One WebRTC data channel carries one reveal. The origin relays signaling and suggests peers by locality. The peer built here is a configured Node process on nbb LMDB. Reads only. Root CAS and `GET /events` stay on the origin. Direct traffic, concurrent peers capped. The account is [design/peering-design-note.md](design/peering-design-note.md) |
 
 Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
 
@@ -489,7 +518,8 @@ Fair live-vs-chunked on this seed: file data **1.48×**, wire **1.43×**. LMDB u
 Infrastructure from the old Phase 2.5 list (pack as middleware polish, root
 slot, layered write policies, spec v0.5, GET `have`, remaining-budget skip)
 stays on the shelf until a real app reaches for it. Pack query opt-outs
-(`?raw=`, `?nodes=`, `?near=`) were removed on purpose.
+(`?raw=`, `?nodes=`, `?near=`) were removed on purpose. A later peer
+bitmap is a message on the data channel, not `GET have`.
 
 ---
 
@@ -549,10 +579,15 @@ IndexedDB store for web clients                    ✓ dacite.store.idb
 QUIC reveal client                                 ← current
         → dacite.reveal is the page order, the shares,
           and the session clock; the stream carrier
-          is still open
+          is still open. Pages on that stream are
+          what a peer reuses
 Stream a pack on one HTTP response                 after the reveal client
         → HTTP/1.1 carrier of the byte limit
-Library, resumed                                   paused
+LAN peering                                        after the reveal stream
+        → memory, local store, one peer, origin;
+          one data channel carries one reveal;
+          origin signals; Node peer on LMDB
+Library, resumed                                   after reveal and streamed pack
         → EPUB ingest, extra indexes, upload form
 ```
 
@@ -571,3 +606,6 @@ Do not invent “app 7” to fill the tree.
 - [boxed-u8-runs.md](design/boxed-u8-runs.md) — `u8` run payload is a copied byte buffer
 - [value-realization-and-computation.md](design/value-realization-and-computation.md)
   — `realize`, partial availability, bounded print
+- [peering-design-note.md](design/peering-design-note.md) — LAN peer tier
+  after the reveal stream: WebRTC data channel, origin signaling, a
+  Node peer on LMDB
