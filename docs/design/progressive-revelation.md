@@ -40,7 +40,7 @@ The asked node goes out first: its type, its measure, the literal body that fits
 
 Local reads follow the same idea of a client-directed view. `nth` and a bounded slice are reveals with a stride. Realizing an entire large value is a reveal with no limit. A local read has no decay clock. The clock belongs to transmission.
 
-Pieces already stored stay in the cache. Within a session the server also remembers what it has sent; that dedup is [below](#deduplication). A reveal that paused partway resumes at the unsent pages when the client asks for that hash again.
+Pieces already stored stay in the cache. Within a session the server also remembers what it has sent; that dedup is [below](#deduplication). A reveal that paused partway resumes at the pages the client does not hold when the client asks for that hash again.
 
 ## Rate-based, decaying responses
 
@@ -67,14 +67,16 @@ I_i(t) = peak * exp(-t / tau)
 The share of the ceiling is:
 
 ```
-rate_i = R_max * I_i(t) / sum_j I_j(t)
+rate_i = R_max * I_i(t) / max(peak, sum_j I_j(t))
 ```
+
+While open interest is above one peak, the shares fill `R_max` and stay constant between membership changes. At one peak and below, each rate is `R_max * I / peak`. A lone reveal opens at the ceiling and then follows `R_max * exp(-age / tau)`. Several reveals that together exceed the peak fill the ceiling until they decay to it. `peak` is the connection's peak, and it stays in the denominator of a lone reveal.
 
 A new reveal starts at the peak. Earlier reveals keep the clocks they already have. Opening another reveal renormalizes the shares. A chapter request takes the burst. The book trickles.
 
-Once interest falls below a floor, the reveal pauses and drops out of the sum. The body may still have unsent pages. Asking for that same hash again resumes from those pages and starts at the peak. Pages already sent in this session are not sent again. When the body ends while the rate is still high, the reveal is finished.
+Once interest falls below a floor, the reveal pauses and drops out of the sum. The body may still have pages the client does not hold. Asking for that same hash again resumes from those pages and starts at the peak. Credit already earned toward the next page stays. A page the client holds is not sent again. A page offered and not yet acknowledged stays with that offer until `ack-pages` or `release-pages`. When the body ends while the rate is still high, the reveal is finished.
 
-The exponential is the candidate curve. Another curve can replace it. How `peak`, `tau`, and the floor are chosen stays open.
+The session clock integrates this exponential. Above one peak the rate is constant between events, so credit grows by `rate * dt`. At or below one peak the integral over a step of `dt` is `rate * tau * (1 - exp(-dt / tau))`. A different curve replaces that integral. Whether the exponential lasts stays open. How `peak`, `tau`, and the floor are chosen stays open.
 
 Two clocks stay distinct.
 
@@ -85,7 +87,7 @@ Decay keeps policy order. It does not skip ahead, and it does not pull in a subv
 
 The share formula bounds bytes. A separate limit bounds how many reveals a client may open, so a burst of new peaks cannot crowd out older reveals or grow session state without limit. The server rate-limits incoming requests per client. The client keeps a token bucket for the same reason, and prefers to refine a reveal already open when tokens run low. Refining spends one request. When the bucket is empty, the client waits. The bucket's parameters, fixed or tuned from the same inputs as `peak` and `tau`, stay open.
 
-Renewal of a reveal the client still wants is a new request. Raising interest on an open stream, without a new request, stays an open question.
+Renewal of a reveal the client still wants is a new request. That re-ask is implemented: it restarts the clock at the peak and keeps credit already earned. Raising interest on an open stream, without a new request, stays an open question.
 
 The interest model fits HTTP/3 as one QUIC stream per request, with the server pacing writes to `rate_i`. Flow control remains part of the ceiling. This revision names no path, header, or frame layout.
 
@@ -93,7 +95,7 @@ The interest model fits HTTP/3 as one QUIC stream per request, with the server p
 
 Two layers keep a page from being sent twice.
 
-**This session.** The server remembers the entries it has already sent to this client. The set lasts only as long as the session. A traversal prunes a subtree whose entries were already sent and spends its rate on new pages. A later request for a hash already sent in full sends nothing more. A reveal that paused resumes at the unsent pages.
+**This session.** The server remembers two sets for this client, and only for this session. An offered page has been scheduled and not yet acknowledged. A held page is one the client has acknowledged. A traversal skips both and spends its rate on other pages. `ack-pages` moves an offer into the hold set. `release-pages` drops a hash from either set and queues it again on the reveal that offered it, when that reveal is still open. A reset of a page the client never kept, and an eviction of a page it no longer keeps, both return the hash to the reveal that way. A cancelled reveal is removed. A later request sends a released hash again once nothing in the session still offers or holds it. A reveal that paused resumes at the pages the client does not hold.
 
 **Across sessions.** The client asks for roots it does not already hold in full. Listing held hashes on the wire waits for a later revision. A large shared subtree under a newly named root may be sent again.
 
@@ -156,7 +158,7 @@ The cache is persistent, as in a web browser. Because content is addressed by ha
 
 A link is a content hash. The value it names was realized when it was written, and the hash always means those bytes. Following the link to prefetch is safe. The reveal policy is that prefetch: it answers the request the browser would make next.
 
-The cache belongs in the store stack. An `IndexedDBStore` sits in front of the remote store, in the same layering pattern as `SmartCacheStore` and `WriteBackStore` (`dacite.store.client-cache`). A batch of streamed pages becomes puts, one IndexedDB transaction per batch. The store's keys are what the client already holds, which is the client side of dedup across sessions.
+The cache belongs in the store stack. An `IndexedDBStore` sits in front of the remote store, in the same layering pattern as `SmartCacheStore` and `WriteBackStore` (`dacite.store.client-cache`). A batch of streamed pages becomes puts, one IndexedDB transaction per batch. `s-merge` is that batch. The in-memory cache keeps a bounded number of nodes this tab has read: 1024 by default, and a limit of 0 does not evict. A hit stays until a later operation needs the room. A miss is remembered only until the current `drive` finishes, so the next drive sees a put from another tab or worker. The store's keys are what the client already holds, which is the client side of dedup across sessions.
 
 `dacite.store.browser` speaks HTTP with `fetch` inside `drive`: a miss suspends, `drive` reads `response.body` as bytes arrive, and the op runs again. The server still sends one `Content-Length` pack per request. That replay is how a page stays responsive until the walks themselves await. Store methods return promises. `dacite.store.idb` is the page's IndexedDB dictionary, and it suspends through the same `drive`. The [roadmap](../roadmap.md) puts the QUIC reveal client next.
 
@@ -178,12 +180,12 @@ The ordinary end of a reveal is its interest falling below the floor. Cancel rem
 
 ## Deferred
 
-No wire layout is chosen here: no HTTP path, no header, no frame layout. Streaming a pack on one response remains a later way to carry the same idea. The default page order, the interest shares, and the session clock are `dacite.reveal`, with no policy field on a request. The clock spends each share in wire-item bytes of whole pages. A hash already sent in the session is skipped. Asking again for a hash still open resumes the unsent pages and restarts that clock at the peak. That namespace does not open a stream.
+No wire layout is chosen here: no HTTP path, no header, no frame layout. Streaming a pack on one response remains a later way to carry the same idea. The default page order, the interest shares, and the session clock are `dacite.reveal`, with no policy field on a request. The clock spends each share in wire-item bytes of whole pages. The share is `R_max * I / max(peak, sum I)`, and the clock integrates that exponential. A hash the client holds, or that the session has offered and not released, is skipped. `ack-pages` records a hold. `release-pages` queues a reset or evicted page again. Asking again for a hash still open resumes the pages the client does not hold and restarts that clock at the peak. That namespace does not open a stream.
 
 Still open:
 
-- Whether the exponential lasts, and how `peak`, `tau`, and the floor are derived from load, throughput, and pipe width.
-- Whether a client can raise interest on an open stream without a new request.
+- Whether the exponential lasts. The clock integrates this curve. A different curve replaces the integral. How `peak`, `tau`, and the floor are derived from load, throughput, and pipe width stays open.
+- Whether a client can raise interest on an open stream without a new request. Asking again is implemented.
 - Whether client and server need an explicit agreement on `R_max`.
-- Token-bucket parameters.
+- Token-bucket parameters, and a numeric cap on how many reveals one client may open.
 - The representation of a policy value and the syntax for attaching it to a path.

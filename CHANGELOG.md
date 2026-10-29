@@ -8,18 +8,28 @@ stability promise: public APIs may still change before 1.0.
 
 - **Reveal order and interest** — `dacite.reveal` names the pages a default
   reveal would send, and the share of the ceiling each open reveal gets.
-  Below the floor a reveal pauses. Cancel drops its share at once. A
-  session clock spends those shares in wire-item bytes, one whole page
-  at a time. A hash already sent in the session is skipped. Asking for
-  a hash still open resumes the unsent pages and restarts that clock at
-  the peak. No path, header, or frame is chosen yet, and no stream is
-  opened.
+  The share is `R_max * I / max(peak, sum I)`. Above one peak the shares
+  fill the ceiling. At one peak and below, the clock integrates the
+  exponential, so a lone reveal decays from the open. Below the floor a
+  reveal pauses. Cancel drops its share at once and removes the reveal.
+  A session clock spends those shares in wire-item bytes, one whole page
+  at a time, and reads the next page when it is about to be sent.
+  Offering a page does not hold it. `ack-pages` records the hold, and
+  `release-pages` queues a reset or evicted page again. A hash already
+  held, or still offered, is skipped. Asking for a hash still open
+  resumes the pages the client does not hold and restarts that clock at
+  the peak. Credit already earned stays. No path, header, or frame is
+  chosen yet, and no stream is opened.
 - **IndexedDB store** — `dacite.store.idb` is a page-local dictionary.
   `idb-store` is the content store. `open` is a rooted store with the
   same pack-literal flush as `s/file`. Methods suspend until IndexedDB
-  completes, and `drive` replays the operation. One browser `drive` covers
-  this store and HTTP together, so the page can put IndexedDB in front of
-  the remote store.
+  completes, and `drive` replays the operation. `s-merge` writes its
+  batch in one transaction. The cache keeps a bounded number of nodes
+  (1024 by default; `{:cache-limit 0}` does not evict). A hit stays
+  until it is the oldest past that limit. A miss is remembered only for
+  the current `drive`, so the next drive sees a put from another tab or
+  worker. One browser `drive` covers this store and HTTP together, so
+  the page can put IndexedDB in front of the remote store.
 - **Asynchronous `IStore`** — every store method returns a promise.
   `s-get` fulfills with nil when the hash is absent. A required read
   fails as `:missing`. A store that cannot answer rejects as

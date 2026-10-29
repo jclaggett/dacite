@@ -9,20 +9,25 @@
    A scalar is one node. An inlined finger-tree leaf stays on its page
    and is not requested again. A hash already listed is not listed again.
 
-   Interest is `peak * exp(-age / tau)`. Shares of `r-max` are those
-   interests renormalized. Below the floor a reveal pauses and drops
-   out of the sum. Cancel drops it at once.
+   Interest is `peak * exp(-age / tau)`. A reveal's share of `r-max` is
+   `r-max * I / max(peak, sum I)`. While the open interests add up to at
+   least one peak, they fill the ceiling. Below that, a lone reveal's
+   rate follows the exponential down from the ceiling. Below the floor
+   a reveal pauses and drops out of the sum. Cancel drops it at once.
 
    `open-reveal`, `cancel-reveal`, and `take-pages` spend those shares.
-   Credit accrues at the reveal's share, in bytes per unit of `tau`.
-   A page goes out whole when that credit covers its wire-item size.
-   A hash this session has already sent is skipped. Asking for a hash
-   that is still open resumes the unsent pages and restarts its clock
-   at the peak. Credit already earned toward the next page stays.
+   Credit accrues by integrating that share. A page goes out whole when
+   the credit covers its wire-item size. The next page is read when it
+   is about to be sent. Offering a page does not mean the client holds
+   it: `ack-pages` records a hold, and `release-pages` puts a reset or
+   evicted page back on its reveal. Asking for a hash that is still
+   open resumes the unsent pages and restarts its clock at the peak.
+   Credit already earned toward the next page stays.
 
-   No path, header, or frame. `peak`, `tau`, the floor, and `r-max` are
-   arguments. This namespace does not choose production values, and it
-   does not open a stream."
+   The clock integrates this exponential. A different curve would
+   replace the integral. No path, header, or frame. `peak`, `tau`, the
+   floor, and `r-max` are arguments. This namespace does not choose
+   production values, and it does not open a stream."
   (:require [clojure.string :as str]
             [dacite.store :as store]
             [dacite.value.hamt :as hamt]
@@ -152,8 +157,10 @@
    `reveals` is a sequence of maps with `:id` and `:opened-at`, and
    optional `:cancelled?` and `:done?`. Time `t` uses the same unit as
    `:tau`. Interest below `:floor` pauses that reveal. Cancel and done
-   drop it immediately. The values sum to `:r-max` when any reveal
-   remains in the sum."
+   drop it immediately. The share is `r-max * I / max(peak, sum I)`.
+   The shares fill `:r-max` while total interest is at least `:peak`.
+   Below that each reveal is paid `r-max * I / peak`, so one reveal
+   alone decays from the ceiling."
   [reveals t {:keys [peak tau floor r-max]}]
   (let [weighted (keep (fn [r]
                          (when-not (or (:cancelled? r) (:done? r))
@@ -162,9 +169,10 @@
                              (when (>= i floor)
                                [(:id r) i]))))
                        reveals)
-        sum (reduce + 0.0 (map second weighted))]
+        sum (reduce + 0.0 (map second weighted))
+        denom (max (double peak) sum)]
     (if (pos? sum)
-      (into {} (map (fn [[id i]] [id (* (double r-max) (/ i sum))]) weighted))
+      (into {} (map (fn [[id i]] [id (* (double r-max) (/ i denom))]) weighted))
       {})))
 
 (defn next-reveal
@@ -193,6 +201,30 @@
   #?(:clj (Math/log (double x))
      :cljs (js/Math.log x)))
 
+#?(:cljs
+   (defn- next-up-bits
+     "Next double after `x`, matching `Math/nextUp`.
+
+   Adding half an ulp rounds back to `x` at powers of two, so the bit
+   pattern itself is stepped."
+     [x]
+     (let [buf (js/ArrayBuffer. 8)
+           view (js/DataView. buf)
+           x (if (zero? x) 0.0 (double x))]
+       (.setFloat64 view 0 x false)
+       (let [hi (.getUint32 view 0 false)
+             lo (.getUint32 view 4 false)
+             [hi lo] (if (neg? x)
+                       (if (zero? lo)
+                         [(dec hi) 4294967295]
+                         [hi (dec lo)])
+                       (if (= lo 4294967295)
+                         [(inc hi) 0]
+                         [hi (inc lo)]))]
+         (.setUint32 view 0 hi false)
+         (.setUint32 view 4 lo false)
+         (.getFloat64 view 0 false)))))
+
 (defn- just-after
   "The next instant after `t`. Interest equal to the floor is still in
    the sum, on an instant of no width. Callers that land on that instant
@@ -200,11 +232,12 @@
   [t]
   #?(:clj (Math/nextUp (double t))
      :cljs
-     (let [t (double t)
-           bump (if (zero? t)
-                  5.0e-324
-                  (* (js/Math.abs t) 1.1102230246251565e-16))]
-       (+ t bump))))
+     (let [t (double t)]
+       (cond
+         (js/isNaN t) t
+         (= t js/Number.POSITIVE_INFINITY) t
+         (= t js/Number.NEGATIVE_INFINITY) (- js/Number.MAX_VALUE)
+         :else (next-up-bits t)))))
 
 (defn- finite-time
   [t]
@@ -239,9 +272,131 @@
 
 (defn session
   "An empty reveal session. The clock starts on the first call that
-   names a time. Nothing has been sent."
+   names a time. Nothing has been offered or held."
   []
-  {:t nil :sent #{} :seq 0 :reveals []})
+  {:t nil :sent #{} :offered {} :owner {} :seq 0 :reveals []})
+
+(defn- skip-set
+  "Hashes that must not be offered again: held, or still in flight."
+  [session]
+  (into (:sent session) (keys (:offered session))))
+
+(defn- cursor-for
+  [h]
+  {:stack [[:node h]] :seen #{}})
+
+(defn- cursor-done?
+  [cursor]
+  (or (nil? cursor) (empty? (:stack cursor))))
+
+(defn- push-frames
+  "Push `frames` so the first one is the next to run."
+  [stack frames]
+  (into stack (reverse frames)))
+
+(defn- pull-page
+  "Next hash a default reveal of this cursor would send, skipping `skip`.
+
+   The walk matches `page-order`: the node, then its own structural
+   pages, then subvalue bodies. One call reads only what the next hash
+   needs. Returns `[hash cursor]`, or `[nil cursor]` when the walk ends."
+  [store cursor skip]
+  (loop [stack (:stack cursor)
+         seen (:seen cursor)
+         guard 0]
+    (when (>= guard 1000000)
+      (throw (ex-info "reveal walk exceeded page steps" {})))
+    (if (empty? stack)
+      [nil {:stack [] :seen seen}]
+      (let [frame (peek stack)
+            stack (pop stack)
+            op (nth frame 0)]
+        (case op
+          :node
+          (let [h (nth frame 1)]
+            (if (or (nil? h) (contains? seen h))
+              (recur stack seen (inc guard))
+              (let [n (store/require-node store h)
+                    t (types/entry-type n)
+                    root (:root (types/entry-data n))
+                    seen (conj seen h)
+                    follow (cond
+                             (contains? seq-types t)
+                             [[:struct root] [:seq-bodies root]]
+                             (contains? assoc-types t)
+                             [[:struct root] [:assoc-bodies root t]]
+                             :else [])
+                    stack (push-frames stack follow)]
+                (if (contains? skip h)
+                  (recur stack seen (inc guard))
+                  [h {:stack stack :seen seen}]))))
+
+          :struct
+          (let [h (nth frame 1)]
+            (if (or (nil? h) (contains? seen h))
+              (recur stack seen (inc guard))
+              (let [n (store/require-node store h)
+                    t (types/entry-type n)]
+                (if-not (structural-type? t)
+                  (recur stack seen (inc guard))
+                  (let [children (structural-children store n)
+                        seen (conj seen h)
+                        stack (push-frames stack
+                                           (mapv (fn [c] [:struct c]) children))]
+                    (if (contains? skip h)
+                      (recur stack seen (inc guard))
+                      [h {:stack stack :seen seen}]))))))
+
+          :seq-bodies
+          (let [root (nth frame 1)
+                refs (if (nil? root) [] (vec (seq-element-refs store root)))]
+            (recur (push-frames stack (mapv (fn [h] [:node h]) refs))
+                   seen
+                   (inc guard)))
+
+          :assoc-bodies
+          (let [root (nth frame 1)
+                kind (nth frame 2)
+                refs (if (nil? root) [] (vec (assoc-refs store root kind)))]
+            (recur (push-frames stack (mapv (fn [h] [:node h]) refs))
+                   seen
+                   (inc guard))))))))
+
+(defn- ensure-reveal
+  "Queue the next unsent page, when this reveal does not already have one."
+  [reveal store skip]
+  (cond
+    (or (:cancelled? reveal) (seq (:pages reveal)) (:done? reveal)) reveal
+    :else
+    (let [[h cursor] (pull-page store (:cursor reveal) skip)]
+      (if (nil? h)
+        (assoc reveal :cursor cursor :pages [] :done? true)
+        (assoc reveal :cursor cursor :done? false
+               :pages [{:hash h :bytes (page-bytes store h)}])))))
+
+(defn- ensure-reveals
+  [session store]
+  (let [skip (skip-set session)]
+    (update session :reveals
+            (fn [rs]
+              (mapv #(ensure-reveal % store skip) rs)))))
+
+(defn- drop-skipped-head
+  "A page another reveal has since offered or held is no longer this
+   reveal's to send."
+  [reveal skip store]
+  (loop [reveal reveal guard 0]
+    (when (>= guard 1000000)
+      (throw (ex-info "reveal walk exceeded page steps" {})))
+    (let [reveal (if (seq (:pages reveal))
+                   reveal
+                   (ensure-reveal reveal store skip))]
+      (if-let [page (first (:pages reveal))]
+        (if (contains? skip (:hash page))
+          (recur (assoc reveal :pages (vec (rest (:pages reveal))))
+                 (inc guard))
+          reveal)
+        reveal))))
 
 (defn- age-of
   [reveal t]
@@ -271,55 +426,111 @@
     (max 0.0 (- limit (double t)))
     ##Inf))
 
-(defn- page-wait
-  [credit bytes rate]
-  (let [need (- (double bytes) (double credit))]
+(defn- interest-sum
+  [earning t {:keys [peak tau]}]
+  (reduce + 0.0 (map #(interest peak tau (age-of % t)) earning)))
+
+(defn- decay-regime?
+  "True when total interest is at or below one peak, so each rate follows
+   the exponential instead of a constant share of the ceiling."
+  [earning t params]
+  (<= (interest-sum earning t params) (double (:peak params))))
+
+(defn- seconds-until-decay
+  "Time until total interest falls to one peak. Infinite once it has."
+  [earning t params]
+  (let [peak (double (:peak params))
+        sum (interest-sum earning t params)]
+    (if (> sum peak)
+      (* (double (:tau params)) (log (/ sum peak)))
+      ##Inf)))
+
+(defn- exp-span
+  "Integral of `exp(-s / tau)` over `dt` seconds, times `tau`.
+
+   That is `tau * (1 - exp(-dt / tau))`. A tiny `dt / tau` underflows
+   the exp, so the span is `dt` there."
+  [dt tau]
+  (let [dt (double dt)
+        tau (double tau)
+        x (/ dt tau)]
+    (if (< x 1.0e-8)
+      dt
+      (* tau (- 1.0 (exp (- x)))))))
+
+(defn- decay-wait
+  "Seconds for a decaying rate to cover `need` more bytes.
+
+   The integral of `rate * exp(-s / tau)` from 0 to infinity is
+   `rate * tau`. A page larger than that is never reached on this clock."
+  [need rate tau]
+  (let [need (double need)
+        rate (double rate)
+        tau (double tau)]
     (cond
       (<= need 0.0) 0.0
-      (pos? rate) (/ need (double rate))
-      :else ##Inf)))
+      (not (pos? rate)) ##Inf
+      :else
+      (let [budget (* rate tau)
+            x (/ need budget)]
+        (cond
+          (>= x 1.0) ##Inf
+          (< x 1.0e-8) (/ need rate)
+          :else (* (- tau) (log (- 1.0 x))))))))
+
+(defn- page-wait
+  [reveal rate decay? tau room]
+  (let [need (- (double (:bytes (first (:pages reveal))))
+                (double (:credit reveal)))]
+    (cond
+      (<= need 0.0) 0.0
+      (not (pos? rate)) ##Inf
+      decay? (decay-wait need rate tau)
+      :else
+      (let [w (/ need (double rate))]
+        (if (<= w room)
+          w
+          (+ room (decay-wait (- need (* (double rate) room)) rate tau)))))))
 
 (defn- earlier
   [a b]
   (if (< a b) a b))
 
-(defn- prune-sent
-  "Drop pages this session has already sent. A reveal with nothing left
-   is finished."
-  [session]
-  (let [sent (:sent session)]
-    (update session :reveals
-            (fn [rs]
-              (mapv (fn [r]
-                      (let [pages (into [] (remove #(contains? sent (:hash %)))
-                                        (:pages r))]
-                        (assoc r :pages pages
-                               :done? (or (:done? r) (empty? pages)))))
-                    rs)))))
-
 (defn- accrue
-  [session rates dt]
-  (let [dt (double dt)]
+  "Add `dt` seconds of credit. In `:fill` the share is constant. In
+   `:decay` the share at the start of the step is `rate` and then follows
+   `exp(-s / tau)`."
+  [session rates dt mode tau]
+  (let [dt (double dt)
+        factor (if (= mode :decay)
+                 (exp-span dt tau)
+                 dt)]
     (-> session
         (update :t + dt)
         (update :reveals
                 (fn [rs]
                   (mapv (fn [r]
                           (if-let [rate (get rates (:id r))]
-                            (update r :credit + (* dt (double rate)))
+                            (update r :credit + (* factor (double rate)))
                             r))
                         rs))))))
 
 (defn- emit-page
+  "Offer the next page. The client does not hold it until `ack-pages`."
   [session reveal t]
   (let [page (first (:pages reveal))
         credit (max 0.0 (- (double (:credit reveal))
                            (double (:bytes page))))
         pages (vec (rest (:pages reveal)))
-        reveal' (assoc reveal :credit credit :pages pages
-                       :done? (empty? pages))]
+        done? (and (empty? pages) (cursor-done? (:cursor reveal)))
+        reveal' (assoc reveal :credit credit :pages pages :done? done?
+                       :cursor (if done?
+                                 {:stack [] :seen #{}}
+                                 (:cursor reveal)))]
     {:session (-> session
-                  (update :sent conj (:hash page))
+                  (update :offered assoc (:hash page)
+                          {:id (:id reveal) :bytes (:bytes page)})
+                  (update :owner assoc (:hash page) (:id reveal))
                   (update :reveals
                           (fn [rs]
                             (mapv (fn [r]
@@ -331,9 +542,14 @@
             :at (double t)}}))
 
 (defn- advance
-  "Move the session clock forward to `t`, emitting every page whose
-   credit covers it at or before that time."
-  [session t params]
+  "Move the session clock forward to `t`, offering every page whose
+   credit covers it at or before that time.
+
+   While total interest stays at or above one peak, shares are constant
+   between membership changes and credit grows by `rate * dt`. Below
+   that peak the exponential is integrated. A different curve does not
+   drop into this step."
+  [session store t params]
   (let [t (finite-time t)]
     (cond
       (nil? (:t session)) [(assoc session :t t) []]
@@ -346,7 +562,10 @@
              steps 0]
         (when (>= steps 1000000)
           (throw (ex-info "reveal session exceeded page steps" {})))
-        (let [session (prune-sent session)
+        (let [skip (skip-set session)
+              session (update (ensure-reveals session store) :reveals
+                              (fn [rs]
+                                (mapv #(drop-skipped-head % skip store) rs)))
               t-now (double (:t session))
               earning (filterv #(in-sum? % t-now params) (:reveals session))
               rates (shares earning t-now params)
@@ -370,21 +589,28 @@
             [(assoc session :t t) out]
 
             :else
-            (let [dt-page (reduce earlier ##Inf
+            (let [decay? (decay-regime? earning t-now params)
+                  tau (double (:tau params))
+                  room (seconds-until-decay earning t-now params)
+                  dt-page (reduce earlier ##Inf
                                   (map (fn [r]
-                                         (page-wait (:credit r)
-                                                    (:bytes (first (:pages r)))
-                                                    (get rates (:id r) 0.0)))
+                                         (page-wait r (get rates (:id r) 0.0)
+                                                    decay? tau room))
                                        earning))
                   dt-out (reduce earlier ##Inf
                                  (map #(seconds-until-out % t-now params)
                                       earning))
-                  dt (earlier (earlier dt-page dt-out) (- t t-now))]
+                  dt (earlier (earlier (earlier dt-page dt-out) room)
+                              (- t t-now))]
               (if (pos? dt)
-                (recur (accrue session rates dt) out (inc steps))
+                (recur (accrue session rates dt
+                               (if decay? :decay :fill) tau)
+                       out
+                       (inc steps))
                 (let [nudged (min t (just-after t-now))]
                   (if (= nudged t-now)
-                    [(assoc session :t t) out]
+                    (throw (ex-info "session clock could not move"
+                                    {:t t-now}))
                     (recur (assoc session :t nudged) out (inc steps))))))))))))
 
 (defn- with-pages
@@ -403,41 +629,48 @@
 
 (defn- live-reveal
   "The open reveal of `h`, including one that has paused or finished.
-   A cancelled reveal stays cancelled and is not reused."
+   A cancelled reveal is removed and is not reused."
   [session h]
   (first (filter #(and (= h (:hash %)) (not (:cancelled? %)))
                  (:reveals session))))
+
+(defn- slim-done
+  "A finished walk does not keep the hashes it already visited."
+  [reveal]
+  (if (:done? reveal)
+    (assoc reveal :cursor {:stack [] :seen #{}} :pages [])
+    reveal))
 
 (defn open-reveal
   "Open a reveal of `h` at time `t`, or resume one already open.
 
    Pages due by `t` from reveals already open are returned first. The
-   new reveal starts with no new credit at that instant. Resuming
-   restarts the interest clock at the peak and keeps credit already
-   earned toward the next page. A hash already sent in this session is
-   not queued again.
+   new reveal starts with no new credit at that instant, and only its
+   next page is read. Resuming restarts the interest clock at the peak
+   and keeps credit already earned toward the next page. A hash already
+   offered or held in this session is not queued again.
 
    Returns `{:session :pages :id}`."
   [session store h t params]
   (check-params params)
   (let [t (finite-time t)
-        [session pages] (advance session t params)
+        [session pages] (advance session store t params)
         existing (live-reveal session h)]
     (if existing
       {:session (restart-clock session (:id existing) t)
        :pages pages
        :id (:id existing)}
       (let [id (inc (:seq session))
-            queued (mapv (fn [ph]
-                           {:hash ph :bytes (page-bytes store ph)})
-                         (omit-sent (page-order store h) (:sent session)))
-            reveal {:id id
-                    :hash h
-                    :opened-at t
-                    :pages queued
-                    :credit 0.0
-                    :cancelled? false
-                    :done? (empty? queued)}]
+            reveal (-> {:id id
+                        :hash h
+                        :opened-at t
+                        :pages []
+                        :cursor (cursor-for h)
+                        :credit 0.0
+                        :cancelled? false
+                        :done? false}
+                       (ensure-reveal store (skip-set session))
+                       slim-done)]
         {:session (-> session
                       (assoc :seq id :t t)
                       (update :reveals conj reveal))
@@ -448,32 +681,78 @@
   "Cancel the reveal `id` at time `t`.
 
    Pages already due by `t` are returned. Later pages of this reveal
-   stay unsent. Hashes already sent stay sent.
+   are not sent. The reveal is dropped, so asking again is a new id.
+   Hashes already offered stay offered until `ack-pages` or
+   `release-pages`.
 
    Returns `{:session :pages}`."
-  [session id t params]
+  [session store id t params]
   (check-params params)
   (when-not (some #(= id (:id %)) (:reveals session))
     (throw (ex-info "no such reveal" {:id id})))
   (let [t (finite-time t)
-        [session pages] (advance session t params)]
+        [session pages] (advance session store t params)]
     {:session (update session :reveals
                       (fn [rs]
-                        (mapv (fn [r]
-                                (if (= id (:id r))
-                                  (assoc r :cancelled? true)
-                                  r))
-                              rs)))
+                        (into [] (remove #(= id (:id %))) rs)))
      :pages pages}))
 
+(defn ack-pages
+  "The client holds `hashes`. Each must be an offer that is not yet held.
+
+   A held hash is not offered again unless `release-pages`."
+  [session hashes]
+  (let [offered (:offered session)
+        missing (into [] (remove #(contains? offered %)) hashes)]
+    (when (seq missing)
+      (throw (ex-info "page was not offered" {:hashes missing})))
+    (-> session
+        (update :sent into hashes)
+        (update :offered (fn [offered]
+                           (reduce dissoc offered hashes))))))
+
+(defn release-pages
+  "The client does not hold `hashes`.
+
+   A reset drops an offer the client never kept. An eviction drops a
+   hash it no longer keeps. The page is queued again on the reveal that
+   offered it, when that reveal is still open. A cancelled reveal is
+   already gone; a later `open-reveal` of a value that contains the hash
+   sends it."
+  [session store hashes]
+  (reduce (fn [session h]
+            (if-not (or (contains? (:offered session) h)
+                        (contains? (:sent session) h))
+              (throw (ex-info "page was not offered" {:hash h}))
+              (let [id (get (:owner session) h)
+                    page {:hash h :bytes (page-bytes store h)}
+                    session (-> session
+                                (update :offered dissoc h)
+                                (update :sent disj h)
+                                (update :owner dissoc h))]
+                (update session :reveals
+                        (fn [rs]
+                          (mapv (fn [r]
+                                  (if (and (= id (:id r))
+                                           (not (some #(= h (:hash %))
+                                                      (:pages r))))
+                                    (-> r
+                                        (update :pages #(into [page] %))
+                                        (assoc :done? false))
+                                    r))
+                                rs))))))
+          session
+          hashes))
+
 (defn take-pages
-  "Pages the session would send from its clock up to time `t`.
+  "Pages the session would offer from its clock up to time `t`.
 
    Each page is `{:id :hash :bytes :at}`. `:at` is the time the credit
-   covered that page. The clock then stands at `t`.
+   covered that page. The page is offered, not held, until `ack-pages`.
+   The clock then stands at `t`.
 
    Returns `{:session :pages}`."
-  [session t params]
+  [session store t params]
   (check-params params)
-  (let [[session pages] (advance session (finite-time t) params)]
+  (let [[session pages] (advance session store (finite-time t) params)]
     (with-pages session pages)))

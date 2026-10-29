@@ -1,6 +1,6 @@
 # Dacite Roadmap
 
-*Last updated: 2026-10-28*
+*Last updated: 2026-10-29*
 
 ## Current direction
 
@@ -54,10 +54,14 @@ Do this next:
    child limits above. The rate-based account is the same design doc.
    `dacite.reveal` is the default page order, the interest shares, and
    the session clock. A page goes out whole, in wire-item bytes, when
-   its reveal's credit covers it. A hash already sent in the session is
-   skipped. Asking again for a hash still open resumes the unsent pages
-   and restarts that clock at the peak. No path, header, or frame is
-   chosen yet.
+   its reveal's credit covers it. The share is
+   `R_max * I / max(peak, sum I)`, and the clock integrates that
+   exponential, so a lone reveal decays from the open. Offering a page
+   does not hold it. `ack-pages` records the hold, and `release-pages`
+   queues a reset or evicted page again. A hash already held, or still
+   offered, is skipped. Asking again for a hash still open resumes the
+   pages the client does not hold and restarts that clock at the peak.
+   No path, header, or frame is chosen yet.
 
 **Stream a pack on one HTTP response** follows the reveal client. It is
 the HTTP/1.1 carrier of the byte limit in *How every client reveals a

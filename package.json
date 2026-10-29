@@ -14,7 +14,8 @@
     "sync": "nbb -m dacite.examples.sync",
     "lmdb:v1": "LMDB_DATA_V1=true npm rebuild lmdb",
     "lmdb:bench": "nbb -m dacite.examples.lmdb-bench",
-    "idb:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.idb-test"
+    "idb:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.idb-test",
+    "reveal:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.reveal-cljs-test"
   },
   "dependencies": {
     "chalk": "^4.1.2",

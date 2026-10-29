@@ -12,7 +12,12 @@
 
    A rooted compare-and-set publishes the new root only on the replay
    that finds the meta write already durable. Publishing earlier would
-   make `v/swap!` apply its function twice."
+   make `v/swap!` apply its function twice.
+
+   The cache keeps a bounded number of nodes that this tab has read.
+   A miss is remembered only until the current `drive` finishes, so the
+   next drive sees a put from another tab or worker. `s-merge` writes
+   its batch in one transaction."
   (:require [dacite.rooted :as rooted]
             [dacite.store :as store]
             [dacite.store.chunk :as chunk]
@@ -21,8 +26,18 @@
 (def ^:private node-store "nodes")
 (def ^:private meta-store "meta")
 (def ^:private root-key "root")
-(def ^:private absent ::absent)
 (def ^:private unset ::unset)
+
+(def ^:private default-cache-limit
+  "Nodes kept in memory. Zero means the cache does not evict."
+  1024)
+
+(def ^:dynamic *drive-epoch*
+  "Identity of the `drive` currently replaying an operation.
+
+   Misses are cached under this epoch so the replay can settle, and a
+   later drive does not trust them."
+  nil)
 
 (def ^:private max-suspensions
   "Safety cap so a missed cache write cannot retry forever."
@@ -102,6 +117,15 @@
     (.put (.objectStore tx store-name) value key)
     (tx-complete tx)))
 
+(defn- idb-put-many
+  "One readwrite transaction for a batch of hex-key / wire-byte pairs."
+  [db pairs]
+  (let [tx (.transaction db #js [node-store] "readwrite")
+        os (.objectStore tx node-store)]
+    (doseq [[k v] pairs]
+      (.put os v k))
+    (tx-complete tx)))
+
 (defn- idb-del
   [db store-name key]
   (let [tx (.transaction db #js [store-name] "readwrite")]
@@ -130,30 +154,89 @@
                      (.continue cur))
                  (ok @acc))))))))
 
-(defn- remember!
-  [cache h node]
-  (swap! cache assoc (store/hash->hex h) (if (some? node) node absent)))
-
-(defn- cached-node
-  "Node for a cache hit, or nil when the hit is an absence."
-  [v]
-  (when-not (= v absent) v))
-
 (defn- decode-node
   [h bs]
   (when (present? bs)
     (bin/decode-store-value h (bin/as-wire-bytes bs))))
 
-(defrecord IdbStore [name db opening cache snap-ready reset-latch
+(defn- hit?
+  [v]
+  (and (map? v) (contains? v :node)))
+
+(defn- fresh-miss?
+  "A miss recorded by the drive that is replaying right now."
+  [v]
+  (and (map? v)
+       (some? *drive-epoch*)
+       (= (:miss v) *drive-epoch*)))
+
+(defn- pinned?
+  "A cache entry written by the drive now replaying. Evicting it would
+   make that replay write again."
+  [v]
+  (and (some? *drive-epoch*)
+       (or (= (:epoch v) *drive-epoch*)
+           (= (:miss v) *drive-epoch*))))
+
+(defn- cache-store!
+  "Remember `value` without evicting. The IndexedDB callback runs outside
+   `drive`'s binding, so eviction happens on the next replay instead."
+  [st k value]
+  (swap! (:cache st) assoc k value)
+  (swap! (:cache-order st)
+         (fn [order]
+           (conj (into [] (remove #(= k %)) order) k))))
+
+(defn- evict-while!
+  "Drop the oldest unpinned entries until the cache is within its limit.
+
+   `keep-key` is the hex key this call is about to use. Evicting it would
+   turn a hit into another IndexedDB read. Entries written by the drive
+   now replaying stay too: dropping those would make the replay write again."
+  [st keep-key]
+  (let [limit (:cache-limit st)]
+    (when (pos? limit)
+      (loop []
+        (let [order @(:cache-order st)]
+          (when (> (count order) limit)
+            (let [victim (first (remove (fn [k]
+                                          (or (= k keep-key)
+                                              (pinned? (get @(:cache st) k))))
+                                        order))]
+              (when victim
+                (swap! (:cache st) dissoc victim)
+                (swap! (:cache-order st)
+                       (fn [o] (into [] (remove #(= victim %)) o)))
+                (recur)))))))))
+
+(defn- cache-touch!
+  [st k]
+  (swap! (:cache-order st)
+         (fn [order]
+           (conj (into [] (remove #(= k %)) order) k)))
+  (evict-while! st k))
+
+(defn- keepv
+  "Pairs `f` keeps. Defined out here because the IdbStore field `keep`
+   shadows clojure.core/keep inside the record methods."
+  [f coll]
+  (into [] (keep f) coll))
+
+(defrecord IdbStore [name db opening cache cache-order cache-limit
+                     snap snap-epoch reset-latch
                      root-ready root durable-cas durable-set keep retained]
   store/IStore
   (s-get [this h]
-    (let [k (store/hash->hex h)]
+    (evict-while! this (store/hash->hex h))
+    (let [k (store/hash->hex h)
+          v (get @cache k ::none)
+          epoch *drive-epoch*]
       (cond
-        (contains? @cache k)
-        (store/completed (cached-node (get @cache k)))
+        (hit? v)
+        (do (cache-touch! this k)
+            (store/completed (:node v)))
 
-        @snap-ready
+        (fresh-miss? v)
         (store/completed nil)
 
         :else
@@ -162,12 +245,17 @@
           (-> (ensure-db this)
               (.then (fn [db*] (idb-get db* node-store k)))
               (.then (fn [bs]
-                       (remember! cache h (decode-node h bs)))))
+                       (if-let [node (decode-node h bs)]
+                         (cache-store! this k {:node node :epoch epoch})
+                         (cache-store! this k {:miss epoch})))))
           h)))))
 
   (s-put [this h value]
-    (let [k (store/hash->hex h)]
-      (if (= (get @cache k ::miss) value)
+    (evict-while! this (store/hash->hex h))
+    (let [k (store/hash->hex h)
+          v (get @cache k)
+          epoch *drive-epoch*]
+      (if (and (hit? v) (= (:node v) value))
         (store/completed this)
         (suspend
          (reject-cause
@@ -176,16 +264,20 @@
                        (idb-put db* node-store k
                                 (bin/encode-store-value value))))
               (.then (fn [_]
-                       (swap! cache assoc k value))))
+                       (cache-store! this k {:node value :epoch epoch}))))
           h)))))
 
   (s-has? [this h]
-    (let [k (store/hash->hex h)]
+    (evict-while! this (store/hash->hex h))
+    (let [k (store/hash->hex h)
+          v (get @cache k ::none)
+          epoch *drive-epoch*]
       (cond
-        (contains? @cache k)
-        (store/completed (not= (get @cache k) absent))
+        (hit? v)
+        (do (cache-touch! this k)
+            (store/completed true))
 
-        @snap-ready
+        (fresh-miss? v)
         (store/completed false)
 
         :else
@@ -194,49 +286,80 @@
           (-> (ensure-db this)
               (.then (fn [db*] (idb-get db* node-store k)))
               (.then (fn [bs]
-                       (remember! cache h (decode-node h bs)))))
+                       (if-let [node (decode-node h bs)]
+                         (cache-store! this k {:node node :epoch epoch})
+                         (cache-store! this k {:miss epoch})))))
           h)))))
 
   (s-delete [this h]
-    (let [k (store/hash->hex h)]
-      (if (= (get @cache k ::miss) absent)
+    (evict-while! this (store/hash->hex h))
+    (let [k (store/hash->hex h)
+          epoch *drive-epoch*]
+      (if (fresh-miss? (get @cache k))
         (store/completed this)
         (suspend
          (reject-cause
           (-> (ensure-db this)
               (.then (fn [db*] (idb-del db* node-store k)))
               (.then (fn [_]
-                       (swap! cache assoc k absent))))
+                       (cache-store! this k {:miss epoch}))))
           h)))))
 
   (s-snapshot [this]
-    (if @snap-ready
-      (store/completed
-       (into {} (remove (fn [[_ v]] (= v absent))) @cache))
-      (suspend
-       (reject-cause
-        (-> (ensure-db this)
-            (.then idb-all)
-            (.then (fn [raw]
-                     (let [decoded
-                           (into {}
-                                 (map (fn [[k bs]]
-                                        (let [h (store/hex->hash k)]
-                                          [k (decode-node h bs)])))
-                                 raw)]
-                       (swap! cache merge decoded)
-                       (reset! snap-ready true)))))
-        nil))))
+    (if (and (some? *drive-epoch*) (= @snap-epoch *drive-epoch*))
+      (store/completed @snap)
+      (let [epoch *drive-epoch*]
+        (suspend
+         (reject-cause
+          (-> (ensure-db this)
+              (.then idb-all)
+              (.then (fn [raw]
+                       (let [decoded
+                             (into {}
+                                   (keepv (fn [[k bs]]
+                                            (let [h (store/hex->hash k)
+                                                  node (decode-node h bs)]
+                                              (when node [k node])))
+                                          raw))]
+                         (reset! snap decoded)
+                         (reset! snap-epoch epoch)
+                         (reset! cache {})
+                         (reset! cache-order [])
+                         (doseq [[k node] decoded]
+                           (cache-store! this k {:node node :epoch epoch}))))))
+          nil)))))
 
   (s-merge [this m]
-    (doseq [[h v] m]
-      (store/await (store/s-put this h v)))
-    (store/completed this))
+    (evict-while! this nil)
+    (let [epoch *drive-epoch*
+          pending (keepv (fn [[h v]]
+                           (let [k (store/hash->hex h)
+                                 cached (get @cache k)]
+                             (when-not (and (hit? cached)
+                                            (= (:node cached) v))
+                               [k v])))
+                         m)]
+      (if (empty? pending)
+        (store/completed this)
+        (suspend
+         (reject-cause
+          (-> (ensure-db this)
+              (.then (fn [db*]
+                       (idb-put-many db*
+                                     (map (fn [[k v]]
+                                            [k (bin/encode-store-value v)])
+                                          pending))))
+              (.then (fn [_]
+                       (doseq [[k v] pending]
+                         (cache-store! this k {:node v :epoch epoch})))))
+          nil)))))
 
   (s-reset [this]
     (if @reset-latch
       (do (reset! cache {})
-          (reset! snap-ready true)
+          (reset! cache-order [])
+          (reset! snap {})
+          (reset! snap-epoch nil)
           (reset! reset-latch false)
           (reset! root-ready true)
           (reset! root nil)
@@ -252,20 +375,26 @@
         nil)))))
 
 (defn idb-store
-  "Content dictionary in IndexedDB database `name`."
-  [name]
-  (->IdbStore (str name)
-              (atom nil)
-              (atom nil)
-              (atom {})
-              (atom false)
-              (atom false)
-              (atom false)
-              (atom nil)
-              (atom nil)
-              (atom unset)
-              (atom nil)
-              (atom false)))
+  "Content dictionary in IndexedDB database `name`.
+
+   `:cache-limit` is how many nodes stay in memory. `0` does not evict."
+  ([name] (idb-store name {}))
+  ([name {:keys [cache-limit] :or {cache-limit default-cache-limit}}]
+   (->IdbStore (str name)
+               (atom nil)
+               (atom nil)
+               (atom {})
+               (atom [])
+               cache-limit
+               (atom {})
+               (atom nil)
+               (atom false)
+               (atom false)
+               (atom nil)
+               (atom nil)
+               (atom unset)
+               (atom nil)
+               (atom false))))
 
 (defn- ensure-root!
   [st]
@@ -370,9 +499,11 @@
 (defn drive
   "Run `f`, waiting out each IndexedDB suspension and then running it again.
 
-   Returns a promise of `f`'s value. `f` must be synchronous."
+   Returns a promise of `f`'s value. `f` must be synchronous. One epoch
+   covers every replay, so a miss found on the first pass settles the next."
   [f]
-  (let [steps (atom 0)]
+  (let [steps (atom 0)
+        epoch (random-uuid)]
     (js/Promise.
      (fn [ok err]
        (letfn [(step []
@@ -382,7 +513,7 @@
                    (do
                      (swap! steps inc)
                      (try
-                       (ok (f))
+                       (ok (binding [*drive-epoch* epoch] (f)))
                        (catch :default e
                          (if-let [p (:dacite/suspend (ex-data e))]
                            (-> p (.then step) (.catch err))
