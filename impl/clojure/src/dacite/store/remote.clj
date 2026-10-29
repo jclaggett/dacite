@@ -308,9 +308,11 @@
            :reveal {:url https-origin :client jetty-http3-client :trust-all bool}}
 
    Without `:reveal`, `s-get` is pack GET. With it, a missing hash is
-   `POST /reveal` on that HTTP/3 client. PUT, DELETE, root CAS, and
-   `watch-root` stay on `base-url`. 429 and 503 responses retry up to
-   8 times using Retry-After (seconds)."
+   `POST /reveal` on that HTTP/3 client. A second missing hash, read
+   while that response is still open, is another stream on the same
+   connection. PUT, DELETE, root CAS, and `watch-root` stay on
+   `base-url`. 429 and 503 responses retry up to 8 times using
+   Retry-After (seconds)."
   [base-url & [{:keys [headers client binary token reveal]
                 :or {headers {}
                      binary true}}]]

@@ -142,3 +142,150 @@
         ((:close! primary))
         ((:close! fresh))
         (stop!)))))
+
+(defn- open-reveal
+  "POST /reveal and return the response once its headers are in.
+   The body stays open on `:in`."
+  [client h3-url h]
+  (let [body (wire/write-edn {:hash (store/hash->hex h)})
+        listener (InputStreamResponseListener.)
+        req (-> (.newRequest client (str h3-url "/reveal"))
+                (.method "POST")
+                (.version HttpVersion/HTTP_3)
+                (.body (StringRequestContent. "application/edn" body))
+                (.timeout 20 TimeUnit/SECONDS)
+                (.idleTimeout 20 TimeUnit/SECONDS))]
+    (.send req listener)
+    (let [resp (.get listener 20 TimeUnit/SECONDS)]
+      {:status (.getStatus resp)
+       :type (str (.get (.getHeaders resp) "Content-Type"))
+       :version (.getVersion resp)
+       :in (.getInputStream listener)
+       :listener listener})))
+
+(defn- wait-for-other-page
+  "True once `pack` holds some page and does not yet hold `avoid`."
+  [pack avoid]
+  (loop [n 0]
+    (let [have (set (keys (store/await (store/s-snapshot pack))))]
+      (cond
+        (contains? have avoid) false
+        (seq have) true
+        (>= n 200) :timeout
+        :else (do (Thread/sleep 20)
+                  (recur (inc n)))))))
+
+(deftest focused-child-is-its-own-stream
+  (let [rooted (svc/make-demo-rooted)
+        inner (v/vector rooted (v/i64 rooted 2))
+        child (v/hash inner)
+        parent (v/hash (v/vector rooted (v/i64 rooted 1) inner))
+        order (reveal/page-order rooted parent)
+        child-order (reveal/page-order rooted child)
+        total (reduce + 0 (map #(reveal/page-bytes rooted %) order))
+        ;; The whole parent takes about two seconds, so the response is
+        ;; still open when the child request is sent.
+        r-max (/ (double total) 2.0)
+        {:keys [h3-url stop!]} (svc/start-server! {:port 0
+                                                   :rooted rooted
+                                                   :reveal {:peak 1.0
+                                                            :tau 1.0e6
+                                                            :floor 0.0
+                                                            :r-max r-max}})
+        primary (reveal-client/open-client {:trust-all true})
+        parent-items (atom [])
+        child-items (atom [])
+        parent-head (atom nil)
+        saw-page (promise)
+        parent-eof (promise)]
+    (try
+      (future
+        (try
+          (let [opened (open-reveal (:client primary) h3-url parent)]
+            (reset! parent-head (select-keys opened [:status :type :version]))
+            (try
+              (when-not (= 200 (:status opened))
+                (throw (ex-info "parent reveal failed" opened)))
+              (reveal-client/read-items!
+               (:in opened)
+               (fn [item]
+                 (swap! parent-items conj item)
+                 (when-not (realized? saw-page)
+                   (deliver saw-page true))))
+              (deliver parent-eof (System/nanoTime))
+              (finally
+                (.close (:listener opened)))))
+          (catch Throwable t
+            (when-not (realized? saw-page) (deliver saw-page t))
+            (when-not (realized? parent-eof) (deliver parent-eof t)))))
+      (let [gate (deref saw-page 15000 :timeout)]
+        (is (true? gate))
+        (when (true? gate)
+          (let [sent (System/nanoTime)
+                opened (open-reveal (:client primary) h3-url child)]
+            (try
+              (is (= HttpVersion/HTTP_3 (:version @parent-head)))
+              (is (= 200 (:status @parent-head)))
+              (is (= rv/content-type (:type @parent-head)))
+              (is (= HttpVersion/HTTP_3 (:version opened)))
+              (is (= 200 (:status opened)))
+              (is (= rv/content-type (:type opened)))
+              (reveal-client/read-items! (:in opened)
+                                         #(swap! child-items conj %))
+              (finally
+                (.close (:listener opened))))
+            (let [eof (deref parent-eof 15000 :timeout)
+                  parent-hashes (mapv :hash @parent-items)
+                  child-hashes (mapv :hash @child-items)
+                  dest (rv/accept-items! (store/mem-store)
+                                         (concat @parent-items @child-items))]
+              (is (number? eof))
+              (is (< sent eof)
+                  "the parent response was still open")
+              (is (< 1 (count child-order)))
+              (is (seq parent-hashes))
+              (is (seq child-hashes))
+              (is (empty? (filter (set parent-hashes) child-hashes))
+                  "a page offered on one stream is not sent on the other")
+              (is (every? (set child-order) child-hashes))
+              (is (= (set order) (set (concat parent-hashes child-hashes))))
+              (is (= (store/require-node rooted parent)
+                     (store/require-node dest parent)))
+              (is (= (store/require-node rooted child)
+                     (store/require-node dest child)))))))
+      (finally
+        ((:close! primary))
+        (stop!)))))
+
+(deftest remote-get-focuses-a-child-while-the-parent-streams
+  (let [rooted (svc/make-demo-rooted)
+        inner (v/vector rooted (v/i64 rooted 2))
+        child (v/hash inner)
+        parent (v/hash (v/vector rooted (v/i64 rooted 1) inner))
+        order (reveal/page-order rooted parent)
+        total (reduce + 0 (map #(reveal/page-bytes rooted %) order))
+        r-max (/ (double total) 2.0)
+        {:keys [base-url h3-url stop!]} (svc/start-server!
+                                         {:port 0
+                                          :rooted rooted
+                                          :reveal {:peak 1.0
+                                                   :tau 1.0e6
+                                                   :floor 0.0
+                                                   :r-max r-max}})
+        primary (reveal-client/open-client {:trust-all true})
+        via (remote/remote-store base-url
+                                 {:reveal {:url h3-url
+                                           :client (:client primary)}})]
+    (try
+      (let [parent-p (store/s-get via parent)
+            ready (wait-for-other-page (:pack-local via) child)]
+        (is (true? ready)
+            "the parent stream has a page, and the child is not local yet")
+        (when (true? ready)
+          (is (= (store/require-node rooted child)
+                 (store/await (store/s-get via child))))
+          (is (= (store/require-node rooted parent)
+                 (store/await parent-p)))))
+      (finally
+        ((:close! primary))
+        (stop!)))))

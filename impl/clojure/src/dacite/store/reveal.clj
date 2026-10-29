@@ -4,8 +4,9 @@
    Java 21's `HttpClient` has no `HTTP_3`. This namespace is loaded only
    when a remote store opts in, so a pack GET never touches these classes.
    One client keeps one connection per destination, which is one reveal
-   session on the server. Root CAS and `GET /events` stay on the JDK
-   client."
+   session on the server. A second request while the first response is
+   still open is another reveal on that session. Root CAS and
+   `GET /events` stay on the JDK client."
   (:require [clojure.java.io :as io]
             [dacite.service.reveal :as rv]
             [dacite.store :as store]
@@ -84,27 +85,38 @@
                 (recur (int (+ offset total))
                        (conj items (first (bin/decode-item-stream slice))))))))))))
 
-(defn- install-stream!
-  "Read items as their bytes arrive and store each one once it checks."
-  [in store]
+(defn read-items!
+  "Call `f` with each complete wire-v1 item as `in` arrives.
+
+   Returns when the stream ends. A trailing partial item throws
+   \"truncated wire message\"."
+  [in f]
   (let [buf (byte-array 8192)
         acc (java.io.ByteArrayOutputStream.)]
-    (loop [pending []]
-      (let [n (.read in buf)]
+    (loop []
+      (let [n (.read ^java.io.InputStream in buf)]
         (if (neg? n)
-          (do
-            (when (pos? (.size acc))
-              (throw (ex-info "truncated wire message" {})))
-            (when (seq pending)
-              (rv/accept-items! store pending)))
+          (when (pos? (.size acc))
+            (throw (ex-info "truncated wire message" {})))
           (do
             (.write acc buf 0 n)
-            (let [[items leftover] (split-items (.toByteArray acc))
-                  waiting (rv/accept-ready! store (into pending items))]
+            (let [[items leftover] (split-items (.toByteArray acc))]
               (.reset acc)
               (when (pos? (alength ^bytes leftover))
                 (.write acc leftover))
-              (recur waiting))))))))
+              (doseq [item items]
+                (f item))
+              (recur))))))))
+
+(defn- install-stream!
+  "Read items as their bytes arrive and store each one once it checks."
+  [in store]
+  (let [pending (volatile! [])]
+    (read-items! in (fn [item]
+                      (vreset! pending
+                               (rv/accept-ready! store (conj @pending item)))))
+    (when (seq @pending)
+      (rv/accept-items! store @pending))))
 
 (defn- apply-headers!
   [^org.eclipse.jetty.client.Request req headers]

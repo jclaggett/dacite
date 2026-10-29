@@ -181,10 +181,13 @@ reveal that had nothing left to send. `Cache-Control: no-store`.
 
 One HTTP connection keeps one `dacite.reveal` session. A later `POST
 /reveal` on that connection shares the rate and skips hashes the session
-has offered or holds. On HTTP/3 the connection is the QUIC session:
-`ConnectionMetaData.getConnection` is the request stream, a new object
-every time, so the session is keyed by the QUIC session on that stream's
-endpoint. On HTTP/1.1 the metadata connection is the TCP connection.
+has offered or holds. A second request sent while the first response is
+still open is another reveal in that session: the parent stream stays
+up, and the new reveal starts at the peak. On HTTP/3 the connection is
+the QUIC session: `ConnectionMetaData.getConnection` is the request
+stream, a new object every time, so the session is keyed by the QUIC
+session on that stream's endpoint. On HTTP/1.1 the metadata connection
+is the TCP connection.
 
 The handler blocks the request thread until the walk finishes, as
 `GET /events` does. The stream holds one API throttle slot for that
@@ -209,7 +212,9 @@ from `dacite.store.reveal/open-client`, one connection per destination.
 Omitted, the store opens that client (`:trust-all` accepts the dev
 certificate). A missing local hash is one `POST /reveal`. Items are
 read as their bytes arrive, checked, and stored in the pack cache. The
-get returns when the stream ends. A later get of a page that stream
+get returns when the stream ends. A second get of a hash that is not
+local yet, issued while that stream is still open, is another
+`POST /reveal` on the same connection. A later get of a page that stream
 stored is local. PUT, DELETE, root CAS, and `watch-root` stay on the
 cleartext `base-url` and the JDK client. Without `:reveal`, `s-get` is
 still pack GET.

@@ -29,7 +29,10 @@ stability promise: public APIs may still change before 1.0.
   reveal and releases those offers. There is no client ack or release
   message yet. `remote-store` opts into the stream with `:reveal` and
   keeps one HTTP/3 connection; the default read is still pack
-  `GET /node/{hex}`. `peak`, `tau`, `floor`, and `r-max` are server
+  `GET /node/{hex}`. A second POST on that connection, while the
+  first response is still open, is a focused child: the parent stays
+  open, and a hash either stream has offered is not sent again.
+  `peak`, `tau`, `floor`, and `r-max` are server
   placeholders. A missing hash is 404. A malformed body is 400.
 - **IndexedDB store** — `dacite.store.idb` is a page-local dictionary.
   `idb-store` is the content store. `open` is a rooted store with the
