@@ -66,7 +66,7 @@ Each milestone is sized to about one working day. Dates are targets starting Mon
 ### Phase 0: Baseline and setup (Mon Nov 2)
 
 **M0. Baseline, branches and cycle in place.**
-- Tag the baseline (`regression-baseline-a2b9638`). Record test counts and run commands in `docs/plan/baseline.md`: `clojure -M:test` (JVM), `npm run reveal:test`, `npm run idb:test`.
+- Tag the baseline (`regression-baseline-a2b9638`). Record test counts and run commands in `docs/plan/baseline.md`: `cd impl/clojure && clojure -M:dev:test` (JVM), `npm run reveal:test`, `npm run idb:test`.
 - Programmer bot has a checkout, an authenticated `gh`, and can run all three suites. PR template with "milestone", "tests run", "checklist items closed".
 - Review routine running at 4 PM ET weekdays.
 - Acceptance: the Programmer bot opens a no-op PR and the 4 PM review produces a checklist for it. Baseline numbers written down.
