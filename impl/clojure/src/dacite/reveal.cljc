@@ -630,7 +630,7 @@
 (defn- inf?
   [x]
   #?(:clj (Double/isInfinite (double x))
-     :cljs (infinite? x)))
+     :cljs (and (number? x) (not (js/isFinite x)) (not (js/isNaN x)))))
 
 (defn- remaining-integral
   "Bytes `reveal` would still earn on this clock.
