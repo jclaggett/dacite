@@ -1,7 +1,7 @@
 # Dacite Peering Project Plan (Draft)
 
 Status: draft, Oct 30, 2026. Owner: Jonathan Claggett (design lead). Prepared by Grok Bot.
-Baseline: repo `jclaggett/dacite` at HEAD `a2b9638` (564 JVM tests green, nbb `reveal:test` and `idb:test` green).
+Baseline: repo `jclaggett/dacite` at HEAD `bc697c2` (571 JVM tests green, nbb `reveal:test` and `idb:test` green).
 Inputs: `peering-design-note.md`, `streaming-design-note.md`, `review-2026-10-29-evening.md`, `reveal-review-checklist-evening.md`, `docs/roadmap.md`.
 
 ## 1. Direction in one paragraph
@@ -66,7 +66,7 @@ Each milestone is sized to about one working day. Dates are targets starting Mon
 ### Phase 0: Baseline and setup (Mon Nov 2)
 
 **M0. Baseline, branches and cycle in place.**
-- Tag the baseline (`regression-baseline-a2b9638`). Record test counts and run commands in `docs/plan/baseline.md`: `cd impl/clojure && clojure -M:dev:test` (JVM), `npm run reveal:test`, `npm run idb:test`.
+- Tag the baseline (`regression-baseline-bc697c2`). Record test counts and run commands in `docs/plan/baseline.md`: `cd impl/clojure && clojure -M:dev:test` (JVM), `npm run reveal:test`, `npm run idb:test`.
 - Programmer bot has a checkout, an authenticated `gh`, and can run all three suites. PR template with "milestone", "tests run", "checklist items closed".
 - Review routine running at 4 PM ET weekdays.
 - Acceptance: the Programmer bot opens a no-op PR and the 4 PM review produces a checklist for it. Baseline numbers written down.
@@ -85,7 +85,7 @@ Each milestone is sized to about one working day. Dates are targets starting Mon
 - Acceptance: `docs/design/core-boundary.md` plus a lint test that fails if a `core` namespace requires a host-only namespace.
 
 **M2.2. Move the reveal engine's host-neutral parts into core.** Page ordering, interest and share math, session clock, session state, ack/release. Replace any JVM interop with `dacite.host` calls. No behavior change.
-- Acceptance: all 564 JVM tests still pass; `reveal:test` (nbb) runs the same cases as `reveal_test.clj` for the pure functions.
+- Acceptance: all 571 JVM tests still pass; `reveal:test` (nbb) runs the same cases as `reveal_test.clj` for the pure functions.
 
 **M2.3. Parity suite.** Turn the reveal and pack tests that are JVM-only into shared `.cljc` tests (or fixture-driven tests) that run on JVM and nbb. Add golden fixtures for reveal decisions (given a value and a clock, the page order and bytes are identical).
 - Acceptance: one command runs the parity suite on both hosts and both report identical results; root hashes match across hosts (extends the existing `parity` example).
@@ -156,7 +156,7 @@ Triage of `reveal-review-checklist-evening.md` (52 items). Items split by where 
 
 ### Phase 9: JVM retirement decision (Fri Dec 4 prep, Tue Dec 8 decide)
 
-**M9.1. Parity report.** Run the full baseline against the nbb peer. For each of the 564 JVM tests: passes on nbb, ported to the parity suite, covered by another test, or intentionally dropped (with a reason).
+**M9.1. Parity report.** Run the full baseline against the nbb peer. For each of the 571 JVM tests: passes on nbb, ported to the parity suite, covered by another test, or intentionally dropped (with a reason).
 - Acceptance: a table with no unexplained rows; the numbers are in `docs/plan/jvm-retirement.md`.
 
 **M9.2. Decision meeting (design discussion on Tue Dec 8).** Retire when all hold:
@@ -182,7 +182,7 @@ About 24 working days, a decision on or near Dec 8. Phases 4 and 6 are the likel
 
 ## 7. Acceptance tests that apply to every milestone
 
-- Baseline stays green: JVM suite (564 tests), `reveal:test`, `idb:test`. A red baseline blocks merge unless the milestone explicitly retires that test.
+- Baseline stays green: JVM suite (571 tests), `reveal:test`, `idb:test`. A red baseline blocks merge unless the milestone explicitly retires that test.
 - New code has tests that fail before the change and pass after.
 - No wall-clock-dependent assertions in new tests (use the session clock; N16 is the cautionary example).
 - The PR description lists tests run, milestone id, and checklist items closed.
