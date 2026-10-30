@@ -627,6 +627,105 @@
                       r))
                   rs))))
 
+(defn- inf?
+  [x]
+  #?(:clj (Double/isInfinite (double x))
+     :cljs (infinite? x)))
+
+(defn- remaining-integral
+  "Bytes `reveal` would still earn on this clock.
+
+   Zero when the next page is still reachable, or when the reveal is
+   below the floor and has nothing left to earn. The session clock does
+   not move. A page goes out only when credit covers it."
+  [session reveal t params]
+  (let [id (:id reveal)
+        earning (filterv #(in-sum? % t params) (:reveals session))]
+    (if-not (some #(= id (:id %)) earning)
+      0.0
+      (let [rates (shares earning t params)
+            rate (double (get rates id 0.0))
+            decay? (decay-regime? earning t params)
+            tau (double (:tau params))
+            room (seconds-until-decay earning t params)
+            wait (page-wait reveal rate decay? tau room)
+            horizon (seconds-until-out reveal t params)]
+        (cond
+          (not (inf? wait)) 0.0
+          (not (pos? rate)) 0.0
+          decay? (if (inf? horizon)
+                   (* rate tau)
+                   (* rate (exp-span (max 0.0 horizon) tau)))
+          (<= horizon room) (* rate (max 0.0 horizon))
+          :else
+          (let [boundary (+ (double t) (double room))
+                later (filterv #(in-sum? % boundary params)
+                               (:reveals session))
+                rate-at (double (get (shares later boundary params) id 0.0))
+                horizon-at (seconds-until-out reveal boundary params)
+                decay (if (inf? horizon-at)
+                        (* rate-at tau)
+                        (* rate-at (exp-span (max 0.0 horizon-at) tau)))]
+            (+ (* rate (double room)) decay)))))))
+
+(defn- bank-tail
+  "Add the unspent integral of a clock that can no longer cover its page.
+
+   A re-ask replaces that clock. The remainder is kept as credit, so a
+   page larger than one `r-max * tau` is covered across asks."
+  [session id t params]
+  (let [reveal (first (filter #(= id (:id %)) (:reveals session)))
+        extra (if reveal (remaining-integral session reveal t params) 0.0)]
+    (if (pos? extra)
+      (update session :reveals
+              (fn [rs]
+                (mapv (fn [r]
+                        (if (= id (:id r))
+                          (update r :credit + extra)
+                          r))
+                      rs)))
+      session)))
+
+(defn- reveal-credit
+  [session id]
+  (:credit (first (filter #(= id (:id %)) (:reveals session)))))
+
+(defn- snap-covered
+  "A grant that lands within a fraction of a byte covers the page.
+
+   The closed integral is `rate * tau`, and float division can stop a
+   hair short of a whole page."
+  [session id]
+  (update session :reveals
+          (fn [rs]
+            (mapv (fn [r]
+                    (let [page (first (:pages r))
+                          credit (double (:credit r))
+                          bytes (double (:bytes page 0.0))]
+                      (if (and (= id (:id r))
+                               page
+                               (< credit bytes)
+                               (>= (+ credit 1.0e-4) bytes))
+                        (assoc r :credit bytes)
+                        r)))
+                  rs))))
+
+(defn- exhaust-clock
+  "The integral just added is the rest of this clock.
+
+   `opened-at` moves back by many `tau`, so the rate is nothing and a
+   later tick does not pay those bytes again. Floor 0 still counts the
+   reveal as earning, which lets a covered page go out."
+  [session id t params]
+  (let [opened (- (double t) (* 64.0 (double (:tau params))))]
+    (update session :reveals
+            (fn [rs]
+              (mapv (fn [r]
+                      (if (= id (:id r))
+                        (assoc r :opened-at opened)
+                        r))
+                    rs)))))
+
 (defn- live-reveal
   "The open reveal of `h`, including one that has paused or finished.
    A cancelled reveal is removed and is not reused."
@@ -647,8 +746,12 @@
    Pages due by `t` from reveals already open are returned first. The
    new reveal starts with no new credit at that instant, and only its
    next page is read. Resuming restarts the interest clock at the peak
-   and keeps credit already earned toward the next page. A hash already
-   offered or held in this session is not queued again.
+   and keeps credit already earned toward the next page. When the old
+   clock can no longer cover that page, the remainder of its integral
+   is added first. The new clock's limit is added in the same way when
+   the page sits on that limit, so the exponential does not have to
+   arrive there. A hash already offered or held in this session is not
+   queued again.
 
    Returns `{:session :pages :id}`."
   [session store h t params]
@@ -657,9 +760,17 @@
         [session pages] (advance session store t params)
         existing (live-reveal session h)]
     (if existing
-      {:session (restart-clock session (:id existing) t)
-       :pages pages
-       :id (:id existing)}
+      (let [id (:id existing)
+            closed (bank-tail session id t params)
+            restarted (restart-clock closed id t)
+            granted (snap-covered (bank-tail restarted id t params) id)]
+        {:session (if (and (> (double (reveal-credit granted id))
+                              (double (reveal-credit restarted id)))
+                           (<= (double (:floor params)) 0.0))
+                    (exhaust-clock granted id t params)
+                    granted)
+         :pages pages
+         :id id})
       (let [id (inc (:seq session))
             reveal (-> {:id id
                         :hash h
@@ -756,3 +867,27 @@
   (check-params params)
   (let [[session pages] (advance session store (finite-time t) params)]
     (with-pages session pages)))
+
+(defn stalled?
+  "True when reveal `id` will not offer another page until it is asked again.
+
+   It still has a page, and either its interest is below the floor or the
+   current share cannot cover that page. In the decay regime the remaining
+   integral is `rate * tau` bytes. A finished reveal is not stalled."
+  [session id t params]
+  (let [t (finite-time t)
+        reveal (first (filter #(= id (:id %)) (:reveals session)))]
+    (boolean
+     (and reveal
+          (not (:done? reveal))
+          (not (:cancelled? reveal))
+          (seq (:pages reveal))
+          (let [earning (filterv #(in-sum? % t params) (:reveals session))]
+            (if-not (some #(= id (:id %)) earning)
+              true
+              (let [rates (shares earning t params)
+                    decay? (decay-regime? earning t params)
+                    tau (double (:tau params))
+                    room (seconds-until-decay earning t params)
+                    wait (page-wait reveal (get rates id 0.0) decay? tau room)]
+                (inf? wait))))))))

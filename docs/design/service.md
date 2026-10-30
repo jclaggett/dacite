@@ -194,15 +194,24 @@ The handler blocks the request thread until the walk finishes, as
 whole time, not an SSE slot. A body over `:max-body-bytes` is **413**.
 
 When the walk finishes, the server acknowledges the pages that stream
-wrote (`ack-pages`) and ends the response. When the write fails or the
-reveal times out, the server cancels that reveal and releases those
-offers, so a retry on the same connection can send them. There is no
-client-to-server ack or release message yet. That inference is a gap.
+wrote (`ack-pages`) and ends the response. The same clean end happens
+when the reveal pauses below the floor, or when the current share
+cannot cover the next page. The reveal stays, and a later request
+resumes it, keeping credit already earned and the remainder of the
+clock that could no longer cover the next page. A second request for a hash that is already open waits on
+that reveal and does not replace the stream that is writing it. When
+the write fails, or the stream goes 20 seconds with no new page, and
+it is the last stream on that reveal, the server cancels the reveal and
+releases those offers, so a retry on the same connection can send them.
+There is no client-to-server ack or release message yet. That inference
+is a gap.
 
 `peak`, `tau`, `floor`, and `r-max` are server configuration, merged
 over `:reveal` passed to `start-server!`. The defaults are placeholders:
-`{:peak 1.0 :tau 1.0 :floor 0.0 :r-max 1.0e7}`. A floor at or below 0
-does not pause a reveal. The rate is not derived from load or the pipe.
+`{:peak 1.0 :tau 1.0e6 :floor 0.0 :r-max 1.0e7}`. A lone decay can send
+at most `r-max * tau` bytes before that clean end. The default `tau`
+puts that budget far above a normal value. A floor at or below 0 does
+not pause a reveal. The rate is not derived from load or the pipe.
 `GET /events` stays up on cleartext HTTP/1.1 while a parent reveal and
 a focused child are both open. A root change in that overlap still
 arrives on that stream. `GET /node/{hex}` stays the pack.
@@ -215,8 +224,9 @@ certificate). A missing local hash is one `POST /reveal`. Items are
 read as their bytes arrive, checked, and stored in the pack cache. The
 get returns when the stream ends. A second get of a hash that is not
 local yet, issued while that stream is still open, is another
-`POST /reveal` on the same connection. A later get of a page that stream
-stored is local. PUT, DELETE, root CAS, and `watch-root` stay on the
+`POST /reveal` on the same connection. When that response ends without
+the node, the get waits for pages still in flight on the first stream.
+A later get of a page that stream stored is local. PUT, DELETE, root CAS, and `watch-root` stay on the
 cleartext `base-url` and the JDK client. Without `:reveal`, `s-get` is
 still pack GET.
 

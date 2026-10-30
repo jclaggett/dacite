@@ -291,6 +291,67 @@
         ((:close! primary))
         (stop!)))))
 
+(deftest a-child-read-waits-for-pages-the-parent-already-offered
+  (let [rooted (svc/make-demo-rooted)
+        child (v/set rooted (v/i64 rooted 1) (v/i64 rooted 2))
+        ch (v/hash child)
+        parent (v/hash (v/vector rooted child))
+        {:keys [h3-url stop!]} (svc/start-server! {:port 0 :rooted rooted})
+        primary (reveal-client/open-client {:trust-all true})
+        local (store/mem-store)
+        waiting (atom [])
+        inflight (atom 0)
+        items (atom [])
+        read-done (promise)
+        hold (promise)
+        sibling-wait (promise)
+        session {:url h3-url
+                 :client (:client primary)
+                 :waiting waiting
+                 :inflight inflight
+                 :sibling-wait sibling-wait}]
+    (try
+      (swap! inflight inc)
+      (future
+        (try
+          (let [opened (open-reveal (:client primary) h3-url parent)]
+            (try
+              (reveal-client/read-items! (:in opened)
+                                         #(swap! items conj %))
+              (deliver read-done true)
+              (deref hold)
+              (swap! waiting
+                     (fn [pending]
+                       (rv/accept-ready! local (into pending @items))))
+              (finally
+                (.close (:listener opened)))))
+          (catch Throwable t
+            (when-not (realized? read-done)
+              (deliver read-done t)))
+          (finally
+            (swap! inflight dec))))
+      (is (true? (deref read-done 15000 :timeout))
+          "the parent stream has the child's pages")
+      (let [root-item (first (filter #(= ch (:hash %)) @items))
+            side (store/mem-store)
+            still (rv/accept-ready! side [root-item])
+            child-p (future (reveal-client/fetch! session ch local))]
+        (is (some? root-item))
+        (is (seq still)
+            "the set root waits on structural pages")
+        (is (nil? (store/await (store/s-get side ch))))
+        (is (true? (deref sibling-wait 15000 :timeout))
+            "the child waits for the parent stream")
+        (deliver hold true)
+        (is (= (store/require-node rooted ch)
+               (deref child-p 15000 :timeout)))
+        (is (= (store/require-node rooted ch)
+               (store/await (store/s-get local ch)))))
+      (finally
+        (deliver hold true)
+        ((:close! primary))
+        (stop!)))))
+
 (deftest root-notice-stays-up-beside-reveals
   (let [rooted (svc/make-demo-rooted)
         inner (v/vector rooted (v/i64 rooted 2))
@@ -379,5 +440,173 @@
                 (.close (:listener opened)))))))
       (finally
         ((:stop! watch))
+        ((:close! primary))
+        (stop!)))))
+
+(defn- read-reveal
+  "Read one open reveal to EOF. Deliver `done` with the head, or a throwable.
+
+   When `opened-p` is a promise, deliver it once the response headers
+   are in and the body is still open."
+  [client h3-url h items opened-p done]
+  (try
+    (let [opened (open-reveal client h3-url h)]
+      (when opened-p
+        (deliver opened-p true))
+      (when-not (= 200 (:status opened))
+        (throw (ex-info "reveal failed" opened)))
+      (try
+        (reveal-client/read-items! (:in opened) #(swap! items conj %))
+        (deliver done {:status (:status opened)
+                       :type (:type opened)
+                       :version (:version opened)
+                       :at (System/nanoTime)})
+        (finally
+          (.close (:listener opened)))))
+    (catch Throwable t
+      (when (and opened-p (not (realized? opened-p)))
+        (deliver opened-p t))
+      (when-not (realized? done)
+        (deliver done t)))))
+
+(deftest a-second-post-for-the-same-hash-does-not-clobber-the-first
+  (let [rooted (svc/make-demo-rooted)
+        h (v/hash (v/vector rooted (v/i64 rooted 1) (v/i64 rooted 2)))
+        order (reveal/page-order rooted h)
+        total (reduce + 0 (map #(reveal/page-bytes rooted %) order))
+        r-max (/ (double total) 2.0)
+        {:keys [h3-url stop!]} (svc/start-server! {:port 0
+                                                   :rooted rooted
+                                                   :reveal {:peak 1.0
+                                                            :tau 1.0e6
+                                                            :floor 0.0
+                                                            :r-max r-max}})
+        primary (reveal-client/open-client {:trust-all true})
+        a-items (atom [])
+        b-items (atom [])
+        a-open (promise)
+        a-done (promise)
+        b-done (promise)]
+    (try
+      (future (read-reveal (:client primary) h3-url h a-items a-open a-done))
+      (is (true? (deref a-open 15000 :timeout))
+          "the first response is open")
+      (future (read-reveal (:client primary) h3-url h b-items nil b-done))
+      (let [a (deref a-done 15000 :timeout)
+            b (deref b-done 15000 :timeout)
+            a-hashes (mapv :hash @a-items)
+            b-hashes (mapv :hash @b-items)
+            dest (rv/accept-items! (store/mem-store)
+                                   (concat @a-items @b-items))]
+        (is (map? a))
+        (is (map? b))
+        (is (= HttpVersion/HTTP_3 (:version a) (:version b)))
+        (is (= 200 (:status a) (:status b)))
+        (is (= rv/content-type (:type a) (:type b)))
+        (is (empty? (filter (set a-hashes) b-hashes)))
+        (is (= (set order) (set (concat a-hashes b-hashes))))
+        (is (= (store/require-node rooted h)
+               (store/require-node dest h))))
+      (finally
+        ((:close! primary))
+        (stop!)))))
+
+(defn- stored-hashes
+  [pack]
+  (set (keys (store/await (store/s-snapshot pack)))))
+
+(defn- held-hashes
+  "Pages stored, plus items still waiting on a child."
+  [pack waiting]
+  (into (stored-hashes pack) (map :hash) @waiting))
+
+(deftest a-paused-reveal-ends-and-a-re-ask-resumes
+  (let [rooted (svc/make-demo-rooted)
+        h (v/hash (v/vector rooted (v/i64 rooted 1) (v/i64 rooted 2)))
+        order (reveal/page-order rooted h)
+        total (double (reduce + 0 (map #(reveal/page-bytes rooted %) order)))
+        {:keys [h3-url stop!]} (svc/start-server!
+                                {:port 0
+                                 :rooted rooted
+                                 :reveal {:peak 1.0
+                                          :tau 0.2
+                                          :floor 0.1
+                                          :r-max (/ total 0.4)}})
+        primary (reveal-client/open-client {:trust-all true})
+        local (store/mem-store)
+        session {:url h3-url
+                 :client (:client primary)
+                 :waiting (atom [])}]
+    (try
+      (is (= 5 (count order)))
+      ;; One run from the peak to this floor banks
+      ;; r-max * tau * (1 - floor/peak) = 0.45 of the bytes. The re-ask
+      ;; starts another run. Two runs are 0.9 of the bytes, so the value
+      ;; finishes on a later ask, not on the second fetch.
+      (let [started (System/nanoTime)
+            _ (reveal-client/fetch! session h local)
+            elapsed (/ (- (System/nanoTime) started) 1.0e9)
+            n (count (held-hashes local (:waiting session)))]
+        (is (< elapsed 10.0) "the pause ends the response")
+        (is (< 0 n (count order)))
+        ;; A re-ask can bank credit and end before the next page fits.
+        ;; The value still finishes within a few asks.
+        (loop [tries 0
+               prev (held-hashes local (:waiting session))]
+          (if (= (set order) (stored-hashes local))
+            (is (= (store/require-node rooted h)
+                   (store/await (store/s-get local h))))
+            (if (>= tries 4)
+              (is false "a re-ask did not finish the value")
+              (do
+                (reveal-client/fetch! session h local)
+                (let [now (held-hashes local (:waiting session))]
+                  (is (every? now prev)
+                      "a re-ask does not drop a page already held")
+                  (recur (inc tries) now)))))))
+      (finally
+        ((:close! primary))
+        (stop!)))))
+
+(deftest a-reveal-past-its-budget-ends-and-a-re-ask-resumes
+  (let [rooted (svc/make-demo-rooted)
+        text (apply str (repeat 3000 "x"))
+        h (v/hash (v/string rooted text))
+        order (reveal/page-order rooted h)
+        total (double (reduce + 0 (map #(reveal/page-bytes rooted %) order)))
+        {:keys [h3-url stop!]} (svc/start-server!
+                                {:port 0
+                                 :rooted rooted
+                                 :reveal {:peak 1.0
+                                          :tau 1.0
+                                          :floor 0.0
+                                          :r-max (/ total 4.0)}})
+        primary (reveal-client/open-client {:trust-all true})
+        local (store/mem-store)
+        session {:url h3-url
+                 :client (:client primary)
+                 :waiting (atom [])}]
+    (try
+      (let [started (System/nanoTime)
+            _ (reveal-client/fetch! session h local)
+            elapsed (/ (- (System/nanoTime) started) 1.0e9)
+            n (count (held-hashes local (:waiting session)))]
+        (is (< elapsed 10.0) "the budget ends the response")
+        (is (< 0 n (count order)))
+        ;; One ask banks the unspent integral. The next page can be larger
+        ;; than what that ask sends, so a round trip may add no bytes.
+        (loop [tries 0
+               prev (held-hashes local (:waiting session))]
+          (if (= (set order) (stored-hashes local))
+            (is (= \x (v/realize (v/nth (v/wrap-hash local h) 2999))))
+            (if (>= tries 8)
+              (is false "a re-ask did not finish the value")
+              (do
+                (reveal-client/fetch! session h local)
+                (let [now (held-hashes local (:waiting session))]
+                  (is (every? now prev)
+                      "a re-ask does not drop a page already held")
+                  (recur (inc tries) now)))))))
+      (finally
         ((:close! primary))
         (stop!)))))

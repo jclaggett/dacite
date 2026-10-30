@@ -109,14 +109,37 @@
               (recur))))))))
 
 (defn- install-stream!
-  "Read items as their bytes arrive and store each one once it checks."
-  [in store]
-  (let [pending (volatile! [])]
-    (read-items! in (fn [item]
-                      (vreset! pending
-                               (rv/accept-ready! store (conj @pending item)))))
-    (when (seq @pending)
-      (rv/accept-items! store @pending))))
+  "Read items as their bytes arrive and store each one once it checks.
+
+   `waiting` is an atom of items whose children are not stored yet. A
+   clean end leaves them there, so a later stream on this store can
+   verify them. A truncated item still throws."
+  [in store waiting]
+  (read-items! in (fn [item]
+                    (swap! waiting
+                           (fn [pending]
+                             (rv/accept-ready! store (conj pending item)))))))
+
+(defn- wait-for-sibling
+  "Poll until `h` is stored, or until this call is the only one left.
+
+   `sibling-wait`, when set, is delivered as the wait starts. A page the
+   server already offered on another stream of this connection arrives
+   there. Twenty seconds without it returns nil."
+  [store h inflight sibling-wait]
+  (when sibling-wait
+    (deliver sibling-wait true))
+  (let [deadline (+ (System/nanoTime) 20000000000)]
+    (loop []
+      (let [node (store/await (store/s-get store h))]
+        (cond
+          (some? node) node
+          (or (<= (long @inflight) 1)
+              (> (System/nanoTime) deadline))
+          nil
+          :else
+          (do (Thread/sleep 10)
+              (recur)))))))
 
 (defn- apply-headers!
   [^org.eclipse.jetty.client.Request req headers]
@@ -129,19 +152,26 @@
 (defn fetch!
   "POST `/reveal` for `h` and install the stream into `store`.
 
-   `session` is `{:url :client :headers}`. Returns the stored node, or
-   nil when the server answers 404. The call returns after the stream
-   ends, so a later read of a page this stream delivered is local.
-   Any other status rejects as `:unavailable`."
-  [{:keys [url client headers]} h store]
-  (let [body (wire/write-edn {:hash (store/hash->hex h)})
+   `session` is `{:url :client :headers :waiting :inflight}`. `:waiting`
+   is an atom of items a previous stream could not verify yet.
+   `:inflight` counts reveals still running on this connection. When
+   this stream ends without the node and another is still running, the
+   call waits for that stream to store it. `:sibling-wait`, when set,
+   is delivered as that wait starts. Returns the stored node, or nil
+   when the server answers 404 or the node is not stored yet. There is
+   no total timeout: the request fails when the connection is idle for
+   20 seconds. Any other status rejects as `:unavailable`."
+  [{:keys [url client headers waiting inflight sibling-wait]} h store]
+  (let [waiting (or waiting (atom []))
+        inflight (or inflight (atom 0))
+        body (wire/write-edn {:hash (store/hash->hex h)})
         listener (InputStreamResponseListener.)
         req (-> (.newRequest client (str url "/reveal"))
                 (.method "POST")
                 (.version HttpVersion/HTTP_3)
                 (.body (StringRequestContent. "application/edn" body))
-                (.timeout 20 TimeUnit/SECONDS)
                 (.idleTimeout 20 TimeUnit/SECONDS))]
+    (swap! inflight inc)
     (apply-headers! req headers)
     (.send req listener)
     (try
@@ -151,12 +181,15 @@
           (= 404 status) nil
           (= 200 status)
           (with-open [in (.getInputStream listener)]
-            (install-stream! in store)
-            (store/await (store/s-get store h)))
+            (install-stream! in store waiting)
+            (or (store/await (store/s-get store h))
+                (when (> (long @inflight) 1)
+                  (wait-for-sibling store h inflight sibling-wait))))
           :else
           (throw (ex-info "store unavailable"
                           {:reason :unavailable
                            :hash h
                            :status status}))))
       (finally
+        (swap! inflight dec)
         (try (.close listener) (catch Exception _ nil))))))

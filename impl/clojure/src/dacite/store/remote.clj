@@ -295,6 +295,8 @@
        :client (or (:client reveal) (:client opened))
        :close! (:close! opened)
        :headers (merge-token-headers headers token)
+       :waiting (atom [])
+       :inflight (atom 0)
        :fetch! (requiring-resolve 'dacite.store.reveal/fetch!)})))
 
 (defn remote-store

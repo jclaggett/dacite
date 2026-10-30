@@ -33,6 +33,15 @@ stability promise: public APIs may still change before 1.0.
   first response is still open, is a focused child: the parent stays
   open, and a hash either stream has offered is not sent again.
   `GET /events` stays up while that parent and child are both open.
+  A second POST for a hash that is already open waits on that reveal
+  and does not replace the stream that is writing it. A focused read
+  waits for pages still in flight on another reveal of that connection. A reveal that
+  pauses, or that cannot cover its next page, ends the response and
+  stays open so a later request resumes. That re-ask keeps credit
+  already earned and the remainder of the clock it replaces, so a page
+  larger than one budget is covered across asks. The 20 second bound is
+  idle time with no new page. A lone decay can send at most `r-max * tau`
+  bytes; the default `tau` is `1.0e6`.
   `peak`, `tau`, `floor`, and `r-max` are server
   placeholders. A missing hash is 404. A malformed body is 400.
 - **IndexedDB store** — `dacite.store.idb` is a page-local dictionary.

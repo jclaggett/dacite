@@ -246,6 +246,96 @@
     (is (= [h] (hashes-of (:pages due))))
     (is (< (Math/abs (- (+ 20.0 waited) (:at (first (:pages due))))) 1.0e-4))))
 
+(deftest a-lone-reveal-stops-when-its-budget-is-spent
+  (let [s (store/mem-store)
+        ;; 3000 bytes of text. The reveal is 3565 wire-item bytes, so
+        ;; r-max * tau = total/4 cannot cover it in one ask.
+        h (v/hash (v/string s (apply str (repeat 3000 "x"))))
+        order (reveal/page-order s h)
+        total (double (reduce + 0 (map #(reveal/page-bytes s %) order)))
+        params {:peak 1.0 :tau 1.0 :floor 0.0 :r-max (/ total 4.0)}
+        opened (reveal/open-reveal (reveal/session) s h 0.0 params)
+        far (reveal/take-pages (:session opened) s 100.0 params)
+        sent (hashes-of (:pages far))]
+    (is (< 1 (count order)))
+    (is (seq sent))
+    (is (< (count sent) (count order)))
+    (is (reveal/stalled? (:session far) (:id opened) 100.0 params))
+    (loop [session (:session far)
+           got (vec sent)
+           t 100.0
+           n 0]
+      (if (= (set order) (set got))
+        (is (= (set order) (set got)))
+        (do
+          (is (< n 8) "a re-ask resumes the pages still missing")
+          (let [again (reveal/open-reveal session s h t params)
+                more (reveal/take-pages (:session again) s (+ t 100.0) params)
+                add (hashes-of (:pages more))]
+            (is (seq add))
+            (is (empty? (filter (set got) add)))
+            (is (= (:id opened) (:id again)))
+            (recur (:session more) (into got add) (+ t 100.0) (inc n))))))))
+
+(deftest a-re-ask-at-the-stall-banks-the-unspent-integral
+  (let [s (store/mem-store)
+        h (v/hash (v/string s (apply str (repeat 3000 "x"))))
+        order (reveal/page-order s h)
+        total (double (reduce + 0 (map #(reveal/page-bytes s %) order)))
+        params {:peak 1.0 :tau 1.0 :floor 0.0 :r-max (/ total 4.0)}
+        opened (reveal/open-reveal (reveal/session) s h 0.0 params)
+        id (:id opened)
+        ;; The third page is 1122 bytes and r-max * tau is total/4.
+        ;; Ack at the stall, with the clock still there.
+        walk (fn [session t]
+               (loop [session session
+                      t t
+                      emitted []]
+                 (if (or (reveal/stalled? session id t params) (>= t 60.0))
+                   [session t emitted]
+                   (let [nxt (reveal/take-pages session s (+ t 0.05) params)]
+                     (recur (:session nxt)
+                            (+ t 0.05)
+                            (into emitted (hashes-of (:pages nxt))))))))
+        [session t got] (walk (:session opened) 0.0)]
+    (is (seq got))
+    (is (< (count (set got)) (count order)))
+    (loop [session session
+           t t
+           got got
+           n 0]
+      (if (= (set order) (set got))
+        (is (= (set order) (set got)))
+        (if (>= n 8)
+          (is false "a re-ask at the stall did not finish the value")
+          (let [offered (vec (keys (:offered session)))
+                acked (reveal/ack-pages session offered)
+                again (reveal/open-reveal acked s h t params)
+                [session2 t2 emitted] (walk (:session again) t)
+                add emitted]
+            (is (seq add) "the re-ask sends a page the stalled clock could not")
+            (is (empty? (filter (set got) add)))
+            (is (= id (:id again)))
+            (when (seq add)
+              (recur session2 t2 (into got add) (inc n)))))))))
+
+(deftest a-child-focus-sends-nothing-once-the-parent-offered-its-pages
+  (let [s (store/mem-store)
+        child (v/set s (v/i64 s 1) (v/i64 s 2))
+        parent (v/vector s child)
+        ch (v/hash child)
+        ph (v/hash parent)
+        order (reveal/page-order s ph)
+        opened (reveal/open-reveal (reveal/session) s ph 0 fast)
+        done (reveal/take-pages (:session opened) s 1 fast)
+        again (reveal/open-reveal (:session done) s ch 1 fast)
+        more (reveal/take-pages (:session again) s 2 fast)]
+    (is (= 7 (count order)))
+    (is (= (set order) (set (hashes-of (:pages done)))))
+    (is (every? (set order) (reveal/page-order s ch)))
+    (is (empty? (:pages again)))
+    (is (empty? (:pages more)))))
+
 (deftest cancel-drops-the-rest-of-that-reveal
   (let [s (store/mem-store)
         ha (v/hash (v/i64 s 1))
