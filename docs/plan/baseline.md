@@ -3,14 +3,14 @@
 Recorded Fri Oct 30, 2026 (America/New_York) on the Grok Bot box (Linux x86_64) as part of milestone M0 in [peering.md](peering.md).
 
 - Repo: `jclaggett/dacite`, fresh clone of `main`
-- Commit baselined: `a2b9638adeca6836318dd79e544989dbc72bc9b0` ("Show the root notice stays up beside open reveals."). This is `main` HEAD at the time of the run and matches the plan's baseline.
-- Proposed tag: `regression-baseline-a2b9638` (not pushed; Jonathan to create after merge or on a2b9638 directly).
+- Commit baselined: `bc697c219c2e4f895df429b39d8cc1c71f8b97d7` (merge of PR #5, portable `inf?` for nbb). Rebaselined from `a2b9638` to include the reveal-resume work in `e143cdb`; all three suites were rerun and are green.
+- Proposed tag: `regression-baseline-bc697c2` (not pushed; replaces the earlier `regression-baseline-a2b9638` proposal).
 
 ## Result
 
 | Suite | Command | Result |
 |---|---|---|
-| JVM | `cd impl/clojure && clojure -M:dev:test` | **564 tests, 3062 assertions, 0 failures, 0 errors** (about 45 s wall) |
+| JVM | `cd impl/clojure && clojure -M:dev:test` | **571 tests, 3125 assertions, 0 failures, 0 errors** (about 45 s wall) |
 | nbb reveal | `npm run reveal:test` | **pass** (exit 0; prints `reveal cljs tests passed`) |
 | nbb idb | `npm run idb:test` | **pass** (exit 0; prints `idb tests passed`) |
 
@@ -34,7 +34,7 @@ Note on the Clojure CLI: `~/tools/ClojureTools` holds the Windows (PowerShell) b
 ## Commands
 
 ```sh
-git clone https://github.com/jclaggett/dacite.git && cd dacite    # HEAD a2b9638
+git clone https://github.com/jclaggett/dacite.git && cd dacite    # HEAD bc697c2
 
 # JVM suite. The :test alias carries the --add-opens flags
 # (java.base/java.nio and java.base/sun.nio.ch = ALL-UNNAMED) and the
@@ -53,5 +53,5 @@ npm run idb:test         # nbb -cp impl/clojure/src:impl/clojure/test -m dacite.
 1. **The plan's JVM command is wrong.** `docs/plan/peering.md` section 5 (M0) says `clojure -M:test`. That fails at load time with `FileNotFoundException: Could not locate dacite/dev/inspect...` in `dacite.dev.inspect-test`, because the `dev/` source path only comes from the `:dev` alias. Use `clojure -M:dev:test`. (The plan text was left as-is in `peering.md`; a follow-up edit is suggested.)
 2. JVM run is 36 test namespaces, no failures, no errors, no skipped tests reported.
 3. The JVM tests need `--add-opens` for LMDB (lmdbjava); these come from the `:test` alias, so nothing extra needs passing on the command line.
-4. The JVM output reports `Ran 564 tests containing 3062 assertions.` matching the plan's "564 JVM tests green".
+4. The JVM output reports `Ran 571 tests containing 3125 assertions.` (the plan originally cited 564 at `a2b9638`; `e143cdb` added 7 tests).
 5. Running the suites leaves the working tree clean (no generated files to ignore).
