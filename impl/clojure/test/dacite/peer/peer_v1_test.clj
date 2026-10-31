@@ -257,22 +257,106 @@
   (let [long (apply str (repeat 257 "x"))
         ok (apply str (repeat 256 "x"))
         wide (apply str (repeat 86 "é"))] ; 172 bytes
-    (doseq [[t v] [[:cancel {"reason" long}]
-                   [:error {"code" "internal" "fatal" false "message" long}]
-                   [:release {"hashes" [(msg/hash-ref ex/h1)] "reason" long}]]]
+    (testing "a receiver rejects an over-long string (fixture reject-string-too-long)"
+      (doseq [[t v] [[:cancel {"reason" long}]
+                     [:error {"code" "internal" "fatal" false "message" long}]
+                     [:release {"hashes" [(msg/hash-ref ex/h1)] "reason" long}]]
+              :let [fr (frame/encode-frame {:type t :stream (if (= t :release) 0 5) :flags 1
+                                            :payload (msg/encode-value v)})]]
+        (is (= :invalid-message (thrown-reason #(msg/decode-message fr))) (name t))))
+    (testing "a sender cuts free text instead of failing (S1)"
+      (doseq [[t v k] [[:cancel {"reason" long} "reason"]
+                       [:error {"code" "internal" "fatal" false "message" long} "message"]
+                       [:release {"hashes" [(msg/hash-ref ex/h1)] "reason" long} "reason"]
+                       [:hello (assoc (:value (first ex/examples)) "agent" long) "agent"]]
+              :let [bs (msg/encode-message {:type t :stream (case t (:release :hello) 0 5) :value v})
+                    got (get-in (msg/decode-message bs) [:value k])]]
+        (is (= ok got) (name t))))
+    (testing "the cut is at a character boundary, in bytes"
+      (is (= (apply str (repeat 128 "é")) (msg/cut-text (apply str (repeat 200 "é")))))
+      (is (= (str (apply str (repeat 255 "x"))) (msg/cut-text (str (apply str (repeat 255 "x")) "é"))))
+      (is (= wide (msg/cut-text wide)))
+      (let [smile (apply str (repeat 70 "😀"))] ; 4 bytes each: 64 fit
+        (is (= (apply str (repeat 64 "😀")) (msg/cut-text smile)))))
+    (testing "names a receiver parses are not cut: a sender bug is refused"
       (is (= :invalid-message
-             (thrown-reason #(msg/encode-message {:type t :stream (if (= t :release) 0 5) :value v})))))
+             (thrown-reason #(msg/encode-message
+                              {:type :get :stream 5
+                               :value {"hash" (msg/hash-ref ex/h1) "policy" long}})))))
     (is (= :accepted (thrown-reason #(msg/encode-message {:type :cancel :stream 5 :value {"reason" ok}}))))
     (testing "the limit is in bytes, not characters"
       (is (= :accepted (thrown-reason #(msg/encode-message {:type :cancel :stream 5 :value {"reason" wide}}))))
-      (is (= :invalid-message
-             (thrown-reason #(msg/encode-message {:type :cancel :stream 5
-                                                  :value {"reason" (str wide wide)}})))))
+      (is (= 256 (bin/byte-len (.getBytes ^String (get-in (msg/decode-message
+                                                           (msg/encode-message {:type :cancel :stream 5
+                                                                                :value {"reason" (str wide wide)}}))
+                                                          [:value "reason"]) "UTF-8")))
+          "344 bytes in, 172+... cut to a whole number of characters: 256"))
     (let [hello (:value (first ex/examples))]
       (is (= :invalid-message
              (thrown-reason #(msg/encode-message
                               {:type :hello :stream 0
                                :value (assoc hello "caps" (set (map (fn [i] (str "cap-" i)) (range 33))))})))))))
+
+(deftest s5-integers-are-within-2-to-the-53
+  ;; nbb holds a double: exact only to 2^53 - 1. Both hosts keep the range.
+  (is (= 9007199254740991 msg/max-int))
+  (doseq [n [msg/max-int (- msg/max-int) 0 1]]
+    (is (= n (get (msg/decode-value (msg/encode-value {"a" n})) "a"))))
+  (doseq [n [(inc msg/max-int) (- (inc msg/max-int)) Long/MAX_VALUE Long/MIN_VALUE]]
+    (is (= :profile (thrown-reason #(msg/encode-value {"a" n}))) (str n)))
+  (testing "a receiver rejects one a foreign sender wrote"
+    (let [big (bin/encode-lit-bytes {:type "map"
+                                     :body [[{:type "string" :body "a"}
+                                             {:type "i64" :body (inc msg/max-int)}]]})]
+      (is (= :profile (thrown-reason #(msg/decode-value big)))))))
+
+(deftest s9-version-negotiation
+  (let [hello (:value (first ex/examples))
+        mine (assoc hello "versions" #{1 2} "caps" #{"reveal" "x"}
+                    "limits" {"max-frame" 16384 "max-item" 1048576 "max-streams" 32})
+        theirs (assoc hello "versions" #{2 3} "caps" #{"reveal"}
+                      "limits" {"max-frame" 4096 "max-item" 262144 "max-streams" 8})
+        {:keys [ok error]} (msg/negotiate mine theirs)]
+    (is (nil? error))
+    (is (= 2 (:version ok)) "the highest in both")
+    (is (= #{"reveal"} (:caps ok)) "the intersection")
+    (is (= [4096 262144] [(:max-frame ok) (:max-item ok)]) "the smaller of the two")
+    (is (= [8 32] [(:may-open ok) (:will-accept ok)]) "max-streams is per direction")
+    (is (= (- 4096 6) (:frame-literal-cap ok)))
+    (testing "no common version: a fatal unsupported-version on stream 0"
+      (let [{:keys [ok error]} (msg/negotiate (assoc mine "versions" #{1}) (assoc theirs "versions" #{2 3}))]
+        (is (nil? ok))
+        (is (= {:type :error :stream 0
+                :value {"code" "unsupported-version" "message" "no version in common" "fatal" true}}
+               error))
+        (testing "and it is a valid message to send"
+          (is (= "unsupported-version"
+                 (get-in (msg/decode-message (msg/encode-message error)) [:value "code"]))))))))
+
+(deftest s8-reassembly-copies-an-item-once-and-handles-many-small-ones
+  (let [item (fn [n] (let [b (byte-array n)
+                           plen (- n 37)]
+                       (aset-byte b 36 (unchecked-byte (bit-and 0xff plen)))
+                       (aset-byte b 35 (unchecked-byte (bit-and 0xff (bit-shift-right plen 8))))
+                       (aset-byte b 34 (unchecked-byte (bit-and 0xff (bit-shift-right plen 16))))
+                       b))
+        read (fn [in]
+               (let [frames (frame/chunk-items 5 in)
+                     r (reduce (fn [{:keys [state items]} bs]
+                                 (let [[st more] (frame/feed state (frame/decode-frame bs))]
+                                   {:state st :items (into items more)}))
+                               {:state (frame/reader 5 (* 2 1048576)) :items []}
+                               frames)]
+                 (assoc r :frames (count frames))))
+        big (read [(item 1000000)])
+        many (read (repeat 20000 (item 40)))]
+    (testing "one 1 MB item over 62 frames"
+      (is (= 62 (:frames big)))
+      (is (= [1000000] (mapv bin/byte-len (:items big))))
+      (is (nil? (:need (:state big)))))
+    (testing "20 000 small items, a few hundred per frame"
+      (is (= 20000 (count (:items many))))
+      (is (every? #(= 40 (bin/byte-len %)) (:items many))))))
 
 (deftest s3-interest-bounds
   (let [v (fn [i] {"hash" (msg/hash-ref ex/h1) "policy" "default" "interest" i})

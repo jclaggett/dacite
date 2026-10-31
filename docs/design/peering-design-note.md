@@ -33,7 +33,7 @@ memory -> local store (IndexedDB or LMDB) -> peers -> origin server
 
 ## Peer protocol (sketch)
 
-- `have?` asks whether the peer holds a set of hashes, answered with a bitmap. Optionally, peers exchange a compact summary of their contents, such as a Bloom filter or recent roots.
+- ~~`have?` asks whether the peer holds a set of hashes, answered with a bitmap.~~ Removed from v1: a `get` with the smallest interest is the probe. See [peer-v1.md](../spec/peer-v1.md) section 9 (Q6). Optionally, peers exchange a compact summary of their contents, such as a Bloom filter or recent roots.
 - `get`/reveal requests a root or hash, and the peer streams entries under the same rate and interest rules as the server.
 - Every received entry is verified against its hash before it is stored, and a bad entry ends the session with that peer.
 - Peers serve only reads. Root updates and CAS stay with the origin server.
@@ -52,7 +52,7 @@ Selection: prefer Node peers over browser peers, LAN over WAN, and low latency o
 ## Open questions
 
 1. Does the origin hand out peer lists by root, or only by network locality?
-2. Privacy: does asking a peer for a hash reveal what the client is reading? Should `have?` be restricted to known peers or a site?
+2. Privacy: does asking a peer for a hash reveal what the client is reading? Should probing a peer (a `get` with the smallest interest; `have?` was removed from v1) be restricted to known peers or a site?
 3. Access control: should a peer serve any hash it holds, or only to clients authorized for that root?
 4. How do peer rates fit into the client's global rate budget and token buckets?
 5. Is TURN relay ever worth it for caching, or should peers be direct-only?

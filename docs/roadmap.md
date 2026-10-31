@@ -559,7 +559,9 @@ Do **not** start these until a real app would actually use one of them.
 - Spec v0.5 as a standalone milestone.
 - Negative sets, sorted map/set, richer `IReduce`.
 
-- **"When not to use Dacite" (spec/docs section).** Write a spec/docs section on where Dacite is a poor fit (e.g. raw media streams, hard real-time paths, dense numeric arrays) and how to wrap niche formats as opaque blobs. Deferred until we have real experience using Dacite and at least a couple of concrete cases where it fell short. Log such cases as they happen in [notes/dacite-shortfalls.md](notes/dacite-shortfalls.md).
+**Deferred on experience, not on an app:**
+
+- **"When not to use Dacite" (spec/docs section).** Write a spec/docs section on where Dacite is a poor fit, and how to wrap niche formats as opaque blobs. Deferred until we have real experience using Dacite and at least a couple of concrete cases where it fell short. Log such cases as they happen in [notes/dacite-shortfalls.md](notes/dacite-shortfalls.md).
 
 **Post-benchmark (explore, no implementation now):**
 

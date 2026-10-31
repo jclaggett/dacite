@@ -10,6 +10,7 @@
             [dacite.service.reveal :as sr]
             [dacite.store :as store]
             [dacite.value :as v]
+            [dacite.value.lit :as lit]
             [dacite.wire.binary :as bin]))
 
 (defn- thrown-reason
@@ -38,13 +39,6 @@
   [st h]
   (reduce + (map #(bin/byte-len (sr/encode-page st {:hash %})) (reveal/page-order st h))))
 
-(def slow?
-  "Building and hashing a 16 000-letter string takes minutes (hash fusion per
-   character), so the checks that rebuild the cap-sized fixtures run only when
-   DACITE_SLOW_TESTS is set. The fixtures themselves are checked on every run
-   (sizes, hashes, encodings, framing) by `conf/run-all`."
-  (some? (System/getenv "DACITE_SLOW_TESTS")))
-
 (defn- decode-all [bss] (bin/decode-item-stream (frame/concat-bytes bss)))
 
 ;; ---------------------------------------------------------------------------
@@ -52,10 +46,10 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest every-item-stream-fixture-verifies
-  (doseq [id (cond-> ["item-stream-one-frame" "item-stream-mixed" "item-stream-partial"]
-               slow? (into ["item-stream-literal-at-cap" "item-stream-literal-over-cap"]))
+  (doseq [id ["item-stream-one-frame" "item-stream-mixed" "item-stream-partial"
+              "item-stream-literal-at-cap" "item-stream-literal-over-cap"]
           :let [{:keys [decoded]} (fixture-items id)
-                st (items/accept-items! nil decoded)]]
+                st (:store (items/finish! (items/accept-items! nil decoded)))]]
     (is (pos? (count decoded)) id)
     (is (every? #(some? (store/await (store/s-get st (:hash %)))) decoded) id)))
 
@@ -70,7 +64,7 @@
     (is (= [:literal] encs))
     (is (< (bin/byte-len (first items)) (node-total st h)))
     (testing "the receiver gets the same value hash from the literal alone"
-      (let [rst (items/accept-items! nil (decode-all items))]
+      (let [rst (:store (items/accept-items! nil (decode-all items)))]
         (is (some? (store/await (store/s-get rst h))))))))
 
 (deftest the-shorter-form-wins-and-is-never-worse
@@ -85,7 +79,7 @@
             :let [h (v/hash val)
                   {:keys [items encs]} (items/encode-value st h)
                   total (reduce + (map bin/byte-len items))
-                  rst (items/accept-items! nil (decode-all items))]]
+                  rst (:store (items/finish! (items/accept-items! nil (decode-all items))))]]
       (is (<= total (node-total st h)) (str (pr-str (frequencies encs)) " " total))
       (is (some? (store/await (store/s-get rst h)))))))
 
@@ -100,7 +94,7 @@
       (is (= cap (bin/byte-len (bin/encode-item (first decoded)))))
       (is (= 1 (count (:frames (fixture-items "item-stream-literal-at-cap"))))))
     (testing "one letter more: the whole value is not a literal; its header is a node"
-      (is (= :node (:enc (last (:decoded over)))))
+      (is (= :node (:enc (first (:decoded over)))))
       (is (> (count (:decoded over)) 1))
       (is (every? #(<= (bin/byte-len (bin/encode-item %)) cap) (:decoded over))
           "no item needs more than one frame"))))
@@ -124,12 +118,12 @@
     (is (= cap (bin/byte-len (fits n))) "the longest that fits is exactly the cap")
     (is (nil? (fits (inc n))))
     (is (= [:literal] (:encs under)))
-    (is (= :node (last (:encs over))) "over the cap the header is a node item")
+    (is (= :node (first (:encs over))) "over the cap the header is a node item, and it is first")
     (is (every? #(<= (bin/byte-len %) cap)
                 (map second (filter #(= :literal (first %)) (map vector (:encs over) (:items over))))))
     (testing "and both verify"
-      (is (some? (items/accept-items! nil (decode-all (:items under)))))
-      (is (some? (items/accept-items! nil (decode-all (:items over))))))))
+      (is (some? (items/finish! (items/accept-items! nil (decode-all (:items under))))))
+      (is (some? (items/finish! (items/accept-items! nil (decode-all (:items over)))))))))
 
 (deftest the-cap-follows-the-negotiated-frame-size
   (let [st (store/mem-store)
@@ -199,48 +193,136 @@
      :others (vec (remove structural? order))}))
 
 (deftest items-verify-in-the-order-the-sender-writes-them
-  ;; The mixed fixture: node items and literals, written by items/encode-value.
+  ;; The mixed fixture: node items and literals, header first.
   (let [{:keys [decoded]} (fixture-items "item-stream-mixed")
-        rst (store/mem-store)
-        checks (mapv #(items/accept-item! rst %) decoded)]
-    (is (some #(contains? % :root-measure) checks) "a header checked against its root")
+        rx (items/receiver)
+        checks (mapv #(items/accept-item! rx %) decoded)]
+    (is (= :node (:enc (first decoded))) "the header comes first")
+    (is (contains? (first checks) :pending) "and waits for its root")
     (is (some #(contains? % :body-measure) checks) "a page checked against its contents")
     (is (some #(contains? % :literal) checks))
-    (is (= :node (:enc (last decoded))) "the header follows its pages")))
+    (is (empty? (items/unchecked rx)) "the header was checked when its root arrived")))
 
-(deftest a-header-before-its-root-is-refused-not-held
+(deftest a-header-is-accepted-first-and-checked-when-its-root-arrives
+  ;; Q2: header-first. The header cannot be checked alone (its hash, count and
+  ;; size follow from its root), so it is stored at once, not held back, and
+  ;; checked the moment the root is stored.
   (let [st (store/mem-store)
         h (v/hash (lines st 300))
-        header-first (node-items st (:order (reveal-nodes st h)))
-        rst (store/mem-store)]
-    (is (= :out-of-order (thrown-reason #(items/accept-item! rst (first header-first)))))
-    (is (nil? (store/await (store/s-get rst h))) "nothing was kept")
-    (testing "its pages are fine on their own; then the header is accepted"
-      (let [{:keys [pages]} (reveal-nodes st h)]
-        (doseq [it (node-items st pages)] (items/accept-item! rst it))
-        (is (= #{:hash :root-measure} (items/accept-item! rst (first header-first))))
-        (is (some? (store/await (store/s-get rst h))))))))
+        all (node-items st (reveal/page-order st h))
+        [header root & more] all
+        rx (items/receiver)]
+    (is (= #{:pending} (items/accept-item! rx header)))
+    (is (some? (store/await (store/s-get (:store rx) h))) "stored on arrival")
+    (is (= [h] (items/unchecked rx)))
+    (is (= #{:hash} (items/accept-item! rx root)) "the root arrives: the header is checked")
+    (is (empty? (items/unchecked rx)))
+    (doseq [it more] (items/accept-item! rx it))
+    (is (= rx (items/finish! rx)))))
+
+(deftest a-forged-header-count-or-size-is-refused-when-the-root-arrives
+  ;; Repro of the review (bare-leaf-header-forged-count) and the same for a
+  ;; page root. count and size-bytes are in no hash: recomputation is the only check.
+  (doseq [[label make] [["a bare-leaf root" #(v/vector % (v/string % "only"))]
+                        ["a page root" #(lines % 300)]]
+          [k n] [[:count 1000000] [:size-bytes 77]]]
+    (let [st (store/mem-store)
+          h (v/hash (make st))
+          [header root & more] (node-items st (reveal/page-order st h))
+          forged (assoc-in header [:entry 1 k] n)
+          rx (items/receiver)]
+      (is (= #{:pending} (items/accept-item! rx forged)) (str label " " k ": accepted on arrival"))
+      (is (= :bad-entry (thrown-reason #(items/accept-item! rx root))) (str label " " k))
+      (is (nil? (store/await (store/s-get (:store rx) h))) "the forged header is removed")
+      (is (not-any? #(= % h) (items/unchecked rx))
+          "(a bare leaf's own header may still wait for its root)"))))
+
+(deftest a-header-whose-hash-does-not-fit-its-root-is-refused
+  (let [st (store/mem-store)
+        h (v/hash (lines st 300))
+        [header root] (node-items st (reveal/page-order st h))
+        other (v/hash (lines st 301))
+        [oheader] (node-items st (reveal/page-order st other))
+        ;; the header of `other`, pointing at this root, under the hash of `other`
+        forged (assoc-in oheader [:entry 1 :root] (get-in header [:entry 1 :root]))
+        rx (items/receiver)]
+    (is (= #{:pending} (items/accept-item! rx forged)))
+    (is (= :bad-hash (thrown-reason #(items/accept-item! rx root))))
+    (is (nil? (store/await (store/s-get (:store rx) other))))))
+
+(deftest a-header-over-a-bare-leaf-root-is-checked-when-the-leaf-arrives
+  ;; A vector of one string: the vector's root is the string's own hash, and
+  ;; that string has a header of its own: header first all the way down.
+  (let [st (store/mem-store)
+        h (v/hash (v/vector st (v/string st "x")))
+        all (node-items st (reveal/page-order st h))
+        rx (items/receiver)]
+    (is (= #{:pending} (items/accept-item! rx (first all))) "the vector header waits")
+    (doseq [it (rest all)] (items/accept-item! rx it))
+    (is (empty? (items/unchecked rx)))
+    (is (some? (store/await (store/s-get (:store rx) h))))))
+
+(deftest a-stream-that-ends-early-leaves-no-unchecked-header
+  (let [st (store/mem-store)
+        h (v/hash (lines st 300))
+        [header] (node-items st (reveal/page-order st h))
+        rx (items/receiver)]
+    (items/accept-item! rx header)
+    (testing "PARTIAL / cancel: the receiver drops what it could not check"
+      (items/discard-unchecked! rx)
+      (is (nil? (store/await (store/s-get (:store rx) h))))
+      (is (empty? (items/unchecked rx))))
+    (testing "FIN without PARTIAL: a header whose root never came is refused"
+      (items/accept-item! rx header)
+      (is (= :bad-entry (thrown-reason #(items/finish! rx))))
+      (is (nil? (store/await (store/s-get (:store rx) h)))))))
 
 (deftest pages-verify-in-any-order
   ;; A parent never waits for a child, and a child needs no parent.
   (let [st (store/mem-store)
         h (v/hash (lines st 300))
         {:keys [pages]} (reveal-nodes st h)
-        rst (store/mem-store)]
+        rx (items/receiver)]
     (doseq [it (reverse (node-items st pages))]
-      (items/accept-item! rst it))
-    (is (every? #(some? (store/await (store/s-get rst %))) pages))))
+      (items/accept-item! rx it))
+    (is (every? #(some? (store/await (store/s-get (:store rx) %))) pages))))
 
-(deftest a-header-over-a-leaf-root-needs-no-pages
-  ;; A vector of one string: the vector's root is the string's own hash, so
-  ;; its header is checkable first; the string comes after, pages then header.
+(deftest a-run-of-refs-is-a-ref
+  ;; Repro of the review (run-of-ref-has-ref): refs written as a run or repeat.
+  (do
+    (is (not (lit/names-child-hash? [{:type "char" :body \a}
+                                      {:type "run" :body {:of "char" :values [\a \b]}}])))
+    (is (lit/names-child-hash? [{:type "ref" :body [1 2 3 4]}]))
+    (is (lit/names-child-hash? [{:type "char" :body \a}
+                                {:type "run" :body {:of "ref" :values [[1 2 3 4] [5 6 7 8]]}}]))
+    (is (lit/names-child-hash? [{:type "repeat" :body {:of "ref" :n 3 :value [1 2 3 4]}}]))
+    (testing "a literal that holds a run of refs is bad-item, not bad-entry"
+      (is (= :bad-item
+             (thrown-reason
+              #(items/verify-item! (store/mem-store)
+                                   {:enc :literal :hash [1 2 3 4]
+                                    :literal {:type "vector"
+                                              :body [{:type "run"
+                                                      :body {:of "ref" :values [[1 2 3 4] [5 6 7 8]]}}]}})))))))
+
+(deftest a-page-with-a-run-of-refs-is-a-spine-page
+  ;; The over-cap fixture holds an ft/digit with a char run and a run of refs.
+  ;; It must verify as a spine page (hash only), not leak a raw :missing from
+  ;; recomputing a leaf measure.
+  (let [{:keys [decoded]} (fixture-items "item-stream-literal-over-cap")
+        page (first (filter #(and (= :node (:enc %))
+                                  (lit/names-child-hash? (:body (second (:entry %)))))
+                            decoded))]
+    (is (some? page) "the fixture has a page whose refs are a run")
+    (is (= #{:hash} (items/verify-item! (store/mem-store) page)))))
+
+(deftest a-missing-entry-is-a-protocol-reason
+  ;; Never a raw {:reason :missing}.
   (let [st (store/mem-store)
-        h (v/hash (v/vector st "x"))
-        [header & more] (node-items st (items/verifiable-order st (reveal/page-order st h)))
-        rst (store/mem-store)]
-    (is (= #{:hash :leaf-root} (items/accept-item! rst header)))
-    (doseq [it more] (items/accept-item! rst it))
-    (is (some? (store/await (store/s-get rst h))))))
+        h (v/hash (lines st 300))
+        [header] (node-items st (reveal/page-order st h))]
+    (is (= #{:pending} (items/verify-item! (store/mem-store) header))
+        "header first: a missing root is pending, not an error")))
 
 (deftest tampering-is-refused
   (let [st (store/mem-store)
@@ -267,22 +349,13 @@
                       :literal {:type "vector"
                                 :body [{:type "ref" :body (:hash digit)}]}}))))))
 
-(deftest a-header-with-the-wrong-count-is-refused
-  (let [st (store/mem-store)
-        h (v/hash (lines st 300))
-        {:keys [order pages]} (reveal-nodes st h)
-        [header] (node-items st order)
-        rst (store/mem-store)]
-    (doseq [it (node-items st pages)] (items/accept-item! rst it))
-    (is (= :bad-entry (thrown-reason
-                       #(items/verify-item! rst (update-in header [:entry 1 :count] inc)))))))
-
-(deftest the-reveal-service-still-holds-what-the-peer-refuses
-  ;; The reveal service (header first) waits for a header's root; the peer
-  ;; layer does not. Both accept the same bytes once the pages are in.
+(deftest the-reveal-service-and-the-peer-layer-accept-the-same-bytes
+  ;; Both take the header first; the reveal service holds a header until its
+  ;; root arrives, the peer layer stores it and checks it then.
   (let [st (store/mem-store)
         h (v/hash (lines st 100))
         pages (node-items st (reveal/page-order st h))
-        via-service (sr/accept-items! nil pages)]
+        via-service (sr/accept-items! nil pages)
+        rx (items/finish! (items/accept-items! nil pages))]
     (is (some? (store/await (store/s-get via-service h))))
-    (is (= :out-of-order (thrown-reason #(items/accept-items! nil pages))))))
+    (is (some? (store/await (store/s-get (:store rx) h))))))

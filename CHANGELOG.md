@@ -18,6 +18,12 @@ stability promise: public APIs may still change before 1.0.
   never spans frames. Every item is verified from its own bytes and
   nothing waits for a child (`dacite.peer.items`). Messages: `hello`,
   `get`, `item-stream`, `ack`, `release`, `cancel`, `error`.
+  Senders cut free text to 256 UTF-8 bytes (`msg/cut-text`); integers are
+  within ±(2^53 − 1) on both hosts; `msg/negotiate` combines two `hello`
+  values. A collection header goes first, is stored on arrival, and has its
+  hash, count and size recomputed when its root arrives (a bare-leaf root
+  included). v1 assumes good actors: branch nodes are not bound to their
+  children (spec section 11).
   `dacite.peer.frame` and `dacite.peer.msg` are portable `.cljc`.
   `fixtures/peer-v1/` holds 50 golden cases made by the real encoder
   (`clojure -M:dev -m gen-peer-fixtures`), checked on the JVM and on nbb

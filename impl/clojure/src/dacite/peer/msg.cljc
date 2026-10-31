@@ -20,7 +20,8 @@
    `encode-message` builds the Dacite value in a scratch store and asks
    the real pack encoder for its canonical literal, so map and set order
    is the one wire-v1 defines."
-  (:require [clojure.string :as str]
+  (:require [clojure.set]
+            [clojure.string :as str]
             [dacite.host :as host]
             [dacite.peer.frame :as frame]
             [dacite.store :as store]
@@ -52,6 +53,13 @@
   #?(:clj (bytes? x)
      :cljs (instance? js/Uint8Array x)))
 
+(def max-int
+  "Largest integer a v1 message holds: 2^53 - 1. nbb has one number type, a
+   double, which is exact only up to there. The JVM sender and receiver keep
+   the same range, so a value one host cannot read is one the other will not
+   write. Outside it is `profile`."
+  9007199254740991)
+
 (defn- int-value?
   [x]
   #?(:clj (or (instance? Long x) (instance? Integer x)
@@ -62,6 +70,10 @@
   [msg data]
   (throw (ex-info msg (assoc data :reason :profile))))
 
+(defn- in-range?
+  [x]
+  (<= (- max-int) x max-int))
+
 (defn- ->value
   "Native → Dacite value in `st`."
   [st x]
@@ -69,7 +81,9 @@
     (nil? x) (v/null st)
     (boolean? x) (v/bool st x)
     (string? x) (v/string st x)
-    (int-value? x) (v/i64 st x)
+    (int-value? x) (do (when-not (in-range? x)
+                         (profile-error! "an integer is within +-(2^53 - 1)" {:value x}))
+                       (v/i64 st x))
     (hash-ref? x) (let [hex (hash-ref-hex x)]
                     (when-not (re-matches #"[0-9a-f]{64}" hex)
                       (profile-error! "a hash is 64 hex chars" {:got hex}))
@@ -100,7 +114,10 @@
   (case (str type)
     "null" nil
     "bool" (boolean body)
-    "i64" #?(:clj (long body) :cljs body)
+    "i64" (let [n #?(:clj (long body) :cljs body)]
+            (when-not (in-range? n)
+              (profile-error! "an integer is within +-(2^53 - 1)" {:value (str n)}))
+            n)
     "string" (str body)
     "blob" (form-bytes body)
     "u256" (hash-ref (bin/bytes->hex (form-bytes body)))
@@ -311,6 +328,75 @@
     (if (contains? kinds k) k "browser")))
 
 ;; =============================================================================
+;; Free text and negotiation
+;; =============================================================================
+
+(defn- code-points
+  "The characters of `s` as strings, a surrogate pair kept whole."
+  [s]
+  #?(:clj (map #(String. (Character/toChars %)) (.toArray (.codePoints ^String s)))
+     :cljs (js->clj (js/Array.from s))))
+
+(defn cut-text
+  "`s` cut to at most `max-string-bytes` UTF-8 bytes, at a character
+   boundary. Free text (`agent`, `reason`, `message`) is cut by a sender,
+   never rejected there: cutting loses detail nobody parses, and a receiver
+   would refuse the whole message otherwise."
+  [s]
+  (if (<= (utf8-length s) max-string-bytes)
+    s
+    (loop [cs (code-points s) n 0 out []]
+      (let [c (first cs)
+            m (when c (utf8-length c))]
+        (if (and c (<= (+ n m) max-string-bytes))
+          (recur (next cs) (+ n m) (conj out c))
+          (apply str out))))))
+
+(def ^:private free-text
+  "The free-text keys of each message type."
+  {:hello ["agent"] :cancel ["reason"] :release ["reason"] :error ["message"]})
+
+(defn cut-free-text
+  "`value` with its free-text fields cut by `cut-text`."
+  [type value]
+  (reduce (fn [m k] (if (string? (get m k)) (update m k cut-text) m))
+          value
+          (get free-text type)))
+
+(defn negotiate
+  "Combine two `hello` values (`mine`, `theirs`), as decoded.
+
+   Returns {:ok {...}} or {:error <error message>}.
+
+   - the version is the highest in both `versions` sets; with none in
+     common the answer is `error unsupported-version`, `fatal`, on stream 0
+   - `max-frame` and `max-item` are the smaller of the two (frames and items
+     in both directions must fit the weaker side)
+   - `max-streams` is per direction: `:may-open` is what the other side
+     accepts from me, `:will-accept` is what I accept from it
+   - capabilities are the intersection
+   - `:frame-literal-cap` is the largest literal item either side may send:
+     `max-frame - 6`"
+  [mine theirs]
+  (let [common (clojure.set/intersection (set (get mine "versions"))
+                                         (set (get theirs "versions")))]
+    (if (empty? common)
+      {:error {:type :error :stream 0
+               :value {"code" "unsupported-version"
+                       "message" "no version in common"
+                       "fatal" true}}}
+      (let [lim-m (get mine "limits") lim-t (get theirs "limits")
+            max-frame (min (get lim-m "max-frame") (get lim-t "max-frame"))]
+        {:ok {:version (apply max common)
+              :caps (clojure.set/intersection (set (get mine "caps"))
+                                              (set (get theirs "caps")))
+              :max-frame max-frame
+              :max-item (min (get lim-m "max-item") (get lim-t "max-item"))
+              :may-open (get lim-t "max-streams")
+              :will-accept (get lim-m "max-streams")
+              :frame-literal-cap (frame/max-literal-item max-frame)}}))))
+
+;; =============================================================================
 ;; Messages on the wire
 ;; =============================================================================
 
@@ -327,13 +413,14 @@
     :or {stream 0}}]
   (when-not (contains? shapes type)
     (throw (ex-info "not a control message type" {:reason :unknown-type :type type})))
-  (let [ps (problems type value :send)]
-    (when (seq ps) (invalid! type ps)))
-  (frame/encode-frame {:type type
-                       :stream stream
-                       :flags frame/flag-fin
-                       :payload (encode-value value)
-                       :max-frame-bytes (or max-frame-bytes frame/max-frame)}))
+  (let [value (cut-free-text type value)
+        ps (problems type value :send)]
+    (when (seq ps) (invalid! type ps))
+    (frame/encode-frame {:type type
+                         :stream stream
+                         :flags frame/flag-fin
+                         :payload (encode-value value)
+                         :max-frame-bytes (or max-frame-bytes frame/max-frame)})))
 
 (defn decode-message
   "Parse and validate one control frame.

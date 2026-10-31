@@ -6,6 +6,10 @@
  :frames 2,
  :items
  [{:hash
+   "d639e34e80a8bc79ae53b87805a8ce8523ea77176ebc1add3a0d891242667e86",
+   :bytes 87,
+   :enc :node}
+  {:hash
    "db67342bcd3bec50344ceda9795aa2f11a3650d3ebf206dd17f60ea6aa08999d",
    :bytes 184,
    :enc :node}
@@ -80,8 +84,4 @@
   {:hash
    "f947a69324b5b427a34a73580f564f70ce46137febb4fd69bedeff2bea163f13",
    :bytes 1029,
-   :enc :literal}
-  {:hash
-   "d639e34e80a8bc79ae53b87805a8ce8523ea77176ebc1add3a0d891242667e86",
-   :bytes 87,
-   :enc :node}]}
+   :enc :literal}]}
