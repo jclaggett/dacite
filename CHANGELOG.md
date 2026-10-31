@@ -24,6 +24,7 @@ stability promise: public APIs may still change before 1.0.
   hash, count and size recomputed when its root arrives (a bare-leaf root
   included). v1 assumes good actors: branch nodes are not bound to their
   children (spec section 11).
+- **Tests:** no test over about 3 s without a `JUSTIFICATION` comment (`CONTRIBUTING.md`, `dev/time_tests.clj`); `pack/host-string` walks leaves once (the JVM suite: about 261 s to about 45 s).
   `dacite.peer.frame` and `dacite.peer.msg` are portable `.cljc`.
   `fixtures/peer-v1/` holds 50 golden cases made by the real encoder
   (`clojure -M:dev -m gen-peer-fixtures`), checked on the JVM and on nbb

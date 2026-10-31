@@ -250,6 +250,30 @@
     (is (= :bad-hash (thrown-reason #(items/accept-item! rx root))))
     (is (nil? (store/await (store/s-get (:store rx) other))))))
 
+(deftest every-header-waiting-on-a-root-is-removed-when-a-check-fails
+  ;; Two headers wait on one root. When the root arrives and a check fails,
+  ;; neither may stay stored unchecked (review M4, two-headers-one-root).
+  (let [st (store/mem-store)
+        h (v/hash (lines st 300))
+        [header root & more] (node-items st (reveal/page-order st h))
+        fake1 [1 2 3 4]
+        fake2 [9 8 7 6]
+        rx (items/receiver)]
+    (is (= #{:pending} (items/accept-item! rx (assoc header :hash fake1))))
+    (is (= #{:pending} (items/accept-item! rx (assoc header :hash fake2))))
+    (is (= 2 (count (items/unchecked rx))))
+    (is (= :bad-hash (thrown-reason #(items/accept-item! rx root))))
+    (is (empty? (items/unchecked rx)) "nothing is tracked")
+    (is (every? #(nil? (store/await (store/s-get (:store rx) %))) [fake1 fake2])
+        "and nothing is left stored")
+    (testing "one honest and one forged header on the same root: both go"
+      (let [rx (items/receiver)]
+        (items/accept-item! rx header)
+        (items/accept-item! rx (assoc header :hash fake1))
+        (is (= :bad-hash (thrown-reason #(items/accept-item! rx root))))
+        (is (empty? (items/unchecked rx)))
+        (is (nil? (store/await (store/s-get (:store rx) fake1))))))))
+
 (deftest a-header-over-a-bare-leaf-root-is-checked-when-the-leaf-arrives
   ;; A vector of one string: the vector's root is the string's own hash, and
   ;; that string has a header of its own: header first all the way down.

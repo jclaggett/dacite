@@ -186,19 +186,20 @@
 (def ^:private join-chars lit/join-chars)
 
 (defn- host-string
-  "Full host string via index access (avoids ft-seq truncation)."
+  "Full host string. Walks the leaves once (`coll/seq-vals`); indexing each
+   character with `seq-nth` costs a leaf page of work per character."
   [st h]
   (let [n (long (or (:count (types/entry-data (store/require-node st h))) 0))]
     (if (zero? n)
       ""
       (join-chars
-       (map (fn [i]
-              (let [r (types/realize (coll/seq-nth st h i))]
+       (map (fn [leaf]
+              (let [r (types/realize leaf)]
                 (cond
                   (char? r) r
                   (string? r) r
                   :else (first (str r)))))
-            (range n))))))
+            (coll/seq-vals st h))))))
 
 (defn- host-blob-vec
   "Blob as vector of 0..255 ints (EDN-safe)."
