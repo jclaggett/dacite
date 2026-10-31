@@ -1,0 +1,5 @@
+{:title "An item with enc 1: v1 streams carry nodes only",
+ :expect :reject,
+ :reason :bad-item,
+ :type :item-stream,
+ :stream 5}

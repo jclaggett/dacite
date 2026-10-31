@@ -1,0 +1,4 @@
+{:title "hello on a request's stream",
+ :expect :reject,
+ :reason :wrong-stream,
+ :type :hello}

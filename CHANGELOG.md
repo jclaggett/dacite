@@ -16,7 +16,7 @@ stability promise: public APIs may still change before 1.0.
   wire-v1 reveal stream cut into frames. Messages: `hello`, `have?` and
   `have` (a bitmap), `get`, `item-stream`, `ack`, `release`, `cancel`,
   `error`. `dacite.peer.frame` and `dacite.peer.msg` are portable
-  `.cljc`. `fixtures/peer-v1/` holds 40 golden cases made by the real
+  `.cljc`. `fixtures/peer-v1/` holds 53 golden cases made by the real
   encoder (`clojure -M:dev -m gen-peer-fixtures`), checked on the JVM and
   on nbb (`npm run peer:test`).
 - **Reveal order and interest** — `dacite.reveal` names the pages a default

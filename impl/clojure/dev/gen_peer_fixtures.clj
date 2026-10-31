@@ -52,6 +52,40 @@
                   :value (msg/->edn value)}
                  [(msg/encode-message {:type type :stream stream :value value})])))
 
+;; --- Messages a sender would not write but a receiver must read -------------
+
+(defn- lenient-frame
+  "A control frame without the sender-side checks of `msg/encode-message`."
+  [type stream value]
+  (frame/encode-frame {:type type :stream stream :flags frame/flag-fin
+                       :payload (msg/encode-value value)}))
+
+(defn lenient-cases! []
+  (let [h (msg/hash-ref ex/h1)
+        hello (assoc (:value (first ex/examples)) "kind" "relay")
+        get-v {"hash" h "policy" "fancy"}]
+    (write-case! "error-unknown-code"
+                 {:title "A code v1 does not define: decodes, and reads as internal"
+                  :expect :message :type :error :stream 5
+                  :value {"code" "teapot" "fatal" false}
+                  :reads {:error-code "internal"}}
+                 [(lenient-frame :error 5 {"code" "teapot" "fatal" false})])
+    (write-case! "hello-unknown-kind"
+                 {:title "A kind v1 does not define: decodes, and reads as browser"
+                  :expect :message :type :hello :stream 0
+                  :value (msg/->edn hello)
+                  :reads {:peer-kind "browser"}}
+                 [(lenient-frame :hello 0 hello)])
+    (write-case! "get-unknown-policy"
+                 {:title "An unknown policy decodes; the responder answers unsupported-policy"
+                  :expect :message :type :get :stream 5
+                  :value (msg/->edn get-v)
+                  :answer {:type :error :stream 5
+                           :value {"code" "unsupported-policy"
+                                   "message" "unknown policy"
+                                   "fatal" false}}}
+                 [(lenient-frame :get 5 get-v)])))
+
 ;; --- Item streams -----------------------------------------------------------
 
 (defn- reveal-pages
@@ -122,6 +156,18 @@
     (aset-byte h 36 (unchecked-byte (bit-and 0xff plen)))
     h))
 
+(defn- on-stream
+  "`bs` with its stream id field set to `n`, bypassing the stream rule."
+  [bs n]
+  (doseq [[i sh] [[2 24] [3 16] [4 8] [5 0]]]
+    (aset-byte bs i (unchecked-byte (bit-and 0xff (bit-shift-right n sh)))))
+  bs)
+
+(defn- ctl-on
+  "A control frame for `type` on stream `n`, even when the rule forbids it."
+  [type n value]
+  (on-stream (lenient-frame type (if (= :session (frame/stream-rule type)) 0 1) value) n))
+
 (defn reject-case!
   [id title reason frames & {:as extra}]
   (write-case! id (merge {:title title :expect :reject :reason reason} extra) frames))
@@ -184,11 +230,52 @@
                   [(ctl-frame :have 1 fin (msg/encode-value
                                            {"count" 3 "bits" (byte-array [(unchecked-byte 0xa1)])}))]
                   :type :have)
-    (reject-case! "reject-get-unknown-policy" "A policy v1 does not define"
-                  :invalid-message
-                  [(ctl-frame :get 5 fin (msg/encode-value
-                                          {"hash" (msg/hash-ref ex/h1) "policy" "random"}))]
+    (reject-case! "reject-request-on-stream-0" "get on the session stream"
+                  :wrong-stream
+                  [(ctl-on :get 0 {"hash" (msg/hash-ref ex/h1) "policy" "default"})]
                   :type :get)
+    (reject-case! "reject-have-query-on-stream-0" "have? on the session stream"
+                  :wrong-stream
+                  [(ctl-on :have? 0 {"hashes" [(msg/hash-ref ex/h1)]})]
+                  :type :have?)
+    (reject-case! "reject-ack-on-stream-n" "ack on a request's stream"
+                  :wrong-stream
+                  [(ctl-on :ack 7 {"hashes" [(msg/hash-ref ex/h1)]})]
+                  :type :ack)
+    (reject-case! "reject-hello-on-stream-n" "hello on a request's stream"
+                  :wrong-stream
+                  [(ctl-on :hello 5 (hello))]
+                  :type :hello)
+    (reject-case! "reject-cancel-on-stream-0" "cancel needs the request's stream"
+                  :wrong-stream
+                  [(ctl-on :cancel 0 {})]
+                  :type :cancel)
+    (reject-case! "reject-item-stream-on-stream-0" "an item-stream frame on stream 0"
+                  :wrong-stream
+                  [(on-stream (ctl-frame :item-stream 5 fin (byte-array 0)) 0)]
+                  :type :item-stream :stream 5)
+    (reject-case! "reject-string-too-long" "A 257-byte reason"
+                  :invalid-message
+                  [(lenient-frame :cancel 5 {"reason" (apply str (repeat 257 "x"))})]
+                  :type :cancel)
+    (reject-case! "reject-interest-zero-tau" "tau-ms 0 never decays"
+                  :invalid-message
+                  [(lenient-frame :get 5 {"hash" (msg/hash-ref ex/h1) "policy" "default"
+                                          "interest" {"peak" 1000 "tau-ms" 0 "floor" 0}})]
+                  :type :get)
+    (reject-case! "reject-interest-zero-peak" "peak 0 is no interest"
+                  :invalid-message
+                  [(lenient-frame :get 5 {"hash" (msg/hash-ref ex/h1) "policy" "default"
+                                          "interest" {"peak" 0 "tau-ms" 1000 "floor" 0}})]
+                  :type :get)
+    (reject-case! "reject-hello-zero-streams" "max-streams 0 accepts no request"
+                  :invalid-message
+                  [(lenient-frame :hello 0 (assoc-in (hello) ["limits" "max-streams"] 0))]
+                  :type :hello)
+    (reject-case! "reject-item-literal" "An item with enc 1: v1 streams carry nodes only"
+                  :bad-item
+                  [(ctl-frame :item-stream 5 0 (item-header 1 0))]
+                  :type :item-stream :stream 5)
     (reject-case! "reject-item-unknown-enc" "An item whose enc is 7"
                   :bad-item
                   [(ctl-frame :item-stream 5 0 (item-header 7 0))]
@@ -223,6 +310,7 @@
                                     (doseq [f (.listFiles d)] (.delete f))
                                     (.delete d)))))
   (control-cases!)
+  (lenient-cases!)
   (stream-cases!)
   (reject-cases!)
   (spit (io/file (root) "manifest.json")

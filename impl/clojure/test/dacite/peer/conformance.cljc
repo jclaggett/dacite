@@ -69,16 +69,28 @@
 ;; Each check returns a vector of problem strings.
 
 (defn- check-message
-  [id {:keys [type stream value]} frames]
+  [id {:keys [type stream value reads answer]} frames]
   (let [fr (first frames)
         got (msg/decode-message fr)
         expected (msg/<-edn value)]
     (cond-> []
+      (and (contains? reads :error-code)
+           (not= (:error-code reads) (msg/error-code (:value got))))
+      (conj (str id ": error code reads as " (msg/error-code (:value got))))
+      (and (contains? reads :peer-kind)
+           (not= (:peer-kind reads) (msg/peer-kind (:value got))))
+      (conj (str id ": peer kind reads as " (msg/peer-kind (:value got))))
+      (and answer (not= answer (msg/->edn (msg/answer-error got))))
+      (conj (str id ": responder answer differs"))
+      (and (nil? answer) (msg/answer-error got))
+      (conj (str id ": a message that needs no answer got one"))
       (not= 1 (count frames)) (conj (str id ": a control message is one frame"))
       (not= type (:type got)) (conj (str id ": type " (:type got)))
       (not= stream (:stream got)) (conj (str id ": stream " (:stream got)))
       (not (msg/equal-values? expected (:value got))) (conj (str id ": value differs"))
-      (not= (hex fr) (hex (msg/encode-message {:type type :stream stream :value expected})))
+      (not= (hex fr) (hex (frame/encode-frame
+                           {:type type :stream stream :flags frame/flag-fin
+                            :payload (msg/encode-value expected)})))
       (conj (str id ": re-encoded bytes differ")))))
 
 (defn- check-item-stream

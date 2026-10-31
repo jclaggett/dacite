@@ -1,0 +1,4 @@
+{:title "get on the session stream",
+ :expect :reject,
+ :reason :wrong-stream,
+ :type :get}

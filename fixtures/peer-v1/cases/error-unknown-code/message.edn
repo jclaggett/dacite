@@ -1,0 +1,6 @@
+{:title "A code v1 does not define: decodes, and reads as internal",
+ :expect :message,
+ :type :error,
+ :stream 5,
+ :value {"code" "teapot", "fatal" false},
+ :reads {:error-code "internal"}}
