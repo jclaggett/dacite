@@ -1,0 +1,10 @@
+{:title
+ "Reveal a value with the default policy and the peer's interest",
+ :expect :message,
+ :type :get,
+ :stream 5,
+ :value
+ {"hash"
+  {:dacite.peer.msg/u256
+   "00000000000000010000000000000002000000000000000300000000000000aa"},
+  "policy" "default"}}

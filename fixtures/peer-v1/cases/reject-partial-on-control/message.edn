@@ -1,0 +1,3 @@
+{:title "PARTIAL is only for item streams",
+ :expect :reject,
+ :reason :bad-flags}

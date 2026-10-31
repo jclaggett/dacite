@@ -1,0 +1,5 @@
+{:title "Nine hashes need two bytes; spare bits are zero",
+ :expect :message,
+ :type :have,
+ :stream 3,
+ :value {"count" 9, "bits" {:dacite.peer.msg/blob "ff80"}}}

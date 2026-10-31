@@ -1,0 +1,4 @@
+{:title "Type 0x42 is not defined: decode, answer unsupported, go on",
+ :expect :unknown,
+ :type-id 66,
+ :stream 3}

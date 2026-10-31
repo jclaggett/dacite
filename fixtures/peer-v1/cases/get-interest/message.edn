@@ -1,0 +1,10 @@
+{:title "Reveal with explicit interest: peak 1.0, tau 2 s, floor 0.05",
+ :expect :message,
+ :type :get,
+ :stream 7,
+ :value
+ {"hash"
+  {:dacite.peer.msg/u256
+   "1111111111111111222222222222222233333333333333334444444444444444"},
+  "policy" "default",
+  "interest" {"peak" 1000, "tau-ms" 2000, "floor" 50}}}

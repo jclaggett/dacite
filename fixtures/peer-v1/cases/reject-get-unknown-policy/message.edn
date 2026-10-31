@@ -1,0 +1,4 @@
+{:title "A policy v1 does not define",
+ :expect :reject,
+ :reason :invalid-message,
+ :type :get}

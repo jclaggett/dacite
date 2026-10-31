@@ -1,0 +1,5 @@
+{:title "It holds the first and third (bits 1 0 1, MSB first)",
+ :expect :message,
+ :type :have,
+ :stream 1,
+ :value {"count" 3, "bits" {:dacite.peer.msg/blob "a0"}}}

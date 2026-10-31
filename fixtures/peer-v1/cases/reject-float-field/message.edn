@@ -1,0 +1,4 @@
+{:title "An f64 is outside the v1 profile",
+ :expect :reject,
+ :reason :profile,
+ :type :hello}

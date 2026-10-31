@@ -1,0 +1,8 @@
+{:title "An entry failed its hash check: the session ends",
+ :expect :message,
+ :type :error,
+ :stream 0,
+ :value
+ {"code" "bad-entry",
+  "message" "hash mismatch on stream 5",
+  "fatal" true}}
