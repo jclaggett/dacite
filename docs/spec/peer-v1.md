@@ -42,6 +42,10 @@ Every message is a small Dacite value encoded in wire-v1.
   inline literals, so a control message **needs no hash, no store entry and no
   `Item` header**. The sender never puts it in a store. The receiver never
   looks it up.
+- A standalone `Lit` is the same bytes as the payload of a literal `Item`
+  (wire-v1.md, "Literal encoding"), but self-delimited by the frame instead of
+  by an `Item`'s `plen`. It MUST end exactly at the end of the payload: a byte
+  after it is an error (fixture `reject-literal-trailing-byte`).
 - There is **one encoder**: `dacite.wire.binary/encode-lit-bytes`. The peer
   layer adds no second serialization. Map and set order is the one wire-v1
   defines (ascending content hash), so equal messages are equal bytes.
@@ -74,15 +78,24 @@ Rules:
   second). Interest is fixed point: `peak` and `floor` in thousandths, `tau` in
   milliseconds.
 - **No integer over `i64`**; negative numbers are legal in the profile but no
-  v1 shape uses one. Every shape field below is a non-negative `i64`.
+  v1 shape uses one. Every number field below is a non-negative `i64`, and a
+  field marked "at least 1" is rejected at 0 (`invalid-message`).
+- **Strings are at most 256 UTF-8 bytes** (not characters), and **a set has at
+  most 32 elements**. A receiver rejects more (`invalid-message`). A sender cuts
+  free text (`reason`, `message`, `agent`) to fit, so it never sends a frame the
+  limit would make a receiver refuse (fixture `reject-string-too-long`).
 - A hash is a `u256` literal (type id `0x0D`, 32 raw bytes, the same bytes as
   the `hash` field of a wire-v1 `Item`).
 - A blob is used only as a map value. (A core limitation, not a protocol one:
   a vector holding a blob and another element does not realize in the reference
   core today. See "Known issues".)
-- **Unknown keys MUST be ignored** by a receiver (so v1 can grow fields),
-  **unknown capabilities and error codes MUST be ignored** too. A **missing
-  required key** is `malformed`.
+- **Unknown keys MUST be ignored** by a receiver (so v1 can grow fields).
+  **A receiver never rejects a name it does not know:** an unknown capability
+  is ignored, an unknown `error` code is read as `internal`, an unknown `hello`
+  `kind` is read as `browser`, and an unknown `get` policy is answered with
+  `error unsupported-policy` (6.3). (A *sender* writes only names v1 defines, and
+  the reference encoder refuses anything else.) A **missing required key** is
+  `invalid-message`.
 - A sender MUST write the canonical encoding. A receiver MAY reject a literal
   that does not re-encode to the same bytes (reference code does: `not-canonical`).
 
@@ -108,18 +121,25 @@ most **16 378 bytes**.
 
 PARTIAL without FIN is invalid. A control message carries FIN and PARTIAL=0.
 
-| Type | Name | Payload | Direction | Stream |
+| Type | Name | Payload | Direction | Stream (rule) |
 |---|---|---|---|---|
-| `0x01` | `hello` | `Lit` (map) | both, first | 0 |
-| `0x02` | `have?` | `Lit` (map) | requester → responder | new id |
-| `0x03` | `have` | `Lit` (map) | responder → requester | same id |
-| `0x04` | `get` | `Lit` (map) | requester → responder | new id |
-| `0x05` | `item-stream` | wire-v1 `Item` bytes | responder → requester | same id |
-| `0x06` | `ack` | `Lit` (map) | requester → responder | 0 |
-| `0x07` | `release` | `Lit` (map) | requester → responder | 0 |
-| `0x08` | `cancel` | `Lit` (map) | requester → responder | the request |
-| `0x09` | `error` | `Lit` (map) | either | the request, or 0 |
+| `0x01` | `hello` | `Lit` (map) | both, first | 0 (session) |
+| `0x02` | `have?` | `Lit` (map) | requester → responder | new id, 1 or more (request) |
+| `0x03` | `have` | `Lit` (map) | responder → requester | the `have?`'s id (request) |
+| `0x04` | `get` | `Lit` (map) | requester → responder | new id, 1 or more (request) |
+| `0x05` | `item-stream` | wire-v1 `Item` bytes | responder → requester | the `get`'s id (request) |
+| `0x06` | `ack` | `Lit` (map) | requester → responder | 0 (session) |
+| `0x07` | `release` | `Lit` (map) | requester → responder | 0 (session) |
+| `0x08` | `cancel` | `Lit` (map) | requester → responder | the request's id (request) |
+| `0x09` | `error` | `Lit` (map) | either | the request, or 0 (any) |
 
+**Stream rule.** A `session` type MUST be on stream 0. A `request` type MUST be
+on a stream of 1 or more. Sender and receiver both enforce it: a frame that
+breaks it is refused with reason `wrong-stream` (`frame.cljc` `stream-rule`;
+fixtures `reject-request-on-stream-0`, `reject-have-query-on-stream-0`,
+`reject-ack-on-stream-n`, `reject-hello-on-stream-n`, `reject-cancel-on-stream-0`,
+`reject-item-stream-on-stream-0`). Whether the id names an open request (a
+`have` answers a `have?`, and so on) is session state: see section 4.
 An unknown type id is not fatal: skip the frame and answer `error`
 `unsupported` on that stream (fixture `unknown-type`). Type `0x00`, a frame
 shorter than 6 bytes, a frame over the size limit, or a reserved flag bit is a
@@ -158,12 +178,15 @@ puts that **byte stream** into `item-stream` frames:
   The reference chunker (`frame/chunk-items`) fills every frame to 16 378
   payload bytes except the last. The fixtures use it.
 - An `Item` header is 37 bytes (`enc`, 32-byte hash, `plen` u32). A receiver
-  MUST reject an unknown `enc`, and MUST reject an item whose total size is over
-  `max-item` (default 1 MiB, `hello.limits.max-item`) **before** it buffers the
+  MUST reject any `enc` but 0 (node): an unknown value (fixture
+  `reject-item-unknown-enc`) and a literal, `enc = 1` (fixture
+  `reject-item-literal`), both with reason `bad-item`. It MUST reject an item
+  whose total size is over `max-item` (default 1 MiB, `hello.limits.max-item`) **before** it buffers the
   payload. This is the bound N12 asks for.
 - A stream that ends inside an item is an error (`truncated-item`).
-- v1 item streams carry **node items** (`enc = 0x00`), as the reveal service
-  does today. A receiver MUST treat a literal item as an error in v1.
+- v1 item streams carry **node items** (`enc = 0x00`) only, as the reveal
+  service does today. The check is on the item header, so a literal item is
+  refused as soon as its 37th byte arrives.
 
 A real node can exceed one frame. In fixture `item-stream-three-frames`, a
 reveal of a 1200-element vector sends five pages; the last is one 39 753-byte
@@ -190,8 +213,18 @@ A **stream** is one request and its answer. The requester picks the stream id.
   the peer that answered uses even ids (2, 4, …). An id is used once per
   connection and never reused. Allocating in increasing order is RECOMMENDED but
   not required, because channels are not ordered with respect to each other.
-- A responder MUST reject a request whose id has the wrong parity, or is
-  already in use (`malformed`, on that stream).
+- A responder MUST refuse a request whose id has the wrong parity
+  (`bad-stream-parity`), is already used on the connection
+  (`duplicate-stream`), or would exceed the `max-streams` it advertised
+  (`too-many-streams`). It answers `error malformed` (or `overloaded` for the
+  last) on that stream and does not start it. Id 0 is not a request
+  (`wrong-stream`).
+- These are session rules, kept by a small pure helper, `frame/stream-table`
+  (`open-local` allocates this side's next id, `open-remote` accepts or refuses
+  the remote's, `close-stream` frees a slot but never frees the id, `live?`
+  says whether a frame for an id is still wanted). They are tested in
+  `peer-v1-test`; they have no golden frames, because they are about the
+  sequence of ids, not the bytes. Frames for a closed id are ignored.
 - **A stream id is never the hash.** It does not derive from the request's
   contents. Two requests for one hash are two streams with two ids.
 
@@ -224,6 +257,11 @@ an optimization, not a correctness need.)
 
 ## 5. Transport mapping (WebRTC; informative until M3.2)
 
+This section is **informative**. Its "must" and "is expected" are the design
+intent; none of it is a conformance rule until M3.2 builds the transport and
+M1.2 writes the numbered MUST list. Sections 2, 3, 4 and 6 are the normative
+part of this draft.
+
 Reliable, ordered data channels, SCTP over DTLS.
 
 - **Control channel:** label `dacite/v1/control`, opened by the offerer with
@@ -232,8 +270,8 @@ Reliable, ordered data channels, SCTP over DTLS.
 - **One channel per `get`:** the requester opens a channel labelled
   `dacite/v1/get/<stream id>`. Its first message is the `get` frame; the
   responder answers on the same channel with `item-stream` or `error` frames.
-  Every frame on it MUST carry the id in the label; a receiver closes the
-  channel on a mismatch. Either side closes the channel after the stream ends.
+  Every frame on it is expected to carry the id in the label; a receiver
+  closes the channel on a mismatch. Either side closes the channel after the stream ends.
 - The envelope carries the stream id even though the label already does. That
   keeps one codec for a single multiplexed pipe (the in-process loopback of M3.1,
   a WebSocket) and lets `cancel`, `error` and `ack` name a stream from any channel.
@@ -254,10 +292,10 @@ arrived.
 | Key | Type | Req | Meaning |
 |---|---|---|---|
 | `versions` | set of i64 | yes | Protocol versions I speak. This draft is `#{1}`. |
-| `kind` | string | yes | `"node"` or `"browser"`. Selection prefers Node peers. |
+| `kind` | string | yes | `"node"` or `"browser"`. Selection prefers Node peers. An unknown kind is accepted and read as `"browser"` (fixture `hello-unknown-kind`). |
 | `caps` | set of string | yes | Capabilities: `"have"` (I answer `have?`), `"reveal"` (I answer `get`). Unknown ones are ignored. |
-| `limits` | map | yes | `max-frame` (1024..16384), `max-item` (bytes), `max-streams` (open requests I accept), `max-have` (hashes per `have?`, at most 256). All required. |
-| `rates` | map | yes | `send-max` and `recv-max` (bytes per second I will send / want to receive), `req-rate` and `req-burst` (requests per second and bucket size I accept). All required. |
+| `limits` | map | yes | `max-frame` (1024..16384), `max-item` (bytes, at least 1), `max-streams` (open requests I accept, at least 1), `max-have` (hashes per `have?`, 1..256). All required. |
+| `rates` | map | yes | `send-max` and `recv-max` (bytes per second I will send / want to receive), `req-rate` and `req-burst` (requests per second and bucket size I accept). All required and at least 1: a peer that serves nothing leaves out the capability instead. |
 | `agent` | string | no | Software name and version. Informational. |
 
 ```clojure
@@ -270,6 +308,13 @@ arrived.
 ```
 
 Fixtures: `hello-node` (343 bytes), `hello-browser`.
+
+**Batch size.** A `have?`, `ack` or `release` holds at most
+`min(256, max-have of the responder, max-hashes-for(max-frame))` hashes, where
+`max-hashes-for(f) = min(256, floor((f - 33 - 320) / 32))`: 32 bytes a hash,
+33 bytes of header and framing, and 320 kept for a `release` `reason`. At 16384
+that is 256; at 1024 it is 20. `msg/max-hashes-for` is the helper, and a test
+encodes a full batch at each frame size.
 
 Negotiation: the version is the highest in both sets; if there is none, send
 `error` `unsupported-version` with `fatal: true` and close. Limits are the
@@ -288,16 +333,27 @@ holds *as entries*. The answer is a bitmap.
 {"count" 3 "bits" <blob a0>}     ; bits 1 0 1: holds h1 and h3
 ```
 
-`count` equals the number of hashes asked. Hash *i* is bit `0x80 >> (i mod 8)`
+`count` equals the number of hashes asked. (That the count matches the request
+is a session rule, checked against the open `have?`; the decoder only checks
+that `bits` fits `count`. M1.2 lists it.) Hash *i* is bit `0x80 >> (i mod 8)`
 of byte `i div 8`. `bits` is exactly `ceil(count / 8)` bytes and spare bits are
 zero. A set bit says the responder holds that one entry; it says nothing about
 the entries below it (open question 6).
 
-```text
-03 01 00000001                         type have, FIN, stream 1
-21 00000002                            map, 2 pairs (ascending key hash)
-  10 00000004 "bits"  11 00000001 a0     string key, blob value
-  10 00000005 "count" 03 0000000000000003  string key, i64 value
+The frame, written out by hand from the layout rules (wire-v1.md type ids
+`0x10` string, `0x11` blob, `0x03` i64, `0x21` map; type `0x03` is `have`).
+The test `spec-hex-blocks-match-fixtures` compares this block, and the one in
+6.3, with the fixture `frames.hex`. The only thing not derived by hand is the
+order of the pairs (ascending content hash of the key string), which comes
+from the encoder.
+
+```hex have-reply
+03 01 00000001                 ; have, FIN, stream 1
+21 00000002                    ; map, 2 pairs
+10 00000004 62697473           ; "bits"
+11 00000001 a0                 ; blob, 1 byte: 1010 0000
+10 00000005 636f756e74         ; "count"
+03 0000000000000003            ; i64 3
 ```
 
 Fixtures: `have-query`, `have-reply`, `have-reply-9` (nine hashes, two bytes).
@@ -310,20 +366,40 @@ Ask for a value as a reveal. The answer is an item stream (6.4).
 | Key | Type | Req | Meaning |
 |---|---|---|---|
 | `hash` | u256 | yes | The root of what I want. |
-| `policy` | string | yes | Reveal policy by name. v1 defines `"default"` only (the engine's default order for each value type). Anything else: `error` `unsupported-policy`. |
-| `interest` | map | no | `peak`, `tau-ms`, `floor`, all required if present: `I(t) = peak · exp(−t / tau)` with `peak` and `floor` in thousandths. Absent: the responder's defaults. The responder may clamp it. |
+| `policy` | string | yes | Reveal policy by name. v1 defines `"default"` only (the engine's default order for each value type). Any other name still decodes; the responder answers `error` `unsupported-policy` on that stream (not fatal). |
+| `interest` | map | no | `peak`, `tau-ms`, `floor`, all required if present: `I(t) = peak · exp(−t / tau)` with `peak` and `floor` in thousandths. `peak` and `tau-ms` are at least 1 (the reveal engine needs `tau > 0`); `floor` may be 0. A `floor` above `peak` is legal and pauses the reveal at once. Absent: the responder's defaults. The responder may clamp any value to its own limits. |
 
 ```clojure
 {"hash" h1 "policy" "default"
  "interest" {"peak" 1000 "tau-ms" 2000 "floor" 50}}   ; peak 1.0, tau 2 s, floor 0.05
 ```
 
+An unknown policy is a request the responder cannot serve, not a malformed
+message, so decoding succeeds and `msg/answer-error` returns the `error`
+(fixture `get-unknown-policy` lists the expected answer). The same helper
+answers an unknown message type and a `get` or `have?` the responder has no
+capability for, with `unsupported`. A sender never writes an unknown policy:
+the reference encoder refuses it.
+
 A policy is a Dacite value in the long run (streaming note); the shape is
 deferred, which is why `policy` is a string name now and a later version can
 accept a map there.
 
+The whole frame of fixture `get-default`, by hand (`0x0d` is `u256`, then its
+32 bytes; `0x04` is `get`):
+
+```hex get-default
+04 01 00000005                 ; get, FIN, stream 5
+21 00000002                    ; map, 2 pairs
+10 00000006 706f6c696379       ; "policy"
+10 00000007 64656661756c74     ; "default"
+10 00000004 68617368           ; "hash"
+0d 0000000000000001 0000000000000002 0000000000000003 00000000000000aa
+```
+
 Answers: `item-stream` frames, or `error` `unknown-hash` (the responder does not
-hold the hash; non-fatal, the stream ends), `rate-limited`, `overloaded`, `too-large`.
+hold the hash; non-fatal, the stream ends), `unsupported-policy`, `rate-limited`,
+`overloaded`, `too-large`.
 Fixtures: `get-default`, `get-interest`, `get-repeat`.
 
 ### 6.4 `item-stream` (0x05, the `get`'s stream)
@@ -371,7 +447,7 @@ ends the session, and the sender closes the connection after it.
 
 | Key | Type | Req | Meaning |
 |---|---|---|---|
-| `code` | string | yes | One of the codes below. A receiver treats an unknown code as `internal`. |
+| `code` | string | yes | One of the codes below. A receiver reads an unknown code as `internal` (`msg/error-code`; fixture `error-unknown-code`) and does not reject the message. A sender writes only these. |
 | `fatal` | bool | yes | The session ends. |
 | `message` | string | no | Text for logs. Never parsed. |
 | `retry-ms` | i64 | no | With `rate-limited`/`overloaded`: wait this long. |
@@ -408,15 +484,15 @@ get/5     get {h1 default}  ------------------------>           stream 5: same h
 
 ## 8. Fixtures and tests
 
-`fixtures/peer-v1/` has 40 cases. Each is a directory with `frames.hex` (one
+`fixtures/peer-v1/` has 53 cases. Each is a directory with `frames.hex` (one
 frame per line, lowercase hex) and `message.edn` (what the frames mean).
 `message.edn` has `:expect`:
 
 | `:expect` | Port must |
 |---|---|
-| `:message` | Decode the one frame to the given type, stream and value; encode that value again and get identical bytes. |
+| `:message` | Decode the one frame to the given type, stream and value; encode that value again and get identical bytes. Some cases add `:reads` (how a receiver reads a name it does not know: `:error-code`, `:peer-kind`) and `:answer` (the `error` a responder sends, from `answer-error`). |
 | `:item-stream` | Reassemble the frames, split the items, match the listed hashes and sizes; re-cut the stream and get identical frames; re-encode each item to identical bytes. |
-| `:reject` | Refuse the frames, for the given `:reason` (`frame-too-short`, `frame-too-large`, `unknown-type`, `bad-flags`, `partial-without-fin`, `not-fin`, `wrong-type`, `bad-literal`, `not-canonical`, `profile`, `invalid-message`, `bad-item`, `item-too-large`, `truncated-item`, `after-fin`, `wrong-stream`). 20 cases. |
+| `:reject` | Refuse the frames, for the given `:reason` (`frame-too-short`, `frame-too-large`, `unknown-type`, `bad-flags`, `partial-without-fin`, `not-fin`, `wrong-type`, `bad-literal`, `not-canonical`, `profile`, `invalid-message`, `bad-item`, `item-too-large`, `truncated-item`, `after-fin`, `wrong-stream`). 30 cases. |
 | `:unknown` | Decode as an unknown type, not as an error. |
 
 Goldens come only from the shipped code. Regenerate (JVM, from `impl/clojure`):
@@ -457,6 +533,8 @@ parity check for the encoder).
 - The reference core cannot realize a vector that holds a blob and another
   element: `(dacite.peer.msg/encode-value [(byte-array 1) nil])` throws
   "cannot intern page-body lit item" (`dacite.value.lit/intern-lit-item!`).
-  Not a protocol issue: v1 uses a blob only as a map value. To file separately.
+  Not a protocol issue: v1 uses a blob only as a map value. Tracked in
+  [jclaggett/dacite#8](https://github.com/jclaggett/dacite/issues/8); when it
+  is fixed, drop this entry and the map-value-only rule in 2.1.
 - Entry verification is JVM-only (`dacite.service.reveal`) until M2.2, so the
   nbb test checks framing and hashes-as-listed, not entry hashes.

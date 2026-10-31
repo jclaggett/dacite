@@ -55,6 +55,19 @@
 
 (def id->type (into {} (map (fn [[k v]] [v k])) type->id))
 
+(def stream-rule
+  "Which streams a message type may use. `:session` is stream 0 only,
+   `:request` is a request's id (1 or more), `:any` is either."
+  {:hello :session
+   :ack :session
+   :release :session
+   :have? :request
+   :have :request
+   :get :request
+   :item-stream :request
+   :cancel :request
+   :error :any})
+
 (def flag-fin 0x01)
 (def flag-partial 0x02)
 
@@ -128,6 +141,18 @@
 ;; Envelope
 ;; =============================================================================
 
+(defn- check-stream!
+  "A known type on a stream its rule allows. An unknown type is not checked."
+  [type stream]
+  (case (stream-rule type)
+    :session (when-not (zero? stream)
+               (fail! :wrong-stream "this message is for stream 0"
+                      {:type type :stream stream}))
+    :request (when (zero? stream)
+               (fail! :wrong-stream "this message needs a request's stream id"
+                      {:type type :stream stream}))
+    nil))
+
 (defn encode-frame
   "Frame bytes for {:type kw|u8, :stream n, :flags n, :payload bytes}.
 
@@ -146,6 +171,7 @@
       (fail! :bad-stream "stream id out of range" {:stream stream}))
     (when (> n max-frame-bytes)
       (fail! :frame-too-large "frame exceeds max-frame" {:size n :max max-frame-bytes}))
+    (check-stream! (id->type tid) stream)
     (let [out (make-bytes n)]
       (bset! out 0 tid)
       (bset! out 1 flags)
@@ -159,7 +185,8 @@
    :stream n :payload bytes}.
 
    Rejects a short frame, one over `max-frame`, reserved flag bits,
-   PARTIAL without FIN, and type id 0. An unknown type id above 0 is
+   PARTIAL without FIN, type id 0, and a known type on a stream its
+   `stream-rule` does not allow. An unknown type id above 0 is
    returned as is: the caller answers it with an `unsupported` error."
   ([bs] (decode-frame bs max-frame))
   ([bs max-frame-bytes]
@@ -179,6 +206,7 @@
          (fail! :bad-flags "reserved flag bits set" {:flags flags}))
        (when (and partial? (not fin?))
          (fail! :partial-without-fin "PARTIAL needs FIN" {:flags flags}))
+       (check-stream! (id->type tid) (u32-at bs 2))
        {:type (get id->type tid tid)
         :type-id tid
         :flags flags
@@ -237,7 +265,7 @@
 
 (defn- split-items
   "Complete items at the front of `buf`, and the rest.
-   Throws on an unknown `enc` or an item over `max-item`."
+   Throws on an `enc` other than 0 (node) or an item over `max-item`."
   [buf max-item]
   (let [n (blen buf)]
     (loop [at 0 items []]
@@ -247,8 +275,12 @@
           (let [enc (bget buf at)
                 plen (u32-at buf (+ at 33))
                 total (+ item-header-bytes plen)]
-            (when-not (#{0 1} enc)
-              (fail! :bad-item "unknown item enc" {:enc enc}))
+            ;; v1 item streams carry node items only (enc 0).
+            (when-not (zero? enc)
+              (fail! :bad-item (if (= 1 enc)
+                                 "a literal item is not allowed in v1"
+                                 "unknown item enc")
+                     {:enc enc}))
             (when (> total max-item)
               (fail! :item-too-large "item exceeds max-item"
                      {:size total :max max-item}))
@@ -279,3 +311,64 @@
             :frames (inc (:frames st))
             :items (+ (:items st) (count items)))
      items]))
+
+;; =============================================================================
+;; Stream ids of one connection
+;; =============================================================================
+
+(defn stream-table
+  "Stream-id state for one side of a connection. `role` is `:offerer`
+   (the peer that sent the WebRTC offer: it opens odd ids) or `:answerer`
+   (even ids). `max-streams` bounds the requests the *remote* may have
+   open at once.
+
+   Pure: each function returns a new table."
+  [role max-streams]
+  {:role role
+   :max-streams max-streams
+   :next (if (= role :offerer) 1 2)
+   :used #{}
+   :open #{}})
+
+(defn open-local
+  "Allocate the next id for a request this side sends. Returns [table id].
+   Ids rise by 2 and are never reused."
+  [{:keys [next used] :as t}]
+  (when (> next max-stream-id)
+    (fail! :streams-exhausted "no stream ids left on this connection" {}))
+  [(-> t
+       (assoc :next (+ next 2))
+       (update :used conj next)
+       (update :open conj next))
+   next])
+
+(defn open-remote
+  "Accept a request id the remote chose. Returns the new table, or throws:
+
+     :wrong-stream      id 0 (a request is 1 or more)
+     :bad-stream-parity the id has this side's parity, not the remote's
+     :duplicate-stream  the id was already used on this connection
+     :too-many-streams  the remote already has `max-streams` open"
+  [{:keys [role used open max-streams] :as t} id]
+  (let [remote-odd? (= role :answerer)]
+    (when-not (<= 1 id max-stream-id)
+      (fail! :wrong-stream "a request id is 1 or more" {:stream id}))
+    (when-not (= remote-odd? (odd? id))
+      (fail! :bad-stream-parity "id has the wrong parity for the peer"
+             {:stream id :role role}))
+    (when (contains? used id)
+      (fail! :duplicate-stream "stream id already used" {:stream id}))
+    (let [theirs (count (filter #(= remote-odd? (odd? %)) open))]
+      (when (>= theirs max-streams)
+        (fail! :too-many-streams "too many open requests" {:max max-streams})))
+    (-> t (update :used conj id) (update :open conj id))))
+
+(defn live?
+  "True while `id` is open. Frames for a closed id are ignored."
+  [{:keys [open]} id]
+  (contains? open id))
+
+(defn close-stream
+  "Close `id` (its answer ended, or it was cancelled). The id stays used."
+  [t id]
+  (update t :open disj id))

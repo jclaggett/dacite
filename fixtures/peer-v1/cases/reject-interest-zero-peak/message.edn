@@ -1,4 +1,4 @@
-{:title "A policy v1 does not define",
+{:title "peak 0 is no interest",
  :expect :reject,
  :reason :invalid-message,
  :type :get}

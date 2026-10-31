@@ -1,0 +1,4 @@
+{:title "have? on the session stream",
+ :expect :reject,
+ :reason :wrong-stream,
+ :type :have?}

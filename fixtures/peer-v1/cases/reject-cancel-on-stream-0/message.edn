@@ -1,0 +1,4 @@
+{:title "cancel needs the request's stream",
+ :expect :reject,
+ :reason :wrong-stream,
+ :type :cancel}

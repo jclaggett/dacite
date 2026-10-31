@@ -1,0 +1,4 @@
+{:title "tau-ms 0 never decays",
+ :expect :reject,
+ :reason :invalid-message,
+ :type :get}
