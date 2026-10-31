@@ -12,7 +12,9 @@
 
    A control message is one frame whose payload is a wire-v1 `Lit`
    (see `dacite.peer.msg`). An item stream is a byte stream of wire-v1
-   `Item`s cut into frames. Nothing here hashes or stores anything.
+   `Item`s (node or literal, from `dacite.wire.binary`) packed into
+   frames. Nothing here encodes a value, hashes or stores anything; see
+   `dacite.peer.items` for that.
 
    Bytes are Java `byte[]` on the JVM and `Uint8Array` on CLJS/nbb."
   (:require [dacite.wire.binary :as bin]))
@@ -40,18 +42,23 @@
 
 (def item-header-bytes
   "enc u8 + hash 32 + plen u32."
-  37)
+  bin/item-header-bytes)
+
+(defn max-literal-item
+  "Largest literal Item (header included) a sender may put in a stream
+   whose frames are at most `max-frame-bytes`: one frame payload. A
+   literal never spans frames."
+  ([] (max-literal-item max-frame))
+  ([max-frame-bytes] (- max-frame-bytes header-bytes)))
 
 (def type->id
   {:hello 0x01
-   :have? 0x02
-   :have 0x03
-   :get 0x04
-   :item-stream 0x05
-   :ack 0x06
-   :release 0x07
-   :cancel 0x08
-   :error 0x09})
+   :get 0x02
+   :item-stream 0x03
+   :ack 0x04
+   :release 0x05
+   :cancel 0x06
+   :error 0x07})
 
 (def id->type (into {} (map (fn [[k v]] [v k])) type->id))
 
@@ -61,8 +68,6 @@
   {:hello :session
    :ack :session
    :release :session
-   :have? :request
-   :have :request
    :get :request
    :item-stream :request
    :cancel :request
@@ -220,32 +225,58 @@
 ;; =============================================================================
 
 (defn chunk-items
-  "Reference sender: cut the concatenated `item-bytes` (a seq of encoded
-   wire-v1 items) into frames of exactly `max-payload` bytes, the last
-   one shorter. The last frame carries FIN, and PARTIAL when `:partial?`.
-   No items gives one empty FIN frame.
+  "Reference sender: pack encoded wire-v1 items (`item-bytes`) into frames.
+
+   Whole items go into a frame while they fit its payload; an item that
+   does not fit starts the next frame. An item bigger than one payload (a
+   hashed entry; a literal is never this big) starts a fresh frame and is
+   cut into payload-sized pieces, and the next item follows its tail.
+   The last frame carries FIN, and PARTIAL when `:partial?`. No items
+   gives one empty FIN frame.
 
    A sender may flush shorter frames while it paces a stream. A receiver
-   must not rely on this cut."
+   must not rely on this cut: it reassembles a byte stream."
   ([stream item-bytes] (chunk-items stream item-bytes {}))
   ([stream item-bytes {:keys [partial? max-frame-bytes]
                        :or {max-frame-bytes max-frame}}]
    (let [room (- max-frame-bytes header-bytes)
-         all (concat-bytes item-bytes)
-         total (blen all)
-         nframes (max 1 (quot (+ total room -1) room))]
-     (mapv (fn [i]
-             (let [from (* i room)
-                   to (min total (+ from room))
-                   last? (= i (dec nframes))]
+         seal (fn [pieces cur]
+                (if (seq cur) (conj pieces cur) pieces))
+         [pieces cur]
+         (reduce
+          (fn [[pieces cur] item]
+            (let [n (blen item)
+                  used (reduce + 0 (map blen cur))]
+              (cond
+                (and (<= n room) (<= (+ used n) room))
+                [pieces (conj cur item)]
+
+                (<= n room)
+                [(seal pieces cur) [item]]
+
+                :else
+                (let [pieces (seal pieces cur)
+                      cuts (range 0 n room)
+                      full (butlast cuts)
+                      tail (last cuts)]
+                  [(into pieces (map (fn [from] [(slice item from (+ from room))])) full)
+                   [(slice item tail n)]]))))
+          [[] []]
+          item-bytes)
+         pieces (seal pieces cur)
+         pieces (if (empty? pieces) [[]] pieces)
+         nframes (count pieces)]
+     (vec (map-indexed
+           (fn [i parts]
+             (let [last? (= i (dec nframes))]
                (encode-frame {:type :item-stream
                               :stream stream
                               :flags (if last?
                                        (bit-or flag-fin (if partial? flag-partial 0))
                                        0)
-                              :payload (slice all from to)
+                              :payload (concat-bytes parts)
                               :max-frame-bytes max-frame-bytes})))
-           (range nframes)))))
+           pieces)))))
 
 ;; =============================================================================
 ;; Receiving an item stream
@@ -253,10 +284,12 @@
 
 (defn reader
   "Receiver state for one item stream."
-  ([stream] (reader stream default-max-item))
-  ([stream max-item]
+  ([stream] (reader stream default-max-item (max-literal-item)))
+  ([stream max-item] (reader stream max-item (max-literal-item)))
+  ([stream max-item max-literal]
    {:stream stream
     :max-item max-item
+    :max-literal max-literal
     :buf (make-bytes 0)
     :fin? false
     :partial? false
@@ -265,25 +298,26 @@
 
 (defn- split-items
   "Complete items at the front of `buf`, and the rest.
-   Throws on an `enc` other than 0 (node) or an item over `max-item`."
-  [buf max-item]
+
+   Throws on an `enc` other than 0 (node) or 1 (literal), on an item over
+   `max-item`, and on a literal item over `max-literal` (one frame payload:
+   a literal never spans frames). A literal is checked from its header, so
+   an oversized one is refused before its bytes arrive."
+  [buf max-item max-literal]
   (let [n (blen buf)]
     (loop [at 0 items []]
       (let [avail (- n at)]
         (if (< avail item-header-bytes)
           [items (slice buf at n)]
-          (let [enc (bget buf at)
-                plen (u32-at buf (+ at 33))
-                total (+ item-header-bytes plen)]
-            ;; v1 item streams carry node items only (enc 0).
-            (when-not (zero? enc)
-              (fail! :bad-item (if (= 1 enc)
-                                 "a literal item is not allowed in v1"
-                                 "unknown item enc")
-                     {:enc enc}))
+          (let [{:keys [enc total]} (bin/item-header buf at)]
+            (when-not (contains? #{0 1} enc)
+              (fail! :bad-item "unknown item enc" {:enc enc}))
             (when (> total max-item)
               (fail! :item-too-large "item exceeds max-item"
                      {:size total :max max-item}))
+            (when (and (= 1 enc) (> total max-literal))
+              (fail! :literal-too-large "a literal item must fit one frame payload"
+                     {:size total :max max-literal}))
             (if (< avail total)
               [items (slice buf at n)]
               (recur (+ at total) (conj items (slice buf at (+ at total)))))))))))
@@ -294,14 +328,14 @@
    Returns [state' item-byte-arrays], the items that the frame completed.
    Throws when the frame is not an item-stream frame for this stream, or
    arrives after FIN."
-  [{:keys [stream max-item buf] :as st} {:keys [type] :as fr}]
+  [{:keys [stream max-item max-literal buf] :as st} {:keys [type] :as fr}]
   (when (:fin? st)
     (fail! :after-fin "frame after FIN" {:stream stream}))
   (when-not (= :item-stream type)
     (fail! :wrong-type "not an item-stream frame" {:type type}))
   (when-not (= stream (:stream fr))
     (fail! :wrong-stream "frame for another stream" {:expected stream :got (:stream fr)}))
-  (let [[items rest-buf] (split-items (concat-bytes [buf (:payload fr)]) max-item)]
+  (let [[items rest-buf] (split-items (concat-bytes [buf (:payload fr)]) max-item max-literal)]
     (when (and (:fin? fr) (pos? (blen rest-buf)))
       (fail! :truncated-item "stream ended inside an item" {:left (blen rest-buf)}))
     [(assoc st

@@ -287,6 +287,16 @@
   (add-node! store ["ft/node" {:body (vec body)
                                :measure (body-measure store body)}]))
 
+(defn page-body-measure
+  "Measure of an `ft/digit` or `ft/node` literal body, from the bytes alone.
+
+   Nested literals are measured in a scratch store; nothing is read from
+   `store`. Valid only for a body with no `ref` item (a ref's measure is
+   its child's, which these bytes do not hold). A receiver uses this to
+   check a page's claimed measure against its own contents."
+  [body]
+  (body-measure (store/mem-store) body))
+
 (defn ft-digit-from-body!
   "Persist an ft/digit from a literal page body.
    A u8 run is measured by scanning its byte buffer."

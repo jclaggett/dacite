@@ -11,13 +11,11 @@
             [dacite.peer.examples :as ex]
             [dacite.peer.frame :as frame]
             [dacite.peer.msg :as msg]
-            [dacite.service.reveal :as sr]
-            [dacite.store :as store]
             [dacite.wire.binary :as bin]))
 
 (deftest every-fixture-decodes-and-re-encodes
   (let [{:keys [cases problems]} (conf/run-all)]
-    (is (>= cases 53) "the manifest lists the cases")
+    (is (>= cases 50) "the manifest lists the cases")
     (is (empty? problems) (pr-str problems))))
 
 (deftest manifest-lists-every-case-directory
@@ -50,7 +48,7 @@
                                         :payload (byte-array (inc frame/max-payload))})))))
   (testing "the largest control messages fit one frame"
     (let [hs (vec (repeat msg/max-hashes (msg/hash-ref ex/h1)))
-          q (msg/encode-message {:type :have? :stream 1 :value {"hashes" hs}})]
+          q (msg/encode-message {:type :ack :stream 0 :value {"hashes" hs}})]
       (is (< (bin/byte-len q) frame/max-frame))
       (is (< (bin/byte-len q) 9000)))))
 
@@ -70,31 +68,6 @@
     (is (= (:value (msg/decode-message a)) (:value (msg/decode-message b))))
     (is (not= (:stream (msg/decode-message a)) (:stream (msg/decode-message b))))))
 
-(deftest have-bitmap
-  (is (= "a0" (bin/bytes->hex (msg/bitmap [true false true]))))
-  (is (= "ff80" (bin/bytes->hex (msg/bitmap (concat (repeat 8 true) [true])))))
-  (let [bits (msg/bitmap [false true false false false false false true true])]
-    (is (= [false true false false false false false true true]
-           (mapv #(msg/bitmap-held? bits %) (range 9))))))
-
-(deftest items-in-a-stream-are-hash-verified
-  ;; Hash checks are the store layer's job (dacite.service.reveal for now).
-  ;; The framing hands it exactly the items the sender cut.
-  (let [text (slurp (str (conf/fixtures-root) "/cases/item-stream-three-frames/frames.hex"))
-        frames (mapv bin/hex->bytes (remove empty? (clojure.string/split-lines text)))
-        {:keys [items]} (reduce (fn [{:keys [state items]} bs]
-                                  (let [[st more] (frame/feed state (frame/decode-frame bs))]
-                                    {:state st :items (into items more)}))
-                                {:state (frame/reader 7) :items []}
-                                frames)
-        decoded (bin/decode-item-stream (frame/concat-bytes items))
-        st (sr/accept-items! nil decoded)]
-    (is (= 3 (count frames)))
-    (is (every? #(some? (store/await (store/s-get st (:hash %)))) decoded))
-    (testing "a flipped byte in an entry is refused"
-      (let [bad (update-in (vec decoded) [0 :hash 0] inc)]
-        (is (thrown? clojure.lang.ExceptionInfo (sr/accept-items! nil bad)))))))
-
 ;; ---------------------------------------------------------------------------
 ;; Property: any profile value round-trips and re-encodes to the same bytes.
 ;; ---------------------------------------------------------------------------
@@ -109,7 +82,7 @@
                gen/string-alphanumeric
                (gen/fmap msg/hash-ref gen-hex)]))
 
-;; Blobs appear only as map values (the `have` bitmap). A vector with a
+;; Blobs appear only as map values (no v1 message holds one now). A vector with a
 ;; blob and another element does not realize in the core today:
 ;; (msg/encode-value [(byte-array 1) nil]) throws "cannot intern page-body
 ;; lit item". Reported in the M1.1 PR; not worked around here.
@@ -166,26 +139,39 @@
            (thrown-reason #(msg/encode-message {:type :error :stream 5
                                                 :value {"code" "teapot" "fatal" false}}))))))
 
-(deftest f2-literal-items-are-refused-in-item-streams
-  (let [hdr (fn [enc] (let [b (byte-array 37)] (aset-byte b 0 (byte enc)) b))
-        feed (fn [enc]
+(deftest f2-item-encodings-in-item-streams
+  ;; Decision Q5: an item is a node (enc 0) or a literal (enc 1). A literal
+  ;; is at most one frame payload; any other enc is refused.
+  (let [hdr (fn [enc plen]
+              (let [b (byte-array 37)]
+                (aset-byte b 0 (byte enc))
+                (aset-byte b 36 (unchecked-byte (bit-and 0xff plen)))
+                (aset-byte b 35 (unchecked-byte (bit-and 0xff (bit-shift-right plen 8))))
+                (aset-byte b 34 (unchecked-byte (bit-and 0xff (bit-shift-right plen 16))))
+                b))
+        feed (fn [b]
                (frame/feed (frame/reader 5)
                            (frame/decode-frame
                             (frame/encode-frame {:type :item-stream :stream 5 :flags 0
-                                                 :payload (hdr enc)}))))]
-    (is (= :bad-item (thrown-reason #(feed 1))))
-    (is (= :bad-item (thrown-reason #(feed 7))))
-    (is (= 1 (count (second (feed 0)))))))
+                                                 :payload b}))))]
+    (is (= :bad-item (thrown-reason #(feed (hdr 7 0)))))
+    (is (= 1 (count (second (feed (hdr 0 0))))) "a node item")
+    (is (= 1 (count (second (feed (hdr 1 0))))) "a literal item")
+    (testing "a literal item over one frame payload is refused from its header"
+      (is (= :literal-too-large
+             (thrown-reason #(feed (hdr 1 (- (inc frame/max-payload) 37))))))
+      (is (= :accepted (thrown-reason #(feed (hdr 1 (- frame/max-payload 37)))))
+          "...and exactly one payload is allowed"))
+    (testing "a hashed entry may be larger than a frame; it spans frames"
+      (is (= :accepted (thrown-reason #(feed (hdr 0 (- (inc frame/max-payload) 37)))))))))
 
 (deftest f3-message-types-and-streams
   (testing "session messages are on stream 0, requests on a request id"
     (doseq [[t ok bad v] [[:hello 0 5 (:value (first ex/examples))]
                           [:ack 0 7 {"hashes" [(msg/hash-ref ex/h1)]}]
                           [:release 0 7 {"hashes" [(msg/hash-ref ex/h1)]}]
-                          [:have? 1 0 {"hashes" [(msg/hash-ref ex/h1)]}]
                           [:get 1 0 {"hash" (msg/hash-ref ex/h1) "policy" "default"}]
-                          [:cancel 5 0 {}]
-                          [:have 1 0 {"count" 1 "bits" (byte-array [0x80])}]]]
+                          [:cancel 5 0 {}]]]
       (is (= :accepted (thrown-reason #(msg/encode-message {:type t :stream ok :value v}))) (name t))
       (is (= :wrong-stream
              (thrown-reason #(msg/encode-message {:type t :stream bad :value v}))) (name t))))
@@ -197,7 +183,7 @@
   (testing "item-stream is never on stream 0, in either direction"
     (is (= :wrong-stream (thrown-reason #(frame/chunk-items 0 []))))
     (is (= :wrong-stream (thrown-reason
-                          #(frame/decode-frame (byte-array [5 1 0 0 0 0])))))))
+                          #(frame/decode-frame (byte-array [3 1 0 0 0 0])))))))
 
 (deftest f3-stream-table-parity-and-duplicates
   (let [off (frame/stream-table :offerer 2)
@@ -248,11 +234,8 @@
     (is (= "unsupported" (get-in (msg/answer-error {:type 66 :unknown? true :stream 3})
                                  [:value "code"])))
     (is (= "unsupported"
-           (get-in (msg/answer-error {:type :have? :stream 1 :value {}} {:caps #{"reveal"}})
-                   [:value "code"])))
-    (is (= "unsupported"
            (get-in (msg/answer-error {:type :get :stream 1 :value {"policy" "default"}}
-                                     {:caps #{"have"}})
+                                     {:caps #{}})
                    [:value "code"]))))
   (testing "an unknown hello kind is read as browser"
     (is (= "browser" (msg/peer-kind {"kind" "relay"})))
@@ -265,8 +248,6 @@
           :let [n (msg/max-hashes-for mf)
                 hs (vec (repeat n (msg/hash-ref ex/h1)))
                 reason (apply str (repeat msg/max-string-bytes "r"))]]
-    (is (= :accepted (thrown-reason #(msg/encode-message {:type :have? :stream 1 :max-frame-bytes mf
-                                                          :value {"hashes" hs}}))) mf)
     (is (= :accepted (thrown-reason #(msg/encode-message {:type :ack :stream 0 :max-frame-bytes mf
                                                           :value {"hashes" hs}}))) mf)
     (is (= :accepted (thrown-reason #(msg/encode-message {:type :release :stream 0 :max-frame-bytes mf

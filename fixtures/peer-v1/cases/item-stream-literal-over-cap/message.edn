@@ -1,0 +1,87 @@
+{:title
+ "One letter more (16337): the whole value is no longer one literal: header and spine are node entries, its leaf pages literals",
+ :expect :item-stream,
+ :stream 13,
+ :partial? false,
+ :frames 2,
+ :items
+ [{:hash
+   "db67342bcd3bec50344ceda9795aa2f11a3650d3ebf206dd17f60ea6aa08999d",
+   :bytes 184,
+   :enc :node}
+  {:hash
+   "99609fe67d825f6787284c6ecb492cdbb5218b42089f23cbbb58b9dfea1a71df",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "d8001fa48dd154d44bc23aebd9ac8e908a9baf82f11269f54918f754e242c9bf",
+   :bytes 184,
+   :enc :node}
+  {:hash
+   "84b5b5d32a46d5aced0991ca1f9f4b9a854e4c1ba4e7da160c312d1765e48026",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "6368503ed9abc009b69aa2cd80c4b0ec4274ae4c9080e2341b329bfb3788aa3e",
+   :bytes 734,
+   :enc :literal}
+  {:hash
+   "39477cde8c01531668fcd730ce15da6ec556cff814ca50405aa449286a92a9d0",
+   :bytes 830,
+   :enc :node}
+  {:hash
+   "94488db511a3ee86d3fc8f5d6940b9ab00e38ed01c95d67229b1679491f984a1",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "f8d52c9a84fad06037ff6084bcd6298bda62f8b28db67e8342bbd5c1903dbd70",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "80728ae10e109a963c053f1d51e76fa565ffc80ad50699b1efbd8ad83ad73044",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "56fb83f7bd36c692cc27085e133f53b972834d54a60dd246f85870cbc65dbad7",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "29195bc68b00e5d73153cd27d79e000427ce2c2889f1a53c01334724ca3058b7",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "6676ea609ba4745002b1c3856081fd010fe5d2c81ebe8f86240f36328eebbe81",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "a624c4328f35cf346e172b9431496b20ad5bb43d76d71e75894c59bcd084c331",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "afb0e5bfa2458ab6d91e6dba74aca6ce717e136307388e2d347cc1768464fab1",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "5ce8ffe960ea207cd45311164de17dd2669a029dde0eba40e45450e7567038a6",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "1dd293c3b30f24a04cba60df785065f510d8c4001debfb6bcb8064dc2b6d5285",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "76421a49466bf5ea21810671a6445e70d3e619170ab25a03549e6a8b9ff64d8d",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "9034b5a48aada613bd200b53e643813349a62c132c6d171557cbf145b4dc9784",
+   :bytes 1076,
+   :enc :literal}
+  {:hash
+   "f947a69324b5b427a34a73580f564f70ce46137febb4fd69bedeff2bea163f13",
+   :bytes 1029,
+   :enc :literal}
+  {:hash
+   "d639e34e80a8bc79ae53b87805a8ce8523ea77176ebc1add3a0d891242667e86",
+   :bytes 87,
+   :enc :node}]}

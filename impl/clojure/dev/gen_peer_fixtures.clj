@@ -16,9 +16,8 @@
             [clojure.string :as str]
             [dacite.peer.examples :as ex]
             [dacite.peer.frame :as frame]
+            [dacite.peer.items :as items]
             [dacite.peer.msg :as msg]
-            [dacite.reveal :as reveal]
-            [dacite.service.reveal :as sr]
             [dacite.store :as store]
             [dacite.value :as v]
             [dacite.wire.binary :as bin]))
@@ -88,15 +87,23 @@
 
 ;; --- Item streams -----------------------------------------------------------
 
-(defn- reveal-pages
-  "Wire-v1 node items of a default reveal of a vector of `n` short strings."
+(defn- vector-of-lines
+  [st n]
+  (apply v/vector st (map #(v/string st (str "line " % ": the quick brown fox"))
+                          (range n))))
+
+(defn- pseudo-text
+  "`n` lowercase letters from a fixed seed: no runs, so the literal does
+   not compress and its size tracks `n`."
   [n]
-  (let [st (store/mem-store)
-        val (apply v/vector st
-                   (map #(v/string st (str "line " % ": the quick brown fox"))
-                        (range n)))
-        order (reveal/page-order st (v/hash val))]
-    (mapv (fn [h] {:hash h :bytes (sr/encode-page st {:hash h})}) order)))
+  (let [r (java.util.Random. 42)]
+    (apply str (repeatedly n #(char (+ 97 (.nextInt r 26)))))))
+
+(defn- stream-of
+  "{:items [{:hash :bytes :enc}]} of `items/encode-value` for a value."
+  [st h]
+  (let [{:keys [items encs hashes]} (items/encode-value st h)]
+    (mapv (fn [bs enc hh] {:hash hh :bytes bs :enc enc}) items encs hashes)))
 
 (defn- item-meta [title stream partial? pages frames]
   {:title title
@@ -104,32 +111,65 @@
    :stream stream
    :partial? partial?
    :frames (count frames)
-   :items (mapv (fn [{:keys [hash bytes]}]
-                  {:hash (store/hash->hex hash) :bytes (bin/byte-len bytes)})
+   :items (mapv (fn [{:keys [hash bytes enc]}]
+                  {:hash (store/hash->hex hash) :bytes (bin/byte-len bytes) :enc enc})
                 pages)})
 
+(def cap-letters
+  "Longest pseudo-text, in letters, whose literal item fits one frame payload
+   (16378 bytes): the item is exactly 16378 bytes. Found by bisection once
+   (building a 16 000-letter value is slow); `check-cap!` re-checks it, so a
+   change to the encoder shows up here."
+  16336)
+
+(defn- check-cap!
+  [st]
+  (let [fits? (fn [n] (some? (items/literal-bytes
+                              st (v/hash (v/string st (pseudo-text n)))
+                              (frame/max-literal-item))))]
+    (assert (fits? cap-letters) "cap-letters letters must still fit")
+    (assert (not (fits? (inc cap-letters))) "one more letter must not fit")))
+
 (defn stream-cases! []
-  (let [none (frame/chunk-items 5 [])
-        small-pages (reveal-pages 20)
+  (let [st (store/mem-store)
+        none (frame/chunk-items 5 [])
+        small-pages (stream-of st (v/hash (vector-of-lines st 20)))
         small (frame/chunk-items 5 (map :bytes small-pages))
-        big-pages (reveal-pages 1200)
-        big (frame/chunk-items 7 (map :bytes big-pages))
-        part-pages (vec (take 3 (reveal-pages 600)))
-        part (frame/chunk-items 9 (map :bytes part-pages) {:partial? true})]
+        mixed-pages (stream-of st (v/hash (vector-of-lines st 1200)))
+        mixed (frame/chunk-items 7 (map :bytes mixed-pages))
+        part-pages (vec (take 3 (stream-of st (v/hash (vector-of-lines st 600)))))
+        part (frame/chunk-items 9 (map :bytes part-pages) {:partial? true})
+        _ (check-cap! st)
+        n cap-letters
+        under-pages (stream-of st (v/hash (v/string st (pseudo-text n))))
+        under (frame/chunk-items 11 (map :bytes under-pages))
+        over-pages (stream-of st (v/hash (v/string st (pseudo-text (inc n)))))
+        over (frame/chunk-items 13 (map :bytes over-pages))]
+    (println "cap length" n "literal item bytes"
+             (bin/byte-len (:bytes (first under-pages))) "(cap" (frame/max-literal-item) ")")
     (write-case! "item-stream-empty"
                  (item-meta "A reveal with nothing to send: one empty FIN frame" 5 false [] none)
                  none)
     (write-case! "item-stream-one-frame"
-                 (item-meta "Five pages of a small vector fit in one frame" 5 false small-pages small)
+                 (item-meta "A small vector is one literal item: the whole value, no hash entries"
+                            5 false small-pages small)
                  small)
-    (write-case! "item-stream-three-frames"
-                 (item-meta "A larger vector: three frames, an item straddles a boundary"
-                            7 false big-pages big)
-                 big)
+    (write-case! "item-stream-mixed"
+                 (item-meta "A larger vector: node entries and literals, four frames, one entry spans three"
+                            7 false mixed-pages mixed)
+                 mixed)
     (write-case! "item-stream-partial"
-                 (item-meta "The reveal paused after three pages: FIN with PARTIAL, ask again to resume"
+                 (item-meta "The reveal paused after three items: FIN with PARTIAL, ask again to resume"
                             9 true part-pages part)
-                 part)))
+                 part)
+    (write-case! "item-stream-literal-at-cap"
+                 (item-meta (str "A string of " n " letters: its literal item is the most one frame holds")
+                            11 false under-pages under)
+                 under)
+    (write-case! "item-stream-literal-over-cap"
+                 (item-meta (str "One letter more (" (inc n) "): the whole value is no longer one literal: header and spine are node entries, its leaf pages literals")
+                            13 false over-pages over)
+                 over)))
 
 ;; --- Rejected input ---------------------------------------------------------
 
@@ -220,24 +260,10 @@
                   :invalid-message
                   [(ctl-frame :hello 0 fin (msg/encode-value (dissoc (hello) "versions")))]
                   :type :hello)
-    (reject-case! "reject-have-short-bits" "count 9 needs two bytes of bits"
-                  :invalid-message
-                  [(ctl-frame :have 1 fin (msg/encode-value
-                                           {"count" 9 "bits" (byte-array [0xff])}))]
-                  :type :have)
-    (reject-case! "reject-have-spare-bits" "Spare bits of the last byte must be zero"
-                  :invalid-message
-                  [(ctl-frame :have 1 fin (msg/encode-value
-                                           {"count" 3 "bits" (byte-array [(unchecked-byte 0xa1)])}))]
-                  :type :have)
     (reject-case! "reject-request-on-stream-0" "get on the session stream"
                   :wrong-stream
                   [(ctl-on :get 0 {"hash" (msg/hash-ref ex/h1) "policy" "default"})]
                   :type :get)
-    (reject-case! "reject-have-query-on-stream-0" "have? on the session stream"
-                  :wrong-stream
-                  [(ctl-on :have? 0 {"hashes" [(msg/hash-ref ex/h1)]})]
-                  :type :have?)
     (reject-case! "reject-ack-on-stream-n" "ack on a request's stream"
                   :wrong-stream
                   [(ctl-on :ack 7 {"hashes" [(msg/hash-ref ex/h1)]})]
@@ -272,9 +298,9 @@
                   :invalid-message
                   [(lenient-frame :hello 0 (assoc-in (hello) ["limits" "max-streams"] 0))]
                   :type :hello)
-    (reject-case! "reject-item-literal" "An item with enc 1: v1 streams carry nodes only"
-                  :bad-item
-                  [(ctl-frame :item-stream 5 0 (item-header 1 0))]
+    (reject-case! "reject-literal-over-cap" "A literal item of 16379 bytes: one more than a frame payload"
+                  :literal-too-large
+                  [(ctl-frame :item-stream 5 0 (item-header 1 (- (inc frame/max-payload) 37)))]
                   :type :item-stream :stream 5)
     (reject-case! "reject-item-unknown-enc" "An item whose enc is 7"
                   :bad-item

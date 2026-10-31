@@ -1,4 +1,0 @@
-{:title "Spare bits of the last byte must be zero",
- :expect :reject,
- :reason :invalid-message,
- :type :have}

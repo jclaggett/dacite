@@ -93,6 +93,19 @@
                             :payload (msg/encode-value expected)})))
       (conj (str id ": re-encoded bytes differ")))))
 
+(defn- literal-spans-frames?
+  "True when a literal item is cut by a frame boundary. A hashed entry
+   bigger than a frame has to span; a literal never does."
+  [frames item-bytes decoded]
+  (let [bounds (rest (reductions + 0 (map #(bin/byte-len (:payload (frame/decode-frame %))) frames)))
+        starts (reductions + 0 (map bin/byte-len item-bytes))]
+    (boolean
+     (some (fn [[a bs item]]
+             (and (= :literal (:enc item))
+                  (let [b (+ a (bin/byte-len bs))]
+                    (some #(< a % b) bounds))))
+           (map vector starts item-bytes decoded)))))
+
 (defn- check-item-stream
   [id {:keys [stream partial?] :as m} frames]
   (let [{:keys [state items] :as r} (read-stream stream frames)
@@ -108,7 +121,13 @@
       (conj (str id ": item sizes"))
       (not= (mapv :hash (:items m)) (mapv #(store/hash->hex (:hash %)) decoded))
       (conj (str id ": item hashes"))
-      (not-every? #(= :node (:enc %)) decoded) (conj (str id ": items are nodes"))
+      (not= (mapv :enc (:items m)) (mapv :enc decoded)) (conj (str id ": item encodings"))
+      (some #(and (= :literal (:enc %))
+                  (> (bin/byte-len (bin/encode-item %)) frame/max-payload))
+            decoded)
+      (conj (str id ": a literal item is over one frame payload"))
+      (literal-spans-frames? frames (:items r), decoded)
+      (conj (str id ": a literal spans frames"))
       (not= (mapv hex frames) (mapv hex again)) (conj (str id ": re-chunked frames differ"))
       (not= (mapv hex (:items r)) (mapv #(hex (bin/encode-item %)) decoded))
       (conj (str id ": an item does not re-encode to its bytes")))))
