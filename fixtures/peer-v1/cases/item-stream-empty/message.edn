@@ -1,0 +1,6 @@
+{:title "A reveal with nothing to send: one empty FIN frame",
+ :expect :item-stream,
+ :stream 5,
+ :partial? false,
+ :frames 1,
+ :items []}

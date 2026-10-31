@@ -1,0 +1,5 @@
+{:title "An item whose enc is 7",
+ :expect :reject,
+ :reason :bad-item,
+ :type :item-stream,
+ :stream 5}

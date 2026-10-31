@@ -1,0 +1,5 @@
+{:title "The client no longer wants stream 5",
+ :expect :message,
+ :type :cancel,
+ :stream 5,
+ :value {"reason" "navigated away"}}

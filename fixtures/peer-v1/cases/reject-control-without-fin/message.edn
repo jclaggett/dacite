@@ -1,0 +1,3 @@
+{:title "A control message must carry FIN",
+ :expect :reject,
+ :reason :not-fin}

@@ -1,0 +1,16 @@
+{:title
+ "The reveal paused after three pages: FIN with PARTIAL, ask again to resume",
+ :expect :item-stream,
+ :stream 9,
+ :partial? true,
+ :frames 1,
+ :items
+ [{:hash
+   "1b116d51c76ed39186974edd8f7134aa663289a8fed7789e023ad33e73b2c65e",
+   :bytes 87}
+  {:hash
+   "18b19ee6431fbe4f52b4f8dc4d95e991d2117ac79fbf3cfa3321a2fee15581b5",
+   :bytes 184}
+  {:hash
+   "6df33b06b98285b19a7d7d5108b83ffe890a3a8a15778386cbf76ea66fbff06e",
+   :bytes 120}]}

@@ -1,0 +1,5 @@
+{:title "An item header that claims 2 MiB",
+ :expect :reject,
+ :reason :item-too-large,
+ :type :item-stream,
+ :stream 5}

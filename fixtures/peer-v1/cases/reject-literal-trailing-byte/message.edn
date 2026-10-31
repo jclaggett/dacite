@@ -1,0 +1,4 @@
+{:title "A byte after the literal",
+ :expect :reject,
+ :reason :bad-literal,
+ :type :error}

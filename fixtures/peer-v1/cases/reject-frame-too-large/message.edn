@@ -1,0 +1,4 @@
+{:title "One byte over 16 KiB",
+ :expect :reject,
+ :reason :frame-too-large,
+ :type :item-stream}

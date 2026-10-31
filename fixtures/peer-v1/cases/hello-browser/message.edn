@@ -1,0 +1,18 @@
+{:title "A browser peer: smaller limits, no agent string",
+ :expect :message,
+ :type :hello,
+ :stream 0,
+ :value
+ {"versions" #{1},
+  "kind" "browser",
+  "caps" #{"have" "reveal"},
+  "limits"
+  {"max-frame" 16384,
+   "max-item" 262144,
+   "max-streams" 8,
+   "max-have" 128},
+  "rates"
+  {"send-max" 1000000,
+   "recv-max" 5000000,
+   "req-rate" 10,
+   "req-burst" 20}}}

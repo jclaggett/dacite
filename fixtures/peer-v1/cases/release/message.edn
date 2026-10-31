@@ -1,0 +1,9 @@
+{:title "The client dropped a page and wants it resent if asked again",
+ :expect :message,
+ :type :release,
+ :stream 0,
+ :value
+ {"hashes"
+  [{:dacite.peer.msg/u256
+    "ffffffffffffffff0000000000000000ffffffffffffffff0000000000000000"}],
+  "reason" "evicted"}}

@@ -1,0 +1,4 @@
+{:title "Map pairs in the wrong order",
+ :expect :reject,
+ :reason :not-canonical,
+ :type :error}

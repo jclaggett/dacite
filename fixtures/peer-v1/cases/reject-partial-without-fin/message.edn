@@ -1,0 +1,3 @@
+{:title "PARTIAL on a frame with no FIN",
+ :expect :reject,
+ :reason :partial-without-fin}

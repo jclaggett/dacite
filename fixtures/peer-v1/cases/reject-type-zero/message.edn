@@ -1,0 +1,1 @@
+{:title "Type id 0 is reserved", :expect :reject, :reason :unknown-type}

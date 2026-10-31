@@ -1,0 +1,5 @@
+{:title "Cancel with no reason: an empty map",
+ :expect :message,
+ :type :cancel,
+ :stream 7,
+ :value {}}

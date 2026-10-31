@@ -1,0 +1,5 @@
+{
+  "format" : "dacite-peer-v1",
+  "max_frame" : 16384,
+  "cases" : [ "ack", "cancel", "cancel-bare", "error-bad-entry", "error-rate-limited", "error-unknown-hash", "get-default", "get-interest", "get-repeat", "have-query", "have-reply", "have-reply-9", "hello-browser", "hello-node", "item-stream-empty", "item-stream-one-frame", "item-stream-partial", "item-stream-three-frames", "reject-control-without-fin", "reject-float-field", "reject-frame-after-fin", "reject-frame-short", "reject-frame-too-large", "reject-get-unknown-policy", "reject-have-short-bits", "reject-have-spare-bits", "reject-hello-missing-field", "reject-item-stream-as-control", "reject-item-too-large", "reject-item-truncated", "reject-item-unknown-enc", "reject-literal-trailing-byte", "reject-not-canonical", "reject-partial-on-control", "reject-partial-without-fin", "reject-reserved-flags", "reject-type-zero", "reject-wrong-stream", "release", "unknown-type" ]
+}

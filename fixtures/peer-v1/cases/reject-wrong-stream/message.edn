@@ -1,0 +1,5 @@
+{:title "A frame for stream 6 on the reader of stream 5",
+ :expect :reject,
+ :reason :wrong-stream,
+ :type :item-stream,
+ :stream 5}

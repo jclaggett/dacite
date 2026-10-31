@@ -1,0 +1,5 @@
+{:title "FIN in the middle of an item",
+ :expect :reject,
+ :reason :truncated-item,
+ :type :item-stream,
+ :stream 5}

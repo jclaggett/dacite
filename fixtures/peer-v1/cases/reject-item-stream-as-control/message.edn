@@ -1,0 +1,4 @@
+{:title "An item-stream frame read as a control message",
+ :expect :reject,
+ :reason :wrong-type,
+ :as-control true}

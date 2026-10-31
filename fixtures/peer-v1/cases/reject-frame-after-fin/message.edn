@@ -1,0 +1,5 @@
+{:title "A frame after FIN on the same stream",
+ :expect :reject,
+ :reason :after-fin,
+ :type :item-stream,
+ :stream 5}

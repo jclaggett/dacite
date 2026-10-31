@@ -1,0 +1,19 @@
+{:title "A Node peer introduces itself",
+ :expect :message,
+ :type :hello,
+ :stream 0,
+ :value
+ {"versions" #{1},
+  "agent" "dacite-nbb/0.2.0-alpha",
+  "kind" "node",
+  "caps" #{"have" "reveal"},
+  "limits"
+  {"max-frame" 16384,
+   "max-item" 1048576,
+   "max-streams" 32,
+   "max-have" 256},
+  "rates"
+  {"send-max" 10000000,
+   "recv-max" 10000000,
+   "req-rate" 20,
+   "req-burst" 40}}}

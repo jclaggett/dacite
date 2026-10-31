@@ -1,0 +1,6 @@
+{:title
+ "The peer does not hold the hash; the stream ends, the session lives",
+ :expect :message,
+ :type :error,
+ :stream 5,
+ :value {"code" "unknown-hash", "fatal" false}}
