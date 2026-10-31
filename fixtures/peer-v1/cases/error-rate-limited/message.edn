@@ -1,0 +1,9 @@
+{:title "Too many requests: retry later",
+ :expect :message,
+ :type :error,
+ :stream 11,
+ :value
+ {"code" "rate-limited",
+  "message" "request bucket empty",
+  "fatal" false,
+  "retry-ms" 250}}

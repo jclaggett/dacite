@@ -1,0 +1,4 @@
+{:title "count 9 needs two bytes of bits",
+ :expect :reject,
+ :reason :invalid-message,
+ :type :have}

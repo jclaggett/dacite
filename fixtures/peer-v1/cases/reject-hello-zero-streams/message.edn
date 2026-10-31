@@ -1,0 +1,4 @@
+{:title "max-streams 0 accepts no request",
+ :expect :reject,
+ :reason :invalid-message,
+ :type :hello}

@@ -1,0 +1,21 @@
+{:title "A larger vector: three frames, an item straddles a boundary",
+ :expect :item-stream,
+ :stream 7,
+ :partial? false,
+ :frames 3,
+ :items
+ [{:hash
+   "21acb79b2a0f095d4e8c1f23387a63f6cd3e106ea2f06162a5809a9cc3b55516",
+   :bytes 87}
+  {:hash
+   "169797175c463ab71aa9c921f69f18dd391d018d43d825bed6676a5d3158106d",
+   :bytes 184}
+  {:hash
+   "6df33b06b98285b19a7d7d5108b83ffe890a3a8a15778386cbf76ea66fbff06e",
+   :bytes 120}
+  {:hash
+   "4dbaf97929506cdc3f254326e4dc2f95693fc63851a5baaa06212cd0abc4a24d",
+   :bytes 88}
+  {:hash
+   "c6d92143d8e35cf57f8b6664b64c3f481f739788fb3b820eb8c8b99ed68b2324",
+   :bytes 39753}]}

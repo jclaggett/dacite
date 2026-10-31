@@ -6,6 +6,19 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Peer protocol v1 draft (M1.1)** — `docs/spec/peer-v1.md`. Every peer
+  message is a small Dacite value: a control message is the wire-v1
+  literal of a string-keyed map, with no item header, hash or store
+  entry. A 6-byte frame envelope adds a message type, flags and a u32
+  stream id that the requester picks and that is never the hash (the
+  protocol side of N1). Frames are at most 16 KiB, the RFC 8831 limit
+  for senders without message interleaving. An item stream is the
+  wire-v1 reveal stream cut into frames. Messages: `hello`, `have?` and
+  `have` (a bitmap), `get`, `item-stream`, `ack`, `release`, `cancel`,
+  `error`. `dacite.peer.frame` and `dacite.peer.msg` are portable
+  `.cljc`. `fixtures/peer-v1/` holds 53 golden cases made by the real
+  encoder (`clojure -M:dev -m gen-peer-fixtures`), checked on the JVM and
+  on nbb (`npm run peer:test`).
 - **Reveal order and interest** — `dacite.reveal` names the pages a default
   reveal would send, and the share of the ceiling each open reveal gets.
   The share is `R_max * I / max(peak, sum I)`. Above one peak the shares

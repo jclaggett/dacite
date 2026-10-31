@@ -1,0 +1,4 @@
+{:title "hello without versions",
+ :expect :reject,
+ :reason :invalid-message,
+ :type :hello}

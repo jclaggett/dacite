@@ -1,0 +1,3 @@
+{:title "A reserved flag bit is set",
+ :expect :reject,
+ :reason :bad-flags}
