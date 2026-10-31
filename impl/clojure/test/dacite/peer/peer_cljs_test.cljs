@@ -16,7 +16,17 @@
         encoded (count (for [{:keys [type stream value]} ex/examples
                              :let [bs (msg/encode-message {:type type :stream stream :value value})]]
                          bs))
-        all (into (vec problems) framing)]
+        reason #(try (%) :accepted (catch :default e (:reason (ex-data e))))
+        host (concat
+              (when-not (= 256 (count (msg/cut-text (apply str (repeat 300 "x")))))
+                ["cut-text does not cut to 256 bytes"])
+              (when-not (= :profile (reason #(msg/encode-value {"a" (inc msg/max-int)})))
+                ["an integer over 2^53 - 1 is not refused"])
+              (when-not (= 2 (get-in (msg/negotiate {"versions" #{1 2} "caps" #{} "limits" {"max-frame" 1 "max-item" 1 "max-streams" 1}}
+                                                    {"versions" #{2} "caps" #{} "limits" {"max-frame" 1 "max-item" 1 "max-streams" 1}})
+                                     [:ok :version]))
+                ["negotiate does not pick the highest common version"]))
+        all (into (into (vec problems) framing) host)]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
              (count all) "problems")
     (doseq [p all] (println "  FAIL" p))

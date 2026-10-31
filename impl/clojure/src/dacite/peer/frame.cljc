@@ -242,17 +242,17 @@
    (let [room (- max-frame-bytes header-bytes)
          seal (fn [pieces cur]
                 (if (seq cur) (conj pieces cur) pieces))
-         [pieces cur]
+         ;; state: [finished-frames, items-in-current-frame, bytes-in-current-frame]
+         [pieces cur _]
          (reduce
-          (fn [[pieces cur] item]
-            (let [n (blen item)
-                  used (reduce + 0 (map blen cur))]
+          (fn [[pieces cur used] item]
+            (let [n (blen item)]
               (cond
                 (and (<= n room) (<= (+ used n) room))
-                [pieces (conj cur item)]
+                [pieces (conj cur item) (+ used n)]
 
                 (<= n room)
-                [(seal pieces cur) [item]]
+                [(seal pieces cur) [item] n]
 
                 :else
                 (let [pieces (seal pieces cur)
@@ -260,8 +260,9 @@
                       full (butlast cuts)
                       tail (last cuts)]
                   [(into pieces (map (fn [from] [(slice item from (+ from room))])) full)
-                   [(slice item tail n)]]))))
-          [[] []]
+                   [(slice item tail n)]
+                   (- n tail)]))))
+          [[] [] 0]
           item-bytes)
          pieces (seal pieces cur)
          pieces (if (empty? pieces) [[]] pieces)
@@ -290,61 +291,82 @@
    {:stream stream
     :max-item max-item
     :max-literal max-literal
-    :buf (make-bytes 0)
+    :chunks []
+    :buffered 0
+    :need nil
     :fin? false
     :partial? false
     :frames 0
     :items 0}))
 
-(defn- split-items
-  "Complete items at the front of `buf`, and the rest.
-
-   Throws on an `enc` other than 0 (node) or 1 (literal), on an item over
-   `max-item`, and on a literal item over `max-literal` (one frame payload:
-   a literal never spans frames). A literal is checked from its header, so
-   an oversized one is refused before its bytes arrive."
-  [buf max-item max-literal]
-  (let [n (blen buf)]
-    (loop [at 0 items []]
-      (let [avail (- n at)]
-        (if (< avail item-header-bytes)
-          [items (slice buf at n)]
-          (let [{:keys [enc total]} (bin/item-header buf at)]
-            (when-not (contains? #{0 1} enc)
-              (fail! :bad-item "unknown item enc" {:enc enc}))
-            (when (> total max-item)
-              (fail! :item-too-large "item exceeds max-item"
-                     {:size total :max max-item}))
-            (when (and (= 1 enc) (> total max-literal))
-              (fail! :literal-too-large "a literal item must fit one frame payload"
-                     {:size total :max max-literal}))
-            (if (< avail total)
-              [items (slice buf at n)]
-              (recur (+ at total) (conj items (slice buf at (+ at total)))))))))))
+(defn- check-header!
+  "Check the Item header at `at` in `bs` against the stream's limits and
+   return the item's total size. Throws on an `enc` other than 0 (node) or
+   1 (literal), on an item over `max-item`, and on a literal item over
+   `max-literal` (one frame payload: a literal never spans frames). A
+   literal is checked from its header, so an oversized one is refused
+   before its bytes arrive."
+  [bs at max-item max-literal]
+  (let [{:keys [enc total]} (bin/item-header bs at)]
+    (when-not (contains? #{0 1} enc)
+      (fail! :bad-item "unknown item enc" {:enc enc}))
+    (when (> total max-item)
+      (fail! :item-too-large "item exceeds max-item"
+             {:size total :max max-item}))
+    (when (and (= 1 enc) (> total max-literal))
+      (fail! :literal-too-large "a literal item must fit one frame payload"
+             {:size total :max max-literal}))
+    total))
 
 (defn feed
   "Add one decoded frame (from `decode-frame`) to the stream.
 
    Returns [state' item-byte-arrays], the items that the frame completed.
    Throws when the frame is not an item-stream frame for this stream, or
-   arrives after FIN."
-  [{:keys [stream max-item max-literal buf] :as st} {:keys [type] :as fr}]
+   arrives after FIN.
+
+   Bytes are kept as a list of chunks and joined only when an item can be
+   cut, so an item that spans many frames is copied once, not once per
+   frame."
+  [{:keys [stream max-item max-literal chunks buffered need] :as st} {:keys [type] :as fr}]
   (when (:fin? st)
     (fail! :after-fin "frame after FIN" {:stream stream}))
   (when-not (= :item-stream type)
     (fail! :wrong-type "not an item-stream frame" {:type type}))
   (when-not (= stream (:stream fr))
     (fail! :wrong-stream "frame for another stream" {:expected stream :got (:stream fr)}))
-  (let [[items rest-buf] (split-items (concat-bytes [buf (:payload fr)]) max-item max-literal)]
-    (when (and (:fin? fr) (pos? (blen rest-buf)))
-      (fail! :truncated-item "stream ended inside an item" {:left (blen rest-buf)}))
-    [(assoc st
-            :buf rest-buf
-            :fin? (:fin? fr)
-            :partial? (:partial? fr)
-            :frames (inc (:frames st))
-            :items (+ (:items st) (count items)))
-     items]))
+  (let [chunks (conj chunks (:payload fr))
+        buffered (+ buffered (blen (:payload fr)))
+        finish (fn [chunks buffered need items]
+                 (when (and (:fin? fr) (pos? buffered))
+                   (fail! :truncated-item "stream ended inside an item" {:left buffered}))
+                 [(assoc st
+                         :chunks chunks
+                         :buffered buffered
+                         :need need
+                         :fin? (:fin? fr)
+                         :partial? (:partial? fr)
+                         :frames (inc (:frames st))
+                         :items (+ (:items st) (count items)))
+                  items])]
+    (if (and need (< buffered need))
+      (finish chunks buffered need [])
+      (let [bs (concat-bytes chunks)
+            n (blen bs)
+            [items at need]
+            (loop [at 0 need need items []]
+              (let [avail (- n at)
+                    need (or need
+                             (when (>= avail item-header-bytes)
+                               (check-header! bs at max-item max-literal)))]
+                (cond
+                  (nil? need) [items at nil]
+                  (< avail need) [items at need]
+                  :else (recur (+ at need) nil (conj items (slice bs at (+ at need)))))))]
+        (finish (if (< at n) [(slice bs at n)] [])
+                (- n at)
+                need
+                items)))))
 
 ;; =============================================================================
 ;; Stream ids of one connection

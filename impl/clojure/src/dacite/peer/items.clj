@@ -17,11 +17,12 @@
      node entries it would otherwise need wins, and a literal item is at
      most one frame payload (`frame/max-literal-item`). A larger value
      falls back to node entries, so a literal never spans frames.
-   - an order a receiver can verify as items arrive: a collection's own
-     pages come before its header (see `verifiable-order`).
+   - header first: items go in `reveal/page-order`, a collection header
+     before its pages. A header cannot be checked when it arrives (its hash,
+     count and size follow from its root), so it is accepted and stored at
+     once and checked when its root arrives: see `receiver`.
    - `verify-item!`: each item is checked from its own bytes, and from
-     nothing that has not already been stored. Nothing waits and nothing
-     is held back. See the namespace-level notes on what that covers."
+     what is already stored. Nothing waits and nothing is held back."
   (:require [clojure.string :as str]
             [dacite.hash :as hash]
             [dacite.peer.frame :as frame]
@@ -30,6 +31,7 @@
             [dacite.service.reveal :as sr]
             [dacite.store :as store]
             [dacite.store.pack :as pack]
+            [dacite.value.lit :as lit]
             [dacite.value.finger-tree :as ft]
             [dacite.value.hamt :as hamt]
             [dacite.value.types :as types]
@@ -46,11 +48,10 @@
 (defn- structural-type? [t]
   (and (string? t) (or (str/starts-with? t "ft/") (str/starts-with? t "hamt/"))))
 
-(defn- has-ref?
-  "True when a literal body names a child by hash (type `ref`). A peer
-   literal is self-contained: it holds no ref."
-  [body]
-  (boolean (some #(and (map? %) (= "ref" (str (:type %)))) (tree-seq coll? seq body))))
+(def ^:private has-ref?
+  "True when a literal body names a child by hash (type `ref`, or a `run` or
+   `repeat` of `ref`). A peer literal is self-contained: it holds none."
+  lit/names-child-hash?)
 
 ;; =============================================================================
 ;; Writing
@@ -83,26 +84,6 @@
           0
           (reveal/page-order st h)))
 
-(defn verifiable-order
-  "`hashes` (a `reveal/page-order`, header first) with each collection
-   header moved after its own structural pages (`ft/*`, `hamt/*`).
-
-   A page carries its own measure, so it can be checked when it arrives.
-   A collection header holds only the hash of its root, so it can be
-   checked once the root's measure is known. Sending the root's pages
-   first means the receiver already holds them when the header arrives.
-   A header whose root is a bare leaf has no pages to wait for."
-  [st hashes]
-  (let [type-of (fn [h] (types/entry-type (store/require-node st h)))]
-    (loop [todo (seq hashes) out []]
-      (if-not todo
-        out
-        (let [h (first todo)]
-          (if (collection-type? (type-of h))
-            (let [[pages more] (split-with #(structural-type? (type-of %)) (rest todo))]
-              (recur (seq more) (-> out (into pages) (conj h))))
-            (recur (next todo) (conj out h))))))))
-
 (defn encode-value
   "Items (wire-v1 bytes, in sending order) that reveal `root` in full.
 
@@ -118,7 +99,7 @@
   ([st root {:keys [max-frame-bytes] :or {max-frame-bytes frame/max-frame}}]
    (let [cap (frame/max-literal-item max-frame-bytes)
          order (reveal/page-order st root)
-         ;; decide in reveal order (header first), then reorder for verification
+         ;; decide in reveal order (header first); that is also the sending order
          {:keys [picks]}
          (reduce
           (fn [{:keys [covered picks] :as acc} h]
@@ -135,9 +116,7 @@
                    :picks (conj picks {:hash h :enc :node :bytes (node-bytes st h)})}))))
           {:covered #{} :picks []}
           order)
-         by-hash (into {} (map (juxt (comp gc/hash-key :hash) identity)) picks)
-         sent (verifiable-order st (mapv :hash picks))
-         picks (mapv #(get by-hash (gc/hash-key %)) sent)]
+         ]
      {:items (mapv :bytes picks)
       :encs (mapv :enc picks)
       :hashes (mapv :hash picks)})))
@@ -154,32 +133,29 @@
   (and (instance? clojure.lang.ExceptionInfo e)
        (= :missing (:reason (ex-data e)))))
 
+(defn- root-measure
+  "The measure of a collection header's root, or nil when the root is not
+   stored (yet). The root is a page, or a bare leaf value that is itself the
+   one element."
+  [st type-name root]
+  (try (case type-name
+         ("string" "blob" "vector") (ft/ft-measure st root)
+         ("map" "set") (hamt/hamt-measure st root))
+       (catch clojure.lang.ExceptionInfo e
+         (if (missing? e) nil (throw e)))))
+
 (defn- header-check
-  "Check a collection header against the measure of its root, which is
-   already stored, or is a bare leaf (its elements-fuse is its own hash).
-   Returns the set of checks done, or nil when the root is not here yet."
-  [st type-name {:keys [root count size-bytes]} claimed]
-  (let [measure (try (case type-name
-                       ("string" "blob" "vector") (ft/ft-measure st root)
-                       ("map" "set") (hamt/hamt-measure st root))
-                     (catch clojure.lang.ExceptionInfo e
-                       (if (missing? e) nil (throw e))))]
-    (cond
-      measure
-      (do
-        (when-not (= claimed (types/value-hash type-name (:elements-fuse measure)))
-          (bad! :bad-hash "collection hash does not match its root" {:hash claimed}))
-        (when-not (and (= count (:count measure)) (= size-bytes (:size-bytes measure)))
-          (bad! :bad-entry "collection count or size differs from its root"
-                {:hash claimed}))
-        #{:hash :root-measure})
-
-      ;; root not stored: only a bare leaf root can be checked from the header
-      (and (contains? #{"string" "blob" "vector"} type-name)
-           (= claimed (types/value-hash type-name root)))
-      #{:hash :leaf-root}
-
-      :else nil)))
+  "Check a collection header against the measure of its root, which must be
+   stored. The hash covers only the elements-fuse, so count and size-bytes
+   are checked here by recomputation: they are in no hash. Returns
+   #{:hash :root-measure}; throws `:bad-hash` or `:bad-entry`."
+  [type-name {:keys [count size-bytes]} claimed measure]
+  (when-not (= claimed (types/value-hash type-name (:elements-fuse measure)))
+    (bad! :bad-hash "collection hash does not match its root" {:hash claimed}))
+  (when-not (and (= count (:count measure)) (= size-bytes (:size-bytes measure)))
+    (bad! :bad-entry "collection count or size differs from its root"
+          {:hash claimed}))
+  #{:hash :root-measure})
 
 (defn- page-body [data]
   (:body data))
@@ -188,10 +164,9 @@
   [st hash [type-name data :as entry]]
   (cond
     (collection-type? type-name)
-    (or (header-check st type-name data hash)
-        (bad! :out-of-order
-              "a collection header arrived before its root; send the root's pages first"
-              {:hash hash}))
+    (if-let [m (root-measure st type-name (:root data))]
+      (header-check type-name data hash m)
+      #{:pending})
 
     :else
     (let [got (sr/expected-hash st entry)]
@@ -215,11 +190,11 @@
                           {:hash hash}))
                   (conj checks :entry-measure)))))))
 
-(defn verify-item!
+(defn- verify-item*!
   "Check one decoded wire-v1 item (`bin/decode-item`) from its own bytes.
 
    Returns the set of checks it passed, and throws {:reason ...} when one
-   fails: `:bad-hash`, `:bad-entry`, `:bad-item`, or `:out-of-order`.
+   fails: `:bad-hash`, `:bad-entry` or `:bad-item`.
    Nothing is stored, and nothing is waited for. `st` is read only, for
    what earlier items put there.
 
@@ -229,8 +204,9 @@
    - page (`ft/*`, `hamt/*`): its hash from its claimed measure. A digit
      or node page with no ref must also have the measure of its contents,
      and an entry the elements-fuse of its key and value.
-   - collection header: its hash and count from its root's measure; the
-     root is stored already (see `verifiable-order`).
+   - collection header: its hash, count and size from its root's measure
+     when the root is stored; when it is not (header first) the answer is
+     #{:pending}, and `accept-item!` checks it when the root arrives.
 
    Not checked here: that a page's measure follows from its children
    (`ft/deep`, `hamt/bitmap`, a page with a ref). Those bytes hold the
@@ -252,22 +228,110 @@
     :node
     (verify-node! st hash entry)))
 
+(defn verify-item!
+  "Check one decoded wire-v1 item from its own bytes, and from what is
+   already stored in `st`. Returns the set of checks it passed (`#{:pending}`
+   for a collection header whose root has not arrived), or throws
+   {:reason ...}: `:bad-hash`, `:bad-entry`, `:bad-item`. A lookup that finds
+   nothing is `:bad-entry` (a measure that cannot be recomputed), never a raw
+   store error. Nothing is stored, and nothing is waited for."
+  [st item]
+  (try (verify-item*! st item)
+       (catch clojure.lang.ExceptionInfo e
+         (if (missing? e)
+           (bad! :bad-entry "the item names an entry that is not stored"
+                 {:hash (:hash item) :missing (:hash (ex-data e))})
+           (throw e)))))
+
+;; =============================================================================
+;; Receiving
+;; =============================================================================
+
+(defn receiver
+  "A receiver of items: {:store st :pending atom}. `:pending` maps the hash
+   of a root to the collection headers (hash -> entry) that wait for it."
+  ([] (receiver (store/mem-store)))
+  ([st] {:store st :pending (atom {})}))
+
+(defn unchecked
+  "Hashes of the collection headers that are stored but whose root has not
+   arrived, so whose hash, count and size are not yet checked."
+  [{:keys [pending]}]
+  (into [] (comp (mapcat vals) (map :hash)) (vals @pending)))
+
+(defn discard-unchecked!
+  "Remove the unchecked headers from the store. A session that ends before
+   their roots arrive (a failure, a `cancel`, a PARTIAL stream) calls this,
+   so the store holds only what was verified."
+  [{:keys [store pending] :as rx}]
+  (doseq [{:keys [hash]} (mapcat vals (vals @pending))]
+    (store/await (store/s-delete store hash)))
+  (reset! pending {})
+  rx)
+
+(defn- stored? [st h] (some? (store/await (store/s-get st h))))
+
+(defn- resolve-pending!
+  "Check the waiting headers whose root is stored now. A header that fails
+   is removed from the store before the error is thrown."
+  [{:keys [store pending]}]
+  (loop []
+    (when-let [[rk waiting]
+               (first (filter (fn [[_ ws]] (stored? store (:root (val (first ws)))))
+                              @pending))]
+      (swap! pending dissoc rk)
+      (doseq [[hk {:keys [hash entry]}] waiting
+              :let [[type-name data] entry
+                    m (root-measure store type-name (:root data))]]
+        (try (header-check type-name data hash m)
+             (catch clojure.lang.ExceptionInfo e
+               (store/await (store/s-delete store hash))
+               (throw e))))
+      (recur))))
+
 (defn accept-item!
   "Verify one decoded item, then store it. Throws and stores nothing when
-   it fails. Returns the checks it passed."
-  [st {:keys [enc hash entry literal] :as item}]
-  (let [checks (verify-item! st item)]
-    (case enc
-      :node (store/await (store/s-put st hash entry))
-      :literal (pack/materialize-literal! st (:type literal) (:body literal)))
-    checks))
+   it fails. Returns the checks it passed.
+
+   A collection header comes before its pages, so it is stored now and its
+   check is `#{:pending}` until its root arrives. Then the arrival of the
+   root checks it, and a failure there removes the header and throws, so the
+   session ends with `bad-hash` or `bad-entry`. A header already stored is
+   not stored again."
+  [{:keys [store pending] :as rx} {:keys [enc hash entry literal] :as item}]
+  (let [header? (and (= :node enc) (collection-type? (types/entry-type entry)))]
+    (if (and header? (stored? store hash))
+      #{:known}
+      (let [checks (verify-item! store item)]
+        (case enc
+          :node (store/await (store/s-put store hash entry))
+          :literal (pack/materialize-literal! store (:type literal) (:body literal)))
+        (when (contains? checks :pending)
+          (swap! pending update (gc/hash-key (:root (types/entry-data entry)))
+                 assoc (gc/hash-key hash)
+                 {:hash hash :entry entry :root (:root (types/entry-data entry))}))
+        (when (seq @pending) (resolve-pending! rx))
+        checks))))
 
 (defn accept-items!
   "Accept decoded items in the order they arrived. Each is checked, and
    stored, before the next is read: nothing is held back. The first
-   failure throws; the items before it stay stored (each is verified).
-   Returns `st` (a new mem-store when nil)."
-  [st items]
-  (let [st (or st (store/mem-store))]
-    (doseq [item items] (accept-item! st item))
-    st))
+   failure throws; the items before it stay stored (each is verified, or is
+   a header still waiting for its root: see `unchecked`). `rx` is a
+   `receiver`, or nil for a new one. Returns the receiver."
+  [rx items]
+  (let [rx (or rx (receiver))]
+    (doseq [item items] (accept-item! rx item))
+    rx))
+
+(defn finish!
+  "The stream ended with FIN and not PARTIAL: every header's root must have
+   arrived. Throws `:bad-entry` when one has not, after removing the
+   unchecked headers. Returns the receiver."
+  [rx]
+  (let [left (unchecked rx)]
+    (when (seq left)
+      (discard-unchecked! rx)
+      (bad! :bad-entry "a collection header's root never arrived"
+            {:hashes left}))
+    rx))

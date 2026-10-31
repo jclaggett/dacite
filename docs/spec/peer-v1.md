@@ -77,13 +77,22 @@ Rules:
   number type and cannot tell `1` from `1.0`. Rates are integers (bytes per
   second). Interest is fixed point: `peak` and `floor` in thousandths, `tau` in
   milliseconds.
-- **No integer over `i64`**; negative numbers are legal in the profile but no
-  v1 shape uses one. Every number field below is a non-negative `i64`, and a
+- **Integers are within ±(2^53 − 1)** (9 007 199 254 740 991), not the full `i64`.
+  nbb has one number type, a double, exact only up to there; it would read
+  `9007199254740993` as `9007199254740992`, so a value that the two hosts could read
+  differently is outside the profile. Both hosts keep the one range: a sender
+  refuses to write, and a receiver rejects, anything outside it (`profile`;
+  `msg/max-int`). Hashes are `u256` and are not numbers, so this limits no field.
+  Negative numbers are legal in the profile but no v1 shape uses one. Every number field below is a non-negative `i64`, and a
   field marked "at least 1" is rejected at 0 (`invalid-message`).
 - **Strings are at most 256 UTF-8 bytes** (not characters), and **a set has at
   most 32 elements**. A receiver rejects more (`invalid-message`). A sender cuts
-  free text (`reason`, `message`, `agent`) to fit, so it never sends a frame the
-  limit would make a receiver refuse (fixture `reject-string-too-long`).
+  free text (`agent`, `reason`, `message`) to fit, at a character boundary
+  (`msg/cut-text`; the encoder does it), so it never sends a frame the limit would
+  make a receiver refuse (fixture `reject-string-too-long`). Cutting is safe
+  because nobody parses free text. Names a receiver does parse (`code`, `kind`,
+  `policy`, capabilities) are never cut: an over-long one is a sender bug and is
+  refused.
 - A hash is a `u256` literal (type id `0x0D`, 32 raw bytes, the same bytes as
   the `hash` field of a wire-v1 `Item`).
 - A blob, if used, is only a map value. (A core limitation, not a protocol one:
@@ -93,7 +102,7 @@ Rules:
   **A receiver never rejects a name it does not know:** an unknown capability
   is ignored, an unknown `error` code is read as `internal`, an unknown `hello`
   `kind` is read as `browser`, and an unknown `get` policy is answered with
-  `error unsupported-policy` (6.3). (A *sender* writes only names v1 defines, and
+  `error unsupported-policy` (6.2). (A *sender* writes only names v1 defines, and
   the reference encoder refuses anything else.) A **missing required key** is
   `invalid-message`.
 - A sender MUST write the canonical encoding. A receiver MAY reject a literal
@@ -191,7 +200,8 @@ reveal's order, the sender writes the **shorter** of
   under it that the receiver does not hold),
 
 provided the literal item is at most **one frame payload**: 16 378 bytes, or
-`max-frame - 6` for a peer that advertised a smaller `max-frame`. The cap is on the
+`max-frame - 6`, where `max-frame` is the negotiated one (3.1: the smaller of the two
+peers' `hello.limits.max-frame`; `msg/negotiate`). The cap is on the
 whole item (37-byte header included), so a literal never spans frames. A larger
 value is not sent as one literal: the sender writes its node items, and then the
 same rule applies to each child, so a big value becomes node items for its
@@ -201,8 +211,10 @@ covers everything under it, so nothing below it is sent again
 
 A receiver accepts either form for any value (the rule is the sender's), and
 refuses a literal item over the cap from its 37-byte header, before the payload
-arrives: `literal-too-large`. A literal that holds a `ref` is `bad-item`. The cap
-is the one the *receiver* advertised.
+arrives: `literal-too-large`. A literal that holds a `ref` (a `ref` item, or a `run`
+or `repeat` of `ref`) is `bad-item`. Both directions use the one negotiated cap. The
+stream reader takes it as an argument (`frame/reader`, default 16 KiB until `hello`
+has been read), so the session code must pass the negotiated value.
 
 **Packing.** The byte stream of items goes into frames as follows (`frame/chunk-items`):
 
@@ -232,6 +244,16 @@ leaf pages are literals (the largest 1 076 bytes). `item-stream-one-frame` is a
 small vector sent as one 678-byte literal. `item-stream-mixed` is a 1200-element
 vector: node items and literals together.
 
+**Node items (decision Q3).** A sender SHOULD keep each node item within one frame
+payload, once M1.1a makes every page about 1 KiB. Until then a store that builds a
+page in one piece (Known issues) can make a node item span frames, and a receiver
+reads those (up to `max-item`, 1 MiB). Receivers keep the 1 MiB `max-item` and do
+not refuse a node item for its size. The limit follows: the smallest `max-frame` a
+peer may advertise (`frame/min-max-frame`, 1024 today) must be at least the largest
+node item plus the 37-byte item header and the 6-byte envelope, so M1.1a raises it
+with the page budget. Until then a peer at the minimum frame size may see node
+items that span frames.
+
 **Earlier draft.** The first draft said item streams carried node items only
 (review item F2, and open question 5). That is replaced by this section: literals
 are allowed under the cap (decision Q5). The reveal service of today
@@ -240,36 +262,69 @@ accepts.
 
 ### 3.3 Verification of items
 
+**v1 assumes good actors.** It guards against corruption and against a peer that
+is wrong, not against one that works to deceive (see "Trust" below and section 11).
+
 Every item is verified by the receiver before it is stored, **from its own bytes
-alone**: its contents, and the child hashes it names. A parent's verification
-never waits for its children. Each child is verified on its own when it arrives.
-**No peer holds a partial value in order to verify.** An item that cannot be
-verified from what it holds, and from what earlier items already put in the store,
-is refused (`out-of-order`), not parked. `dacite.peer.items/verify-item!` is the
-check; `accept-items!` stores each item as it is verified, in arrival order. (The
-older `dacite.service.reveal/accept-items!` does hold a collection header until
-its root arrives. It is not the peer rule, and M2.2 replaces it.)
+alone**, and from what earlier items already put in the store. A parent's
+verification never waits for its children. Each child is verified on its own when
+it arrives. **No peer holds a partial value in order to verify.** An item that
+cannot be verified from its own bytes is stored and checked later, when the item
+it depends on arrives (only a collection header, below); it is never parked.
+`dacite.peer.items/verify-item!` is the check; `accept-item!` stores each item as it
+is verified, in arrival order. (The older `dacite.service.reveal/accept-items!`
+does hold a collection header until its root arrives. It is not the peer rule, and
+M2.2 replaces it.)
 
 What each kind of item is checked against:
 
 | Item | Verified from |
 |---|---|
-| literal | Rebuilt from its bytes in a scratch store: its value hash must equal the item's. Complete, so nothing is left to check. |
+| literal | Rebuilt from its bytes in a scratch store: its value hash must equal the item's. Complete, so nothing is left to check. A literal holds no `ref`: a `ref` item, or a `run` or `repeat` of `ref`, is `bad-item`. |
 | scalar | Its hash from its data. |
 | leaf page: `ft/digit` or `ft/node` with every leaf inline (no `ref`) | Its hash, from the claimed measure (`node-hash(type, elements-fuse)`); and the claimed measure must equal the one recomputed from the leaves in its body. A leaf page **verifies alone**. |
 | `hamt/entry` | Its hash from the claimed measure, and `elements-fuse = fuse(key-ref, val-ref)`. |
-| spine page: `ft/deep`, `hamt/bitmap`, any page with a `ref` | Its hash, from its claimed measure (local). **Not** that the measure follows from its children: the page holds their hashes, not their measures (a child's hash is `H(type, elements-fuse)`, and the parent needs the child's measure). See section 11. |
-| collection header (`string`, `blob`, `vector`, `map`, `set`) | Its hash and its count and size, from the measure of its root. The root is already stored, or is a bare leaf (whose elements-fuse is its own hash). |
+| branch page: `ft/deep`, `hamt/bitmap`, any page with a `ref` (a `ref` item, or a `run` of `ref`) | Its hash, from its claimed measure (local). **Not** that the measure follows from its children: the page holds their hashes, not their measures. Branch nodes are not bound to their children in v1 (section 11, Q1). |
+| collection header (`string`, `blob`, `vector`, `map`, `set`) | **Accepted and stored on arrival; checked when its root arrives.** See below. |
 
-**Order.** A header holds only the hash of its root, so a sender writes a
-collection's own pages (`ft/*`, `hamt/*`) **before** its header, and a receiver
-that gets a header whose root it does not hold refuses it (`out-of-order`): that is
-the only way to keep the rule without holding anything. Pages carry their own
-measure, so they can arrive in any order relative to one another. A literal needs
-no order. (`items/verifiable-order` moves each header after its pages; the reveal
-engine's `page-order` puts it first.) A bad item ends the session with the peer:
-`error` `bad-entry`, `fatal`. M1.2 writes those rules down and M2.2 moves the
-check into the portable core; today verification is JVM-only.
+**Header first.** A sender writes items in reveal order: a collection's header
+before its pages, so the receiver sees `count` and `size-bytes` at once and can
+read the start while the rest arrives (decision Q2). No header field is added.
+
+A header cannot be checked alone. Its hash is `fuse(type-hash, root
+elements-fuse)`, and its `count` and `size-bytes` are in no hash at all, so the
+only check is to recompute them from the root. So the receiver stores the header
+when it arrives (`verify-item!` answers `#{:pending}`) and records it as waiting
+for its root's hash. When the root is stored, a page or a bare leaf value that is
+the one element, the receiver recomputes the root's measure and checks, in this
+order: the header's hash (`bad-hash`), then its `count` and `size-bytes`
+(`bad-entry`). A failed check removes the header from the store and ends the
+session (`error` `bad-entry`, fatal). A header whose root is a literal, or inside a literal, is
+checked as soon as that literal is stored. Nested headers each wait for their own
+root; an outer header over a bare-leaf root is checked against the inner header's
+claimed count and size, and the inner one is checked when its root arrives, so the
+chain is verified end to end once it is complete.
+
+Nothing is held back: the header is stored and counted as accepted. What the
+receiver must do is track the header as *unchecked* until then
+(`items/unchecked`), and drop the unchecked headers when the stream ends without
+their roots: on a fatal error, a `cancel`, or a PARTIAL stream
+(`items/discard-unchecked!`); and on a FIN without PARTIAL, a header whose root never
+arrived is `bad-entry` (`items/finish!`). A reader of the store sees an unchecked
+header's claimed count and size for the short time before its root arrives; it
+cannot read elements through it, because the root is not there.
+
+**Order of everything else.** Pages carry their own measure, so they can arrive in any order
+relative to one another. A literal needs no order. A bad item ends the session
+with the peer: `error` `bad-entry`, `fatal`.
+M1.2 writes those rules down and M2.2 moves the check into the portable core;
+today verification is JVM-only. A lookup that finds nothing is `bad-entry`, never a
+raw store error.
+
+**Trust.** The hash of a value commits to its ordered elements and not to the
+tree that stores them (that is what makes equal values share storage whatever
+their chunking). So no check from an item's own bytes can bind a branch node to its
+children in v1: see Q1.
 
 ## 4. Streams and stream ids
 
@@ -388,14 +443,16 @@ Fixtures: `hello-node` (343 bytes), `hello-browser`.
 that is 256; at 1024 it is 20. `msg/max-hashes-for` is the helper, and a test
 encodes a full batch at each frame size.
 
-Negotiation: the version is the highest in both sets; if there is none, send
-`error` `unsupported-version` with `fatal: true` and close. Limits are the
-smaller of the two sides'. Capabilities are the intersection. Rates are
-advertised ceilings; how they are shared with the client's `R_max` is M1.2.
+Negotiation (`msg/negotiate`, tested): the version is the highest in both sets; if
+there is none, send `error` `unsupported-version` with `fatal: true` and close.
+`max-frame` and `max-item` are the smaller of the two sides'. `max-streams` is per
+direction: each side's value limits what the *other* may have open. Capabilities are
+the intersection. Rates are advertised ceilings; how they are shared with the
+client's `R_max` is M1.2.
 
 ### 6.2 `get` (0x02, new stream)
 
-Ask for a value as a reveal. The answer is an item stream (6.4).
+Ask for a value as a reveal. The answer is an item stream (6.3).
 
 | Key | Type | Req | Meaning |
 |---|---|---|---|
@@ -508,7 +565,7 @@ ends the session, and the sender closes the connection after it.
 | `unsupported-policy` | `get` named a policy I do not know. |
 | `malformed` | A frame or value that breaks this spec. |
 | `unknown-hash` | I do not hold it. Not fatal. |
-| `bad-entry` | An entry failed its hash check (fatal). |
+| `bad-entry` | An item failed verification (3.3): its hash, a measure, a header's count or size, or a literal that holds a `ref` (the reference receiver names these `bad-hash`, `bad-entry`, `bad-item`; all are sent as `bad-entry`). Fatal. |
 | `too-large` | An item or request over a limit. |
 | `rate-limited`, `overloaded` | Back off (`retry-ms`). |
 | `cancelled` | Optional answer to `cancel`. |
@@ -579,8 +636,10 @@ the draft's.
 10. **Channels:** one control channel, plus one channel per `get`, capped by
     `max-streams`. The single multiplexed pipe mode stays (section 5).
 
-Also decided with these: every item is verified from its own bytes and nothing
-waits or is held (3.3).
+Also decided with these: every item is verified from its own bytes, and nothing
+waits or is held (3.3). The three questions that followed (branch nodes not
+bound to their children, headers, node items over a frame) are answered in
+section 11.
 
 ## 10. Known issues
 
@@ -599,32 +658,50 @@ waits or is held (3.3).
   page in `item-stream-mixed`). The cap in 3.2 holds for literals regardless;
   such a page can only be sent as a node item that spans frames. Plan: M1.1a.
 
-## 11. Open questions
+## 11. Trust, and what v1 leaves for later
 
-New, from the work on decisions Q5 and S3.3.
+These were the three open questions of the S3.3 work. Jonathan has decided them.
 
-1. **A spine page's measure is not bound to its children.** An item is verified
-   from its own bytes, but a spine page (`ft/deep`, `hamt/bitmap`, any page with a
-   `ref`) holds its children's hashes, not their measures. Its hash covers only
-   `(type, elements-fuse)`, not the child hashes. So a peer can send a page whose
-   hash is right and whose child hashes point at other, valid nodes; the receiver
-   stores it, and a read then returns something the page's hash does not commit
-   to. Each child is verified against *its own* hash, but nothing checks that the
-   parent's measure is what the children add up to. The same hole is in today's
-   reveal client. Options: (a) fold the child hashes into a spine node's hash
-   (a change to wire-v1 and to every golden hash); (b) check a parent's measure
-   against its children's measures when the last child arrives (a store-side
-   audit, which is a form of waiting); (c) accept it for v1 and rely on every
-   leaf being verified (a forged tree can then only rearrange verified leaves).
-   Recommendation: (b) for v1 as an audit that never blocks a read, and (a) before
-   v2.
-2. **Collection headers.** A header cannot be verified from its own bytes either:
-   its hash needs its root's elements-fuse. v1 therefore requires the root's pages
-   to come first (3.3), which is not the reveal engine's order (`page-order`: header
-   first, so a client sees count and size early). Option: add `elements-fuse` to the
-   header node (32 bytes), which makes a header self-verifying and keeps header-first.
-   That changes wire-v1 and the golden hashes of collection headers.
-3. **Packing a node item over a frame.** A store that builds a page in one piece
-   (see Known issues) forces a node item to span frames. Do we also cap node items at
-   one payload (`too-large`), once the page-size fix in M1.1a makes every page
-   about 1 KiB?
+1. **Branch nodes are not bound to their children (Q1). v1 assumes good actors and
+   makes no wire or hash change.** An item is verified from its own bytes, but a
+   branch node (`ft/deep`, `hamt/bitmap`, any page with a `ref`) holds its
+   children's hashes, not their measures, and its own hash covers only `(type,
+   elements-fuse)`, not the child hashes. A peer that works to deceive can send a
+   page whose hash is right and whose children are other, valid nodes: each child
+   verifies against its own hash, and nothing checks that the parent's measure is
+   what the children add up to. The same hole is in today's reveal client (the
+   origin path). v1 accepts it. Peers are good actors in v1 (a bad entry from a
+   careless or broken peer is still caught); no public or adversarial use is
+   planned before the hardening below.
+
+   *Later hardening path (no wire change).* As each child arrives, back-check
+   that its fused hash still combines, with its siblings as received, to the
+   `elements-fuse` the parent recorded and the parent's hash covers; a branch is
+   marked bound once its children have all been checked, and a read of an
+   unbound branch is the receiver's choice. The same check also gives the count
+   and size an ancestor claims.
+
+   *Alternatives considered:*
+   - **Child measures in the refs** (hash + count + size-bytes + elements-fuse,
+     +48 bytes per child ref). A branch then verifies from its own bytes like a
+     leaf page. It changes the bytes of branch pages and HAMT bitmaps (a wire-v1
+     entry-format change; no value hash changes). Measured on the reference
+     serializer: about +1.5% of a whole string, blob or vector of strings, about
+     +5% for a vector of ints, and about +51% for a map of 10 000 int keys, where
+     a bitmap has about 5 refs and each points at a 56-byte entry. Fuse-only
+     (+32 B) is enough for content integrity but leaves count and size
+     unauthenticated; count and size alone (+16 B) is not sound.
+   - **Fold the child hashes into the node hash.** It makes a value's hash depend
+     on how it is chunked, so equal values stop deduplicating across stores and
+     hosts, and it changes every existing hash. A different system, not a v1
+     tweak. Not planned.
+
+   *The fuse is not a cryptographic hash.* It is a homomorphic monoid hash (a 4x4
+   triangular matrix product mod 2^64). Its resistance to an adversary needs its
+   own review before peers are untrusted.
+2. **Collection headers (Q2): header first, no new field, checked when the root
+   arrives.** See 3.3. The review's alternative, an `elements-fuse` field in the
+   header, is not taken; neither is the pages-before-header order of the first
+   draft, which delayed `count` and `size-bytes` and the start of a read.
+3. **Node items over a frame (Q3):** a sender-side SHOULD cap of one payload after
+   M1.1a; receivers keep the 1 MiB `max-item`. See 3.2.

@@ -291,6 +291,21 @@
                         :else [x]))))
                 (or xs []))))
 
+(defn names-child-hash?
+  "True when a literal body names a child by hash: a `ref` item, or a `run`
+   or `repeat` of `ref`, anywhere in the body. Such a body is not
+   self-contained: its measure depends on entries it does not hold."
+  [body]
+  (boolean
+   (some (fn [x]
+           (and (map? x)
+                (let [t (str (:type x))]
+                  (or (= t "ref")
+                      (and (contains? #{"run" "repeat"} t)
+                           (map? (:body x))
+                           (= "ref" (str (:of (:body x)))))))))
+         (tree-seq coll? seq body))))
+
 (defn intern-lit-item!
   "Persist one expanded {:type :body} lit. Returns its content hash.
 
