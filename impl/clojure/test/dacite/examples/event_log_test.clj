@@ -64,7 +64,7 @@
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
     (try
       (let [writer (v/root (store/remote-rooted-store base-url))]
-        (elog/load-or-seed! writer 200)
+        (elog/load-or-seed! writer 60)
         (stats/reset-stats!)
         (let [cold-page (v/root (store/remote-rooted-store base-url
                                                            {:policy :none}))

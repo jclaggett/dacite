@@ -360,9 +360,13 @@
         notice (v/hash (v/i64 rooted 9))
         order (reveal/page-order rooted parent)
         total (reduce + 0 (map #(reveal/page-bytes rooted %) order))
-        ;; The whole parent takes about two seconds, so both reveal
-        ;; bodies are still open when the root changes.
-        r-max (/ (double total) 2.0)
+        ;; JUSTIFICATION for the time (rule: a test over about 3 s is broken
+        ;; unless it says why). Most of it is starting a real HTTP/3 server
+        ;; and client (QUIC handshakes, a root-notice stream). The pacing
+        ;; is the point: the whole parent takes about half a second, so both
+        ;; reveal bodies are still open when the root changes. A reveal that
+        ;; ends sooner could not show the notice arriving beside it.
+        r-max (* 2.0 total)
         {:keys [base-url h3-url stop!]} (svc/start-server!
                                          {:port 0
                                           :rooted rooted
@@ -551,19 +555,26 @@
         (is (< 0 n (count order)))
         ;; A re-ask can bank credit and end before the next page fits.
         ;; The value still finishes within a few asks.
-        (loop [tries 0
-               prev (held-hashes local (:waiting session))]
-          (if (= (set order) (stored-hashes local))
-            (is (= (store/require-node rooted h)
-                   (store/await (store/s-get local h))))
-            (if (>= tries 4)
-              (is false "a re-ask did not finish the value")
-              (do
-                (reveal-client/fetch! session h local)
-                (let [now (held-hashes local (:waiting session))]
-                  (is (every? now prev)
-                      "a re-ask does not drop a page already held")
-                  (recur (inc tries) now)))))))
+        ;; How many re-asks it takes depends on the clock (the reveal is paced),
+        ;; so the loop only collects; the assertions after it are the same
+        ;; three on every run.
+        (let [{:keys [done? kept?]}
+              (loop [tries 0
+                     prev (held-hashes local (:waiting session))
+                     kept? true]
+                (cond
+                  (= (set order) (stored-hashes local)) {:done? true :kept? kept?}
+                  (>= tries 4) {:done? false :kept? kept?}
+                  :else
+                  (do
+                    (reveal-client/fetch! session h local)
+                    (let [now (held-hashes local (:waiting session))]
+                      (recur (inc tries) now (and kept? (every? now prev)))))))]
+          (is done? "a re-ask finishes the value")
+          (is kept? "a re-ask does not drop a page already held")
+          (is (or (not done?)
+                  (= (store/require-node rooted h)
+                   (store/await (store/s-get local h)))))))
       (finally
         ((:close! primary))
         (stop!)))))
@@ -577,10 +588,12 @@
         {:keys [h3-url stop!]} (svc/start-server!
                                 {:port 0
                                  :rooted rooted
+                                 ;; budget = r-max * tau = a quarter of the value,
+                                 ;; sent in about a quarter of a second
                                  :reveal {:peak 1.0
-                                          :tau 1.0
+                                          :tau 0.25
                                           :floor 0.0
-                                          :r-max (/ total 4.0)}})
+                                          :r-max (* total 1.0)}})
         primary (reveal-client/open-client {:trust-all true})
         local (store/mem-store)
         session {:url h3-url
@@ -595,18 +608,25 @@
         (is (< 0 n (count order)))
         ;; One ask banks the unspent integral. The next page can be larger
         ;; than what that ask sends, so a round trip may add no bytes.
-        (loop [tries 0
-               prev (held-hashes local (:waiting session))]
-          (if (= (set order) (stored-hashes local))
-            (is (= \x (v/realize (v/nth (v/wrap-hash local h) 2999))))
-            (if (>= tries 8)
-              (is false "a re-ask did not finish the value")
-              (do
-                (reveal-client/fetch! session h local)
-                (let [now (held-hashes local (:waiting session))]
-                  (is (every? now prev)
-                      "a re-ask does not drop a page already held")
-                  (recur (inc tries) now)))))))
+        ;; How many re-asks it takes depends on the clock (the reveal is paced),
+        ;; so the loop only collects; the assertions after it are the same
+        ;; three on every run.
+        (let [{:keys [done? kept?]}
+              (loop [tries 0
+                     prev (held-hashes local (:waiting session))
+                     kept? true]
+                (cond
+                  (= (set order) (stored-hashes local)) {:done? true :kept? kept?}
+                  (>= tries 8) {:done? false :kept? kept?}
+                  :else
+                  (do
+                    (reveal-client/fetch! session h local)
+                    (let [now (held-hashes local (:waiting session))]
+                      (recur (inc tries) now (and kept? (every? now prev)))))))]
+          (is done? "a re-ask finishes the value")
+          (is kept? "a re-ask does not drop a page already held")
+          (is (or (not done?)
+                  (= \x (v/realize (v/nth (v/wrap-hash local h) 2999)))))))
       (finally
         ((:close! primary))
         (stop!)))))

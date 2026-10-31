@@ -686,11 +686,13 @@ These were the three open questions of the S3.3 work. Jonathan has decided them.
      +48 bytes per child ref). A branch then verifies from its own bytes like a
      leaf page. It changes the bytes of branch pages and HAMT bitmaps (a wire-v1
      entry-format change; no value hash changes). Measured on the reference
-     serializer: about +1.5% of a whole string, blob or vector of strings, about
-     +5% for a vector of ints, and about +51% for a map of 10 000 int keys, where
-     a bitmap has about 5 refs and each points at a 56-byte entry. Fuse-only
-     (+32 B) is enough for content integrity but leaves count and size
-     unauthenticated; count and size alone (+16 B) is not sound.
+     serializer, as a share of the whole value: **+48 B a ref costs 4.5% to
+     4.7% for a string, blob or vector of strings, 6.6% for a vector of ints,
+     and 51% for a map of 10 000 int keys**, where a bitmap has about 5 refs and
+     each points at a 56-byte entry. Fuse-only (+32 B) is enough for content
+     integrity but leaves count and size unauthenticated (3.0% to 4.4%, and 34%
+     for the map); count and size alone (+16 B) is not sound (1.5% to 2.2%, and
+     17% for the map).
    - **Fold the child hashes into the node hash.** It makes a value's hash depend
      on how it is chunked, so equal values stop deduplicating across stores and
      hosts, and it changes every existing hash. A different system, not a v1

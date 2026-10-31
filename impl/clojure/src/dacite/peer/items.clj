@@ -272,21 +272,28 @@
 (defn- stored? [st h] (some? (store/await (store/s-get st h))))
 
 (defn- resolve-pending!
-  "Check the waiting headers whose root is stored now. A header that fails
-   is removed from the store before the error is thrown."
+  "Check the waiting headers whose root is stored now. When one fails, all
+   the headers waiting on that root are removed before the error is thrown."
   [{:keys [store pending]}]
   (loop []
     (when-let [[rk waiting]
                (first (filter (fn [[_ ws]] (stored? store (:root (val (first ws)))))
                               @pending))]
       (swap! pending dissoc rk)
-      (doseq [[hk {:keys [hash entry]}] waiting
-              :let [[type-name data] entry
-                    m (root-measure store type-name (:root data))]]
-        (try (header-check type-name data hash m)
-             (catch clojure.lang.ExceptionInfo e
-               (store/await (store/s-delete store hash))
-               (throw e))))
+      ;; Every header waiting on this root is checked. If any fails, every one
+      ;; of them is removed (the session ends), so none stays stored unchecked.
+      (let [failure (reduce
+                     (fn [failure [_ {:keys [hash entry]}]]
+                       (let [[type-name data] entry
+                             m (root-measure store type-name (:root data))]
+                         (try (header-check type-name data hash m) failure
+                              (catch clojure.lang.ExceptionInfo e (or failure e)))))
+                     nil
+                     waiting)]
+        (when failure
+          (doseq [[_ {:keys [hash]}] waiting]
+            (store/await (store/s-delete store hash)))
+          (throw failure)))
       (recur))))
 
 (defn accept-item!
