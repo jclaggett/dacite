@@ -1147,6 +1147,25 @@
       :node {:enc :node :hash h :entry (decode-node-bytes payload)}
       :literal {:enc :literal :hash h :literal (decode-lit-bytes payload)})))
 
+(def item-header-bytes
+  "Bytes before an Item's payload: enc u8, hash 32, plen u32."
+  37)
+
+(defn item-header
+  "Read the header of the Item at byte offset `at` of `bs`, without
+   decoding its payload: {:enc n :payload-len n :total n}. `total` is the
+   whole item, header included. The caller checks that 37 bytes remain.
+   One place knows the Item layout; framing uses this to find item
+   boundaries in a byte stream."
+  [bs at]
+  (let [plen (+ (* (bget bs (+ at 33)) 16777216)
+                (* (bget bs (+ at 34)) 65536)
+                (* (bget bs (+ at 35)) 256)
+                (bget bs (+ at 36)))]
+    {:enc (bget bs at)
+     :payload-len plen
+     :total (+ item-header-bytes plen)}))
+
 (defn decode-item-stream
   "Decode a concatenation of wire-v1 items.
 

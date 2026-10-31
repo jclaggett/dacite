@@ -12,13 +12,17 @@ stability promise: public APIs may still change before 1.0.
   entry. A 6-byte frame envelope adds a message type, flags and a u32
   stream id that the requester picks and that is never the hash (the
   protocol side of N1). Frames are at most 16 KiB, the RFC 8831 limit
-  for senders without message interleaving. An item stream is the
-  wire-v1 reveal stream cut into frames. Messages: `hello`, `have?` and
-  `have` (a bitmap), `get`, `item-stream`, `ack`, `release`, `cancel`,
-  `error`. `dacite.peer.frame` and `dacite.peer.msg` are portable
-  `.cljc`. `fixtures/peer-v1/` holds 53 golden cases made by the real
-  encoder (`clojure -M:dev -m gen-peer-fixtures`), checked on the JVM and
-  on nbb (`npm run peer:test`).
+  for senders without message interleaving. An item stream is wire-v1
+  items packed whole into frames: a node item, or a literal when that
+  is shorter and fits one frame payload (16 378 bytes), so a literal
+  never spans frames. Every item is verified from its own bytes and
+  nothing waits for a child (`dacite.peer.items`). Messages: `hello`,
+  `get`, `item-stream`, `ack`, `release`, `cancel`, `error`.
+  `dacite.peer.frame` and `dacite.peer.msg` are portable `.cljc`.
+  `fixtures/peer-v1/` holds 50 golden cases made by the real encoder
+  (`clojure -M:dev -m gen-peer-fixtures`), checked on the JVM and on nbb
+  (`npm run peer:test`). New public helpers: `bin/item-header`,
+  `ft/page-body-measure`.
 - **Reveal order and interest** — `dacite.reveal` names the pages a default
   reveal would send, and the share of the ceiling each open reveal gets.
   The share is `R_max * I / max(peak, sum I)`. Above one peak the shares

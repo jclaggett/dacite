@@ -1,0 +1,5 @@
+{:title "A literal item of 16379 bytes: one more than a frame payload",
+ :expect :reject,
+ :reason :literal-too-large,
+ :type :item-stream,
+ :stream 5}

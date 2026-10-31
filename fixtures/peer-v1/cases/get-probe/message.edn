@@ -1,0 +1,11 @@
+{:title
+ "A probe: the smallest interest. Read the first item (or an error), then cancel",
+ :expect :message,
+ :type :get,
+ :stream 11,
+ :value
+ {"hash"
+  {:dacite.peer.msg/u256
+   "ffffffffffffffff0000000000000000ffffffffffffffff0000000000000000"},
+  "policy" "default",
+  "interest" {"peak" 1, "tau-ms" 1, "floor" 0}}}

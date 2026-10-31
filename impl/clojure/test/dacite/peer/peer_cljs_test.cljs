@@ -20,6 +20,6 @@
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
              (count all) "problems")
     (doseq [p all] (println "  FAIL" p))
-    (when (or (seq all) (< cases 53))
+    (when (or (seq all) (< cases 50))
       (js/process.exit 1))))
 

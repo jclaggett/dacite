@@ -73,11 +73,24 @@ Each milestone is sized to about one working day. Dates are targets starting Mon
 
 ### Phase 1: Peer protocol spec (Tue Nov 3 to Wed Nov 4)
 
-**M1.1. Messages and framing.** `docs/spec/peer-v1.md` draft: roles, one data channel for control plus one per request stream, message set (`hello`, `have?`, `get`/reveal, `item-stream`, `ack`/`release`, `cancel`, `error`), framing on top of wire-v1 items, max message size (chunk to a safe SCTP size).
+**M1.1. Messages and framing.** `docs/spec/peer-v1.md` draft: roles, one data channel for control plus one per request stream, message set (`hello`, `get`/reveal, `item-stream`, `ack`/`release`, `cancel`, `error`), framing on top of wire-v1 items, max message size (chunk to a safe SCTP size).
 - Acceptance: every message has a byte layout or EDN shape, an example, and at least one golden fixture in `fixtures/peer-v1/`. Jonathan signs off on the message set.
 
 **M1.2. Verification, rates and failure rules.** Per-entry hash verification before store, "bad entry ends the session", how peer rates share the client's `R_max` and token buckets, flow control (`bufferedAmount`), idle timeouts, explicit client ack and release (this closes the wire gap in N7/N8), read-only rule, stream ids that are not the hash (fixes the N1 design flaw).
 - Acceptance: a conformance list of at least 20 numbered "MUST" statements, each mapped to a planned test. Open questions 1, 3 and 4 from the peering note get a decision or an explicit "deferred".
+
+**M1.1a. Tighten literalizing and serializing.** Scheduled right after M1.1 (PR #7) merges, before M1.2. Source: `/workspace/dacite/serializer-fingertree-literals.md` (checked against `main` @ cda5850 and PR #7). Paths are under `impl/clojure/src/dacite/`. The question was whether wire-v1 can carry internal finger-tree nodes as literals under a frame-sized cap. The answer is "partially yes": leaf pages are already lists of literals, and pack already picks literal or node per store node (`store/pack.cljc:556-590`, `:592-627`). What is missing is below. No code for this phase is in PR #7 except where noted.
+
+1. **A serializer parameter for the largest literal.** Default 16 KiB, tied to the frame payload (`peer/frame.cljc` `max-payload`, 16 378 bytes; the whole literal item must fit, so 16 378 − 37 for the payload). It is separate from the pack chunk budget (`pack/default-budget`, `store/pack.cljc:22`, a soft Layer-2 target) and from the leaf page budget (`lit/page-budget`, `value/lit.cljc:320`). Today `encode-item` (`store/pack.cljc:556-590`) uses one `budget` for the first two, and nothing references the frame constants. *Partly in PR #7:* `dacite.peer.items` applies the cap by size-checking the finished literal item (`items/literal-bytes`) and passes a generous gate to `encode-item`. The parameter itself, on `encode-item` and `encode-reachable`, is this phase.
+2. **Sizing stays on payload bytes for now.** `size-cue` (`store/pack.cljc:169`) and `clearly-oversized?` (`:181`) keep using the measure's `:size-bytes`, as a cheap pre-filter. The cap is checked on the encoded item after `literal-of`, through the existing `pack/wire-item-size` hook (`store/pack.cljc:91-97`). *Open design item:* add an "encoded byte size" node measure, and define how it is calculated (sum of the wire-v1 sizes of the page body, including the 9 bytes a 4-byte string costs on the wire against the 4 the cue counts; whether it is part of the measure fused into the hash, which it must not be, or a cached side value). Decide before any change to the node encoding.
+3. **Fix `lit/item-payload-bytes` and `scalar-payload-bytes`** (`value/lit.cljc:328-378`). A `run` or `repeat` of `string` or `blob` counts 0 bytes (`:364-375` falls to `scalar-payload-bytes "string" nil`, `:348`; blob `:349`), so `try-append` and `try-prepend` (`value/finger_tree.cljc:314`, `:326`) let a page grow without bound: 99 453 bytes for 100 distinct 1 KB strings, 40 049 for 5 000 four-char strings. This is the likely source of the 39 753-byte page in the PR #7 fixture `item-stream-mixed` (formerly `item-stream-three-frames`). Count real sizes, then consider switching `try-append`, `try-prepend` and `split-body-at` to the encoded size.
+4. **Fix issue #8** ([#8](https://github.com/jclaggett/dacite/issues/8)): add a `"blob"` branch to `intern-lit-item!` (`value/lit.cljc:294-313`, the `string` case is at `:310`). The page-body blob is a vector of ints, so convert to host bytes first (the verified sketch used `types/coerce-and-store!`). Tests for `[blob nil]`, `[blob blob]` and `[blob 1]`, run through `literal-of`, `literal-round-trips?` and `peer/msg encode-value`. When it lands, drop the map-value-only blob rule in spec 2.1 and the known issue in section 10.
+5. **Decide the leaf page size.** `lit/page-budget` is hardcoded to 1024 (`value/lit.cljc:320`; used by `ft-from-run` `value/finger_tree.cljc:976`, `try-append`, `split-body-at` at `:500` and `:536`). Raising it toward 16 KiB changes golden fixtures and size-based tests, not hashes (`add-node!` hashes type and `elements_fuse`, `value/finger_tree.cljc:58-67`). Keep the spine at 32 refs a page, separate from the leaf budget. Trade-off: fewer nodes and requests against coarser dedup and a larger granule per `get`. The PR #7 fixtures `item-stream-*` are regenerated when this changes.
+6. **Peer frames: literal items and a capped `encode-value`.** *Done in PR #7 (Q5):* `frame.cljc` accepts `enc = 1` items, refuses a literal over one frame payload (`literal-too-large`) from its header, and packs whole items into frames; `dacite.peer.items/encode-value` writes streams under the literal rule; spec 3.2 documents it; fixtures `item-stream-literal-at-cap` and `-over-cap` pin the boundary. *Not done:* `peer/msg.cljc` `encode-value` (the control-message encoder) is not capped by itself. A control message is bounded by the string and set limits of spec 2.1 and by `encode-frame`'s `max-frame` check, so an oversized one fails at the frame, not in `encode-value`. This phase caps it at the source. *Also left here:* letting the JVM reveal service (`service/reveal.clj`, `reveal.cljc:268` `page-bytes`) emit literals for self-contained pages; optional, a page of leaves is about the same bytes.
+7. **A property test** over shapes (string, blob, vector of scalars, of strings, of blobs, nested): every durable page and every emitted literal has an encoded size within the cap, and `literal-round-trips?` holds. Keep the experiment script (`/workspace/dacite/exp.clj`) as a regression bench. *Shorter wins:* PR #7's `items/encode-value` compares the literal with the node entries it replaces; moving that comparison into `encode-item` (`store/pack.cljc:578-590`) so HTTP pack and peers share it is part of this phase.
+8. **The S3.3 clarification.** *Done in PR #7 (spec 3.3):* leaf pages (inline leaves, no `ref`) verify on their own, because the receiver recomputes `elements_fuse` from the leaves (`body-measure`, `value/finger_tree.cljc:267`). A spine node's hash checks locally against its claimed measure, but its measure depends on its children, whose measures its bytes do not hold. The spec states this and `dacite.peer.items/verify-item!` does exactly the local checks. What to do about the unchecked part (binding a spine page's measure to its children) is an open question for M1.2; see spec section 11.
+
+Acceptance: items 1, 3, 4 and 7 land with tests; items 2 and 5 are decisions written into `docs/design/leaf-chunking.md`; 6 and 8 are confirmed against the code. All suites pass, and the peer fixtures are regenerated if page sizes change.
 
 ### Phase 2: `.cljc` core extraction (Thu Nov 5 to Mon Nov 9)
 
@@ -92,7 +105,7 @@ Each milestone is sized to about one working day. Dates are targets starting Mon
 
 ### Phase 3: Minimal nbb peer (Tue Nov 10 to Thu Nov 12)
 
-**M3.1. Peer node with a transport abstraction.** `dacite.peer` in `.cljc`: store tiers (memory, local, peers, origin), a request handler for `have?` and reveal, and an `ITransport` protocol. First transport is an in-process or loopback one, so protocol logic is tested without WebRTC.
+**M3.1. Peer node with a transport abstraction.** `dacite.peer` in `.cljc`: store tiers (memory, local, peers, origin), a request handler for reveal (`have?` was removed from v1; see the peer spec, section 9), and an `ITransport` protocol. First transport is an in-process or loopback one, so protocol logic is tested without WebRTC.
 - Acceptance: two peers in one process; B reads a value stored only in A through the peer protocol; entries verified; a corrupted entry ends the session (test).
 
 **M3.2. WebRTC transport on nbb.** Adapter over `node-datachannel` (fallback `werift` if native prebuilds are a problem). Manual signaling (copy/paste or a local file) for now.
@@ -171,7 +184,7 @@ Triage of `reveal-review-checklist-evening.md` (52 items). Items split by where 
 
 | Week | Mon | Tue | Wed | Thu | Fri |
 |---|---|---|---|---|---|
-| Nov 2 | M0 | M1.1 | M1.2 | M2.1 (Doc/Spec bot starts) | M2.2 |
+| Nov 2 | M0 | M1.1 | M1.1a (right after M1.1 merges), M1.2 | M2.1 (Doc/Spec bot starts) | M2.2 |
 | Nov 9 | M2.3 | M3.1 | M3.2 | M3.3 | M4.1 |
 | Nov 16 | M4.2 | M5.1 | M5.2 | M5.3 | M6.1 |
 | Nov 23 | M6.2 | M6.3 | M7.1 | holiday | buffer |
@@ -217,7 +230,7 @@ For the next design discussions, roughly in the order they block work.
 
 1. **Peer lists:** does the origin suggest peers by root or only by network locality? (Decide in M6.1.)
 2. **Peer rates:** how do peer streams share the client's global rate budget and token buckets? (M1.2.)
-3. **Privacy:** does asking a peer for a hash reveal what the client reads? Should `have?` be limited to known peers or a site? (Before M8.1 is public.)
+3. **Privacy:** does asking a peer for a hash reveal what the client reads? Should a probing `get` be limited to known peers or a site? (Before M8.1 is public.)
 4. **Access control:** may a peer serve any hash it holds, or only to clients authorized for that root? What does the authorization model (`docs/authorization.allium`) mean for peers?
 5. **Browser peers:** serve by default, or opt-in? Quota policy?
 6. **TURN:** direct-only, or an optional relay?

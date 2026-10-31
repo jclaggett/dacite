@@ -133,8 +133,7 @@
 ;; =============================================================================
 
 (def max-hashes
-  "Hashes in one `have?`, `ack` or `release`. 256 hashes are 8 KiB, and a
-   bitmap for them is 32 bytes."
+  "Hashes in one `ack` or `release`. 256 hashes are 8 KiB."
   256)
 
 (def error-codes
@@ -144,7 +143,7 @@
 
 (def capabilities
   "Capabilities v1 defines. A peer ignores capabilities it does not know."
-  #{"have" "reveal"})
+  #{"reveal"})
 
 (def kinds
   "Peer kinds v1 defines. An unknown kind is accepted and read as \"browser\"
@@ -161,7 +160,7 @@
   32)
 
 (defn max-hashes-for
-  "Hashes a `have?`, `ack` or `release` can hold when frames are at most
+  "Hashes an `ack` or `release` can hold when frames are at most
    `max-frame-bytes`: 32 bytes each, after 33 bytes of header and map
    framing and 320 bytes kept for a `release` reason. At 16 KiB that is
    more than 256, so 256 rules; at 1024 it is 20."
@@ -181,18 +180,12 @@
           "kind" :string
           "caps" [:set :string]
           "limits" [:map {"max-frame" :nat "max-item" :pos
-                          "max-streams" :pos "max-have" :nat}
-                    #{"max-frame" "max-item" "max-streams" "max-have"}]
+                          "max-streams" :pos}
+                    #{"max-frame" "max-item" "max-streams"}]
           "rates" [:map {"send-max" :pos "recv-max" :pos
                          "req-rate" :pos "req-burst" :pos}
                    #{"send-max" "recv-max" "req-rate" "req-burst"}]}
     #{"versions" "kind" "caps" "limits" "rates"}]
-
-   :have?
-   [:map {"hashes" [:vec :hash]} #{"hashes"}]
-
-   :have
-   [:map {"count" :nat "bits" :blob} #{"count" "bits"}]
 
    :get
    [:map {"hash" :hash
@@ -254,14 +247,6 @@
                                  []))
                              x)))))))
 
-(defn bitmap-held?
-  "True when bit `i` of `bits` is set."
-  [bits i]
-  (let [bits (bin/as-wire-bytes bits)
-        b #?(:clj (bit-and 0xff (aget ^bytes bits (int (quot i 8))))
-             :cljs (aget bits (quot i 8)))]
-    (pos? (bit-and b (bit-shift-right 0x80 (rem i 8))))))
-
 (defn- semantic-problems
   "Rules a shape cannot say. `mode` is `:receive` (what a receiver must
    refuse) or `:send` (receive rules, plus the names a sender may use: a
@@ -280,33 +265,12 @@
         (conj "kind: must be node or browser")
         (and (map? lim) (int-value? (get lim "max-frame"))
              (not (<= frame/min-max-frame (get lim "max-frame") frame/max-frame)))
-        (conj "limits.max-frame: must be 1024..16384")
-        (and (map? lim) (int-value? (get lim "max-have"))
-             (not (<= 1 (get lim "max-have") max-hashes)))
-        (conj "limits.max-have: must be 1..256")))
-
-    :have?
-    (cond-> []
-      (and (vector? (get x "hashes")) (not (<= 1 (count (get x "hashes")) max-hashes)))
-      (conj "hashes: 1..256 required"))
+        (conj "limits.max-frame: must be 1024..16384")))
 
     (:ack :release)
     (cond-> []
       (and (vector? (get x "hashes")) (not (<= 1 (count (get x "hashes")) max-hashes)))
       (conj "hashes: 1..256 required"))
-
-    :have
-    (let [n (get x "count") bits (get x "bits")]
-      (if (and (int-value? n) (bytes-value? bits))
-        (let [blen (bin/byte-len bits)
-              expect (quot (+ n 7) 8)]
-          (cond-> []
-            (not (<= 1 n max-hashes)) (conj "count: 1..256 required")
-            (not= blen expect) (conj (str "bits: expected " expect " bytes"))
-            (and (= blen expect)
-                 (some #(bitmap-held? bits %) (range n (* 8 blen))))
-            (conj "bits: spare bits must be zero")))
-        []))
 
     :get
     (cond-> []
@@ -347,25 +311,6 @@
     (if (contains? kinds k) k "browser")))
 
 ;; =============================================================================
-;; The `have` bitmap
-;; =============================================================================
-
-(defn bitmap
-  "Bytes of a `have` bitmap for a seq of booleans. Hash i is bit
-   `0x80 >> (i mod 8)` of byte `i div 8`. Spare bits are zero."
-  [held?s]
-  (let [held? (vec held?s)
-        n (count held?)
-        out (vec (repeat (quot (+ n 7) 8) 0))]
-    (bin/as-wire-bytes
-     (reduce (fn [acc i]
-               (if (nth held? i)
-                 (update acc (quot i 8) #(bit-or % (bit-shift-right 0x80 (rem i 8))))
-                 acc))
-             out
-             (range n)))))
-
-;; =============================================================================
 ;; Messages on the wire
 ;; =============================================================================
 
@@ -375,7 +320,7 @@
                   {:reason :invalid-message :type type :problems ps})))
 
 (defn encode-message
-  "Frame bytes for {:type :hello|:have?|... :stream n :value native}.
+  "Frame bytes for {:type :hello|:get|... :stream n :value native}.
 
    Validates the value first. A control message is one frame with FIN."
   [{:keys [type stream value max-frame-bytes]
@@ -438,7 +383,7 @@
    of v1). Every answer is non-fatal and on the request's stream.
 
    - an unknown message type: `unsupported`
-   - `have?` without the `have` capability, `get` without `reveal`: `unsupported`
+   - `get` without the `reveal` capability: `unsupported`
    - `get` with a policy the responder does not know: `unsupported-policy`"
   ([msg] (answer-error msg {}))
   ([{:keys [type stream value unknown?]} {:keys [caps policies]
@@ -450,8 +395,6 @@
                 :value {"code" code "message" text "fatal" false}})]
      (cond
        unknown? (err "unsupported" "unknown message type")
-       (and (= :have? type) (not (contains? caps "have")))
-       (err "unsupported" "have? is not served")
        (and (= :get type) (not (contains? caps "reveal")))
        (err "unsupported" "get is not served")
        (and (= :get type) (not (contains? policies (get value "policy"))))
