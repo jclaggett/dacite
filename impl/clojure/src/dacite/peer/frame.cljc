@@ -33,8 +33,20 @@
 (def max-payload (- max-frame header-bytes))
 
 (def min-max-frame
-  "Smallest `max-frame` a peer may advertise. A control message must fit."
-  1024)
+  "Smallest `max-frame` a peer may advertise. A control message must fit,
+   and so must the largest node item (the leaf page budget, 4096 payload
+   bytes, is about 4.6 KB on the wire) plus the 37-byte item header and the
+   6-byte envelope (spec 3.2). `max-node-item-bytes` is that bound."
+  8192)
+
+(def max-node-item-bytes
+  "What the sender expects the largest node item to be on the wire: the leaf
+   page budget with each string and blob counted 5 bytes over its length (its
+   wire framing), so 4096 payload bytes stay within about 1.1x of it, and the
+   most a spine or bitmap page holds (32 refs of 33 bytes, plus its measure).
+   `min-max-frame` must leave room for it, its item header and the envelope.
+   A test keeps this true for the shapes of the property test."
+  5000)
 
 (def default-max-item
   "Default bound on one wire-v1 item (header plus payload) in a stream."
@@ -50,6 +62,15 @@
    literal never spans frames."
   ([] (max-literal-item max-frame))
   ([max-frame-bytes] (- max-frame-bytes header-bytes)))
+
+(defn min-max-frame-fits-node?
+  "True when a frame of `min-max-frame` carries the largest expected node item
+   (`max-node-item-bytes`, header included) in one payload. Spec 3.2: the
+   smallest frame a peer may ask for must hold the largest node item the
+   sender will send. `test`ed rather than assumed: raise `min-max-frame` with
+   the leaf page budget."
+  []
+  (>= (max-literal-item min-max-frame) max-node-item-bytes))
 
 (def type->id
   {:hello 0x01

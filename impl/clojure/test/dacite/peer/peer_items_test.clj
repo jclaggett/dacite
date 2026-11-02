@@ -199,9 +199,15 @@
         checks (mapv #(items/accept-item! rx %) decoded)]
     (is (= :node (:enc (first decoded))) "the header comes first")
     (is (contains? (first checks) :pending) "and waits for its root")
-    (is (some #(contains? % :body-measure) checks) "a page checked against its contents")
     (is (some #(contains? % :literal) checks))
-    (is (empty? (items/unchecked rx)) "the header was checked when its root arrived")))
+    (is (empty? (items/unchecked rx)) "the header was checked when its root arrived"))
+  ;; A leaf page sent as a node item (a store that built it in one piece, so
+  ;; it is not shorter as a literal): checked against its contents.
+  (let [{:keys [decoded]} (fixture-items "item-stream-node-spans-frames")
+        rx (items/receiver)
+        checks (mapv #(items/accept-item! rx %) decoded)]
+    (is (some #(contains? % :body-measure) checks) "a page checked against its contents")
+    (is (empty? (items/unchecked rx)))))
 
 (deftest a-header-is-accepted-first-and-checked-when-its-root-arrives
   ;; Q2: header-first. The header cannot be checked alone (its hash, count and
@@ -250,29 +256,32 @@
     (is (= :bad-hash (thrown-reason #(items/accept-item! rx root))))
     (is (nil? (store/await (store/s-get (:store rx) other))))))
 
-(deftest every-header-waiting-on-a-root-is-removed-when-a-check-fails
-  ;; Two headers wait on one root. When the root arrives and a check fails,
-  ;; neither may stay stored unchecked (review M4, two-headers-one-root).
+(deftest only-the-failing-headers-waiting-on-a-root-are-removed
+  ;; Several headers wait on one root. When it arrives each is checked on its
+  ;; own: a failing one is deleted, an honest one stays (M1.1a, M4 follow-up).
   (let [st (store/mem-store)
         h (v/hash (lines st 300))
         [header root & more] (node-items st (reveal/page-order st h))
         fake1 [1 2 3 4]
         fake2 [9 8 7 6]
-        rx (items/receiver)]
-    (is (= #{:pending} (items/accept-item! rx (assoc header :hash fake1))))
-    (is (= #{:pending} (items/accept-item! rx (assoc header :hash fake2))))
-    (is (= 2 (count (items/unchecked rx))))
-    (is (= :bad-hash (thrown-reason #(items/accept-item! rx root))))
-    (is (empty? (items/unchecked rx)) "nothing is tracked")
-    (is (every? #(nil? (store/await (store/s-get (:store rx) %))) [fake1 fake2])
-        "and nothing is left stored")
-    (testing "one honest and one forged header on the same root: both go"
+        stored? #(some? (store/await (store/s-get (:store %1) %2)))]
+    (testing "two forged headers: both go, nothing is tracked"
+      (let [rx (items/receiver)]
+        (is (= #{:pending} (items/accept-item! rx (assoc header :hash fake1))))
+        (is (= #{:pending} (items/accept-item! rx (assoc header :hash fake2))))
+        (is (= 2 (count (items/unchecked rx))))
+        (is (= :bad-hash (thrown-reason #(items/accept-item! rx root))))
+        (is (empty? (items/unchecked rx)))
+        (is (not (stored? rx fake1)))
+        (is (not (stored? rx fake2)))))
+    (testing "one honest and one forged header: only the forged one goes"
       (let [rx (items/receiver)]
         (items/accept-item! rx header)
         (items/accept-item! rx (assoc header :hash fake1))
         (is (= :bad-hash (thrown-reason #(items/accept-item! rx root))))
         (is (empty? (items/unchecked rx)))
-        (is (nil? (store/await (store/s-get (:store rx) fake1))))))))
+        (is (not (stored? rx fake1)) "the forged header is gone")
+        (is (stored? rx (:hash header)) "the honest header stays, verified")))))
 
 (deftest a-header-over-a-bare-leaf-root-is-checked-when-the-leaf-arrives
   ;; A vector of one string: the vector's root is the string's own hash, and
@@ -330,14 +339,15 @@
                                                       :body {:of "ref" :values [[1 2 3 4] [5 6 7 8]]}}]}})))))))
 
 (deftest a-page-with-a-run-of-refs-is-a-spine-page
-  ;; The over-cap fixture holds an ft/digit with a char run and a run of refs.
-  ;; It must verify as a spine page (hash only), not leak a raw :missing from
-  ;; recomputing a leaf measure.
-  (let [{:keys [decoded]} (fixture-items "item-stream-literal-over-cap")
+  ;; A digit with a run of refs (a spine page of a long string) must verify as
+  ;; a spine page (hash only), not leak a raw :missing from recomputing a leaf
+  ;; measure.
+  (let [st (store/mem-store)
+        h (v/hash (v/string st (apply str (map #(char (+ 97 (mod (* % 7) 26))) (range 60000)))))
         page (first (filter #(and (= :node (:enc %))
                                   (lit/names-child-hash? (:body (second (:entry %)))))
-                            decoded))]
-    (is (some? page) "the fixture has a page whose refs are a run")
+                            (node-items st (reveal/page-order st h))))]
+    (is (some? page) "a long string has a page whose refs are a run")
     (is (= #{:hash} (items/verify-item! (store/mem-store) page)))))
 
 (deftest a-missing-entry-is-a-protocol-reason

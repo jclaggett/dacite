@@ -291,7 +291,7 @@
         (conj "kind: must be node or browser")
         (and (map? lim) (int-value? (get lim "max-frame"))
              (not (<= frame/min-max-frame (get lim "max-frame") frame/max-frame)))
-        (conj "limits.max-frame: must be 1024..16384")))
+        (conj "limits.max-frame: must be 8192..16384")))
 
     (:ack :release)
     (cond-> []

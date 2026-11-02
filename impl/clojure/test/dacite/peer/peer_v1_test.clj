@@ -315,14 +315,14 @@
         mine (assoc hello "versions" #{1 2} "caps" #{"reveal" "x"}
                     "limits" {"max-frame" 16384 "max-item" 1048576 "max-streams" 32})
         theirs (assoc hello "versions" #{2 3} "caps" #{"reveal"}
-                      "limits" {"max-frame" 4096 "max-item" 262144 "max-streams" 8})
+                      "limits" {"max-frame" 8192 "max-item" 262144 "max-streams" 8})
         {:keys [ok error]} (msg/negotiate mine theirs)]
     (is (nil? error))
     (is (= 2 (:version ok)) "the highest in both")
     (is (= #{"reveal"} (:caps ok)) "the intersection")
-    (is (= [4096 262144] [(:max-frame ok) (:max-item ok)]) "the smaller of the two")
+    (is (= [8192 262144] [(:max-frame ok) (:max-item ok)]) "the smaller of the two")
     (is (= [8 32] [(:may-open ok) (:will-accept ok)]) "max-streams is per direction")
-    (is (= (- 4096 6) (:frame-literal-cap ok)))
+    (is (= (- 8192 6) (:frame-literal-cap ok)))
     (testing "no common version: a fatal unsupported-version on stream 0"
       (let [{:keys [ok error]} (msg/negotiate (assoc mine "versions" #{1}) (assoc theirs "versions" #{2 3}))]
         (is (nil? ok))

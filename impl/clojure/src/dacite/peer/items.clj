@@ -76,9 +76,17 @@
    way. A literal covers everything under it. Equal sizes keep the node
    entries.
 
-   Returns {:items [bytes] :encs [:node|:literal] :hashes [hash]}."
+   A node item over one payload (the same cap as a literal) breaks the
+   sender SHOULD of spec 3.2. The default is to report it: `:oversized`
+   lists each such item as {:hash :bytes-len}, and the item is still sent
+   (receivers take up to `max-item`). With `:strict-node-cap? true` it
+   throws ex-info {:reason :node-too-large} instead.
+
+   Returns {:items [bytes] :encs [:node|:literal] :hashes [hash]
+            :oversized [{:hash :len}]}."
   ([st root] (encode-value st root {}))
-  ([st root {:keys [max-frame-bytes] :or {max-frame-bytes frame/max-frame}}]
+  ([st root {:keys [max-frame-bytes strict-node-cap?]
+             :or {max-frame-bytes frame/max-frame}}]
    (let [cap (frame/max-literal-item max-frame-bytes)
          cache (atom {})
          order (reveal/page-order st root)
@@ -102,11 +110,20 @@
                   {:covered (conj covered (gc/hash-key h))
                    :picks (conj picks {:hash h :enc :node :bytes (node-bytes st h)})}))))
           {:covered #{} :picks []}
-          order)
-         ]
-     {:items (mapv :bytes picks)
-      :encs (mapv :enc picks)
-      :hashes (mapv :hash picks)})))
+          order)]
+     (let [oversized (into []
+                           (comp (filter #(and (= :node (:enc %))
+                                               (> (bin/byte-len (:bytes %)) cap)))
+                                 (map #(hash-map :hash (:hash %)
+                                                 :len (bin/byte-len (:bytes %)))))
+                           picks)]
+       (when (and strict-node-cap? (seq oversized))
+         (throw (ex-info "a node item is over one frame payload"
+                         {:reason :node-too-large :cap cap :oversized oversized})))
+       {:items (mapv :bytes picks)
+        :encs (mapv :enc picks)
+        :hashes (mapv :hash picks)
+        :oversized oversized}))))
 
 ;; =============================================================================
 ;; Checking
@@ -259,28 +276,30 @@
 (defn- stored? [st h] (some? (store/await (store/s-get st h))))
 
 (defn- resolve-pending!
-  "Check the waiting headers whose root is stored now. When one fails, all
-   the headers waiting on that root are removed before the error is thrown."
+  "Check the waiting headers whose root is stored now. Each failing header is
+   removed from the store; the honest ones on the same root stay. The first
+   error is thrown once all have been checked."
   [{:keys [store pending]}]
   (loop []
     (when-let [[rk waiting]
                (first (filter (fn [[_ ws]] (stored? store (:root (val (first ws)))))
                               @pending))]
       (swap! pending dissoc rk)
-      ;; Every header waiting on this root is checked. If any fails, every one
-      ;; of them is removed (the session ends), so none stays stored unchecked.
-      (let [failure (reduce
-                     (fn [failure [_ {:keys [hash entry]}]]
-                       (let [[type-name data] entry
-                             m (root-measure store type-name (:root data))]
-                         (try (header-check type-name data hash m) failure
-                              (catch clojure.lang.ExceptionInfo e (or failure e)))))
-                     nil
-                     waiting)]
-        (when failure
-          (doseq [[_ {:keys [hash]}] waiting]
-            (store/await (store/s-delete store hash)))
-          (throw failure)))
+      ;; Every header waiting on this root is checked on its own. A header
+      ;; that fails is removed; one that passes is verified and stays, even
+      ;; beside a forged one (the error is thrown after all are done).
+      (let [failures (reduce
+                      (fn [failures [_ {:keys [hash entry]}]]
+                        (let [[type-name data] entry
+                              m (root-measure store type-name (:root data))]
+                          (try (header-check type-name data hash m) failures
+                               (catch clojure.lang.ExceptionInfo e
+                                 (store/await (store/s-delete store hash))
+                                 (conj failures e)))))
+                      []
+                      waiting)]
+        (when (seq failures)
+          (throw (first failures))))
       (recur))))
 
 (defn accept-item!

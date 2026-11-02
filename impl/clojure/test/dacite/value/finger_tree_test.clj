@@ -241,8 +241,8 @@
                 (recur (rest hs) (conj seen h) acc)))))))))
 
 (deftest chunk-run-fills-forward-without-overshoot
-  (let [border (str (apply str (repeat 1023 \a)) \u03bb "bc")
-        long (str (apply str (repeat 2500 \x)) \u03bb)
+  (let [border (str (apply str (repeat 4095 \a)) \u03bb "bc")
+        long (str (apply str (repeat 9000 \x)) \u03bb)
         chunks-b (lit/chunk-run "char" border lit/page-budget)
         chunks-l (lit/chunk-run "char" long lit/page-budget)
         text-of (fn [item]

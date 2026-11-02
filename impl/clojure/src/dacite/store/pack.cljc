@@ -251,13 +251,27 @@
 
 (def ^:private rle-form lit/rle-form)
 
+(def ^:dynamic *form-cache*
+  "An atom, or nil. While `encode-item` runs with a `:cache`, the recursive
+   forms of nested values are kept in it by hash: a string held under many
+   keys of a map is turned into its form once, not once per key."
+  nil)
+
 (defn- nested-literal
   "Recursive typed literal for child value at eh, or nil if not a value type."
   [st eh]
   (when-let [entry (store/await (store/s-get st eh))]
     (let [t (types/entry-type entry)]
       (when (value-type? t)
-        (literal-of st eh)))))
+        (if-let [c *form-cache*]
+          (let [k [:form (gc/hash-key eh)]
+                hit (get @c k ::miss)]
+            (if (= hit ::miss)
+              (let [f (literal-of st eh)]
+                (swap! c assoc k f)
+                f)
+              hit))
+          (literal-of st eh))))))
 
 ;; =============================================================================
 ;; literal-of (2b′) — complete realized typed form
@@ -654,14 +668,15 @@
   ([st h entry opts]
    (let [{:keys [shorter-wins? covered cache] :as opts} (encode-opts opts)
          hk (gc/hash-key h)
-         item (if cache
+         item (binding [*form-cache* (or cache *form-cache*)]
+              (if cache
                 (let [c (get @cache hk ::miss)]
                   (if (= c ::miss)
                     (let [it (build-literal st h entry opts)]
                       (swap! cache assoc hk (or it ::none))
                       it)
                     (when-not (= c ::none) c)))
-                (build-literal st h entry opts))]
+                (build-literal st h entry opts)))]
      (if (and item
               (or (not shorter-wins?)
                   (let [lit-size (long (wire-item-size item))]

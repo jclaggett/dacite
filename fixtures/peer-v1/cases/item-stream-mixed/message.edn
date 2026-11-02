@@ -1,9 +1,8 @@
-{:title
- "A larger vector: node entries and literals, four frames, one entry spans three",
+{:title "A larger vector: node entries and literals, 3 frames",
  :expect :item-stream,
  :stream 7,
  :partial? false,
- :frames 4,
+ :frames 3,
  :items
  [{:hash
    "21acb79b2a0f095d4e8c1f23387a63f6cd3e106ea2f06162a5809a9cc3b55516",
@@ -18,10 +17,70 @@
    :bytes 74,
    :enc :literal}
   {:hash
+   "533b86f715476ca3e9ea765b40c5ad8fc89f4ab42db8083526dbdb39c17525b6",
+   :bytes 184,
+   :enc :node}
+  {:hash
+   "0b915908f605b623e768a8c14399eb166b57a87f215e42726052271af54efd53",
+   :bytes 2695,
+   :enc :literal}
+  {:hash
    "4dbaf97929506cdc3f254326e4dc2f95693fc63851a5baaa06212cd0abc4a24d",
    :bytes 42,
    :enc :literal}
   {:hash
-   "c6d92143d8e35cf57f8b6664b64c3f481f739788fb3b820eb8c8b99ed68b2324",
-   :bytes 39753,
-   :enc :node}]}
+   "5d4cf0b91a1d63d101e0e82dc59128e2cca872bad934a59974e27206e1192b88",
+   :bytes 3141,
+   :enc :node}
+  {:hash
+   "1419cb702c447584bb0dc2fec16d1e0450bfa899c281418ff18b26dc879d3a07",
+   :bytes 2688,
+   :enc :literal}
+  {:hash
+   "1be7a5e68bdc06cef0cd532509cb4e46570b0c212437ba2631eb5bbb1fca4892",
+   :bytes 2688,
+   :enc :literal}
+  {:hash
+   "0cd97f70b250b5d32b066b14fb77397ec68975f160f7fafcae6475a6fb3f2760",
+   :bytes 2688,
+   :enc :literal}
+  {:hash
+   "5991abc6da63732f56be1bb9656e5168acebf2b85961044161dcf8dac5584c16",
+   :bytes 2688,
+   :enc :literal}
+  {:hash
+   "2cbb3f935a337837eb3df58e1ee81b453c9537b27615ec1f62717dc5454ce9e3",
+   :bytes 2688,
+   :enc :literal}
+  {:hash
+   "b27fb2ce7fa887db36aec992c012ab5e4734665580bae444dea03f51fe4a39f3",
+   :bytes 2688,
+   :enc :literal}
+  {:hash
+   "97e604b726aef87a539f449f6f703ed4548c4c38741cec1e91943eb2cedac71f",
+   :bytes 2688,
+   :enc :literal}
+  {:hash
+   "e86455a51d35220769254d9bac548482e075c9c62652daf7eb8922731deb333e",
+   :bytes 2688,
+   :enc :literal}
+  {:hash
+   "84413a49c7fffedb42696d72198460c84fee7664c9ae1c21abe87cda6f8be3e6",
+   :bytes 2688,
+   :enc :literal}
+  {:hash
+   "60ef0a1c60b8f79804f08566430ea682fd07f49970c3f936b75b508b65bb818a",
+   :bytes 2721,
+   :enc :literal}
+  {:hash
+   "8ad9b0b7ef82db4aa0271e49ecad1eb50490574c8f3558d9f4e84e05ac569642",
+   :bytes 2700,
+   :enc :literal}
+  {:hash
+   "08b8d66f99c7f90dde73933f214e9fd31dc39d79d90e5ec97c49ef321bdf4553",
+   :bytes 2700,
+   :enc :literal}
+  {:hash
+   "690f413204231c4bd829e27ee812933adb4079bffa1d1e4f8eeec2370c8ddb5d",
+   :bytes 2666,
+   :enc :literal}]}

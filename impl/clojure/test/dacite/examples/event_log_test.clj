@@ -64,7 +64,7 @@
         {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
     (try
       (let [writer (v/root (store/remote-rooted-store base-url))]
-        (elog/load-or-seed! writer 60)
+        (elog/load-or-seed! writer 100)
         (stats/reset-stats!)
         (let [cold-page (v/root (store/remote-rooted-store base-url
                                                            {:policy :none}))
@@ -156,7 +156,7 @@
         (try
           (is (not= :timeout (deref first-ev 5000 :timeout))
               "SSE should emit the current root first")
-          (elog/load-or-seed! writer 0)
+          (elog/load-or-seed! writer 100)
           (v/swap! writer elog/append (elog/event writer "credit" 1 "sse"))
           (is (not= :timeout (deref later 8000 :timeout))
               "SSE client should see a root after CAS")
