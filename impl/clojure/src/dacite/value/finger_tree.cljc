@@ -620,12 +620,51 @@
               (intern-u8! store (lit/u8-piece-nth item i))
               (recur (next items) (- i c)))))))))
 
+(declare tree-nth*)
+
+(defn- page-nth
+  "Value hash of the element at `idx` inside a literal page, reading the
+   body in place: only the element asked for is interned (a `ref` is just
+   its hash). Elements under a `ref` to a nested cell are found by its
+   measure, as `scan-children` does. Nil for a pointer page."
+  [store data idx]
+  (when-let [body (and (not (:children data)) (:body data))]
+    (let [descend (fn [h i]
+                    (if (contains? #{"ft/node" "ft/digit"} (node-type (lookup store h)))
+                      (tree-nth* store h i)
+                      (as-leaf-hash store h)))]
+      (loop [items (seq body) i (long idx)]
+        (when-let [item (first items)]
+          (let [t (str (:type item))
+                b (:body item)
+                ref-seq (case t
+                          "ref" [(:body item)]
+                          "run" (when (= "ref" (str (:of b))) (:values b))
+                          "repeat" (when (= "ref" (str (:of b)))
+                                     (repeat (long (:n b)) (:value b)))
+                          nil)]
+            (if ref-seq
+              (let [[i' found]
+                    (loop [rs (seq ref-seq) i i]
+                      (if-let [r (first rs)]
+                        (let [c (long (:count (measure-of store r)))]
+                          (if (< i c) [i r] (recur (next rs) (- i c))))
+                        [i nil]))]
+                (if found
+                  (descend found i')
+                  (recur (next items) i')))
+              (let [c (long (lit/item-count item))]
+                (if (< i c)
+                  (lit/intern-lit-item! store (lit/item-at item i))
+                  (recur (next items) (- i c)))))))))))
+
 (defn- tree-nth* [store root idx]
   (let [node (lookup store root)
         t (node-type node)]
     (case t
       ("ft/node" "ft/digit")
       (or (u8-page-nth store (node-data node) idx)
+          (page-nth store (node-data node) idx)
           (scan-children store (get-children store root) idx))
       "ft/deep"
       (let [{:keys [left spine right]} (node-data node)

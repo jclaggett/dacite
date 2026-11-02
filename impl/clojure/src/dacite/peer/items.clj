@@ -37,12 +37,6 @@
             [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
 
-(def literal-gate
-  "Values whose logical size is over `literal-gate * cap` bytes never get a
-   literal built: it could not fit. An optimisation, not a rule; the rule is
-   the size of the literal item itself."
-  16)
-
 (defn- collection-type? [t] (contains? #{"string" "blob" "vector" "map" "set"} t))
 
 (defn- structural-type? [t]
@@ -61,28 +55,16 @@
 
 (defn literal-bytes
   "Wire-v1 bytes of the literal item for `h`, or nil when it has none, holds
-   a ref, or does not fit `cap` bytes (the whole item, header included)."
-  [st h cap]
-  (when-let [entry (store/await (store/s-get st h))]
-    (let [item (pack/encode-item st h entry (* literal-gate cap))]
-      (when (and (= :literal (:encoding item)) (not (has-ref? (:body item))))
-        (let [bs (bin/encode-item {:enc :literal :hash h
-                                   :literal {:type (:type item) :body (:body item)}})]
-          (when (<= (bin/byte-len bs) cap)
-            bs))))))
-
-(defn- entries-bytes
-  "Bytes of the node items a default reveal of `h` would send, not counting
-   hashes in `covered`. Stops counting past `limit`: only 'more than the
-   literal' matters."
-  [st h covered limit]
-  (reduce (fn [acc x]
-            (if (contains? covered (gc/hash-key x))
-              acc
-              (let [acc (+ acc (bin/byte-len (node-bytes st x)))]
-                (if (> acc limit) (reduced acc) acc))))
-          0
-          (reveal/page-order st h)))
+   a ref, or does not fit `cap` bytes (the whole item, header included).
+   `pack/encode-item` makes the choice."
+  ([st h cap] (literal-bytes st h cap nil))
+  ([st h cap cache]
+   (when-let [entry (store/await (store/s-get st h))]
+     (let [item (pack/encode-item st h entry (cond-> {:max-literal cap}
+                                               cache (assoc :cache cache)))]
+       (when (and (= :literal (:encoding item)) (not (has-ref? (:body item))))
+         (bin/encode-item {:enc :literal :hash h
+                           :literal {:type (:type item) :body (:body item)}}))))))
 
 (defn encode-value
   "Items (wire-v1 bytes, in sending order) that reveal `root` in full.
@@ -98,6 +80,7 @@
   ([st root] (encode-value st root {}))
   ([st root {:keys [max-frame-bytes] :or {max-frame-bytes frame/max-frame}}]
    (let [cap (frame/max-literal-item max-frame-bytes)
+         cache (atom {})
          order (reveal/page-order st root)
          ;; decide in reveal order (header first); that is also the sending order
          {:keys [picks]}
@@ -105,11 +88,15 @@
           (fn [{:keys [covered picks] :as acc} h]
             (if (contains? covered (gc/hash-key h))
               acc
-              (let [lit (literal-bytes st h cap)
-                    use-lit? (and lit
-                                  (< (bin/byte-len lit)
-                                     (entries-bytes st h covered (bin/byte-len lit))))]
-                (if use-lit?
+              (let [entry (store/await (store/s-get st h))
+                    item (pack/encode-item st h entry
+                                           {:max-literal cap :shorter-wins? true
+                                            :covered covered :cache cache})
+                    lit (when (and (= :literal (:encoding item))
+                                   (not (has-ref? (:body item))))
+                          (bin/encode-item {:enc :literal :hash h
+                                            :literal {:type (:type item) :body (:body item)}}))]
+                (if lit
                   {:covered (into covered (gc/mark-reachable st h))
                    :picks (conj picks {:hash h :enc :literal :bytes lit})}
                   {:covered (conj covered (gc/hash-key h))
