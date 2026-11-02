@@ -163,7 +163,10 @@
 (defn- pack-u8-values
   "Copied byte buffer of the bodies of u8 lits."
   [lits]
-  (let [n (count lits)]
+  ;; `nth` of a lazy seq is O(n), so index a vector (this was quadratic: a
+  ;; 100 KB blob took 110 s to encode)
+  (let [lits (if (vector? lits) lits (vec lits))
+        n (count lits)]
     #?(:clj
        (let [out (byte-array n)]
          (dotimes [i n]
@@ -396,9 +399,36 @@
    measure is an open design item (docs/plan/peering.md, M1.1a item 2)."
   5)
 
-(defn- utf8-len
+(defn utf8-len
+  "Number of UTF-8 bytes of `s`, counted without building them.
+
+   The same answer as `(count (host/utf8-bytes s))`, which allocated the
+   bytes of the whole run for every append to a page. A lone surrogate is
+   one byte on the JVM (the encoder writes `?`) and three in CLJS (the
+   TextEncoder writes U+FFFD), as `host/utf8-bytes` does on each host."
   [s]
-  (count (host/utf8-bytes (str s))))
+  (let [s (str s)
+        n (long (count s))]
+    (loop [i 0 acc 0]
+      (if (>= i n)
+        acc
+        (let [c (long #?(:clj (int (.charAt ^String s (int i)))
+                         :cljs (.charCodeAt s i)))]
+          (cond
+            (< c 0x80) (recur (inc i) (+ acc 1))
+            (< c 0x800) (recur (inc i) (+ acc 2))
+            (and (>= c 0xD800) (< c 0xDC00))
+            ;; a high surrogate: four bytes with its low partner
+            (let [d (if (< (inc i) n)
+                      (long #?(:clj (int (.charAt ^String s (int (inc i))))
+                               :cljs (.charCodeAt s (inc i))))
+                      0)]
+              (if (and (>= d 0xDC00) (< d 0xE000))
+                (recur (+ i 2) (+ acc 4))
+                (recur (inc i) (+ acc #?(:clj 1 :cljs 3)))))
+            (and (>= c 0xDC00) (< c 0xE000))
+            (recur (inc i) (+ acc #?(:clj 1 :cljs 3)))
+            :else (recur (inc i) (+ acc 3))))))))
 
 (defn- scalar-payload-bytes
   [t v]
@@ -443,13 +473,48 @@
       (reduce + 0 (map #(scalar-payload-bytes of %) vs))
       (* (scalar-payload-bytes of nil) (count vs)))))
 
+(def item-tag-bytes
+  "The type tag of a singleton item on the wire. A `string` or `blob`
+   already counts its tag in `string-wire-overhead`."
+  1)
+
+(def run-header-bytes
+  "A `run` or `repeat` item's wire header: type tag, inner type id, u32
+   count. A page of runs of two costs this per two values, so it is counted
+   (a run or a repeat of one value is a singleton instead)."
+  6)
+
+(defn- run-overhead-bytes
+  "Wire bytes of a run or repeat of type `of` besides its values: the header,
+   and for `char` the u32 byte length that precedes the text."
+  [of]
+  (if (= "char" (str of))
+    (+ run-header-bytes 4)
+    run-header-bytes))
+
+(defn- singleton-payload-bytes
+  "Payload bytes of one value that is not part of a run: its body and its
+   type tag (a `char` also has a one-byte length)."
+  [t v]
+  (let [n (scalar-payload-bytes t v)]
+    (cond
+      (variable-size? t) n
+      (= "char" (str t)) (+ item-tag-bytes 1 n)
+      :else (+ item-tag-bytes n))))
+
 (defn item-payload-bytes
-  "Useful payload bytes of one body item (run/repeat/ref/scalar/string).
-   Headers are excluded, matching the 32×32-byte children budget.
+  "Wire bytes of one body item (run/repeat/ref/scalar/string), without the
+   page's own item header. Matches the encoded size of the item (a ref is
+   its 32 bytes and a tag; a singleton its body and a tag; a run its
+   header and its values, one `repeat` copy counted per value so the page
+   stays bounded in elements). The 32x32-byte children budget of spine
+   pages is a count of children, not this.
 
    A `string` or `blob` counts its own length, alone, in a `run` and in a
    `repeat` (they used to count 0 in the last two, so a page could grow
-   without bound)."
+   without bound). A one-byte value counts its tag as well (M1.1a review
+   S1): a page of alternating `u8` and `char` is two bytes an element on
+   the wire, not one."
   [item]
   (let [t (str (:type item))
         b (:body item)]
@@ -457,18 +522,20 @@
       "run"
       (let [of (str (:of b))
             vs (:values b)]
-        (case of
-          "char" (utf8-len vs)
-          "u8" (u8-count vs)
-          "ref" (* 32 (count (or vs [])))
-          (values-payload-bytes of vs)))
+        (+ (run-overhead-bytes of)
+           (case of
+             "char" (utf8-len vs)
+             "u8" (u8-count vs)
+             "ref" (* 32 (count (or vs [])))
+             (values-payload-bytes of vs))))
 
       "repeat"
-      (* (long (or (:n b) 0))
-         (scalar-payload-bytes (:of b) (:value b)))
+      (+ run-header-bytes
+         (* (long (or (:n b) 0))
+            (scalar-payload-bytes (:of b) (:value b))))
 
-      "ref" 32
-      (scalar-payload-bytes t b))))
+      "ref" (+ item-tag-bytes 32)
+      (singleton-payload-bytes t b))))
 
 (defn payload-bytes
   "Sum of item-payload-bytes of a page body."
@@ -540,6 +607,26 @@
                 (if (nil? vs')
                   (append-slow body item)
                   (conj head (assoc-in last-item [:body :values] vs')))))))))))
+
+(defn payload-after-append
+  "`(payload-bytes body')` for `body' = (append-item body item)`, given
+   `pb`, the payload of `body`. O(size of the last group): `append-item`
+   only rewrites the last item of a canonical body, so the new payload is
+   the old one without that item and with the items from there on.
+   Falls back to a full count when the earlier items are not the same
+   objects (a body that was not canonical)."
+  [body pb body']
+  (let [n (count body)
+        k (dec n)
+        body' (if (vector? body') body' (vec body'))]
+    (if (and (pos? n)
+             (>= (count body') n)
+             (or (zero? k)
+                 (identical? (nth body (dec k)) (nth body' (dec k)))))
+      (+ (long pb)
+         (- (long (item-payload-bytes (nth body k))))
+         (long (reduce + 0 (map item-payload-bytes (subvec body' k)))))
+      (payload-bytes body'))))
 
 (defn prepend-item
   "Prepend an expanded lit item to a body and re-collapse runs."
@@ -730,12 +817,14 @@
 
 (defn chunk-run
   "Split a homogeneous run (`of` + `values`) into items each within `budget`
-   payload bytes. One forward pass: a long string or byte vector is not
+   payload bytes (the run header included). One forward pass: a long string or byte vector is not
    re-copied from the cut to the end on every page.
 
    A u8 run's payload is a copied byte buffer, not a vector of integers."
   [of values budget]
-  (let [of (str of)]
+  (let [of (str of)
+        ;; the run's own header counts against the page
+        budget (max 1 (- (long budget) (long (run-overhead-bytes of))))]
     (cond
       (= of "char") (chunk-chars (str values) budget)
       (= of "u8") (u8-page-items values budget)

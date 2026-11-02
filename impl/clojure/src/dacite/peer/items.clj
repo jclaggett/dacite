@@ -83,7 +83,9 @@
    throws ex-info {:reason :node-too-large} instead.
 
    Returns {:items [bytes] :encs [:node|:literal] :hashes [hash]
-            :oversized [{:hash :len}]}."
+            :oversized [{:hash :len}]}. Code that sends the items (the M1.2
+   session) MUST look at `:oversized`: with the default it is the only
+   sign that a node item will not fit a peer's smallest frame."
   ([st root] (encode-value st root {}))
   ([st root {:keys [max-frame-bytes strict-node-cap?]
              :or {max-frame-bytes frame/max-frame}}]
@@ -277,8 +279,9 @@
 
 (defn- resolve-pending!
   "Check the waiting headers whose root is stored now. Each failing header is
-   removed from the store; the honest ones on the same root stay. The first
-   error is thrown once all have been checked."
+   removed from the store; the honest ones on the same root stay. One error is
+   thrown once all have been checked: a `:bad-hash` before a `:bad-entry`, then
+   the lowest hash, so it does not depend on the order of the pending map."
   [{:keys [store pending]}]
   (loop []
     (when-let [[rk waiting]
@@ -299,7 +302,11 @@
                       []
                       waiting)]
         (when (seq failures)
-          (throw (first failures))))
+          ;; the same one whatever the order of the map: a bad hash first,
+          ;; then by hash (the code that ends the session reads its reason)
+          (throw (first (sort-by (fn [e] [(if (= :bad-hash (:reason (ex-data e))) 0 1)
+                                          (pr-str (:hash (ex-data e)))])
+                                 failures)))))
       (recur))))
 
 (defn accept-item!

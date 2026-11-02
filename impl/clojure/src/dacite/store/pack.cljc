@@ -27,8 +27,15 @@
    minimal requests while still splitting clearly oversized values. See
    docs/design/leaf-chunking.md §2d / §2e.
 
-   Include-then-seal: the item that crosses 1024 is kept, so a chunk may
-   reach ~2×budget when that last item is itself a ~1k literal."
+   Include-then-seal: the item that crosses the budget is kept, so a chunk
+   is at most the budget plus one item: a node item (4.2 KB for a full 4 KiB
+   leaf page: 4.1 times this budget) or a literal (up to `default-max-literal`
+   with the cap, else about the budget).
+
+   Smaller than a leaf page (`lit/page-budget`, 4096), so a full page is not
+   a literal here and the first GET of a long string carries its header and
+   spine, not its text. Jonathan decided (M1.1a review) to raise it to the
+   page size, with a test that keeps it there; that is the next PR."
   1024)
 
 (def default-max-literal
@@ -44,9 +51,19 @@
 
 (def literal-gate
   "With `:max-literal`, values whose size cue is over `literal-gate * cap`
-   never get a literal built: it could not fit. A cheap pre-filter, not a
-   rule; the rule is the size of the finished item."
-  16)
+   never get a literal built. A heuristic that saves time, not a rule: the
+   rule is the size of the finished item, and skipping a literal is always
+   safe (the receiver takes the node items; the stream is only longer).
+
+   4: a literal this big is rarely under the cap, because most data does
+   not shrink 4 times, and building one costs a pass over the whole value
+   (about 1 s for 100 KB with the old gate of 16, 46 ms with 4, identical
+   streams for random text and for distinct numbers). What it costs is
+   compression of degenerate data: 250 KB of one letter is 8 items and
+   13 KB, not 2 items and 137 B. Longer term, build the literal with a byte
+   limit and stop as soon as it passes the cap: a failed attempt then costs
+   the cap, not the value, and the gate goes away (docs/plan/peering.md)."
+  4)
 
 (def ^:dynamic *verify-literal-hash*
   "When true, apply-chunk! requires materialize hash to match claimed hash."
@@ -254,21 +271,54 @@
 (def ^:dynamic *form-cache*
   "An atom, or nil. While `encode-item` runs with a `:cache`, the recursive
    forms of nested values are kept in it by hash: a string held under many
-   keys of a map is turned into its form once, not once per key."
+   keys of a map is turned into its form once, not once per key.
+
+   Only forms of values whose size cue is under `literal-gate * cap` are
+   kept (a bigger value gets no literal, so nothing asks for its form twice),
+   so the cache holds at most the forms the finished literals were made of.
+   It belongs to one `encode-value` / `encode-reachable` call and goes with
+   it. Bound with `binding` and used only in eagerly realized code in
+   `literal-of`; a lazy seq realized after the call would just miss it."
   nil)
 
+(def ^:dynamic *literal-limit*
+  "The cap in wire bytes of the literal item being built, or nil. A string
+   or blob whose bytes alone are over it cannot be in a literal that fits,
+   so `nested-literal` stops there: a literal over the cap is a node item
+   either way, and the parents of the value need not be built to find out
+   (M1.1a review S3)."
+  nil)
+
+(defn- over-limit?
+  "True when the bytes of string or blob `entry` alone are over the limit."
+  [entry]
+  (and *literal-limit*
+       (contains? #{"string" "blob"} (str (types/entry-type entry)))
+       (> (long (or (:size-bytes (types/entry-data entry)) 0))
+          (long *literal-limit*))))
+
+(defn- form-cacheable?
+  [entry]
+  (or (nil? *literal-limit*)
+      (<= (long (size-cue entry)) (* literal-gate (long *literal-limit*)))))
+
 (defn- nested-literal
-  "Recursive typed literal for child value at eh, or nil if not a value type."
+  "Recursive typed literal for child value at eh, or nil if not a value type.
+   Throws (`:over-limit`) for a string or blob that cannot fit the cap."
   [st eh]
   (when-let [entry (store/await (store/s-get st eh))]
     (let [t (types/entry-type entry)]
       (when (value-type? t)
+        (when (over-limit? entry)
+          (throw (ex-info "nested value is over the literal limit"
+                          {:reason :over-limit :hash eh})))
         (if-let [c *form-cache*]
           (let [k [:form (gc/hash-key eh)]
                 hit (get @c k ::miss)]
             (if (= hit ::miss)
               (let [f (literal-of st eh)]
-                (swap! c assoc k f)
+                (when (form-cacheable? entry)
+                  (swap! c assoc k f))
                 f)
               hit))
           (literal-of st eh))))))
@@ -617,17 +667,36 @@
                    (+ acc (long (wire-item-size (node-item x entry)))))
             (recur queue (conj seen xk) acc)))))))
 
+(defn- literal-cache-key
+  "A cached literal is the answer for one hash under one budget and cap."
+  [hk {:keys [budget max-literal]}]
+  [hk budget max-literal])
+
+(def ^:private literal-item-header-bytes
+  "A literal item's header: enc u8, hash 32, plen u32 (wire-v1)."
+  37)
+
 (defn- build-literal
   "The literal item for `h`, or nil when it has none, is over the cap, or
-   does not round-trip."
+   does not round-trip.
+
+   With a cap, a string or blob whose bytes alone (and the item header)
+   are over it is skipped without building its text: the answer is the
+   same, and a 200 KB string no longer costs a pass to find out."
   [st h entry {:keys [budget max-literal]}]
   (let [t (types/entry-type entry)]
     (when (and (or (value-type? t) (tree-internal-type? t))
                (not (clearly-oversized? entry (if max-literal
                                                 (* literal-gate (long max-literal))
-                                                budget))))
+                                                budget)))
+               (not (and max-literal
+                         (contains? #{"string" "blob"} (str t))
+                         (> (+ literal-item-header-bytes
+                               (long (or (:size-bytes (types/entry-data entry)) 0)))
+                            (long max-literal)))))
       (when-let [{:keys [type body]}
-                 (try (literal-of st h)
+                 (try (binding [*literal-limit* max-literal]
+                        (literal-of st h))
                       (catch #?(:clj Throwable :cljs :default) _ nil))]
         (let [item (literal-item h type body)]
           (when (and (or (nil? max-literal)
@@ -657,9 +726,12 @@
                      than the node items it replaces (peer item streams).
    - `:covered`      hex keys already sent or held; they cost nothing in
                      that comparison.
-   - `:cache`        an atom {hex-key literal-item-or-:none}: a literal is
-                     built once per hash per cache (`encode-value` of a
-                     value that holds one string under many keys).
+   - `:cache`        an atom {[hex-key budget max-literal] literal-item-or-:none}:
+                     a literal is built once per hash per budget and cap
+                     (`encode-value` of a value that holds one string under
+                     many keys). It keeps every literal built and the forms
+                     of nested values that could fit (see `*form-cache*`),
+                     so make one per call and drop it with the call.
 
    Intermediate ft/* / hamt/* may bottom out as leaf-literal payloads when
    reconstruction matches the claimed hash (2c′). Sequence bodies use
@@ -667,7 +739,7 @@
   ([st h entry] (encode-item st h entry default-budget))
   ([st h entry opts]
    (let [{:keys [shorter-wins? covered cache] :as opts} (encode-opts opts)
-         hk (gc/hash-key h)
+         hk (literal-cache-key (gc/hash-key h) opts)
          item (binding [*form-cache* (or cache *form-cache*)]
               (if cache
                 (let [c (get @cache hk ::miss)]
@@ -802,8 +874,9 @@
    Always includes an encoding of h when present. Then expands descendants
    (skipping `have`) with the same :literal/:node policy until the **sent**
    size (wire-v1 by default; EDN if `:size-fn chunk-size`) is ≥ budget.
-   Include-then-seal: the item that crossed is kept (chunk may reach ~2×budget
-   when that item is a ~1k literal). Remainder is left for later node gets.
+   Include-then-seal: the item that crossed is kept, so a chunk is at most the
+   budget plus one item (a node item, about 4.2 KB for a full page; a literal,
+   up to the cap). Remainder is left for later node gets.
    Budget 0 includes only an encoding of h (Layer 2 seals after the first item).
 
    Opts:

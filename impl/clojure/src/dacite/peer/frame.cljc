@@ -34,18 +34,23 @@
 
 (def min-max-frame
   "Smallest `max-frame` a peer may advertise. A control message must fit,
-   and so must the largest node item (the leaf page budget, 4096 payload
-   bytes, is about 4.6 KB on the wire) plus the 37-byte item header and the
-   6-byte envelope (spec 3.2). `max-node-item-bytes` is that bound."
+   and so must the largest node item (the leaf page budget, 4096 wire bytes,
+   plus the page's own fields: about 4.2 KB at most) plus the 37-byte item
+   header and the 6-byte envelope (spec 3.2). `max-node-item-bytes` is that
+   bound."
   8192)
 
 (def max-node-item-bytes
-  "What the sender expects the largest node item to be on the wire: the leaf
-   page budget with each string and blob counted 5 bytes over its length (its
-   wire framing), so 4096 payload bytes stay within about 1.1x of it, and the
-   most a spine or bitmap page holds (32 refs of 33 bytes, plus its measure).
-   `min-max-frame` must leave room for it, its item header and the envelope.
-   A test keeps this true for the shapes of the property test."
+  "What the sender expects the largest node item to be on the wire. A page
+   is at most `lit/page-budget` (4096) bytes by the page size model, which
+   counts a tag on every single element and a header on every run, so it
+   follows the wire size; the page's own fields (its measure and type) are
+   under 400 more. The largest seen, over strings, blobs, ints, mixes of
+   one-byte kinds in groups of one to three, nested vectors and maps, is
+   about 4 200. A spine or bitmap page holds at most 32 refs of 33 bytes
+   and a measure. `min-max-frame` must leave room for this, its item header
+   and the envelope. Tests keep it true (the property test, the one-byte
+   mixes, and `(<= (+ page-budget 400) max-node-item-bytes)`)."
   5000)
 
 (def default-max-item
