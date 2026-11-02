@@ -581,7 +581,7 @@
 
 (deftest a-reveal-past-its-budget-ends-and-a-re-ask-resumes
   (let [rooted (svc/make-demo-rooted)
-        text (apply str (repeat 3000 "x"))
+        text (apply str (repeat 12000 "x"))
         h (v/hash (v/string rooted text))
         order (reveal/page-order rooted h)
         total (double (reduce + 0 (map #(reveal/page-bytes rooted %) order)))
@@ -626,7 +626,7 @@
           (is done? "a re-ask finishes the value")
           (is kept? "a re-ask does not drop a page already held")
           (is (or (not done?)
-                  (= \x (v/realize (v/nth (v/wrap-hash local h) 2999)))))))
+                  (= \x (v/realize (v/nth (v/wrap-hash local h) 11999)))))))
       (finally
         ((:close! primary))
         (stop!)))))

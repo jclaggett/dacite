@@ -377,13 +377,24 @@
 
 (def ^:dynamic page-budget
   "Payload bytes a digit/node page aims to hold (the leaf page budget).
+   4 KiB (M1.1a item 5; see docs/design/leaf-chunking.md): about 3.7 times
+   fewer pages than 1 KiB for a long string, 9-12% fewer total bytes, and
+   about twice the bytes per one-element edit. 16 KiB does not fit a frame.
 
    Separate from the pack chunk budget (`pack/default-budget`, a soft
    Layer-2 target) and from the largest literal (`pack/default-max-literal`,
    tied to the frame payload). Value hashes do not depend on it: a node
    hashes `(type, elements-fuse)`, not how the elements are paged. Dynamic so
    benches can measure other sizes; the code reads it, never caches it."
-  1024)
+  4096)
+
+(def string-wire-overhead
+  "A string or blob costs its length plus 5 bytes on the wire (a tag and a
+   u32 length). It is counted in its payload size, so a page of tiny strings
+   stays near its budget on the wire instead of several times over it.
+   Part of keeping sizing on payload bytes; the full 'encoded byte size'
+   measure is an open design item (docs/plan/peering.md, M1.1a item 2)."
+  5)
 
 (defn- utf8-len
   [s]
@@ -406,14 +417,16 @@
       "u64" 8
       "f64" 8
       "u256" 32
-      "null" 0
-      "negative" 0
+      ;; an element is never free: a page of nulls must still end
+      "null" 1
+      "negative" 1
       "ref" 32
-      "string" (utf8-len v)
-      "blob" #?(:clj (if (bytes? v) (alength ^bytes v) (count v))
-                :cljs (if (exists? js/Uint8Array)
-                        (.-length v)
-                        (count v)))
+      "string" (+ string-wire-overhead (utf8-len v))
+      "blob" (+ string-wire-overhead
+                #?(:clj (cond (nil? v) 0 (bytes? v) (alength ^bytes v) :else (count v))
+                   :cljs (cond (nil? v) 0
+                               (and (exists? js/Uint8Array) (instance? js/Uint8Array v)) (.-length v)
+                               :else (count v))))
       ;; unknown nested lit: treat as not fitting a pointer
       32)))
 
@@ -462,10 +475,71 @@
   [body]
   (reduce + 0 (map item-payload-bytes (or body []))))
 
-(defn append-item
-  "Append an expanded lit item to a body and re-collapse runs."
+(defn- append-slow
+  "The definition of `append-item`: expand, conj, collapse. O(body)."
   [body item]
   (rle-lits (conj (vec (expand-rle-seq body)) item)))
+
+(defn- u8-conj
+  "A copy of byte buffer `vs` with byte `b` added, or nil when `vs` is not
+   a byte buffer."
+  [vs b]
+  (when (u8-bytes? vs)
+    #?(:clj (let [n (alength ^bytes vs)
+                  out (byte-array (inc n))]
+              (System/arraycopy ^bytes vs 0 out 0 n)
+              (aset-byte out n (unchecked-byte (bit-and 0xff (int b))))
+              out)
+       :cljs (let [n (.-length vs)
+                   out (js/Uint8Array. (inc n))]
+               (.set out vs)
+               (aset out n (bit-and 0xff (int b)))
+               out))))
+
+(defn append-item
+  "Append an expanded lit item to a body and re-collapse runs.
+
+   The result is `rle-lits` of the expanded elements. A canonical body (one
+   `rle-lits` produced) only changes at its last group, so that group alone
+   is rewritten: O(1) in the body's element count (the definition,
+   `append-slow`, is O(body), which made building a page one element at a
+   time quadratic in the page budget). A test compares the two."
+  [body item]
+  (let [item (rle-form item)
+        body (vec (or body []))
+        n (count body)
+        t (str (:type item))
+        ;; the last group, when it can take `item`
+        last-item (when (pos? n) (peek body))
+        fast? (and last-item
+                   (not (run-form? item))
+                   (map? last-item)
+                   (if (run-form? last-item)
+                     (= t (str (:of (:body last-item))))
+                     (= t (str (:type last-item)))))]
+    (if-not fast?
+      (if (or (zero? n) (run-form? item) (nil? last-item) (not (map? last-item)))
+        (append-slow body item)
+        (conj body item))                ; a different type starts a new group
+      (let [head (pop body)]
+        (if-not (run-form? last-item)
+          ;; two of one type: a repeat when equal, else a run
+          (conj head (if (= (:body last-item) (:body item))
+                       {:type "repeat" :body {:of t :n 2 :value (:body item)}}
+                       {:type "run" :body {:of t :values (pack-run-values t [last-item item])}}))
+          (let [b (:body last-item)]
+            (if (= "repeat" (str (:type last-item)))
+              (if (= (:value b) (:body item))
+                (conj head (assoc-in last-item [:body :n] (inc (long (:n b)))))
+                (append-slow body item))
+              (let [vs (:values b)
+                    vs' (case t
+                          "char" (str vs (:body item))
+                          "u8" (u8-conj vs (:body item))
+                          (when (vector? vs) (conj vs (:body item))))]
+                (if (nil? vs')
+                  (append-slow body item)
+                  (conj head (assoc-in last-item [:body :values] vs')))))))))))
 
 (defn prepend-item
   "Prepend an expanded lit item to a body and re-collapse runs."

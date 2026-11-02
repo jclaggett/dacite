@@ -451,11 +451,13 @@
 
 (deftest multi-page-blob-round-trips-as-byte-runs
   (let [st (store/mem-store)
-        n 2500
+        n 9000
         nums (mapv #(bit-and 0xff %) (range n))
         blob (coll/blob-with-store st (byte-array (map unchecked-byte nums)))
         h (types/dacite-hash blob)
-        {:keys [items]} (pack/encode-reachable st h)
+        ;; a leaf page is up to 4 KiB (lit/page-budget): a budget below that
+        ;; leaves the pages as nodes, so give the gate room for one
+        {:keys [items]} (pack/encode-reachable st h #{} 8192)
         runs (vec (for [it items
                         :when (= :literal (:encoding it))
                         :let [body (:body it)]
@@ -486,8 +488,16 @@
     (is (false? (boolean (pack/fits-literal? st h))))
     (is (= :node (:encoding item)) "root string over budget is :node")
     (is (pos? (:nodes sum)))
-    (is (pos? (:literals sum)) "shared char leaf still a literal")
-    (is (> (:items sum) 1) "walk expands FT spine under large string")))
+    ;; the one 3000-char leaf page is 3005 payload bytes: over the 1 KiB chunk
+    ;; budget, so it is a node here too (it was a literal with 1 KiB pages)
+    (is (zero? (:literals sum)))
+    (is (> (:items sum) 1) "walk expands FT spine under large string")
+    (testing "with room for a page, the leaf pages are literals"
+      (let [big (coll/string-with-store st (apply str (repeat 12000 "x")))
+            bh (types/dacite-hash big)
+            bsum (pack/encode-summary st bh 8192)]
+        (is (pos? (:literals bsum)) "shared char leaf pages are literals")
+        (is (pos? (:nodes bsum)) "the root string and its spine are nodes")))))
 
 (deftest large-string-literal-when-budget-allows
   (let [st (store/mem-store)
@@ -647,9 +657,10 @@
       (is (store/await (store/s-has? st3 h))
           "wire-v1 literal of a todo vector rematerializes at the claimed hash")))
   (let [st (store/mem-store)
-        s (coll/string-with-store st (apply str (repeat 3000 \x)))
+        s (coll/string-with-store st (apply str (repeat 12000 \x)))
         h (types/dacite-hash s)
-        ch (pack/pack-under st h #{} 1024)
+        budget 8192
+        ch (pack/pack-under st h #{} budget)
         n-wire (pack/wire-chunk-size ch)
         encs (mapv :encoding (:items ch))
         types (mapv (fn [it]
@@ -663,9 +674,9 @@
     (is (some #{:literal} encs)
         (str "neighborhood includes literals, got " types))
     (is (some #{"ft/digit"} types)
-        "1k char pages ship as ft/digit literals")
+        "4k char pages ship as ft/digit literals")
     (is (pos? n-wire))
-    (is (<= n-wire (* 2 1024))
+    (is (<= n-wire (* 2 budget))
         "include-then-seal overshoot stays within ~2×budget")))
 
 (deftest long-string-pack-covers-explorer-preview-prefix
@@ -675,7 +686,9 @@
   (let [st (store/mem-store)
         s (coll/string-with-store st (apply str (repeat 1893 \x)))
         h (types/dacite-hash s)
-        ch (pack/pack-under st h)
+        ;; the 1893-char leaf page is 1898 payload bytes, so the chunk budget
+        ;; must reach a page: 4 KiB leaf pages need more than the 1 KiB default
+        ch (pack/pack-under st h #{} 4096)
         st2 (store/mem-store)
         _ (pack/apply-chunk! st2 ch)
         root (:root (types/entry-data (store/await (store/s-get st2 h))))
@@ -683,11 +696,9 @@
                              (take 64 (ft/ft-seq st2 root))))]
     (is (>= n-hit 64)
         (str "explorer 64-char preview should be in the first pack; got " n-hit))
-    (is (some (fn [it]
-                (and (= :literal (:encoding it))
-                     (= "ft/digit" (:type it))))
-              (:items ch))
-        "1k char pages ship as ft/digit literals")
+    ;; the whole 1893-char string is under 4096: one literal covers it
+    (is (some #(= :literal (:encoding %)) (:items ch))
+        "the string ships as a literal")
     (let [st3 (store/mem-store)
           back (bin/decode-pack-edn (bin/encode-pack-edn ch))]
       (pack/apply-chunk! st3 back)

@@ -95,9 +95,9 @@ Rules:
   refused.
 - A hash is a `u256` literal (type id `0x0D`, 32 raw bytes, the same bytes as
   the `hash` field of a wire-v1 `Item`).
-- A blob, if used, is only a map value. (A core limitation, not a protocol one:
-  a vector holding a blob and another element does not realize in the reference
-  core today. See "Known issues".)
+- A blob may be a map value or a vector element, alone or beside other elements
+  (a core limitation, [#8](https://github.com/jclaggett/dacite/issues/8), kept
+  a vector holding a blob and another element from realizing before M1.1a).
 - **Unknown keys MUST be ignored** by a receiver (so v1 can grow fields).
   **A receiver never rejects a name it does not know:** an unknown capability
   is ignored, an unknown `error` code is read as `internal`, an unknown `hello`
@@ -172,8 +172,10 @@ is the one size that is safe for all of them. It also means:
 - a literal item (3.2) is at most one frame payload, so it never spans frames;
 - the `bufferedAmount` thresholds of M1.2 can be set in whole frames.
 
-`hello.limits.max-frame` lets a peer ask for smaller frames (1024..16384). It
-can never raise the limit. The effective size is the smaller of the two.
+`hello.limits.max-frame` lets a peer ask for smaller frames (8192..16384). It
+can never raise the limit. The effective size is the smaller of the two. The
+smallest, 8192 (`frame/min-max-frame`), holds the largest node item a sender
+writes (3.2).
 
 ### 3.2 Serializing an item stream
 
@@ -223,8 +225,9 @@ has been read), so the session code must pass the negotiated value.
   one frame.
 - A node item bigger than one payload starts a fresh frame and is cut into
   payload-sized pieces; the next item follows its tail. (Leaf pages in a store
-  are about 1 KiB, so this is rare: it happens for a page a store built in one
-  piece. Fixture `item-stream-mixed` has one, 39 753 bytes.)
+  are 4 KiB at most, so this is rare: it happens for a page a store built in one
+  piece, or under a larger leaf budget. Fixture `item-stream-node-spans-frames`
+  has one, 25 990 bytes.)
 - The last frame has FIN (and PARTIAL if the reveal is unfinished). An empty
   stream is one empty FIN frame (fixture `item-stream-empty`).
 - A sender MAY flush early and send shorter frames while it paces a stream.
@@ -240,19 +243,76 @@ Fixtures at the cap: `item-stream-literal-at-cap` is a string of 16 336
 pseudo-random letters whose literal item is exactly 16 378 bytes, one full frame.
 `item-stream-literal-over-cap` is the same string with one more letter: the whole
 value is no longer one literal, so its header and spine are node items and its
-leaf pages are literals (the largest 1 076 bytes). `item-stream-one-frame` is a
+leaf pages are literals (the largest 8 244 bytes, two pages of 4 KiB). `item-stream-one-frame` is a
 small vector sent as one 678-byte literal. `item-stream-mixed` is a 1200-element
 vector: node items and literals together.
 
-**Node items (decision Q3).** A sender SHOULD keep each node item within one frame
-payload, once M1.1a makes every page about 1 KiB. Until then a store that builds a
-page in one piece (Known issues) can make a node item span frames, and a receiver
-reads those (up to `max-item`, 1 MiB). Receivers keep the 1 MiB `max-item` and do
-not refuse a node item for its size. The limit follows: the smallest `max-frame` a
-peer may advertise (`frame/min-max-frame`, 1024 today) must be at least the largest
-node item plus the 37-byte item header and the 6-byte envelope, so M1.1a raises it
-with the page budget. Until then a peer at the minimum frame size may see node
-items that span frames.
+**Node items (decision Q3, done in M1.1a).** A sender SHOULD keep each node item
+within one frame payload. Since M1.1a every page is at most about 4 KiB (the
+leaf page budget is 4096 payload bytes, below) and a spine or bitmap page is at
+most 32 refs, so the largest node item the reference serializer writes is under
+5 000 bytes (`frame/max-node-item-bytes`; a property test builds strings,
+blobs, vectors of ints, strings and blobs, maps and mixed vectors and checks
+it). A store that builds a page in one piece can still make a longer one
+(fixture `item-stream-node-spans-frames`), and a receiver reads those, up to
+`max-item` (1 MiB): receivers keep `max-item` and do not refuse a node item for
+its size. `items/encode-value` **reports** a node item over one payload by
+default (the result's `:oversized`, each `{:hash :len}`) and still sends it; with
+the option `:strict-node-cap? true` it throws `{:reason :node-too-large}`
+instead. The limit follows: the smallest `max-frame` a peer may advertise
+(`frame/min-max-frame`) must be at least the largest node item plus the 37-byte
+item header and the 6-byte envelope. M1.1a raised it from 1024 to **8192**
+(`frame/min-max-frame-fits-node?`, tested), so a peer at the minimum frame size
+gets every node item in one frame. A sender with a smaller frame (tests only)
+sees its node items reported.
+
+**Page sizes (M1.1a).** A leaf page (an `ft/digit` or `ft/node` body) holds at
+most **4096 payload bytes** (`lit/page-budget`); the page-size choice and its
+measurements are in `docs/design/leaf-chunking.md` and
+`docs/notes/page-size-measurements.md`. Payload bytes count a string or blob as
+its length **plus 5** (`lit/string-wire-overhead`: a tag and a u32 length), a
+`null` or `negative` element as 1, and runs and repeats of strings and blobs by
+their real sizes. The page budget does not change any value hash: a node hashes
+`(type, elements-fuse)`, so the root hash of a value is the same for any paging.
+The hash of an inner page does depend on the paging (it is a different group of
+elements), so fixtures that name inner pages were regenerated.
+
+**Open design item: an "encoded byte size" measure.** Sizing stays on payload
+bytes. The payload count approximates the wire size (a 4-byte string is 4 payload
+bytes plus the 5 now counted, against 9 on the wire; runs and repeats are cheaper
+on the wire than their payload). Two ideas for an exact measure, both undecided:
+
+- *(a) A second measure beside `size-bytes`: encoded-size, a sum monoid.* Each
+  element contributes the wire-v1 bytes it takes in a page body, and a node's
+  value is the sum of its children's. It makes the size cue exact enough to pick
+  literal or node and to cut pages by wire size. Analysis: the sum is only an upper
+  bound, because a run or repeat spends a few header bytes once and then less per
+  element, so the cost of an element depends on its neighbors; the measure would
+  have to be defined as "as if each element were its own item". If it joins the
+  measure fused into the node hash, every hash changes: a wire and hash bump
+  (v2), not an M1.1a change. If it is only stored beside the measure, no hash
+  changes, but every node carries 8 more bytes per measure, a receiver cannot check
+  it from a spine page's bytes (it depends on the children, like count and size:
+  Q1), and it must stay consistent with the encoder.
+- *(b) The literal encoding as an in-memory cache, bounded by the cap.* While a
+  node's literal item is within the cap, the in-memory store keeps its bytes next to
+  the node; above the cap it keeps the mark "too big", and so do the nodes above
+  it (a parent's literal contains its children's). Then the literal's length is
+  known directly and "shorter wins" is a comparison, not a build. **The literal is
+  never stored in any entry, never sent as part of one, and never hashed: it is a
+  cache only.** An in-memory store and a durable one therefore differ: the
+  durable store keeps no literal bytes and rebuilds or lazily computes the cache
+  when a node is read (a miss falls back to building the literal from the node,
+  as today, so a cold cache costs time, not correctness). Analysis: no wire change
+  and no hash change; the cache is content-addressed, so it needs no
+  invalidation. Costs: memory (up to one cap, 16 KiB, per cached node, and a
+  literal at each level repeats its children, so bound it by size or an LRU and
+  keep only the bottom levels, the "too big" mark being O(1)), and the in-memory
+  and durable stores' different cost profile (documented, and never visible in
+  results). The concern of putting it in the measure monoid itself, spine nodes
+  growing by up to a literal each, does not arise when it is kept in memory only.
+
+Neither is built in M1.1a.
 
 **Earlier draft.** The first draft said item streams carried node items only
 (review item F2, and open question 5). That is replaced by this section: literals
@@ -298,7 +358,8 @@ when it arrives (`verify-item!` answers `#{:pending}`) and records it as waiting
 for its root's hash. When the root is stored, a page or a bare leaf value that is
 the one element, the receiver recomputes the root's measure and checks, in this
 order: the header's hash (`bad-hash`), then its `count` and `size-bytes`
-(`bad-entry`). A failed check removes the header from the store and ends the
+(`bad-entry`). A failed check removes **that header** from the store (only the
+headers that fail: an honest header on the same root stays, verified) and ends the
 session (`error` `bad-entry`, fatal). A header whose root is a literal, or inside a literal, is
 checked as soon as that literal is stored. Nested headers each wait for their own
 root; an outer header over a bare-leaf root is checked against the inner header's
@@ -421,7 +482,7 @@ arrived.
 | `versions` | set of i64 | yes | Protocol versions I speak. This draft is `#{1}`. |
 | `kind` | string | yes | `"node"` or `"browser"`. Selection prefers Node peers. An unknown kind is accepted and read as `"browser"` (fixture `hello-unknown-kind`). |
 | `caps` | set of string | yes | Capabilities: `"reveal"` (I answer `get`). Unknown ones are ignored. |
-| `limits` | map | yes | `max-frame` (1024..16384), `max-item` (bytes, at least 1), `max-streams` (open requests I accept, at least 1). All required. |
+| `limits` | map | yes | `max-frame` (8192..16384), `max-item` (bytes, at least 1), `max-streams` (open requests I accept, at least 1). All required. |
 | `rates` | map | yes | `send-max` and `recv-max` (bytes per second I will send / want to receive), `req-rate` and `req-burst` (requests per second and bucket size I accept). All required and at least 1: a peer that serves nothing leaves out the capability instead. |
 | `agent` | string | no | Software name and version. Informational. |
 
@@ -440,7 +501,8 @@ Fixtures: `hello-node` (343 bytes), `hello-browser`.
 `min(256, max-hashes-for(max-frame))` hashes, where
 `max-hashes-for(f) = min(256, floor((f - 33 - 320) / 32))`: 32 bytes a hash,
 33 bytes of header and framing, and 320 kept for a `release` `reason`. At 16384
-that is 256; at 1024 it is 20. `msg/max-hashes-for` is the helper, and a test
+that is 256; at 8192 (the smallest allowed) it is 244; at 1024 it would be 20 (a
+helper test still checks it, though no peer may ask for that now). `msg/max-hashes-for` is the helper, and a test
 encodes a full batch at each frame size.
 
 Negotiation (`msg/negotiate`, tested): the version is the highest in both sets; if
@@ -510,8 +572,9 @@ paused (interest fell below the floor) or spent its budget, and that the same
 `get`, as a new stream, resumes it (this closes N2a on the wire).
 
 Fixtures: `item-stream-empty` (one empty frame), `item-stream-one-frame`
-(one literal item, 684 bytes), `item-stream-mixed` (4 frames, 40 164 bytes;
-node items and literals, one item spans three frames), `item-stream-partial`
+(one literal item, 684 bytes), `item-stream-mixed` (3 frames, 41 404 bytes;
+node items and literals), `item-stream-node-spans-frames` (a 25 990-byte node
+item over one payload, 4 frames), `item-stream-partial`
 (FIN + PARTIAL), `item-stream-literal-at-cap` and `item-stream-literal-over-cap`
 (3.2). Their `message.edn` lists every item's hash, size and encoding, and the JVM
 test accepts each stream through `items/accept-items!`.
@@ -643,20 +706,17 @@ section 11.
 
 ## 10. Known issues
 
-- The reference core cannot realize a vector that holds a blob and another
-  element: `(dacite.peer.msg/encode-value [(byte-array 1) nil])` throws
-  "cannot intern page-body lit item" (`dacite.value.lit/intern-lit-item!`).
-  Not a protocol issue: no v1 message holds a blob, and the profile allows one
-  only as a map value. Tracked in
-  [jclaggett/dacite#8](https://github.com/jclaggett/dacite/issues/8); the plan
-  schedules the fix (M1.1a). When it is fixed, drop this entry and the
-  map-value-only rule in 2.1.
 - Item verification is JVM-only (`dacite.peer.items`) until M2.2, so the nbb test
   checks framing, packing and item decoding, not entry hashes.
-- `lit/item-payload-bytes` counts a `run` or `repeat` of strings or blobs as 0
-  bytes, so a store can build a leaf page far over its 1 KiB budget (the 39 753-byte
-  page in `item-stream-mixed`). The cap in 3.2 holds for literals regardless;
-  such a page can only be sent as a node item that spans frames. Plan: M1.1a.
+- The pack chunk budget (`pack/default-budget`, 1024) is a soft target for the HTTP
+  chunk transport and was not changed with the 4 KiB leaf pages: a leaf page no
+  longer fits a 1 KiB chunk as a literal, so the first GET of a long string holds the
+  header and spine and the pages follow. Peer streams are not affected (they use the
+  frame cap). Whether to raise it is an open question of M1.1a.
+- Fixed in M1.1a: a vector holding a blob and another element did not realize
+  ([#8](https://github.com/jclaggett/dacite/issues/8)); and `lit/item-payload-bytes`
+  counted a `run` or `repeat` of strings or blobs as 0, so a store could build a leaf
+  page far over its budget (a 39 753-byte page was in the earlier `item-stream-mixed`).
 
 ## 11. Trust, and what v1 leaves for later
 
@@ -706,4 +766,8 @@ These were the three open questions of the S3.3 work. Jonathan has decided them.
    header, is not taken; neither is the pages-before-header order of the first
    draft, which delayed `count` and `size-bytes` and the start of a read.
 3. **Node items over a frame (Q3):** a sender-side SHOULD cap of one payload after
-   M1.1a; receivers keep the 1 MiB `max-item`. See 3.2.
+   M1.1a; receivers keep the 1 MiB `max-item`. Done in M1.1a; the cap reports by
+   default and throws only with `:strict-node-cap?`. See 3.2.
+4. **Failed header checks (M4 follow-up, M1.1a):** when two or more headers wait on
+   one root, each is checked on its own when the root arrives; the failing ones
+   are removed and the honest ones stay. The first failure still ends the session.

@@ -20,6 +20,7 @@
             [dacite.peer.msg :as msg]
             [dacite.store :as store]
             [dacite.value :as v]
+            [dacite.value.lit :as lit]
             [dacite.wire.binary :as bin]))
 
 (defn- root []
@@ -139,6 +140,13 @@
         mixed (frame/chunk-items 7 (map :bytes mixed-pages))
         part-pages (vec (take 3 (stream-of st (v/hash (vector-of-lines st 600)))))
         part (frame/chunk-items 9 (map :bytes part-pages) {:partial? true})
+        ;; a store that built its pages in one piece (leaf budget 40 000): a node
+        ;; item over one payload, which spans frames. A sender SHOULD NOT write
+        ;; one (3.2); a receiver reads it.
+        wide-st (store/mem-store)
+        wide-pages (binding [lit/page-budget 40000]
+                     (stream-of wide-st (v/hash (vector-of-lines wide-st 1200))))
+        wide (frame/chunk-items 15 (map :bytes wide-pages))
         _ (check-cap! st)
         n cap-letters
         under-pages (stream-of st (v/hash (v/string st (pseudo-text n))))
@@ -155,9 +163,13 @@
                             5 false small-pages small)
                  small)
     (write-case! "item-stream-mixed"
-                 (item-meta "A larger vector: node entries and literals, four frames, one entry spans three"
+                 (item-meta (str "A larger vector: node entries and literals, " (count mixed) " frames")
                             7 false mixed-pages mixed)
                  mixed)
+    (write-case! "item-stream-node-spans-frames"
+                 (item-meta (str "A store that built a leaf page in one piece (budget 40 000): a node item over one payload spans frames. A sender SHOULD NOT write one; a receiver reads it")
+                            15 false wide-pages wide)
+                 wide)
     (write-case! "item-stream-partial"
                  (item-meta "The reveal paused after three items: FIN with PARTIAL, ask again to resume"
                             9 true part-pages part)

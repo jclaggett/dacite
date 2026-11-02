@@ -61,8 +61,8 @@
 
 (deftest long-string-pages-are-first-most
   (let [s (store/mem-store)
-        text (str (apply str (repeat 2000 "a"))
-                  (apply str (repeat 2000 "z")))
+        text (str (apply str (repeat 4096 "a"))
+                  (apply str (repeat 4096 "z")))
         h (v/hash (v/string s text))
         order (reveal/page-order s h)
         digits (filterv #(= "ft/digit" (type-of s %)) order)
@@ -198,7 +198,7 @@
 
 (deftest pages-come-out-in-reveal-order
   (let [s (store/mem-store)
-        h (v/hash (v/string s (apply str (repeat 2000 "a"))))
+        h (v/hash (v/string s (apply str (repeat 9000 "a"))))
         order (reveal/page-order s h)
         opened (reveal/open-reveal (reveal/session) s h 0 fast)
         taken (reveal/take-pages (:session opened) s 1 fast)]
@@ -250,7 +250,7 @@
   (let [s (store/mem-store)
         ;; 3000 bytes of text. The reveal is 3565 wire-item bytes, so
         ;; r-max * tau = total/4 cannot cover it in one ask.
-        h (v/hash (v/string s (apply str (repeat 3000 "x"))))
+        h (v/hash (v/string s (apply str (repeat 12000 "x"))))
         order (reveal/page-order s h)
         total (double (reduce + 0 (map #(reveal/page-bytes s %) order)))
         params {:peak 1.0 :tau 1.0 :floor 0.0 :r-max (/ total 4.0)}
@@ -279,7 +279,7 @@
 
 (deftest a-re-ask-at-the-stall-banks-the-unspent-integral
   (let [s (store/mem-store)
-        h (v/hash (v/string s (apply str (repeat 3000 "x"))))
+        h (v/hash (v/string s (apply str (repeat 12000 "x"))))
         order (reveal/page-order s h)
         total (double (reduce + 0 (map #(reveal/page-bytes s %) order)))
         params {:peak 1.0 :tau 1.0 :floor 0.0 :r-max (/ total 4.0)}
@@ -370,8 +370,8 @@
 
 (deftest a-newer-reveal-gets-the-next-page
   (let [s (store/mem-store)
-        book (v/hash (v/string s (apply str (repeat 3000 "a"))))
-        chapter (v/hash (v/string s (apply str (repeat 3000 "z"))))
+        book (v/hash (v/string s (apply str (repeat 9000 "a"))))
+        chapter (v/hash (v/string s (apply str (repeat 9000 "z"))))
         nbytes (double (reveal/page-bytes s book))
         tau 10.0
         ;; Integral of a lone decaying ceiling reaches one page at tau * ln 2
@@ -400,7 +400,7 @@
 
 (deftest a-multi-page-reveal-resumes-after-the-pages-already-offered
   (let [s (store/mem-store)
-        h (v/hash (v/string s (apply str (repeat 2000 "a"))))
+        h (v/hash (v/string s (apply str (repeat 9000 "a"))))
         order (reveal/page-order s h)
         tau 1.0e6
         r-max 1000.0

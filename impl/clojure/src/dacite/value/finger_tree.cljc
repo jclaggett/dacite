@@ -147,7 +147,7 @@
 
           (= t "string")
           (let [sb (long (or (:size-bytes (node-data entry)) 0))]
-            (if (<= sb lit/page-budget)
+            (if (<= (+ sb lit/string-wire-overhead) lit/page-budget)
               {:type "string"
                :body (lit/join-chars
                       (map (fn [ch]
@@ -157,7 +157,7 @@
 
           (= t "blob")
           (let [sb (long (or (:size-bytes (node-data entry)) 0))]
-            (if (<= sb lit/page-budget)
+            (if (<= (+ sb lit/string-wire-overhead) lit/page-budget)
               {:type "blob"
                :body (mapv (fn [bh]
                              (types/entry-data (lookup store bh)))
@@ -172,6 +172,23 @@
   (or (:body data)
       (lit/rle-lits (mapv #(hash->item store %) (or (:children data) [])))))
 
+(def ^:private char-hashes
+  "char -> its scalar value hash. A page is re-measured on every append, so
+   each character's hash (UTF-8 encode + hash) would be recomputed a page's
+   worth of times per character (quadratic in the page budget). Bounded."
+  (atom {}))
+
+(defn- char-hash+size
+  "[scalar value hash, dacite size] of one character."
+  [ch]
+  (or (get @char-hashes ch)
+      (let [hs [(types/scalar-value-hash ["char" ch]) (types/dacite-size ["char" ch])]]
+        (when (< (count @char-hashes) 70000)
+          (swap! char-hashes assoc ch hs))
+        hs)))
+
+(defn- char-value-hash [ch] (first (char-hash+size ch)))
+
 (defn- item-measure
   [store item]
   (let [t (str (:type item))
@@ -180,16 +197,18 @@
       (= t "ref") (measure-of store b)
 
       (contains? lit/scalar-types t)
-      (let [h (types/scalar-value-hash [t b])]
+      (let [[h sz] (if (= t "char")
+                     (char-hash+size b)
+                     [(types/scalar-value-hash [t b]) (types/dacite-size [t b])])]
         {:count 1
-         :size-bytes (types/dacite-size [t b])
+         :size-bytes sz
          :elements-fuse h})
 
       (= t "string")
       (let [s (str b)
             ef (reduce (fn [a ch]
                          (hash/unchecked-fuse
-                          a (types/scalar-value-hash ["char" ch])))
+                          a (char-value-hash ch)))
                        host/zero-hash
                        (seq s))]
         {:count 1
@@ -278,9 +297,10 @@
                 (or body [])))))
 
 (defn- make-digit-body!
-  [store body]
-  (add-node! store ["ft/digit" {:body (vec body)
-                                :measure (body-measure store body)}]))
+  ([store body]
+   (make-digit-body! store body (body-measure store body)))
+  ([store body measure]
+   (add-node! store ["ft/digit" {:body (vec body) :measure measure}])))
 
 (defn- make-node-body!
   [store body]
@@ -537,7 +557,12 @@
             item (hash->item store elem)
             fitted (try-append old-body item elem)]
         (if fitted
-          (let [new-right (make-digit-body! store fitted)]
+          ;; the page gained one element: its measure is the old one combined
+          ;; with that element's (not a re-measure of the whole page)
+          (let [new-right (make-digit-body!
+                           store fitted
+                           (measure-combine (measure-of store right)
+                                            (measure-of store elem)))]
             (make-deep! store left spine new-right
                         (measure-of store left)
                         (measure-of store spine)

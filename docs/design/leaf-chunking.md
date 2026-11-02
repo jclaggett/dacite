@@ -420,3 +420,19 @@ Normative draft: **[docs/spec/wire-v1.md](../spec/wire-v1.md)**.
 - **Earlier “structural recursive terms” sketch** (encode `ft/deep` as nested
   terms): **superseded**. Literals are realized values; spine is reconstructed,
   not mirrored on the wire.
+
+---
+
+## 2g. Leaf page budget: 4 KiB (M1.1a, decided by Jonathan, Nov 2 2026)
+
+`lit/page-budget` (the payload bytes an `ft/digit` or `ft/node` page holds) was 1024. It is now **4096**, and a string or blob counts its length + 5 against the budget (its wire framing). It is a separate knob from the soft pack chunk budget (`pack/default-budget`, still 1024) and from the largest literal (`pack/default-max-literal`, one frame payload).
+
+**No value hash changes.** A node hashes `(type, elements-fuse)`; a budget changes only how elements are grouped into pages. Eight shapes were hashed on `main` and on the branch and are identical, and a test pins seven of them (`value-hashes-are-the-same-as-before-the-4-kib-leaf-budget`). The hash of an inner page depends on its grouping, so the fixtures that name inner pages (`item-stream-*`, four `wire-v1` `chunk-node-*` message files) were regenerated; no `hash.hex` of `wire-v1` and no root hash of a peer fixture moved.
+
+**Data** (`docs/notes/page-size-measurements.md`, bench `dev/page_size_bench.clj`), 1 KiB to 4 KiB: a 100 KB string 108 to 29 nodes and 9% fewer bytes; a 300 KB blob 312 to 78 and 9% fewer; 4 000 ints 55 to 17; 8 000 i64 103 to 28; a one-element edit adds about twice the bytes. The largest node item is 4.2 KB (a spine or bitmap page, 32 refs, is smaller), under the 8192 minimum frame. 16 KiB was ruled out: its node items are 16.5 KB, over one payload (16 378 bytes).
+
+**Why not 8 KiB.** (2 KiB was not measured.) At 8 KiB a node item is 8.3 KB, so the smallest allowed frame would have to be 16 KiB and could not be negotiated down, and a one-element edit adds 12 to 28 KB.
+
+**Build cost.** Building a page one element at a time was quadratic in the budget (each append re-expanded the page and hashed every element again); at 4 KiB that took seconds for a few thousand elements. `append-item` now rewrites only the last group and the page measure is combined incrementally, so build time at 4 KiB is about that at 1 KiB (8 000 i64: 3.9 s before, 0.18 s now). `ft-nth` reads inside the page body (`page-nth`) and interns one element.
+
+**Chunk budget.** The 1024 `pack/default-budget` was not changed. A 4 KiB page is not a literal under a 1 KiB gate, so the first GET of a long string carries its header and spine and the pages follow. Whether to raise it is an open question.
