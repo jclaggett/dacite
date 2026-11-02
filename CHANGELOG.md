@@ -15,8 +15,12 @@ stability promise: public APIs may still change before 1.0.
   hash and cap, reports node items over one frame (`:oversized`), and
   `frame/min-max-frame` is 8192. Page building is linear (`lit/append-item`,
   an incremental page size, an allocation-free `lit/utf8-len`), and encoding a
-  100 KB blob takes 2 s, not 107 s. `pack/literal-gate` is 4. Value hashes
-  do not change.
+  100 KB blob takes 2 s, not 107 s. Value hashes do not change.
+- **M1.1b: a node bound replaces the literal gate.** `dacite.store.bound` bounds
+  the wire size of a node's literal from the node alone (a sum with no run or
+  repeat compression, kept in memory per call; never stored, sent or hashed).
+  A literal is built only when its bound is at or under the cap, and then it
+  fits. `pack/literal-gate` is gone. Value hashes do not change.
 - **Peer protocol v1 draft (M1.1)** — `docs/spec/peer-v1.md`. Every peer
   message is a small Dacite value: a control message is the wire-v1
   literal of a string-keyed map, with no item header, hash or store

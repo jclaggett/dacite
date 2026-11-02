@@ -14,6 +14,8 @@
             [dacite.reveal :as reveal]
             [dacite.service.reveal :as sr]
             [dacite.store :as store]
+            [dacite.rooted.gc :as gc]
+            [dacite.store.bound :as bound]
             [dacite.store.pack :as pack]
             [dacite.value :as v]
             [dacite.value.lit :as lit]
@@ -364,12 +366,15 @@
   (let [st (store/mem-store)
         h (build st shape)
         cap (frame/max-literal-item mf)
-        {:keys [items encs oversized]} (items/encode-value st h {:max-frame-bytes mf})
+        misses (atom [])
+        {:keys [items encs oversized]} (binding [pack/*on-bound-miss* #(swap! misses conj %)]
+                                         (items/encode-value st h {:max-frame-bytes mf}))
         sizes (map #(bin/byte-len %) items)
         rx (try (items/finish! (items/accept-items! nil (bin/decode-item-stream
                                                           (frame/concat-bytes items))))
                 (catch Throwable e e))]
     (cond
+      (seq @misses) {:fail :bound-miss :shape shape :miss (first @misses)}
       (some #(> % cap) (map second (filter #(= :literal (first %)) (map vector encs sizes))))
       {:fail :literal-over-cap :shape shape}
       (and (>= mf frame/min-max-frame) (seq oversized))
@@ -533,22 +538,122 @@
 ;; S3/S4: the literal attempt, its gate and its cache
 ;; ---------------------------------------------------------------------------
 
-(deftest the-literal-gate-is-four-caps
-  (is (= 4 pack/literal-gate)))
+;; ---------------------------------------------------------------------------
+;; The node bound (store.bound) replaces the literal gate (M1.1b)
+;; ---------------------------------------------------------------------------
 
-(deftest the-gate-does-not-change-the-stream-of-incompressible-values
-  ;; Skipping a literal only lengthens a stream, and for text and numbers
-  ;; that do not shrink there is nothing to lengthen. At the minimum frame
-  ;; the cap is 8 186, so the gate (4 x) is 32 KB.
-  (let [mf {:max-frame-bytes frame/min-max-frame}
-        same? (fn [mk]
-                (let [st (store/mem-store)
-                      h (v/hash (mk st))
-                      stream (fn [g] (with-redefs [pack/literal-gate g]
-                                       (mapv vec (:items (items/encode-value st h mf)))))]
-                  (= (stream 4) (stream 16))))]
-    (is (same? #(v/string % (text 40000 1))) "40 KB of random text: over the gate of 4, under 16")
-    (is (same? #(apply v/vector % (map (fn [i] (v/i64 % i)) (range 6000)))) "6000 distinct i64")))
+(defn- reachable-hashes
+  "Every node under `h` (a node once), breadth first."
+  [st h]
+  (loop [q [h] seen #{} out []]
+    (if (empty? q)
+      out
+      (let [x (peek q) q (pop q) k (gc/hash-key x)]
+        (if (contains? seen k)
+          (recur q seen out)
+          (let [e (store/await (store/s-get st x))]
+            (recur (into q (or (types/child-hashes e) [])) (conj seen k) (conj out x))))))))
+
+(defn- bound-failures
+  "Over each node under `h` whose bound is at most `limit`, the faults: the
+   bound under the size of the literal built, or (the bound at most one of
+   `caps`) a literal that cannot be made, does not fit or does not round-trip."
+  [st h caps limit]
+  (let [cache (atom {})]
+    (for [x (reachable-hashes st h)
+          :let [b (bound/literal-item-bound st x cache)]
+          :when (and b (<= (long b) (long limit)))
+          :let [form (try (pack/literal-of st x) (catch Throwable _ nil))
+                size (when form
+                       (pack/wire-item-size (pack/literal-item x (:type form) (:body form))))
+                fits (filter #(<= (long b) (long %)) caps)]
+          fault [(when (and form (< (long b) (long size))) :bound-under-size)
+                 (when (and (seq fits) (nil? form)) :fits-but-no-literal)
+                 ;; (an inner node of a tree has a literal that may not round-trip:
+                 ;; it is not the value its entries make; the sender then
+                 ;; sends the node item, as before)
+                 (when (and (seq fits) form
+                            (not (re-find #"^(hamt|ft)/" (str (first (store/await (store/s-get st x))))))
+                            (not (literal-round-trips? st x)))
+                   :round-trip)]
+          :when fault]
+      {:fault fault :bound b :size size :type (:type form)})))
+
+(deftest the-bound-is-never-below-the-literal-and-a-bound-that-fits-makes-one
+  ;; Over every node of a generated value: bound >= the size of the literal
+  ;; built (so a literal is never built to find that it is over), and a node
+  ;; whose bound is under the cap does have a literal. Nodes whose bound is
+  ;; over 40 KB are not built: it keeps the test to a second or two.
+  (let [caps [(frame/max-literal-item frame/min-max-frame) (frame/max-literal-item)]
+        r (tc/quick-check
+           property-samples
+           (prop/for-all [shape gen-shape]
+             (let [st (store/mem-store)
+                   h (build st shape)]
+               (empty? (bound-failures st h caps 40000)))))]
+    (is (:pass? r) (str "seed " (:seed r) " failed on " (pr-str (:shrunk r))))))
+
+(deftest the-bound-fits-means-the-stream-never-needed-a-second-try
+  ;; encode-value reports a literal that its bound let through and that then
+  ;; did not fit or did not round-trip. None may.
+  (let [misses (atom [])]
+    (binding [pack/*on-bound-miss* #(swap! misses conj %)]
+      (doseq [shape [[:string 30000] [:astral 4000] [:one-byte [[:u8 :char] 2 2600]]
+                     [:strings (repeat 100 250)] [:map [100 600]] [:nested 120]
+                     [:ints 3000] [:blobs [200 200 200 200 200 200]]]
+              mf [frame/min-max-frame frame/max-frame]]
+        (let [st (store/mem-store)
+              h (build st (if (= :string (first shape)) [:string (text (second shape) 5)] shape))]
+          (is (seq (:items (items/encode-value st h {:max-frame-bytes mf})))))))
+    (is (empty? @misses) (pr-str (take 3 @misses)))))
+
+(deftest the-bound-counts-no-compression-and-never-less-than-a-run-costs
+  (let [st (store/mem-store)
+        b (fn [x] (- (bound/literal-item-bound st (v/hash x) nil) bound/item-header-bytes))
+        wire (fn [x] (let [f (pack/literal-of st (v/hash x))]
+                       (bin/byte-len (bin/encode-lit-bytes {:type (:type f) :body (:body f)}))))]
+    (testing "a blob or a string is its bytes plus five"
+      (is (= 105 (b (v/blob st (bytes-of 100)))))
+      (is (= 105 (b (v/string st (apply str (repeat 100 \a)))))))
+    (testing "equal values are counted one by one: no repeat"
+      (let [x (apply v/vector st (repeat 1000 (v/i64 st 7)))]
+        (is (= (+ 5 6 (* 8 1000)) (b x)))
+        (is (< (wire x) 100) "the repeat is far under it")))
+    (testing "two u8 as a run (8 bytes) cost more than two singles (4): the bound counts the run"
+      (let [x (v/vector st (v/u8 st 1) (v/u8 st 2))]
+        (is (<= (wire x) (b x)))))
+    (testing "a type change starts a new group and pays its header again"
+      (let [x (v/vector st (v/u8 st 1) (v/bool st true) (v/u8 st 2))]
+        (is (= (+ 5 (* 3 (+ 6 1))) (b x)))
+        (is (<= (wire x) (b x)))))
+    (testing "a value with no literal has no bound"
+      (is (nil? (bound/literal-item-bound st (vec (repeat 32 0)) nil))))))
+
+(deftest the-bound-summaries-combine-as-a-monoid
+  (let [c bound/combine
+        u8 (fn [n] {:f "u8" :l "u8" :v n :b (+ 6 n)})
+        ch {:f "char" :l "char" :v 3 :b 13}]
+    (is (= (u8 4) (c nil (u8 4))))
+    (is (= (u8 4) (c (u8 4) nil)))
+    (testing "equal types merge: the header once"
+      (is (= {:f "u8" :l "u8" :v 5 :b 11} (c (u8 2) (u8 3)))))
+    (testing "different types do not"
+      (is (= {:f "u8" :l "char" :v 5 :b 21} (c (u8 2) ch))))
+    (testing "associative"
+      (let [xs [(u8 1) ch (u8 2) (u8 3) ch]]
+        (doseq [i (range 1 4) j (range (inc i) 5)]
+          (let [[a b d] [(subvec xs 0 i) (subvec xs i j) (subvec xs j)]
+                red #(reduce c nil %)]
+            (is (= (red xs) (c (c (red a) (red b)) (red d)) (c (red a) (c (red b) (red d)))))))))))
+
+(deftest utf8-len-upper-is-never-below-the-text-it-joins
+  (is (= 0 (lit/utf8-len-upper "")))
+  (is (= 4 (lit/utf8-len-upper "ab\u00e9")))
+  (is (= 4 (lit/utf8-len-upper "\uD83D\uDE00")))
+  (testing "a lone surrogate counts 2: two halves of a pair, in two runs, are 4 together"
+    (let [hi "\uD83D" lo "\uDE00"]
+      (is (>= (+ (lit/utf8-len-upper hi) (lit/utf8-len-upper lo))
+              (lit/utf8-len (str hi lo)))))))
 
 (deftest a-string-over-the-cap-is-not-built-to-learn-it
   (let [st (store/mem-store)
