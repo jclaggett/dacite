@@ -18,6 +18,7 @@
 
 (def shapes
   {"string 100 KB"        (fn [st] (v/string st (text 100000 1)))
+   "blob 100 KB"            (fn [st] (v/blob st (let [b (byte-array 100000)] (.nextBytes (java.util.Random. 3) b) b)))
    "blob 300 KB"            (fn [st] (v/blob st (let [b (byte-array 300000)] (.nextBytes (java.util.Random. 2) b) b)))
    "vector 4k ints"      (fn [st] (apply v/vector st (map #(v/i64 st %) (range 4000))))
    "vector 300 x 1KB str"  (fn [st] (apply v/vector st (map #(v/string st (text 1000 (+ 10 %))) (range 300))))
@@ -27,6 +28,7 @@
 
 (def edits
   {"string 100 KB"       (fn [st] (v/string st (let [t (text 100000 1)] (str (subs t 0 50000) "#" (subs t 50001)))))
+   "blob 100 KB"           (fn [st] (v/blob st (let [b (byte-array 100000)] (.nextBytes (java.util.Random. 3) b) (aset-byte b 50000 (byte (inc (aget b 50000)))) b)))
    "blob 300 KB"           (fn [st] (v/blob st (let [b (byte-array 300000)] (.nextBytes (java.util.Random. 2) b) (aset-byte b 150000 (byte (inc (aget b 150000)))) b)))
    "vector 4k ints"     (fn [st] (apply v/vector st (map #(v/i64 st (if (= % 2000) -1 %)) (range 4000))))
    "vector 300 x 1KB str" (fn [st] (apply v/vector st (map #(v/string st (if (= % 150) (text 1000 99999) (text 1000 (+ 10 %)))) (range 300))))

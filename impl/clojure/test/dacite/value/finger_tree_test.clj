@@ -251,8 +251,8 @@
                       "char" (str b)
                       "run" (str (:values b)))))]
     (is (= ["aaa" "\u03bbb" "c"]
-           (mapv text-of (lit/chunk-run "char" (str "aaa" \u03bb "bc") 3)))
-        "a 2-byte character that would cross the budget starts the next chunk")
+           (mapv text-of (lit/chunk-run "char" (str "aaa" \u03bb "bc") (+ 3 10))))
+        "a 2-byte character that would cross the budget starts the next chunk (the budget is 3 bytes of text and 10 of char-run header)")
     (is (= border (apply str (map text-of chunks-b))))
     (is (= long (apply str (map text-of chunks-l))))
     (is (every? #(<= (lit/item-payload-bytes %) lit/page-budget)

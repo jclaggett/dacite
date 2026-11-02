@@ -341,17 +341,38 @@
       (:body (first items))
       :else (make-node-body! store body))))
 
+(def ^:private page-payload-memo
+  "[body payload] of the page body built last. A page grows by one element
+   at a time, and its payload is the one the last append computed: not a
+   recount of the page for every element (a character run was re-measured
+   byte by byte). Identity, so a hit is always the right answer."
+  (atom nil))
+
+(defn- body-payload
+  [body]
+  (let [m @page-payload-memo]
+    (if (and m (identical? (nth m 0) body))
+      (long (nth m 1))
+      (long (lit/payload-bytes body)))))
+
+(defn- fit
+  "`b` with its payload `pb` remembered when it fits the page budget."
+  [b pb]
+  (when (<= (long pb) lit/page-budget)
+    (reset! page-payload-memo [b pb])
+    b))
+
 (defn- try-append
   "Append item to body if the page stays within budget. Falls back to a
    ref of `h` when the inlined form does not fit. Nil means overflow."
   [body item h]
-  (let [b1 (lit/append-item body item)]
-    (if (<= (lit/payload-bytes b1) lit/page-budget)
-      b1
-      (when-not (= "ref" (str (:type item)))
-        (let [b2 (lit/append-item body {:type "ref" :body h})]
-          (when (<= (lit/payload-bytes b2) lit/page-budget)
-            b2))))))
+  (let [body (if (vector? body) body (vec body))
+        pb (body-payload body)
+        b1 (lit/append-item body item)]
+    (or (fit b1 (lit/payload-after-append body pb b1))
+        (when-not (= "ref" (str (:type item)))
+          (let [b2 (lit/append-item body {:type "ref" :body h})]
+            (fit b2 (lit/payload-after-append body pb b2)))))))
 
 (defn- try-prepend
   [body item h]
