@@ -248,12 +248,16 @@ small vector sent as one 678-byte literal. `item-stream-mixed` is a 1200-element
 vector: node items and literals together.
 
 **Node items (decision Q3, done in M1.1a).** A sender SHOULD keep each node item
-within one frame payload. Since M1.1a every page is at most about 4 KiB (the
-leaf page budget is 4096 payload bytes, below) and a spine or bitmap page is at
-most 32 refs, so the largest node item the reference serializer writes is under
-5 000 bytes (`frame/max-node-item-bytes`; a property test builds strings,
-blobs, vectors of ints, strings and blobs, maps and mixed vectors and checks
-it). A store that builds a page in one piece can still make a longer one
+within one frame payload. Since M1.1a every page is at most about 4 KiB of wire
+bytes (the leaf page budget is 4096, below: it counts a tag on every single
+element and a header on every run, so it follows the wire size) and a spine or
+bitmap page is at most 32 refs, so the largest node item the reference
+serializer writes is under 5 000 bytes (`frame/max-node-item-bytes`; the largest
+seen is about 4 200, for pages of alternating one-byte kinds). A property test
+builds strings (with characters outside the BMP), blobs, vectors of ints,
+strings and blobs, nested vectors, maps (also with large values), mixed vectors
+and vectors of alternating one-byte kinds in groups of one to three, and checks
+the bound. A store that builds a page in one piece can still make a longer one
 (fixture `item-stream-node-spans-frames`), and a receiver reads those, up to
 `max-item` (1 MiB): receivers keep `max-item` and do not refuse a node item for
 its size. `items/encode-value` **reports** a node item over one payload by
@@ -263,16 +267,26 @@ instead. The limit follows: the smallest `max-frame` a peer may advertise
 (`frame/min-max-frame`) must be at least the largest node item plus the 37-byte
 item header and the 6-byte envelope. M1.1a raised it from 1024 to **8192**
 (`frame/min-max-frame-fits-node?`, tested), so a peer at the minimum frame size
-gets every node item in one frame. A sender with a smaller frame (tests only)
-sees its node items reported.
+gets every node item the reference serializer writes in one frame. A page
+another store built may be longer, and a sender with a smaller frame (tests
+only) sees its node items reported.
 
 **Page sizes (M1.1a).** A leaf page (an `ft/digit` or `ft/node` body) holds at
-most **4096 payload bytes** (`lit/page-budget`); the page-size choice and its
+most **4096 bytes** (`lit/page-budget`); the page-size choice and its
 measurements are in `docs/design/leaf-chunking.md` and
-`docs/notes/page-size-measurements.md`. Payload bytes count a string or blob as
-its length **plus 5** (`lit/string-wire-overhead`: a tag and a u32 length), a
-`null` or `negative` element as 1, and runs and repeats of strings and blobs by
-their real sizes. The page budget does not change any value hash: a node hashes
+`docs/notes/page-size-measurements.md`. The size of a page counts what its items
+cost on the wire, as `lit/item-payload-bytes`: a string or blob is its length
+**plus 5** (`lit/string-wire-overhead`: a tag and a u32 length), any other single
+element its body **plus a one-byte tag** (a `char` also has a length byte), a run
+or repeat its **6-byte header** (a `char` run 4 more, for the text length) and
+its values, and `null` and `negative` count 1 (so they are never free). Runs and
+repeats of strings and blobs count their real sizes, and a repeat counts every
+copy (it is cheaper on the wire, which keeps a page bounded in elements). The
+count is never below the wire size and is exact for scalars and runs of
+fixed-size values (tested against the encoder). Before M1.1a's review this
+counted a one-byte element as one byte and a run as free, so a page of
+alternating `u8` and `char` was 8 261 bytes on the wire, over the minimum frame.
+The page budget does not change any value hash: a node hashes
 `(type, elements-fuse)`, so the root hash of a value is the same for any paging.
 The hash of an inner page does depend on the paging (it is a different group of
 elements), so fixtures that name inner pages were regenerated.

@@ -11,11 +11,12 @@ Per shape and `lit/page-budget`: nodes and bytes of a full reveal (`reveal/page-
 | shape | budget | nodes | node bytes | max node item | stream items | stream bytes | max stream item | edit adds (nodes / bytes) | build ms | encode ms |
 |---|---|---|---|---|---|---|---|---|---|---|
 | string 100 KB | 1024 | 108 | 113 915 | 1 122 | 108 | 109 361 | 1 076 | 7 / 3 453 | 105 | 2 498 |
-|  | 4096 | 29 | 103 681 | 4 194 | 29 | 102 531 | 4 148 | 5 / 6 791 | 134 | 2 827 |
+|  | 4096 | 29 | 103 681 | 4 184 | 29 | 102 531 | 4 138 | 5 / 6 771 | 101 | 72 |
 |  | 8192 | 17 | 102 121 | 8 290 | 17 | 101 523 | 8 244 | 5 / 11 868 | 98 | 1 927 |
 |  | 16384 | 11 | 101 341 | 16 482 | 11 | 101 249 | 16 482 | 5 / 22 599 | 88 | 1 231 |
+| blob 100 KB (final code) | 4096 | 29 | 103 577 | 4 184 | 29 | 102 427 | 4 138 | 5 / 6 771 | 66 | 39 |
 | blob 300 KB | 1024 | 312 | 339 229 | 1 118 | 287 | 323 653 | 14 384 | 7 / 3 033 | 228 | 25 264 |
-|  | 4096 | 78 | 309 751 | 4 190 | 78 | 306 347 | 4 144 | 5 / 8 351 | 170 | 139 |
+|  | 4096 | 78 | 309 751 | 4 184 | 78 | 306 347 | 4 138 | 5 / 8 339 | 42 | 54 |
 |  | 8192 | 41 | 305 089 | 8 286 | 41 | 303 387 | 8 240 | 5 / 12 628 | 307 | 119 |
 |  | 16384 | 23 | 302 821 | 16 478 | 23 | 302 729 | 16 478 | 5 / 22 975 | 258 | 257 947 |
 | vector 4k ints | 1024 | 55 | 38 836 | 830 | 8 | 32 690 | 15 872 | 5 / 2 067 | 86 | 172 |
@@ -31,7 +32,7 @@ Per shape and `lit/page-budget`: nodes and bytes of a full reveal (`reveal/page-
 |  | 8192 | 192 | 322 601 | 8 228 | 46 | 304 948 | 11 092 | 5 / 13 925 | 683 | 560 |
 |  | 16384 | 194 | 322 355 | 16 292 | 109 | 309 694 | 16 292 | 5 / 23 849 | 712 | 581 |
 | vector 2k x 12B str | 1024 | 58 | 39 208 | 894 | 8 | 32 690 | 16 048 | 30 / 20 413 | 161 | 256 |
-|  | 4096 | 17 | 34 054 | 3 918 | 17 | 33 456 | 3 872 | 11 / 23 241 | 286 | 221 |
+|  | 4096 | 17 | 34 054 | 3 742 | 17 | 33 456 | 3 696 | 5 / 6 085 | 182 | 275 |
 |  | 8192 | 11 | 33 298 | 6 398 | 11 | 32 976 | 6 352 | 8 / 27 871 | 412 | 209 |
 |  | 16384 | 8 | 32 914 | 11 534 | 8 | 32 684 | 11 488 | 5 / 22 351 | 550 | 161 |
 | map 1k int->int | 1024 | 3 185 | 344 739 | 1 116 | 1 328 | 128 603 | 1 116 | 6 / 2 226 | 76 | 306 |
@@ -42,9 +43,9 @@ Per shape and `lit/page-budget`: nodes and bytes of a full reveal (`reveal/page-
 Reading it:
 
 - **1 KiB to 4 KiB:** a 100 KB string goes from 108 to 29 nodes (3.7 times fewer) and 9% fewer bytes; a 300 KB blob 312 to 78 and 9% fewer; 4 000 ints 55 to 17; 8 000 i64 103 to 28. A one-element edit adds about twice the bytes (3 453 to 6 791 for the string). Build time is about the same.
-- **Largest node item at 4 KiB:** 4 194 bytes (string), under the 8192 minimum frame and one payload. At 16 KiB it is 16 482, over one payload (16 378): not allowed. At 8 KiB (8 290) the minimum frame would have to be 16 KiB.
+- **Largest node item at 4 KiB:** 4 184 bytes (string), under the 8192 minimum frame and one payload. At 16 KiB it is 16 482, over one payload (16 378): not allowed. At 8 KiB (8 290) the minimum frame would have to be 16 KiB.
 - **Max stream item** at 1 KiB is 14 to 16 KB for blobs, 4k ints and 2k short strings: the literal rule packs many 1 KiB pages into one literal. At 4 KiB it is at most 5 068.
-- **Encode time.** A 100 KB string takes about 2.5 s to encode at 1 KiB and 2.8 s at 4 KiB, whatever the budget: the sender builds the root's literal (100 KB) to learn it is over the cap. A cheaper pre-filter is not safe, because a literal of repeated values is much shorter than its payload (`literal-gate`). Open. The 300 KB blob took 25 s at 1 KiB and 258 s at 16 KiB, against 0.14 s at 4 KiB: the first is the old per-element rebuild of 1 KiB pages and the second the same at 16 KiB; at 4 KiB the incremental append is what makes it quick (before it, the 8k i64 vector built in 3.9 s; now 0.18 s).
+- **Encode time.** Review of PR #9 (Nov 2 2026) found the sender's cost was in the literal attempts, not the paging. (1) `lit/pack-u8-values` indexed a lazy seq (quadratic): a blob over 16 KB took 8 s at 32 KB, 39 s at 64 KB and 107 s at 100 KB to encode. It indexes a vector now: 0.6 s, 1.0 s, 2.0 s (with the old gate). The 300 KB blob only looked fast (82 ms) because it is past the gate (16 x 16 378 = 262 KB), where no literal is tried. (2) A 100 KB string took 1.6 to 2.8 s because the sender builds the literal of the root and of each big descendant to learn they are over the cap. `pack/literal-gate` is 4 now (it was 16): 55 ms for the 100 KB string, the same stream; 20 000 distinct i64 193 ms (948 ms). A pre-filter on the size cue is **safe** (skipping a literal only lengthens the stream; the receiver takes the node items): what it costs is the compression of degenerate values, 250 KB of one letter being 8 items and 13.8 KB instead of 2 items and 137 B, and 100 000 equal i64 being 70 bytes longer. A string or blob whose bytes alone are over the cap is no longer built at all, and neither is a parent that holds one. Not built: a `literal-of` with a byte limit that stops when the output passes the cap, so a failed attempt costs the cap and not the value. It would remove the gate and the cliff (docs/plan/peering.md). The old per-element rebuild made the 300 KB blob take 25 s at 1 KiB and 258 s at 16 KiB, against 0.05 s at 4 KiB.
 
 Degenerate shapes (`page_size_degenerate.clj`; nodes and largest node item in bytes; 2 000 or 4 000 elements):
 
