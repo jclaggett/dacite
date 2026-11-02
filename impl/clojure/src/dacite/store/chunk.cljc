@@ -7,11 +7,21 @@
    are not in the new set. `s-get` hydrates inner items into the overlay.
 
    `s/file` and `s/lmdb` wrap this overlay; rooted commit flushes. Raw
-   `file-store` / `lmdb-store` stay exploded. Budget defaults to
-   pack/default-budget (4096)."
+   `file-store` / `lmdb-store` stay exploded. The IndexedDB store wraps it
+   too. Budget defaults to `durable-budget` (1024), not the HTTP and peer
+   default `pack/default-budget` (4096)."
   (:require [dacite.store :as store]
             [dacite.store.pack :as pack]
             [dacite.rooted.gc :as gc]))
+
+(def durable-budget
+  "Default soft chunk budget of a durable store (file, LMDB, IndexedDB), in
+   sent bytes: 1 KiB. Its own constant, apart from `pack/default-budget`
+   (4 KiB, for HTTP and peers, where a full leaf page should travel as a
+   literal). On disk a literal repeats what its entries share, so a larger
+   chunk costs space: the seed catalog is 27 086 bytes at 4096 and 18 381 at
+   1024 (12 121 against 21 574 live-exploded bytes in the storage test)."
+  1024)
 
 (defn pack-item?
   "True if v is a Layer-1 pack item (inner durable form)."
@@ -81,12 +91,12 @@
 
 (defn chunked
   "Wrap `inner` with a mem overlay. Puts go to the overlay; `flush!` writes
-   pack items into inner. opts: `:budget` (default pack/default-budget)."
+   pack items into inner. opts: `:budget` (default `durable-budget`)."
   ([inner] (chunked inner nil))
   ([inner {:keys [budget overlay]}]
    (->ChunkedStore inner
                    (or overlay (store/mem-store))
-                   (long (or budget pack/default-budget)))))
+                   (long (or budget durable-budget)))))
 
 (defn overlay [cs] (:overlay cs))
 (defn inner [cs] (:inner cs))

@@ -6,6 +6,9 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **`pack/default-budget` is 4 KiB** (the leaf page size; HTTP and peers), tested
+  `(>= default-budget lit/page-budget)`. Durable stores (file, LMDB,
+  IndexedDB) keep 1 KiB as `chunk/durable-budget`, a constant of their own.
 - **M1.1a: page and literal sizes (PR #9, Fixes #8).** A leaf page is 4 KiB
   (`lit/page-budget`), counted in wire bytes: a string or blob its length + 5,
   other single elements their body and a tag, a run or repeat its header

@@ -43,8 +43,8 @@
               :chunked-edn-bytes (:edn-bytes inner)
               :flush flushed})
     (is (= (count (:items packed)) (:items flushed) (:entries inner)))
-    (is (= 9 (:entries inner))
-        "encode-reachable at the default 4096 for the seed catalog")
+    (is (= 31 (:entries inner))
+        "encode-reachable at the durable 1024 for the seed catalog")
     (is (< (:entries inner) live))
     (is (< live debris))))
 
@@ -106,12 +106,7 @@
     (println "edn bytes live-exploded" live-bytes
              "chunked" (:edn-bytes inner)
              "ratio" (format "%.2f" (double (/ live-bytes (max 1 (:edn-bytes inner))))))
-    ;; At the 1024 default the chunked layout was 12 121 bytes, under the live
-    ;; exploded 21 574. At 4096 it is 27 086: a 4 KiB literal repeats what the
-    ;; entries share (not smaller than live, smaller than the construction
-    ;; debris). Open: whether durable chunk stores should keep a smaller budget
-    ;; than the HTTP default (PR for `pack/default-budget`).
-    (is (< (:edn-bytes inner) (* 2 live-bytes)))
+    (is (< (:edn-bytes inner) live-bytes))
     (is (< (:entries inner) (count (store/await (store/s-snapshot live)))))))
 
 (deftest chunked-file-smaller-than-exploded-file
@@ -132,7 +127,7 @@
         (println "file store seed catalog"
                  {:exploded-files e-files :exploded-bytes e-bytes
                   :chunked-files c-files :chunked-bytes c-bytes})
-        (is (= 9 c-files))
+        (is (= 31 c-files))
         (is (< c-files e-files))
         (is (< c-bytes e-bytes)))
       (finally
@@ -145,7 +140,7 @@
     (try
       (let [r (v/root (store/file (.getPath dir)))]
         (lib/load-or-seed! r)
-        (is (= 9 (count (edn-files dir)))
+        (is (= 31 (count (edn-files dir)))
             "s/file persists pack items, not construction debris")
         (let [r2 (v/root (store/file (.getPath dir)))
               loaded (v/deref r2)
@@ -168,7 +163,7 @@
             inner (chunk/inner (:content rs))]
         (try
           (lib/load-or-seed! (v/root rs))
-          (is (= 9 (:entries (jvm/lmdb-db-stat inner))))
+          (is (= 31 (:entries (jvm/lmdb-db-stat inner))))
           (finally
             (store/lmdb-close inner))))
       (let [rs2 (store/lmdb path)
@@ -184,3 +179,10 @@
       (finally
         (doseq [f (reverse (file-seq dir))]
           (.delete ^java.io.File f))))))
+
+(deftest durable-stores-have-their-own-budget
+  (is (= 1024 chunk/durable-budget))
+  (is (= 4096 pack/default-budget) "HTTP and peers keep the leaf page size")
+  (is (= chunk/durable-budget (chunk/budget (chunk/chunked (store/mem-store)))))
+  (is (= 77 (chunk/budget (chunk/chunked (store/mem-store) {:budget 77})))
+      "an explicit budget still wins"))

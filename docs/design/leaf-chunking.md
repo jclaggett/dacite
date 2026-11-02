@@ -217,7 +217,7 @@ descendant misses pack-fill their own neighborhoods. Walk order is **BFS**
 
 | Name | Default | Role |
 |------|---------|------|
-| soft budget (`pack/default-budget`) | **4096** (was 1024 until M1.1a; at least `lit/page-budget`, tested) | Soft Layer 2 threshold; cue for literal vs node (2d). Budget **0** is a single item (the asked hash). |
+| soft budget (`pack/default-budget`, HTTP and peers; durable stores use `chunk/durable-budget`, **1024**) | **4096** (was 1024 until M1.1a; at least `lit/page-budget`, tested) | Soft Layer 2 threshold; cue for literal vs node (2d). Budget **0** is a single item (the asked hash). |
 
 Reproduce: `cd impl/clojure && clojure -M:dev -m dacite.bench.todo-bw --budget-sweep`.
 
@@ -436,3 +436,5 @@ Normative draft: **[docs/spec/wire-v1.md](../spec/wire-v1.md)**.
 **Build cost.** Building a page one element at a time was quadratic in the budget (each append re-expanded the page and hashed every element again); at 4 KiB that took seconds for a few thousand elements. `append-item` now rewrites only the last group and the page measure is combined incrementally, so build time at 4 KiB is about that at 1 KiB (8 000 i64: 3.9 s before, 0.18 s now). `ft-nth` reads inside the page body (`page-nth`) and interns one element.
 
 **Chunk budget.** The 1024 `pack/default-budget` was not changed in PR #9; it is 4096 in the next PR. A 4 KiB page is not a literal under a 1 KiB gate, so the first GET of a long string carries its header and spine and the pages follow. Decided in the review of PR #9: raise it to the page size (4096, its own constant, with a test that it is at least `lit/page-budget`), because it moves every pack chunk and many size tests. A chunk is at most the budget plus one item. **Measured cost:** the seed catalog in a chunked durable store (`library-storage`) is 9 entries and 27 086 bytes on disk at 4096, against 31 entries and 18 381 bytes at 1024 (wire bytes 10 292 against 7 113): a literal of 4 KiB repeats what its entries share. The HTTP first GET is what the raise is for; a durable chunk store may want a smaller budget of its own (open).
+
+**Durable stores keep 1 KiB.** The file, LMDB and IndexedDB stores chunk with `chunk/durable-budget` (1024), a constant of their own: on disk a 4 KiB literal repeats what its entries share (the seed catalog is 27 086 bytes at 4096, 18 381 at 1024; 31 entries against 9). HTTP and peers keep `pack/default-budget` (4096).
