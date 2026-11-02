@@ -342,15 +342,29 @@
       :else (make-node-body! store body))))
 
 (def ^:private page-payload-memo
-  "[body payload] of the page body built last. A page grows by one element
-   at a time, and its payload is the one the last append computed: not a
-   recount of the page for every element (a character run was re-measured
-   byte by byte). Identity, so a hit is always the right answer."
-  (atom nil))
+  "[body payload] of the page body built last *by this thread*. A page grows
+   by one element at a time, and its payload is the one the last append
+   computed: not a recount of the page for every element (a character run was
+   re-measured byte by byte). Identity, so a hit is always the right answer.
+
+   One per thread (a JVM `ThreadLocal`; ClojureScript has one thread): a
+   memo shared by all threads was overwritten by whichever build ran last,
+   so concurrent builds lost the speedup. It holds at most one page body of
+   at most `lit/page-budget` bytes per thread."
+  #?(:clj (ThreadLocal.)
+     :cljs (atom nil)))
+
+(defn- memo-get []
+  #?(:clj (.get ^ThreadLocal page-payload-memo)
+     :cljs @page-payload-memo))
+
+(defn- memo-set! [m]
+  #?(:clj (.set ^ThreadLocal page-payload-memo m)
+     :cljs (reset! page-payload-memo m)))
 
 (defn- body-payload
   [body]
-  (let [m @page-payload-memo]
+  (let [m (memo-get)]
     (if (and m (identical? (nth m 0) body))
       (long (nth m 1))
       (long (lit/payload-bytes body)))))
@@ -359,7 +373,7 @@
   "`b` with its payload `pb` remembered when it fits the page budget."
   [b pb]
   (when (<= (long pb) lit/page-budget)
-    (reset! page-payload-memo [b pb])
+    (memo-set! [b pb])
     b))
 
 (defn- try-append

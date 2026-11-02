@@ -534,6 +534,34 @@
         (is (some? h))
         (is (< @calls 100) (str @calls " recounts for 3000 appends"))))))
 
+(deftest concurrent-page-builds-keep-the-incremental-page-size
+     ;; The memo of the last page's size is per thread. The four builds run
+     ;; in lock step (a barrier at every append), so under one memo shared by
+     ;; all of them each append would find another thread's page and recount.
+     (let [real-payload lit/payload-bytes
+           real-append lit/append-item
+           calls (atom 0)
+           threads 4
+           appends 400
+           barrier (java.util.concurrent.CyclicBarrier. threads)
+           build (fn [seed]
+                   (let [st (store/mem-store)]
+                     (vec (v/hash (reduce (fn [c i] (v/conj c (v/char st (char (+ 97 (mod (+ i seed) 26))))))
+                                          (v/vector st) (range appends))))))
+           expected (mapv build (range threads))]
+       (with-redefs [lit/payload-bytes (fn [b] (swap! calls inc) (real-payload b))
+                     lit/append-item (fn [& args]
+                                       (.await barrier 10 java.util.concurrent.TimeUnit/SECONDS)
+                                       (apply real-append args))]
+         (reset! calls 0)
+         (let [t0 (System/nanoTime)
+               fs (mapv #(future (build %)) (range threads))
+               got (mapv #(deref % 20000 :timeout) fs)
+               ms (/ (- (System/nanoTime) t0) 1e6)]
+           (is (= expected got) "the same hashes as built one at a time")
+           (is (< @calls (* 10 threads)) (str @calls " recounts for " (* threads appends) " appends"))
+           (is (< ms 3000) (str ms " ms"))))))
+
 ;; ---------------------------------------------------------------------------
 ;; S3/S4: the literal attempt, its gate and its cache
 ;; ---------------------------------------------------------------------------
