@@ -133,12 +133,21 @@
     (profile-error! "literal type is outside the peer-v1 profile" {:type type})))
 
 (defn encode-value
-  "Canonical wire-v1 `Lit` bytes of a native value."
-  [x]
-  (let [st (store/mem-store)
-        val (->value st x)
-        form (pack/literal-of st (v/hash val))]
-    (bin/encode-lit-bytes form)))
+  "Canonical wire-v1 `Lit` bytes of a native value.
+
+   Capped at the source: more than `:max-bytes` (default one frame payload,
+   `frame/max-payload`) throws {:reason :too-large}. A control message is
+   one frame, so this fails here and not later in `encode-frame`."
+  ([x] (encode-value x {}))
+  ([x {:keys [max-bytes] :or {max-bytes frame/max-payload}}]
+   (let [st (store/mem-store)
+         val (->value st x)
+         form (pack/literal-of st (v/hash val))
+         bs (bin/encode-lit-bytes form)]
+     (when (> (bin/byte-len bs) (long max-bytes))
+       (throw (ex-info "control value is over one frame payload"
+                       {:reason :too-large :size (bin/byte-len bs) :max max-bytes})))
+     bs)))
 
 (defn decode-value
   "Native value of wire-v1 `Lit` bytes. Rejects anything outside the profile."
@@ -419,7 +428,10 @@
     (frame/encode-frame {:type type
                          :stream stream
                          :flags frame/flag-fin
-                         :payload (encode-value value)
+                         :payload (encode-value
+                                   value
+                                   {:max-bytes (- (long (or max-frame-bytes frame/max-frame))
+                                                  frame/header-bytes)})
                          :max-frame-bytes (or max-frame-bytes frame/max-frame)})))
 
 (defn decode-message

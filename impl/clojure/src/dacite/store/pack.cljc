@@ -31,6 +31,23 @@
    reach ~2×budget when that last item is itself a ~1k literal."
   1024)
 
+(def default-max-literal
+  "Largest literal **item** (37-byte item header included) in wire-v1 bytes:
+   one peer frame payload, 16 384 - 6 = 16 378 (`dacite.peer.frame/max-payload`;
+   a test keeps the two equal). A literal never spans frames. Separate from
+   `default-budget` (the soft Layer-2 chunk target) and from the leaf page
+   budget (`lit/page-budget`).
+
+   `encode-item` and `encode-reachable` take it as `:max-literal`. Absent,
+   the old rule holds: a literal is any value whose size cue fits `budget`."
+  16378)
+
+(def literal-gate
+  "With `:max-literal`, values whose size cue is over `literal-gate * cap`
+   never get a literal built: it could not fit. A cheap pre-filter, not a
+   rule; the rule is the size of the finished item."
+  16)
+
 (def ^:dynamic *verify-literal-hash*
   "When true, apply-chunk! requires materialize hash to match claimed hash."
   true)
@@ -554,41 +571,98 @@
 ;; Layer 1 encode
 ;; =============================================================================
 
+(defn- encode-opts
+  "`opts` of `encode-item` and `encode-reachable`: a number is the budget."
+  [x]
+  (cond
+    (map? x) (update x :budget #(long (or % default-budget)))
+    :else {:budget (long (or x default-budget))}))
+
+(defn node-bytes-under
+  "Wire bytes of the node items that sending `h` as nodes needs: every entry
+   reachable from `h` whose hex key is not in `covered`. Stops past `limit`
+   (only 'more than the literal' matters)."
+  [st h covered limit]
+  (loop [queue [h] seen (or covered #{}) acc 0]
+    (if (or (empty? queue) (> acc limit))
+      acc
+      (let [x (peek queue)
+            queue (pop queue)
+            xk (gc/hash-key x)]
+        (if (or (nil? x) (contains? seen xk))
+          (recur queue seen acc)
+          (if-let [entry (store/await (store/s-get st x))]
+            (recur (into queue (reverse (or (types/child-hashes entry) [])))
+                   (conj seen xk)
+                   (+ acc (long (wire-item-size (node-item x entry)))))
+            (recur queue (conj seen xk) acc)))))))
+
+(defn- build-literal
+  "The literal item for `h`, or nil when it has none, is over the cap, or
+   does not round-trip."
+  [st h entry {:keys [budget max-literal]}]
+  (let [t (types/entry-type entry)]
+    (when (and (or (value-type? t) (tree-internal-type? t))
+               (not (clearly-oversized? entry (if max-literal
+                                                (* literal-gate (long max-literal))
+                                                budget))))
+      (when-let [{:keys [type body]}
+                 (try (literal-of st h)
+                      (catch #?(:clj Throwable :cljs :default) _ nil))]
+        (let [item (literal-item h type body)]
+          (when (and (or (nil? max-literal)
+                         (<= (long (wire-item-size item)) (long max-literal)))
+                     (literal-round-trips? h type body))
+            item))))))
+
 (defn encode-item
   "Layer 1: choose :literal or :node for store entry at h.
 
    Policy (2c / 2c′ / 2e / 2f):
    1. Unknown non-value, non-spine type → :node
-   2. Stored size cue > budget → :node (no full realize / dry-run)
+   2. Stored size cue too big → :node (no full realize / dry-run)
    3. Else build realized literal (value or intermediate spine);
-      if hash dry-run fails → :node
-   4. Else :literal (size-bytes ≤ budget is the gate; wire size is Layer 2)
+      if it is over the cap or its hash dry-run fails → :node
+   4. Else :literal.
+
+   `opts` is a map, or a number (the `budget`, as before):
+
+   - `:budget`       soft Layer-2 chunk target (default `default-budget`).
+                     Without `:max-literal` it is also the gate: a literal
+                     is any value whose size cue fits it.
+   - `:max-literal`  the largest literal item in wire bytes (see
+                     `default-max-literal`). With it, the item is built
+                     and measured, and a literal over it is a :node item.
+   - `:shorter-wins?` also require the literal to be shorter on the wire
+                     than the node items it replaces (peer item streams).
+   - `:covered`      hex keys already sent or held; they cost nothing in
+                     that comparison.
+   - `:cache`        an atom {hex-key literal-item-or-:none}: a literal is
+                     built once per hash per cache (`encode-value` of a
+                     value that holds one string under many keys).
 
    Intermediate ft/* / hamt/* may bottom out as leaf-literal payloads when
    reconstruction matches the claimed hash (2c′). Sequence bodies use
    run/repeat. Otherwise the walk continues into children."
   ([st h entry] (encode-item st h entry default-budget))
-  ([st h entry budget]
-   (let [budget (long (or budget default-budget))
-         t (types/entry-type entry)]
-     (cond
-       (and (not (value-type? t))
-            (not (tree-internal-type? t)))
-       (node-item h entry)
-
-       (clearly-oversized? entry budget)
-       (node-item h entry)
-
-       :else
-       (if-let [{:keys [type body]}
-                (try (literal-of st h)
-                     (catch #?(:clj Throwable :cljs :default) _
-                       nil))]
-         (let [item (literal-item h type body)]
-           (if (literal-round-trips? h type body)
-             item
-             (node-item h entry)))
-         (node-item h entry))))))
+  ([st h entry opts]
+   (let [{:keys [shorter-wins? covered cache] :as opts} (encode-opts opts)
+         hk (gc/hash-key h)
+         item (if cache
+                (let [c (get @cache hk ::miss)]
+                  (if (= c ::miss)
+                    (let [it (build-literal st h entry opts)]
+                      (swap! cache assoc hk (or it ::none))
+                      it)
+                    (when-not (= c ::none) c)))
+                (build-literal st h entry opts))]
+     (if (and item
+              (or (not shorter-wins?)
+                  (let [lit-size (long (wire-item-size item))]
+                    (< lit-size
+                       (long (node-bytes-under st h covered lit-size))))))
+       item
+       (node-item h entry)))))
 
 (defn encode-reachable
   "Walk from root-h and Layer-1 encode each not-yet-skipped hash.
@@ -597,16 +671,19 @@
    descend into its children — the receiver materializes them. Large parents
    become :node and the walk continues into children (2c mixed encoding).
    Returns {:items [...] :covered #{hashes}} where covered is every hash that
-   will exist on the remote after apply (sent items plus full literal subgraphs)."
+   will exist on the remote after apply (sent items plus full literal subgraphs).
+
+   The last argument is a budget number or the `opts` map of `encode-item`
+   (`:max-literal`, `:shorter-wins?`; a literal cache is added per call)."
   ([st root-h] (encode-reachable st root-h #{} default-budget))
   ([st root-h skip] (encode-reachable st root-h skip default-budget))
-  ([st root-h skip budget]
+  ([st root-h skip opts]
    (let [items (atom [])
          visited (atom #{})
          covered (atom #{})
          ;; skip/visited/covered use hex keys (CLJS-safe; BigInt hash vecs cannot be set elems)
          skip (into #{} (map gc/hash-key) (or skip #{}))
-         budget (long (or budget default-budget))]
+         opts (assoc (encode-opts opts) :cache (atom {}))]
      (letfn [(walk [h]
                (let [hk (gc/hash-key h)]
                  (when (and h
@@ -614,7 +691,10 @@
                             (not (contains? skip hk)))
                    (swap! visited conj hk)
                    (when-let [entry (store/await (store/s-get st h))]
-                     (let [item (encode-item st h entry budget)]
+                     (let [item (encode-item st h entry
+                                             (cond-> opts
+                                               (:shorter-wins? opts)
+                                               (assoc :covered (into skip @covered))))]
                        (swap! items conj item)
                        (if (= :literal (:encoding item))
                          (swap! covered into (gc/mark-reachable st h))

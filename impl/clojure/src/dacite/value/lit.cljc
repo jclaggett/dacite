@@ -291,6 +291,38 @@
                         :else [x]))))
                 (or xs []))))
 
+(defn item-count
+  "Number of elements one body item stands for (a `ref` counts 1 here; a
+   caller that needs the elements under a ref asks its measure)."
+  [item]
+  (let [t (str (:type item))
+        b (:body item)]
+    (case t
+      "run" (let [of (str (:of b))
+                  vs (:values b)]
+              (case of
+                "char" (count (str vs))
+                "u8" (u8-count vs)
+                (count (or vs []))))
+      "repeat" (long (or (:n b) 0))
+      1)))
+
+(defn item-at
+  "The expanded {:type :body} element `i` of one body item, without
+   expanding the others. `i` is below `item-count`."
+  [item i]
+  (let [t (str (:type item))
+        b (:body item)]
+    (case t
+      "run" (let [of (str (:of b))
+                  vs (:values b)]
+              (case of
+                "char" {:type "char" :body (nth (str vs) i)}
+                "u8" {:type "u8" :body (u8-nth vs i)}
+                {:type of :body (nth vs i)}))
+      "repeat" {:type (str (:of b)) :body (:value b)}
+      item)))
+
 (defn names-child-hash?
   "True when a literal body names a child by hash: a `ref` item, or a `run`
    or `repeat` of `ref`, anywhere in the body. Such a body is not
@@ -305,6 +337,16 @@
                            (map? (:body x))
                            (= "ref" (str (:of (:body x)))))))))
          (tree-seq coll? seq body))))
+
+(defn- blob-host
+  "Host byte buffer of a page-body blob: bytes already, or a seq of 0..255."
+  [body]
+  #?(:clj (if (bytes? body)
+            body
+            (byte-array (map #(unchecked-byte (bit-and (int %) 0xFF)) body)))
+     :cljs (if (sequential? body)
+             (js/Uint8Array. (clj->js (mapv #(bit-and (int %) 0xFF) body)))
+             body)))
 
 (defn intern-lit-item!
   "Persist one expanded {:type :body} lit. Returns its content hash.
@@ -323,6 +365,7 @@
           (store/await (store/s-put store h tv)))
         h)
       (= t "string") (types/coerce-and-store! store (str body))
+      (= t "blob") (types/coerce-and-store! store (blob-host body))
       :else
       (throw (ex-info "cannot intern page-body lit item"
                       {:type t})))))
@@ -332,8 +375,14 @@
   [store body]
   (mapv #(intern-lit-item! store %) (expand-rle-seq body)))
 
-(def page-budget
-  "Payload bytes a digit/node page aims to hold. 32 hashes × 32 bytes."
+(def ^:dynamic page-budget
+  "Payload bytes a digit/node page aims to hold (the leaf page budget).
+
+   Separate from the pack chunk budget (`pack/default-budget`, a soft
+   Layer-2 target) and from the largest literal (`pack/default-max-literal`,
+   tied to the frame payload). Value hashes do not depend on it: a node
+   hashes `(type, elements-fuse)`, not how the elements are paged. Dynamic so
+   benches can measure other sizes; the code reads it, never caches it."
   1024)
 
 (defn- utf8-len
@@ -368,9 +417,26 @@
       ;; unknown nested lit: treat as not fitting a pointer
       32)))
 
+(defn- variable-size?
+  "Types whose payload size depends on the value, not just the type."
+  [of]
+  (contains? #{"string" "blob"} (str of)))
+
+(defn- values-payload-bytes
+  "Payload bytes of the `values` of a run of type `of`."
+  [of vs]
+  (let [vs (or vs [])]
+    (if (variable-size? of)
+      (reduce + 0 (map #(scalar-payload-bytes of %) vs))
+      (* (scalar-payload-bytes of nil) (count vs)))))
+
 (defn item-payload-bytes
   "Useful payload bytes of one body item (run/repeat/ref/scalar/string).
-   Headers are excluded, matching the 32×32-byte children budget."
+   Headers are excluded, matching the 32×32-byte children budget.
+
+   A `string` or `blob` counts its own length, alone, in a `run` and in a
+   `repeat` (they used to count 0 in the last two, so a page could grow
+   without bound)."
   [item]
   (let [t (str (:type item))
         b (:body item)]
@@ -382,8 +448,7 @@
           "char" (utf8-len vs)
           "u8" (u8-count vs)
           "ref" (* 32 (count (or vs [])))
-          (* (scalar-payload-bytes of nil)
-             (count (or vs [])))))
+          (values-payload-bytes of vs)))
 
       "repeat"
       (* (long (or (:n b) 0))
@@ -429,6 +494,19 @@
             n)]
     [(subvec vs 0 k) (subvec vs k)]))
 
+(defn- split-vec-by-sizes
+  "Split a vector of strings or blobs so the left side holds at least
+   `target` payload bytes (and at least one value)."
+  [of vs target]
+  (let [vs (vec vs)
+        n (count vs)
+        k (loop [i 0 acc 0]
+            (cond
+              (>= i n) n
+              (and (pos? i) (>= acc target)) i
+              :else (recur (inc i) (+ acc (long (scalar-payload-bytes of (nth vs i)))))))]
+    [(subvec vs 0 k) (subvec vs k)]))
+
 (defn- split-item-at
   "Split one body item. Returns [left-item-or-nil right-item-or-nil]."
   [item target]
@@ -472,7 +550,9 @@
                        "u8" 1
                        "ref" 32
                        (scalar-payload-bytes of nil))
-                [l r] (split-vec-at-bytes vs elem target)]
+                [l r] (if (variable-size? of)
+                        (split-vec-by-sizes of vs target)
+                        (split-vec-at-bytes vs elem target))]
             [(when (seq l)
                (if (= 1 (count l))
                  {:type of :body (first l)}
@@ -546,17 +626,33 @@
 (defn- chunk-elems
   [of vs budget]
   (let [n (count vs)
-        elem (case of
-               "u8" 1
-               "ref" 32
-               (scalar-payload-bytes of nil))
-        step (max 1 (if (pos? (long elem)) (quot (long budget) (long elem)) n))]
-    (loop [start 0 out (transient [])]
-      (if (>= start n)
-        (persistent! out)
-        (let [end (min n (+ start step))
-              piece (copy-range vs start end)]
-          (recur end (conj! out (chunk-item of piece))))))))
+        budget (max 1 (long budget))]
+    (if (variable-size? of)
+      ;; strings and blobs: cut where the sum of their lengths crosses the
+      ;; budget (at least one value a chunk)
+      (loop [start 0 out (transient [])]
+        (if (>= start n)
+          (persistent! out)
+          (let [end (loop [i start acc 0]
+                      (if (>= i n)
+                        i
+                        (let [sz (long (scalar-payload-bytes of (nth vs i)))]
+                          (if (and (> i start) (> (+ acc sz) budget))
+                            i
+                            (recur (inc i) (+ acc sz))))))
+                piece (copy-range vs start end)]
+            (recur end (conj! out (chunk-item of piece))))))
+      (let [elem (case of
+                   "u8" 1
+                   "ref" 32
+                   (scalar-payload-bytes of nil))
+            step (max 1 (if (pos? (long elem)) (quot budget (long elem)) n))]
+        (loop [start 0 out (transient [])]
+          (if (>= start n)
+            (persistent! out)
+            (let [end (min n (+ start step))
+                  piece (copy-range vs start end)]
+              (recur end (conj! out (chunk-item of piece))))))))))
 
 (defn chunk-run
   "Split a homogeneous run (`of` + `values`) into items each within `budget`
