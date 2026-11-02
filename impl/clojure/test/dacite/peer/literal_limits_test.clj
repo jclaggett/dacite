@@ -635,6 +635,40 @@
           (is (seq (:items (items/encode-value st h {:max-frame-bytes mf})))))))
     (is (empty? @misses) (pr-str (take 3 @misses)))))
 
+(deftest an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item
+  ;; The bound lets a literal through on size. An inner HAMT or finger-tree
+  ;; node may still have a literal that does not rebuild its own hash (it is
+  ;; not the value its entries make). Then the sender sends the node item, as
+  ;; before, and the stream still verifies.
+  (let [cap (frame/max-literal-item)
+        inner-type? #(re-find #"^(hamt|ft)/" (str (first %)))
+        round-trips? (fn [st x] (try (literal-round-trips? st x) (catch Throwable _ false)))
+        fallbacks (fn [shape]
+                    (let [st (store/mem-store)
+                          h (build st shape)
+                          cache (atom {})]
+                      {:st st :root h
+                       :nodes (vec (for [x (reachable-hashes st h)
+                                         :let [e (store/await (store/s-get st x))]
+                                         :when (and (inner-type? e)
+                                                    (not= (vec x) (vec h))
+                                                    (some-> (bound/literal-item-bound st x cache)
+                                                            (<= cap))
+                                                    (not (round-trips? st x)))]
+                                     x))}))]
+    (doseq [shape [[:map [13 0]] [:nested 2] [:map [150 40]]]
+            :let [{:keys [st root nodes]} (fallbacks shape)]]
+      (testing (pr-str shape)
+        (is (seq nodes) "the shape has an inner node whose literal does not round-trip")
+        (doseq [x nodes
+                :let [item (pack/encode-item st x (store/await (store/s-get st x))
+                                             {:max-literal cap :cache (atom {})})]]
+          (is (= :node (:encoding item)) "the node item, not the literal"))
+        (let [{:keys [items]} (items/encode-value st root)
+              rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
+                                                          (frame/concat-bytes items))))]
+          (is (some? (store/await (store/s-get (:store rx) root))) "and the receiver verifies the value"))))))
+
 (deftest the-bound-counts-no-compression-and-never-less-than-a-run-costs
   (let [st (store/mem-store)
         b (fn [x] (- (bound/literal-item-bound st (v/hash x) nil) bound/item-header-bytes))

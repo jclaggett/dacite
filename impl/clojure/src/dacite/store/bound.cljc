@@ -32,7 +32,7 @@
    100 000 equal i64 is bounded by their 800 000 bytes) and counts the header of
    a run in full. A later, exact variant would carry each node's first and last
    run (type, length and value) in the summary and merge them on combine, so a
-   repeat that spans pages is bounded by its real size. It is not built
+   repeat that spans pages is bounded by its real size. It is roadmap only, not built
    (docs/plan/peering.md)."
   (:require [dacite.store :as store]
             [dacite.value.hamt :as hamt]

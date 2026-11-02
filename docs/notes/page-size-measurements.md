@@ -68,4 +68,4 @@ A plain sum of single-element sizes is *not* an upper bound: a run of two `u8` i
 
 What it costs: compressible data over the cap. A value whose bound is over the cap is sent as node items, and its pages (not the whole) are compressed on their own: 30 KB of one letter is 8 items and 14.5 KB (it was 2 items and 137 B under gate 4). 250 KB of one letter and 100 000 equal `i64` are as under gate 4.
 
-**Later, exact variant (not built).** Carry each node's first and last run (type, length and value) in the summary and merge them on combine, so a run or repeat that spans pages is bounded by its real size and the equal-value cases above fit again. It stays in memory and derived.
+**Later, exact variant (roadmap only, not built).** Carry each node's first and last run (type, length and value) in the summary and merge them on combine, so a run or repeat that spans pages is bounded by its real size and the equal-value cases above fit again. It stays in memory and derived. Accepted by Jonathan: the loss on repetitive data above, and the bound pass being O(items) per node per call where the size cue was O(1).
