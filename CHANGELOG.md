@@ -6,6 +6,17 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M1.1a: page and literal sizes (PR #9, Fixes #8).** A leaf page is 4 KiB
+  (`lit/page-budget`), counted in wire bytes: a string or blob its length + 5,
+  other single elements their body and a tag, a run or repeat its header
+  (never below the wire size). A literal is at most one frame payload; a blob
+  inside a literal page body now works (#8); a string or blob is read inside
+  its page (`v/nth` touches one element); `encode-value` caches a literal per
+  hash and cap, reports node items over one frame (`:oversized`), and
+  `frame/min-max-frame` is 8192. Page building is linear (`lit/append-item`,
+  an incremental page size, an allocation-free `lit/utf8-len`), and encoding a
+  100 KB blob takes 2 s, not 107 s. `pack/literal-gate` is 4. Value hashes
+  do not change.
 - **Peer protocol v1 draft (M1.1)** — `docs/spec/peer-v1.md`. Every peer
   message is a small Dacite value: a control message is the wire-v1
   literal of a string-keyed map, with no item header, hash or store
