@@ -451,13 +451,11 @@
 
 (deftest multi-page-blob-round-trips-as-byte-runs
   (let [st (store/mem-store)
-        n 9000
+        n 9000                          ; a few 4 KiB leaf pages
         nums (mapv #(bit-and 0xff %) (range n))
         blob (coll/blob-with-store st (byte-array (map unchecked-byte nums)))
         h (types/dacite-hash blob)
-        ;; a leaf page is up to 4 KiB (lit/page-budget): a budget below that
-        ;; leaves the pages as nodes, so give the gate room for one
-        {:keys [items]} (pack/encode-reachable st h #{} 8192)
+        {:keys [items]} (pack/encode-reachable st h)
         runs (vec (for [it items
                         :when (= :literal (:encoding it))
                         :let [body (:body it)]
@@ -478,7 +476,7 @@
 
 (deftest large-string-refuses-literal-at-default-budget
   (let [st (store/mem-store)
-        body (apply str (repeat 3000 "x"))
+        body (apply str (repeat 12000 "x")) ; three 4 KiB leaf pages, over the 4 KiB default
         s (coll/string-with-store st body)
         h (types/dacite-hash s)
         entry (store/await (store/s-get st h))
@@ -488,16 +486,8 @@
     (is (false? (boolean (pack/fits-literal? st h))))
     (is (= :node (:encoding item)) "root string over budget is :node")
     (is (pos? (:nodes sum)))
-    ;; the one 3000-char leaf page is 3005 payload bytes: over the 1 KiB chunk
-    ;; budget, so it is a node here too (it was a literal with 1 KiB pages)
-    (is (zero? (:literals sum)))
-    (is (> (:items sum) 1) "walk expands FT spine under large string")
-    (testing "with room for a page, the leaf pages are literals"
-      (let [big (coll/string-with-store st (apply str (repeat 12000 "x")))
-            bh (types/dacite-hash big)
-            bsum (pack/encode-summary st bh 8192)]
-        (is (pos? (:literals bsum)) "shared char leaf pages are literals")
-        (is (pos? (:nodes bsum)) "the root string and its spine are nodes")))))
+    (is (pos? (:literals sum)) "shared char leaf still a literal")
+    (is (> (:items sum) 1) "walk expands FT spine under large string")))
 
 (deftest large-string-literal-when-budget-allows
   (let [st (store/mem-store)
@@ -543,11 +533,11 @@
 
 (deftest size-bytes-at-budget-is-literal-one-over-is-node
   (let [st (store/mem-store)
-        fit (coll/string-with-store st (apply str (repeat 1024 \x)))
-        over (coll/string-with-store st (apply str (repeat 1025 \x)))
+        fit (coll/string-with-store st (apply str (repeat pack/default-budget \x)))
+        over (coll/string-with-store st (apply str (repeat (inc pack/default-budget) \x)))
         fh (types/dacite-hash fit)
         oh (types/dacite-hash over)]
-    (is (= 1024 (pack/size-cue (store/await (store/s-get st fh)))))
+    (is (= pack/default-budget (pack/size-cue (store/await (store/s-get st fh)))))
     (is (= :literal (:encoding (pack/encode-item st fh (store/await (store/s-get st fh))))))
     (is (pack/clearly-oversized? (store/await (store/s-get st oh)) pack/default-budget))
     (is (= :node (:encoding (pack/encode-item st oh (store/await (store/s-get st oh))))))))
@@ -659,7 +649,7 @@
   (let [st (store/mem-store)
         s (coll/string-with-store st (apply str (repeat 12000 \x)))
         h (types/dacite-hash s)
-        budget 8192
+        budget pack/default-budget
         ch (pack/pack-under st h #{} budget)
         n-wire (pack/wire-chunk-size ch)
         encs (mapv :encoding (:items ch))
@@ -676,19 +666,17 @@
     (is (some #{"ft/digit"} types)
         "4k char pages ship as ft/digit literals")
     (is (pos? n-wire))
-    (is (<= n-wire (* 2 budget))
-        "include-then-seal overshoot stays within ~2×budget")))
+    (is (<= n-wire (+ budget 4400))
+        "include-then-seal overshoot stays within the budget plus one 4 KiB page item")))
 
 (deftest long-string-pack-covers-explorer-preview-prefix
   ;; 24-leaf ft/nodes used to ship as ~856-byte :nodes (conj-right dry-run
   ;; fail). Rebuilding via make-node! makes them literals; children-first
   ;; fill then puts a 64-char prefix in one GET.
   (let [st (store/mem-store)
-        s (coll/string-with-store st (apply str (repeat 1893 \x)))
+        s (coll/string-with-store st (apply str (repeat 5000 \x)))
         h (types/dacite-hash s)
-        ;; the 1893-char leaf page is 1898 payload bytes, so the chunk budget
-        ;; must reach a page: 4 KiB leaf pages need more than the 1 KiB default
-        ch (pack/pack-under st h #{} 4096)
+        ch (pack/pack-under st h)
         st2 (store/mem-store)
         _ (pack/apply-chunk! st2 ch)
         root (:root (types/entry-data (store/await (store/s-get st2 h))))
@@ -696,9 +684,11 @@
                              (take 64 (ft/ft-seq st2 root))))]
     (is (>= n-hit 64)
         (str "explorer 64-char preview should be in the first pack; got " n-hit))
-    ;; the whole 1893-char string is under 4096: one literal covers it
-    (is (some #(= :literal (:encoding %)) (:items ch))
-        "the string ships as a literal")
+    (is (some (fn [it]
+                (and (= :literal (:encoding it))
+                     (= "ft/digit" (:type it))))
+              (:items ch))
+        "4k char pages ship as ft/digit literals")
     (let [st3 (store/mem-store)
           back (bin/decode-pack-edn (bin/encode-pack-edn ch))]
       (pack/apply-chunk! st3 back)

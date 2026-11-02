@@ -278,7 +278,7 @@ works on the same path.
 
 ## Soft pack budget (leaf-chunking 2d)
 
-**Default: 1024 bytes** (`dacite.store.pack/default-budget`).
+**Default: 4096 bytes** (`dacite.store.pack/default-budget`), the size of a leaf page (it was 1024 while pages were 1 KiB).
 
 Used as the soft Layer‑2 threshold for:
 

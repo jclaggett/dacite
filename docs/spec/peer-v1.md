@@ -722,7 +722,7 @@ section 11.
 
 - Item verification is JVM-only (`dacite.peer.items`) until M2.2, so the nbb test
   checks framing, packing and item decoding, not entry hashes.
-- The pack chunk budget (`pack/default-budget`, 1024) is a soft target for the HTTP
+- The pack chunk budget (`pack/default-budget`, 4096, the leaf page size) is a soft target for the HTTP
   chunk transport and was not changed with the 4 KiB leaf pages: a leaf page no
   longer fits a 1 KiB chunk as a literal, so the first GET of a long string holds the
   header and spine and the pages follow. Peer streams are not affected (they use the

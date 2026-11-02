@@ -576,3 +576,30 @@
         "the answer for another cap is not the cached one")
     (is (= :literal (:encoding (pack/encode-item st h entry {:max-literal 4000 :cache cache})))
         "and the first is still cached")))
+
+;; ---------------------------------------------------------------------------
+;; The chunk budget follows the leaf page size
+;; ---------------------------------------------------------------------------
+
+(deftest the-default-chunk-budget-is-at-least-a-leaf-page
+  ;; Below a page, a full page is never a literal (it is over the gate), so
+  ;; the first GET of a long string carries its header and spine and not its
+  ;; first characters. Two constants, kept apart: one is a soft chunk target,
+  ;; the other a hard cap on a page.
+  (is (>= pack/default-budget lit/page-budget))
+  (is (= 4096 pack/default-budget)))
+
+(deftest the-first-get-of-a-long-string-carries-its-first-characters
+  (let [st (store/mem-store)
+        s (v/string st (text 20000 9))
+        chunk (pack/pack-under st (v/hash s))
+        st2 (store/mem-store)]
+    (pack/apply-chunk! st2 chunk)
+    (is (<= (count (:items chunk)) 6))
+    (is (= (subs (text 20000 9) 0 64)
+           (apply str (take 64 (v/realize s))))
+        "(the sender's own copy; the receiver below)")
+    (let [root (:root (types/entry-data (store/await (store/s-get st2 (v/hash s)))))]
+      (is (= 64 (count (filter #(store/await (store/s-has? st2 %))
+                               (take 64 (dacite.value.finger-tree/ft-seq st2 root)))))
+          "the first 64 characters are in the first chunk"))))

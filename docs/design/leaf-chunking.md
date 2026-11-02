@@ -217,7 +217,7 @@ descendant misses pack-fill their own neighborhoods. Walk order is **BFS**
 
 | Name | Default | Role |
 |------|---------|------|
-| soft budget (`pack/default-budget`) | **1024** | Soft Layer 2 threshold; cue for literal vs node (2d). Budget **0** is a single item (the asked hash). |
+| soft budget (`pack/default-budget`) | **4096** (was 1024 until M1.1a; at least `lit/page-budget`, tested) | Soft Layer 2 threshold; cue for literal vs node (2d). Budget **0** is a single item (the asked hash). |
 
 Reproduce: `cd impl/clojure && clojure -M:dev -m dacite.bench.todo-bw --budget-sweep`.
 
@@ -295,7 +295,7 @@ that do not round-trip stay `:node`.
 
 ### 2d notes (shipped)
 
-**Default soft budget: 1024 bytes** (`pack/default-budget`).
+**Default soft budget: 4096 bytes** (`pack/default-budget`; it was 1024 when this section was written and until M1.1a raised the leaf page to 4 KiB; the sweep below was run at 1 KiB pages).
 
 Measured with `dacite.bench.todo-bw --budget-sweep` (encode matrix + live
 write-back suite). Representative results:
@@ -435,4 +435,4 @@ Normative draft: **[docs/spec/wire-v1.md](../spec/wire-v1.md)**.
 
 **Build cost.** Building a page one element at a time was quadratic in the budget (each append re-expanded the page and hashed every element again); at 4 KiB that took seconds for a few thousand elements. `append-item` now rewrites only the last group and the page measure is combined incrementally, so build time at 4 KiB is about that at 1 KiB (8 000 i64: 3.9 s before, 0.18 s now). `ft-nth` reads inside the page body (`page-nth`) and interns one element.
 
-**Chunk budget.** The 1024 `pack/default-budget` was not changed. A 4 KiB page is not a literal under a 1 KiB gate, so the first GET of a long string carries its header and spine and the pages follow. Decided in the review of PR #9: raise it to the page size (4096, its own constant, with a test that it is at least `lit/page-budget`), in the next PR, because it moves every pack chunk and many size tests. Until then a chunk is at most the budget plus one item, which for a full 4 KiB page at 1024 is 4.1 times the budget.
+**Chunk budget.** The 1024 `pack/default-budget` was not changed in PR #9; it is 4096 in the next PR. A 4 KiB page is not a literal under a 1 KiB gate, so the first GET of a long string carries its header and spine and the pages follow. Decided in the review of PR #9: raise it to the page size (4096, its own constant, with a test that it is at least `lit/page-budget`), because it moves every pack chunk and many size tests. A chunk is at most the budget plus one item. **Measured cost:** the seed catalog in a chunked durable store (`library-storage`) is 9 entries and 27 086 bytes on disk at 4096, against 31 entries and 18 381 bytes at 1024 (wire bytes 10 292 against 7 113): a literal of 4 KiB repeats what its entries share. The HTTP first GET is what the raise is for; a durable chunk store may want a smaller budget of its own (open).

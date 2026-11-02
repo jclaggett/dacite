@@ -8,7 +8,7 @@
 
    `s/file` and `s/lmdb` wrap this overlay; rooted commit flushes. Raw
    `file-store` / `lmdb-store` stay exploded. Budget defaults to
-   pack/default-budget (1024)."
+   pack/default-budget (4096)."
   (:require [dacite.store :as store]
             [dacite.store.pack :as pack]
             [dacite.rooted.gc :as gc]))

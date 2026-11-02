@@ -71,7 +71,7 @@
     (is (= :encode-sweep (:kind sw)))
     (is (= [256 1024] (:budgets sw)))
     (is (contains? by-fx :todo-seed))
-    (is (contains? by-fx :string-3000))
+    (is (contains? by-fx :string-12000))
     ;; todo seed collapses to one literal by 1024
     (let [todo-1k (first (filter #(and (= :todo-seed (:fixture %))
                                        (= 1024 (:budget %)))
@@ -79,10 +79,8 @@
       (is (= 1 (:chunks todo-1k)))
       (is (= 1 (:literals todo-1k)))
       (is (zero? (:nodes todo-1k))))
-    ;; 3000 chars is one 4 KiB leaf page now (was 3 pages at 1 KiB): at a
-    ;; 256 chunk budget the page is a node, so the string is more than its
-    ;; one root item.
-    (let [s-256 (first (filter #(and (= :string-3000 (:fixture %))
+    ;; 256 still fragments a 12000-char string (todo seed is one run-literal)
+    (let [s-256 (first (filter #(and (= :string-12000 (:fixture %))
                                      (= 256 (:budget %)))
                                rows))]
-      (is (pos? (:nodes s-256))))))
+      (is (> (:chunks s-256) 1)))))
