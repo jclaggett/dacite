@@ -219,15 +219,21 @@
             (coll/seq-vals st h))))))
 
 (defn- host-blob-vec
-  "Blob as vector of 0..255 ints (EDN-safe)."
+  "Blob as vector of 0..255 ints (EDN-safe). Reads the page buffers in one
+   pass (`blob-host-bytes`), else walks the leaves once; never indexes each
+   byte (a page of work a byte)."
   [st h]
   (let [n (long (or (:count (types/entry-data (store/require-node st h))) 0))]
     (if (zero? n)
       []
-      (mapv (fn [i]
-              (let [r (types/realize (coll/seq-nth st h i))]
-                (bit-and (int r) 0xFF)))
-            (range n)))))
+      (if-let [bs (coll/blob-host-bytes st h)]
+        #?(:clj (let [^bytes bs bs]
+                  (persistent!
+                   (areduce bs i out (transient [])
+                            (conj! out (bit-and (int (aget bs i)) 0xFF)))))
+           :cljs (mapv #(bit-and (int %) 0xFF) (array-seq bs)))
+        (mapv (fn [leaf] (bit-and (int (types/realize leaf)) 0xFF))
+              (coll/seq-vals st h))))))
 
 ;; =============================================================================
 ;; Type-run collapse (sequence bodies) — nested Lit {:type "run"| "repeat"}
