@@ -358,7 +358,7 @@ What each kind of item is checked against:
 | scalar | Its hash from its data. |
 | leaf page: `ft/digit` or `ft/node` with every leaf inline (no `ref`) | Its hash, from the claimed measure (`node-hash(type, elements-fuse)`); and the claimed measure must equal the one recomputed from the leaves in its body. A leaf page **verifies alone**. |
 | `hamt/entry` | Its hash from the claimed measure, and `elements-fuse = fuse(key-ref, val-ref)`. |
-| branch page: `ft/deep`, `hamt/bitmap`, any page with a `ref` (a `ref` item, or a `run` of `ref`) | Its hash, from its claimed measure (local). **Not** that the measure follows from its children: the page holds their hashes, not their measures. Branch nodes are not bound to their children in v1 (section 11, Q1). |
+| branch page: `ft/deep`, `hamt/bitmap`, any page with a `ref` (a `ref` item, or a `run` of `ref`) | Its hash, from its claimed measure (local). **Not** that the measure follows from its children: the page holds their hashes, not their measures. Branch nodes are not bound to their children in v1, except a `hamt/bitmap` with one child, which folds that child's hash (issue #12) (section 11, Q1). |
 | collection header (`string`, `blob`, `vector`, `map`, `set`) | **Accepted and stored on arrival; checked when its root arrives.** See below. |
 
 **Header first.** A sender writes items in reveal order: a collection's header

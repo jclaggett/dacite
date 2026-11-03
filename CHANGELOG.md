@@ -6,6 +6,15 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Fix #12: HAMT chains of single-child nodes.** Keys whose hashes share their
+  first 5-bit chunks make a chain of single-child `hamt/bitmap` nodes holding
+  the same entries; two nodes of a chain with the same chunk had one hash, so a
+  node was its own child (`hamt-entries` overflowed the stack, `get` found
+  nothing). A bitmap node with one child now folds that child's hash
+  (`hamt/bitmap-node-hash`, also used by reveal's check). **Value hashes do not
+  change. The hashes of interior `hamt/bitmap` nodes that have one child do**
+  (a node item's address, about 1 map in 6 of 1 to 2000 entries), and no
+  fixture or pin held one.
 - **`pack/default-budget` is 4 KiB** (the leaf page size; HTTP and peers), tested
   `(>= default-budget lit/page-budget)`. Durable stores (file, LMDB,
   IndexedDB) keep 1 KiB as `chunk/durable-budget`, a constant of their own.

@@ -435,20 +435,33 @@ entries always have the same data hash.
 
 ### HAMT Bitmap Node Hashing
 
-Bitmap nodes include the bitmap value in their hash:
+Bitmap nodes include the bitmap value in their hash, and a bitmap node
+with exactly one child also includes that child's hash:
 
 ```
-hamt_bitmap_hash = fuse(node_hash, fuse_bytes(bitmap_as_8_bytes))
+hamt_bitmap_hash = fuse(node_hash, fuse_bytes(bitmap_as_8_bytes))        ; two or more children
+hamt_bitmap_hash = fuse(fuse(node_hash, fuse_bytes(bitmap_as_8_bytes)),
+                        child_hash)                                      ; one child
 ```
 
 This is the only exception to the shape-independence rule of §3.3.
-It's necessary because two bitmap nodes at different HAMT levels could
-have the same elements and element fuse but different bitmaps — meaning
-they route lookups differently and are **not** interchangeable. Without
-the bitmap in the hash, these nodes would collide, creating
-self-referential loops in the store. The exception is confined to
-internal bitmap nodes; a map's own data hash — the fuse of its leaf
-entries — remains shape-independent.
+The bitmap is there because two bitmap nodes at different HAMT levels
+could have the same elements and element fuse but different bitmaps —
+meaning they route lookups differently and are **not** interchangeable.
+Without the bitmap in the hash, these nodes would collide, creating
+self-referential loops in the store.
+
+The bitmap alone is not enough. Two keys whose hashes share their first
+chunks make a chain of single-child nodes that all hold the same two
+entries, so two nodes of the chain that have the same chunk (hence the
+same bitmap) had the same hash, and one became its own child
+([#12](https://github.com/jclaggett/dacite/issues/12): `hamt-entries`
+overflowed the stack and `get` found nothing). Binding a single-child node
+to its child makes every node of a chain differ from the nodes below it. A
+node with two or more children holds different entries than each child
+and needs nothing more. The exception is confined to internal bitmap
+nodes; a map's own data hash — the fuse of its leaf entries — remains
+shape-independent and did not change.
 
 ## 3.8 Collision Resistance
 

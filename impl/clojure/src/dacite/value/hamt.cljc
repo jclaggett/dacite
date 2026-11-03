@@ -17,7 +17,8 @@
 
    Bitmap nodes are the one exception to shape-independence (§3.7): their
    bitmap value is folded into the hash, because two bitmaps with the same
-   elements but different routing are NOT interchangeable.
+   elements but different routing are NOT interchangeable. A bitmap with a
+   single child also folds in that child's hash (`bitmap-node-hash`).
 
    The bitmap and 64-bit hash-word navigation go through dacite.host so the
    arithmetic is identical on JVM (native long) and JS (BigInt)."
@@ -90,17 +91,38 @@
 ;; Node helpers (store-backed)
 ;; =============================================================================
 
+(defn bitmap-node-hash
+  "Hash of a `hamt/bitmap` node, from its own data: `fuse(node_hash(type, ef),
+   bitmap)`, and, for a node with **one child**, `fuse(that, child)`.
+
+   The bitmap tells two nodes of different routing apart (§3.7). It does not
+   tell a node from its own child: a chain of single-child nodes, made by
+   keys that share their first hash chunks, holds the same entries all the way
+   down, so two nodes of the chain with the same chunk had one hash and one of
+   them became its own child (issue #12: `hamt-entries` overflowed the stack
+   and `get` found nothing). A single-child node is now bound to its child, so
+   each node of a chain differs from every node below it. A node with two or
+   more children is unchanged: it holds different entries than any child.
+
+   Computable from the node alone (a receiver checks it without the child)."
+  [ef bitmap children]
+  (let [base (hash/unchecked-fuse (types/node-hash "hamt/bitmap" ef)
+                                  (hash/fuse-bytes (host/int->bytes-be bitmap 8)))]
+    (if (= 1 (count children))
+      (hash/unchecked-fuse base (first children))
+      base)))
+
 (defn- add-node!
   "Persist a node, returning its content hash. Bitmap nodes fold their
-   bitmap into the hash (the §3.7 routing exception); all other nodes use
-   the plain fuse(type_hash, elements_fuse) rule."
+   bitmap into the hash (the §3.7 routing exception, and the child of a
+   single-child node: `bitmap-node-hash`); all other nodes use the plain
+   fuse(type_hash, elements_fuse) rule."
   [store node]
   (let [type-name (first node)
         data (second node)
         ef (:elements-fuse (:measure data))
         h (if (= "hamt/bitmap" type-name)
-            (hash/unchecked-fuse (types/node-hash type-name ef)
-                                 (hash/fuse-bytes (host/int->bytes-be (:bitmap data) 8)))
+            (bitmap-node-hash ef (:bitmap data) (:children data))
             (types/node-hash type-name ef))]
     (store/await (store/s-put store h node))
     h))
