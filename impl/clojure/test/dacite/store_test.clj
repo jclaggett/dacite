@@ -323,7 +323,7 @@
                                                           :right [3 3 3 3]
                                                           :measure {:count 5
                                                                     :size-bytes 40
-                                                                    :elements-fuse [0 0 0 0]}}]))
+                                                                    :elements-fuse [1 0 0 1]}}]))
         (let [v (store/await (store/s-get s [3 0 0 0]))]
           (is (= "ft/deep" (first v)))
           (is (= [1 1 1 1] (:left (second v)))))
@@ -334,7 +334,7 @@
                                                              :val-ref [7 7 7 7]
                                                              :measure {:count 1
                                                                        :size-bytes 8
-                                                                       :elements-fuse [0 0 0 0]}}]))
+                                                                       :elements-fuse [1 0 0 1]}}]))
         (let [v (store/await (store/s-get s [4 0 0 0]))]
           (is (= "hamt/entry" (first v)))
           (is (= [6 6 6 6] (:key-ref (second v)))))

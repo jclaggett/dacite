@@ -24,17 +24,19 @@ Every serialized node begins with a 1-byte **kind tag**:
 scalar = 0x00 ++ u8(len) ++ bytes[len]
 ```
 
-Max size: 255 bytes. Hash = `fuse_bytes(raw bytes)` (framing is *not* part of the hash).
+Max size: 255 bytes. Hash = `digest(fuse(type_state, fuse_bytes(raw bytes)))` (framing is *not* part of the hash).
 
 ### Measure (common)
 
 Appears in seq and map nodes:
 
 ```
-measure = u64(count) ++ u64(size_bytes) ++ hash(elements_fuse)
+measure = u64(count) ++ u64(size_bytes) ++ state(elements_fuse)
 ```
 
-(8 + 8 + 32 = 48 bytes)
+(8 + 8 + 128 = 144 bytes; `state` is the four 32-byte big-endian cells of a
+matrix over F_p, each below p, with determinant 1. It was a 32-byte hash and
+48 bytes under the old fuse.)
 
 ### Seq Nodes (kind 0x01)
 

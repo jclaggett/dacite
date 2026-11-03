@@ -3,12 +3,16 @@
 
    Every value — user-facing or internal — is hashed by one rule:
 
-       value_hash = fuse(type_hash, data_hash)
+       value_hash = digest(fuse(type_state, data_state))
 
-   where the type hash is the fuse of the type name followed by a
+   where the type state is the fuse of the type name followed by a
    terminating 0x00 byte:
 
-       type_hash = fuse_bytes(type_name ++ 0x00)
+       type_state = fuse_bytes(type_name ++ 0x00)
+
+   and `digest` folds a 128-byte SL(2, F_p) state to the 32-byte ref
+   (dacite.hash). A collection's data state is its `elements_fuse`; each
+   element enters it as `ref->state` of its own ref.
 
    Type names never contain a null byte, so the trailing 0x00 cleanly
    separates the type from the data that follows (fuse composes over
@@ -33,7 +37,7 @@
    Dacite values are immutable values, not references, so they do not
    implement IDeref. Converting to host-language values is an explicit
    call (`realize`)."
-  (dacite-hash [this] "The value's 4-long content hash.")
+  (dacite-hash [this] "The value's 4-long ref (32-byte value hash).")
   (dacite-store [this] "The store that created and persists this value.")
   (dacite-type [this] "The value's type name string (e.g. \"i64\", \"vector\").")
   (realize [this]
@@ -63,55 +67,48 @@
   data)
 
 ;; =============================================================================
-;; Type / value / node / content hashing
+;; Type / value / node hashing
 ;; =============================================================================
 
 (def ^:private null-separator
   "Domain separator (0x00) terminating a type name (portable bytes)."
   [0])
 
-(def ^:private null-separator-hash
+(def ^:private null-separator-state
   (hash/fuse-bytes null-separator))
 
-(def ^:private type-hash-cache (atom {}))
+(def ^:private type-state-cache (atom {}))
 
-(defn type-hash
-  "The type hash for a type name: fuse_bytes(type_name ++ 0x00).
+(defn type-state
+  "The type's state: fuse_bytes(type_name ++ 0x00).
 
    Computed as fuse(fuse_bytes(name), fuse_bytes(0x00)) — equivalent to
    hashing the concatenation, since fuse composes over concatenation.
-   Cached per name. Uses unchecked-fuse: never throws on the separator."
+   Cached per name."
   [type-name]
-  (or (@type-hash-cache type-name)
-      (let [h (hash/unchecked-fuse
+  (or (@type-state-cache type-name)
+      (let [s (hash/fuse
                (hash/fuse-bytes (host/utf8-bytes type-name))
-               null-separator-hash)]
-        (swap! type-hash-cache assoc type-name h)
-        h)))
+               null-separator-state)]
+        (swap! type-state-cache assoc type-name s)
+        s)))
+
+(defn value-state
+  "The state of a value: fuse(type_state, data_state)."
+  [type-name data-state]
+  (hash/fuse (type-state type-name) data-state))
 
 (defn value-hash
-  "value_hash = fuse(type_hash, data_hash).
-
-   Uses unchecked-fuse so that empty/zero data hashes (e.g. null, the
-   empty collection) do not trip the low-entropy check."
-  [type-name data-hash]
-  (hash/unchecked-fuse (type-hash type-name) data-hash))
+  "value_hash = digest(fuse(type_state, data_state)): the 32-byte ref of a
+   value, from its data state (a scalar's fused bytes, or a collection's
+   elements_fuse)."
+  [type-name data-state]
+  (hash/state->ref (value-state type-name data-state)))
 
 (def node-hash
   "Internal tree nodes hash by the same rule as every other value:
-   fuse(type_hash, elements_fuse)."
+   digest(fuse(type_state, elements_fuse))."
   value-hash)
-
-(defn content-hash
-  "Strip the type tag, recovering the data hash:
-
-       content_hash = fuse(inv(type_hash), value_hash) = data_hash
-
-   Because value_hash = fuse(type_hash, data_hash) and fuse forms a
-   group, left-multiplying by the type hash's inverse cancels it. Two
-   values of different types but identical data share a content hash."
-  [type-name value-hash-v]
-  (hash/unchecked-fuse (hash/fuse-inverse (type-hash type-name)) value-hash-v))
 
 ;; =============================================================================
 ;; Canonical scalar encoding (multimethod)
@@ -127,15 +124,15 @@
 (defmethod encode-value :default [[_ data]]
   (host/utf8-bytes (pr-str data)))
 
-(defn scalar-data-hash
-  "data_hash for a scalar = fuse_bytes(canonical_bytes)."
+(defn scalar-data-state
+  "data state for a scalar = fuse_bytes(canonical_bytes)."
   [typed-value]
   (hash/fuse-bytes (encode-value typed-value)))
 
 (defn scalar-value-hash
-  "value_hash for a scalar [type data]."
+  "value_hash (ref) for a scalar [type data]."
   [typed-value]
-  (value-hash (entry-type typed-value) (scalar-data-hash typed-value)))
+  (value-hash (entry-type typed-value) (scalar-data-state typed-value)))
 
 ;; =============================================================================
 ;; Size (multimethod)

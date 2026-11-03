@@ -3,6 +3,9 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.java.io :as io]
             [cheshire.core :as json]
+            [dacite.hash :as hash]
+            [dacite.value :as v]
+            [dacite.host :as host]
             [dacite.wire.binary :as bin]
             [dacite.store :as store]
             [dacite.value.scalar :as scalar]
@@ -371,3 +374,37 @@
           live (coll/hash-map-with-store live-st "a" 1 "b" 2)]
       (is (= h (types/dacite-hash live)))
       (is (store/await (store/s-has? st h))))))
+
+;; ---------------------------------------------------------------------------
+;; A measure whose state is not in SL(2, F_p): :bad-state (docs/spec/wire-v1.md)
+;; ---------------------------------------------------------------------------
+
+(defn- sub-index
+  "Index of the first occurrence of byte vector `needle` in `hay`, or nil."
+  [hay needle]
+  (let [n (count needle)]
+    (first (filter #(= needle (subvec hay % (+ % n))) (range (inc (- (count hay) n)))))))
+
+(deftest a-measure-state-outside-sl2-is-bad-state
+  (let [st (store/mem-store)
+        m (v/vector st (v/string st "aaa") (v/string st "bbb"))
+        h (:root (second (store/await (store/s-get st (v/hash m)))))
+        entry (store/await (store/s-get st h))
+        bs (mapv #(bit-and 0xff %) (bin/encode-item {:enc :node :hash h :entry entry}))
+        state-bytes (mapv #(bit-and 0xff %) (hash/state->bytes (:elements-fuse (:measure (second entry)))))
+        off (sub-index bs state-bytes)
+        outcome (fn [bytes]
+                  (try (bin/decode-item-stream (byte-array (map unchecked-byte bytes))) :decoded
+                       (catch clojure.lang.ExceptionInfo e [(:reason (ex-data e)) (ex-message e)])))
+        splice (fn [at new] (into (into (subvec bs 0 at) new) (subvec bs (+ at (count new)))))
+        p-bytes (let [b (vec (.toByteArray ^java.math.BigInteger (host/sl2-p)))] (subvec b (- (count b) 32)))]
+    (is (some? off) "the 128-byte state is inside the item")
+    (is (= :decoded (outcome bs)) "the untouched item decodes")
+    (doseq [[label bad] {"one bit flipped in cell a" (update bs off #(bit-xor % 1))
+                         "one bit flipped in cell d" (update bs (+ off 127) #(bit-xor % 1))
+                         "all-zero state" (splice off (vec (repeat 128 0)))
+                         "cell a = p, not canonical" (splice off p-bytes)
+                         "cell a = 2^256 - 1, above p" (splice off (vec (repeat 32 0xff)))}
+            :let [[reason msg] (outcome bad)]]
+      (is (= :bad-state reason) label)
+      (is (re-find #"bad fuse state" msg) label))))

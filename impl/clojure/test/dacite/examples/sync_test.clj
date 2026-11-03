@@ -10,7 +10,7 @@
             [dacite.value :as v]))
 
 (def sample-root-hex
-  "fe0532ab564af43a7fb7c94541eaf63d63fa70d24e1290e6899747a571f4f196")
+  "f0d28f419e2e147d26054c5b442e85b309f0985c9a1c5125e1439d1187a725ae")
 
 (deftest sample-tree-shares-identical-blobs
   (let [r (v/root (fs/open-mem))

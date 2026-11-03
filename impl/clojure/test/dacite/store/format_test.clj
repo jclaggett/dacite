@@ -36,7 +36,7 @@
 
 (deftest the-format-is-one-constant
   (is (integer? store/store-format))
-  (is (= 1 store/store-format)))
+  (is (= 2 store/store-format)))
 
 ;; ---------------------------------------------------------------------------
 ;; File store: {base}/FORMAT
@@ -81,7 +81,7 @@
   (let [dir (temp-dir "dacite-fmt-file")]
     (try
       (file/file-store (str dir))
-      (doseq [tag ["2" "0" "banana"]]
+      (doseq [tag ["1" "3" "0" "banana"]] ; "1" is the store of the nilpotent fuse (before issue #14)
         (spit (io/file dir "FORMAT") (str tag "\n"))
         (let [m (mismatch #(file/file-store (str dir)))]
           (is (some? m) tag)

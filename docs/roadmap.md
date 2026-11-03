@@ -177,7 +177,7 @@ off this list. Authorization and sharing chapters remain archived; see
 store. Maps and sets are HAMTs. Sequences are finger trees. `ft/deep` is
 three hashes. `ft/digit` and `ft/node` are ~1,024-byte literal pages
 (`run` / `repeat` / nested lits / `ref`). A child that is already a page
-is a hash. Collection hashes are `fuse(type, elements_fuse)` of the logical
+is a hash. Collection hashes are `digest(fuse(type, elements_fuse))` of the logical
 leaves, so the hash does not depend on page width. A `u8` run of length
 ≥ 2 stores a copied `byte[]` (JVM) or `Uint8Array` (ClojureScript). One
 byte stays a `u8` scalar. Measure fuses the 256 `u8` scalar hashes in
@@ -303,7 +303,11 @@ emergencies. Application code that reaches for it has found a hole in
 
 ### Hash fusion (Chapter 2)
 
-- [x] `dacite.hash` — fuse, byte table, low-entropy rejection
+- [x] `dacite.hash` — fuse in SL(2, F_p) with a 256-bit prime, generator table, ref digest (hash version 2, issue #14; see [fuse-sl2.md](design/fuse-sl2.md))
+- [x] The fuse kernel behind five hex-in, hex-out functions (`dacite.hash/kernel`) with known-answer vectors, so a WASM or native implementation can replace the arithmetic
+- [ ] **Review gate: an outside cryptographic review of the SL(2, F_p) fuse before Dacite trusts hashes from untrusted peers.** The best attack we know costs about 60·sqrt(p) (about 2^134 for the 256-bit prime, bounded by 2^128 at the 32-byte ref); an earlier estimate of ~p was wrong, which is why this gate exists. Until it is done, peers are trusted (not adversarial) and the design doc says so.
+- [ ] Bounded memoization of the fuse of a node's children (shared subtrees, such as HAMT nodes shared across maps, would hit; not the per-byte products, which are table lookups), **decided by benchmark**, together with replacing the wholesale clear of the `ref->state` cache with a bounded LRU-ish cache (issue #17)
+- [ ] Make byte runs cheaper (a blob costs a matrix product per byte; about 10x main on the JVM, see the table in fuse-sl2.md)
 
 ### Rooted stores (Chapter 4)
 

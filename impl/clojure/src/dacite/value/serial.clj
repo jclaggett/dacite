@@ -9,13 +9,15 @@
 
    Binary format overview:
    - Scalar:     0x00 + u8(len) + raw-bytes
-   - Seq node:   0x01 + u8(subtype) + measure(48B) + u8(n) + hash[n]
-   - Map node:   0x02 + u8(subtype) + measure(48B) + type-specific fields
+   - Seq node:   0x01 + u8(subtype) + measure(144B) + u8(n) + hash[n]
+   - Map node:   0x02 + u8(subtype) + measure(144B) + type-specific fields
    - Collection: 0x03 + u8(subtype) + hash(root,32B) + u64(count) + u64(size-bytes)
 
-   Measures are fixed 48 bytes: u64(count) + u64(size-bytes) + hash(32B).
+   Measures are fixed 144 bytes: u64(count) + u64(size-bytes) + fuse state (128B:
+   the SL(2, F_p) cells a, b, c, d, 32 bytes each).
    Hashes are 32 bytes (4 × i64, big-endian). All integers big-endian."
-  (:require [dacite.value.types :as types]
+  (:require [dacite.hash :as hash]
+            [dacite.value.types :as types]
             [dacite.value.scalar])
   (:import [java.nio ByteBuffer]))
 
@@ -47,10 +49,16 @@
   (.putLong buf (long c))
   (.putLong buf (long d)))
 
+(def ^:const measure-len
+  "A measure: u64 count, u64 size-bytes, 128-byte fuse state."
+  144)
+
 (defn- write-measure [^ByteBuffer buf {:keys [count size-bytes elements-fuse]}]
+  (when-not (hash/state-valid? elements-fuse)
+    (hash/invalid-state! {:state elements-fuse}))
   (write-u64 buf count)
   (write-u64 buf size-bytes)
-  (write-hash buf elements-fuse))
+  (.put buf (byte-array (map unchecked-byte (hash/state->bytes elements-fuse)))))
 
 ;; =============================================================================
 ;; Read helpers
@@ -69,9 +77,14 @@
   [(.getLong buf) (.getLong buf) (.getLong buf) (.getLong buf)])
 
 (defn- read-measure [^ByteBuffer buf]
-  {:count (read-u64 buf)
-   :size-bytes (read-u64 buf)
-   :elements-fuse (read-hash buf)})
+  (let [cnt (read-u64 buf)
+        sz (read-u64 buf)
+        bs (byte-array 128)
+        _ (.get buf bs)
+        state (hash/bytes->state (mapv #(Byte/toUnsignedInt %) bs))]
+    (when-not (hash/state-valid? state)
+      (hash/bad-state! {}))
+    {:count cnt :size-bytes sz :elements-fuse state}))
 
 (defn- read-hashes [^ByteBuffer buf n]
   (mapv (fn [_] (read-hash buf)) (range n)))
@@ -88,7 +101,7 @@
                    3 (:children data)
                    4 [(:left data) (:spine data) (:right data)])
         n (count children)
-        buf (ByteBuffer/allocate (+ 2 48 1 (* 32 n)))]
+        buf (ByteBuffer/allocate (+ 2 measure-len 1 (* 32 n)))]
     (write-u8 buf kind-seq)
     (write-u8 buf subtype)
     (write-measure buf measure)
@@ -114,14 +127,14 @@
 ;; =============================================================================
 
 (defmethod types/encode-value "hamt/empty" [[_ data]]
-  (let [buf (ByteBuffer/allocate (+ 2 48))]
+  (let [buf (ByteBuffer/allocate (+ 2 measure-len))]
     (write-u8 buf kind-map)
     (write-u8 buf 0)
     (write-measure buf (:measure data))
     (.array buf)))
 
 (defmethod types/encode-value "hamt/entry" [[_ data]]
-  (let [buf (ByteBuffer/allocate (+ 2 48 (* 3 32)))]
+  (let [buf (ByteBuffer/allocate (+ 2 measure-len (* 3 32)))]
     (write-u8 buf kind-map)
     (write-u8 buf 1)
     (write-measure buf (:measure data))
@@ -133,7 +146,7 @@
 (defmethod types/encode-value "hamt/bitmap" [[_ data]]
   (let [children (:children data)
         n (count children)
-        buf (ByteBuffer/allocate (+ 2 48 4 1 1 (* 32 n)))]
+        buf (ByteBuffer/allocate (+ 2 measure-len 4 1 1 (* 32 n)))]
     (write-u8 buf kind-map)
     (write-u8 buf 2)
     (write-measure buf (:measure data))

@@ -60,12 +60,18 @@
 ;; =============================================================================
 
 (def measure-identity
-  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash})
+  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state})
 
 (defn- measure-combine [m1 m2]
   {:count (+ (:count m1) (:count m2))
    :size-bytes (+ (:size-bytes m1) (:size-bytes m2))
-   :elements-fuse (hash/unchecked-fuse (:elements-fuse m1) (:elements-fuse m2))})
+   :elements-fuse (hash/fuse (:elements-fuse m1) (:elements-fuse m2))})
+
+(defn entry-fuse
+  "The elements_fuse of an entry: the fuse of its key ref and value ref, each
+   expanded to a state (`hash/ref->state`)."
+  [key-ref val-ref]
+  (hash/fuse (hash/ref->state key-ref) (hash/ref->state val-ref)))
 
 (defn- measure-seq [measures]
   (reduce measure-combine measure-identity measures))
@@ -117,7 +123,7 @@
 
 (defn bitmap-node-hash
   "Hash of a `hamt/bitmap` node, from its own data:
-   `fuse(node_hash(\"hamt/bitmap\", elements_fuse), fuse_bytes(bitmap_be8 ++ [split]))`.
+   `digest(fuse(fuse(type_state(\"hamt/bitmap\"), elements_fuse), fuse_bytes(bitmap_be8 ++ [split])))`.
 
    `bitmap_be8` is the bitmap as 8 big-endian bytes, `split` one byte. The
    bitmap and the split tell two nodes of different routing apart (§3.7); with
@@ -126,9 +132,10 @@
    parent's. The children's hashes are not folded in, so a receiver checks it
    from the node's own bytes."
   [ef bitmap split]
-  (hash/unchecked-fuse (types/node-hash "hamt/bitmap" ef)
-                       (hash/fuse-bytes (conj (vec (host/int->bytes-be bitmap 8))
-                                              split))))
+  (hash/state->ref
+   (hash/fuse (types/value-state "hamt/bitmap" ef)
+              (hash/fuse-bytes (conj (vec (host/int->bytes-be bitmap 8))
+                                     split)))))
 
 (defn- add-node!
   "Persist a node, returning its content hash. Bitmap nodes fold their
@@ -336,7 +343,7 @@
         val-size (types/dacite-size (lookup store val-ref))
         measure {:count 1
                  :size-bytes (+ key-size val-size)
-                 :elements-fuse (hash/unchecked-fuse key-ref val-ref)}]
+                 :elements-fuse (entry-fuse key-ref val-ref)}]
     (hamt-assoc* store root key-hash key-ref val-ref measure 0)))
 
 (defn hamt-get
@@ -395,7 +402,7 @@
         val-size (types/dacite-size (lookup store val-ref))
         measure {:count 1
                  :size-bytes (+ key-size val-size)
-                 :elements-fuse (hash/unchecked-fuse key-ref val-ref)}]
+                 :elements-fuse (entry-fuse key-ref val-ref)}]
     (make-entry! store key-hash key-ref val-ref measure)))
 
 ;; =============================================================================

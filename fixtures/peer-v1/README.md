@@ -22,3 +22,6 @@ cd impl/clojure && clojure -M:dev -m gen-peer-fixtures
 
 Checked by `clojure -M:dev:test -n dacite.peer.peer-v1-test` (JVM) and
 `npm run peer:test` (nbb).
+
+Hashes and item bytes are hash version 2 (the SL(2, F_p) fuse, issue #14); the
+known answers for the fuse itself are in `fixtures/fuse-sl2/`.

@@ -19,10 +19,10 @@
 (defn- measure-combine [m1 m2]
   {:count (+ (:count m1) (:count m2))
    :size-bytes (+ (:size-bytes m1) (:size-bytes m2))
-   :elements-fuse (hash/unchecked-fuse (:elements-fuse m1) (:elements-fuse m2))})
+   :elements-fuse (hash/fuse (:elements-fuse m1) (:elements-fuse m2))})
 
 (defn- leaf-measure [h size-bytes]
-  {:count 1 :size-bytes size-bytes :elements-fuse h})
+  {:count 1 :size-bytes size-bytes :elements-fuse (hash/ref->state h)})
 
 (defn- put-digit-of-leaves!
   "Plant an ft/digit whose children are bare value hashes."
@@ -32,7 +32,7 @@
                    (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  vhs)
         m (reduce measure-combine
-                  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
+                  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state}
                   ms)
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
     (store/await (store/s-put st dh ["ft/digit" {:children vhs :measure m}]))
@@ -84,7 +84,8 @@
           vh (put-i64 st 42)]
       (is (= 1 (ft/ft-count st vh)))
       (is (= 8 (ft/ft-size-bytes st vh)))
-      (is (= vh (ft/ft-elements-fuse st vh)))
+      (is (= (hash/ref->state vh) (ft/ft-elements-fuse st vh))
+          "a bare leaf's elements-fuse is its ref as a fuse element")
       (is (= vh (ft/ft-first st vh)))
       (is (= vh (ft/ft-last st vh)))
       (is (= vh (ft/ft-nth st vh 0)))
@@ -193,7 +194,7 @@
                    (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  vhs)
         m (reduce measure-combine
-                  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
+                  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state}
                   ms)
         body (lit/rle-lits (mapv (fn [ch] {:type "char" :body ch}) chs))
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
@@ -277,7 +278,7 @@
         src (byte-array (map unchecked-byte nums))
         blob (v/blob st src)
         hs (map #(types/scalar-value-hash ["u8" (int %)]) nums)
-        ef (reduce hash/unchecked-fuse host/zero-hash hs)
+        ef (reduce (fn [a h] (hash/fuse a (hash/ref->state h))) hash/identity-state hs)
         bufs (u8-run-buffers st blob)]
     (aset src 0 (unchecked-byte 9))
     (is (= n (v/count blob)))
@@ -301,8 +302,8 @@
         s (apply str (repeat n \x))
         dv (v/string st s)
         ch (put-char st \x)
-        ef (reduce (fn [a _] (hash/unchecked-fuse a ch))
-                   host/zero-hash
+        ef (reduce (fn [a _] (hash/fuse a (hash/ref->state ch)))
+                   hash/identity-state
                    (range n))
         live (live-ft-entries st dv)
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) live)
@@ -344,7 +345,7 @@
                    (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  [a b c])
         m (reduce measure-combine
-                  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
+                  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state}
                   ms)
         body [{:type "run" :body {:of "ref" :values [a b c]}}]
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
@@ -352,3 +353,33 @@
     (is (= [a b c] (vec (ft/ft-leaves st dh))))
     (is (= [a b c] (types/child-hashes (store/await (store/s-get st dh)))))
     (is (= b (ft/ft-nth st dh 1)))))
+
+(defn- count-fuses
+  "Run `f`, counting the matrix products made through `hash/fuse` and
+   `host/sl2-mul` (the two ways the code multiplies states)."
+  [f]
+  (let [n (atom 0)
+        fuse hash/fuse
+        mul host/sl2-mul]
+    (with-redefs [hash/fuse (fn [a b] (swap! n inc) (fuse a b))
+                  host/sl2-mul (fn [a b] (swap! n inc) (mul a b))]
+      (f))
+    @n))
+
+(deftest a-blob-costs-about-one-product-per-byte
+  ;; Re-wrapping a page (a digit as an ft/node) used to measure its bytes a
+  ;; second time: 2.03 products per byte, twice the time. The measure the node
+  ;; or digit already holds is passed through now, in `as-node!` and `as-digit!`
+  ;; (review of PR #15). Each byte needs one product (the floor of a homomorphic
+  ;; hash). Measured: 1.10 per byte at 40,000 bytes, 1.01 at 500,000: about
+  ;; three pages at the ends of the tree are still measured twice (a fixed cost,
+  ;; so a larger share of a small blob), hence the bound of 1.15. The warm-up
+  ;; builds the 256 u8 states (one-time). About 0.05 s.
+  (let [n 40000
+        bs (let [b (byte-array n)] (.nextBytes (java.util.Random. 3) b) b)
+        st (store/mem-store)
+        _ (v/hash (v/blob (store/mem-store) (byte-array 10)))
+        fuses (count-fuses #(v/hash (v/blob st bs)))
+        per-byte (/ fuses (double n))]
+    (is (<= n fuses) "one product per byte at least")
+    (is (<= per-byte 1.15) (str "products per byte: " per-byte))))

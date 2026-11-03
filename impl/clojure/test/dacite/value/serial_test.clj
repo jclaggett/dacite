@@ -1,6 +1,8 @@
 (ns dacite.value.serial-test
   "Tests for Dacite binary serialization."
   (:require [clojure.test :refer [deftest is testing]]
+            [dacite.hash :as hash]
+            [dacite.host :as host]
             [dacite.value.serial :as serial]))
 
 ;; =============================================================================
@@ -77,7 +79,7 @@
 ;; =============================================================================
 
 (def sample-measure
-  {:count 3 :size-bytes 24 :elements-fuse [100 200 300 400]})
+  {:count 3 :size-bytes 24 :elements-fuse (hash/fuse-str "sample measure")})
 
 (def sample-hash-a [1 2 3 4])
 (def sample-hash-b [5 6 7 8])
@@ -250,18 +252,45 @@
 ;; =============================================================================
 
 (deftest measure-serialization-size-test
-  (testing "Measure always occupies 48 bytes in seq/map nodes"
-    ;; ft/empty: 1(kind) + 1(subtype) + 48(measure) + 1(n_children) = 51
+  (testing "Measure always occupies 144 bytes in seq/map nodes (8 + 8 + a 128-byte state)"
+    ;; ft/empty: 1(kind) + 1(subtype) + 144(measure) + 1(n_children) = 147
     (let [bs (serial/serialize ["ft/empty" {:measure sample-measure}])]
-      (is (= 51 (alength bs))))
-    ;; hamt/empty: 1(kind) + 1(subtype) + 48(measure) = 50
+      (is (= 147 (alength bs))))
+    ;; hamt/empty: 1(kind) + 1(subtype) + 144(measure) = 146
     (let [bs (serial/serialize ["hamt/empty" {:measure sample-measure}])]
-      (is (= 50 (alength bs))))))
+      (is (= 146 (alength bs))))))
+
+(deftest bad-state-in-a-serialized-measure-test
+  (let [bs (serial/serialize ["ft/empty" {:measure sample-measure}])
+        refuse (fn [bytes]
+                 (try (serial/deserialize bytes) :decoded
+                      (catch clojure.lang.ExceptionInfo e [(:reason (ex-data e)) (ex-message e)])))]
+    (testing "the untouched node decodes"
+      (is (= :decoded (refuse bs))))
+    (testing "a state that is not in SL(2, F_p) is refused with a documented ex-info"
+      (let [flip (fn [off] (let [b (aclone bs)] (aset b off (unchecked-byte (bit-xor 1 (aget b off)))) b))
+            zeroed (let [b (aclone bs)] (java.util.Arrays/fill b 18 146 (byte 0)) b)
+            ;; cell a = p: right residue class of 0, not canonical (cells are below p)
+            non-canon (let [b (aclone bs)
+                            pbytes (.toByteArray (host/sl2-p))
+                            pb (java.util.Arrays/copyOfRange pbytes (- (alength pbytes) 32) (alength pbytes))]
+                        (System/arraycopy pb 0 b 18 32) b)]
+        (doseq [[label bad] {"a flipped bit in cell a" (flip 18)
+                             "a flipped bit in cell d" (flip 145)
+                             "the all-zero state" zeroed
+                             "cell a = p (not canonical)" non-canon}
+                :let [[reason msg] (refuse bad)]]
+          (is (= :bad-state reason) label)
+          (is (re-find #"bad fuse state" msg) label))))
+    (testing "writing a state that is not in the group is a different, documented error"
+      (let [e (try (serial/serialize ["ft/empty" {:measure (assoc sample-measure :elements-fuse [0 0 0 0])}])
+                   (catch clojure.lang.ExceptionInfo e e))]
+        (is (= :invalid-state (:reason (ex-data e))))))))
 
 (deftest entry-size-test
-  (testing "hamt/entry is 146 bytes (2 + 48 + 3*32)"
+  (testing "hamt/entry is 242 bytes (2 + 144 + 3*32)"
     (let [bs (serial/serialize ["hamt/entry" {:key-hash [0 0 0 0]
                                               :key-ref [0 0 0 0]
                                               :val-ref [0 0 0 0]
                                               :measure sample-measure}])]
-      (is (= 146 (alength bs))))))
+      (is (= 242 (alength bs))))))

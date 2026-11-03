@@ -90,11 +90,10 @@
         data (second entry)]
     (cond
       (and (map? data) (contains? (:measure data) :elements-fuse))
-      (let [ef (:elements-fuse (:measure data))
-            base (types/node-hash type-name ef)]
+      (let [ef (:elements-fuse (:measure data))]
         (if (= "hamt/bitmap" type-name)
           (hamt/bitmap-node-hash ef (:bitmap data) (:split data))
-          base))
+          (types/node-hash type-name ef)))
 
       (#{"string" "blob" "vector" "map" "set"} type-name)
       (collection-hash store type-name (:root data))

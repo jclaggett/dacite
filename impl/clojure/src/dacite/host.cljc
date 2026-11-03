@@ -167,6 +167,175 @@
   (mapv bytes->word (partition 8 bs)))
 
 ;; =============================================================================
+;; SL(2, F_p) kernel (the fuse group)
+;; =============================================================================
+;;
+;; A fuse *state* is a 2x2 matrix [a b c d] over F_p with ad - bc = 1, p the
+;; 256-bit prime below. Cells are host bignums in 0..p-1 (java.math.BigInteger
+;; on the JVM, BigInt on ClojureScript/nbb), held in a persistent vector.
+;; Reduction is the host's own modulo: p has no special form (it is chosen
+;; for the factors of p-1 and p+1, see docs/design/fuse-sl2.md), so a port
+;; without bignums reduces with Montgomery (R = 2^264) or Barrett; both give
+;; the same canonical residues, and the test suite carries a Montgomery
+;; reference that is checked against this kernel.
+
+(def sl2-p-decimal
+  "p = 75509794529310452520362503714625764980405239500720831432010267419866053829067
+     = 0xa6f107770d78545e22069b32e798d267aa12b38be8c28a84036bd6b4e0ed61cb (256 bits).
+   p - 1 = 2 * 3 * q1, q1 = 12584965754885075420060417285770960830067539916786805238668377903311008971511
+   (253-bit prime); p + 1 = 2^2 * q2, q2 = 18877448632327613130090625928656441245101309875180207858002566854966513457267
+   (254-bit prime)."
+  "75509794529310452520362503714625764980405239500720831432010267419866053829067")
+
+(def sl2-cell-bytes
+  "A cell on the wire: 32 big-endian bytes."
+  32)
+
+(def sl2-state-bytes
+  "A state on the wire: four cells, 128 bytes."
+  (* 4 sl2-cell-bytes))
+
+(def ^:private SL2-P
+  #?(:clj (java.math.BigInteger. ^String sl2-p-decimal)
+     :cljs (js/BigInt sl2-p-decimal)))
+
+(defn sl2-p
+  "The field modulus as a host bignum."
+  []
+  SL2-P)
+
+(defn big
+  "Coerce an integer (or a decimal string) to a host bignum."
+  [n]
+  #?(:clj (if (string? n) (java.math.BigInteger. ^String n) (biginteger n))
+     :cljs (js/BigInt n)))
+
+(def sl2-identity
+  "The identity matrix [1 0 0 1]."
+  [(big 1) (big 0) (big 0) (big 1)])
+
+#?(:clj
+   (defn- bi
+     "A cell as a BigInteger. A state read back from EDN (the file store) holds
+      Long or clojure.lang.BigInt cells; the kernel takes them all."
+     ^java.math.BigInteger [x]
+     (if (instance? java.math.BigInteger x) x (biginteger x))))
+
+(defn sl2-mul
+  "Matrix product of two states (cells mod p). The group operation of fuse."
+  [x y]
+  #?(:clj
+     (let [^java.math.BigInteger a (bi (nth x 0)) ^java.math.BigInteger b (bi (nth x 1))
+           ^java.math.BigInteger c (bi (nth x 2)) ^java.math.BigInteger d (bi (nth x 3))
+           ^java.math.BigInteger e (bi (nth y 0)) ^java.math.BigInteger f (bi (nth y 1))
+           ^java.math.BigInteger g (bi (nth y 2)) ^java.math.BigInteger h (bi (nth y 3))
+           ^java.math.BigInteger p SL2-P]
+       [(.mod (.add (.multiply a e) (.multiply b g)) p)
+        (.mod (.add (.multiply a f) (.multiply b h)) p)
+        (.mod (.add (.multiply c e) (.multiply d g)) p)
+        (.mod (.add (.multiply c f) (.multiply d h)) p)])
+     :cljs
+     (let [a (nth x 0) b (nth x 1) c (nth x 2) d (nth x 3)
+           e (nth y 0) f (nth y 1) g (nth y 2) h (nth y 3)]
+       [(mod (+ (* a e) (* b g)) SL2-P)
+        (mod (+ (* a f) (* b h)) SL2-P)
+        (mod (+ (* c e) (* d g)) SL2-P)
+        (mod (+ (* c f) (* d h)) SL2-P)])))
+
+(defn sl2-inverse
+  "Inverse of a determinant-1 matrix: the adjugate [d -b -c a] (no products)."
+  [x]
+  #?(:clj
+     (let [^java.math.BigInteger p SL2-P
+           neg (fn [v] (let [^java.math.BigInteger v (bi v)]
+                         (if (zero? (.signum v)) v (.subtract p v))))]
+       [(bi (nth x 3)) (neg (nth x 1)) (neg (nth x 2)) (bi (nth x 0))])
+     :cljs
+     (let [neg (fn [v] (if (= v ZERO) v (- SL2-P v)))]
+       [(nth x 3) (neg (nth x 1)) (neg (nth x 2)) (nth x 0)])))
+
+(defn sl2-valid?
+  "True when x is four canonical cells (0 <= cell < p) with ad - bc = 1 mod p."
+  [x]
+  (and (vector? x)
+       (= 4 (count x))
+       #?(:clj
+          (let [^java.math.BigInteger p SL2-P]
+            (and (every? (fn [v]
+                           (and (integer? v)
+                                (let [^java.math.BigInteger v (bi v)]
+                                  (and (>= (.signum v) 0) (neg? (.compareTo v p))))))
+                         x)
+                 (let [^java.math.BigInteger a (bi (nth x 0)) ^java.math.BigInteger b (bi (nth x 1))
+                       ^java.math.BigInteger c (bi (nth x 2)) ^java.math.BigInteger d (bi (nth x 3))]
+                   (= java.math.BigInteger/ONE
+                      (.mod (.subtract (.multiply a d) (.multiply b c)) p)))))
+          :cljs
+          (and (every? (fn [v] (and (>= v ZERO) (< v SL2-P))) x)
+               (= ONE (mod (- (* (nth x 0) (nth x 3)) (* (nth x 1) (nth x 2))) SL2-P))))))
+
+(defn sl2->bytes
+  "A state to 128 big-endian bytes: cells a, b, c, d, 32 bytes each. A cell
+   must be below 2^256 (a valid state's is below p)."
+  [x]
+  #?(:clj
+     (into []
+           (mapcat (fn [v]
+                     (let [^bytes bs (.toByteArray (bi v))
+                           n (alength bs)
+                           ;; toByteArray is signed and as short as it can be
+                           lo (max 0 (- n sl2-cell-bytes))]
+                       (when (some #(not (zero? (aget bs %))) (range lo))
+                         (throw (ex-info "fuse cell does not fit 32 bytes" {:reason :bad-state})))
+                       (concat (repeat (max 0 (- sl2-cell-bytes n)) 0)
+                               (map #(bit-and 0xFF (int (aget bs %))) (range lo n))))))
+           x)
+     :cljs
+     (into []
+           (mapcat (fn [v]
+                     (map (fn [i]
+                            (js/Number (bit-and (bit-shift-right v (js/BigInt (* 8 (- (dec sl2-cell-bytes) i))))
+                                                BYTE-MASK)))
+                          (range sl2-cell-bytes))))
+           x)))
+
+(defn bytes->sl2
+  "128 big-endian bytes to four cells. Not validated: see `sl2-valid?`."
+  [bs]
+  (mapv (fn [cell]
+          #?(:clj (java.math.BigInteger. 1 (byte-array (map unchecked-byte cell)))
+             :cljs (reduce (fn [acc b] (+ (* acc (js/BigInt 256)) (js/BigInt b))) ZERO cell)))
+        (partition sl2-cell-bytes bs)))
+
+(defn sl2-digest-words
+  "The 32-byte digest of a state as four 64-bit words (the form of a ref).
+
+   digest = a xor rotl64(b) xor rotl128(c) xor rotl192(d), where each cell is
+   read as a 256-bit integer and rotl-k rotates it left by k bits (a whole
+   number of 64-bit words). Every digest word takes exactly one word from each
+   cell, each from a different position, so a cell is not interchangeable with
+   another, and each digest bit has at least two input bits that are uniform
+   over F_p (only the top word of a cell is skewed, by p being below 2^256)."
+  [x]
+  #?(:clj
+     (let [mask (.subtract (.shiftLeft java.math.BigInteger/ONE 256) java.math.BigInteger/ONE)
+           rotl (fn [^java.math.BigInteger n r]
+                  (.and (.or (.shiftLeft n (int r)) (.shiftRight n (int (- 256 r)))) mask))
+           ^java.math.BigInteger dg
+           (reduce (fn [^java.math.BigInteger acc i]
+                     (.xor acc (rotl (bi (nth x i)) (* 64 i))))
+                   java.math.BigInteger/ZERO (range 4))]
+       (mapv (fn [s] (.longValue (.shiftRight dg (int s)))) [192 128 64 0]))
+     :cljs
+     (let [mask (- (bit-shift-left ONE (js/BigInt 256)) ONE)
+           rotl (fn [n r]
+                  (bit-and (bit-or (bit-shift-left n (js/BigInt r))
+                                   (bit-shift-right n (js/BigInt (- 256 r))))
+                           mask))
+           dg (reduce (fn [acc i] (bit-xor acc (rotl (nth x i) (* 64 i)))) ZERO (range 4))]
+       (mapv (fn [s] (u64 (bit-shift-right dg (js/BigInt s)))) [192 128 64 0]))))
+
+;; =============================================================================
 ;; Hex conversions
 ;; =============================================================================
 

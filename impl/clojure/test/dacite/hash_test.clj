@@ -1,11 +1,16 @@
 (ns dacite.hash-test
   "Generative tests for Dacite hashing invariants."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.edn]
+            [clojure.test :refer [deftest is testing]]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
             [dacite.hash :as hash]
+            [dacite.host :as host]
+            [dacite.kernel-vectors :as kernel-vectors]
+            [dacite.store :as store]
+            [dacite.value :as v]
             [dacite.value.types :as types]
             [dacite.value.scalar]))
 
@@ -85,67 +90,82 @@
     (gen/tuple (gen/return "f64") gen-f64)
     (gen/tuple (gen/return "char") gen-char)]))
 
-;; Generator for 256-bit hashes (as vectors of 4 longs) - the standard form
-(def gen-hash
-  "Generator for hash as vector of 4 longs."
-  (gen/vector gen/large-integer 4))
+;; =============================================================================
+;; Generators of fuse states and refs
+;; =============================================================================
+
+(def gen-bytes
+  "1 to 8 random bytes."
+  (gen/vector (gen/choose 0 255) 1 8))
+
+(def gen-state
+  "A fuse state: the fused generators of some random bytes."
+  (gen/fmap hash/fuse-bytes gen-bytes))
+
+(def gen-ref
+  "A ref (32-byte digest): the digest of a random state."
+  (gen/fmap hash/state->ref gen-state))
+
+(defn- pow-by-squaring
+  "a^n (n a nonnegative biginteger) by repeated squaring."
+  [a ^java.math.BigInteger n]
+  (loop [r hash/identity-state b a i 0]
+    (if (>= i (.bitLength n))
+      r
+      (recur (if (.testBit n i) (hash/fuse r b) r) (hash/fuse b b) (inc i)))))
+
+(defn- pow-by-fusing
+  "a^n by n fuses (n small)."
+  [a n]
+  (reduce (fn [r _] (hash/fuse r a)) hash/identity-state (range n)))
 
 ;; =============================================================================
-;; Property tests
+;; Group laws (SL(2, F_p))
 ;; =============================================================================
 
 (defspec fuse-determinism 100
-  (prop/for-all [a gen-hash
-                 b gen-hash]
-                (= (hash/unchecked-fuse a b)
-                   (hash/unchecked-fuse a b))))
+  (prop/for-all [a gen-state b gen-state]
+                (= (hash/fuse a b) (hash/fuse a b))))
+
+(defspec fuse-stays-in-the-group 100
+  (prop/for-all [a gen-state b gen-state]
+                (hash/state-valid? (hash/fuse a b))))
+
+(defspec fuse-associative 100
+  (prop/for-all [a gen-state b gen-state c gen-state]
+                (= (hash/fuse a (hash/fuse b c))
+                   (hash/fuse (hash/fuse a b) c))))
+
+(defspec fuse-identity 100
+  (prop/for-all [a gen-state]
+                (and (= a (hash/fuse a hash/identity-state))
+                     (= a (hash/fuse hash/identity-state a)))))
 
 (defspec fuse-non-commutative 100
-  (prop/for-all [a gen-hash
-                 b gen-hash]
-    ;; fuse(a,b) ≠ fuse(b,a) unless a = b or degenerate cases
-    ;; The formula c0 = a0 + a3*b2 + b0 can be commutative when:
-    ;; - a = b, OR
-    ;; - a3*b2 = b3*a2 (which happens when these products are equal)
-                (let [result-ab (hash/unchecked-fuse a b)
-                      result-ba (hash/unchecked-fuse b a)]
-                  (or (= a b)
-                      (not= result-ab result-ba)
-          ;; Allow degenerate cases where a3*b2 = b3*a2
-                      (= (unchecked-multiply (nth a 3) (nth b 2))
-                         (unchecked-multiply (nth b 3) (nth a 2)))))))
+  (prop/for-all [a gen-state b gen-state]
+                (or (= a b)
+                    (not= (hash/fuse a b) (hash/fuse b a)))))
 
-;; Note: [0,0,0,0] is an identity element for fuse:
-;;   fuse(a, [0,0,0,0]) = a  (right identity)
-;;   fuse([0,0,0,0], b) = b  (left identity)
-;; These properties don't apply to real SHA-256 hashes (vanishingly unlikely to be zero)
+(defspec fuse-inverse-both-sides 100
+  (prop/for-all [a gen-state]
+                (and (= hash/identity-state (hash/fuse (hash/fuse-inverse a) a))
+                     (= hash/identity-state (hash/fuse a (hash/fuse-inverse a))))))
 
-(defspec fuse-not-identity-left 100
-  (prop/for-all [a gen-hash
-                 b gen-hash]
-    ;; fuse(a,b) ≠ a unless b is zero (right identity)
-                (or (= b [0 0 0 0])
-                    (not= (hash/unchecked-fuse a b) a))))
+(defspec unfuse-recovers 100
+  (prop/for-all [a gen-state b gen-state]
+                (let [fused (hash/fuse a b)]
+                  (and (= a (hash/unfuse fused b))
+                       (= b (hash/fuse (hash/fuse-inverse a) fused))))))
 
-(defspec fuse-not-identity-right 100
-  (prop/for-all [a gen-hash
-                 b gen-hash]
-    ;; fuse(a,b) ≠ b unless a is zero (left identity)
-                (or (= a [0 0 0 0])
-                    (not= (hash/unchecked-fuse a b) b))))
+(defspec fuse-bytes-composes-over-concatenation 100
+  (prop/for-all [x gen-bytes y gen-bytes]
+                (= (hash/fuse-bytes (into x y))
+                   (hash/fuse (hash/fuse-bytes x) (hash/fuse-bytes y)))))
 
 (defspec typed-value-hash-determinism 100
   (prop/for-all [[type-kw value] gen-tagged-scalar]
                 (= (types/typed-value-hash [type-kw value])
                    (types/typed-value-hash [type-kw value]))))
-
-(defspec fuse-associative 100
-  (prop/for-all [a gen-hash
-                 b gen-hash
-                 c gen-hash]
-    ;; fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)
-                (= (hash/unchecked-fuse a (hash/unchecked-fuse b c))
-                   (hash/unchecked-fuse (hash/unchecked-fuse a b) c))))
 
 (defspec different-types-different-hashes 100
   (prop/for-all [type1 (gen/elements ["i32" "i64" "u32" "f32" "f64"])
@@ -157,121 +177,327 @@
                           (types/typed-value-hash [type2 value])))))
 
 ;; =============================================================================
-;; Unit tests for edge cases  
+;; The prime and the generator table
 ;; =============================================================================
 
-(deftest test-fuse-basic
-  (testing "fuse produces vector of 4 longs"
-    (let [a (hash/fuse-str "hello")
-          b (hash/fuse-str "world")
-          c (hash/fuse a b)]
-      (is (vector? c))
-      (is (= 4 (count c)))))
+(def ^:private p (biginteger (host/sl2-p)))
+(def ^:private q1 (biginteger "12584965754885075420060417285770960830067539916786805238668377903311008971511"))
+(def ^:private q2 (biginteger "18877448632327613130090625928656441245101309875180207858002566854966513457267"))
 
-  (testing "fuse with same input twice"
-    (let [a (hash/fuse-str "test")
-          c (hash/fuse a a)]
-      (is (= 4 (count c)))
-      ;; fuse(a,a) should still be different from a
-      (is (not= c a))))
+(deftest the-prime-and-its-factorizations
+  (testing "p is the documented 256-bit prime, of no special form"
+    (is (= (biginteger "75509794529310452520362503714625764980405239500720831432010267419866053829067") p))
+    (is (= 256 (.bitLength p)))
+    (is (= "a6f107770d78545e22069b32e798d267aa12b38be8c28a84036bd6b4e0ed61cb" (.toString p 16)))
+    (is (.isProbablePrime p 100))
+    (is (> (.bitCount (.add p java.math.BigInteger/ONE)) 1) "p + 1 is not a power of two")
+    (is (> (.bitCount (.subtract (.shiftLeft java.math.BigInteger/ONE 256) p)) 20)
+        "2^256 - p is not small: p is not pseudo-Mersenne (no cheap special reduction)"))
+  (testing "p - 1 = 2 * 3 * q1, with q1 a 253-bit prime"
+    (is (= (.subtract p java.math.BigInteger/ONE) (.multiply (biginteger 6) q1)))
+    (is (= 253 (.bitLength q1)))
+    (is (.isProbablePrime q1 100)))
+  (testing "p + 1 = 2^2 * q2, with q2 a 254-bit prime"
+    (is (= (.add p java.math.BigInteger/ONE) (.multiply (biginteger 4) q2)))
+    (is (= 254 (.bitLength q2)))
+    (is (.isProbablePrime q2 100))))
 
-  (testing "fuse is associative"
-    (let [a (hash/fuse-str "one")
-          b (hash/fuse-str "two")
-          c (hash/fuse-str "three")
-          ;; fuse(a, fuse(b, c)) should equal fuse(fuse(a, b), c)
-          left (hash/fuse a (hash/fuse b c))
-          right (hash/fuse (hash/fuse a b) c)]
-      (is (= left right)))))
+(def ^:private I hash/identity-state)
 
-(deftest test-type-hashes-unique
-  (testing "different type names produce unique hashes"
-    (let [type-names ["dacite.core/i64" "dacite.core/i32" "dacite.core/bool"
-                      "dacite.core/null" "dacite.core/string"]
-          hashes (map hash/fuse-str type-names)]
-      (is (= (count hashes) (count (set hashes)))))))
+(defn- large-order?
+  "Exact order test from the factorizations: order divides p-1 (split) or p+1
+   (non-split); it is a multiple of q1 or q2 when g^6 or g^4 is not 1."
+  [g]
+  (let [t (.mod (.add ^java.math.BigInteger (nth g 0) ^java.math.BigInteger (nth g 3)) p)
+        disc (.mod (.subtract (.multiply t t) (biginteger 4)) p)]
+    (cond
+      (zero? (.signum disc)) false
+      (= java.math.BigInteger/ONE (.modPow disc (.shiftRight (.subtract p java.math.BigInteger/ONE) 1) p))
+      (not= I (pow-by-squaring g (biginteger 6)))
+      :else (not= I (pow-by-squaring g (biginteger 4))))))
 
-(deftest test-null-hashing
-  (testing "null has consistent hash"
-    (let [h1 (types/typed-value-hash ["null" nil])
-          h2 (types/typed-value-hash ["null" nil])]
-      (is (= h1 h2)))))
+(deftest the-byte-generator-table
+  (let [gens hash/byte->state]
+    (testing "256 distinct, canonical, determinant-1 matrices"
+      (is (= 256 (count gens)))
+      (is (= 256 (count (set gens))))
+      (is (every? hash/state-valid? gens)))
+    (testing "every generator has order >= 2^252 (a multiple of q1 or q2)"
+      (is (every? large-order? gens)))
+    (testing "no two generators commute (no abelian shortcuts), all 32,640 pairs"
+      (is (every? (fn [[i j]]
+                    (not= (hash/fuse (nth gens i) (nth gens j))
+                          (hash/fuse (nth gens j) (nth gens i))))
+                  (for [i (range 256) j (range (inc i) 256)] [i j]))))))
 
-(deftest test-bool-hashing
-  (testing "true and false have different hashes"
-    (let [h-true (types/typed-value-hash ["bool" true])
-          h-false (types/typed-value-hash ["bool" false])]
-      (is (not= h-true h-false)))))
+(deftest montgomery-reference-agrees-with-the-kernel
+  ;; The portable kernel reduces with the host's modulo. A port without
+  ;; bignums reduces with Montgomery (REDC) or Barrett; this is the reference
+  ;; for those constants (docs/design/fuse-sl2.md). R = 2^264, not 2^256: p is
+  ;; above 2^255, and a sum of two products is below 2 p^2, so with R = 2^256
+  ;; REDC could need two subtractions; R = 2^264 > 2^8 * 2p keeps it to one.
+  (let [r-bits 264
+        R (.shiftLeft java.math.BigInteger/ONE r-bits)
+        mask (.subtract R java.math.BigInteger/ONE)
+        p' (.mod (.negate (.modInverse p R)) R)           ; -p^-1 mod R
+        redc (fn [^java.math.BigInteger t]
+               (let [m (.and (.multiply (.and t mask) p') mask)
+                     u (.shiftRight (.add t (.multiply m p)) r-bits)]
+                 (if (>= (.compareTo u p) 0) (.subtract u p) u)))
+        to-mont (fn [^java.math.BigInteger x] (.mod (.shiftLeft x r-bits) p))
+        from-mont redc
+        mont-mat (fn [[a b c d] [e f g h]]
+                   (let [ad (fn [x y z w] (redc (.add (.multiply x z) (.multiply y w))))]
+                     [(ad a b e g) (ad a b f h) (ad c d e g) (ad c d f h)]))]
+    (testing "constants"
+      (is (= (.mod (.multiply p p') R) (.subtract R java.math.BigInteger/ONE)) "p * p' = -1 mod R")
+      (is (= "a6f107770d78545e22069b32e798d267aa12b38be8c28a84036bd6b4e0ed61cb" (.toString p 16))))
+    (testing "Montgomery products equal the kernel's on 200 random pairs"
+      (let [rnd (java.util.Random. 14)
+            gen (fn [] (hash/fuse-bytes (vec (repeatedly 6 #(.nextInt rnd 256)))))]
+        (dotimes [_ 200]
+          (let [a (gen) b (gen)
+                mc (mapv (fn [x] (from-mont (to-mont x))) a)
+                prod (mont-mat (mapv to-mont a) (mapv to-mont b))]
+            (is (= a mc))
+            (is (= (hash/fuse a b) (mapv from-mont prod)))))))))
 
-(deftest test-low-entropy-detection
-  (testing "normal hashes are not low-entropy"
-    (let [h (hash/fuse-str "normal data")]
-      (is (not (hash/low-entropy? h)))))
+;; =============================================================================
+;; Issue #14: the collision family of the old nilpotent fuse
+;; =============================================================================
 
-  (testing "hash with zeros in lower 32 bits is low-entropy"
-    ;; Construct a degenerate hash with zeros in lower 32 bits of all words
-    (let [bad-hash [(unchecked-long 0x1234567800000000)  ;; lower 32 bits = 0
-                    (unchecked-long 0xABCDEF0000000000)
-                    (unchecked-long 0x9876543200000000)
-                    (unchecked-long 0xFEDCBA9800000000)]]
-      (is (hash/low-entropy? bad-hash))))
+(defn- fs [^String s] (hash/fuse-str s))
 
-  (testing "fuse throws on low-entropy input (via repeated self-fuse)"
-    ;; Fusing a hash with itself ~65 times converges to low-entropy
-    ;; After ~64 iterations, the hash becomes low-entropy and next fuse rejects it
-    (let [start (hash/fuse-str "trigger low entropy")]
-      (is (thrown-with-msg?
-           clojure.lang.ExceptionInfo
-           #"Low-entropy"
-           (reduce (fn [h _] (hash/fuse h h))
-                   start
-                   (range 65))))))
+(deftest issue-14-named-collisions-are-gone
+  (testing "abba and baab (the shortest collision of the old fuse)"
+    (is (not= (fs "abba") (fs "baab")))
+    (is (not= (hash/state->ref (fs "abba")) (hash/state->ref (fs "baab")))))
+  (testing "1221 and 2112"
+    (is (not= (fs "1221") (fs "2112"))))
+  (testing "x ab y ba z and x ba y ab z"
+    (doseq [[x y z] [["" "" ""] ["x" "y" "z"] ["xx" "" "zz"] ["q" "rst" "u"]]]
+      (is (not= (fs (str x "ab" y "ba" z)) (fs (str x "ba" y "ab" z)))
+          (pr-str [x y z]))))
+  (testing "other word pairs of the family x u y v z = x v y u z"
+    (doseq [[a b] [["ab" "ba"] ["ab" "ac"] ["xy" "yx"] ["abc" "cba"]]
+            [x y z] [["" "m" ""] ["k" "" "j"]]]
+      (is (not= (fs (str x a y b z)) (fs (str x b y a z)))))))
 
-  (testing "fuse throws on explicitly low-entropy input"
-    (let [good-hash (hash/fuse-str "normal")
-          bad-hash [(unchecked-long 0x1234567800000000)
-                    (unchecked-long 0xABCDEF0000000000)
-                    (unchecked-long 0x9876543200000000)
-                    (unchecked-long 0xFEDCBA9800000000)]]
-      (is (thrown-with-msg?
-           clojure.lang.ExceptionInfo
-           #"Low-entropy input hash \(a\)"
-           (hash/fuse bad-hash good-hash)))
-      (is (thrown-with-msg?
-           clojure.lang.ExceptionInfo
-           #"Low-entropy input hash \(b\)"
-           (hash/fuse good-hash bad-hash)))))
+(deftest issue-14-through-values
+  (let [st (store/mem-store)
+        h (fn [x] (v/hash x))]
+    (testing "[1 256] vs [256 1] (i64 elements whose words 1-3 are equal)"
+      (is (not= (h (v/vector st 1 256)) (h (v/vector st 256 1)))))
+    (testing "strings abba/baab and 1221/2112"
+      (is (not= (h (v/string st "abba")) (h (v/string st "baab"))))
+      (is (not= (h (v/string st "1221")) (h (v/string st "2112")))))
+    (testing "[\"ab\" \"ba\"] vs [\"ba\" \"ab\"]"
+      (is (not= (h (v/vector st "ab" "ba")) (h (v/vector st "ba" "ab")))))
+    (testing "[1 2 2 1] vs [2 1 1 2], nested [[1 2] [2 1]] vs [[2 1] [1 2]]"
+      (is (not= (h (v/vector st 1 2 2 1)) (h (v/vector st 2 1 1 2))))
+      (is (not= (h (v/vector st (v/vector st 1 2) (v/vector st 2 1)))
+                (h (v/vector st (v/vector st 2 1) (v/vector st 1 2))))))
+    (testing "[\"ab\" 7 \"ba\"] vs [\"ba\" 7 \"ab\"]"
+      (is (not= (h (v/vector st "ab" 7 "ba")) (h (v/vector st "ba" 7 "ab")))))
+    (testing "maps with swapped anagram values"
+      (is (not= (h (v/map st "k1" "ab" "k2" "ba")) (h (v/map st "k1" "ba" "k2" "ab")))))
+    (testing "x [1 256] y [256 1] z over many contexts"
+      (is (not= (h (v/vector st 9 1 256 8 256 1 7))
+                (h (v/vector st 9 256 1 8 1 256 7)))))))
 
-  (testing "unchecked-fuse allows low-entropy (no exception)"
-    ;; Use unchecked version to verify low-entropy actually occurs
-    (let [start (hash/fuse-str "any value")
-          result (reduce (fn [h _] (hash/unchecked-fuse h h))
-                         start
-                         (range 65))]
-      (is (hash/low-entropy? result)
-          "65 iterations of self-fuse should produce low-entropy hash"))))
+(deftest every-short-word-has-its-own-state
+  (testing "all 3,905 strings of length 0..5 over abcde, and 5,460 over abcd up to length 6"
+    (doseq [[alphabet maxlen] [["abcde" 5] ["abcd" 6]]]
+      (let [words (loop [acc [""] frontier [""] n 0]
+                    (if (= n maxlen)
+                      acc
+                      (let [next (for [w frontier c alphabet] (str w c))]
+                        (recur (into acc next) next (inc n)))))
+            states (map fs words)]
+        (is (= (count words) (count (set states))) alphabet)))))
 
-(deftest test-hex-conversion
-  (testing "round-trip through hex"
-    (let [h (hash/fuse-str "test")]
-      (is (= h (hash/hex->hash (hash/hash->hex h)))))))
+(deftest digits-0000-to-9999-are-all-distinct
+  (is (= 10000 (count (set (for [i (range 10000)] (fs (format "%04d" i))))))))
 
-(deftest test-bytes-longs-conversion
-  (testing "bytes->longs converts 32 bytes to 4 longs"
-    (let [bytes (byte-array 32)
-          longs (hash/bytes->longs bytes)]
-      (is (vector? longs))
-      (is (= 4 (count longs)))))
-  (testing "longs->bytes converts 4 longs to 32 portable bytes"
-    (let [longs [1 2 3 4]
-          bytes (hash/longs->bytes longs)]
-      (is (vector? bytes))
-      (is (= 32 (count bytes)))
-      (is (every? #(<= 0 % 255) bytes))))
-  (testing "round-trip preserves data"
-    (let [original [12345 -67890 111111 -222222]
-          round-tripped (hash/bytes->longs (hash/longs->bytes original))]
-      (is (= original round-tripped)))))
+;; =============================================================================
+;; Repeated values: A^n returns to the identity only at a multiple of A's order
+;; =============================================================================
+
+(deftest long-runs-of-one-element
+  (doseq [a [(fs "a") (fs "dacite") (hash/ref->state (hash/state->ref (fs "x")))
+             (nth hash/byte->state 0)]]
+    (testing "A^(2^k) is never the identity for k up to 40, and all differ"
+      (let [powers (take 41 (iterate #(hash/fuse % %) a))]    ; A^(2^0) .. A^(2^40)
+        (is (not-any? #(= I %) powers))
+        (is (= 41 (count (set powers))))))
+    (testing "A^(2^40) by squaring is not the identity, not any shorter run"
+      (let [big (pow-by-squaring a (.shiftLeft java.math.BigInteger/ONE 40))]
+        (is (not= I big))
+        (is (hash/state-valid? big))
+        (is (= (hash/fuse big big) (pow-by-squaring a (.shiftLeft java.math.BigInteger/ONE 41))) "A^(2^40) squared is A^(2^41)")
+        (is (not-any? #(= big %) (map #(pow-by-fusing a %) (range 1 200))))))
+    (testing "the first 300 powers of A are distinct and none is the identity but A^0"
+      (let [ps (take 300 (iterate #(hash/fuse % a) a))]
+        (is (= 300 (count (set ps))))
+        (is (not-any? #(= I %) ps))
+        (is (= (pow-by-squaring a (biginteger 299)) (nth ps 298)))))
+    (testing "A^(order) is the identity: the order divides p-1, p+1 or p"
+      (let [ord-candidates [(.multiply (biginteger 6) q1) (.multiply (biginteger 4) q2)
+                            (.multiply (biginteger 2) p) p]]
+        (is (some #(= I (pow-by-squaring a %)) ord-candidates))))))
+
+(deftest a-run-wraps-only-after-the-order
+  (let [a (fs "a")
+        t (.mod (.add ^java.math.BigInteger (nth a 0) ^java.math.BigInteger (nth a 3)) p)
+        disc (.mod (.subtract (.multiply t t) (biginteger 4)) p)
+        split? (= java.math.BigInteger/ONE (.modPow disc (.shiftRight (.subtract p java.math.BigInteger/ONE) 1) p))
+        n (if split? (.multiply (biginteger 6) q1) (.multiply (biginteger 4) q2))]
+    (testing "A^n = identity at n = p-1 (split) or p+1 (non-split), >= 2^252"
+      (is (>= (.bitLength n) 253))
+      (is (= I (pow-by-squaring a n)))
+      (is (= a (pow-by-squaring a (.add n java.math.BigInteger/ONE)))))
+    (testing "and not at n/q for each prime factor q (the order is the full n up to the small factors)"
+      (is (not= I (pow-by-squaring a (.divide n (if split? q1 q2))))))))
+
+;; =============================================================================
+;; Why the prime is 256 bits: a collision in ~sqrt(p) at a small prime
+;; =============================================================================
+
+(deftest small-prime-collision
+  ;; The same hash (a product of 256 random generators of SL(2, F_p) along a
+  ;; byte string) over a 36-bit prime has two different byte strings with one
+  ;; product, found by the Borel-subgroup attack (about 1.8e7 multiplications,
+  ;; 92 * sqrt(p); fixtures/fuse-sl2/attack/). The search is Python and took
+  ;; 15 s; this replays the result in milliseconds. At the shipped 256-bit p
+  ;; the same attack is about 2^134 multiplications.
+  (let [{:keys [p generators s1 s2]} (clojure.edn/read-string
+                                      (slurp "../../fixtures/fuse-sl2/small-prime-collision.edn"))
+        p (bigint p)
+        generators (mapv #(mapv bigint %) generators)
+        hex->bytes (fn [h] (mapv #(Integer/parseInt (subs h (* 2 %) (+ 2 (* 2 %))) 16)
+                                 (range (quot (count h) 2))))
+        mul (fn [[a b c d] [e f g h]]
+              [(mod (+ (* a e) (* b g)) p) (mod (+ (* a f) (* b h)) p)
+               (mod (+ (* c e) (* d g)) p) (mod (+ (* c f) (* d h)) p)])
+        prod (fn [bs] (reduce (fn [m i] (mul m (nth generators i))) [1N 0N 0N 1N] bs))
+        b1 (hex->bytes s1)
+        b2 (hex->bytes s2)]
+    (is (= 36 (.bitLength (biginteger p))) "a 36-bit prime")
+    (is (.isProbablePrime (biginteger p) 50))
+    (is (= 256 (count generators)))
+    (is (every? (fn [[a b c d]] (= 1 (mod (- (* a d) (* b c)) p))) generators) "all in SL(2, F_p)")
+    (is (not= b1 b2) "two different byte strings")
+    (is (= (prod b1) (prod b2)) "with the same product")
+    (is (not= [1 0 0 1] (prod b1)))
+    (is (< 300 (count b1) 500))))
+
+;; =============================================================================
+;; Refs: digest and expansion
+;; =============================================================================
+
+(deftest a-ref-is-a-32-byte-digest-of-a-state
+  (let [s (fs "hello")
+        r (hash/state->ref s)]
+    (is (= 4 (count r)))
+    (is (= 32 (count (hash/longs->bytes r))))
+    (is (= r (hash/state->ref s)) "deterministic")
+    (is (not= r (hash/state->ref (fs "hellp"))))
+    (is (= (hash/fuse-bytes (hash/longs->bytes r)) (hash/ref->state r))
+        "ref->state is fuse_bytes of the ref's bytes")
+    (is (hash/state-valid? (hash/ref->state r)))))
+
+(deftest digest-of-identity-and-of-the-hand-computed-fold
+  (let [s (fs "hello")
+        mask (.subtract (.shiftLeft java.math.BigInteger/ONE 256) java.math.BigInteger/ONE)
+        rotl (fn [^java.math.BigInteger n r]
+               (.and (.or (.shiftLeft n r) (.shiftRight n (- 256 r))) mask))
+        d (reduce (fn [^java.math.BigInteger acc i] (.xor acc (rotl (nth s i) (* 64 i))))
+                  java.math.BigInteger/ZERO (range 4))
+        words (mapv #(.longValue (.shiftRight d %)) [192 128 64 0])]
+    (is (= words (hash/state->ref s)))
+    (is (= [1 0 0 1] (hash/state->ref hash/identity-state))
+        "the identity: a = 1, d = 1 rotated left by 192 bits: 1 xor 2^192, words [1 0 0 1]")
+    (testing "cells are not interchangeable: a transposed state has another digest"
+      (let [[a b c d] s]
+        (is (not= (hash/state->ref s) (hash/state->ref [a c b d])))
+        (is (not= (hash/state->ref s) (hash/state->ref [d b c a])))))))
+
+(deftest digest-bits-are-uniform
+  (let [rnd (java.util.Random. 5)
+        n 3000
+        refs (repeatedly n #(hash/state->ref (hash/fuse-bytes (vec (repeatedly 6 (fn [] (.nextInt rnd 256)))))))
+        bits (fn [r] (let [bs (hash/longs->bytes r)]
+                       (for [i (range 256)] (bit-and 1 (bit-shift-right (nth bs (quot i 8)) (- 7 (mod i 8)))))))
+        counts (reduce (fn [acc r] (mapv + acc (bits r))) (vec (repeat 256 0)) refs)]
+    (testing "every one of the 256 digest bits is set 44%..56% of the time over 3,000 states"
+      (is (every? #(< (* 0.44 n) % (* 0.56 n)) counts) (pr-str (map-indexed vector counts))))))
+
+;; =============================================================================
+;; State bytes and hex
+;; =============================================================================
+
+(deftest state-bytes-and-hex-round-trip
+  (doseq [s (concat [hash/identity-state] (map fs ["a" "hello" "abba"]))]
+    (let [bs (hash/state->bytes s)]
+      (is (= 128 (count bs)))
+      (is (every? #(<= 0 % 255) bs))
+      (is (= s (hash/bytes->state bs)))
+      (is (= s (hash/hex->state (hash/state->hex s))))
+      (is (= 256 (count (hash/state->hex s))))))
+  (is (= (concat (repeat 31 0) [1] (repeat 64 0) (repeat 31 0) [1])
+         (hash/state->bytes hash/identity-state))))
+
+(deftest invalid-states-are-refused
+  (let [s (fs "hello")]
+    (is (hash/state-valid? s))
+    (testing "a cell at or above p"
+      (is (not (hash/state-valid? (assoc s 0 (host/sl2-p)))))
+      (is (not (hash/state-valid? (assoc s 1 (.add ^java.math.BigInteger (host/sl2-p) (biginteger 5)))))))
+    (testing "determinant not 1"
+      (is (not (hash/state-valid? (assoc s 3 (.mod (.add ^java.math.BigInteger (nth s 3) java.math.BigInteger/ONE) ^java.math.BigInteger (host/sl2-p))))))
+      (is (not (hash/state-valid? [(biginteger 0) (biginteger 0) (biginteger 0) (biginteger 0)]))))
+    (testing "wrong shape"
+      (is (not (hash/state-valid? [1 2 3])))
+      (is (not (hash/state-valid? nil))))))
+
+;; =============================================================================
+;; Cross-platform fixtures (nbb reads the same file)
+;; =============================================================================
+
+(defn fixture-vectors []
+  (clojure.edn/read-string (slurp "../../fixtures/fuse-sl2/vectors.edn")))
+
+(deftest the-kernel-boundary-agrees-with-the-known-answers
+  ;; exactly the functions a WASM or native implementation would replace
+  (let [vs (:kernel (fixture-vectors))]
+    (is (= #{:state-mul :bytes->state :ref->state :state->ref :state-valid? :refused} (set (keys vs))))
+    (is (every? seq (vals vs)))
+    (is (= [] (kernel-vectors/problems hash/kernel vs)))
+    (testing "the checker does fail on a wrong kernel"
+      (is (seq (kernel-vectors/problems (assoc hash/kernel :state-mul (fn [a _] a)) vs)))
+      (is (seq (kernel-vectors/problems (assoc hash/kernel :state-valid? (constantly true)) vs)))
+      (is (seq (kernel-vectors/problems (assoc hash/kernel :state->ref (fn [s] (subs s 0 64))) vs))))
+    (testing "a refused input throws bad-state"
+      (is (= :bad-state (try ((:state-mul hash/kernel) (apply str (repeat 256 "0")) (apply str (repeat 256 "0")))
+                             (catch clojure.lang.ExceptionInfo e (:reason (ex-data e)))))))))
+
+(deftest fixture-vectors-match
+  (let [{:keys [p fuse-str ref->state scalars table-sample]} (fixture-vectors)]
+    (is (= (str (host/sl2-p)) p) "the vectors are for this prime")
+    (testing "fuse-str: state hex and ref hex"
+      (doseq [{:keys [input state ref]} fuse-str]
+        (is (= state (hash/state->hex (hash/fuse-str input))) input)
+        (is (= ref (hash/hash->hex (hash/state->ref (hash/fuse-str input)))) input)))
+    (testing "ref->state of fixed refs"
+      (doseq [{:keys [ref state]} ref->state]
+        (is (= state (hash/state->hex (hash/ref->state (hash/hex->hash ref)))) ref)))
+    (testing "scalar value hashes"
+      (doseq [{:keys [type value ref]} scalars]
+        (is (= ref (hash/hash->hex (types/typed-value-hash [type (if (= "char" type) (first value) value)])))
+            (pr-str [type value]))))
+    (testing "a sample of the generator table"
+      (doseq [[i hex] table-sample]
+        (is (= hex (hash/state->hex (nth hash/byte->state i))))))))
 
 (defn- ->bytes
   "Bridge portable encode-value bytes (vector of ints 0..255, or a host
@@ -325,141 +551,58 @@
 
 (deftest test-fuse-seq
   (testing "fuse-seq of empty sequence is identity"
-    (is (= [0 0 0 0] (hash/fuse-seq []))))
-  (testing "fuse-seq of single hash returns that hash"
+    (is (= hash/identity-state (hash/fuse-seq []))))
+  (testing "fuse-seq of single state returns that state"
     (let [h (hash/fuse-str "hello")]
       (is (= h (hash/fuse-seq [h])))))
-  (testing "fuse-seq is equivalent to chained unchecked-fuse"
-    (let [a (hash/fuse-str "a")
-          b (hash/fuse-str "b")
-          c (hash/fuse-str "c")]
-      (is (= (hash/unchecked-fuse (hash/unchecked-fuse a b) c)
-             (hash/fuse-seq [a b c])))))
-  (testing "fuse-seq is deterministic"
-    (let [hashes (map hash/fuse-str ["x" "y" "z"])]
-      (is (= (hash/fuse-seq hashes) (hash/fuse-seq hashes))))))
+  (testing "fuse-seq is equivalent to chained fuse"
+    (let [a (hash/fuse-str "a") b (hash/fuse-str "b") c (hash/fuse-str "c")]
+      (is (= (hash/fuse (hash/fuse a b) c) (hash/fuse-seq [a b c]))))))
 
-;; =============================================================================
-;; Byte hash table & fuse-str
-;; =============================================================================
-
-(deftest test-byte-hash-table
-  (testing "byte->hash has 256 entries"
-    (is (= 256 (count hash/byte->hash))))
-  (testing "all byte values produce distinct hashes"
-    (is (= 256 (count (set hash/byte->hash)))))
-  (testing "each hash is a vector of 4 longs"
-    (doseq [h hash/byte->hash]
-      (is (vector? h))
-      (is (= 4 (count h))))))
+(deftest test-byte-state-table
+  (testing "byte->state has 256 entries, each a vector of 4 cells"
+    (is (= 256 (count hash/byte->state)))
+    (is (every? #(and (vector? %) (= 4 (count %))) hash/byte->state))))
 
 (deftest test-fuse-bytes
   (testing "fuse-bytes of empty array is identity"
-    (is (= [0 0 0 0] (hash/fuse-bytes (byte-array 0)))))
-  (testing "fuse-bytes of single byte matches byte->hash"
-    (is (= (nth hash/byte->hash 65) (hash/fuse-bytes [65]))))
-  (testing "fuse-bytes is deterministic"
-    (let [bs (.getBytes "hello" "UTF-8")]
-      (is (= (hash/fuse-bytes bs) (hash/fuse-bytes bs))))))
-
-(deftest test-fuse-str
-  (testing "fuse-str returns vector of 4 longs"
-    (let [h (hash/fuse-str "hello")]
-      (is (vector? h))
-      (is (= 4 (count h)))))
-  (testing "fuse-str is deterministic"
-    (is (= (hash/fuse-str "test") (hash/fuse-str "test"))))
-  (testing "different strings produce different hashes"
-    (is (not= (hash/fuse-str "hello") (hash/fuse-str "world"))))
+    (is (= hash/identity-state (hash/fuse-bytes (byte-array 0)))))
+  (testing "fuse-bytes of single byte matches byte->state"
+    (is (= (nth hash/byte->state 65) (hash/fuse-bytes [65]))))
+  (testing "signed host bytes are masked"
+    (is (= (hash/fuse-bytes [255 128]) (hash/fuse-bytes (byte-array [-1 -128])))))
   (testing "fuse-str equals fuse-bytes of UTF-8"
-    (let [s "hello"
-          bs (.getBytes s "UTF-8")]
-      (is (= (hash/fuse-str s) (hash/fuse-bytes bs)))))
-  (testing "fuse(fuse-str(a), fuse-str(b)) = fuse-str(a ++ b) — associativity"
-    (let [a "hello"
-          b "world"
-          combined (hash/unchecked-fuse (hash/fuse-str a) (hash/fuse-str b))]
-      (is (= combined (hash/fuse-str (str a b)))))))
+    (is (= (hash/fuse-str "héllo") (hash/fuse-bytes (.getBytes "héllo" "UTF-8")))))
+  (testing "fuse(fuse-str(a), fuse-str(b)) = fuse-str(a ++ b)"
+    (is (= (hash/fuse (hash/fuse-str "hello") (hash/fuse-str "world")) (hash/fuse-str "helloworld")))))
 
 (deftest test-node-hash
-  (testing "node-hash with zero elements-fuse"
-    (let [h (types/node-hash "ft/empty" [0 0 0 0])]
+  (testing "node-hash with the identity elements-fuse is a ref"
+    (let [h (types/node-hash "ft/empty" hash/identity-state)]
       (is (vector? h))
       (is (= 4 (count h)))))
   (testing "different node types produce different hashes"
     (let [ef (hash/fuse-str "some-content")]
-      (is (not= (types/node-hash "ft/deep" ef)
-                (types/node-hash "ft/digit" ef)))))
+      (is (not= (types/node-hash "ft/deep" ef) (types/node-hash "ft/digit" ef)))))
   (testing "same type + same elements-fuse = same hash"
     (let [ef (hash/fuse-str "content")]
-      (is (= (types/node-hash "ft/deep" ef)
-             (types/node-hash "ft/deep" ef))))))
+      (is (= (types/node-hash "ft/deep" ef) (types/node-hash "ft/deep" ef))))))
 
-;; =============================================================================
-;; Fuse inverse (group structure)
-;; =============================================================================
+(deftest test-hex-conversion
+  (testing "round-trip a ref through hex"
+    (let [h (hash/state->ref (hash/fuse-str "test"))]
+      (is (= h (hash/hex->hash (hash/hash->hex h)))))))
 
-(deftest test-fuse-inverse-basic
-  (testing "fuse(inv(a), a) = identity"
-    (let [a (hash/fuse-str "test")]
-      (is (= [0 0 0 0] (hash/unchecked-fuse (hash/fuse-inverse a) a)))))
-  (testing "fuse(a, inv(a)) = identity"
-    (let [a (hash/fuse-str "test")]
-      (is (= [0 0 0 0] (hash/unchecked-fuse a (hash/fuse-inverse a)))))))
-
-(defspec fuse-inverse-left-identity 100
-  (prop/for-all [s gen/string-alphanumeric]
-                (let [a (hash/fuse-str s)]
-                  (= [0 0 0 0] (hash/unchecked-fuse (hash/fuse-inverse a) a)))))
-
-(defspec fuse-inverse-right-identity 100
-  (prop/for-all [s gen/string-alphanumeric]
-                (let [a (hash/fuse-str s)]
-                  (= [0 0 0 0] (hash/unchecked-fuse a (hash/fuse-inverse a))))))
-
-(defspec fuse-inverse-recovers-b 100
-  (prop/for-all [s1 gen/string-alphanumeric
-                 s2 gen/string-alphanumeric]
-                (let [a (hash/fuse-str s1)
-                      b (hash/fuse-str s2)
-                      fused (hash/unchecked-fuse a b)
-                      recovered (hash/unchecked-fuse (hash/fuse-inverse a) fused)]
-                  (= b recovered))))
-
-(deftest test-fuse-inverse-of-identity
-  (testing "inv([0,0,0,0]) = [0,0,0,0]"
-    (is (= [0 0 0 0] (hash/fuse-inverse [0 0 0 0])))))
-
-;; =============================================================================
-;; Unfuse
-;; =============================================================================
-
-(deftest test-unfuse-basic
-  (testing "unfuse(fuse(a, b), b) = a"
-    (let [a (hash/fuse-str "hello")
-          b (hash/fuse-str "world")
-          fused (hash/unchecked-fuse a b)]
-      (is (= a (hash/unfuse fused b)))))
-  (testing "unfuse from the left: fuse(inv(a), fuse(a, b)) = b"
-    (let [a (hash/fuse-str "hello")
-          b (hash/fuse-str "world")
-          fused (hash/unchecked-fuse a b)]
-      (is (= b (hash/unchecked-fuse (hash/fuse-inverse a) fused))))))
-
-(defspec unfuse-recovers-a 100
-  (prop/for-all [s1 gen/string-alphanumeric
-                 s2 gen/string-alphanumeric]
-                (let [a (hash/fuse-str s1)
-                      b (hash/fuse-str s2)
-                      fused (hash/unchecked-fuse a b)]
-                  (= a (hash/unfuse fused b)))))
-
-(comment
-  ;; Run all tests
-  (clojure.test/run-tests)
-
-  ;; Run specific property test
-  (tc/quick-check 100 fuse-determinism)
-
-  ;; Run with more iterations
-  (tc/quick-check 1000 fuse-non-commutative))
+(deftest test-bytes-longs-conversion
+  (testing "bytes->longs converts 32 bytes to 4 longs"
+    (let [longs (hash/bytes->longs (byte-array 32))]
+      (is (vector? longs))
+      (is (= 4 (count longs)))))
+  (testing "longs->bytes converts 4 longs to 32 portable bytes"
+    (let [bytes (hash/longs->bytes [1 2 3 4])]
+      (is (vector? bytes))
+      (is (= 32 (count bytes)))
+      (is (every? #(<= 0 % 255) bytes))))
+  (testing "round-trip preserves data"
+    (let [original [12345 -67890 111111 -222222]]
+      (is (= original (hash/bytes->longs (hash/longs->bytes original)))))))

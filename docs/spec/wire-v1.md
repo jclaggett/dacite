@@ -51,7 +51,8 @@ Unknown `version` → reject the message. v1 uses `version = 1`.
 
 ### Hashing is logical, not “hash the wire bytes”
 
-Content hashes are defined by the value model (fuse + type rules). Wire framing
+Content hashes are defined by the value model (the SL(2, F_p) fuse + type rules,
+docs/design/fuse-sl2.md). Wire framing
 and length prefixes are **not** part of the content hash. Receivers may verify
 `claimed_hash == hash(materialized)` for literals and optionally for nodes.
 
@@ -150,7 +151,7 @@ Node =
 | `0x03` | collection | Public collection header (vector/string/blob/map/set) |
 | other | — | Error |
 
-### Measure (48 bytes)
+### Measure (144 bytes)
 
 Used by `ft` and `hamt` kinds:
 
@@ -158,8 +159,20 @@ Used by `ft` and `hamt` kinds:
 Measure =
     count           u64
     size_bytes      u64
-    elements_fuse   Hash32
+    elements_fuse   State128
 ```
+
+`State128` is a fuse state: the four cells a, b, c, d of a 2x2 matrix over F_p
+(p = 75509794529310452520362503714625764980405239500720831432010267419866053829067,
+a 256-bit prime), each 32 bytes big-endian, 128 bytes in all. It is **not** a `Hash32`: a ref is the 32-byte digest of a state, a measure
+keeps the whole state, because measures are summed by fusing. A receiver checks
+that each cell is below p and that `a*d - b*c = 1 (mod p)`; otherwise the item is
+refused: a decoder throws an ex-info with `:reason :bad-state` (message "bad fuse
+state"; `hash/bad-state!`), and the peer item reader reports it as `bad-entry`
+with `:detail :bad-state`. A writer handed an invalid state throws
+`:reason :invalid-state` (a program error, not bad input). Under the old fuse
+(hash version 1) this field was a 32-byte hash and the measure 48 bytes. See
+docs/design/fuse-sl2.md.
 
 ### Scalar (`kind = 0x00`)
 
@@ -246,7 +259,7 @@ HamtBitmap =
 shorter). A `HamtBitmap` has **two or more** children: a node with one child is
 never written. Its children hold the keys that share chunk `split` of the node's
 bits, and each child's own `split` is greater. The node hash is
-`fuse(node_hash("hamt/bitmap", elements_fuse), fuse_bytes(bitmap_be8 ++ [split]))`,
+`digest(fuse(fuse(type_state, elements_fuse), fuse_bytes(bitmap_be8 ++ [split])))`,
 with `bitmap_be8` the bitmap as 8 big-endian bytes. A receiver checks the hash, a
 `split` of 0..51 and `n >= 2` with `n = popcount(bitmap)` from the node's own
 bytes. See peer-v1 §3.3 for why the shape is canonical.
@@ -423,7 +436,7 @@ and fixtures use wire-v1 only.
 ## Persisted stores: the store format tag
 
 A persisted store (file, LMDB, IndexedDB) carries one integer, the **store
-format** (`dacite.store/store-format`, now **1**). It is written when the store is
+format** (`dacite.store/store-format`, now **2**). It is written when the store is
 created and checked every time it opens. It is not the wire version: the wire and
 `hello` versions are unchanged by it (draft; no Dacite values in the wild).
 
@@ -435,10 +448,11 @@ created and checked every time it opens. It is not the wire version: the wire an
 
 A store with nodes and no tag (written before tags), or with another number, is
 refused with `ex-info` `store format mismatch ...` and `ex-data`
-`{:reason :store-format-mismatch :expected 1 :found nil|n :where ...}`, before
+`{:reason :store-format-mismatch :expected 2 :found nil|n :where ...}`, before
 any node is read, so it is never a node-hash failure. `s-reset` keeps the tag.
 Bump the number when what a store holds changes shape: format 1 is the
-`hamt/bitmap` node with a `split` (issue #12).
+`hamt/bitmap` node with a `split` (issue #12); format 2 is the SL(2, F_p) fuse
+(issue #14), which changes every value hash and the measure.
 
 ---
 

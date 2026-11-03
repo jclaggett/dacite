@@ -10,6 +10,7 @@
    On the JVM, wire bodies are Java byte[]. On CLJS/nbb they are Uint8Array.
    Encode/decode APIs accept either form where conversion is unambiguous."
   (:require [clojure.string :as str]
+            [dacite.hash :as hash]
             [dacite.host :as host]
             [dacite.store :as store]
             [dacite.store.pack :as pack]
@@ -302,6 +303,31 @@
   [buf]
   [(get-u64 buf) (get-u64 buf) (get-u64 buf) (get-u64 buf)])
 
+(def ^:private state-len
+  "A fuse state on the wire: the cells a, b, c, d, 32 big-endian bytes each."
+  128)
+
+(def ^:private measure-len
+  "A measure on the wire: u64 count, u64 size-bytes, 128-byte fuse state."
+  (+ 8 8 state-len))
+
+(defn- put-state
+  [buf state]
+  (when-not (hash/state-valid? state)
+    (hash/invalid-state! {:state state}))
+  (put-bytes buf (as-wire-bytes (hash/state->bytes state))))
+
+(defn- get-state
+  "A 128-byte fuse state. The cells must be below p and the determinant 1; a
+   matrix that is not in SL(2, F_p) is no fuse state and is refused with
+   `hash/bad-state!` (ex-info, `:reason :bad-state`)."
+  [buf]
+  (let [bs (get-bytes buf state-len)
+        state (hash/bytes->state (mapv #(bget bs %) (range state-len)))]
+    (when-not (hash/state-valid? state)
+      (hash/bad-state! {}))
+    state))
+
 ;; =============================================================================
 ;; Constants
 ;; =============================================================================
@@ -455,7 +481,7 @@
   [buf {:keys [count size-bytes elements-fuse]}]
   (put-u64 buf (or count 0))
   (put-u64 buf (or size-bytes 0))
-  (put-hash buf elements-fuse))
+  (put-state buf elements-fuse))
 
 (defn- get-count
   "u64 used as a collection/measure count. Host long on JVM; JS Number
@@ -468,7 +494,7 @@
   [buf]
   {:count (get-count buf)
    :size-bytes (get-count buf)
-   :elements-fuse (get-hash buf)})
+   :elements-fuse (get-state buf)})
 
 ;; =============================================================================
 ;; Literal encode / decode
@@ -917,7 +943,7 @@
                          (not (:children data)))]
         (if packed?
           (let [lits (mapv encode-lit-bytes (or (:body data) []))
-                total (reduce + (+ 2 48 1) (map byte-len lits))
+                total (reduce + (+ 2 measure-len 1) (map byte-len lits))
                 buf (bb total)]
             (put-u8 buf kind-ft)
             (put-u8 buf sub)
@@ -930,7 +956,7 @@
                            "ft/deep" [(:left data) (:spine data) (:right data)]
                            (or (:children data) []))
                 n (count children)
-                buf (bb (+ 2 48 1 (* 32 n)))]
+                buf (bb (+ 2 measure-len 1 (* 32 n)))]
             (put-u8 buf kind-ft)
             (put-u8 buf sub)
             (put-measure buf m)
@@ -941,14 +967,14 @@
       (str/starts-with? t "hamt/")
       (case t
         "hamt/empty"
-        (let [buf (bb (+ 2 48))]
+        (let [buf (bb (+ 2 measure-len))]
           (put-u8 buf kind-hamt)
           (put-u8 buf 0)
           (put-measure buf (:measure data))
           (finish buf))
 
         "hamt/entry"
-        (let [buf (bb (+ 2 48 (* 3 32)))]
+        (let [buf (bb (+ 2 measure-len (* 3 32)))]
           (put-u8 buf kind-hamt)
           (put-u8 buf 1)
           (put-measure buf (:measure data))
@@ -960,7 +986,7 @@
         "hamt/bitmap"
         (let [ch (:children data)
               n (count ch)
-              buf (bb (+ 2 48 4 1 1 (* 32 n)))]
+              buf (bb (+ 2 measure-len 4 1 1 (* 32 n)))]
           (put-u8 buf kind-hamt)
           (put-u8 buf 2)
           (put-measure buf (:measure data))
