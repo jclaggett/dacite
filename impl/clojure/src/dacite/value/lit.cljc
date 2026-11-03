@@ -430,6 +430,34 @@
             (recur (inc i) (+ acc #?(:clj 1 :cljs 3)))
             :else (recur (inc i) (+ acc 3))))))))
 
+(defn utf8-len-upper
+  "An upper bound of the UTF-8 bytes of `s` once it sits in a longer text.
+   Like `utf8-len`, except that a lone surrogate counts 2: a surrogate pair
+   split across two runs of characters is two lone surrogates here and four
+   bytes in the joined text, and a lone surrogate is one byte (JVM) or three
+   (CLJS) alone. So a sum over runs is never below the joined text."
+  [s]
+  (let [s (str s)
+        n (long (count s))]
+    (loop [i 0 acc 0]
+      (if (>= i n)
+        acc
+        (let [c (long #?(:clj (int (.charAt ^String s (int i)))
+                         :cljs (.charCodeAt s i)))]
+          (cond
+            (< c 0x80) (recur (inc i) (+ acc 1))
+            (< c 0x800) (recur (inc i) (+ acc 2))
+            (and (>= c 0xD800) (< c 0xDC00))
+            (let [d (if (< (inc i) n)
+                      (long #?(:clj (int (.charAt ^String s (int (inc i))))
+                               :cljs (.charCodeAt s (inc i))))
+                      0)]
+              (if (and (>= d 0xDC00) (< d 0xE000))
+                (recur (+ i 2) (+ acc 4))
+                (recur (inc i) (+ acc 2))))
+            (and (>= c 0xDC00) (< c 0xE000)) (recur (inc i) (+ acc 2))
+            :else (recur (inc i) (+ acc 3))))))))
+
 (defn- scalar-payload-bytes
   [t v]
   (let [t (str t)]

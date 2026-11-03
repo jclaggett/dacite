@@ -17,7 +17,8 @@
             [dacite.value.finger-tree :as ft]
             [dacite.value.lit :as lit]
             [dacite.value.hamt :as hamt]
-            [dacite.rooted.gc :as gc]))
+            [dacite.rooted.gc :as gc]
+            [dacite.store.bound :as bound]))
 
 (def default-budget
   "Default soft pack budget in **sent** bytes (wire-v1 for the default GET/POST).
@@ -47,22 +48,6 @@
    `encode-item` and `encode-reachable` take it as `:max-literal`. Absent,
    the old rule holds: a literal is any value whose size cue fits `budget`."
   16378)
-
-(def literal-gate
-  "With `:max-literal`, values whose size cue is over `literal-gate * cap`
-   never get a literal built. A heuristic that saves time, not a rule: the
-   rule is the size of the finished item, and skipping a literal is always
-   safe (the receiver takes the node items; the stream is only longer).
-
-   4: a literal this big is rarely under the cap, because most data does
-   not shrink 4 times, and building one costs a pass over the whole value
-   (about 1 s for 100 KB with the old gate of 16, 46 ms with 4, identical
-   streams for random text and for distinct numbers). What it costs is
-   compression of degenerate data: 250 KB of one letter is 8 items and
-   13 KB, not 2 items and 137 B. Longer term, build the literal with a byte
-   limit and stop as soon as it passes the cap: a failed attempt then costs
-   the cap, not the value, and the gate goes away (docs/plan/peering.md)."
-  4)
 
 (def ^:dynamic *verify-literal-hash*
   "When true, apply-chunk! requires materialize hash to match claimed hash."
@@ -272,52 +257,25 @@
    forms of nested values are kept in it by hash: a string held under many
    keys of a map is turned into its form once, not once per key.
 
-   Only forms of values whose size cue is under `literal-gate * cap` are
-   kept (a bigger value gets no literal, so nothing asks for its form twice),
-   so the cache holds at most the forms the finished literals were made of.
-   It belongs to one `encode-value` / `encode-reachable` call and goes with
-   it. Bound with `binding` and used only in eagerly realized code in
-   `literal-of`; a lazy seq realized after the call would just miss it."
+   A form is only built under a literal whose bound (`store.bound`) fits the
+   cap, so every form kept is of a value that fits. The cache belongs to one
+   `encode-value` / `encode-reachable` call and goes with it. Bound with
+   `binding` and used only in eagerly realized code in `literal-of`; a lazy
+   seq realized after the call would just miss it."
   nil)
-
-(def ^:dynamic *literal-limit*
-  "The cap in wire bytes of the literal item being built, or nil. A string
-   or blob whose bytes alone are over it cannot be in a literal that fits,
-   so `nested-literal` stops there: a literal over the cap is a node item
-   either way, and the parents of the value need not be built to find out
-   (M1.1a review S3)."
-  nil)
-
-(defn- over-limit?
-  "True when the bytes of string or blob `entry` alone are over the limit."
-  [entry]
-  (and *literal-limit*
-       (contains? #{"string" "blob"} (str (types/entry-type entry)))
-       (> (long (or (:size-bytes (types/entry-data entry)) 0))
-          (long *literal-limit*))))
-
-(defn- form-cacheable?
-  [entry]
-  (or (nil? *literal-limit*)
-      (<= (long (size-cue entry)) (* literal-gate (long *literal-limit*)))))
 
 (defn- nested-literal
-  "Recursive typed literal for child value at eh, or nil if not a value type.
-   Throws (`:over-limit`) for a string or blob that cannot fit the cap."
+  "Recursive typed literal for child value at eh, or nil if not a value type."
   [st eh]
   (when-let [entry (store/await (store/s-get st eh))]
     (let [t (types/entry-type entry)]
       (when (value-type? t)
-        (when (over-limit? entry)
-          (throw (ex-info "nested value is over the literal limit"
-                          {:reason :over-limit :hash eh})))
         (if-let [c *form-cache*]
           (let [k [:form (gc/hash-key eh)]
                 hit (get @c k ::miss)]
             (if (= hit ::miss)
               (let [f (literal-of st eh)]
-                (when (form-cacheable? entry)
-                  (swap! c assoc k f))
+                (swap! c assoc k f)
                 f)
               hit))
           (literal-of st eh))))))
@@ -671,37 +629,74 @@
   [hk {:keys [budget max-literal]}]
   [hk budget max-literal])
 
-(def ^:private literal-item-header-bytes
-  "A literal item's header: enc u8, hash 32, plen u32 (wire-v1)."
-  37)
+(def ^:dynamic *on-bound-miss*
+  "nil, or a function called with `{:hash :bound :size :why}` when a literal
+   whose bound fit the cap turned out over it (`:why :over-cap`). That must
+   not happen (the bound is an upper bound); tests bind this and assert it
+   stays unused. A literal that does not round-trip (an inner HAMT node, whose
+   hash is not that of the map its entries make) is not a size miss: it is the
+   old fallback to the node item and is not reported."
+  nil)
+
+(defn literal-bound
+  "Upper bound in bytes of the literal item for `h` (`store.bound`), or nil.
+   `cache` is the atom of one call."
+  [st h cache]
+  (bound/literal-item-bound st h cache))
+
+(defn- measured-size
+  "The stored `:size-bytes` of the entry (its own, or its measure's), or nil.
+   Unlike `size-cue` it never falls back to counting the entry's EDN."
+  [entry]
+  (let [data (types/entry-data entry)]
+    (when (map? data)
+      (or (:size-bytes data) (get-in data [:measure :size-bytes])))))
+
+(defn- over-cap-by-measure?
+  "True when the stored size of the node is already over `max-literal`.
+   `:size-bytes` counts each element once with no compression, as the bound
+   does, and not more than the bound counts, so no literal that the bound
+   would let through is skipped here: it only saves walking the node."
+  [entry max-literal]
+  (when-let [sb (measured-size entry)]
+    (> (long sb) (long max-literal))))
 
 (defn- build-literal
-  "The literal item for `h`, or nil when it has none, is over the cap, or
-   does not round-trip.
+  "The literal item for `h`, or nil when it has none, cannot fit, or does not
+   round-trip.
 
-   With a cap, a string or blob whose bytes alone (and the item header)
-   are over it is skipped without building its text: the answer is the
-   same, and a 200 KB string no longer costs a pass to find out."
-  [st h entry {:keys [budget max-literal]}]
+   With a cap the literal is not built to find out whether it fits: its size
+   is bounded from the node first (`store.bound`, a sum with no run or repeat
+   compression) and a literal whose bound is over the cap is skipped (and
+   when the node's stored `:size-bytes` is over the cap already, the bound is
+   not even walked). When
+   the bound fits, the literal fits (a miss is reported to `*on-bound-miss*`);
+   it may still be refused for not round-trip (an inner HAMT node).
+   Without a cap the size cue and the budget decide, as before."
+  [st h entry {:keys [budget max-literal bound-cache]}]
   (let [t (types/entry-type entry)]
     (when (and (or (value-type? t) (tree-internal-type? t))
-               (not (clearly-oversized? entry (if max-literal
-                                                (* literal-gate (long max-literal))
-                                                budget)))
-               (not (and max-literal
-                         (contains? #{"string" "blob"} (str t))
-                         (> (+ literal-item-header-bytes
-                               (long (or (:size-bytes (types/entry-data entry)) 0)))
-                            (long max-literal)))))
-      (when-let [{:keys [type body]}
-                 (try (binding [*literal-limit* max-literal]
-                        (literal-of st h))
+               (if max-literal
+                 (and (not (over-cap-by-measure? entry max-literal))
+                      (when-let [b (literal-bound st h bound-cache)]
+                        (<= (long b) (long max-literal))))
+                 (not (clearly-oversized? entry budget))))
+      (let [miss! (fn [why size]
+                    (when (and max-literal *on-bound-miss*)
+                      (*on-bound-miss* {:hash h :size size :why why}))
+                    nil)
+            form (try (literal-of st h)
                       (catch #?(:clj Throwable :cljs :default) _ nil))]
-        (let [item (literal-item h type body)]
-          (when (and (or (nil? max-literal)
-                         (<= (long (wire-item-size item)) (long max-literal)))
-                     (literal-round-trips? h type body))
-            item))))))
+        (if-not form
+          nil
+          (let [{:keys [type body]} form
+                item (literal-item h type body)]
+            (cond
+              (and max-literal (> (long (wire-item-size item)) (long max-literal)))
+              (miss! :over-cap (wire-item-size item))
+              (not (literal-round-trips? h type body))
+              nil
+              :else item)))))))
 
 (defn encode-item
   "Layer 1: choose :literal or :node for store entry at h.
@@ -719,8 +714,10 @@
                      Without `:max-literal` it is also the gate: a literal
                      is any value whose size cue fits it.
    - `:max-literal`  the largest literal item in wire bytes (see
-                     `default-max-literal`). With it, the item is built
-                     and measured, and a literal over it is a :node item.
+                     `default-max-literal`). With it, a literal is built
+                     only when its bound (`store.bound`: the sum of its
+                     elements with no run or repeat compression) is at or
+                     under it, and then it fits; over it, the node item.
    - `:shorter-wins?` also require the literal to be shorter on the wire
                      than the node items it replaces (peer item streams).
    - `:covered`      hex keys already sent or held; they cost nothing in
@@ -728,9 +725,10 @@
    - `:cache`        an atom {[hex-key budget max-literal] literal-item-or-:none}:
                      a literal is built once per hash per budget and cap
                      (`encode-value` of a value that holds one string under
-                     many keys). It keeps every literal built and the forms
-                     of nested values that could fit (see `*form-cache*`),
-                     so make one per call and drop it with the call.
+                     many keys). It also keeps the bound of each node met
+                     (`store.bound`) and the forms of nested values (see
+                     `*form-cache*`), so make one per call and drop it with
+                     the call.
 
    Intermediate ft/* / hamt/* may bottom out as leaf-literal payloads when
    reconstruction matches the claimed hash (2c′). Sequence bodies use
@@ -739,6 +737,9 @@
   ([st h entry opts]
    (let [{:keys [shorter-wins? covered cache] :as opts} (encode-opts opts)
          hk (literal-cache-key (gc/hash-key h) opts)
+         ;; the bounds of the nodes met live in the call's cache, or in one
+         ;; for this call alone
+         opts (assoc opts :bound-cache (or cache (atom {})))
          item (binding [*form-cache* (or cache *form-cache*)]
               (if cache
                 (let [c (get @cache hk ::miss)]
