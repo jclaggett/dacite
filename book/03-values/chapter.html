@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8886ffea.js";
+            window.path_to_searchindex_js = "../searchindex-5c8cd117.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -211,7 +211,7 @@ part you consume is fetched.</li>
 (def vec (v/vector st 1 2 3))
 
 (v/hash vec)
-;; =&gt; [c0 c1 c2 c3]  ; the 4-long hash
+;; =&gt; [c0 c1 c2 c3]  ; the 4-long ref (a 32-byte digest)
 
 (v/dacite-store vec)
 ;; =&gt; the store that owns this value
@@ -256,12 +256,15 @@ machinery below.</p>
 <h2 id="33-how-every-value-is-hashed"><a class="header" href="#33-how-every-value-is-hashed">3.3 How Every Value Is Hashed</a></h2>
 <p>Every Dacite value — user-facing or internal — is hashed by the same
 rule:</p>
-<pre><code>value_hash = fuse(type_hash, data_hash)
+<pre><code>value_hash = digest(fuse(type_state, data_state))
 </code></pre>
+<p>(Chapter 2: a <em>state</em> is a 128-byte element of SL(2, F_p); the <em>digest</em> is
+the 32-byte ref a store files the value under.)</p>
 <h3 id="the-type-hash"><a class="header" href="#the-type-hash">The Type Hash</a></h3>
-<p>The <strong>type hash</strong> identifies the kind of value. It is the fuse of the
-type name’s characters followed by a terminating <code>0x00</code> byte:</p>
-<pre><code>type_hash = fuse_bytes(type_name ++ [0x00])
+<p>The <strong>type state</strong> (the book says “type hash” for short) identifies the kind
+of value. It is the fuse of the type name’s characters followed by a
+terminating <code>0x00</code> byte:</p>
+<pre><code>type_state = fuse_bytes(type_name ++ [0x00])
 </code></pre>
 <p>Type names are ordinary character strings — <code>"i64"</code>, <code>"vector"</code>,
 <code>"ft/node"</code>. Because type names never contain a null byte, the trailing
@@ -273,18 +276,19 @@ makes the boundary unambiguous.</p>
 type name to discover its interpretation. No registry, no schema
 negotiation.</p>
 <h3 id="the-data-hash"><a class="header" href="#the-data-hash">The Data Hash</a></h3>
-<p>The <strong>data hash</strong> captures the value’s content. How it is computed
+<p>The <strong>data state</strong> captures the value’s content. How it is computed
 depends on the kind of value:</p>
 <ul>
 <li><strong>Scalar</strong> — the fuse of its canonical bytes:</li>
 </ul>
-<pre><code>data_hash = fuse_bytes(canonical_bytes)
+<pre><code>data_state = fuse_bytes(canonical_bytes)
 </code></pre>
 <ul>
-<li><strong>Collection</strong> — the fuse of all <strong>leaf</strong> element hashes, in sequence
-order (vector, string, blob) or ascending key-hash order (map, set):</li>
+<li><strong>Collection</strong> — the fuse of all <strong>leaf</strong> elements, in sequence order
+(vector, string, blob) or ascending key-hash order (map, set). An element
+enters as the state of its ref, <code>ref_state(e)</code> (Chapter 2, §2.4):</li>
 </ul>
-<pre><code>data_hash = fuse(fuse(fuse(e0, e1), e2), ..., en)
+<pre><code>data_state = fuse(fuse(fuse(s0, s1), s2), ..., sn)      where si = ref_state(ei)
 </code></pre>
 <p>For collections, the data hash is built from the leaves <strong>only</strong>. The
 internal node type hashes (<code>ft/node</code>, <code>hamt/bitmap</code>, …) never enter it.
@@ -298,13 +302,15 @@ hash. This is what lets a store reorganize a collection for performance
 without changing its identity.</p>
 <p>(There is exactly one exception — HAMT bitmap nodes — explained in §3.7.)</p>
 <h3 id="cross-type-equality"><a class="header" href="#cross-type-equality">Cross-Type Equality</a></h3>
-<p>Here is where Chapter 2’s group structure pays off. Since
-<code>value_hash = fuse(type_hash, data_hash)</code>, the type hash can be stripped
-back off with the group inverse:</p>
-<pre><code>content_hash(v) = fuse(inv(type_hash), value_hash) = data_hash
+<p>Here is where Chapter 2’s group structure pays off. A value’s <em>state</em> is
+<code>fuse(type_state, data_state)</code>, so the type state can be stripped back off
+with the group inverse:</p>
+<pre><code>data_state(v) = fuse(inv(type_state), value_state) = data_state
 </code></pre>
+<p>(This works on states. A ref is a digest and cannot be inverted; a
+collection’s root measure holds its data state in full.)</p>
 <p>Two values with different types but the same underlying data have the
-same content hash, computed in <strong>O(1)</strong>. A <code>"string"</code> and a <code>"vector"</code>
+same data state, computed in <strong>O(1)</strong>. A <code>"string"</code> and a <code>"vector"</code>
 holding the same characters share a data hash — because their leaves are
 literally the same content-addressed values — even though their full
 hashes differ by the type tag.</p>
@@ -466,37 +472,38 @@ that does not fit. Discrimination: non-<code>ft/*</code> means implicit single;
 collection node — never a bare <code>ft/deep</code> as a user value.</p>
 <p>Every structural node is stored in the content-addressed store as its own
 entry. A page is bounded by the 1,024-byte payload budget (32 hashes × 32
-bytes when every child is a pointer), plus ~48 bytes of measure metadata.</p>
+bytes when every child is a pointer), plus 144 bytes of measure metadata.</p>
 <h3 id="the-measure-monoid"><a class="header" href="#the-measure-monoid">The Measure Monoid</a></h3>
 <p>Every node caches a <strong>measure</strong> of its subtree:</p>
 <pre><code>Measure = {
   count:          u64,   // number of leaf elements
   size_bytes:     u64,   // total byte size of leaf scalars
-  elements_fuse:  Hash   // running fuse of all element hashes
+  elements_fuse:  State  // running fuse of all element states (128 bytes)
 }
 </code></pre>
 <p>Measures combine as a monoid:</p>
 <pre><code>combine(m1, m2) = {
   count:         m1.count + m2.count,
   size_bytes:    m1.size_bytes + m2.size_bytes,
-  elements_fuse: unchecked_fuse(m1.elements_fuse, m2.elements_fuse)
+  elements_fuse: fuse(m1.elements_fuse, m2.elements_fuse)
 }
 
-identity = { count: 0, size_bytes: 0, elements_fuse: [0, 0, 0, 0] }
+identity = { count: 0, size_bytes: 0, elements_fuse: I }      // the identity matrix
 </code></pre>
-<p>The <code>elements_fuse</code> uses <code>unchecked_fuse</code> because the identity
-<code>[0, 0, 0, 0]</code> would fail the low-entropy check — this is safe since
-measures are internal bookkeeping, not user-facing hashes.</p>
+<p>A measure keeps the full 128-byte state, not a digest: measures are
+combined by fusing, and a digest cannot be fused. On the wire a measure is
+144 bytes (<code>count</code> and <code>size_bytes</code>, 8 bytes each, and the 128-byte state).
+A leaf’s contribution to the fuse is <code>ref_state</code> of its ref.</p>
 <p>The root’s measure gives <strong>O(1)</strong> access to:</p>
 <ul>
 <li><code>count</code> — how many elements</li>
 <li><code>size_bytes</code> — total materialized size</li>
-<li><code>elements_fuse</code> — the seq’s data hash</li>
+<li><code>elements_fuse</code> — the seq’s data state</li>
 </ul>
 <h3 id="node-hashing"><a class="header" href="#node-hashing">Node Hashing</a></h3>
 <p>Internal nodes are hashed using their type name and semantic content,
 the same <code>type_hash</code> rule as every other value (§3.3):</p>
-<pre><code>node_hash = fuse(fuse_str(node_type_name ++ "\0"), node.measure.elements_fuse)
+<pre><code>node_hash = digest(fuse(fuse_str(node_type_name ++ "\0"), node.measure.elements_fuse))
 </code></pre>
 <p>The null byte terminates the type name. Nodes with the same type and the
 same logical elements produce the same hash — different tree shapes
@@ -757,7 +764,7 @@ in the same backing storage — no store parameter needed for operations.</p>
 <tr><th>Function</th><th>Derivation</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>content-hash</code></td><td><code>fuse(inv(type-hash), value-hash)</code></td><td>Strip type tag, recover data hash</td></tr>
+<tr><td><code>content-hash</code></td><td><code>digest(fuse(inv(type-state), value-state))</code></td><td>Strip type tag, recover the digest of the data state</td></tr>
 </tbody>
 </table>
 </div>

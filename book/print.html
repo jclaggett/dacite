@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-8886ffea.js";
+            window.path_to_searchindex_js = "searchindex-5c8cd117.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -1698,47 +1698,69 @@ This chapter is how content hashes are formed.</p>
 hashes to serialized values. Every node in that map is keyed by its hash.
 This chapter defines how those hashes are formed.</p>
 <p>Everything in Dacite’s composite structures is built on a single
-operation: <strong>fuse</strong>. It combines two 256-bit hashes into a new 256-bit
-hash using nothing more than integer arithmetic. No SHA-256 at runtime,
-no hash function calls in the critical path — just six additions and a
-multiplication.</p>
-<p>The idea originates from an HP Labs white paper on using upper
-triangular matrix multiplication to combine hashes associatively:</p>
+operation: <strong>fuse</strong>. It combines two <em>states</em> into a new state by
+multiplying 2×2 matrices over a prime field. No SHA-256 at runtime, no hash
+function calls in the critical path: eight multiplications of 256-bit
+numbers and four reductions.</p>
+<p>The idea originates from an HP Labs white paper on using matrix
+multiplication to combine hashes associatively:</p>
 <blockquote>
 <p>Haber, S. et al. (2017). <em>Efficient and Secure Hash-Based Timestamps.</em>
 HPE-2017-08. https://www.labs.hpe.com/techreports/2017/HPE-2017-08.pdf</p>
 </blockquote>
-<p>The paper proposes representing hashes as upper triangular matrices and
-multiplying them. Matrix multiplication is associative but not
-commutative — exactly the properties needed for tree-shape-independent
-hashing. Dacite’s contribution is the specific 4×4 matrix over 64-bit
-cells, chosen based on empirical testing of degeneration behavior (see
-§2.8).</p>
+<p>Matrix multiplication is associative but not commutative — exactly the
+properties needed for tree-shape-independent hashing. Dacite’s first fuse
+was a 4×4 unitriangular matrix over 64-bit cells. Its group is nilpotent,
+which made collisions come in families (issue #14: for any <code>a</code>, <code>b</code>,
+<code>x</code>, <code>y</code>, <code>z</code>, the sequences <code>x a b y b a z</code> and <code>x b a y a b z</code> fused to
+the same hash). The fuse is now a product in <strong>SL(2, F_p)</strong>, the 2×2
+matrices with determinant 1 over the field of a fixed 256-bit prime. The
+design, the prime and the tradeoffs are in
+<a href="../design/fuse-sl2.html">docs/design/fuse-sl2.md</a>; this chapter is the
+model.</p>
 <p>This chapter introduces fuse, its algebraic properties, and how it
 turns raw bytes into content addresses. Chapter 3 applies these ideas to
 the value model: scalars, plus the vectors, strings, blobs, maps, and
 sets built on them.</p>
-<h2 id="21-hashes-as-four-words"><a class="header" href="#21-hashes-as-four-words">2.1 Hashes as Four Words</a></h2>
-<p>A Dacite hash is 256 bits, represented as four 64-bit unsigned integers
-in big-endian word order:</p>
-<pre><code>hash = [c0, c1, c2, c3]
+<h2 id="21-states-and-refs"><a class="header" href="#21-states-and-refs">2.1 States and Refs</a></h2>
+<p>Two kinds of value appear in this chapter:</p>
+<ul>
+<li>
+<p>A <strong>state</strong> is a 2×2 matrix <code>[a b c d]</code> over F_p with <code>a·d − b·c = 1</code>
+(the group SL(2, F_p)), where</p>
+<pre><code>p = 75509794529310452520362503714625764980405239500720831432010267419866053829067
+    (256 bits)
 </code></pre>
-<p>Word <code>c0</code> holds the most mixed bits (from fuse) and is used first for
-HAMT navigation. Word <code>c3</code> holds the least mixed bits.</p>
+<p>A state is 128 bytes: four cells of 32 big-endian bytes. Fuse works on
+states, and a collection’s measure keeps one in full.</p>
+</li>
+<li>
+<p>A <strong>ref</strong> (a <em>hash</em>, the key a store files a node under) is the 32-byte
+<strong>digest</strong> of a state, four 64-bit words in big-endian word order:</p>
+<pre><code>ref = [w0, w1, w2, w3]
+</code></pre>
+<p>Stores, the wire and the HAMT all handle refs, so they are 256 bits, as
+before. Word <code>w0</code> is used first for HAMT navigation.</p>
+</li>
+</ul>
+<p>The digest reads each cell as a 256-bit integer, rotates a, b, c and d left
+by 0, 64, 128 and 192 bits, and xors the four:
+<code>digest = a xor rotl64(b) xor rotl128(c) xor rotl192(d)</code>. Each digest word
+takes one word from each cell, at a different position every time, so the
+cells are not interchangeable (only the top word of a cell is skewed, since p
+is below 2^256). A digest is a pure function of a state, and a value’s ref is
+made only this way. It is a fold, not a random oracle.</p>
 <h2 id="22-the-fuse-operation"><a class="header" href="#22-the-fuse-operation">2.2 The Fuse Operation</a></h2>
-<p>Fuse takes two hashes and produces a third:</p>
-<pre><code>Input:  a = [a0, a1, a2, a3]
-        b = [b0, b1, b2, b3]
+<p>Fuse takes two states and produces a third, by matrix product:</p>
+<pre><code>Input:  x = [a b]   y = [e f]
+            [c d]       [g h]
 
-Output: c = [c0, c1, c2, c3]
-
-c0 = a0 + a3*b2 + b0    ← most bit mixing (single multiply)
-c1 = a1 + b1
-c2 = a2 + b2
-c3 = a3 + b3             ← least bit mixing (simple addition)
+Output: x·y = [a·e + b·g   a·f + b·h]   (every cell mod p)
+              [c·e + d·g   c·f + d·h]
 </code></pre>
-<p>All arithmetic wraps at 2^64. The total cost: 6 additions, 1
-multiplication.</p>
+<p>Eight multiplications, four additions and four reductions mod p. The
+product of two determinant-1 matrices has determinant 1, so fuse never
+leaves the group.</p>
 <h3 id="properties"><a class="header" href="#properties">Properties</a></h3>
 <p>These properties are not incidental — the entire system depends on them:</p>
 <ul>
@@ -1748,9 +1770,12 @@ a left-degenerate tree over the same leaf sequence produce the same
 root hash.</li>
 <li><strong>Non-commutative</strong> — <code>fuse(a, b) ≠ fuse(b, a)</code> (for a ≠ b).
 Order matters. <code>[x, y]</code> and <code>[y, x]</code> have different hashes.</li>
-<li><strong>Identity</strong> — <code>[0, 0, 0, 0]</code> is a two-sided identity.
-<code>fuse(a, 0) = fuse(0, a) = a</code>. Empty sequences hash to the identity.</li>
-<li><strong>Fast</strong> — no hash function calls, just integer arithmetic. This
+<li><strong>Identity</strong> — the identity matrix <code>[1 0 0 1]</code> is a two-sided identity:
+<code>fuse(a, I) = fuse(I, a) = a</code>. Empty sequences hash to the identity.</li>
+<li><strong>No short cycles</strong> — repeating one element, <code>a^n</code>, returns to the
+identity only when <code>n</code> is a multiple of the order of <code>a</code>, and every
+generator Dacite uses has order at least 2^252 (§2.7).</li>
+<li><strong>Fast enough</strong> — no hash function calls, just integer arithmetic. This
 matters when every node in a tree computes a fuse on construction.</li>
 </ul>
 <h3 id="why-associativity-matters"><a class="header" href="#why-associativity-matters">Why Associativity Matters</a></h3>
@@ -1816,12 +1841,11 @@ structures (vectors, strings) require that <code>fuse(a, b) ≠ fuse(b, a)</code
 
 <p>Order matters: <code>[a, b]</code> and <code>[b, a]</code> produce different hashes.</p>
 <h2 id="23-group-structure"><a class="header" href="#23-group-structure">2.3 Group Structure</a></h2>
-<p>Fuse forms a <strong>group</strong> over (ℤ/2^64)^4. Every hash has a unique
-inverse:</p>
-<pre><code>inv([a0, a1, a2, a3]) = [a3*a2 - a0, -a1, -a2, -a3]
+<p>Fuse forms a <strong>group</strong>: SL(2, F_p). Every state has a unique inverse, the
+adjugate, which costs no multiplication:</p>
+<pre><code>inv([a b c d]) = [d  -b  -c  a]        (cells mod p)
 </code></pre>
-<p>Such that <code>fuse(inv(a), a) = fuse(a, inv(a)) = [0, 0, 0, 0]</code>.</p>
-<p>Cost: 1 multiply + 4 negations.</p>
+<p>Such that <code>fuse(inv(x), x) = fuse(x, inv(x)) = I</code>.</p>
 <h3 id="unfuse"><a class="header" href="#unfuse">Unfuse</a></h3>
 <p>Given <code>fused = fuse(a, b)</code>, if you know <code>b</code>, you can recover <code>a</code>:</p>
 <pre><code>unfuse(fused, b) = fuse(fused, inv(b)) = a
@@ -1829,144 +1853,99 @@ inverse:</p>
 <p>Strip from the left: <code>fuse(inv(a), fused) = b</code>.</p>
 <h3 id="what-the-group-enables"><a class="header" href="#what-the-group-enables">What the Group Enables</a></h3>
 <ul>
-<li><strong>Cross-type equality</strong> — strip a type hash to compare the underlying
-content (see Chapter 3, Cross-Type Equality).</li>
+<li><strong>Cross-type equality</strong> — strip a type state to compare the underlying
+content (see Chapter 3, Cross-Type Equality). This works on states, not
+on refs: a ref is a digest and cannot be inverted.</li>
 <li><strong>Hash recovery</strong> — recover one component of a fused pair when the
 other is known.</li>
 <li><strong>Incremental re-hashing</strong> — update a fused chain without recomputing
 from scratch. Replace an element by unfusing the old and fusing the new.</li>
 </ul>
-<h2 id="24-the-byte-hash-table"><a class="header" href="#24-the-byte-hash-table">2.4 The Byte Hash Table</a></h2>
+<h2 id="24-the-byte-generators"><a class="header" href="#24-the-byte-generators">2.4 The Byte Generators</a></h2>
 <p>Dacite doesn’t hash bytes directly with fuse. Instead, it uses a
-precomputed lookup table mapping each byte value (0–255) to a 256-bit
-hash:</p>
-<pre><code>byte_hash: byte → Hash    (256 entries)
+precomputed table mapping each byte value (0–255) to a generator, a state:</p>
+<pre><code>byte_state: byte → State    (256 entries)
 </code></pre>
-<p>The default table is seeded using SHA-256:
-<code>byte_hash[i] = sha256(byte_array([i]))</code>. But any set of 256 distinct,
-high-quality 32-byte values works. This decouples Dacite from any
-specific hash function at runtime — SHA-256 is used once at build time
-to generate the table, never again.</p>
+<p>The table is derived from SHA-256 once, at build time, by a tool that
+keeps only matrices of large order (§2.7), and is shipped as data
+(<code>dacite.sl2-table</code>, 128 bytes a row). SHA-256 is never used at runtime. An
+independent Python script (<code>fixtures/fuse-sl2/reference.py</code>) re-derives the
+same table from the seeds.</p>
 <h3 id="hashing-bytes-and-strings"><a class="header" href="#hashing-bytes-and-strings">Hashing Bytes and Strings</a></h3>
 <p>All data hashing reduces to table lookups and fuses:</p>
-<pre><code>fuse_bytes(bs) = reduce(unchecked_fuse, [0,0,0,0], map(byte_hash, bs))
+<pre><code>fuse_bytes(bs) = reduce(fuse, I, map(byte_state, bs))
 fuse_str(s)    = fuse_bytes(utf8_bytes(s))
 </code></pre>
 <p>Because fuse is associative:
 <code>fuse(fuse_str(a), fuse_str(b)) = fuse_str(a ++ b)</code></p>
 <p>Composing fused results is equivalent to fusing the concatenation.
-This is both a feature (tree nodes can combine child hashes) and a
+This is both a feature (tree nodes can combine child states) and a
 constraint (a domain separator is needed between a value’s type and its
 data — see Chapter 3).</p>
+<h3 id="a-ref-enters-a-fuse-as-bytes"><a class="header" href="#a-ref-enters-a-fuse-as-bytes">A Ref Enters a Fuse as Bytes</a></h3>
+<p>A sequence of values is the fuse of its elements, and an element is known by
+its ref. A ref goes back into a fuse as the product of the generators of
+its 32 bytes:</p>
+<pre><code>ref_state(ref) = fuse_bytes(ref_bytes)        (31 products)
+</code></pre>
+<p>That is the only way an element enters a sequence, so a node can be checked
+from the same bytes the store keys it by.</p>
 <h2 id="25-protocol-id"><a class="header" href="#25-protocol-id">2.5 Protocol ID</a></h2>
-<p>The byte hash table is a <strong>build-time constant</strong>, not stored inside the
-content-addressed space. The table’s own hash serves as a protocol
-identifier:</p>
-<pre><code>protocol_id = fuse_bytes(concat(table[0], table[1], ..., table[255]))
+<p>The generator table is a <strong>build-time constant</strong>, not stored inside the
+content-addressed space. Two stores are compatible if and only if they
+share the same table and prime, and the <em>hash version</em> and the store’s
+format tag record which. The known answers every implementation must
+reproduce are in <code>fixtures/fuse-sl2/vectors.edn</code>: states and refs of fixed
+strings, <code>ref_state</code> of fixed refs, scalar value hashes and a sample of the
+table. The JVM test and the nbb test both check them.</p>
+<h2 id="26-no-low-entropy-rejection"><a class="header" href="#26-no-low-entropy-rejection">2.6 No Low-Entropy Rejection</a></h2>
+<p>The old fuse rejected states whose low 32 bits were all zero, to catch a
+repeated value before its cycle wrapped. In SL(2, F_p) there is nothing to
+catch: a run of one element wraps only at a multiple of its order, which is
+above 2^252 for every generator and for all but a negligible fraction of
+products of them. Fuse is an unconditional matrix product.</p>
+<h2 id="27-why-sl2-f_p"><a class="header" href="#27-why-sl2-f_p">2.7 Why SL(2, F_p)</a></h2>
+<p>The group had to be one where short relations and short cycles do not
+exist. The old group was nilpotent (every long enough commutator is
+trivial), so words like <code>x a b y b a z</code> collapsed. SL(2, F_p) is not
+nilpotent, or even solvable, so no such identity holds.</p>
+<h3 id="order-of-an-element"><a class="header" href="#order-of-an-element">Order of an element</a></h3>
+<p>The elements of SL(2, F_p) lie in a unipotent group (order p), or in a
+<em>split torus</em> (order dividing p − 1) or a <em>non-split torus</em> (order dividing
+p + 1). The prime is chosen so that both of those numbers have a very large
+prime factor:</p>
+<pre><code>p − 1 = 2 · 3 · 12584965754885075420060417285770960830067539916786805238668377903311008971511   (253-bit prime)
+p + 1 = 2² · 18877448632327613130090625928656441245101309875180207858002566854966513457267       (254-bit prime)
 </code></pre>
-<p>The table hashes itself: each row is 32 bytes, concatenated into 8,192
-bytes, and <code>fuse_bytes</code> (which uses the table) produces the ID.</p>
-<p>Two stores are compatible if and only if they share the same protocol
-ID. Implementations check this on first contact.</p>
-<h2 id="26-low-entropy-rejection"><a class="header" href="#26-low-entropy-rejection">2.6 Low-Entropy Rejection</a></h2>
-<p>Fuse must reject inputs and outputs where the lower 32 bits are zero
-in all four words:</p>
-<pre><code>low_entropy?(h) =
-  (h[0] &amp; 0xFFFFFFFF) == 0 AND
-  (h[1] &amp; 0xFFFFFFFF) == 0 AND
-  (h[2] &amp; 0xFFFFFFFF) == 0 AND
-  (h[3] &amp; 0xFFFFFFFF) == 0
-</code></pre>
-<p>The checked fuse:</p>
-<pre><code>fuse(a, b):
-  REJECT if low_entropy?(a)
-  REJECT if low_entropy?(b)
-  result = unchecked_fuse(a, b)
-  REJECT if low_entropy?(result)
-  return result
-</code></pre>
-<p>An unchecked variant exists for internal use where inputs are known
-valid.</p>
-<h2 id="27-why-44-with-64-bit-cells"><a class="header" href="#27-why-44-with-64-bit-cells">2.7 Why 4×4 with 64-bit Cells</a></h2>
-<p>The HP paper describes hash fusing using upper triangular matrices
-in general terms. The same 256-bit hash can be packed into matrices
-of different sizes depending on cell width:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Cell size</th><th>Matrix size</th><th>Cells above diagonal</th></tr>
-</thead>
-<tbody>
-<tr><td>8-bit</td><td>9×9</td><td>36 (of which 32 used)</td></tr>
-<tr><td>16-bit</td><td>7×7</td><td>21 (of which 16 used)</td></tr>
-<tr><td>32-bit</td><td>5×5</td><td>10 (of which 8 used)</td></tr>
-<tr><td>64-bit</td><td>4×4</td><td>6 (of which 4 used)</td></tr>
-</tbody>
-</table>
-</div>
-<p>The HP paper’s specific implementation used <strong>8-bit cells in a 9×9
-matrix</strong>. Larger cells mean fewer cells in the matrix, but each cell
-participates in more bit-mixing per multiply. This tradeoff matters
-for degeneration resistance — and as the experiments below show, the
-8-bit choice degenerates surprisingly quickly.</p>
-<h3 id="the-folding-experiment"><a class="header" href="#the-folding-experiment">The Folding Experiment</a></h3>
-<p>Empirical testing (published at
-<a href="https://clojurecivitas.org/math/hashing/hashfusing.html">Clojure Civitas</a>)
-revealed a critical difference between cell sizes. The test: take a
-hash h, fuse it with itself (“fold”), then fold the result with itself,
-and repeat. Each fold <em>squares</em> the hash: fold 1 = h², fold 2 = h⁴,
-fold n = h^(2^n). This measures resistance to the worst case — long
-runs of identical values.</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Cell size</th><th>Folds to zero (approx.)</th><th>Equivalent repeated fuses</th></tr>
-</thead>
-<tbody>
-<tr><td>8-bit</td><td>~8</td><td>~2^8 = 256</td></tr>
-<tr><td>16-bit</td><td>~16</td><td>~2^16 = 65,536</td></tr>
-<tr><td>32-bit</td><td>~32</td><td>~2^32 ≈ 4.3 billion</td></tr>
-<tr><td>64-bit</td><td>~64</td><td>~2^64 ≈ 1.8 × 10^19</td></tr>
-</tbody>
-</table>
-</div>
-<p>The exact fold count varies with the starting hash, but the
-relationship is statistical: folds to zero tracks the cell size in
-bits. Smaller samples showed values within a few folds of the cell
-size; a larger sample would pin down the distribution more precisely.</p>
-<p>With 8-bit cells — the HP paper’s implementation choice — repeating
-the same hash roughly 256 times causes complete degeneration. With
-64-bit cells, you’d need approximately 2^64 repetitions — far beyond
-any realistic data.</p>
-<pre class="mermaid">graph LR
-    H["h"] --&gt;|"fold 1"| H2["h² = fuse(h,h)"]
-    H2 --&gt;|"fold 2"| H4["h⁴ = fuse(h²,h²)"]
-    H4 --&gt;|"fold 3"| H8["h⁸ = fuse(h⁴,h⁴)"]
-    H8 --&gt;|"..."| HN["h^(2^n)"]
-    HN --&gt;|"fold n"| Z["zero (degenerated)"]
-    style Z fill:#a44,stroke:#333,color:#fff
-</pre>
-
-<p>A separate experiment with <strong>random fuses</strong> (alternating between two
-random hashes) showed zero collisions across millions of fuses for all
-cell sizes. Degeneration is specific to low-entropy data — repeated
-fusing of the same value.</p>
-<h3 id="the-decision"><a class="header" href="#the-decision">The Decision</a></h3>
-<p>The 4×4 matrix with 64-bit cells won on all axes:</p>
-<ul>
-<li><strong>Degeneration resistance</strong> — ~2^64 repeated fuses vs ~2^8 for
-the HP paper’s 8-bit cells</li>
-<li><strong>Performance</strong> — smallest matrix means fewest operations per fuse
-(6 additions + 1 multiplication vs. dozens for 9×9)</li>
-<li><strong>Simplicity</strong> — 4 words map naturally to 256 bits; no packing tricks</li>
-<li><strong>Hardware fit</strong> — 64-bit integers are native on modern CPUs</li>
-</ul>
-<p>The low-entropy rejection check (§2.6) checks the lower 32 bits of
-each word. This means fuse rejects degenerate hashes after
-approximately 2^32 repeated fuses of the same value — well within
-the 64-bit cell’s ~2^64 capacity, providing a conservative safety
-margin that catches degeneration long before it reaches the
-theoretical limit.</p>
+<p>A generator is accepted only if <code>g^6 ≠ I</code> (split) or <code>g^4 ≠ I</code> (non-split),
+which forces the large factor into its order: every one of the 256
+generators has order at least 2^252. Repeating one value, the worst case
+for a hash of this kind, therefore cannot reach a cycle: a run of <code>n</code> copies
+of an element has a state of its own for every <code>n</code> below 2^252. The test
+suite squares an element 40 times (a run of 2^40) and compares it with the
+identity and with every shorter run.</p>
+<p>The two factorizations are easy to check: see the design note for the
+commands.</p>
+<h3 id="what-it-does-not-give"><a class="header" href="#what-it-does-not-give">What it does not give</a></h3>
+<p>The fuse is a homomorphic hash, not a cryptographic one. The best attack
+known to us finds collisions among words in the upper-triangular subgroup
+by a birthday search, at about 60·√p multiplications (measured on primes
+from 2^20 to 2^40), which is about 2^134 for this prime; a 32-byte ref is
+bounded by the birthday bound 2^128 anyway. It is one attack, and it is not
+a proof. Dacite does not claim collision resistance against an adversary who
+chooses values, and wants an outside cryptographic review before trusting
+untrusted peers. An earlier draft estimated this attack at about p; that was
+wrong, and it is why the prime has 256 bits. The design note has the table of
+measurements and a 36-bit collision the tests replay.</p>
+<h3 id="cost"><a class="header" href="#cost">Cost</a></h3>
+<p>A fuse is eight 256-bit multiplications and four reductions: about 1.7 µs on
+the JVM and 1.9 µs under nbb. What matters is the whole operation: on the
+JVM, building and hashing a 3,000-entry map takes about 3x as long as before
+the change (595 ms against 186 ms), and a 500 KB blob about 10x (a matrix
+product per byte); under nbb the interpreter dominates and the times are
+about the same. The design note has the table. An element of a sequence costs
+31 products (<code>ref_state</code>), which the implementation memoizes in a bounded
+cache that is emptied when it is full.</p>
 <h2 id="28-api-surface"><a class="header" href="#28-api-surface">2.8 API Surface</a></h2>
 <h3 id="primitives"><a class="header" href="#primitives">Primitives</a></h3>
 <p>The irreducible core — everything else derives from these:</p>
@@ -1976,12 +1955,14 @@ theoretical limit.</p>
 <tr><th>Function</th><th>Signature</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>fuse</code></td><td><code>(Hash, Hash) → Hash</code></td><td>Combine two hashes (checked)</td></tr>
-<tr><td><code>unchecked-fuse</code></td><td><code>(Hash, Hash) → Hash</code></td><td>Combine without low-entropy check</td></tr>
-<tr><td><code>inv</code></td><td><code>Hash → Hash</code></td><td>Compute the group inverse</td></tr>
-<tr><td><code>fuse-bytes</code></td><td><code>bytes → Hash</code></td><td>Hash a byte sequence via table lookup</td></tr>
-<tr><td><code>byte-hash-table</code></td><td><code>byte → Hash</code></td><td>The 256-entry lookup table</td></tr>
-<tr><td><code>low-entropy?</code></td><td><code>Hash → bool</code></td><td>Check if lower 32 bits are all zero</td></tr>
+<tr><td><code>fuse</code></td><td><code>(State, State) → State</code></td><td>Matrix product mod p</td></tr>
+<tr><td><code>identity-state</code></td><td><code>State</code></td><td>The identity matrix</td></tr>
+<tr><td><code>fuse-inverse</code></td><td><code>State → State</code></td><td>The group inverse (adjugate)</td></tr>
+<tr><td><code>fuse-bytes</code></td><td><code>bytes → State</code></td><td>Fuse of a byte sequence via the generator table</td></tr>
+<tr><td><code>byte-&gt;state</code></td><td><code>byte → State</code></td><td>The 256-entry generator table</td></tr>
+<tr><td><code>state-&gt;ref</code></td><td><code>State → Ref</code></td><td>The 32-byte digest of a state</td></tr>
+<tr><td><code>ref-&gt;state</code></td><td><code>Ref → State</code></td><td>A ref as an element: <code>fuse-bytes</code> of its 32 bytes</td></tr>
+<tr><td><code>state-valid?</code></td><td><code>State → bool</code></td><td>Cells below p and determinant 1</td></tr>
 </tbody>
 </table>
 </div>
@@ -1994,8 +1975,8 @@ theoretical limit.</p>
 </thead>
 <tbody>
 <tr><td><code>unfuse</code></td><td><code>fuse(a, inv(b))</code></td><td>Strip right: recover left operand</td></tr>
-<tr><td><code>fuse-str</code></td><td><code>fuse-bytes(utf8-encode(s))</code></td><td>Hash a UTF-8 string</td></tr>
-<tr><td><code>protocol-id</code></td><td><code>fuse-bytes(concat(table[0..255]))</code></td><td>The table’s self-hash</td></tr>
+<tr><td><code>fuse-str</code></td><td><code>fuse-bytes(utf8-encode(s))</code></td><td>Fuse of a UTF-8 string</td></tr>
+<tr><td><code>fuse-refs</code></td><td><code>reduce(fuse, I, map(ref-&gt;state, refs))</code></td><td>Fuse a sequence of refs</td></tr>
 </tbody>
 </table>
 </div>
@@ -2003,23 +1984,22 @@ theoretical limit.</p>
 <ul>
 <li><code>fuse(a, fuse(b, c)) = fuse(fuse(a, b), c)</code> — associativity</li>
 <li><code>fuse(a, b) ≠ fuse(b, a)</code> for a ≠ b — non-commutativity</li>
-<li><code>fuse(a, [0,0,0,0]) = a</code> — right identity</li>
-<li><code>fuse([0,0,0,0], a) = a</code> — left identity</li>
-<li><code>fuse(a, inv(a)) = [0,0,0,0]</code> — right inverse</li>
-<li><code>fuse(inv(a), a) = [0,0,0,0]</code> — left inverse</li>
+<li><code>fuse(a, I) = a</code> and <code>fuse(I, a) = a</code> — identity</li>
+<li><code>fuse(a, inv(a)) = I</code> and <code>fuse(inv(a), a) = I</code> — inverse</li>
 <li><code>fuse(a, inv(b)) = unfuse(a, b)</code> — unfuse is derived</li>
 <li><code>fuse(inv(a), fuse(a, b)) = b</code> — left recovery</li>
 <li><code>fuse-bytes(a ++ b) = fuse(fuse-bytes(a), fuse-bytes(b))</code> — composability</li>
-<li><code>fuse</code> rejects when <code>low-entropy?</code> is true for input or output</li>
+<li><code>a^n = I</code> only when <code>n</code> is a multiple of the order of <code>a</code>, and the order is
+at least 2^252 for every generator</li>
 </ul>
 <p><strong>This layer has zero dependencies</strong> — no I/O, no state, just integer
-arithmetic and a lookup table. It is the natural starting point for
-porting Dacite to a new language.</p>
+arithmetic (a bignum with <code>mod</code>) and a lookup table. It is the natural
+starting point for porting Dacite to a new language.</p>
 <h2 id="29-what-this-layer-provides"><a class="header" href="#29-what-this-layer-provides">2.9 What This Layer Provides</a></h2>
 <p>Hash fusion gives the rest of Dacite three guarantees:</p>
 <ol>
 <li><strong>Content identity</strong> — any value, at any scale, reduces to a 256-bit
-hash. Same content → same hash, always.</li>
+ref (the digest of a 128-byte state). Same content → same hash, always.</li>
 <li><strong>Tree-shape independence</strong> — associativity means the hash captures
 <em>what</em> is stored, not <em>how</em> it’s organized.</li>
 <li><strong>Decomposability</strong> — the group structure means hashes can be taken
@@ -2060,7 +2040,7 @@ part you consume is fetched.</li>
 (def vec (v/vector st 1 2 3))
 
 (v/hash vec)
-;; =&gt; [c0 c1 c2 c3]  ; the 4-long hash
+;; =&gt; [c0 c1 c2 c3]  ; the 4-long ref (a 32-byte digest)
 
 (v/dacite-store vec)
 ;; =&gt; the store that owns this value
@@ -2105,12 +2085,15 @@ machinery below.</p>
 <h2 id="33-how-every-value-is-hashed"><a class="header" href="#33-how-every-value-is-hashed">3.3 How Every Value Is Hashed</a></h2>
 <p>Every Dacite value — user-facing or internal — is hashed by the same
 rule:</p>
-<pre><code>value_hash = fuse(type_hash, data_hash)
+<pre><code>value_hash = digest(fuse(type_state, data_state))
 </code></pre>
+<p>(Chapter 2: a <em>state</em> is a 128-byte element of SL(2, F_p); the <em>digest</em> is
+the 32-byte ref a store files the value under.)</p>
 <h3 id="the-type-hash"><a class="header" href="#the-type-hash">The Type Hash</a></h3>
-<p>The <strong>type hash</strong> identifies the kind of value. It is the fuse of the
-type name’s characters followed by a terminating <code>0x00</code> byte:</p>
-<pre><code>type_hash = fuse_bytes(type_name ++ [0x00])
+<p>The <strong>type state</strong> (the book says “type hash” for short) identifies the kind
+of value. It is the fuse of the type name’s characters followed by a
+terminating <code>0x00</code> byte:</p>
+<pre><code>type_state = fuse_bytes(type_name ++ [0x00])
 </code></pre>
 <p>Type names are ordinary character strings — <code>"i64"</code>, <code>"vector"</code>,
 <code>"ft/node"</code>. Because type names never contain a null byte, the trailing
@@ -2122,18 +2105,19 @@ makes the boundary unambiguous.</p>
 type name to discover its interpretation. No registry, no schema
 negotiation.</p>
 <h3 id="the-data-hash"><a class="header" href="#the-data-hash">The Data Hash</a></h3>
-<p>The <strong>data hash</strong> captures the value’s content. How it is computed
+<p>The <strong>data state</strong> captures the value’s content. How it is computed
 depends on the kind of value:</p>
 <ul>
 <li><strong>Scalar</strong> — the fuse of its canonical bytes:</li>
 </ul>
-<pre><code>data_hash = fuse_bytes(canonical_bytes)
+<pre><code>data_state = fuse_bytes(canonical_bytes)
 </code></pre>
 <ul>
-<li><strong>Collection</strong> — the fuse of all <strong>leaf</strong> element hashes, in sequence
-order (vector, string, blob) or ascending key-hash order (map, set):</li>
+<li><strong>Collection</strong> — the fuse of all <strong>leaf</strong> elements, in sequence order
+(vector, string, blob) or ascending key-hash order (map, set). An element
+enters as the state of its ref, <code>ref_state(e)</code> (Chapter 2, §2.4):</li>
 </ul>
-<pre><code>data_hash = fuse(fuse(fuse(e0, e1), e2), ..., en)
+<pre><code>data_state = fuse(fuse(fuse(s0, s1), s2), ..., sn)      where si = ref_state(ei)
 </code></pre>
 <p>For collections, the data hash is built from the leaves <strong>only</strong>. The
 internal node type hashes (<code>ft/node</code>, <code>hamt/bitmap</code>, …) never enter it.
@@ -2147,13 +2131,15 @@ hash. This is what lets a store reorganize a collection for performance
 without changing its identity.</p>
 <p>(There is exactly one exception — HAMT bitmap nodes — explained in §3.7.)</p>
 <h3 id="cross-type-equality"><a class="header" href="#cross-type-equality">Cross-Type Equality</a></h3>
-<p>Here is where Chapter 2’s group structure pays off. Since
-<code>value_hash = fuse(type_hash, data_hash)</code>, the type hash can be stripped
-back off with the group inverse:</p>
-<pre><code>content_hash(v) = fuse(inv(type_hash), value_hash) = data_hash
+<p>Here is where Chapter 2’s group structure pays off. A value’s <em>state</em> is
+<code>fuse(type_state, data_state)</code>, so the type state can be stripped back off
+with the group inverse:</p>
+<pre><code>data_state(v) = fuse(inv(type_state), value_state) = data_state
 </code></pre>
+<p>(This works on states. A ref is a digest and cannot be inverted; a
+collection’s root measure holds its data state in full.)</p>
 <p>Two values with different types but the same underlying data have the
-same content hash, computed in <strong>O(1)</strong>. A <code>"string"</code> and a <code>"vector"</code>
+same data state, computed in <strong>O(1)</strong>. A <code>"string"</code> and a <code>"vector"</code>
 holding the same characters share a data hash — because their leaves are
 literally the same content-addressed values — even though their full
 hashes differ by the type tag.</p>
@@ -2315,37 +2301,38 @@ that does not fit. Discrimination: non-<code>ft/*</code> means implicit single;
 collection node — never a bare <code>ft/deep</code> as a user value.</p>
 <p>Every structural node is stored in the content-addressed store as its own
 entry. A page is bounded by the 1,024-byte payload budget (32 hashes × 32
-bytes when every child is a pointer), plus ~48 bytes of measure metadata.</p>
+bytes when every child is a pointer), plus 144 bytes of measure metadata.</p>
 <h3 id="the-measure-monoid"><a class="header" href="#the-measure-monoid">The Measure Monoid</a></h3>
 <p>Every node caches a <strong>measure</strong> of its subtree:</p>
 <pre><code>Measure = {
   count:          u64,   // number of leaf elements
   size_bytes:     u64,   // total byte size of leaf scalars
-  elements_fuse:  Hash   // running fuse of all element hashes
+  elements_fuse:  State  // running fuse of all element states (128 bytes)
 }
 </code></pre>
 <p>Measures combine as a monoid:</p>
 <pre><code>combine(m1, m2) = {
   count:         m1.count + m2.count,
   size_bytes:    m1.size_bytes + m2.size_bytes,
-  elements_fuse: unchecked_fuse(m1.elements_fuse, m2.elements_fuse)
+  elements_fuse: fuse(m1.elements_fuse, m2.elements_fuse)
 }
 
-identity = { count: 0, size_bytes: 0, elements_fuse: [0, 0, 0, 0] }
+identity = { count: 0, size_bytes: 0, elements_fuse: I }      // the identity matrix
 </code></pre>
-<p>The <code>elements_fuse</code> uses <code>unchecked_fuse</code> because the identity
-<code>[0, 0, 0, 0]</code> would fail the low-entropy check — this is safe since
-measures are internal bookkeeping, not user-facing hashes.</p>
+<p>A measure keeps the full 128-byte state, not a digest: measures are
+combined by fusing, and a digest cannot be fused. On the wire a measure is
+144 bytes (<code>count</code> and <code>size_bytes</code>, 8 bytes each, and the 128-byte state).
+A leaf’s contribution to the fuse is <code>ref_state</code> of its ref.</p>
 <p>The root’s measure gives <strong>O(1)</strong> access to:</p>
 <ul>
 <li><code>count</code> — how many elements</li>
 <li><code>size_bytes</code> — total materialized size</li>
-<li><code>elements_fuse</code> — the seq’s data hash</li>
+<li><code>elements_fuse</code> — the seq’s data state</li>
 </ul>
 <h3 id="node-hashing"><a class="header" href="#node-hashing">Node Hashing</a></h3>
 <p>Internal nodes are hashed using their type name and semantic content,
 the same <code>type_hash</code> rule as every other value (§3.3):</p>
-<pre><code>node_hash = fuse(fuse_str(node_type_name ++ "\0"), node.measure.elements_fuse)
+<pre><code>node_hash = digest(fuse(fuse_str(node_type_name ++ "\0"), node.measure.elements_fuse))
 </code></pre>
 <p>The null byte terminates the type name. Nodes with the same type and the
 same logical elements produce the same hash — different tree shapes
@@ -2606,7 +2593,7 @@ in the same backing storage — no store parameter needed for operations.</p>
 <tr><th>Function</th><th>Derivation</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>content-hash</code></td><td><code>fuse(inv(type-hash), value-hash)</code></td><td>Strip type tag, recover data hash</td></tr>
+<tr><td><code>content-hash</code></td><td><code>digest(fuse(inv(type-state), value-state))</code></td><td>Strip type tag, recover the digest of the data state</td></tr>
 </tbody>
 </table>
 </div>
@@ -2853,12 +2840,14 @@ It is intentionally low-level and reference-oriented.</p>
 <h3 id="scalar"><a class="header" href="#scalar">Scalar</a></h3>
 <pre><code>scalar = 0x00 ++ u8(len) ++ bytes[len]
 </code></pre>
-<p>Max size: 255 bytes. Hash = <code>fuse_bytes(raw bytes)</code> (framing is <em>not</em> part of the hash).</p>
+<p>Max size: 255 bytes. Hash = <code>digest(fuse(type_state, fuse_bytes(raw bytes)))</code> (framing is <em>not</em> part of the hash).</p>
 <h3 id="measure-common"><a class="header" href="#measure-common">Measure (common)</a></h3>
 <p>Appears in seq and map nodes:</p>
-<pre><code>measure = u64(count) ++ u64(size_bytes) ++ hash(elements_fuse)
+<pre><code>measure = u64(count) ++ u64(size_bytes) ++ state(elements_fuse)
 </code></pre>
-<p>(8 + 8 + 32 = 48 bytes)</p>
+<p>(8 + 8 + 128 = 144 bytes; <code>state</code> is the four 32-byte big-endian cells of a
+matrix over F_p, each below p, with determinant 1. It was a 32-byte hash and
+48 bytes under the old fuse.)</p>
 <h3 id="seq-nodes-kind-0x01"><a class="header" href="#seq-nodes-kind-0x01">Seq Nodes (kind 0x01)</a></h3>
 <pre><code>seq_node = 0x01
         ++ u8(subtype)
