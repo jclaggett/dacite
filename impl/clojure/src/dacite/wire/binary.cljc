@@ -960,11 +960,12 @@
         "hamt/bitmap"
         (let [ch (:children data)
               n (count ch)
-              buf (bb (+ 2 48 4 1 (* 32 n)))]
+              buf (bb (+ 2 48 4 1 1 (* 32 n)))]
           (put-u8 buf kind-hamt)
           (put-u8 buf 2)
           (put-measure buf (:measure data))
           (put-u32 buf (:bitmap data))
+          (put-u8 buf (:split data))
           (put-u8 buf n)
           (doseq [h ch] (put-hash buf h))
           (finish buf))
@@ -1067,11 +1068,12 @@
 
           "hamt/bitmap"
           (let [bitmap (get-u32 buf)
+                split (get-u8 buf)
                 n (get-u8 buf)
                 ch (mapv (fn [_] (get-hash buf)) (range n))]
             (when (pos? (remaining buf))
               (throw (ex-info "trailing garbage" {})))
-            [tname {:measure m :bitmap bitmap :children ch}])))
+            [tname {:measure m :bitmap bitmap :split split :children ch}])))
 
       0x03 ; collection
       (let [cid (get-u8 buf)

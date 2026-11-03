@@ -188,6 +188,19 @@
                     (bad! :bad-entry "page measure does not match its contents" {:hash hash}))
                   (conj checks :body-measure)))
 
+        ;; telescoping (issue #12): two or more children, one per bit, and a
+        ;; split that is a hash chunk index
+        (= "hamt/bitmap" type-name)
+        (as-> checks
+              (do (when-not (and (integer? (:split data))
+                                 (<= 0 (:split data) hamt/LAST-CHUNK)
+                                 (<= 2 (count (:children data)))
+                                 (= (count (:children data))
+                                    (Long/bitCount (long (:bitmap data)))))
+                    (bad! :bad-entry "hamt/bitmap needs a split, two or more children, one per bit"
+                          {:hash hash}))
+                  (conj checks :bitmap-shape)))
+
         (= "hamt/entry" type-name)
         (as-> checks
               (do (when-not (= (:elements-fuse (:measure data))
@@ -207,7 +220,9 @@
    - literal: rebuilt in a scratch store; its hash must equal the item's.
      It is complete, so nothing is left unchecked. No ref is allowed.
    - scalar: its hash from its data.
-   - page (`ft/*`, `hamt/*`): its hash from its claimed measure. A digit
+   - page (`ft/*`, `hamt/*`): its hash from its claimed measure (a bitmap
+     node also from its bitmap and split, and its shape is checked: a split
+     of 0..51 and two or more children, one per bit). A digit
      or node page with no ref must also have the measure of its contents,
      and an entry the elements-fuse of its key and value.
    - collection header: its hash, count and size from its root's measure

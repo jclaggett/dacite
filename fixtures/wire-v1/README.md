@@ -44,7 +44,8 @@ Golden suite for wire-v1 (see `manifest.json`, **79** cases). Covers:
 - **All public collections** as **node and literal**: string, blob, vector, map, set
   (empty + representative non-empty)
 - **FT / HAMT** store nodes + intermediate pack literals (empty, digit/deep/node,
-  hamt empty/entry/bitmap)
+  hamt empty/entry/bitmap, and a telescoped two-level bitmap pair that pins the
+  `split` byte and its place in the node hash)
 - **Sequence packing:** nested `run` / `repeat` inside `vector` / `ft/*` literals
 - Mixed encodings; multi-chunk 3000-char string pack series
 

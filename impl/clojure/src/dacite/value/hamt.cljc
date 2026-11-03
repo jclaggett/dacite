@@ -6,20 +6,39 @@
    threading a pure map. The store is mutated in place, so operations
    return only the new root hash.
 
-   32-way branching consumes the key's hash 5 bits at a time, from the
-   most-mixed word (c0) down. Each node caches a measure for O(1) count,
-   size, and data hash at the root.
+   The key's 256-bit hash is read 5 bits at a time, from the most-mixed word
+   (c0) down: chunk 0 is the top 5 bits, chunk 50 the 5 bits before the last,
+   and chunk 51 the last bit alone (value 0 or 16). There are 52 chunks. Each
+   node caches a measure for O(1) count, size, and data hash at the root.
 
    Node types (stored as [type-name data]):
    - [\"hamt/empty\"  {:measure m}]
    - [\"hamt/entry\"  {:key-hash h :key-ref h :val-ref h :measure m}]
-   - [\"hamt/bitmap\" {:bitmap n :children [h...] :measure m}]
+   - [\"hamt/bitmap\" {:bitmap n :split c :children [h...] :measure m}]
+
+   **Telescoping, canonical shape (issue #12).** A bitmap node never has one
+   child. It holds two or more, and `:split` is the index of the chunk it
+   branches on: the first chunk at which its keys do not all agree. The keys of
+   a node agree on every chunk before `:split`, and each child holds the keys
+   that share the node's chunk at `:split`, so a child's own split is greater.
+   A node is therefore the HAMT of its own key set, whatever order the keys
+   were added in, whatever was removed, and whichever map holds it: equal key
+   sets give byte-identical nodes (proof sketch: peer-v1 §3.3). `assoc` makes a
+   new branch directly at the chunk where two keys first differ; `dissoc`
+   replaces a node left with one child by that child (an entry, or a node that
+   is already canonical for its keys).
 
    Bitmap nodes are the one exception to shape-independence (§3.7): their
-   bitmap value is folded into the hash, because two bitmaps with the same
-   elements but different routing are NOT interchangeable. A bitmap with a
-   single child also folds in that child's hash (`bitmap-node-hash`): the
-   exception has a second part (issue #12).
+   bitmap and split are folded into the hash (`bitmap-node-hash`), because two
+   bitmaps with the same elements but different routing are NOT
+   interchangeable.
+
+   **Full-hash collisions.** Two keys with the same 256-bit hash are the same
+   key: the hash is a content hash and the key *is* its content, so there is no
+   collision bucket. `assoc` of an equal key-hash replaces the entry. Distinct
+   hashes differ at some chunk 0..51, so a branch always exists, at the latest
+   at the last chunk (51), where only one bit is read. A lookup that reaches an
+   entry compares the whole key-hash, not just the chunks it read.
 
    The bitmap and 64-bit hash-word navigation go through dacite.host so the
    arithmetic is identical on JVM (native long) and JS (BigInt)."
@@ -92,38 +111,35 @@
 ;; Node helpers (store-backed)
 ;; =============================================================================
 
+(def ^:const LAST-CHUNK
+  "Index of the last hash chunk (chunks 0..51 cover the 256-bit hash)."
+  51)
+
 (defn bitmap-node-hash
-  "Hash of a `hamt/bitmap` node, from its own data: `fuse(node_hash(type, ef),
-   bitmap)`, and, for a node with **one child**, `fuse(that, child)`.
+  "Hash of a `hamt/bitmap` node, from its own data:
+   `fuse(node_hash(\"hamt/bitmap\", elements_fuse), fuse_bytes(bitmap_be8 ++ [split]))`.
 
-   The bitmap tells two nodes of different routing apart (§3.7). It does not
-   tell a node from its own child: a chain of single-child nodes, made by
-   keys that share their first hash chunks, holds the same entries all the way
-   down, so two nodes of the chain with the same chunk had one hash and one of
-   them became its own child (issue #12: `hamt-entries` overflowed the stack
-   and `get` found nothing). A single-child node is now bound to its child, so
-   each node of a chain differs from every node below it. A node with two or
-   more children is unchanged: it holds different entries than any child.
-
-   Computable from the node alone (a receiver checks it without the child)."
-  [ef bitmap children]
-  (let [base (hash/unchecked-fuse (types/node-hash "hamt/bitmap" ef)
-                                  (hash/fuse-bytes (host/int->bytes-be bitmap 8)))]
-    (if (= 1 (count children))
-      (hash/unchecked-fuse base (first children))
-      base)))
+   `bitmap_be8` is the bitmap as 8 big-endian bytes, `split` one byte. The
+   bitmap and the split tell two nodes of different routing apart (§3.7); with
+   telescoping (issue #12) the split also tells a node from any node below it
+   that holds the same entries, since a child's split is greater than its
+   parent's. The children's hashes are not folded in, so a receiver checks it
+   from the node's own bytes."
+  [ef bitmap split]
+  (hash/unchecked-fuse (types/node-hash "hamt/bitmap" ef)
+                       (hash/fuse-bytes (conj (vec (host/int->bytes-be bitmap 8))
+                                              split))))
 
 (defn- add-node!
   "Persist a node, returning its content hash. Bitmap nodes fold their
-   bitmap into the hash (the §3.7 routing exception, and the child of a
-   single-child node: `bitmap-node-hash`); all other nodes use the plain
-   fuse(type_hash, elements_fuse) rule."
+   bitmap and split into the hash (`bitmap-node-hash`); all other nodes use
+   the plain fuse(type_hash, elements_fuse) rule."
   [store node]
   (let [type-name (first node)
         data (second node)
         ef (:elements-fuse (:measure data))
         h (if (= "hamt/bitmap" type-name)
-            (bitmap-node-hash ef (:bitmap data) (:children data))
+            (bitmap-node-hash ef (:bitmap data) (:split data))
             (types/node-hash type-name ef))]
     (store/await (store/s-put store h node))
     h))
@@ -132,6 +148,40 @@
 (defn- node-type [node] (first node))
 (defn- node-data [node] (second node))
 (defn- get-measure [store h] (:measure (node-data (lookup store h))))
+
+(defn- bad-node! [msg data]
+  (throw (ex-info msg (assoc data :reason :bad-hamt-node))))
+
+(defn- bitmap-fields
+  "`{:bitmap :split :children}` of a bitmap node reached under a parent whose
+   split is `above` (-1 at the root). A split must exceed its parent's and be
+   at most 51: that bounds every walk at 52 nodes even for a forged store."
+  [data above]
+  (let [split (:split data)]
+    (when-not (and (integer? split) (> split above) (<= split LAST-CHUNK))
+      (bad-node! "hamt/bitmap split out of order" {:split split :above above}))
+    data))
+
+(defn- first-key-hash
+  "Key hash of the leftmost entry under `h`: a representative of the node's
+   key set, whose keys all agree on every chunk before the node's split."
+  [store h]
+  (loop [h h, n 0]
+    (let [node (lookup store h)]
+      (case (node-type node)
+        "hamt/entry" (:key-hash (node-data node))
+        "hamt/bitmap" (if (> n LAST-CHUNK)
+                        (bad-node! "hamt too deep" {})
+                        (recur (first (:children (node-data node))) (inc n)))))))
+
+(defn- first-diff-chunk
+  "First chunk in [from, limit) at which hashes `a` and `b` differ, or nil."
+  [a b from limit]
+  (loop [c from]
+    (cond
+      (>= c limit) nil
+      (not= (hash-chunk a c) (hash-chunk b c)) c
+      :else (recur (inc c)))))
 
 ;; =============================================================================
 ;; Node constructors
@@ -146,18 +196,32 @@
                                   :val-ref val-ref
                                   :measure measure}]))
 
-(defn- make-bitmap! [store bitmap children measure]
+(defn- make-bitmap!
+  "A bitmap node of two or more `children`, in chunk order, that branch on
+   chunk `split`. The measure is the sum of the children's."
+  [store bitmap split children]
   (add-node! store ["hamt/bitmap" {:bitmap bitmap
+                                   :split split
                                    :children (vec children)
-                                   :measure measure}]))
+                                   :measure (measure-seq
+                                             (mapv #(get-measure store %) children))}]))
+
+(defn- branch2!
+  "The node that holds stored nodes `a` (key hash `ka`) and `b` (key hash
+   `kb`) side by side, branching at chunk `d`, where the hashes differ."
+  [store d a ka b kb]
+  (let [ca (hash-chunk ka d)
+        cb (hash-chunk kb d)]
+    (make-bitmap! store
+                  (host/bor64 (chunk-bit ca) (chunk-bit cb))
+                  d
+                  (if (< ca cb) [a b] [b a]))))
 
 ;; =============================================================================
 ;; Internal operations
 ;; =============================================================================
 
-(declare hamt-assoc* hamt-dissoc*)
-
-(defn- hamt-lookup* [store node-hash key-hash level]
+(defn- hamt-lookup* [store node-hash key-hash above]
   (let [node (lookup store node-hash)]
     (case (node-type node)
       "hamt/empty" nil
@@ -165,102 +229,90 @@
       (let [{ekh :key-hash evr :val-ref} (node-data node)]
         (when (= ekh key-hash) evr))
       "hamt/bitmap"
-      (let [{:keys [bitmap children]} (node-data node)
-            chunk (hash-chunk key-hash level)
-            bit (chunk-bit chunk)]
+      (let [{:keys [bitmap split children]} (bitmap-fields (node-data node) above)
+            bit (chunk-bit (hash-chunk key-hash split))]
         (when-not (host/word-zero? (host/band64 bitmap bit))
-          (let [idx (index-of bitmap bit)]
-            (hamt-lookup* store (nth children idx) key-hash (inc level))))))))
+          (hamt-lookup* store (nth children (index-of bitmap bit)) key-hash split))))))
 
-(defn- hamt-assoc* [store node-hash key-hash key-ref val-ref measure level]
+(defn- hamt-assoc*
+  "Add the entry under `node-hash`. `from` is the first chunk at which the
+   new key might still differ from the keys under the node: those before it
+   agree, by the routing above."
+  [store node-hash key-hash key-ref val-ref measure from]
   (let [node (lookup store node-hash)]
     (case (node-type node)
       "hamt/empty"
       (make-entry! store key-hash key-ref val-ref measure)
 
       "hamt/entry"
-      (let [existing-key-hash (:key-hash (node-data node))]
-        (if (= existing-key-hash key-hash)
+      (let [ekh (:key-hash (node-data node))]
+        (if (= ekh key-hash)
           (make-entry! store key-hash key-ref val-ref measure)
-          (let [my-chunk (hash-chunk existing-key-hash level)
-                new-chunk (hash-chunk key-hash level)]
-            (if (= my-chunk new-chunk)
-              (let [deeper (hamt-assoc* store node-hash key-hash
-                                        key-ref val-ref measure (inc level))]
-                (make-bitmap! store (chunk-bit my-chunk) [deeper]
-                              (get-measure store deeper)))
-              (let [new-entry (make-entry! store key-hash key-ref val-ref measure)
-                    bitmap (host/bor64 (chunk-bit my-chunk) (chunk-bit new-chunk))
-                    children (if (< my-chunk new-chunk)
-                               [node-hash new-entry]
-                               [new-entry node-hash])]
-                (make-bitmap! store bitmap children
-                              (measure-seq (mapv #(get-measure store %) children))))))))
+          (let [d (first-diff-chunk ekh key-hash from (inc LAST-CHUNK))]
+            (branch2! store d node-hash ekh
+                      (make-entry! store key-hash key-ref val-ref measure) key-hash))))
 
       "hamt/bitmap"
-      (let [{:keys [bitmap children]} (node-data node)
-            chunk (hash-chunk key-hash level)
-            bit (chunk-bit chunk)
-            idx (index-of bitmap bit)]
-        (if-not (host/word-zero? (host/band64 bitmap bit))
-          (let [new-child (hamt-assoc* store (nth children idx) key-hash
-                                       key-ref val-ref measure (inc level))
-                new-children (assoc children idx new-child)]
-            (make-bitmap! store bitmap new-children
-                          (measure-seq (mapv #(get-measure store %) new-children))))
-          (let [new-entry (make-entry! store key-hash key-ref val-ref measure)
-                new-children (vec (concat (subvec children 0 idx)
-                                          [new-entry]
-                                          (subvec children idx)))]
-            (make-bitmap! store (host/bor64 bitmap bit) new-children
-                          (measure-seq (mapv #(get-measure store %) new-children)))))))))
+      (let [{:keys [bitmap split children]} (bitmap-fields (node-data node) (dec from))
+            ;; the new key may leave the node's keys before the split: then the
+            ;; branch goes here, above the node, at the first chunk it differs
+            rep (when (< from split) (first-key-hash store node-hash))
+            d (when rep (first-diff-chunk rep key-hash from split))]
+        (if d
+          (branch2! store d node-hash rep
+                    (make-entry! store key-hash key-ref val-ref measure) key-hash)
+          (let [bit (chunk-bit (hash-chunk key-hash split))
+                idx (index-of bitmap bit)]
+            (if-not (host/word-zero? (host/band64 bitmap bit))
+              (make-bitmap! store bitmap split
+                            (assoc children idx
+                                   (hamt-assoc* store (nth children idx) key-hash
+                                                key-ref val-ref measure (inc split))))
+              (make-bitmap! store (host/bor64 bitmap bit) split
+                            (vec (concat (subvec children 0 idx)
+                                         [(make-entry! store key-hash key-ref val-ref measure)]
+                                         (subvec children idx)))))))))))
 
 (defn- hamt-dissoc*
   "Remove a key. Returns the new node hash, or nil if the node becomes
-   empty."
-  [store node-hash key-hash level]
+   empty. A node left with one child is replaced by that child, so no node
+   with one child is ever built."
+  [store node-hash key-hash above]
   (let [node (lookup store node-hash)]
     (case (node-type node)
       "hamt/empty" nil
       "hamt/entry"
       (if (= key-hash (:key-hash (node-data node))) nil node-hash)
       "hamt/bitmap"
-      (let [{:keys [bitmap children]} (node-data node)
-            chunk (hash-chunk key-hash level)
-            bit (chunk-bit chunk)]
+      (let [{:keys [bitmap split children]} (bitmap-fields (node-data node) above)
+            bit (chunk-bit (hash-chunk key-hash split))]
         (if (host/word-zero? (host/band64 bitmap bit))
           node-hash
           (let [idx (index-of bitmap bit)
-                new-child (hamt-dissoc* store (nth children idx) key-hash (inc level))]
-            (if (nil? new-child)
-              (let [new-bitmap (host/band64 bitmap (host/bnot64 bit))
-                    new-children (vec (concat (subvec children 0 idx)
-                                              (subvec children (inc idx))))]
-                (cond
-                  (host/word-zero? new-bitmap) nil
-                  (and (= 1 (host/popcount new-bitmap))
-                       (= "hamt/entry" (node-type (lookup store (first new-children)))))
-                  (first new-children)
-                  :else
-                  (make-bitmap! store new-bitmap new-children
-                                (measure-seq (mapv #(get-measure store %) new-children)))))
-              ;; A single-child node whose child became an entry is lifted away,
-              ;; so a chain left by dissoc is the shape assoc would build.
-              (if (and (= 1 (count children))
-                       (= "hamt/entry" (node-type (lookup store new-child))))
-                new-child
-                (let [new-children (assoc children idx new-child)]
-                  (make-bitmap! store bitmap new-children
-                                (measure-seq (mapv #(get-measure store %) new-children))))))))))))
+                old-child (nth children idx)
+                new-child (hamt-dissoc* store old-child key-hash split)]
+            (cond
+              (= new-child old-child) node-hash
 
-(defn- hamt-entries* [store node-hash]
+              (nil? new-child)
+              (let [new-children (vec (concat (subvec children 0 idx)
+                                              (subvec children (inc idx))))]
+                (if (= 1 (count new-children))
+                  (first new-children)
+                  (make-bitmap! store (host/band64 bitmap (host/bnot64 bit)) split
+                                new-children)))
+
+              :else
+              (make-bitmap! store bitmap split (assoc children idx new-child)))))))))
+
+(defn- hamt-entries* [store node-hash above]
   (let [node (lookup store node-hash)]
     (case (node-type node)
       "hamt/empty" []
       "hamt/entry" (let [{:keys [key-ref val-ref]} (node-data node)]
                      [[key-ref val-ref]])
-      "hamt/bitmap" (mapcat #(hamt-entries* store %)
-                            (:children (node-data node))))))
+      "hamt/bitmap" (let [{:keys [split children]} (bitmap-fields (node-data node) above)]
+                      (mapcat #(hamt-entries* store % split) children)))))
 
 ;; =============================================================================
 ;; Public API
@@ -286,13 +338,13 @@
 (defn hamt-get
   "Look up a value ref by key hash. Returns the val-ref or nil."
   [store root key-hash]
-  (hamt-lookup* store root key-hash 0))
+  (hamt-lookup* store root key-hash -1))
 
 (defn hamt-dissoc
   "Remove a key by key hash. Returns the new root hash (an empty node if
    the map becomes empty)."
   [store root key-hash]
-  (let [new-root (hamt-dissoc* store root key-hash 0)]
+  (let [new-root (hamt-dissoc* store root key-hash -1)]
     (if (nil? new-root)
       (make-empty! store)
       new-root)))
@@ -300,7 +352,7 @@
 (defn hamt-entries
   "All [key-ref val-ref] pairs, in ascending key-hash traversal order."
   [store root]
-  (hamt-entries* store root))
+  (hamt-entries* store root -1))
 
 (defn hamt-measure [store root]
   (get-measure store root))
@@ -324,8 +376,8 @@
   "Build a HAMT root by assoc of [key-hash key-ref val-ref] triples
    (refs already in store). Same path as map construction.
 
-   Intermediate bitmap nodes only round-trip when their routing matches a
-   fresh root of the same entries (pack dry-run filters the rest)."
+   The shape is canonical, so any node rebuilt from the entries it holds is
+   byte-identical to the original: every bitmap node round-trips."
   [store entries]
   (reduce (fn [root [key-hash key-ref val-ref]]
             (hamt-assoc store root key-hash key-ref val-ref))
