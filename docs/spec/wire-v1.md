@@ -237,9 +237,19 @@ HamtBitmap =
     subtype    u8 = 0x02
     measure    Measure
     bitmap     u32
-    n          u8
+    split      u8                  ; index of the hash chunk the node branches on, 0..51
+    n          u8                  ; = popcount(bitmap), and n >= 2
     children   Hash32 × n
 ```
+
+`split` is new (issue #12; the draft layout was `bitmap, n, children`, one byte
+shorter). A `HamtBitmap` has **two or more** children: a node with one child is
+never written. Its children hold the keys that share chunk `split` of the node's
+bits, and each child's own `split` is greater. The node hash is
+`fuse(node_hash("hamt/bitmap", elements_fuse), fuse_bytes(bitmap_be8 ++ [split]))`,
+with `bitmap_be8` the bitmap as 8 big-endian bytes. A receiver checks the hash, a
+`split` of 0..51 and `n >= 2` with `n = popcount(bitmap)` from the node's own
+bytes. See peer-v1 §3.3 for why the shape is canonical.
 
 ### Collection header (`kind = 0x03`)
 

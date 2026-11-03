@@ -6,33 +6,56 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
-- **Fix #12: HAMT chains of single-child nodes.** Keys whose hashes share their
-  first 5-bit chunks make a chain of single-child `hamt/bitmap` nodes holding
+- **Fix #12: a telescoping HAMT (peer-v1 wire change).** Keys whose hashes share
+  their first 5-bit chunks made a chain of one-child `hamt/bitmap` nodes holding
   the same entries; two nodes of a chain with the same chunk had one hash, so a
-  node was its own child. A bitmap node with one child now folds that child's
-  hash (`hamt/bitmap-node-hash`; reveal's check uses it too). Also, `hamt-dissoc`
-  lifts a single-child node whose child became an entry, so an assoc and a
-  dissoc history with the same entries give the same tree and root hash.
+  node was its own child. Now no bitmap node has one child, and each stores
+  `split`, the index (0..51) of the hash chunk it branches on: the first chunk
+  at which its keys differ. The shape is canonical: a node is the HAMT of its
+  own key set, whatever the history of `assoc` and `dissoc` and whichever map
+  holds it, so equal key sets give byte-identical nodes. `assoc` branches
+  directly where two keys first differ; `dissoc` replaces a node left with one
+  child by that child. Lookup reads chunk `split` at each node and compares the
+  whole key hash at an entry. Two keys with one 256-bit hash are one key (no
+  collision bucket); distinct hashes differ at a chunk 0..51, so the last chunk
+  is a split like any other. (An earlier commit on this branch folded the child's
+  hash into one-child nodes; that is removed.)
   - **The bug hit ordinary data, not only forged hashes.** On the old code 1,142
     sequential i64 keys from 89891 gave a map whose `count` was right but whose
     `get` lost 2 keys and whose `seq` overflowed the stack, and a 4-key set
     (9422, 19429, 22349, 25338) had a different hash for each insertion order and
     `get` found none of the 4.
-  - **Value hashes of correct maps do not change; those of maps the bug
-    corrupted do** (the new hash is the right one and is the same for any
-    insertion order). Maps built correctly before keep their value hash.
-  - **Interior node hashes change for most large maps.** A `hamt/bitmap` node
-    with one child has a new hash (a node item's address). In a sample of
-    sequential-key maps, 0 of 30 with 1-9 keys, 10 of 60 with 10-99, 32 of 60
-    with 100-499, 40 of 40 with 500-999 and 40 of 40 with 1,000-2,000 keys have
-    at least one (about 1.3 to 1.9% of their bitmap nodes). Entries and nodes
-    with two or more children keep their hashes. peer-v1 is a draft, so this is
-    accepted; mixed-version peers reject each other's single-child nodes.
-  - **Old stores keep their cyclic nodes.** Reads follow the stored child hashes,
-    so a map the bug corrupted stays corrupt in a store written by the old code;
-    rebuild it from its source data. Old single-child node items also fail the
-    node-hash check of a new peer.
-  - A fixture pins a chain (`chunk-node-hamt-bitmap-single-child-chain`).
+  - **Value hashes of correct maps do not change.** A map's hash is the fuse of
+    its entries in key-hash order, not of the tree. Checked against main
+    (`d1a0455`) on 20 maps of 1 to 2,000 string and i64 keys: 20 of 20 equal.
+    A map the bug corrupted can change: the 4-key set had one hash per insertion
+    order on main and has one hash now, equal to neither. The 1,142-key map
+    kept its value hash (only its tree was corrupt, its fuse was not).
+  - **Every `hamt/bitmap` node hash changes.** It is now
+    `fuse(node_hash(type, elements_fuse), fuse_bytes(bitmap_be8 ++ [split]))`. In
+    the same 20 maps no bitmap node kept its hash (entries, scalars and value
+    hashes did). A map's root node hash changes, so a stored map's node
+    addresses change. Maps of 500 or more keys have about 0.3 to 0.7% fewer
+    nodes (the removed one-child nodes).
+  - **Wire bytes change: `hamt/bitmap` gains one byte.** The layout is
+    `measure, bitmap u32, split u8, n u8, children Hash32 x n` (was
+    `measure, bitmap u32, n u8, children`); an item with two children is 157
+    bytes, was 156. A receiver checks the hash, `split` in 0..51 and
+    `n >= 2` with `n = popcount(bitmap)` from the node's own bytes
+    (`bad-hash` or `bad-entry`). Every other node and every value hash is as
+    before. An old peer and a new peer reject each other's bitmap nodes;
+    peer-v1 is a draft.
+  - **Old stores are not readable.** The persisted node payload (file, LMDB,
+    IndexedDB) is the wire layout, so a store written by an older build misreads
+    its bitmap nodes (and its cyclic nodes, if the bug hit it, are gone with
+    them). Rebuild such a store from its source data.
+  - Every `hamt/bitmap` literal now round-trips to its own hash, so an inner
+    HAMT node no longer falls back to a node item for that reason.
+  - Tests: forged-chunk pairs `[1 1 2]/[1 1 3]` and `[1 2 1 4]/[1 2 1 5]`, the
+    issue's repro, a property over assoc/dissoc histories (same key set, same
+    root bytes and node set; no node ever stored with one child), the last-chunk
+    case, tampered `split`, bitmap and shape, a forged store with splits out of
+    order, and a wire fixture (`chunk-node-hamt-bitmap-telescoped`).
 - **`pack/default-budget` is 4 KiB** (the leaf page size; HTTP and peers), tested
   `(>= default-budget lit/page-budget)`. Durable stores (file, LMDB,
   IndexedDB) keep 1 KiB as `chunk/durable-budget`, a constant of their own.
