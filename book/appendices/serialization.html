@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-578a1275.js";
+            window.path_to_searchindex_js = "../searchindex-8886ffea.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -237,8 +237,10 @@ It is intentionally low-level and reference-oriented.</p>
 <ul>
 <li>0x00: empty</li>
 <li>0x01: entry (<code>key_hash ++ key_ref ++ val_ref</code>)</li>
-<li>0x02: bitmap (<code>u32(bitmap) ++ u8(n) ++ hash[n]</code>)</li>
+<li>0x02: bitmap (<code>u32(bitmap) ++ u8(split) ++ u8(n) ++ hash[n]</code>; <code>split</code> is the hash chunk the node branches on, <code>n &gt;= 2</code>)</li>
 </ul>
+<p>Persisted stores (file, LMDB, IndexedDB) also hold a one-integer <strong>store format</strong> tag,
+checked when the store opens; see wire-v1, “Persisted stores”.</p>
 <h3 id="collections-kind-0x03"><a class="header" href="#collections-kind-0x03">Collections (kind 0x03)</a></h3>
 <pre><code>collection = 0x03
           ++ u8(collection_type)

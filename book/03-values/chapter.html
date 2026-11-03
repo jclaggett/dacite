@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-578a1275.js";
+            window.path_to_searchindex_js = "../searchindex-8886ffea.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -538,7 +538,7 @@ not 32.</p>
 <tbody>
 <tr><td><code>hamt/empty</code></td><td>Empty map</td><td>measure</td></tr>
 <tr><td><code>hamt/entry</code></td><td>Single key-value pair</td><td>key_hash, key_ref, val_ref, measure</td></tr>
-<tr><td><code>hamt/bitmap</code></td><td>Sparse internal node</td><td>bitmap, children, measure</td></tr>
+<tr><td><code>hamt/bitmap</code></td><td>Sparse internal node, two or more children</td><td>bitmap, split, children, measure</td></tr>
 </tbody>
 </table>
 </div>
@@ -547,18 +547,41 @@ not 32.</p>
 corresponds to ascending key hash order. This makes <code>elements_fuse</code>
 deterministic regardless of insertion order — two maps with the same
 entries always have the same data hash.</p>
+<h3 id="telescoping-the-shape-of-a-hamt-is-canonical"><a class="header" href="#telescoping-the-shape-of-a-hamt-is-canonical">Telescoping: the shape of a HAMT is canonical</a></h3>
+<p>A bitmap node never has one child. It records the index of the hash chunk
+it branches on, <code>split</code>: the first chunk at which its keys do not all agree.
+Its children are the groups of keys that share chunk <code>split</code>, in ascending
+chunk order; a group of one key is an entry, a larger group is a node whose
+own <code>split</code> is greater. Navigation is therefore: at a node with split <code>c</code>,
+read chunk <code>c</code> of the key’s hash, follow the child for that bit, and on
+reaching an entry compare the whole key hash.</p>
+<p>Every node is the HAMT of its own key set. Whatever order the keys were
+added in, whatever was removed, and whichever map holds the node, the shape is the
+same, and the same entries (keys with their values) give byte-identical nodes
+(the proof sketch is in peer-v1 §3.3).
+<code>assoc</code> builds a new branch directly at the chunk where two keys first
+differ, and <code>dissoc</code> replaces a node left with one child by that child.
+Two keys with the same 256-bit hash are treated as the same key (the hash is
+a content hash), so there is no collision bucket; distinct hashes always differ at a chunk
+0..51, the last chunk at the latest.</p>
 <h3 id="hamt-bitmap-node-hashing"><a class="header" href="#hamt-bitmap-node-hashing">HAMT Bitmap Node Hashing</a></h3>
-<p>Bitmap nodes include the bitmap value in their hash:</p>
-<pre><code>hamt_bitmap_hash = fuse(node_hash, fuse_bytes(bitmap_as_8_bytes))
+<p>Bitmap nodes include the bitmap and the split in their hash:</p>
+<pre><code>hamt_bitmap_hash = fuse(node_hash("hamt/bitmap", elements_fuse),
+                        fuse_bytes(bitmap_as_8_bytes ++ [split]))
 </code></pre>
-<p>This is the only exception to the shape-independence rule of §3.3.
-It’s necessary because two bitmap nodes at different HAMT levels could
-have the same elements and element fuse but different bitmaps — meaning
-they route lookups differently and are <strong>not</strong> interchangeable. Without
-the bitmap in the hash, these nodes would collide, creating
-self-referential loops in the store. The exception is confined to
-internal bitmap nodes; a map’s own data hash — the fuse of its leaf
-entries — remains shape-independent.</p>
+<p>This is the only exception to the shape-independence rule of §3.3. The
+bitmap and split are there because two bitmap nodes could have the same
+elements and element fuse but route lookups differently, and are <strong>not</strong>
+interchangeable. The bitmap alone was not enough
+(<a href="https://github.com/jclaggett/dacite/issues/12">#12</a>): keys whose hashes
+share their first chunks made a chain of one-child nodes that all held the
+same entries, two nodes of the chain with the same chunk had one hash, and
+one became its own child (<code>hamt-entries</code> overflowed the stack and <code>get</code> found
+nothing). With telescoping there are no chains, and a child’s split is
+greater than its parent’s, so no node has the same hash as one below it.
+The children’s hashes are not in the node hash. The exception is confined
+to internal bitmap nodes; a map’s own data hash, the fuse of its leaf
+entries, remains shape-independent and did not change.</p>
 <h2 id="38-collision-resistance"><a class="header" href="#38-collision-resistance">3.8 Collision Resistance</a></h2>
 <p>Fuse-based hashes have ~2^96 birthday-bound collision resistance,
 from the additive structure of components c1–c3. This is weaker than
