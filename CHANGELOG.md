@@ -10,51 +10,80 @@ stability promise: public APIs may still change before 1.0.
   The old fuse (a 4x4 unitriangular matrix over Z/2^64) is a nilpotent group, so
   collisions come in families: for any `a`, `b`, `x`, `y`, `z`, the sequences
   `x a b y b a z` and `x b a y a b z` had one hash. A state is now a 2x2 matrix
-  over F_p with determinant 1, p = 87078471178590763933909596057503143987 (127
-  bits; p - 1 = 2 * 3 * a 124-bit prime, p + 1 = 2^2 * 19 * a 120-bit prime).
-  The design, with the prime, both factorizations, how to verify them, the
-  scaling-attack result and the reasons, is `docs/design/fuse-sl2.md`.
+  over F_p with determinant 1, with a **256-bit prime**
+  p = 75509794529310452520362503714625764980405239500720831432010267419866053829067
+  (p - 1 = 2 * 3 * a 253-bit prime; p + 1 = 2^2 * a 254-bit prime; found by
+  `fixtures/fuse-sl2/find_prime.py`). The design, with the prime, both
+  factorizations, how to verify them, the security analysis and the reasons, is
+  `docs/design/fuse-sl2.md`.
+  - **Security: the margin is about 2^128, one attack, no proof.** Words in the
+    upper-triangular subgroup collide by a birthday search at about
+    60 * sqrt(p) multiplications (found and measured by Grok Bot in the review
+    of this change at 2^20 to 2^32; 2^36 and 2^40 added here), not the ~p of the
+    subgroup search this change first measured: a 127-bit prime would have given
+    only ~2^70. So p is 256 bits (~2^134 for this attack; the 32-byte ref is
+    bounded by 2^128). `fixtures/fuse-sl2/attack/` has the code and numbers;
+    `small-prime-collision.edn` is a 36-bit collision that `hash_test` replays.
+    **An outside cryptographic review is required before Dacite trusts hashes
+    from untrusted peers** (roadmap, "Review gate").
   - **Every value hash changes.** The 256 byte generators are SL(2, F_p)
-    matrices derived from the old byte table's seeds, each of order at least
-    2^119 (exact test, `dacite.sl2-table`). A ref is still 32 bytes: the digest
-    `(N mod 2^256) xor (N >> 252)` of the state packed as N. A ref enters a fuse
-    as the product of the generators of its 32 bytes (`ref->state`, memoized).
-    `value_hash = digest(fuse(type_state, data_state))`. A HAMT bitmap node is
-    `digest(fuse(fuse(type_state, elements_fuse), fuse_bytes(bitmap_be8 ++ [split])))`.
+    matrices derived from the old byte table's seeds (label
+    `dacite/fuse-sl2/v2`), each of order at least 2^252 (exact test,
+    `dacite.sl2-table`). A ref is still 32 bytes: the digest
+    `a xor rotl64(b) xor rotl128(c) xor rotl192(d)` of the state's four 256-bit
+    cells. A ref enters a fuse as the product of the generators of its 32 bytes
+    (`ref->state`, memoized in a cache that is emptied when it holds 65,536
+    entries). `value_hash = digest(fuse(type_state, data_state))`. A HAMT bitmap
+    node is `digest(fuse(fuse(type_state, elements_fuse), fuse_bytes(bitmap_be8 ++ [split])))`.
     The low-entropy guard is gone (nothing to guard: `A^n` is the identity only
-    at a multiple of the order, above 2^119).
-  - **A measure keeps its full 64-byte state** (`elements-fuse`): on the wire a
-    measure is 80 bytes (was 48). A receiver checks each cell is below p and the
-    determinant is 1 (`:bad-state`, `bad-entry` on the peer protocol). Refs,
-    stores, the HAMT key hash and hex are unchanged in shape.
+    at a multiple of the order, above 2^252).
+  - **A measure keeps its full 128-byte state** (`elements-fuse`): on the wire a
+    measure is **144 bytes** (was 48). A receiver checks each cell is below p and
+    the determinant is 1; otherwise the decoder throws an ex-info with
+    `:reason :bad-state` (message "bad fuse state"), and the peer item reader
+    reports `bad-entry` with `:detail :bad-state`. A writer handed an invalid
+    state throws `:reason :invalid-state`. Refs, stores, the HAMT key hash and hex
+    are unchanged in shape (32 bytes).
   - **Versions.** `dacite.hash/hash-version` 2; `dacite.store/store-format` 2: a
     store written under 1 is refused, never read with wrong addresses. The wire
     chunk `version` and the `hello` versions are **not** bumped (draft; no values
     in the wild, as for #12): the format did change, and the first release with
     users must bump them.
-  - **Portable:** the kernel is `sl2-mul`, `sl2-inverse`, `sl2-valid?`,
-    `sl2->bytes` and `sl2-digest-words` in `dacite.host` (`BigInteger` on the
-    JVM, `BigInt` on nbb and in the browser bundles); reduction is the host's
-    `mod`. A Montgomery reference (R = 2^128) is in the tests; it agrees, and it
-    is no faster on these hosts.
-  - **Cost** (one core, this box): a fuse step runs at 0.7 to 1.0 M/s on the
-    JVM (the old fuse: 2 to 7 M/s) and 0.6 to 0.7 M/s on nbb (old: 0.23 M/s). An
-    element of a sequence costs 31 products. The JVM suite takes about 60 s (main:
-    46 s).
-  - **Tests and fixtures.** The #14 collisions, through values and refs; every
-    string of length 0 to 5 over `abcde` distinct; the digits 0000 to 9999
-    distinct; associativity, identity and inverse; a run of one element squared
-    to 2^40 against the identity and every shorter run; `A^n = I` only at a
-    multiple of the order; the digest; state validation; the prime and both
-    factorizations. `fixtures/fuse-sl2/vectors.edn` holds known answers that the
-    JVM (`hash_test`) and nbb (`npm run peer:test`) both check, and
-    `fixtures/fuse-sl2/reference.py` re-derives the table and checks them in
-    pure Python. The wire (79 cases) and peer (51 cases) fixtures are regenerated;
-    four HAMT cases changed their keys because their colliding hash groups moved;
-    the 3000-char string series is rebuilt at 1 KiB pages (a 4 KiB page holds it
-    in one). The leaf-budget pins in `literal_limits_test` are new hashes, and
-    the test now checks them at both budgets. Browser bundles are rebuilt (cache
-    busters api-7, explorer-21, library-9).
+  - **Portable, behind one boundary.** The kernel is five hex-in, hex-out
+    functions (`dacite.hash/kernel`: `:state-mul`, `:bytes->state`,
+    `:ref->state`, `:state->ref`, `:state-valid?`), built on `sl2-mul`,
+    `sl2-inverse`, `sl2-valid?`, `sl2->bytes` and `sl2-digest-words` in
+    `dacite.host` (`BigInteger` on the JVM, `BigInt` on nbb and in the browser
+    bundles); nothing else reads a cell, so a WASM or native implementation can
+    replace the arithmetic. `fixtures/fuse-sl2/vectors.edn` `:kernel` tests
+    exactly that boundary (101 answers, also recomputed by `reference.py`;
+    `dacite.kernel-vectors/problems` runs them on any implementation). Reduction
+    is the host's `mod`; a Montgomery reference (R = 2^264) is in the tests and
+    was not benchmarked.
+  - **Cost (measured end to end, one core, this box; the first draft's "as
+    fast" was wrong).** Building a value and hashing it, JVM, main -> 256-bit:
+    3,000-entry map 186 -> 600 ms; 10,000-element vector 199 -> 634 ms; 100,000-char
+    string 53 -> 319 ms; 500 KB blob 69 -> 1,412 ms; 500 assocs on a 1,000-entry
+    map 77 -> 269 ms. nbb is about the same as main (6.2 -> 6.6 s for the map;
+    the blob is 3.5 -> 2.5 s). A fuse step is about 1.7 us on the JVM and 1.9 us
+    on nbb. An element of a sequence costs 31 products. The harness is
+    `impl/clojure/dev/bench_ops.cljc`; the table is in the design doc. The JVM
+    suite takes about 65 s (main: 46 s).
+  - **Tests and fixtures.** The #14 collisions, through values and refs; the
+    36-bit Borel collision; every string of length 0 to 5 over `abcde` distinct;
+    the digits 0000 to 9999 distinct; associativity, identity and inverse; a run
+    of one element squared to 2^40 against the identity and every shorter run;
+    `A^n = I` only at a multiple of the order; the digest; state validation; the
+    kernel boundary; the prime and both factorizations; `:bad-state` at the wire
+    decoder, in a serialized measure, in the peer item reader and on nbb.
+    `fixtures/fuse-sl2/reference.py` re-derives the table and checks every
+    vector in pure Python. The wire (79 cases) and peer (51 cases) fixtures are
+    regenerated; the HAMT test keys and the telescoped-bitmap fixture keys changed
+    because their colliding hash groups moved; the 3000-char string series is rebuilt at
+    1 KiB pages (a 4 KiB page holds it in one). The leaf-budget pins in
+    `literal_limits_test` are new hashes, checked at both budgets; the property
+    tests there run 10 samples per frame size (was 30) to stay near 3 s. Browser
+    bundles are rebuilt (cache busters api-8, explorer-22, library-10).
 - **Fix #12: a telescoping HAMT (peer-v1 wire change).** Keys whose hashes share
   their first 5-bit chunks made a chain of one-child `hamt/bitmap` nodes holding
   the same entries; two nodes of a chain with the same chunk had one hash, so a

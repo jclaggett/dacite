@@ -10,7 +10,7 @@
 
        type_state = fuse_bytes(type_name ++ 0x00)
 
-   and `digest` folds a 64-byte SL(2, F_p) state to the 32-byte ref
+   and `digest` folds a 128-byte SL(2, F_p) state to the 32-byte ref
    (dacite.hash). A collection's data state is its `elements_fuse`; each
    element enters it as `ref->state` of its own ref.
 

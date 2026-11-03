@@ -8,9 +8,13 @@
   (:require [cljs.reader :as reader]
             [dacite.hash :as hash]
             [dacite.host :as host]
+            [dacite.kernel-vectors :as kernel-vectors]
             [dacite.peer.conformance :as conf]
             [dacite.peer.examples :as ex]
             [dacite.peer.msg :as msg]
+            [dacite.store :as store]
+            [dacite.value :as v]
+            [dacite.wire.binary :as bin]
             [dacite.value.scalar]
             [dacite.value.types :as types]))
 
@@ -41,6 +45,44 @@
      (mapcat (fn [[i hex]] (bad (str "table " i) hex (hash/state->hex (nth hash/byte->state i))))
              (:table-sample vs)))))
 
+(defn- kernel-problems
+  "The kernel boundary (`hash/kernel`) against its known answers, the same
+   checker the JVM test and a WASM wrapper use."
+  []
+  (let [fs (js/require "fs")
+        vs (reader/read-string (.readFileSync fs "fixtures/fuse-sl2/vectors.edn" "utf8"))]
+    (if (seq (:kernel vs))
+      (kernel-vectors/problems hash/kernel (:kernel vs))
+      ["kernel vectors missing"])))
+
+(defn- bad-state-problems
+  "A measure state outside SL(2, F_p) is refused with ex-info :bad-state on nbb
+   as on the JVM (wire/binary_test.clj)."
+  []
+  (let [st (store/mem-store)
+        m (v/vector st (v/string st "aaa") (v/string st "bbb"))
+        root (store/await (store/s-get st (v/hash m)))
+        h (:root (second root))
+        entry (store/await (store/s-get st h))
+        bs (js/Uint8Array.from (js/Array.from (bin/encode-item {:enc :node :hash h :entry entry})))
+        state (vec (hash/state->bytes (:elements-fuse (:measure (second entry)))))
+        off (first (filter #(= state (mapv (fn [i] (aget bs (+ % i))) (range 128)))
+                           (range (- (.-length bs) 127))))
+        outcome (fn [a] (try (bin/decode-item-stream a) :decoded
+                             (catch :default e [(:reason (ex-data e)) (ex-message e)])))
+        flipped (fn [at] (let [a (js/Uint8Array.from bs)] (aset a at (bit-xor 1 (aget a at))) a))
+        zeroed (let [a (js/Uint8Array.from bs)] (dotimes [i 128] (aset a (+ off i) 0)) a)]
+    (concat
+     (when-not off ["bad-state: the state is not inside the item"])
+     (when-not (= :decoded (outcome bs)) ["bad-state: the untouched item does not decode"])
+     (mapcat (fn [[label a]]
+               (let [[reason msg] (outcome a)]
+                 (when-not (and (= :bad-state reason) (re-find #"bad fuse state" (str msg)))
+                   [(str "bad-state: " label " gave " (pr-str [reason msg]))])))
+             {"a flipped bit in cell a" (flipped off)
+              "a flipped bit in cell d" (flipped (+ off 127))
+              "the all-zero state" zeroed}))))
+
 (defn -main
   [& _]
   (let [{:keys [cases problems]} (conf/run-all)
@@ -58,7 +100,7 @@
                                                     {"versions" #{2} "caps" #{} "limits" {"max-frame" 1 "max-item" 1 "max-streams" 1}})
                                      [:ok :version]))
                 ["negotiate does not pick the highest common version"]))
-        all (into (into (into (vec problems) framing) host) (fuse-vector-problems))]
+        all (into (into (into (vec problems) framing) host) (concat (fuse-vector-problems) (kernel-problems) (bad-state-problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
              (count all) "problems")
     (doseq [p all] (println "  FAIL" p))

@@ -41,8 +41,8 @@
 
 (deftest the-two-key-map-of-issue-12
   (let [st (store/mem-store)
-        k1 (v/u16 st 49133)
-        k2 (v/f64 st 91.0)
+        k1 (v/u16 st 61016)
+        k2 (v/f64 st 0.5)
         m (v/map st k1 1 k2 2)
         root (:root (second (store/await (store/s-get st (v/hash m)))))
         [_ rd] (store/await (store/s-get st root))]
@@ -51,7 +51,7 @@
     (is (= 1 (v/realize (v/get m k1))))
     (is (= 2 (v/realize (v/get m k2))))
     (is (= #{1 2} (set (map v/realize (v/vals m)))))
-    (testing "the chunks of the two hashes are 31 22 13 27 and 31 22 13 9: the
+    (testing "the chunks of the two hashes are 0 1 27 15 and 0 1 27 25: the
               node branches at chunk 3, directly, with two entries under it"
       (is (= 3 (:split rd)))
       (is (= 2 (count (:children rd))))
@@ -265,11 +265,11 @@
 (def ^:private colliding-i64s
   "Four groups of i64 keys whose hashes share their first three chunks, with
    a repeated chunk value among them, and a different fourth chunk each (found
-   by search over 0..120000 with the SL(2) hash, issue #14)."
-  [[14086 24952 39234 44328 74435]      ; chunks 2 2 1
-   [19732 56632 94136 107007 118765]    ; 3 3 0
-   [23545 28155 62817 72866 85840]      ; 5 0 5
-   [32650 35463 50457 54489 115145]])   ; 6 0 6
+   by search over 0..120000 with the SL(2, F_p) hash, issue #14)."
+  [[24948 25845 28248 40945 71283]      ; chunks 2 0 2
+   [31622 33512 87412 88804 113243]     ; 3 0 3
+   [4295 64535 72858 74890 82793]       ; 5 0 5
+   [41289 49026 49810 54189 95030]])    ; 6 0 6
 
 (deftest the-last-chunk-is-a-split-like-any-other
   ;; Keys that agree on chunks 0..50 and differ in the last bit (chunk 51,
@@ -391,7 +391,7 @@
               (hash/fuse (types/value-state "hamt/bitmap" ef)
                          (hash/fuse-bytes (conj (vec (host/int->bytes-be (:bitmap rd) 8))
                                                 (:split rd)))))]
-    (is (= 3 (:split rd)) "chunks 2 2 1 are shared: the split is chunk 3")
+    (is (= 3 (:split rd)) "chunks 2 0 2 are shared: the split is chunk 3")
     (is (= (vec root) (vec hand)) "digest(fuse(fuse(type_state, ef), bytes(bitmap_be8 ++ [split])))")
     (is (= (vec root) (vec (sr/expected-hash st e))) "reveal expects the stored hash")
     (testing "the split is in the hash: another split, another hash"
@@ -432,7 +432,7 @@
       (is (= (shape st1 (:node a)) (shape st3 (:node c)))))))
 
 (deftest the-wire-layout-of-a-bitmap-node
-  ;; item header, then: kind 0x02, subtype 2, measure (80), bitmap u32, split u8,
+  ;; item header, then: kind 0x02, subtype 2, measure (144), bitmap u32, split u8,
   ;; count u8, children (32 each). One byte longer than before the split.
   (let [st (store/mem-store)
         root (build st [[1 (chunks->hash [1 1 2])] [2 (chunks->hash [1 1 3])]
@@ -442,7 +442,7 @@
         bs (node-bytes root e)
         i (- (count bs) (* 32 (count (:children d))) 6)] ; bitmap(4) split(1) count(1)
     (is (= 2 (count (:children d))))
-    (is (= (+ 37 2 80 4 1 1 (* 32 2)) (count bs)))
+    (is (= (+ 37 2 144 4 1 1 (* 32 2)) (count bs)))
     (is (= [0x02 2] (subvec bs 37 39)))
     (is (= (:split d) (nth bs (+ i 4))))
     (is (= (count (:children d)) (nth bs (+ i 5))))
@@ -676,18 +676,19 @@
 (deftest value-hashes-of-correct-maps-are-pinned
   ;; The value hash is the fuse of the entries, not of the tree: telescoping
   ;; (d1a0455) moved no value hash, only the bitmap nodes under them. These pins
-  ;; are hash version 2 (the SL(2, F_p) fuse, issue #14). The 4-key set is one
-  ;; the bug corrupted: main gave a hash per insertion order, and here both
+  ;; are hash version 2 (the SL(2, F_p) fuse, issue #14). The 4-key set is four
+  ;; colliding keys that share their first three chunks (the shape the bug
+  ;; corrupted: main gave a hash per insertion order on such keys), and here both
   ;; orders give one.
   (let [st (store/mem-store)
         hx #(store/hash->hex (v/hash %))
         i64s (fn [ks] (apply v/map st (mapcat (fn [k] [(v/i64 st k) k]) ks)))]
-    (is (= "210a5becc8f6742f76363ec0220a08fa734827a52a7c2960dfc4a5dc0fe2a577" (hx (i64s (range 500)))))
-    (is (= "42fc4e3d4a345d1c06c0031e726372734b8b40680e298ab25bd5a976b87b6272"
+    (is (= "dc5ea1d78239c6765a9dbee9de21dcf77b6cc9932ab3b88d0e7ce098d49ceb25" (hx (i64s (range 500)))))
+    (is (= "5654c09b96e587190d6dda589c0a1aa51c48703f6de63e27af3dec5f743d0584"
            (hx (i64s (range 89891 (+ 89891 1142))))))
-    (is (= "1ef24552808baf7b5114cd5c2081061b55e683730b22a7585db7c0616c7da71c"
+    (is (= "a028fc68920707cc8f6e8e86f703b1801d08f7e0d5070a1fa6ccc7adb6b1c698"
            (hx (apply v/map st (mapcat (fn [i] [(v/string st (str "key-" i)) i]) (range 100))))))
-    (is (= "fe84d2d0d84db02c3c157697e4ff8dae7993c422492ed960023b4cd588e6e240"
-           (hx (apply v/set st (map #(v/i64 st %) [14086 24952 39234 44328])))))
-    (is (= "fe84d2d0d84db02c3c157697e4ff8dae7993c422492ed960023b4cd588e6e240"
-           (hx (apply v/set st (map #(v/i64 st %) [44328 39234 24952 14086])))))))
+    (is (= "211317cc354ef6666f56520f94bcf6ad89dee6f5a50e6ec4d2ca07f1a5080d6f"
+           (hx (apply v/set st (map #(v/i64 st %) [24948 25845 28248 40945])))))
+    (is (= "211317cc354ef6666f56520f94bcf6ad89dee6f5a50e6ec4d2ca07f1a5080d6f"
+           (hx (apply v/set st (map #(v/i64 st %) [40945 28248 25845 24948])))))))

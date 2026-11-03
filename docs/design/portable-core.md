@@ -84,7 +84,7 @@ Three layers:
 
 A port must provide the equivalents of these operations over a native
 **unsigned 64-bit integer** ("word") type, for refs (32-byte digests, four
-words), and over a **bignum** type with `mod` for fuse states (127-bit prime
+words), and over a **bignum** type with `mod` for fuse states (256-bit prime
 field cells).
 
 ### Word representation
@@ -103,12 +103,19 @@ arrays.
 
 **Modular arithmetic (mod 2^64):** `add64`, `sub64`, `mul64`, `neg64`.
 
-**Fuse arithmetic (mod p, p = 87078471178590763933909596057503143987):**
+**Fuse arithmetic (mod p, p = 75509794529310452520362503714625764980405239500720831432010267419866053829067):**
 `sl2-mul` (the matrix product of two states), `sl2-inverse`, `sl2-valid?`,
-`sl2->bytes` / `bytes->sl2` (64 bytes), and `sl2-digest-words` (a state to
+`sl2->bytes` / `bytes->sl2` (128 bytes), and `sl2-digest-words` (a state to
 the four words of a ref). Cells are `BigInteger` on the JVM and `BigInt` on
 CLJS. Reduction may be the host's `mod` or Montgomery or Barrett; the cells
 returned are canonical (0..p-1).
+
+A port that does the arithmetic outside the host language (WASM, a native
+library) does not have to implement these one by one: it can provide the five
+hex-in, hex-out functions of `dacite.hash/kernel` (`:state-mul`,
+`:bytes->state`, `:ref->state`, `:state->ref`, `:state-valid?`), which
+`fixtures/fuse-sl2/vectors.edn` `:kernel` tests exactly
+(docs/design/fuse-sl2.md, "The kernel boundary").
 
 **Bit operations:** `band64`, `bor64`, `bxor64`, `bnot64`, `shl64`,
 `ushr64` (logical right shift), `popcount`.
@@ -136,7 +143,7 @@ The fuse is a product in SL(2, F_p) (docs/design/fuse-sl2.md). Each of the 256
 byte values has a generator matrix, derived from SHA-256 seeds once and kept
 only if its order is large. Rather than require a crypto primitive on every
 host, the 256-entry table is **precomputed once and shipped as a Clojure data
-resource** (`dacite.sl2-table/hex-table`, generated file, 64 bytes a row). The
+resource** (`dacite.sl2-table/hex-table`, generated file, 128 bytes a row). The
 core loads it directly.
 
 - SHA-256 stays **JVM-only**, as a regeneration tool:

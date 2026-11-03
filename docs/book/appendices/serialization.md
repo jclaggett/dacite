@@ -34,7 +34,7 @@ Appears in seq and map nodes:
 measure = u64(count) ++ u64(size_bytes) ++ state(elements_fuse)
 ```
 
-(8 + 8 + 64 = 80 bytes; `state` is the four 16-byte big-endian cells of a
+(8 + 8 + 128 = 144 bytes; `state` is the four 32-byte big-endian cells of a
 matrix over F_p, each below p, with determinant 1. It was a 32-byte hash and
 48 bytes under the old fuse.)
 

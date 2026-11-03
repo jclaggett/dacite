@@ -92,7 +92,7 @@ rule:
 value_hash = digest(fuse(type_state, data_state))
 ```
 
-(Chapter 2: a *state* is a 64-byte element of SL(2, F_p); the *digest* is
+(Chapter 2: a *state* is a 128-byte element of SL(2, F_p); the *digest* is
 the 32-byte ref a store files the value under.)
 
 ### The Type Hash
@@ -336,7 +336,7 @@ collection node — never a bare `ft/deep` as a user value.
 
 Every structural node is stored in the content-addressed store as its own
 entry. A page is bounded by the 1,024-byte payload budget (32 hashes × 32
-bytes when every child is a pointer), plus ~80 bytes of measure metadata.
+bytes when every child is a pointer), plus 144 bytes of measure metadata.
 
 ### The Measure Monoid
 
@@ -346,7 +346,7 @@ Every node caches a **measure** of its subtree:
 Measure = {
   count:          u64,   // number of leaf elements
   size_bytes:     u64,   // total byte size of leaf scalars
-  elements_fuse:  State  // running fuse of all element states (64 bytes)
+  elements_fuse:  State  // running fuse of all element states (128 bytes)
 }
 ```
 
@@ -362,9 +362,9 @@ combine(m1, m2) = {
 identity = { count: 0, size_bytes: 0, elements_fuse: I }      // the identity matrix
 ```
 
-A measure keeps the full 64-byte state, not a digest: measures are
+A measure keeps the full 128-byte state, not a digest: measures are
 combined by fusing, and a digest cannot be fused. On the wire a measure is
-80 bytes (`count` and `size_bytes`, 8 bytes each, and the 64-byte state).
+144 bytes (`count` and `size_bytes`, 8 bytes each, and the 128-byte state).
 A leaf's contribution to the fuse is `ref_state` of its ref.
 
 The root's measure gives **O(1)** access to:

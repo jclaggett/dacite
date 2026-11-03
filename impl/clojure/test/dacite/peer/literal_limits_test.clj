@@ -265,20 +265,25 @@
   "Hashes under hash version 2 (the SL(2, F_p) fuse, issue #14). They were first
    pinned on main at the 1 KiB budget before M1.1a with the old fuse; the fuse
    changed every one of them, the budget changes none."
-  [[-1608437338314893716 -5133327593972740148 6741541439226333456 3049822642160186050]
-   [869917796440651749 4909964699656530293 6839715567209444391 3393171676771811255]
-   [-318674461802557416 -1594444943028831593 -2090323365428921652 3532552874864599798]
-   [-414548733579592048 -4556153250538002087 -8404607194181784310 -1488738295968263591]
-   [4187051056146380838 2681406369748343202 -3864871963097646763 -7566470155181605459]
-   [-5675426749939212422 5962542649192505805 -871961040353309789 7467866236764385370]
-   [3442493829875840436 9009764203932442882 2516244908180085996 5167667232749318414]])
+  [[1078299981186003861 -155926856322451879 693347967224154184 -8866242100286208368]
+   [-8210046138250363483 -5402556966473044580 -881565849737082841 7077770126167544400]
+   [-1432747629841586475 119801778901863359 -7973651944650703613 6418691978646905553]
+   [5221086643464979049 -4243622791092783356 7974419522164833095 -7481285042368311675]
+   [-2688787341703232119 2250345235901175991 -6772763393576013057 3430969428547567943]
+   [-2454016610027912395 -2168651837364051152 -674395543878613742 -8405510871974739575]
+   [-4620344927445740154 -7991643559882597587 89251510965221873 -7415641222677739697]])
 
 (deftest value-hashes-do-not-depend-on-the-leaf-budget
   ;; A page budget changes how elements are grouped into pages, not the
   ;; elements-fuse a value hashes, so these must not move: the pinned hashes
-  ;; are the same at the 4 KiB budget and at the 1 KiB one. (About 3 s per
-  ;; pass: the seven values hold ~80,000 fuse steps and the two budgets are the
-  ;; point of the test.)
+  ;; are the same at the 4 KiB budget and at the 1 KiB one.
+  ;;
+  ;; JUSTIFICATION for the time (rule: a test over about 3 s is broken unless it
+  ;; says why). The pinned hashes cost one pass at each budget over values of
+  ;; ~80,000 fuse steps, about 2.3 s a pass. The test compares the two budgets
+  ;; against the same pins; the 4 KiB pass is the whole value of the pin and
+  ;; the 1 KiB pass is the whole value of the test, so neither can be cut
+  ;; without cutting the values themselves.
   (let [hashes (fn [] (mapv #(vec (v/hash %)) (leaf-budget-cases (store/mem-store))))]
     (is (= pinned-hashes (hashes)) "4 KiB pages")
     (is (= pinned-hashes (binding [lit/page-budget 1024] (hashes))) "1 KiB pages")))
@@ -407,10 +412,12 @@
 
 (def ^:private property-samples
   "Samples per frame size. Each is a value of up to a few thousand nodes and
-   every node is a few dozen fuse steps; a step costs about 1.5 us since the
-   SL(2, F_p) fuse (issue #14), 6x the old one, so 16 samples take what 30
-   did: about 3 s for both frame sizes in each of the two tests that use it."
-  16)
+   every node is a few dozen fuse steps. A fuse step costs about 1.7 us on the
+   JVM since the SL(2, F_p) fuse with a 256-bit prime (issue #14); 10 samples
+   per frame size keep each of the two tests that use this under about 3 s.
+   Before the switch it was 30: the trim is a choice of the PR, not a finding,
+   and the property is still checked on every run."
+  10)
 
 (deftest property-pages-and-literals-stay-in-their-caps-and-round-trip
   (doseq [mf [frame/min-max-frame frame/max-frame]]

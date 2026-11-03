@@ -1,19 +1,42 @@
 #!/usr/bin/env python3
 """Independent reference of the SL(2, F_p) fuse (docs/design/fuse-sl2.md), pure Python 3, no dependencies.
 
-Re-derives the 256-generator table from the SHA-256 byte table (the 64-hex seeds in
-impl/clojure/src/dacite/byte_table.cljc) exactly as impl/clojure/dev/dacite/dev/gen_sl2_table.clj does, then checks
-every vector in vectors.edn (fuse-str states and refs, ref->state, table sample) and the shipped table.
+Checks the prime and both factorizations (its own Miller-Rabin, 64 random bases), re-derives the
+256-generator table from the SHA-256 byte table (the 64-hex seeds in
+impl/clojure/src/dacite/byte_table.cljc) exactly as impl/clojure/dev/dacite/dev/gen_sl2_table.clj does,
+checks the order of every generator, then checks every vector in vectors.edn (fuse-str states and refs,
+ref->state, table sample), the kernel-boundary vectors (`:kernel`) and the shipped table.
 
     python3 fixtures/fuse-sl2/reference.py        # from the repo root; exits 1 on any mismatch
 """
-import hashlib, re, sys, pathlib
+import hashlib, random, re, sys, pathlib
 
 root = pathlib.Path(__file__).resolve().parents[2]
-P = 87078471178590763933909596057503143987
-Q1 = 14513078529765127322318266009583857331
-Q2 = 1145769357613036367551442053388199263
-assert P - 1 == 6 * Q1 and P + 1 == 76 * Q2
+P = 75509794529310452520362503714625764980405239500720831432010267419866053829067
+Q1 = 12584965754885075420060417285770960830067539916786805238668377903311008971511
+Q2 = 18877448632327613130090625928656441245101309875180207858002566854966513457267
+S1, S2 = 6, 4
+
+def is_probable_prime(n, rounds=64, rnd=random.Random(20260521)):
+    if n < 4: return n in (2, 3)
+    if n % 2 == 0: return False
+    d, s = n - 1, 0
+    while d % 2 == 0: d //= 2; s += 1
+    for _ in range(rounds):
+        a = rnd.randrange(2, n - 1)
+        x = pow(a, d, n)
+        if x in (1, n - 1): continue
+        for _ in range(s - 1):
+            x = x * x % n
+            if x == n - 1: break
+        else:
+            return False
+    return True
+
+assert P.bit_length() == 256 and Q1.bit_length() == 253 and Q2.bit_length() == 254
+assert P - 1 == S1 * Q1 and P + 1 == S2 * Q2
+assert is_probable_prime(P) and is_probable_prime(Q1) and is_probable_prime(Q2), "p, q1, q2 must be prime"
+print("p (256 bits), q1 = (p-1)/6 (253 bits), q2 = (p+1)/4 (254 bits) are prime")
 
 def mul(x, y):
     a, b, c, d = x; e, f, g, h = y
@@ -29,40 +52,41 @@ def mpow(m, n):
     return r
 
 def large_order(g):
+    """True when q1 or q2 (at least 253 bits) divides the order of g."""
     t = (g[0] + g[3]) % P
     disc = (t*t - 4) % P
     if disc == 0: return False
-    if pow(disc, (P - 1) // 2, P) == 1: return mpow(g, 6) != I
-    return mpow(g, 76) != I
+    if pow(disc, (P - 1) // 2, P) == 1: return mpow(g, S1) != I
+    return mpow(g, S2) != I
 
 def derive(seed_hex):
     seed = bytes.fromhex(seed_hex)
     k = 0
-    mask = (1 << 127) - 1
     while True:
-        blocks = [hashlib.sha256(b"dacite/fuse-sl2/v1" + k.to_bytes(4, "big") + seed + bytes([j])).digest() for j in (0, 1)]
-        a = int.from_bytes(blocks[0][:16], "big") & mask
-        b = int.from_bytes(blocks[0][16:], "big") & mask
-        c = int.from_bytes(blocks[1][:16], "big") & mask
+        blocks = [hashlib.sha256(b"dacite/fuse-sl2/v2" + k.to_bytes(4, "big") + seed + bytes([j])).digest() for j in (0, 1, 2)]
+        a, b, c = (int.from_bytes(x, "big") for x in blocks)
         k += 1
         if a >= P or b >= P or c >= P or a == 0: continue
         d = (1 + b*c) * pow(a, -1, P) % P
         g = (a, b, c, d)
         if g != I and large_order(g): return g
 
-def hexstate(s): return "".join("%032x" % v for v in s)
-def unhex(h): return tuple(int(h[i:i+32], 16) for i in range(0, 128, 32))
+def hexstate(s): return "".join("%064x" % v for v in s)
+def unhex(h): return tuple(int(h[i:i+64], 16) for i in range(0, 256, 64))
+
+def rotl(n, r): return ((n << r) | (n >> (256 - r))) & ((1 << 256) - 1)
 
 def digest(s):
-    n = sum(v << (127 * i) for i, v in enumerate(s))
-    dg = (n ^ (n >> 252)) & ((1 << 256) - 1)
+    """a xor rotl64(b) xor rotl128(c) xor rotl192(d), cells as 256-bit integers."""
+    dg = 0
+    for i, v in enumerate(s): dg ^= rotl(v, 64 * i)
     return "%064x" % dg
 
 src = (root / "impl/clojure/src/dacite/byte_table.cljc").read_text()
 seeds = re.findall(r'"([0-9a-f]{64})"', src)
 assert len(seeds) == 256
 table = [derive(s) for s in seeds]
-shipped = re.findall(r'"([0-9a-f]{128})"', (root / "impl/clojure/src/dacite/sl2_table.cljc").read_text())
+shipped = re.findall(r'"([0-9a-f]{256})"', (root / "impl/clojure/src/dacite/sl2_table.cljc").read_text())
 ok = [hexstate(g) for g in table] == shipped
 print("table re-derived and equal to the shipped one:", ok)
 
@@ -82,13 +106,78 @@ for m in re.finditer(r'\{:input\s+"([^"]*)",\s+:state\s+"([0-9a-f]+)",\s+:ref\s+
     got = fuse_bytes(s.encode("utf-8"))
     if hexstate(got) != st or digest(got) != rf:
         bad += 1; print("MISMATCH fuse-str", repr(s))
-for m in re.finditer(r'\{:ref\s+"([0-9a-f]{64})",\s+:state\s+"([0-9a-f]{128})"\}', vec):
+for m in re.finditer(r'\{:ref\s+"([0-9a-f]{64})",\s+:state\s+"([0-9a-f]{256})"\}', vec):
     r, st = m.groups()
     if hexstate(ref_state(r)) != st:
         bad += 1; print("MISMATCH ref->state", r)
-for m in re.finditer(r'\[(\d+)\s+"([0-9a-f]{128})"\]', vec):
+for m in re.finditer(r'\[(\d+)\s+"([0-9a-f]{256})"\]', vec):
     i, hx = int(m.group(1)), m.group(2)
     if hexstate(table[i]) != hx:
         bad += 1; print("MISMATCH table", i)
 print("vectors mismatching:", bad)
-sys.exit(0 if ok and bad == 0 else 1)
+
+# --- The kernel boundary (dacite.hash/kernel): every :kernel vector, recomputed here ---------------
+def read_edn(text):
+    """Just enough EDN for vectors.edn: maps, vectors, strings, keywords, integers, true/false/nil."""
+    pos = 0
+    def ws():
+        nonlocal pos
+        while pos < len(text) and (text[pos] in " \t\r\n," or text[pos] == ";"):
+            if text[pos] == ";":
+                while pos < len(text) and text[pos] != "\n": pos += 1
+            else: pos += 1
+    def val():
+        nonlocal pos
+        ws(); c = text[pos]
+        if c == "{":
+            pos += 1; m = {}
+            while True:
+                ws()
+                if text[pos] == "}": pos += 1; return m
+                k = val(); m[k] = val()
+        if c == "[":
+            pos += 1; v = []
+            while True:
+                ws()
+                if text[pos] == "]": pos += 1; return v
+                v.append(val())
+        if c == '"':
+            pos += 1; out = []
+            while text[pos] != '"':
+                if text[pos] == "\\": pos += 1
+                out.append(text[pos]); pos += 1
+            pos += 1; return "".join(out)
+        j = pos
+        while pos < len(text) and text[pos] not in " \t\r\n,]}": pos += 1
+        tok = text[j:pos]
+        return {"true": True, "false": False, "nil": None}.get(tok, tok) if not tok.lstrip("-").isdigit() else int(tok)
+    return val()
+
+K = read_edn(vec)[":kernel"]
+def valid_hex(h):
+    if len(h) != 256 or re.fullmatch(r"[0-9a-f]+", h) is None: return False
+    s = unhex(h)
+    return all(v < P for v in s) and (s[0]*s[3] - s[1]*s[2]) % P == 1
+kbad = 0
+def chk(what, got, want):
+    global kbad
+    if got != want: kbad += 1; print("KERNEL MISMATCH", what)
+for e in K[":state-mul"]:
+    assert valid_hex(e[":a"]) and valid_hex(e[":b"])
+    chk(":state-mul", hexstate(mul(unhex(e[":a"]), unhex(e[":b"]))), e[":product"])
+for e in K[":bytes->state"]:
+    chk(":bytes->state", hexstate(fuse_bytes(bytes.fromhex(e[":bytes"]))), e[":state"])
+for e in K[":ref->state"]:
+    chk(":ref->state", hexstate(ref_state(e[":ref"])), e[":state"])
+for e in K[":state->ref"]:
+    chk(":state->ref", digest(unhex(e[":state"])), e[":ref"])
+for e in K[":state-valid?"]:
+    chk(":state-valid? " + e[":state"][:16], valid_hex(e[":state"]), e[":valid"])
+for e in K[":refused"]:   # every refused input is not a state (or not a ref / bytes)
+    f, args = e[":fn"], e[":args"]
+    if f in (":state-mul", ":state->ref"): chk(f + " refused", all(valid_hex(a) for a in args), False)
+    elif f == ":ref->state": chk(f + " refused", len(args[0]) == 64, False)
+    elif f == ":bytes->state": chk(f + " refused", re.fullmatch(r"([0-9a-f]{2})*", args[0]) is not None, False)
+n = sum(len(v) for v in K.values())
+print("kernel vectors: %d checked, %d mismatching" % (n, kbad))
+sys.exit(0 if ok and bad == 0 and kbad == 0 else 1)

@@ -630,3 +630,28 @@
       (finally
         ((:close! primary))
         (stop!)))))
+
+(deftest a-bad-fuse-state-in-an-item-is-a-bad-entry
+  ;; The peer item reader turns the decoder's :bad-state into the peer
+  ;; protocol's bad-entry (docs/spec/peer-v1.md section 3.3), keeping the
+  ;; decoder's reason in :detail; other errors pass through.
+  (let [st (store/mem-store)
+        m (apply v/vector st (map #(v/string st (str "line " % " the quick brown fox")) (range 300)))
+        h (v/hash m)
+        order (reveal/page-order st h)
+        pick (fn [x] (let [e (store/await (store/s-get st x))] (when (= "ft/digit" (first e)) [x e])))
+        [hh entry] (some pick order)
+        item (bin/encode-item {:enc :node :hash hh :entry entry})
+        split-items @#'reveal-client/split-items
+        state (vec (dacite.hash/state->bytes (:elements-fuse (:measure (second entry)))))
+        bs (byte-array item)
+        off (first (filter #(= state (mapv (fn [i] (bit-and 0xff (aget bs (+ % i)))) (range 128)))
+                           (range (- (alength bs) 127))))]
+    (is (some? off))
+    (is (= 1 (count (first (split-items bs)))) "the untouched item reads")
+    (aset bs (int off) (unchecked-byte (bit-xor 1 (aget bs (int off)))))
+    (let [e (try (split-items bs) nil (catch clojure.lang.ExceptionInfo e e))]
+      (is (some? e))
+      (is (= :bad-entry (:reason (ex-data e))))
+      (is (= :bad-state (:detail (ex-data e))))
+      (is (= :bad-state (:reason (ex-data (ex-cause e))))))))

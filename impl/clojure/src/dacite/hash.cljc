@@ -4,8 +4,8 @@
    Two kinds of value live here:
 
    - A **state** is a fuse accumulator: a 2x2 matrix over F_p with determinant
-     1 (the group SL(2, F_p), p a fixed 127-bit prime), held as `[a b c d]` of
-     host bignums. It is 64 bytes on the wire. Fusing is matrix multiplication.
+     1 (the group SL(2, F_p), p a fixed 256-bit prime), held as `[a b c d]` of
+     host bignums. It is 128 bytes on the wire. Fusing is matrix multiplication.
      Measures (`:elements-fuse`) keep full states.
    - A **ref** (a value hash, the key of a node in a store) is a 32-byte
      *digest* of a state, `[w0 w1 w2 w3]` as four 64-bit words (native longs
@@ -24,14 +24,17 @@
    - byte->state: precomputed table mapping each byte (0-255) to a generator
      in SL(2, F_p), shipped as data in dacite.sl2-table (no runtime crypto)
    - fuse: the group operation; fuse-bytes / fuse-str: hash any byte sequence
-   - state->ref: the 32-byte digest; ref->state: expand a ref into a state"
+   - state->ref: the 32-byte digest; ref->state: expand a ref into a state
+
+   The arithmetic is replaceable behind five hex-in, hex-out functions, `kernel`
+   at the end of this file (docs/design/fuse-sl2.md, \"The kernel boundary\")."
   (:require [dacite.host :as host]
             [dacite.sl2-table :as sl2-table]))
 
 (def hash-version
   "Which fuse the hashes come from. 1: the 4x4 unitriangular matrix over
    Z/2^64 (a 256-bit hash was the state; nilpotent, issue #14). 2: SL(2, F_p)
-   with a 32-byte digest for refs and a 64-byte state in measures. Persisted
+   with a 32-byte digest for refs and a 128-byte state in measures. Persisted
    stores record it through `dacite.store/store-format`; the wire and hello
    versions are not bumped (draft, no values in the wild)."
   2)
@@ -65,24 +68,52 @@
   host/sl2-valid?)
 
 (def state->bytes
-  "A state to 64 bytes (vector of ints 0..255): a, b, c, d, 16 big-endian bytes each."
+  "A state to 128 bytes (vector of ints 0..255): a, b, c, d, 32 big-endian bytes each."
   host/sl2->bytes)
 
 (def bytes->state
-  "64 bytes to a state vector. Not validated; check with `state-valid?`."
+  "128 bytes to a state vector. Not validated; check with `state-valid?`."
   host/bytes->sl2)
 
+(defn bad-state!
+  "Refuse bytes that claim to be a fuse state but are not in SL(2, F_p): a cell
+   is not below p, or the determinant is not 1. Throws ex-info with the message
+   \"bad fuse state\" and ex-data `{:reason :bad-state ...data}`. A wire decoder
+   throws it for a measure it reads; the peer item reader reports it as
+   `bad-entry` (`:detail :bad-state`, docs/spec/peer-v1.md section 3.3)."
+  [data]
+  (throw (ex-info "bad fuse state: a cell is not below p or the determinant is not 1"
+                  (assoc data :reason :bad-state))))
+
+(defn invalid-state!
+  "The writer's counterpart of `bad-state!`: a program tried to encode a value
+   that is not a state in SL(2, F_p). Throws ex-info with
+   `:reason :invalid-state` and the offending state in `:state`."
+  [data]
+  (throw (ex-info "cannot encode a fuse state that is not in SL(2, F_p)"
+                  (assoc data :reason :invalid-state))))
+
 (defn state->hex
-  "A state to a 128-char lowercase hex string."
+  "A state to a 256-char lowercase hex string."
   [s]
   (apply str (map host/byte->hex (state->bytes s))))
 
-(defn hex->state
-  "A 128-char hex string to a state vector (not validated)."
+(defn- hex-bytes!
+  "Lowercase-or-uppercase hex of whole bytes to a vector of ints, or `bad-state!`."
   [hex]
-  (bytes->state (mapv (fn [pair] #?(:clj (Integer/parseInt (apply str pair) 16)
-                                    :cljs (js/parseInt (apply str pair) 16)))
-                      (partition 2 hex))))
+  (when-not (and (string? hex) (even? (count hex)) (re-matches #"[0-9a-fA-F]*" hex))
+    (bad-state! {:hex hex}))
+  (mapv (fn [pair] #?(:clj (Integer/parseInt (apply str pair) 16)
+                      :cljs (js/parseInt (apply str pair) 16)))
+        (partition 2 hex)))
+
+(defn hex->state
+  "A 256-char hex string to a state vector (not validated by value; the
+   length is checked)."
+  [hex]
+  (when-not (= (* 2 host/sl2-state-bytes) (count hex))
+    (bad-state! {:hex-length (count hex)}))
+  (bytes->state (hex-bytes! hex)))
 
 ;; =============================================================================
 ;; Fuse (the group operation)
@@ -94,7 +125,7 @@
 
    There is no low-entropy guard: states are group elements, and a repeated
    value A^n returns to the identity only when n is a multiple of A's order,
-   which is above 2^119 for every generator and (all but 2^-120 of) all
+   which is above 2^252 for every generator and (all but 2^-250 of) all
    products of them."
   host/sl2-mul)
 
@@ -147,9 +178,9 @@
 (def state->ref
   "The 32-byte digest of a state, as a ref: four 64-bit words.
 
-   Pack the four 127-bit cells into N = a + b 2^127 + c 2^254 + d 2^381 and
-   fold: (N mod 2^256) xor (N >> 252). A pure function of the state, and the
-   only way a value hash is made (docs/design/fuse-sl2.md)."
+   digest = a xor rotl64(b) xor rotl128(c) xor rotl192(d), each cell read as a
+   256-bit integer and rotated left by whole 64-bit words. A pure function of
+   the state, and the only way a value hash is made (docs/design/fuse-sl2.md)."
   host/sl2-digest-words)
 
 (def ^:private ref-state-cache-limit
@@ -181,3 +212,60 @@
   "Fuse a sequence of refs left-to-right (each through `ref->state`)."
   [refs]
   (reduce (fn [acc r] (fuse acc (ref->state r))) identity-state refs))
+
+;; =============================================================================
+;; The kernel boundary
+;; =============================================================================
+
+(defn- valid-state-of-hex!
+  [hex]
+  (let [s (hex->state hex)]
+    (when-not (state-valid? s) (bad-state! {}))
+    s))
+
+(def kernel
+  "THE FUSE KERNEL: the whole of what a different implementation (a WASM
+   module, a native library) must provide to replace the arithmetic here. It is
+   five pure functions over **hex strings**, so nothing about the host's bignum
+   or its state representation crosses the boundary:
+
+   | key             | in                      | out                    |
+   |-----------------|-------------------------|------------------------|
+   | `:state-mul`    | two states (256 hex)    | their product (256 hex)|
+   | `:bytes->state` | any bytes (hex, any len)| fuse of their generators (256 hex) |
+   | `:ref->state`   | a ref (64 hex)          | `:bytes->state` of its 32 bytes (256 hex) |
+   | `:state->ref`   | a state (256 hex)       | its digest (64 hex)    |
+   | `:state-valid?` | a hex string            | true iff it is 256 hex of four canonical cells (< p) with determinant 1 |
+
+   A state is a, b, c, d as 32-byte big-endian cells (docs/design/fuse-sl2.md);
+   a product is canonical (every cell in 0..p-1); lowercase hex; the empty
+   `:bytes->state` input gives the identity. The first four throw `bad-state!`
+   on input that is not a state. The generator table, the prime and the digest
+   are fixed by the design doc, not chosen by the implementation.
+
+   The exact boundary is tested, not described:
+   `fixtures/fuse-sl2/vectors.edn` `:kernel` holds known answers for each
+   function; `dacite.kernel-vectors/problems` runs them against any map of these
+   five functions (this one, on the JVM and on nbb, or a WASM wrapper), and
+   `fixtures/fuse-sl2/reference.py` re-checks them in pure Python.
+
+   Everything else in Dacite (`fuse`, `fuse-bytes`, `ref->state`, node hashes,
+   the wire) goes through the functions of this namespace and never touches
+   a cell, so swapping the kernel means swapping `host/sl2-*` and nothing else.
+   This map is the hex-level view of the same functions; the Clojure code calls
+   the in-memory forms for speed."
+  {:state-mul (fn [a b]
+                (state->hex (fuse (valid-state-of-hex! a) (valid-state-of-hex! b))))
+   :bytes->state (fn [hex]
+                   (state->hex (fuse-bytes (hex-bytes! hex))))
+   :ref->state (fn [hex]
+                 (when-not (= 64 (count hex)) (bad-state! {:hex-length (count hex)}))
+                 (hex-bytes! hex)
+                 (state->hex (ref->state (hex->hash hex))))
+   :state->ref (fn [hex]
+                 (hash->hex (state->ref (valid-state-of-hex! hex))))
+   :state-valid? (fn [hex]
+                   (and (string? hex)
+                        (= (* 2 host/sl2-state-bytes) (count hex))
+                        (boolean (re-matches #"[0-9a-f]+" hex))
+                        (state-valid? (hex->state hex))))})

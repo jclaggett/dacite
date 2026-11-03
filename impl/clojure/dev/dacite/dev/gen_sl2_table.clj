@@ -2,26 +2,25 @@
   "JVM-only regeneration tool for the byte -> SL(2, F_p) generator table.
 
    Fuse hashes a byte string as the product of one matrix per byte. The 256
-   matrices are shipped as data in `dacite.sl2-table` (64 hex bytes each), so
+   matrices are shipped as data in `dacite.sl2-table` (128 hex bytes each), so
    the portable core needs no host crypto. SHA-256 is used here only as the
    seed function, expanding the old SHA-256 byte table (`dacite.byte-table`)
    into matrix cells.
 
    Derivation, for each byte value i, counter k = 0, 1, ...:
 
-       stream = SHA-256(\"dacite/fuse-sl2/v1\" ++ k_be4 ++ table[i] ++ j_u8)  for j = 0, 1
-       a = first 16 bytes of block 0, b = last 16 of block 0, c = first 16 of block 1
-           (each masked to 127 bits)
+       block_j = SHA-256(\"dacite/fuse-sl2/v2\" ++ k_be4 ++ table[i] ++ j_u8)   j = 0, 1, 2
+       a, b, c = block_0, block_1, block_2 as 256-bit big-endian integers
        reject unless a, b, c < p and a != 0
        d = (1 + b c) / a mod p                (so ad - bc = 1)
 
    A candidate is also rejected unless its order is huge. With t = a + d:
      - t^2 - 4 = 0 (a unipotent or -unipotent element) is rejected;
      - t^2 - 4 a nonzero square mod p (split torus, order divides p - 1 =
-       2 * 3 * q1): keep it only if g^6 != 1, which forces q1 (124 bits) | order;
-     - otherwise (non-split torus, order divides p + 1 = 2^2 * 19 * q2): keep it
-       only if g^76 != 1, which forces q2 (120 bits) | order.
-   So every accepted generator has order at least 2^119. After the table is
+       2 * 3 * q1): keep it only if g^6 != 1, which forces q1 (253 bits) | order;
+     - otherwise (non-split torus, order divides p + 1 = 2^2 * q2): keep it
+       only if g^4 != 1, which forces q2 (254 bits) | order.
+   So every accepted generator has order at least 2^252. After the table is
    built, no two generators may commute and all 256 must differ.
 
    Run:  clojure -X:dev dacite.dev.gen-sl2-table/generate!"
@@ -30,10 +29,9 @@
   (:import [java.math BigInteger]
            [java.security MessageDigest]))
 
-(def ^BigInteger p (BigInteger. "87078471178590763933909596057503143987"))
-(def ^BigInteger q1 (BigInteger. "14513078529765127322318266009583857331"))
-(def ^BigInteger q2 (BigInteger. "1145769357613036367551442053388199263"))
-(def ^BigInteger mask127 (.subtract (.shiftLeft BigInteger/ONE 127) BigInteger/ONE))
+(def ^BigInteger p (BigInteger. "75509794529310452520362503714625764980405239500720831432010267419866053829067"))
+(def ^BigInteger q1 (BigInteger. "12584965754885075420060417285770960830067539916786805238668377903311008971511"))
+(def ^BigInteger q2 (BigInteger. "18877448632327613130090625928656441245101309875180207858002566854966513457267"))
 
 (defn- mmul [[^BigInteger a ^BigInteger b ^BigInteger c ^BigInteger d]
              [^BigInteger e ^BigInteger f ^BigInteger g ^BigInteger h]]
@@ -63,7 +61,7 @@
                    (range (/ (count hex) 2)))))
 
 (defn- block [^bytes seed k j]
-  (let [label (.getBytes "dacite/fuse-sl2/v1" "UTF-8")
+  (let [label (.getBytes "dacite/fuse-sl2/v2" "UTF-8")
         bb (java.io.ByteArrayOutputStream.)]
     (.write bb label)
     (.write bb (byte-array [(unchecked-byte (bit-shift-right k 24)) (unchecked-byte (bit-shift-right k 16))
@@ -73,7 +71,7 @@
     (sha256 (.toByteArray bb))))
 
 (defn- cell [^bytes bs off]
-  (.and (BigInteger. 1 (java.util.Arrays/copyOfRange bs (int off) (int (+ off 16)))) mask127))
+  (BigInteger. 1 (java.util.Arrays/copyOfRange bs (int off) (int (+ off 32)))))
 
 (defn large-order?
   "The order-size rule above."
@@ -84,11 +82,10 @@
       (.equals disc BigInteger/ZERO) false
       (.equals (.modPow disc (.shiftRight (.subtract p BigInteger/ONE) 1) p) BigInteger/ONE)
       (not= ident (mpow g 6))
-      :else (not= ident (mpow g 76)))))
+      :else (not= ident (mpow g 4)))))
 
 (defn candidate [seed k]
-  (let [b0 (block seed k 0) b1 (block seed k 1)
-        a (cell b0 0) b (cell b0 16) c (cell b1 0)]
+  (let [a (cell (block seed k 0) 0) b (cell (block seed k 1) 0) c (cell (block seed k 2) 0)]
     (when (and (neg? (.compareTo a p)) (neg? (.compareTo b p)) (neg? (.compareTo c p))
                (pos? (.signum a)))
       (let [d (.mod (.multiply (.add BigInteger/ONE (.multiply b c)) (.modInverse a p)) p)
@@ -99,7 +96,7 @@
   (let [seed (hex->bytes (nth byte-table/hex-table i))]
     (loop [k 0] (or (candidate seed k) (recur (inc k))))))
 
-(defn- cell-hex [^BigInteger v] (format "%032x" v))
+(defn- cell-hex [^BigInteger v] (format "%064x" v))
 (defn- state-hex [g] (apply str (map cell-hex g)))
 
 (def ^:private target "src/dacite/sl2_table.cljc")
@@ -126,8 +123,8 @@
     (.append sb "(ns dacite.sl2-table\n")
     (.append sb "  \"Byte -> SL(2, F_p) generator table for the fuse (docs/design/fuse-sl2.md),\n")
     (.append sb "   shipped as portable data. Indexed by unsigned byte value 0..255; each entry\n")
-    (.append sb "   is 128 hex chars: the cells a, b, c, d as 16 big-endian bytes each, with\n")
-    (.append sb "   p = 87078471178590763933909596057503143987.\")\n\n")
+    (.append sb "   is 256 hex chars: the cells a, b, c, d as 32 big-endian bytes each, with\n")
+    (.append sb "   p = 75509794529310452520362503714625764980405239500720831432010267419866053829067.\")\n\n")
     (.append sb "(def hex-table\n  [")
     (doseq [[i g] (map-indexed vector gens)]
       (when (pos? i) (.append sb "\n   "))

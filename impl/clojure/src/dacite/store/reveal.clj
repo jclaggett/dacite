@@ -70,6 +70,20 @@
                 (bit-shift-left (bit-and 0xff (aget bs (+ off 2))) 8)
                 (bit-and 0xff (aget bs (+ off 3))))))
 
+;; A measure whose state is not in SL(2, F_p) is a bad item, not a program error:
+;; the peer item reader reports it as bad-entry (peer-v1 section 3.3), keeping
+;; the decoder's reason in :detail.
+(defn- decode-item
+  [^bytes slice]
+  (try
+    (first (bin/decode-item-stream slice))
+    (catch clojure.lang.ExceptionInfo e
+      (if (= :bad-state (:reason (ex-data e)))
+        (throw (ex-info "bad-entry: an item's measure is not a fuse state in SL(2, F_p)"
+                        (assoc (dissoc (ex-data e) :reason) :reason :bad-entry :detail :bad-state)
+                        e))
+        (throw e)))))
+
 (defn- split-items
   "Complete items in `bs`, and the trailing bytes of a partial item."
   [^bytes bs]
@@ -83,7 +97,7 @@
               [items (Arrays/copyOfRange bs (int offset) n)]
               (let [slice (Arrays/copyOfRange bs (int offset) (int (+ offset total)))]
                 (recur (int (+ offset total))
-                       (conj items (first (bin/decode-item-stream slice))))))))))))
+                       (conj items (decode-item slice)))))))))))
 
 (defn read-items!
   "Call `f` with each complete wire-v1 item as `in` arrives.

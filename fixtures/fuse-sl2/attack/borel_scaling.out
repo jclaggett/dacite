@@ -1,0 +1,10 @@
+p ~ 2^20: ops/sqrt(p) over 7 trials: median 74.8  (min 58.8 max 105.5)
+p ~ 2^24: ops/sqrt(p) over 7 trials: median 62.0  (min 40.4 max 68.5)
+p ~ 2^28: ops/sqrt(p) over 7 trials: median 54.5  (min 35.5 max 74.7)
+p ~ 2^32: ops/sqrt(p) over 7 trials: median 53.3  (min 31.4 max 94.9)
+  s1 = f5f9709d7d8b37beeafe2ef4f5f9709d7d8b37beeafe2ef4f05b74a67defe44a42571e4904b22b2c ...
+  s2 = f05b74a67defe44a42571e49f5f9709d7d8b37beeafe2ef4f05b74a67defe44a42571e4904b22b2c ...
+  product (both) = (23413702845, 30150639109, 0, 4345059421)
+work: ~18243882 group multiplications = 92.1 * sqrt(p)   (the documented subgroup search costs ~1.8*p = 7.06e+10)
+p ~ 2^36: one run, 92.1 * sqrt(p) group multiplications (borel_collision.py 36 1; the collision is checked, see ../small-prime-collision.edn)
+p ~ 2^40: one run, 43 * sqrt(p)

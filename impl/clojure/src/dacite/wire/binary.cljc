@@ -304,27 +304,28 @@
   [(get-u64 buf) (get-u64 buf) (get-u64 buf) (get-u64 buf)])
 
 (def ^:private state-len
-  "A fuse state on the wire: the cells a, b, c, d, 16 big-endian bytes each."
-  64)
+  "A fuse state on the wire: the cells a, b, c, d, 32 big-endian bytes each."
+  128)
 
 (def ^:private measure-len
-  "A measure on the wire: u64 count, u64 size-bytes, 64-byte fuse state."
+  "A measure on the wire: u64 count, u64 size-bytes, 128-byte fuse state."
   (+ 8 8 state-len))
 
 (defn- put-state
   [buf state]
   (when-not (hash/state-valid? state)
-    (throw (ex-info "cannot encode a fuse state that is not in SL(2, F_p)" {:state state})))
+    (hash/invalid-state! {:state state}))
   (put-bytes buf (as-wire-bytes (hash/state->bytes state))))
 
 (defn- get-state
-  "A 64-byte fuse state. The cells must be below p and the determinant 1; a
-   matrix that is not in SL(2, F_p) is no fuse state and is refused."
+  "A 128-byte fuse state. The cells must be below p and the determinant 1; a
+   matrix that is not in SL(2, F_p) is no fuse state and is refused with
+   `hash/bad-state!` (ex-info, `:reason :bad-state`)."
   [buf]
   (let [bs (get-bytes buf state-len)
         state (hash/bytes->state (mapv #(bget bs %) (range state-len)))]
     (when-not (hash/state-valid? state)
-      (throw (ex-info "fuse state is not in SL(2, F_p)" {:reason :bad-state})))
+      (hash/bad-state! {}))
     state))
 
 ;; =============================================================================

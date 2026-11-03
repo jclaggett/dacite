@@ -8,6 +8,7 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [dacite.hash :as hash]
             [dacite.host :as host]
+            [dacite.kernel-vectors :as kernel-vectors]
             [dacite.store :as store]
             [dacite.value :as v]
             [dacite.value.types :as types]
@@ -180,31 +181,32 @@
 ;; =============================================================================
 
 (def ^:private p (biginteger (host/sl2-p)))
-(def ^:private q1 (biginteger "14513078529765127322318266009583857331"))
-(def ^:private q2 (biginteger "1145769357613036367551442053388199263"))
+(def ^:private q1 (biginteger "12584965754885075420060417285770960830067539916786805238668377903311008971511"))
+(def ^:private q2 (biginteger "18877448632327613130090625928656441245101309875180207858002566854966513457267"))
 
 (deftest the-prime-and-its-factorizations
-  (testing "p is the documented 127-bit prime, not of Mersenne or other special form"
-    (is (= (biginteger "87078471178590763933909596057503143987") p))
-    (is (= 127 (.bitLength p)))
-    (is (= "4182b4199657dfb501064dc53ce61833" (.toString p 16)))
+  (testing "p is the documented 256-bit prime, of no special form"
+    (is (= (biginteger "75509794529310452520362503714625764980405239500720831432010267419866053829067") p))
+    (is (= 256 (.bitLength p)))
+    (is (= "a6f107770d78545e22069b32e798d267aa12b38be8c28a84036bd6b4e0ed61cb" (.toString p 16)))
     (is (.isProbablePrime p 100))
-    (is (> (.bitCount (.add p java.math.BigInteger/ONE)) 1)
-        "p + 1 is not a power of two (the Mersenne prime 2^127 - 1 was rejected)"))
-  (testing "p - 1 = 2 * 3 * q1, with q1 a 124-bit prime"
+    (is (> (.bitCount (.add p java.math.BigInteger/ONE)) 1) "p + 1 is not a power of two")
+    (is (> (.bitCount (.subtract (.shiftLeft java.math.BigInteger/ONE 256) p)) 20)
+        "2^256 - p is not small: p is not pseudo-Mersenne (no cheap special reduction)"))
+  (testing "p - 1 = 2 * 3 * q1, with q1 a 253-bit prime"
     (is (= (.subtract p java.math.BigInteger/ONE) (.multiply (biginteger 6) q1)))
-    (is (= 124 (.bitLength q1)))
+    (is (= 253 (.bitLength q1)))
     (is (.isProbablePrime q1 100)))
-  (testing "p + 1 = 2^2 * 19 * q2, with q2 a 120-bit prime"
-    (is (= (.add p java.math.BigInteger/ONE) (.multiply (biginteger 76) q2)))
-    (is (= 120 (.bitLength q2)))
+  (testing "p + 1 = 2^2 * q2, with q2 a 254-bit prime"
+    (is (= (.add p java.math.BigInteger/ONE) (.multiply (biginteger 4) q2)))
+    (is (= 254 (.bitLength q2)))
     (is (.isProbablePrime q2 100))))
 
 (def ^:private I hash/identity-state)
 
 (defn- large-order?
   "Exact order test from the factorizations: order divides p-1 (split) or p+1
-   (non-split); it is a multiple of q1 or q2 when g^6 or g^76 is not 1."
+   (non-split); it is a multiple of q1 or q2 when g^6 or g^4 is not 1."
   [g]
   (let [t (.mod (.add ^java.math.BigInteger (nth g 0) ^java.math.BigInteger (nth g 3)) p)
         disc (.mod (.subtract (.multiply t t) (biginteger 4)) p)]
@@ -212,7 +214,7 @@
       (zero? (.signum disc)) false
       (= java.math.BigInteger/ONE (.modPow disc (.shiftRight (.subtract p java.math.BigInteger/ONE) 1) p))
       (not= I (pow-by-squaring g (biginteger 6)))
-      :else (not= I (pow-by-squaring g (biginteger 76))))))
+      :else (not= I (pow-by-squaring g (biginteger 4))))))
 
 (deftest the-byte-generator-table
   (let [gens hash/byte->state]
@@ -220,7 +222,7 @@
       (is (= 256 (count gens)))
       (is (= 256 (count (set gens))))
       (is (every? hash/state-valid? gens)))
-    (testing "every generator has order >= 2^119 (a multiple of q1 or q2)"
+    (testing "every generator has order >= 2^252 (a multiple of q1 or q2)"
       (is (every? large-order? gens)))
     (testing "no two generators commute (no abelian shortcuts), all 32,640 pairs"
       (is (every? (fn [[i j]]
@@ -230,9 +232,11 @@
 
 (deftest montgomery-reference-agrees-with-the-kernel
   ;; The portable kernel reduces with the host's modulo. A port without
-  ;; bignums reduces with Montgomery (R = 2^128, REDC) or Barrett; this is
-  ;; the reference for those constants (docs/design/fuse-sl2.md).
-  (let [r-bits 128
+  ;; bignums reduces with Montgomery (REDC) or Barrett; this is the reference
+  ;; for those constants (docs/design/fuse-sl2.md). R = 2^264, not 2^256: p is
+  ;; above 2^255, and a sum of two products is below 2 p^2, so with R = 2^256
+  ;; REDC could need two subtractions; R = 2^264 > 2^8 * 2p keeps it to one.
+  (let [r-bits 264
         R (.shiftLeft java.math.BigInteger/ONE r-bits)
         mask (.subtract R java.math.BigInteger/ONE)
         p' (.mod (.negate (.modInverse p R)) R)           ; -p^-1 mod R
@@ -242,14 +246,12 @@
                  (if (>= (.compareTo u p) 0) (.subtract u p) u)))
         to-mont (fn [^java.math.BigInteger x] (.mod (.shiftLeft x r-bits) p))
         from-mont redc
-        mmul (fn [x y] (redc (.multiply ^java.math.BigInteger x ^java.math.BigInteger y)))
         mont-mat (fn [[a b c d] [e f g h]]
-                   (let [mm (fn [x y] (mmul x y))
-                         ad (fn [x y z w] (redc (.add (.multiply x z) (.multiply y w))))]
+                   (let [ad (fn [x y z w] (redc (.add (.multiply x z) (.multiply y w))))]
                      [(ad a b e g) (ad a b f h) (ad c d e g) (ad c d f h)]))]
     (testing "constants"
       (is (= (.mod (.multiply p p') R) (.subtract R java.math.BigInteger/ONE)) "p * p' = -1 mod R")
-      (is (= "4182b4199657dfb501064dc53ce61833" (.toString p 16))))
+      (is (= "a6f107770d78545e22069b32e798d267aa12b38be8c28a84036bd6b4e0ed61cb" (.toString p 16))))
     (testing "Montgomery products equal the kernel's on 200 random pairs"
       (let [rnd (java.util.Random. 14)
             gen (fn [] (hash/fuse-bytes (vec (repeatedly 6 #(.nextInt rnd 256)))))]
@@ -332,7 +334,7 @@
       (let [big (pow-by-squaring a (.shiftLeft java.math.BigInteger/ONE 40))]
         (is (not= I big))
         (is (hash/state-valid? big))
-        (is (= big (nth (iterate #(hash/fuse % %) a) 40)))
+        (is (= (hash/fuse big big) (pow-by-squaring a (.shiftLeft java.math.BigInteger/ONE 41))) "A^(2^40) squared is A^(2^41)")
         (is (not-any? #(= big %) (map #(pow-by-fusing a %) (range 1 200))))))
     (testing "the first 300 powers of A are distinct and none is the identity but A^0"
       (let [ps (take 300 (iterate #(hash/fuse % a) a))]
@@ -340,7 +342,7 @@
         (is (not-any? #(= I %) ps))
         (is (= (pow-by-squaring a (biginteger 299)) (nth ps 298)))))
     (testing "A^(order) is the identity: the order divides p-1, p+1 or p"
-      (let [ord-candidates [(.multiply (biginteger 6) q1) (.multiply (biginteger 76) q2)
+      (let [ord-candidates [(.multiply (biginteger 6) q1) (.multiply (biginteger 4) q2)
                             (.multiply (biginteger 2) p) p]]
         (is (some #(= I (pow-by-squaring a %)) ord-candidates))))))
 
@@ -349,13 +351,45 @@
         t (.mod (.add ^java.math.BigInteger (nth a 0) ^java.math.BigInteger (nth a 3)) p)
         disc (.mod (.subtract (.multiply t t) (biginteger 4)) p)
         split? (= java.math.BigInteger/ONE (.modPow disc (.shiftRight (.subtract p java.math.BigInteger/ONE) 1) p))
-        n (if split? (.multiply (biginteger 6) q1) (.multiply (biginteger 76) q2))]
-    (testing "A^n = identity at n = p-1 (split) or p+1 (non-split), >= 2^120"
-      (is (>= (.bitLength n) 124))
+        n (if split? (.multiply (biginteger 6) q1) (.multiply (biginteger 4) q2))]
+    (testing "A^n = identity at n = p-1 (split) or p+1 (non-split), >= 2^252"
+      (is (>= (.bitLength n) 253))
       (is (= I (pow-by-squaring a n)))
       (is (= a (pow-by-squaring a (.add n java.math.BigInteger/ONE)))))
     (testing "and not at n/q for each prime factor q (the order is the full n up to the small factors)"
       (is (not= I (pow-by-squaring a (.divide n (if split? q1 q2))))))))
+
+;; =============================================================================
+;; Why the prime is 256 bits: a collision in ~sqrt(p) at a small prime
+;; =============================================================================
+
+(deftest small-prime-collision
+  ;; The same hash (a product of 256 random generators of SL(2, F_p) along a
+  ;; byte string) over a 36-bit prime has two different byte strings with one
+  ;; product, found by the Borel-subgroup attack (about 1.8e7 multiplications,
+  ;; 92 * sqrt(p); fixtures/fuse-sl2/attack/). The search is Python and took
+  ;; 15 s; this replays the result in milliseconds. At the shipped 256-bit p
+  ;; the same attack is about 2^134 multiplications.
+  (let [{:keys [p generators s1 s2]} (clojure.edn/read-string
+                                      (slurp "../../fixtures/fuse-sl2/small-prime-collision.edn"))
+        p (bigint p)
+        generators (mapv #(mapv bigint %) generators)
+        hex->bytes (fn [h] (mapv #(Integer/parseInt (subs h (* 2 %) (+ 2 (* 2 %))) 16)
+                                 (range (quot (count h) 2))))
+        mul (fn [[a b c d] [e f g h]]
+              [(mod (+ (* a e) (* b g)) p) (mod (+ (* a f) (* b h)) p)
+               (mod (+ (* c e) (* d g)) p) (mod (+ (* c f) (* d h)) p)])
+        prod (fn [bs] (reduce (fn [m i] (mul m (nth generators i))) [1N 0N 0N 1N] bs))
+        b1 (hex->bytes s1)
+        b2 (hex->bytes s2)]
+    (is (= 36 (.bitLength (biginteger p))) "a 36-bit prime")
+    (is (.isProbablePrime (biginteger p) 50))
+    (is (= 256 (count generators)))
+    (is (every? (fn [[a b c d]] (= 1 (mod (- (* a d) (* b c)) p))) generators) "all in SL(2, F_p)")
+    (is (not= b1 b2) "two different byte strings")
+    (is (= (prod b1) (prod b2)) "with the same product")
+    (is (not= [1 0 0 1] (prod b1)))
+    (is (< 300 (count b1) 500))))
 
 ;; =============================================================================
 ;; Refs: digest and expansion
@@ -374,14 +408,19 @@
 
 (deftest digest-of-identity-and-of-the-hand-computed-fold
   (let [s (fs "hello")
-        n (reduce (fn [acc i] (.or ^java.math.BigInteger acc (.shiftLeft ^java.math.BigInteger (nth s i) (* 127 i))))
-                  java.math.BigInteger/ZERO (range 4))
         mask (.subtract (.shiftLeft java.math.BigInteger/ONE 256) java.math.BigInteger/ONE)
-        d (.and (.xor n (.shiftRight n 252)) mask)
+        rotl (fn [^java.math.BigInteger n r]
+               (.and (.or (.shiftLeft n r) (.shiftRight n (- 256 r))) mask))
+        d (reduce (fn [^java.math.BigInteger acc i] (.xor acc (rotl (nth s i) (* 64 i))))
+                  java.math.BigInteger/ZERO (range 4))
         words (mapv #(.longValue (.shiftRight d %)) [192 128 64 0])]
     (is (= words (hash/state->ref s)))
-    (is (= [0 2 0 1] (hash/state->ref hash/identity-state))
-        "the identity: N = 1 + 2^381, digest = 1 xor 2^129")))
+    (is (= [1 0 0 1] (hash/state->ref hash/identity-state))
+        "the identity: a = 1, d = 1 rotated left by 192 bits: 1 xor 2^192, words [1 0 0 1]")
+    (testing "cells are not interchangeable: a transposed state has another digest"
+      (let [[a b c d] s]
+        (is (not= (hash/state->ref s) (hash/state->ref [a c b d])))
+        (is (not= (hash/state->ref s) (hash/state->ref [d b c a])))))))
 
 (deftest digest-bits-are-uniform
   (let [rnd (java.util.Random. 5)
@@ -400,12 +439,12 @@
 (deftest state-bytes-and-hex-round-trip
   (doseq [s (concat [hash/identity-state] (map fs ["a" "hello" "abba"]))]
     (let [bs (hash/state->bytes s)]
-      (is (= 64 (count bs)))
+      (is (= 128 (count bs)))
       (is (every? #(<= 0 % 255) bs))
       (is (= s (hash/bytes->state bs)))
       (is (= s (hash/hex->state (hash/state->hex s))))
-      (is (= 128 (count (hash/state->hex s))))))
-  (is (= (concat (repeat 15 0) [1] (repeat 32 0) (repeat 15 0) [1])
+      (is (= 256 (count (hash/state->hex s))))))
+  (is (= (concat (repeat 31 0) [1] (repeat 64 0) (repeat 31 0) [1])
          (hash/state->bytes hash/identity-state))))
 
 (deftest invalid-states-are-refused
@@ -428,8 +467,23 @@
 (defn fixture-vectors []
   (clojure.edn/read-string (slurp "../../fixtures/fuse-sl2/vectors.edn")))
 
+(deftest the-kernel-boundary-agrees-with-the-known-answers
+  ;; exactly the functions a WASM or native implementation would replace
+  (let [vs (:kernel (fixture-vectors))]
+    (is (= #{:state-mul :bytes->state :ref->state :state->ref :state-valid? :refused} (set (keys vs))))
+    (is (every? seq (vals vs)))
+    (is (= [] (kernel-vectors/problems hash/kernel vs)))
+    (testing "the checker does fail on a wrong kernel"
+      (is (seq (kernel-vectors/problems (assoc hash/kernel :state-mul (fn [a _] a)) vs)))
+      (is (seq (kernel-vectors/problems (assoc hash/kernel :state-valid? (constantly true)) vs)))
+      (is (seq (kernel-vectors/problems (assoc hash/kernel :state->ref (fn [s] (subs s 0 64))) vs))))
+    (testing "a refused input throws bad-state"
+      (is (= :bad-state (try ((:state-mul hash/kernel) (apply str (repeat 256 "0")) (apply str (repeat 256 "0")))
+                             (catch clojure.lang.ExceptionInfo e (:reason (ex-data e)))))))))
+
 (deftest fixture-vectors-match
-  (let [{:keys [fuse-str ref->state scalars table-sample]} (fixture-vectors)]
+  (let [{:keys [p fuse-str ref->state scalars table-sample]} (fixture-vectors)]
+    (is (= (str (host/sl2-p)) p) "the vectors are for this prime")
     (testing "fuse-str: state hex and ref hex"
       (doseq [{:keys [input state ref]} fuse-str]
         (is (= state (hash/state->hex (hash/fuse-str input))) input)

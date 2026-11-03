@@ -9,12 +9,12 @@
 
    Binary format overview:
    - Scalar:     0x00 + u8(len) + raw-bytes
-   - Seq node:   0x01 + u8(subtype) + measure(80B) + u8(n) + hash[n]
-   - Map node:   0x02 + u8(subtype) + measure(80B) + type-specific fields
+   - Seq node:   0x01 + u8(subtype) + measure(144B) + u8(n) + hash[n]
+   - Map node:   0x02 + u8(subtype) + measure(144B) + type-specific fields
    - Collection: 0x03 + u8(subtype) + hash(root,32B) + u64(count) + u64(size-bytes)
 
-   Measures are fixed 80 bytes: u64(count) + u64(size-bytes) + fuse state (64B:
-   the SL(2, F_p) cells a, b, c, d, 16 bytes each).
+   Measures are fixed 144 bytes: u64(count) + u64(size-bytes) + fuse state (128B:
+   the SL(2, F_p) cells a, b, c, d, 32 bytes each).
    Hashes are 32 bytes (4 × i64, big-endian). All integers big-endian."
   (:require [dacite.hash :as hash]
             [dacite.value.types :as types]
@@ -50,10 +50,12 @@
   (.putLong buf (long d)))
 
 (def ^:const measure-len
-  "A measure: u64 count, u64 size-bytes, 64-byte fuse state."
-  80)
+  "A measure: u64 count, u64 size-bytes, 128-byte fuse state."
+  144)
 
 (defn- write-measure [^ByteBuffer buf {:keys [count size-bytes elements-fuse]}]
+  (when-not (hash/state-valid? elements-fuse)
+    (hash/invalid-state! {:state elements-fuse}))
   (write-u64 buf count)
   (write-u64 buf size-bytes)
   (.put buf (byte-array (map unchecked-byte (hash/state->bytes elements-fuse)))))
@@ -77,11 +79,11 @@
 (defn- read-measure [^ByteBuffer buf]
   (let [cnt (read-u64 buf)
         sz (read-u64 buf)
-        bs (byte-array 64)
+        bs (byte-array 128)
         _ (.get buf bs)
         state (hash/bytes->state (mapv #(Byte/toUnsignedInt %) bs))]
     (when-not (hash/state-valid? state)
-      (throw (ex-info "fuse state is not in SL(2, F_p)" {:reason :bad-state})))
+      (hash/bad-state! {}))
     {:count cnt :size-bytes sz :elements-fuse state}))
 
 (defn- read-hashes [^ByteBuffer buf n]

@@ -362,21 +362,23 @@ What each kind of item is checked against:
 | collection header (`string`, `blob`, `vector`, `map`, `set`) | **Accepted and stored on arrival; checked when its root arrives.** See below. |
 
 **The hash (hash version 2, issue #14).** A *state* is a 2x2 matrix over F_p with
-determinant 1 (p = 87078471178590763933909596057503143987, 64 bytes: four 16-byte
-big-endian cells); *fuse* is matrix multiplication; a *ref* is the 32-byte
-*digest* of a state (`(N mod 2^256) xor (N >> 252)` with N = a + b 2^127 + c 2^254 +
-d 2^381). A byte string is the product of 256 fixed generator matrices, one per
+determinant 1 (p = 75509794529310452520362503714625764980405239500720831432010267419866053829067,
+a 256-bit prime; 128 bytes: four 32-byte big-endian cells); *fuse* is matrix multiplication; a *ref* is the 32-byte
+*digest* of a state: each cell as a 256-bit integer, rotated left by 0, 64, 128
+and 192 bits for a, b, c, d, and the four xored (the identity digests to `[1 0 0 1]`). A byte string is the product of 256 fixed generator matrices, one per
 byte; a ref enters a fuse as `ref->state`, the product of the generators of its 32
 bytes. `value_hash = digest(fuse(type_state, data_state))`, where a scalar's data
 state is the fuse of its bytes and a collection's is its `elements-fuse`, the
 product of its elements' `ref->state` in order. Every state a measure carries is
-checked by the receiver: four cells below p and determinant 1, else `bad-entry`
-(`:bad-state`). The prime, the table, the digest and the reasons are in
+checked by the receiver: four cells below p and determinant 1, else the item is
+bad. The wire decoder (`wire/binary`, JVM and nbb) throws an ex-info with
+`:reason :bad-state`; the JVM peer item reader (`store/reveal.clj`) maps that to
+`bad-entry` with `:detail :bad-state`, and any other receiver must do the same. The prime, the table, the digest and the reasons are in
 `docs/design/fuse-sl2.md`; the known answers every host must reproduce are
 `fixtures/fuse-sl2/vectors.edn`. A value hash under version 1 (the old unitriangular
 fuse) is never equal to one under version 2: the store format tag (wire-v1,
 "Persisted stores") keeps the two apart on disk. The wire `version` and the
-`hello` versions are **not** bumped: the format changed (a measure is 80 bytes, was
+`hello` versions are **not** bumped: the format changed (a measure is 144 bytes, was
 48), but the wire is a draft and no values are in the wild (as for #12). They must
 be bumped by the first release that has users.
 
@@ -639,10 +641,10 @@ The whole frame of fixture `get-default`, by hand (`0x0d` is `u256`, then its
 ```hex get-default
 02 01 00000005                 ; get, FIN, stream 5
 21 00000002                    ; map, 2 pairs
-10 00000004 68617368           ; "hash"
-0d 0000000000000001 0000000000000002 0000000000000003 00000000000000aa
 10 00000006 706f6c696379       ; "policy"
 10 00000007 64656661756c74     ; "default"
+10 00000004 68617368           ; "hash"
+0d 0000000000000001 0000000000000002 0000000000000003 00000000000000aa
 ```
 
 Answers: `item-stream` frames, or `error` `unknown-hash` (the responder does not
@@ -847,14 +849,15 @@ These were the three open questions of the S3.3 work. Jonathan has decided them.
 
    *Alternatives considered:*
    - **Child measures in the refs** (hash + count + size-bytes + elements-fuse,
-     +48 bytes per child ref under hash version 1; a state is now 64 bytes, so
-     +80). A branch then verifies from its own bytes like a
+     +48 bytes per child ref under hash version 1; a state is now 128 bytes, so
+     +144). A branch then verifies from its own bytes like a
      leaf page. It changes the bytes of branch pages and HAMT bitmaps (a wire-v1
      entry-format change; no value hash changes). Measured on the reference
      serializer, as a share of the whole value: **+48 B a ref costs 4.5% to
      4.7% for a string, blob or vector of strings, 6.6% for a vector of ints,
      and 51% for a map of 10 000 int keys**, where a bitmap has about 5 refs and
-     each points at a 56-byte entry. Fuse-only (+32 B; +64 B with a full state) is enough for content
+     each points at a 56-byte entry; these shares were measured under version 1 and
+     are not re-measured for the 144-byte measure. Fuse-only (+32 B; +128 B with a full state) is enough for content
      integrity but leaves count and size unauthenticated (3.0% to 4.4%, and 34%
      for the map); count and size alone (+16 B) is not sound (1.5% to 2.2%, and
      17% for the map).
@@ -864,11 +867,14 @@ These were the three open questions of the S3.3 work. Jonathan has decided them.
      tweak. Not planned.
 
    *The fuse is not a cryptographic hash.* It is a homomorphic group hash (a
-   product in SL(2, F_p), p a 127-bit prime). The one attack known to us, a
-   subgroup search, was measured to cost about 1.8 p on 20- to 34-bit primes
-   (extrapolated to ~2^127 to 2^130 for this p); that is one attack, not a proof.
-   Its resistance to an adversary needs its own review before peers are
-   untrusted (docs/design/fuse-sl2.md).
+   product in SL(2, F_p), p a 256-bit prime). The best attack known to us (words in
+   the upper-triangular subgroup, found by a birthday search over the projective
+   line) costs about 60 sqrt(p) multiplications, measured on primes of 20 to 40
+   bits: about 2^134 for this p, and the 32-byte ref is bounded by 2^128 in any
+   case. That is the margin of one attack, not a proof. An earlier estimate of
+   about p (1.8 p) for a different attack was wrong. Its resistance to an
+   adversary needs an outside cryptographic review before peers are untrusted
+   (docs/design/fuse-sl2.md, docs/roadmap.md).
 2. **Collection headers (Q2): header first, no new field, checked when the root
    arrives.** See 3.3. The review's alternative, an `elements-fuse` field in the
    header, is not taken; neither is the pages-before-header order of the first

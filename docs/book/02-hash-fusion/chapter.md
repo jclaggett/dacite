@@ -10,7 +10,7 @@ This chapter defines how those hashes are formed.
 Everything in Dacite's composite structures is built on a single
 operation: **fuse**. It combines two *states* into a new state by
 multiplying 2×2 matrices over a prime field. No SHA-256 at runtime, no hash
-function calls in the critical path: eight multiplications of 127-bit
+function calls in the critical path: eight multiplications of 256-bit
 numbers and four reductions.
 
 The idea originates from an HP Labs white paper on using matrix
@@ -25,7 +25,7 @@ was a 4×4 unitriangular matrix over 64-bit cells. Its group is nilpotent,
 which made collisions come in families (issue #14: for any `a`, `b`,
 `x`, `y`, `z`, the sequences `x a b y b a z` and `x b a y a b z` fused to
 the same hash). The fuse is now a product in **SL(2, F_p)**, the 2×2
-matrices with determinant 1 over the field of a fixed 127-bit prime. The
+matrices with determinant 1 over the field of a fixed 256-bit prime. The
 design, the prime and the tradeoffs are in
 [docs/design/fuse-sl2.md](../../design/fuse-sl2.md); this chapter is the
 model.
@@ -43,10 +43,11 @@ Two kinds of value appear in this chapter:
   (the group SL(2, F_p)), where
 
   ```
-  p = 87078471178590763933909596057503143987        (127 bits)
+  p = 75509794529310452520362503714625764980405239500720831432010267419866053829067
+      (256 bits)
   ```
 
-  A state is 64 bytes: four cells of 16 big-endian bytes. Fuse works on
+  A state is 128 bytes: four cells of 32 big-endian bytes. Fuse works on
   states, and a collection's measure keeps one in full.
 - A **ref** (a *hash*, the key a store files a node under) is the 32-byte
   **digest** of a state, four 64-bit words in big-endian word order:
@@ -58,11 +59,13 @@ Two kinds of value appear in this chapter:
   Stores, the wire and the HAMT all handle refs, so they are 256 bits, as
   before. Word `w0` is used first for HAMT navigation.
 
-The digest packs the four cells as one integer
-`N = a + b·2^127 + c·2^254 + d·2^381` and folds it:
-`digest = (N mod 2^256) xor (N >> 252)`. Every digest bit then depends on
-at least one input bit that is uniform over F_p. A digest is a pure
-function of a state, and a value's ref is made only this way.
+The digest reads each cell as a 256-bit integer, rotates a, b, c and d left
+by 0, 64, 128 and 192 bits, and xors the four:
+`digest = a xor rotl64(b) xor rotl128(c) xor rotl192(d)`. Each digest word
+takes one word from each cell, at a different position every time, so the
+cells are not interchangeable (only the top word of a cell is skewed, since p
+is below 2^256). A digest is a pure function of a state, and a value's ref is
+made only this way. It is a fold, not a random oracle.
 
 ## 2.2 The Fuse Operation
 
@@ -94,7 +97,7 @@ These properties are not incidental — the entire system depends on them:
   `fuse(a, I) = fuse(I, a) = a`. Empty sequences hash to the identity.
 - **No short cycles** — repeating one element, `a^n`, returns to the
   identity only when `n` is a multiple of the order of `a`, and every
-  generator Dacite uses has order at least 2^119 (§2.7).
+  generator Dacite uses has order at least 2^252 (§2.7).
 - **Fast enough** — no hash function calls, just integer arithmetic. This
   matters when every node in a tree computes a fuse on construction.
 
@@ -216,7 +219,7 @@ byte_state: byte → State    (256 entries)
 
 The table is derived from SHA-256 once, at build time, by a tool that
 keeps only matrices of large order (§2.7), and is shipped as data
-(`dacite.sl2-table`, 64 bytes a row). SHA-256 is never used at runtime. An
+(`dacite.sl2-table`, 128 bytes a row). SHA-256 is never used at runtime. An
 independent Python script (`fixtures/fuse-sl2/reference.py`) re-derives the
 same table from the seeds.
 
@@ -265,7 +268,7 @@ table. The JVM test and the nbb test both check them.
 The old fuse rejected states whose low 32 bits were all zero, to catch a
 repeated value before its cycle wrapped. In SL(2, F_p) there is nothing to
 catch: a run of one element wraps only at a multiple of its order, which is
-above 2^119 for every generator and for all but a negligible fraction of
+above 2^252 for every generator and for all but a negligible fraction of
 products of them. Fuse is an unconditional matrix product.
 
 ## 2.7 Why SL(2, F_p)
@@ -283,15 +286,15 @@ p + 1). The prime is chosen so that both of those numbers have a very large
 prime factor:
 
 ```
-p − 1 = 2 · 3 · 14513078529765127322318266009583857331      (124-bit prime)
-p + 1 = 2² · 19 · 1145769357613036367551442053388199263     (120-bit prime)
+p − 1 = 2 · 3 · 12584965754885075420060417285770960830067539916786805238668377903311008971511   (253-bit prime)
+p + 1 = 2² · 18877448632327613130090625928656441245101309875180207858002566854966513457267       (254-bit prime)
 ```
 
-A generator is accepted only if `g^6 ≠ I` (split) or `g^76 ≠ I` (non-split),
+A generator is accepted only if `g^6 ≠ I` (split) or `g^4 ≠ I` (non-split),
 which forces the large factor into its order: every one of the 256
-generators has order at least 2^119. Repeating one value, the worst case
+generators has order at least 2^252. Repeating one value, the worst case
 for a hash of this kind, therefore cannot reach a cycle: a run of `n` copies
-of an element has a state of its own for every `n` below 2^119. The test
+of an element has a state of its own for every `n` below 2^252. The test
 suite squares an element 40 times (a run of 2^40) and compares it with the
 identity and with every shorter run.
 
@@ -300,20 +303,27 @@ commands.
 
 ### What it does not give
 
-The fuse is a homomorphic hash, not a cryptographic one. The one attack
-known to us (a subgroup search) costs about 1.8·p on small primes, measured
-from 2^20 to 2^34, which extrapolates to about 2^127 to 2^130 for this
-prime. It is one attack, and it is not a proof. Dacite does not claim
-collision resistance against an adversary who chooses values.
+The fuse is a homomorphic hash, not a cryptographic one. The best attack
+known to us finds collisions among words in the upper-triangular subgroup
+by a birthday search, at about 60·√p multiplications (measured on primes
+from 2^20 to 2^40), which is about 2^134 for this prime; a 32-byte ref is
+bounded by the birthday bound 2^128 anyway. It is one attack, and it is not
+a proof. Dacite does not claim collision resistance against an adversary who
+chooses values, and wants an outside cryptographic review before trusting
+untrusted peers. An earlier draft estimated this attack at about p; that was
+wrong, and it is why the prime has 256 bits. The design note has the table of
+measurements and a 36-bit collision the tests replay.
 
 ### Cost
 
-A fuse is two 127-bit multiplications per cell and a reduction. On the JVM
-it runs at roughly 0.7 to 1.0 million products a second (the old fuse: 2 to
-7 million), and under nbb at 0.6 to 0.7 million (the old fuse: 0.23 million).
-Reduction uses the host's modulus; a Montgomery reduction is no faster on
-these hosts. An element of a sequence costs 31 products (`ref_state`), which
-the implementation memoizes.
+A fuse is eight 256-bit multiplications and four reductions: about 1.7 µs on
+the JVM and 1.9 µs under nbb. What matters is the whole operation: on the
+JVM, building and hashing a 3,000-entry map takes about 3x as long as before
+the change (600 ms against 186 ms), and a 500 KB blob about 20x (a matrix
+product per byte); under nbb the interpreter dominates and the times are
+about the same. The design note has the table. An element of a sequence costs
+31 products (`ref_state`), which the implementation memoizes in a bounded
+cache that is emptied when it is full.
 
 ## 2.8 API Surface
 
@@ -352,7 +362,7 @@ Convenience functions that compose from the primitives:
 - `fuse(inv(a), fuse(a, b)) = b` — left recovery
 - `fuse-bytes(a ++ b) = fuse(fuse-bytes(a), fuse-bytes(b))` — composability
 - `a^n = I` only when `n` is a multiple of the order of `a`, and the order is
-  at least 2^119 for every generator
+  at least 2^252 for every generator
 
 **This layer has zero dependencies** — no I/O, no state, just integer
 arithmetic (a bignum with `mod`) and a lookup table. It is the natural
@@ -363,7 +373,7 @@ starting point for porting Dacite to a new language.
 Hash fusion gives the rest of Dacite three guarantees:
 
 1. **Content identity** — any value, at any scale, reduces to a 256-bit
-   ref (the digest of a 64-byte state). Same content → same hash, always.
+   ref (the digest of a 128-byte state). Same content → same hash, always.
 2. **Tree-shape independence** — associativity means the hash captures
    *what* is stored, not *how* it's organized.
 3. **Decomposability** — the group structure means hashes can be taken

@@ -151,7 +151,7 @@ Node =
 | `0x03` | collection | Public collection header (vector/string/blob/map/set) |
 | other | — | Error |
 
-### Measure (80 bytes)
+### Measure (144 bytes)
 
 Used by `ft` and `hamt` kinds:
 
@@ -159,15 +159,18 @@ Used by `ft` and `hamt` kinds:
 Measure =
     count           u64
     size_bytes      u64
-    elements_fuse   State64
+    elements_fuse   State128
 ```
 
-`State64` is a fuse state: the four cells a, b, c, d of a 2x2 matrix over F_p
-(p = 87078471178590763933909596057503143987), each 16 bytes big-endian, 64 bytes
-in all. It is **not** a `Hash32`: a ref is the 32-byte digest of a state, a measure
+`State128` is a fuse state: the four cells a, b, c, d of a 2x2 matrix over F_p
+(p = 75509794529310452520362503714625764980405239500720831432010267419866053829067,
+a 256-bit prime), each 32 bytes big-endian, 128 bytes in all. It is **not** a `Hash32`: a ref is the 32-byte digest of a state, a measure
 keeps the whole state, because measures are summed by fusing. A receiver checks
 that each cell is below p and that `a*d - b*c = 1 (mod p)`; otherwise the item is
-refused (`:bad-state`, `bad-entry` on the peer protocol). Under the old fuse
+refused: a decoder throws an ex-info with `:reason :bad-state` (message "bad fuse
+state"; `hash/bad-state!`), and the peer item reader reports it as `bad-entry`
+with `:detail :bad-state`. A writer handed an invalid state throws
+`:reason :invalid-state` (a program error, not bad input). Under the old fuse
 (hash version 1) this field was a 32-byte hash and the measure 48 bytes. See
 docs/design/fuse-sl2.md.
 

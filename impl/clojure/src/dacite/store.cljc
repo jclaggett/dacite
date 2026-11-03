@@ -35,7 +35,7 @@
 
    Format 1 was the first tagged format: telescoping HAMT nodes with a `split`.
    Format 2 is the SL(2, F_p) fuse (issue #14): every hash is a 32-byte digest
-   of a 64-byte state, and every node measure holds that state (80 bytes), so
+   of a 128-byte state, and every node measure holds that state (144 bytes), so
    all hashes and node bytes differ from format 1 (`dacite.hash/hash-version`).
    A store written before tags exist has no tag, and is reported as such.
    How each backend keeps the tag: docs/spec/wire-v1.md (Persisted stores)."

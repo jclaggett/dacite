@@ -171,19 +171,29 @@
 ;; =============================================================================
 ;;
 ;; A fuse *state* is a 2x2 matrix [a b c d] over F_p with ad - bc = 1, p the
-;; 127-bit prime below. Cells are host bignums in 0..p-1 (java.math.BigInteger
+;; 256-bit prime below. Cells are host bignums in 0..p-1 (java.math.BigInteger
 ;; on the JVM, BigInt on ClojureScript/nbb), held in a persistent vector.
 ;; Reduction is the host's own modulo: p has no special form (it is chosen
 ;; for the factors of p-1 and p+1, see docs/design/fuse-sl2.md), so a port
-;; without bignums reduces with Montgomery (R = 2^128) or Barrett; both give
+;; without bignums reduces with Montgomery (R = 2^264) or Barrett; both give
 ;; the same canonical residues, and the test suite carries a Montgomery
 ;; reference that is checked against this kernel.
 
 (def sl2-p-decimal
-  "p = 87078471178590763933909596057503143987 = 0x4182b4199657dfb501064dc53ce61833.
-   p - 1 = 2 * 3 * 14513078529765127322318266009583857331 (124-bit prime),
-   p + 1 = 2^2 * 19 * 1145769357613036367551442053388199263 (120-bit prime)."
-  "87078471178590763933909596057503143987")
+  "p = 75509794529310452520362503714625764980405239500720831432010267419866053829067
+     = 0xa6f107770d78545e22069b32e798d267aa12b38be8c28a84036bd6b4e0ed61cb (256 bits).
+   p - 1 = 2 * 3 * q1, q1 = 12584965754885075420060417285770960830067539916786805238668377903311008971511
+   (253-bit prime); p + 1 = 2^2 * q2, q2 = 18877448632327613130090625928656441245101309875180207858002566854966513457267
+   (254-bit prime)."
+  "75509794529310452520362503714625764980405239500720831432010267419866053829067")
+
+(def sl2-cell-bytes
+  "A cell on the wire: 32 big-endian bytes."
+  32)
+
+(def sl2-state-bytes
+  "A state on the wire: four cells, 128 bytes."
+  (* 4 sl2-cell-bytes))
 
 (def ^:private SL2-P
   #?(:clj (java.math.BigInteger. ^String sl2-p-decimal)
@@ -265,7 +275,8 @@
                (= ONE (mod (- (* (nth x 0) (nth x 3)) (* (nth x 1) (nth x 2))) SL2-P))))))
 
 (defn sl2->bytes
-  "A state to 64 big-endian bytes: cells a, b, c, d, 16 bytes each."
+  "A state to 128 big-endian bytes: cells a, b, c, d, 32 bytes each. A cell
+   must be below 2^256 (a valid state's is below p)."
   [x]
   #?(:clj
      (into []
@@ -273,50 +284,55 @@
                      (let [^bytes bs (.toByteArray (bi v))
                            n (alength bs)
                            ;; toByteArray is signed and as short as it can be
-                           lo (max 0 (- n 16))]
-                       (concat (repeat (max 0 (- 16 n)) 0)
+                           lo (max 0 (- n sl2-cell-bytes))]
+                       (when (some #(not (zero? (aget bs %))) (range lo))
+                         (throw (ex-info "fuse cell does not fit 32 bytes" {:reason :bad-state})))
+                       (concat (repeat (max 0 (- sl2-cell-bytes n)) 0)
                                (map #(bit-and 0xFF (int (aget bs %))) (range lo n))))))
            x)
      :cljs
      (into []
            (mapcat (fn [v]
                      (map (fn [i]
-                            (js/Number (bit-and (bit-shift-right v (js/BigInt (* 8 (- 15 i))))
+                            (js/Number (bit-and (bit-shift-right v (js/BigInt (* 8 (- (dec sl2-cell-bytes) i))))
                                                 BYTE-MASK)))
-                          (range 16))))
+                          (range sl2-cell-bytes))))
            x)))
 
 (defn bytes->sl2
-  "64 big-endian bytes to four cells. Not validated: see `sl2-valid?`."
+  "128 big-endian bytes to four cells. Not validated: see `sl2-valid?`."
   [bs]
   (mapv (fn [cell]
           #?(:clj (java.math.BigInteger. 1 (byte-array (map unchecked-byte cell)))
              :cljs (reduce (fn [acc b] (+ (* acc (js/BigInt 256)) (js/BigInt b))) ZERO cell)))
-        (partition 16 bs)))
+        (partition sl2-cell-bytes bs)))
 
 (defn sl2-digest-words
   "The 32-byte digest of a state as four 64-bit words (the form of a ref).
 
-   Pack the cells as one 508-bit integer N = a + b*2^127 + c*2^254 + d*2^381
-   and fold: digest = (N mod 2^256) xor (N >> 252). Every digest bit has at
-   least one input bit that is uniform over F_p (the top bit of each 127-bit
-   cell is almost always zero, and no two of those positions are 252 apart),
-   so the digest is usable for HAMT navigation."
+   digest = a xor rotl64(b) xor rotl128(c) xor rotl192(d), where each cell is
+   read as a 256-bit integer and rotl-k rotates it left by k bits (a whole
+   number of 64-bit words). Every digest word takes exactly one word from each
+   cell, each from a different position, so a cell is not interchangeable with
+   another, and each digest bit has at least two input bits that are uniform
+   over F_p (only the top word of a cell is skewed, by p being below 2^256)."
   [x]
   #?(:clj
-     (let [^java.math.BigInteger n
+     (let [mask (.subtract (.shiftLeft java.math.BigInteger/ONE 256) java.math.BigInteger/ONE)
+           rotl (fn [^java.math.BigInteger n r]
+                  (.and (.or (.shiftLeft n (int r)) (.shiftRight n (int (- 256 r)))) mask))
+           ^java.math.BigInteger dg
            (reduce (fn [^java.math.BigInteger acc i]
-                     (.or acc (.shiftLeft (bi (nth x i)) (int (* 127 i)))))
-                   java.math.BigInteger/ZERO (range 4))
-           mask (.subtract (.shiftLeft java.math.BigInteger/ONE 256) java.math.BigInteger/ONE)
-           ^java.math.BigInteger dg (.and (.xor n (.shiftRight n 252)) mask)]
+                     (.xor acc (rotl (bi (nth x i)) (* 64 i))))
+                   java.math.BigInteger/ZERO (range 4))]
        (mapv (fn [s] (.longValue (.shiftRight dg (int s)))) [192 128 64 0]))
      :cljs
-     (let [n (reduce (fn [acc i]
-                       (bit-or acc (bit-shift-left (nth x i) (js/BigInt (* 127 i)))))
-                     ZERO (range 4))
-           mask (- (bit-shift-left ONE (js/BigInt 256)) ONE)
-           dg (bit-and (bit-xor n (bit-shift-right n (js/BigInt 252))) mask)]
+     (let [mask (- (bit-shift-left ONE (js/BigInt 256)) ONE)
+           rotl (fn [n r]
+                  (bit-and (bit-or (bit-shift-left n (js/BigInt r))
+                                   (bit-shift-right n (js/BigInt (- 256 r))))
+                           mask))
+           dg (reduce (fn [acc i] (bit-xor acc (rotl (nth x i) (* 64 i)))) ZERO (range 4))]
        (mapv (fn [s] (u64 (bit-shift-right dg (js/BigInt s)))) [192 128 64 0]))))
 
 ;; =============================================================================

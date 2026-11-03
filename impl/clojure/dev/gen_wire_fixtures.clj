@@ -256,8 +256,8 @@
                      :desc "{\"title\":\"hamt/bitmap as store node\"}\n")
         (swap! cases conj "chunk-node-hamt-bitmap")
 
-        ;; issue #12: telescoping. Keys 14086 and 24952 share their first three
-        ;; chunks (2, 2, 1) and differ at chunk 3, so their node branches on
+        ;; issue #12: telescoping. Keys 24948 and 25845 share their first three
+        ;; chunks (2, 0, 2) and differ at chunk 3, so their node branches on
         ;; split 3 directly, with no chain of one-child nodes above it. Key 1
         ;; differs from them at chunk 0, so the root splits at 0 and holds the
         ;; entry for key 1 beside that node. The case pins both nodes, with the
@@ -266,7 +266,7 @@
                                 (let [k (types/dacite-hash (scalar/i64-with-store st i))
                                       v (types/dacite-hash (scalar/i64-with-store st (+ i 100)))]
                                   [k k v]))
-                              [1 14086 24952])
+                              [1 24948 25845])
               tel-root (hamt/hamt-from-entries st tel-pairs)
               tel-root-e (store/await (store/s-get st tel-root))
               inner-h (some (fn [c]
