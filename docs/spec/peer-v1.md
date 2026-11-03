@@ -722,11 +722,12 @@ section 11.
 
 - Item verification is JVM-only (`dacite.peer.items`) until M2.2, so the nbb test
   checks framing, packing and item decoding, not entry hashes.
-- The pack chunk budget (`pack/default-budget`, 1024) is a soft target for the HTTP
-  chunk transport and was not changed with the 4 KiB leaf pages: a leaf page no
-  longer fits a 1 KiB chunk as a literal, so the first GET of a long string holds the
-  header and spine and the pages follow. Peer streams are not affected (they use the
-  frame cap). Whether to raise it is an open question of M1.1a.
+- The pack chunk budget is decided (M1.1a review). `pack/default-budget` is 4096, the leaf
+  page size, for the HTTP chunk transport and for peers: a full leaf page is then a literal,
+  so the first GET of a long string carries its first characters, not only its header and
+  spine. Peer streams are bounded by the frame cap, not by this budget. Durable stores
+  (file, LMDB, IndexedDB) keep 1 KiB as `chunk/durable-budget`, a constant of their own,
+  because on disk a 4 KiB literal repeats what its entries share.
 - Fixed in M1.1a: a vector holding a blob and another element did not realize
   ([#8](https://github.com/jclaggett/dacite/issues/8)); and `lit/item-payload-bytes`
   counted a `run` or `repeat` of strings or blobs as 0, so a store could build a leaf

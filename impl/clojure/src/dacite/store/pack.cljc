@@ -22,21 +22,20 @@
 (def default-budget
   "Default soft pack budget in **sent** bytes (wire-v1 for the default GET/POST).
 
-   Chosen by leaf-chunking 2d sweep (`dacite.bench.todo-bw --budget-sweep`):
-   1024 is the smallest budget that collapses the interactive todo suite to
-   minimal requests while still splitting clearly oversized values. See
-   docs/design/leaf-chunking.md §2d / §2e.
+   4 KiB, the size of a leaf page (`lit/page-budget`), and kept at least
+   that size by a test: with a smaller budget a full page is never a
+   literal, so the first GET of a long string or vector carries only its
+   header and spine and the pages follow, one round trip each. Two knobs,
+   not one: this is a soft chunk target, the page budget is a hard cap on
+   a page. (It was 1024, chosen by the leaf-chunking 2d sweep when pages
+   were 1 KiB; the sweep's todo suite gives the same result at every budget
+   from 256 to 4096 now. See docs/design/leaf-chunking.md.)
 
    Include-then-seal: the item that crosses the budget is kept, so a chunk
-   is at most the budget plus one item: a node item (4.2 KB for a full 4 KiB
-   leaf page: 4.1 times this budget) or a literal (up to `default-max-literal`
-   with the cap, else about the budget).
-
-   Smaller than a leaf page (`lit/page-budget`, 4096), so a full page is not
-   a literal here and the first GET of a long string carries its header and
-   spine, not its text. Jonathan decided (M1.1a review) to raise it to the
-   page size, with a test that keeps it there; that is the next PR."
-  1024)
+   is at most the budget plus one item: a node item (about 4.2 KB for a
+   full page) or a literal (up to `default-max-literal` with the cap, else
+   about the budget)."
+  4096)
 
 (def default-max-literal
   "Largest literal **item** (37-byte item header included) in wire-v1 bytes:

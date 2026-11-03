@@ -61,7 +61,7 @@
     (is (= (dec ex/page-size) (:label (last (:items p0)))))
     (is (= ex/page-size (:offset p1)))
     (is (= ex/page-size (count (:items p1))))
-    (is (true? (:done? (ex/child-page page-me 96))))))
+    (is (true? (:done? (ex/child-page page-me (- ex/page-me-count ex/page-size)))))))
 
 (deftest child-page-map-keys-are-values
   (let [r (v/root (ex/open-mem))
@@ -100,7 +100,7 @@
                               (count (or (v/seq page-me) ()))))))]
           (is (pos? (:bytes-recv page-delta)))
           (is (< (:bytes-recv page-delta) (:bytes-recv all-delta))
-              "first page of page-me must not pull as much as seq of all 128")
+              "first page of page-me must not pull as much as seq of all of them")
           (is (<= (:requests page-delta) (:requests all-delta)))))
       (finally
         (stop!)))))

@@ -44,7 +44,7 @@
               :flush flushed})
     (is (= (count (:items packed)) (:items flushed) (:entries inner)))
     (is (= 31 (:entries inner))
-        "encode-reachable at 1024 for the seed catalog")
+        "encode-reachable at the durable 1024 for the seed catalog")
     (is (< (:entries inner) live))
     (is (< live debris))))
 
@@ -179,3 +179,10 @@
       (finally
         (doseq [f (reverse (file-seq dir))]
           (.delete ^java.io.File f))))))
+
+(deftest durable-stores-have-their-own-budget
+  (is (= 1024 chunk/durable-budget))
+  (is (= 4096 pack/default-budget) "HTTP and peers keep the leaf page size")
+  (is (= chunk/durable-budget (chunk/budget (chunk/chunked (store/mem-store)))))
+  (is (= 77 (chunk/budget (chunk/chunked (store/mem-store) {:budget 77})))
+      "an explicit budget still wins"))

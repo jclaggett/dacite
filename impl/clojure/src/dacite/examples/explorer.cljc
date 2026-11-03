@@ -32,7 +32,7 @@
 
 (def page-me-count
   "Gallery vector long enough that the first page is not the whole thing."
-  128)
+  512)
 
 (def public-types
   "Every user-facing type name the gallery must contain."

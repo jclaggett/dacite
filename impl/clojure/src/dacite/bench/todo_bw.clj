@@ -187,12 +187,12 @@
 (defn- fixture-large-string
   []
   (let [st (store/mem-store)
-        s (v/string st (apply str (repeat 3000 \x)))
+        s (v/string st (apply str (repeat 12000 \x)))
         h (types/dacite-hash s)]
-    {:name :string-3000
+    {:name :string-12000
      :store st
      :root h
-     :note "3000-char string (size cue >> small budgets)"}))
+     :note "12000-char string, three 4 KiB leaf pages (size cue >> small budgets)"}))
 
 (defn- fixture-vector-40-strings
   []

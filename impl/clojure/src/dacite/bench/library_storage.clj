@@ -36,7 +36,7 @@
   (:gen-class))
 
 (def budget
-  pack/default-budget)
+  chunk/durable-budget)
 
 (def lmdb-map-size
   "Small enough that data.mdb is not the 1GB default."
