@@ -646,7 +646,9 @@
   ;; The bound lets a literal through on size. An inner HAMT or finger-tree
   ;; node may still have a literal that does not rebuild its own hash (it is
   ;; not the value its entries make). Then the sender sends the node item, as
-  ;; before, and the stream still verifies.
+  ;; before, and the stream still verifies. This is true of finger-tree nodes.
+  ;; Every HAMT node is canonical for its keys (issue #12), so a HAMT node's
+  ;; literal always rebuilds its hash: the map shapes have no such node.
   (let [cap (frame/max-literal-item)
         inner-type? #(re-find #"^(hamt|ft)/" (str (first %)))
         round-trips? (fn [st x] (try (literal-round-trips? st x) (catch Throwable _ false)))
@@ -666,7 +668,9 @@
     (doseq [shape [[:map [13 0]] [:nested 2] [:map [150 40]]]
             :let [{:keys [st root nodes]} (fallbacks shape)]]
       (testing (pr-str shape)
-        (is (seq nodes) "the shape has an inner node whose literal does not round-trip")
+        (if (= :map (first shape))
+          (is (empty? nodes) "a HAMT node's literal always rebuilds its hash")
+          (is (seq nodes) "the shape has an inner node whose literal does not round-trip"))
         (doseq [x nodes
                 :let [item (pack/encode-item st x (store/await (store/s-get st x))
                                              {:max-literal cap :cache (atom {})})]]

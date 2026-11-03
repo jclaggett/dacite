@@ -4,13 +4,19 @@
    Same on-disk layout as dacite.store.nbb/FileStore:
      {base}/{hex[0:2]}/{hex[2:4]}/{hex}.edn
 
+   The store format tag (`store/store-format`) is the file `{base}/FORMAT`:
+   the integer in decimal. It is written when a store is created (an empty or
+   new directory) and checked on every open. A directory with `.edn` nodes and
+   no tag, or another tag, is `:store-format-mismatch`.
+
    Pair with dacite.rooted/file-root-cell at the same base path.
    LMDB lives in dacite.store.jvm — keep this ns free of native deps so
    babashka can load it."
   (:require [dacite.store :as store]
             [dacite.wire :as wire]
             [clojure.java.io :as io]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [clojure.string :as str])
   (:import [java.io File]))
 
 ;; nbb writes 64-bit words as #dacite/u64 "…"; accept them so a store
@@ -50,6 +56,21 @@
   (let [parent (.getParentFile f)]
     (when-not (.exists parent)
       (.mkdirs parent))))
+
+(def ^:private format-file-name "FORMAT")
+
+(defn- check-format!
+  "Tag a new (empty) store directory; check an existing one."
+  [^File dir]
+  (let [tag-file (io/file dir format-file-name)]
+    (if (.exists tag-file)
+      (let [s (str/trim (slurp tag-file))
+            found (try (Long/parseLong s) (catch NumberFormatException _ s))]
+        (store/check-store-format! (.getPath dir) found))
+      (if (some #(and (.isFile ^File %) (.endsWith (.getName ^File %) ".edn"))
+                (file-seq dir))
+        (throw (store/store-format-mismatch (.getPath dir) nil))
+        (spit tag-file (str store/store-format "\n"))))))
 
 (defrecord FileStore [base-dir]
   store/IStore
@@ -105,4 +126,5 @@
   (let [dir (io/file path)]
     (when-not (.exists dir)
       (.mkdirs dir))
+    (check-format! dir)
     (->FileStore dir)))

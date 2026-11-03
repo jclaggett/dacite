@@ -6,6 +6,67 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Fix #12: a telescoping HAMT (peer-v1 wire change).** Keys whose hashes share
+  their first 5-bit chunks made a chain of one-child `hamt/bitmap` nodes holding
+  the same entries; two nodes of a chain with the same chunk had one hash, so a
+  node was its own child. Now no bitmap node has one child, and each stores
+  `split`, the index (0..51) of the hash chunk it branches on: the first chunk
+  at which its keys differ. The shape is canonical: a node is the HAMT of its
+  own key set, whatever the history of `assoc` and `dissoc` and whichever map
+  holds it: the shape is a function of the key set, and equal entries (the same
+  keys with the same values) give byte-identical nodes. `assoc` branches
+  directly where two keys first differ; `dissoc` replaces a node left with one
+  child by that child. Lookup reads chunk `split` at each node and compares the
+  whole key hash at an entry. Two keys with one 256-bit hash are treated as one key (no
+  collision bucket); distinct hashes differ at a chunk 0..51, so the last chunk
+  is a split like any other. (An earlier commit on this branch folded the child's
+  hash into one-child nodes; that is removed.)
+  - **The bug hit ordinary data, not only forged hashes.** On the old code 1,142
+    sequential i64 keys from 89891 gave a map whose `count` was right but whose
+    `get` lost 2 keys and whose `seq` overflowed the stack, and a 4-key set
+    (9422, 19429, 22349, 25338) had a different hash for each insertion order and
+    `get` found none of the 4.
+  - **Value hashes of correct maps do not change.** A map's hash is the fuse of
+    its entries in key-hash order, not of the tree. Checked against main
+    (`d1a0455`) on 20 maps of 1 to 2,000 string and i64 keys: 20 of 20 equal.
+    A map the bug corrupted can change: the 4-key set had one hash per insertion
+    order on main and has one hash now, equal to neither. The 1,142-key map
+    kept its value hash (only its tree was corrupt, its fuse was not).
+  - **Every `hamt/bitmap` node hash changes.** It is now
+    `fuse(node_hash(type, elements_fuse), fuse_bytes(bitmap_be8 ++ [split]))`. In
+    the same 20 maps no bitmap node kept its hash (entries, scalars and value
+    hashes did). A map's root node hash changes, so a stored map's node
+    addresses change. Maps of 500 or more keys have about 0.3 to 0.7% fewer
+    nodes (the removed one-child nodes).
+  - **Wire bytes change: `hamt/bitmap` gains one byte.** The layout is
+    `measure, bitmap u32, split u8, n u8, children Hash32 x n` (was
+    `measure, bitmap u32, n u8, children`); an item with two children is 157
+    bytes, was 156. A receiver checks the hash, `split` in 0..51 and
+    `n >= 2` with `n = popcount(bitmap)` (at split 51, exactly bits 0 and 16),
+    and, for an entry, `key-hash = key-ref`, from the node's own bytes
+    (`bad-hash` or `bad-entry`). The rule that a child's split is greater than
+    its parent's is checked when the tree is walked (`bad-hamt-node`), not when
+    nodes arrive: a node does not know its parent. Every other node and every value hash is as
+    before. An old peer and a new peer reject each other's bitmap nodes;
+    peer-v1 is a draft.
+  - **Persisted stores carry a format tag.** One constant,
+    `dacite.store/store-format` (1), is written when a file, LMDB or IndexedDB store
+    is created and checked when it opens: file `{base}/FORMAT`; LMDB meta key
+    `format`; IndexedDB `meta` key `format` (written in the schema upgrade). A store
+    with nodes and no tag (an older build's), or another number, is refused with
+    `ex-data {:reason :store-format-mismatch :expected :found :where}` instead of
+    failing a node-hash check; rebuild it from its source data (a store the bug
+    corrupted keeps its cyclic nodes). The wire and `hello` versions are not
+    bumped (draft). An older file store's bitmap nodes lack `:split`; an older
+    LMDB or IndexedDB store holds the old byte layout.
+  - Every `hamt/bitmap` literal now round-trips to its own hash, so an inner
+    HAMT node no longer falls back to a node item for that reason.
+  - Tests (store tags: new store tagged, reopen passes, untagged and wrong-version
+    refused, on the JVM and in the idb suite): forged-chunk pairs `[1 1 2]/[1 1 3]` and `[1 2 1 4]/[1 2 1 5]`, the
+    issue's repro, a property over assoc/dissoc histories (same key set, same
+    root bytes and node set; no node ever stored with one child), the last-chunk
+    case, tampered `split`, bitmap and shape, a forged store with splits out of
+    order, and a wire fixture (`chunk-node-hamt-bitmap-telescoped`).
 - **`pack/default-budget` is 4 KiB** (the leaf page size; HTTP and peers), tested
   `(>= default-budget lit/page-budget)`. Durable stores (file, LMDB,
   IndexedDB) keep 1 KiB as `chunk/durable-budget`, a constant of their own.

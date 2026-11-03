@@ -25,6 +25,44 @@
 (def hex->hash hash/hex->hash)
 
 ;; =============================================================================
+;; Persisted-store format tag
+;; =============================================================================
+
+(def store-format
+  "The format of a persisted store (file, LMDB, IndexedDB): one integer, written
+   when a store is created and checked when it opens. Bump it when what a store
+   holds changes shape, e.g. the `hamt/bitmap` node layout of issue #12.
+
+   Format 1 is the first tagged format: telescoping HAMT nodes with a `split`.
+   A store written before tags exist has no tag, and is reported as such.
+   How each backend keeps the tag: docs/spec/wire-v1.md (Persisted stores)."
+  1)
+
+(defn store-format-mismatch
+  "The error for a store whose tag is `found` (nil when it has none) where it
+   lives at `where`. `ex-data` has `:reason :store-format-mismatch`, `:expected`,
+   `:found` and `:where`."
+  [where found]
+  (ex-info (str "store format mismatch: this build reads store format " store-format
+                ", the store at " where " is "
+                (if (nil? found)
+                  "untagged (written before store format tags, or not a Dacite store)"
+                  (str "format " (pr-str found)))
+                ". Rebuild it from its source data.")
+           {:reason :store-format-mismatch
+            :expected store-format
+            :found found
+            :where (str where)}))
+
+(defn check-store-format!
+  "Throw `store-format-mismatch` unless `found` (the tag read from the store at
+   `where`, nil when it has none) is `store-format`."
+  [where found]
+  (when-not (= found store-format)
+    (throw (store-format-mismatch where found)))
+  nil)
+
+;; =============================================================================
 ;; Store protocol
 ;; =============================================================================
 

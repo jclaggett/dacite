@@ -170,6 +170,9 @@
     "id" : "chunk-node-hamt-bitmap",
     "notes" : "chunk-node-hamt-bitmap"
   }, {
+    "id" : "chunk-node-hamt-bitmap-telescoped",
+    "notes" : "chunk-node-hamt-bitmap-telescoped"
+  }, {
     "id" : "chunk-node-hamt-empty",
     "notes" : "chunk-node-hamt-empty"
   }, {

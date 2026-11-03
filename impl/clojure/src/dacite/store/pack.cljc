@@ -300,7 +300,7 @@
 
    Body is the complete ordered leaf content under the node (value literals).
    Materialize rebuilds a spine with the same type+elements_fuse when possible;
-   encode dry-run rejects cases that do not round-trip (e.g. some hamt/bitmap)."
+   encode dry-run rejects cases that do not round-trip (every hamt/bitmap does, since a HAMT node is canonical for its keys)."
   [st h entry]
   (let [t (types/entry-type entry)]
     (cond

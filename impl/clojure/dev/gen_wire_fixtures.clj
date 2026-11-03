@@ -255,6 +255,32 @@
                      [(node-item bitmap-h bitmap-e)]
                      :desc "{\"title\":\"hamt/bitmap as store node\"}\n")
         (swap! cases conj "chunk-node-hamt-bitmap")
+
+        ;; issue #12: telescoping. Keys 9422 and 19429 share their first three
+        ;; chunks (4, 11, 4) and differ at chunk 3, so their node branches on
+        ;; split 3 directly, with no chain of one-child nodes above it. Key 1
+        ;; differs from them at chunk 0, so the root splits at 0 and holds the
+        ;; entry for key 1 beside that node. The case pins both nodes, with the
+        ;; split in the wire bytes and in the hash (`hamt/bitmap-node-hash`).
+        (let [tel-pairs (mapv (fn [i]
+                                (let [k (types/dacite-hash (scalar/i64-with-store st i))
+                                      v (types/dacite-hash (scalar/i64-with-store st (+ i 100)))]
+                                  [k k v]))
+                              [1 9422 19429])
+              tel-root (hamt/hamt-from-entries st tel-pairs)
+              tel-root-e (store/await (store/s-get st tel-root))
+              inner-h (some (fn [c]
+                              (let [e (store/await (store/s-get st c))]
+                                (when (= "hamt/bitmap" (first e)) c)))
+                            (:children (second tel-root-e)))
+              inner-e (store/await (store/s-get st inner-h))]
+          (assert (= 0 (:split (second tel-root-e))))
+          (assert (= 3 (:split (second inner-e))))
+          (write-case! "chunk-node-hamt-bitmap-telescoped"
+                       [(node-item tel-root tel-root-e) (node-item inner-h inner-e)]
+                       :desc "{\"title\":\"hamt/bitmap telescoped: root splits at chunk 0, inner node at chunk 3 (issue 12)\"}\n"
+                       :hash-hex (store/hash->hex tel-root))
+          (swap! cases conj "chunk-node-hamt-bitmap-telescoped"))
         (when-let [form (pack/literal-of st bitmap-h)]
           (write-case! "chunk-literal-hamt-bitmap"
                        [(lit-item bitmap-h form)]

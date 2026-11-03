@@ -202,6 +202,127 @@
                  (idb/close reader)
                  (idb/close writer))))))
 
+;; ---------------------------------------------------------------------------
+;; Store format tag: meta key "format" holds store/store-format
+;; ---------------------------------------------------------------------------
+
+(defn- raw-open
+  "The database `name` through the raw IndexedDB API (version 1, nodes + meta)."
+  [name]
+  (js/Promise.
+   (fn [ok err]
+     (let [req (.open js/indexedDB name 1)]
+       (set! (.-onupgradeneeded req)
+             (fn [_]
+               (let [db (.-result req)]
+                 (.createObjectStore db "nodes")
+                 (.createObjectStore db "meta"))))
+       (set! (.-onsuccess req) (fn [_] (ok (.-result req))))
+       (set! (.-onerror req) (fn [_] (err (.-error req))))))))
+
+(defn- raw-get
+  [db store-name k]
+  (js/Promise.
+   (fn [ok err]
+     (let [req (.get (.objectStore (.transaction db #js [store-name] "readonly") store-name) k)]
+       (set! (.-onsuccess req) (fn [_] (ok (.-result req))))
+       (set! (.-onerror req) (fn [_] (err (.-error req))))))))
+
+(defn- raw-put
+  [db store-name k v]
+  (js/Promise.
+   (fn [ok err]
+     (let [tx (.transaction db #js [store-name] "readwrite")]
+       (.put (.objectStore tx store-name) v k)
+       (set! (.-oncomplete tx) (fn [_] (ok nil)))
+       (set! (.-onerror tx) (fn [_] (err (.-error tx))))))))
+
+(defn- mismatch-of
+  "Promise of the ex-data of the :store-format-mismatch that `drive`ing `f`
+   rejects with. Fails if it resolves, or rejects with anything else."
+  [f]
+  (.then (idb/drive f)
+         (fn [_] (fail! "expected a store format mismatch, got a result" {}))
+         (fn [e]
+           ;; under SCI (nbb) the error may arrive wrapped, with the original as its cause
+           (let [err (or (some #(when (= :store-format-mismatch (:reason (ex-data %))) %)
+                               (take-while some? (iterate ex-cause e)))
+                         e)
+                 d (ex-data err)]
+             (eq! (:reason d) :store-format-mismatch
+                  (str "reason (not wrapped as unavailable): " (ex-message e)))
+             (assoc d :message (ex-message err))))))
+
+(defn- new-store-is-tagged-and-reopen-passes
+  []
+  (let [name (db-name)
+        mem (store/mem-store)
+        h (v/hash (v/i64 mem 3))
+        node (store/await (store/s-get mem h))
+        st (idb/idb-store name)]
+    (-> (idb/drive #(store/await (store/s-put st h node)))
+        (.then (fn [_] (idb/close st) (raw-open name)))
+        (.then (fn [db]
+                 (-> (raw-get db "meta" "format")
+                     (.then (fn [tag]
+                              (eq! tag store/store-format "a new store is tagged")
+                              (.close db))))))
+        (.then (fn [_]
+                 (let [again (idb/idb-store name)]
+                   (-> (idb/drive
+                        (fn []
+                          (eq! (store/await (store/s-get again h)) node
+                               "a reopened store passes and keeps its data")))
+                       (.then (fn [_]
+                                ;; s-reset clears meta too: the tag must come back
+                                (idb/drive #(store/await (store/s-reset again)))))
+                       (.then (fn [_] (idb/close again))))))))))
+
+(defn- untagged-store-is-a-format-mismatch
+  []
+  (let [name (db-name)
+        mem (store/mem-store)
+        h (v/hash (v/i64 mem 4))
+        node (store/await (store/s-get mem h))]
+    (-> (raw-open name)
+        ;; as a store written before tags: a node, no format key
+        (.then (fn [db]
+                 (-> (raw-put db "nodes" (store/hash->hex h) (js/Uint8Array. #js [1 2 3]))
+                     (.then (fn [_] (.close db))))))
+        (.then (fn [_]
+                 (let [st (idb/idb-store name)]
+                   (-> (mismatch-of #(store/await (store/s-get st h)))
+                       (.then (fn [d]
+                                (eq! (:found d) nil "untagged: found nil")
+                                (eq! (:expected d) store/store-format "expected")
+                                (when-not (re-find #"untagged" (:message d))
+                                  (fail! "message says untagged" d))
+                                (idb/close st)))))))
+        (.then (fn [_]
+                 (raw-open (db-name))))   ; an untagged EMPTY database is just a new store
+        (.then (fn [db]
+                 (let [name2 (.-name db)]
+                   (.close db)
+                   (let [st (idb/idb-store name2)]
+                     (-> (idb/drive #(store/await (store/s-put st h node)))
+                         (.then (fn [_] (idb/close st)))))))))))
+
+(defn- wrong-version-store-is-a-format-mismatch
+  []
+  (let [name (db-name)
+        mem (store/mem-store)
+        h (v/hash (v/i64 mem 5))]
+    (-> (raw-open name)
+        (.then (fn [db]
+                 (-> (raw-put db "meta" "format" 7)
+                     (.then (fn [_] (.close db))))))
+        (.then (fn [_]
+                 (let [st (idb/open name)]
+                   (-> (mismatch-of #(store/await (store/s-has? st h)))
+                       (.then (fn [d]
+                                (eq! (:found d) 7 "wrong version: found 7")
+                                (idb/close st))))))))))
+
 (defn -main
   [& _]
   (js/require "fake-indexeddb/auto")
@@ -212,6 +333,9 @@
       (.then batch-merge)
       (.then cache-evicts)
       (.then another-writer-is-visible)
+      (.then new-store-is-tagged-and-reopen-passes)
+      (.then untagged-store-is-a-format-mismatch)
+      (.then wrong-version-store-is-a-format-mismatch)
       (.then (fn [_]
                (println "idb tests passed")))
       (.catch (fn [e]

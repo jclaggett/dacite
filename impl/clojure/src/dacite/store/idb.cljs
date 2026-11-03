@@ -5,6 +5,13 @@
    and `meta` (the root hash). `idb-store` is the content dictionary.
    `open` is a rooted store with the same pack-literal flush as `s/file`.
 
+   Store format tag: `meta` key \"format\" holds `store/store-format` (a number).
+   It is written in the schema upgrade that creates the database (or, for an
+   untagged database with no nodes, on open) and checked on every open of an
+   existing database, before any other operation. No tag with nodes, or
+   another tag, rejects with `:store-format-mismatch` (not wrapped in
+   `:unavailable`). `s-reset` keeps the tag.
+
    IndexedDB completes later. Methods throw `:dacite/suspend` with a
    promise, and `drive` runs the operation again. The in-memory cache
    makes the replay settle. `dacite.store.browser/drive` catches the
@@ -26,6 +33,7 @@
 (def ^:private node-store "nodes")
 (def ^:private meta-store "meta")
 (def ^:private root-key "root")
+(def ^:private format-key "format")
 (def ^:private unset ::unset)
 
 (def ^:private default-cache-limit
@@ -56,10 +64,19 @@
   (ex-info "store unavailable"
            {:reason :unavailable :hash h :cause cause}))
 
+(defn- format-mismatch
+  "The `:store-format-mismatch` error in `e`, or nil. Under SCI (nbb) an error
+   thrown inside a promise callback arrives wrapped, with the original as its
+   cause."
+  [e]
+  (some #(when (= :store-format-mismatch (:reason (ex-data %))) %)
+        [e (ex-cause e)]))
+
 (defn- reject-cause
   [p h]
   (.catch p (fn [e]
-              (throw (fail h e)))))
+              (throw (or (format-mismatch e)
+                         (fail h e))))))
 
 (defn- request-promise
   [req]
@@ -79,20 +96,49 @@
              (err (or (.-error tx) (js/Error. "indexeddb aborted"))))))))
 
 (defn- open-db
+  "Resolves to `[db fresh?]`. A database created by this open is tagged inside
+   the schema upgrade (its versionchange transaction), so it needs no check."
   [name]
   (js/Promise.
    (fn [ok err]
-     (let [req (.open js/indexedDB (str name) 1)]
+     (let [req (.open js/indexedDB (str name) 1)
+           fresh (atom false)]
        (set! (.-onupgradeneeded req)
-             (fn [_]
+             (fn [e]
                (let [db (.-result req)
                      names (.-objectStoreNames db)]
                  (when-not (.contains names node-store)
                    (.createObjectStore db node-store))
                  (when-not (.contains names meta-store)
-                   (.createObjectStore db meta-store)))))
-       (set! (.-onsuccess req) (fn [_] (ok (.-result req))))
+                   (.createObjectStore db meta-store))
+                 (when (zero? (.-oldVersion e))
+                   (reset! fresh true)
+                   (.put (.objectStore (.-transaction req) meta-store)
+                         store/store-format format-key)))))
+       (set! (.-onsuccess req) (fn [_] (ok [(.-result req) @fresh])))
        (set! (.-onerror req) (fn [_] (err (.-error req))))))))
+
+(declare idb-get idb-put)
+
+(defn- idb-count
+  [db store-name]
+  (let [tx (.transaction db #js [store-name] "readonly")]
+    (request-promise (.count (.objectStore tx store-name)))))
+
+(defn- check-format!
+  "Tag a new database (no tag, no nodes); check an existing one. Resolves to
+   `db`, or rejects with `:store-format-mismatch`."
+  [db name]
+  (-> (idb-get db meta-store format-key)
+      (.then (fn [tag]
+               (if (present? tag)
+                 (store/check-store-format! name tag)
+                 (-> (idb-count db node-store)
+                     (.then (fn [n]
+                              (if (pos? n)
+                                (throw (store/store-format-mismatch name nil))
+                                (idb-put db meta-store format-key store/store-format))))))))
+      (.then (fn [_] db))))
 
 (defn- ensure-db
   [st]
@@ -100,6 +146,11 @@
     (js/Promise.resolve db)
     (or @(:opening st)
         (let [p (-> (open-db (:name st))
+                    (.then (fn [[db fresh?]]
+                             (if fresh?
+                               db
+                               (-> (check-format! db (:name st))
+                                   (.catch (fn [e] (.close db) (throw e)))))))
                     (.then (fn [db]
                              (reset! (:db st) db)
                              db)))]
@@ -137,6 +188,7 @@
   (let [tx (.transaction db #js [node-store meta-store] "readwrite")]
     (.clear (.objectStore tx node-store))
     (.clear (.objectStore tx meta-store))
+    (.put (.objectStore tx meta-store) store/store-format format-key)
     (tx-complete tx)))
 
 (defn- idb-all

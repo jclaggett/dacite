@@ -12,6 +12,12 @@
      key   = UTF-8 string (default \"root\")
      value = 32-byte big-endian root hash (same word layout as content keys)
 
+   Store format tag (`store/store-format`): meta DB key \"format\", value the
+   integer in decimal as UTF-8 (\"1\"). Written when the store is created (the
+   content DB is empty and there is no tag), checked on every open. A store with
+   nodes and no tag, or another tag, is `:store-format-mismatch`; the env is
+   closed before the error is thrown.
+
    Filesystem store lives in dacite.store.file (no native deps; works on
    babashka; still EDN on disk). This namespace re-exports file-store for
    backcompat.
@@ -153,6 +159,23 @@
       (.commit txn))
     (store/completed this)))
 
+(defn- check-lmdb-format!
+  "Tag a new (empty, untagged) store; check an existing one."
+  [^Env env ^Dbi db ^Dbi meta-db where]
+  (let [tag (with-open [txn (.txnRead env)]
+              (when-let [buf (.get meta-db txn (string-meta-key "format"))]
+                (let [s (String. ^bytes (bb->bytes buf) "UTF-8")]
+                  (try (Long/parseLong s) (catch NumberFormatException _ s)))))]
+    (if (some? tag)
+      (store/check-store-format! where tag)
+      (if (pos? (with-open [txn (.txnRead env)] (.-entries (.stat db txn))))
+        (throw (store/store-format-mismatch where nil))
+        (with-open [txn (.txnWrite env)]
+          (.put meta-db txn (string-meta-key "format")
+                (bytes->direct-bb (.getBytes (str store/store-format) "UTF-8"))
+                (make-array PutFlags 0))
+          (.commit txn))))))
+
 (defn lmdb-store
   "Create an LMDB-backed content-addressed store with an optional meta db
    for storing root hashes and other metadata.
@@ -180,6 +203,8 @@
                    (.open dir (into-array EnvFlags [])))
            db (.openDbi env db-name (into-array DbiFlags [DbiFlags/MDB_CREATE]))
            meta-db (.openDbi env meta-name (into-array DbiFlags [DbiFlags/MDB_CREATE]))]
+       (try (check-lmdb-format! env db meta-db (.getPath dir))
+            (catch Throwable t (.close env) (throw t)))
        (assoc (->LmdbStore env db) :meta-db meta-db)))))
 
 (defn lmdb-get-meta

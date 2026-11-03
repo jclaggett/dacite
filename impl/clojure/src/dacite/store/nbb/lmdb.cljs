@@ -8,6 +8,10 @@
    Keys are 32-byte big-endian hashes. Values are wire-v1 node payloads
    or pack Layer-1 items (same dual codec as dacite.store.jvm).
 
+   Store format tag: meta DB key "format", the integer in decimal as UTF-8,
+   as in dacite.store.jvm. Written when the content DB is empty and untagged,
+   checked on open (`:store-format-mismatch`).
+
    Requires the npm `lmdb` addon built for LMDB **data format v1**
    (lmdbjava 0.9.x). Prebuilt `lmdb` binaries are format v2 and cannot
    open a JVM store. From the repo root:
@@ -103,6 +107,17 @@
                                :encoding "binary"
                                :keyEncoding "binary"
                                :create true})]
+    (try
+     (let [raw (.get meta (str-buf "format"))
+          s (when raw (.toString raw "utf8"))
+          n (when s (js/parseInt s 10))
+          tag (when s (if (and (not (js/isNaN n)) (= s (str n))) n s))]
+      (cond
+        (some? tag) (store/check-store-format! path tag)
+        (not (.-done (.next (.iterator (.getRange db #js {:keyEncoding "binary" :limit 1})))))
+        (throw (store/store-format-mismatch path nil))
+        :else (.putSync meta (str-buf "format") (str-buf store/store-format))))
+     (catch :default e (.close env) (throw e)))
     (->NbbLmdbStore env db meta)))
 
 (defn lmdb-close

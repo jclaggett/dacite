@@ -158,12 +158,14 @@
   (testing "hamt/bitmap round-trip"
     (let [children [sample-hash-a sample-hash-b]
           entry ["hamt/bitmap" {:bitmap 0x60000000
+                                :split 7
                                 :children children
                                 :measure sample-measure}]
           bs (serial/serialize entry)
           result (serial/deserialize bs)]
       (is (= "hamt/bitmap" (first result)))
       (is (= 0x60000000 (:bitmap (second result))))
+      (is (= 7 (:split (second result))))
       (is (= children (:children (second result))))
       (is (= sample-measure (:measure (second result)))))))
 

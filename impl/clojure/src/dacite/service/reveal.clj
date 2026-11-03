@@ -82,7 +82,7 @@
   "Content hash of a stored node, or nil when a child it needs is absent.
 
    Structural nodes carry `elements-fuse` in their measure. A bitmap node
-   also folds its bitmap, matching `hamt` construction. A collection root
+   also folds its bitmap and split, matching `hamt/bitmap-node-hash`. A collection root
    uses the same elements fuse as the value that wrote it. A scalar uses
    `scalar-value-hash`."
   [store entry]
@@ -93,9 +93,7 @@
       (let [ef (:elements-fuse (:measure data))
             base (types/node-hash type-name ef)]
         (if (= "hamt/bitmap" type-name)
-          (hash/unchecked-fuse
-           base
-           (hash/fuse-bytes (host/int->bytes-be (:bitmap data) 8)))
+          (hamt/bitmap-node-hash ef (:bitmap data) (:split data))
           base))
 
       (#{"string" "blob" "vector" "map" "set"} type-name)

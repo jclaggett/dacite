@@ -358,7 +358,7 @@ What each kind of item is checked against:
 | scalar | Its hash from its data. |
 | leaf page: `ft/digit` or `ft/node` with every leaf inline (no `ref`) | Its hash, from the claimed measure (`node-hash(type, elements-fuse)`); and the claimed measure must equal the one recomputed from the leaves in its body. A leaf page **verifies alone**. |
 | `hamt/entry` | Its hash from the claimed measure, and `elements-fuse = fuse(key-ref, val-ref)`. |
-| branch page: `ft/deep`, `hamt/bitmap`, any page with a `ref` (a `ref` item, or a `run` of `ref`) | Its hash, from its claimed measure (local). **Not** that the measure follows from its children: the page holds their hashes, not their measures. Branch nodes are not bound to their children in v1 (section 11, Q1). |
+| branch page: `ft/deep`, `hamt/bitmap`, any page with a `ref` (a `ref` item, or a `run` of `ref`) | Its hash, from its claimed measure (local). **Not** that the measure follows from its children: the page holds their hashes, not their measures. Branch nodes are not bound to their children in v1 (section 11, Q1). A `hamt/bitmap` is also checked for its shape: a `split` of 0..51, two or more children, one per bit of the bitmap. Its hash covers the bitmap and the split. |
 | collection header (`string`, `blob`, `vector`, `map`, `set`) | **Accepted and stored on arrival; checked when its root arrives.** See below. |
 
 **Header first.** A sender writes items in reveal order: a collection's header
@@ -400,6 +400,68 @@ raw store error.
 tree that stores them (that is what makes equal values share storage whatever
 their chunking). So no check from an item's own bytes can bind a branch node to its
 children in v1: see Q1.
+
+**HAMT shape (issue #12).** A `hamt/bitmap` is the one node whose hash is not
+shape-independent, and its shape is fixed, so a peer can check it. It has two or
+more children (never one) and a `split`: the index, 0..51, of the 5-bit hash chunk
+it branches on. Its hash is
+`fuse(node_hash("hamt/bitmap", elements_fuse), fuse_bytes(bitmap_be8 ++ [split]))`.
+The wire layout is `bitmap u32, split u8, n u8, children Hash32 x n` (wire-v1,
+`HamtBitmap`). The shape is canonical, which means a node is the HAMT of its own
+key set:
+
+- a set of one key is a `hamt/entry`;
+- a set K of two or more keys is a node whose `split` is the first chunk at which
+  the hashes of K do not all agree, with one child for each value of that chunk,
+  in ascending order, each child the node (or entry) for the keys with that value.
+
+So the root of a map is at the longest common chunk prefix of its keys, and a child
+splits at a later chunk than its parent. Two keys with one 256-bit hash are treated
+as one key (the hash is a content hash): there is no collision bucket, and distinct hashes differ
+at a chunk 0..51, so a branch exists at the last chunk (51, which reads one bit) at
+the latest. A lookup compares the whole key hash at an entry.
+
+*Proof sketch that the shape does not depend on history.* Let T(K) be the tree
+above. Induction on the history of `assoc` and `dissoc`; the claim is that every
+operation takes T(K) to T(K') for the new key set K'. Let c be the split of T(K).
+*assoc k.* If k agrees with the keys of K before chunk c, then c is still the first
+chunk where K + k disagree and the groups are the old groups with k in its own
+group (a new entry if that group was empty, else the assoc into that child, which
+is T of the group plus k by induction). If k differs from them at a chunk d < c
+(the first such), K + k first disagree at d, with two groups: K, which agree at d
+because d < c, and {k}. That node is `split d` over T(K) and the entry for k, which
+is what `assoc` builds, without any one-child node above T(K). An entry is the
+same case with K one key. *dissoc k.* Remove k from its group. If the group still
+has keys, the child is T of the smaller group by induction, and there are still two
+or more groups, so c is unchanged. If the group is empty and two or more groups
+remain, they differ at c and agree before it, so c is unchanged and the node loses
+one child. If one group remains, K - k is that group and T(K - k) is its child
+itself: `dissoc` returns that child (an entry, or a node that is already canonical)
+in the parent's place. The base cases are the empty node and an entry. So any
+history that ends with the key set K ends at T(K): the root has the same bytes, and
+so does every node under it, because the shape of each is T of its own key set. The
+*shape* is a function of the key set; the *bytes* of a node also hold its measure
+(count, size-bytes, and the elements-fuse of its entries' key and value refs), so
+they are a function of the entries, the keys with their values. Equal entries give
+byte-identical nodes, in different maps as well; the same keys with another value
+in one entry give the same shape and other bytes below that entry. The value hash does not see any of this: it is the fuse
+of the entries, in the order the tree is walked, which is ascending key hash, and
+that is unchanged.
+
+**On receipt** (from one item's own bytes) a receiver checks a `hamt/bitmap` for its
+hash, its `split` range (0..51), `n >= 2`, `n = popcount(bitmap)` and, at split 51,
+a bitmap of exactly bits 0 and 16 (chunk 51 is one bit, read as 0 or 16); and a
+`hamt/entry` for its hash, its measure and `key-hash = key-ref`. It cannot check
+from one node that the children hold the right keys (the node holds hashes, not
+keys): that is Q1 below.
+
+**On a walk** (not when nodes arrive) the reference reader requires a child's split
+to exceed its parent's, and throws `bad-hamt-node` otherwise. A node does not know
+its parent, so two forged nodes that break the rule each verify alone, and the O(1)
+`count` and the collection header check still succeed; the first `get`, `entries`,
+`assoc` or `dissoc` that meets them throws. This is within the good-actors rule of
+v1 (Q1). Every walk ends in at most 52 nodes, and an entry found outside the path
+its hash routes it by makes `assoc` throw `bad-hamt-node` too.
 
 ## 4. Streams and stream ids
 
@@ -737,11 +799,19 @@ section 11.
 
 These were the three open questions of the S3.3 work. Jonathan has decided them.
 
-1. **Branch nodes are not bound to their children (Q1). v1 assumes good actors and
-   makes no wire or hash change.** An item is verified from its own bytes, but a
-   branch node (`ft/deep`, `hamt/bitmap`, any page with a `ref`) holds its
-   children's hashes, not their measures, and its own hash covers only `(type,
-   elements-fuse)`, not the child hashes. A peer that works to deceive can send a
+1. **Branch nodes are not bound to their children (Q1). v1 assumes good actors.**
+   An item is verified from its own bytes, but a branch node (`ft/deep`,
+   `hamt/bitmap`, any page with a `ref`) holds its children's hashes, not their
+   measures, and its own hash covers only `(type, elements-fuse)` (and, for a
+   `hamt/bitmap`, its bitmap and its split), not the child hashes. The HAMT chain
+   of issue #12 is not fixed by binding children: it is fixed by the telescoping
+   shape of §3.3 (no one-child node, a `split` in the node and its hash), which is
+   a wire change to `hamt/bitmap` nodes and their hashes, accepted while peer-v1
+   is a draft. The wire and `hello` versions are not bumped for it (draft; no values
+   in the wild); persisted stores carry a store format tag instead (wire-v1,
+   "Persisted stores"). Binding the child hashes into a HAMT node was tried first (a
+   one-child node folded its child) and replaced.
+   A peer that works to deceive can send a
    page whose hash is right and whose children are other, valid nodes: each child
    verifies against its own hash, and nothing checks that the parent's measure is
    what the children add up to. The same hole is in today's reveal client (the

@@ -807,9 +807,8 @@
                           ok?))
                       bitmaps)]
     (is (seq bitmaps))
-    ;; At least the full map root bitmap should round-trip; some intermediate
-    ;; bitmaps may not (routing) — encode dry-run keeps those as :node.
-    (is (some true? results) "some bitmaps assured")
+    ;; Every bitmap is canonical for its keys (issue #12), so every one round-trips.
+    (is (every? true? results) "all bitmaps assured")
     (let [encs (mapv (fn [[bh e]]
                        (:encoding (pack/encode-item st bh e)))
                      bitmaps)]

@@ -133,11 +133,12 @@
 (defmethod types/encode-value "hamt/bitmap" [[_ data]]
   (let [children (:children data)
         n (count children)
-        buf (ByteBuffer/allocate (+ 2 48 4 1 (* 32 n)))]
+        buf (ByteBuffer/allocate (+ 2 48 4 1 1 (* 32 n)))]
     (write-u8 buf kind-map)
     (write-u8 buf 2)
     (write-measure buf (:measure data))
     (write-u32 buf (:bitmap data))
+    (write-u8 buf (:split data))
     (write-u8 buf n)
     (doseq [h children]
       (write-hash buf h))
@@ -287,9 +288,11 @@
                       :measure measure}])
 
       2 (let [bitmap (read-u32 buf)
+              split (read-u8 buf)
               n (read-u8 buf)
               children (read-hashes buf n)]
           [type-name {:bitmap bitmap
+                      :split split
                       :children children
                       :measure measure}]))))
 

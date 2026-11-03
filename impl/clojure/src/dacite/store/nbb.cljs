@@ -4,6 +4,10 @@
    Same on-disk layout as dacite.store.jvm/FileStore:
      {base}/{hex[0:2]}/{hex[2:4]}/{hex}.edn
 
+   Store format tag: the file {base}/FORMAT holds `store/store-format` in
+   decimal, as in dacite.store.file. Written when the directory is new or has
+   no nodes, checked on open (`:store-format-mismatch`).
+
    Pair with dacite.rooted/file-root-cell at the same base path for a
    durable rooted store under nbb. Not part of the pure portable core —
    host durability glue, analogous to store.jvm on the JVM.
@@ -140,10 +144,23 @@
       (.unlinkSync fs p))
     (store/completed this)))
 
+(defn- check-format!
+  "Tag a new (no nodes) store directory; check an existing one."
+  [base]
+  (let [tag-path (.join path base "FORMAT")]
+    (if (.existsSync fs tag-path)
+      (let [s (.trim (.readFileSync fs tag-path "utf8"))
+            n (js/parseInt s 10)]
+        (store/check-store-format! base (if (and (not (js/isNaN n)) (= s (str n))) n s)))
+      (if (seq (walk-edn-files base))
+        (throw (store/store-format-mismatch base nil))
+        (.writeFileSync fs tag-path (str store/store-format "\n") "utf8")))))
+
 (defn file-store
   "Create a Node file-backed content-addressed store at path."
   [dir]
   (let [base (str dir)]
     (when-not (.existsSync fs base)
       (.mkdirSync fs base #js {:recursive true}))
+    (check-format! base)
     (->FileStore base)))
