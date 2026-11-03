@@ -597,6 +597,13 @@
                 fits (filter #(<= (long b) (long %)) caps)]
           fault [(when (and form (< (long b) (long size))) :bound-under-size)
                  (when (and (seq fits) (nil? form)) :fits-but-no-literal)
+                 ;; the stored size-bytes never skips a node the bound lets through
+                 (when (some #(and (<= (long b) (long %))
+                                   (when-let [sb (some-> (store/await (store/s-get st x)) types/entry-data
+                                                         (as-> d (when (map? d) (or (:size-bytes d) (get-in d [:measure :size-bytes])))))]
+                                     (> (long sb) (long %))))
+                             caps)
+                   :measure-skips-a-fitting-node)
                  ;; (an inner node of a tree has a literal that may not round-trip:
                  ;; it is not the value its entries make; the sender then
                  ;; sends the node item, as before)
@@ -668,6 +675,23 @@
               rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
                                                           (frame/concat-bytes items))))]
           (is (some? (store/await (store/s-get (:store rx) root))) "and the receiver verifies the value"))))))
+
+(deftest a-node-whose-stored-size-is-over-the-cap-is-not-walked-for-a-bound
+  (let [st (store/mem-store)
+        big (v/hash (v/string st (text 6000 7)))
+        small (v/hash (v/string st (text 600 7)))
+        entry #(store/await (store/s-get st %))
+        walked (atom 0)
+        real pack/literal-bound]
+    (with-redefs [pack/literal-bound (fn [& args] (swap! walked inc) (apply real args))]
+      (is (= :node (:encoding (pack/encode-item st big (entry big) {:max-literal 4000 :cache (atom {})}))))
+      (is (zero? @walked) "the stored size-bytes is over the cap: no walk")
+      (is (= :literal (:encoding (pack/encode-item st small (entry small) {:max-literal 4000 :cache (atom {})}))))
+      (is (= 1 @walked) "under the cap the bound is walked")
+      (testing "no cap: the size cue and the budget decide, no bound"
+        (reset! walked 0)
+        (pack/encode-item st small (entry small) {:budget 4096})
+        (is (zero? @walked))))))
 
 (deftest the-bound-counts-no-compression-and-never-less-than-a-run-costs
   (let [st (store/mem-store)

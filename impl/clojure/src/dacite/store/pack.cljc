@@ -645,13 +645,32 @@
   [st h cache]
   (bound/literal-item-bound st h cache))
 
+(defn- measured-size
+  "The stored `:size-bytes` of the entry (its own, or its measure's), or nil.
+   Unlike `size-cue` it never falls back to counting the entry's EDN."
+  [entry]
+  (let [data (types/entry-data entry)]
+    (when (map? data)
+      (or (:size-bytes data) (get-in data [:measure :size-bytes])))))
+
+(defn- over-cap-by-measure?
+  "True when the stored size of the node is already over `max-literal`.
+   `:size-bytes` counts each element once with no compression, as the bound
+   does, and not more than the bound counts, so no literal that the bound
+   would let through is skipped here: it only saves walking the node."
+  [entry max-literal]
+  (when-let [sb (measured-size entry)]
+    (> (long sb) (long max-literal))))
+
 (defn- build-literal
   "The literal item for `h`, or nil when it has none, cannot fit, or does not
    round-trip.
 
    With a cap the literal is not built to find out whether it fits: its size
    is bounded from the node first (`store.bound`, a sum with no run or repeat
-   compression) and a literal whose bound is over the cap is skipped. When
+   compression) and a literal whose bound is over the cap is skipped (and
+   when the node's stored `:size-bytes` is over the cap already, the bound is
+   not even walked). When
    the bound fits, the literal fits (a miss is reported to `*on-bound-miss*`);
    it may still be refused for not round-trip (an inner HAMT node).
    Without a cap the size cue and the budget decide, as before."
@@ -659,8 +678,9 @@
   (let [t (types/entry-type entry)]
     (when (and (or (value-type? t) (tree-internal-type? t))
                (if max-literal
-                 (when-let [b (literal-bound st h bound-cache)]
-                   (<= (long b) (long max-literal)))
+                 (and (not (over-cap-by-measure? entry max-literal))
+                      (when-let [b (literal-bound st h bound-cache)]
+                        (<= (long b) (long max-literal))))
                  (not (clearly-oversized? entry budget))))
       (let [miss! (fn [why size]
                     (when (and max-literal *on-bound-miss*)
