@@ -416,8 +416,8 @@ key set:
   in ascending order, each child the node (or entry) for the keys with that value.
 
 So the root of a map is at the longest common chunk prefix of its keys, and a child
-splits at a later chunk than its parent. Two keys with one 256-bit hash are one
-key (a key is its content): there is no collision bucket, and distinct hashes differ
+splits at a later chunk than its parent. Two keys with one 256-bit hash are treated
+as one key (the hash is a content hash): there is no collision bucket, and distinct hashes differ
 at a chunk 0..51, so a branch exists at the last chunk (51, which reads one bit) at
 the latest. A lookup compares the whole key hash at an entry.
 
@@ -439,17 +439,29 @@ one child. If one group remains, K - k is that group and T(K - k) is its child
 itself: `dissoc` returns that child (an entry, or a node that is already canonical)
 in the parent's place. The base cases are the empty node and an entry. So any
 history that ends with the key set K ends at T(K): the root has the same bytes, and
-so does every node under it, because each is T of its own key set and each node's
-bytes are a function of its key set. (Equal key sets give byte-identical nodes in
-different maps as well.) The value hash does not see any of this: it is the fuse
+so does every node under it, because the shape of each is T of its own key set. The
+*shape* is a function of the key set; the *bytes* of a node also hold its measure
+(count, size-bytes, and the elements-fuse of its entries' key and value refs), so
+they are a function of the entries, the keys with their values. Equal entries give
+byte-identical nodes, in different maps as well; the same keys with another value
+in one entry give the same shape and other bytes below that entry. The value hash does not see any of this: it is the fuse
 of the entries, in the order the tree is walked, which is ascending key hash, and
 that is unchanged.
 
-A receiver can check a `hamt/bitmap` from its own bytes for its hash, its `split`
-range, `n >= 2` and `n = popcount(bitmap)`. It cannot check from one node that the
-children hold the right keys (the node holds hashes, not keys): that is Q1 below.
-The reference reader also requires a child's split to exceed its parent's and throws
-`bad-hamt-node` otherwise, so a walk of a forged store ends in at most 52 steps.
+**On receipt** (from one item's own bytes) a receiver checks a `hamt/bitmap` for its
+hash, its `split` range (0..51), `n >= 2`, `n = popcount(bitmap)` and, at split 51,
+a bitmap of exactly bits 0 and 16 (chunk 51 is one bit, read as 0 or 16); and a
+`hamt/entry` for its hash, its measure and `key-hash = key-ref`. It cannot check
+from one node that the children hold the right keys (the node holds hashes, not
+keys): that is Q1 below.
+
+**On a walk** (not when nodes arrive) the reference reader requires a child's split
+to exceed its parent's, and throws `bad-hamt-node` otherwise. A node does not know
+its parent, so two forged nodes that break the rule each verify alone, and the O(1)
+`count` and the collection header check still succeed; the first `get`, `entries`,
+`assoc` or `dissoc` that meets them throws. This is within the good-actors rule of
+v1 (Q1). Every walk ends in at most 52 nodes, and an entry found outside the path
+its hash routes it by makes `assoc` throw `bad-hamt-node` too.
 
 ## 4. Streams and stream ids
 

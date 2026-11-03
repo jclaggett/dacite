@@ -196,14 +196,22 @@
                                  (<= 0 (:split data) hamt/LAST-CHUNK)
                                  (<= 2 (count (:children data)))
                                  (= (count (:children data))
-                                    (Long/bitCount (long (:bitmap data)))))
-                    (bad! :bad-entry "hamt/bitmap needs a split, two or more children, one per bit"
+                                    (Long/bitCount (long (:bitmap data))))
+                                 ;; chunk 51 is one bit, read as 0 or 16: only
+                                 ;; those two bits are chunk values there
+                                 (or (not= hamt/LAST-CHUNK (:split data))
+                                     (= (long (:bitmap data)) 0x10001)))
+                    (bad! :bad-entry "hamt/bitmap needs a split, two or more children, one per bit (bits 0 and 16 at split 51)"
                           {:hash hash}))
                   (conj checks :bitmap-shape)))
 
+        ;; key-hash routes the entry (assoc, lookup, first-key-hash) and is in no
+        ;; hash; the library always writes it equal to key-ref
         (= "hamt/entry" type-name)
         (as-> checks
-              (do (when-not (= (:elements-fuse (:measure data))
+              (do (when-not (= (:key-hash data) (:key-ref data))
+                    (bad! :bad-entry "hamt/entry key-hash is not its key-ref" {:hash hash}))
+                  (when-not (= (:elements-fuse (:measure data))
                                (hash/unchecked-fuse (:key-ref data) (:val-ref data)))
                     (bad! :bad-entry "entry measure does not match its key and value"
                           {:hash hash}))
@@ -222,7 +230,8 @@
    - scalar: its hash from its data.
    - page (`ft/*`, `hamt/*`): its hash from its claimed measure (a bitmap
      node also from its bitmap and split, and its shape is checked: a split
-     of 0..51 and two or more children, one per bit). A digit
+     of 0..51, two or more children, one per bit, and at split 51 the bits 0
+     and 16; an entry's `key-hash` must be its `key-ref`). A digit
      or node page with no ref must also have the measure of its contents,
      and an entry the elements-fuse of its key and value.
    - collection header: its hash, count and size from its root's measure

@@ -13,10 +13,11 @@ stability promise: public APIs may still change before 1.0.
   `split`, the index (0..51) of the hash chunk it branches on: the first chunk
   at which its keys differ. The shape is canonical: a node is the HAMT of its
   own key set, whatever the history of `assoc` and `dissoc` and whichever map
-  holds it, so equal key sets give byte-identical nodes. `assoc` branches
+  holds it: the shape is a function of the key set, and equal entries (the same
+  keys with the same values) give byte-identical nodes. `assoc` branches
   directly where two keys first differ; `dissoc` replaces a node left with one
   child by that child. Lookup reads chunk `split` at each node and compares the
-  whole key hash at an entry. Two keys with one 256-bit hash are one key (no
+  whole key hash at an entry. Two keys with one 256-bit hash are treated as one key (no
   collision bucket); distinct hashes differ at a chunk 0..51, so the last chunk
   is a split like any other. (An earlier commit on this branch folded the child's
   hash into one-child nodes; that is removed.)
@@ -41,8 +42,11 @@ stability promise: public APIs may still change before 1.0.
     `measure, bitmap u32, split u8, n u8, children Hash32 x n` (was
     `measure, bitmap u32, n u8, children`); an item with two children is 157
     bytes, was 156. A receiver checks the hash, `split` in 0..51 and
-    `n >= 2` with `n = popcount(bitmap)` from the node's own bytes
-    (`bad-hash` or `bad-entry`). Every other node and every value hash is as
+    `n >= 2` with `n = popcount(bitmap)` (at split 51, exactly bits 0 and 16),
+    and, for an entry, `key-hash = key-ref`, from the node's own bytes
+    (`bad-hash` or `bad-entry`). The rule that a child's split is greater than
+    its parent's is checked when the tree is walked (`bad-hamt-node`), not when
+    nodes arrive: a node does not know its parent. Every other node and every value hash is as
     before. An old peer and a new peer reject each other's bitmap nodes;
     peer-v1 is a draft.
   - **Old stores are not readable.** The persisted node payload (file, LMDB,

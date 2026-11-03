@@ -22,8 +22,9 @@
    a node agree on every chunk before `:split`, and each child holds the keys
    that share the node's chunk at `:split`, so a child's own split is greater.
    A node is therefore the HAMT of its own key set, whatever order the keys
-   were added in, whatever was removed, and whichever map holds it: equal key
-   sets give byte-identical nodes (proof sketch: peer-v1 §3.3). `assoc` makes a
+   were added in, whatever was removed, and whichever map holds it: the shape is a
+   function of the key set, and equal entries (the same keys with the same
+   values) give byte-identical nodes (proof sketch: peer-v1 §3.3). `assoc` makes a
    new branch directly at the chunk where two keys first differ; `dissoc`
    replaces a node left with one child by that child (an entry, or a node that
    is already canonical for its keys).
@@ -33,9 +34,8 @@
    bitmaps with the same elements but different routing are NOT
    interchangeable.
 
-   **Full-hash collisions.** Two keys with the same 256-bit hash are the same
-   key: the hash is a content hash and the key *is* its content, so there is no
-   collision bucket. `assoc` of an equal key-hash replaces the entry. Distinct
+   **Full-hash collisions.** Two keys with the same 256-bit hash are treated as
+   the same key (the hash is a content hash), so there is no collision bucket. `assoc` of an equal key-hash replaces the entry. Distinct
    hashes differ at some chunk 0..51, so a branch always exists, at the latest
    at the last chunk (51), where only one bit is read. A lookup that reaches an
    entry compares the whole key-hash, not just the chunks it read.
@@ -249,6 +249,10 @@
         (if (= ekh key-hash)
           (make-entry! store key-hash key-ref val-ref measure)
           (let [d (first-diff-chunk ekh key-hash from (inc LAST-CHUNK))]
+            ;; nil: the entry agrees with the key from `from` on, so it is not
+            ;; where its own hash routes it (a forged or misplaced entry)
+            (when-not d
+              (bad-node! "hamt/entry is not under its path" {:from from}))
             (branch2! store d node-hash ekh
                       (make-entry! store key-hash key-ref val-ref measure) key-hash))))
 

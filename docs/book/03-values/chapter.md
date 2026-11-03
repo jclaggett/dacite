@@ -444,12 +444,13 @@ read chunk `c` of the key's hash, follow the child for that bit, and on
 reaching an entry compare the whole key hash.
 
 Every node is the HAMT of its own key set. Whatever order the keys were
-added in, whatever was removed, and whichever map holds the node, the same
-key set gives byte-identical nodes (the proof sketch is in peer-v1 §3.3).
+added in, whatever was removed, and whichever map holds the node, the shape is the
+same, and the same entries (keys with their values) give byte-identical nodes
+(the proof sketch is in peer-v1 §3.3).
 `assoc` builds a new branch directly at the chunk where two keys first
 differ, and `dissoc` replaces a node left with one child by that child.
-Two keys with the same 256-bit hash are the same key (a key is its content),
-so there is no collision bucket; distinct hashes always differ at a chunk
+Two keys with the same 256-bit hash are treated as the same key (the hash is
+a content hash), so there is no collision bucket; distinct hashes always differ at a chunk
 0..51, the last chunk at the latest.
 
 ### HAMT Bitmap Node Hashing

@@ -4,8 +4,9 @@
    of a chain had one hash, so a node was its own child (`hamt-entries`
    overflowed the stack, `get` found nothing). Now a bitmap node has two or more
    children and names the chunk it splits on (`:split`), so the tree is the
-   canonical HAMT of its keys: the same key set gives byte-identical nodes,
-   whatever the history and whichever map holds them.
+   canonical HAMT of its keys: the shape is a function of the key set, and the
+   same entries (keys with values) give byte-identical nodes, whatever the
+   history and whichever map holds them.
 
    Two kinds of key are forced: forged key hashes with chosen chunks (every
    shape, down to the last chunk, at the hamt level), and real i64 keys whose
@@ -299,8 +300,8 @@
         (is (= (vec (hamt/hamt-dissoc st root b)) (vec (build st [[1 a]]))))))))
 
 (deftest equal-key-hashes-are-one-key
-  ;; There is no collision bucket: a key is its content, so two keys with one
-  ;; 256-bit hash are the same key and the later assoc replaces the earlier.
+  ;; There is no collision bucket: two keys with one 256-bit hash are treated
+  ;; as one key and the later assoc replaces the earlier.
   (let [st (store/mem-store)
         kh (chunks->hash [5 5 5])
         r1 (build st [[1 kh]])
@@ -398,15 +399,17 @@
       (is (= (vec root)
              (vec (sr/expected-hash st [(first e) (assoc rd :children (vec (reverse (:children rd))))])))))))
 
-(deftest equal-key-sets-give-the-same-node-in-any-map
-  ;; The node for a key set does not depend on which map holds it. The five
-  ;; colliding keys are the subtree under chunk 0 = 4; two maps with different
-  ;; other keys hold the same node there, in different stores.
+(deftest equal-entries-give-the-same-node-in-any-map
+  ;; The node for a set of entries (keys with values) does not depend on which
+  ;; map holds it. The five colliding keys are the subtree under chunk 0 = 4; two
+  ;; maps with different other keys hold the same node there, in different
+  ;; stores. The same keys with another value are the same shape, other bytes.
   (let [group (first colliding-i64s)
         chunk0 (fn [st k] (hamt/hash-chunk (v/hash (v/i64 st k)) 0))
         others (fn [st from] (take 6 (filter #(not= 4 (chunk0 st %)) (iterate inc from))))
-        under-4 (fn [st others]
-                  (let [m (apply v/map st (mapcat (fn [k] [(v/i64 st k) k]) (concat group others)))
+        under-4 (fn [st others val-of]
+                  (let [m (apply v/map st (mapcat (fn [k] [(v/i64 st k) (val-of k)])
+                                                  (concat group others)))
                         root (:root (second (store/await (store/s-get st (v/hash m)))))
                         [_ rd] (store/await (store/s-get st root))]
                     (is (= 0 (:split rd)))
@@ -415,11 +418,16 @@
                                 (Long/bitCount (bit-and (long (:bitmap rd)) (dec (bit-shift-left 1 4)))))}))
         st1 (store/mem-store)
         st2 (store/mem-store)
-        a (under-4 st1 (others st1 300000))
-        b (under-4 st2 (others st2 400000))]
+        st3 (store/mem-store)
+        a (under-4 st1 (others st1 300000) identity)
+        b (under-4 st2 (others st2 400000) identity)
+        c (under-4 st3 (others st3 300000) inc)]
     (is (not= (vec (:root a)) (vec (:root b))))
     (is (= (vec (:node a)) (vec (:node b))))
-    (is (same-nodes? st1 (:node a) st2 (:node b)) "byte-identical, node for node")))
+    (is (same-nodes? st1 (:node a) st2 (:node b)) "byte-identical, node for node")
+    (testing "another value for each key: the same shape, another node"
+      (is (not= (vec (:node a)) (vec (:node c))))
+      (is (= (shape st1 (:node a)) (shape st3 (:node c)))))))
 
 (deftest the-wire-layout-of-a-bitmap-node
   ;; item header, then: kind 0x02, subtype 2, measure (48), bitmap u32, split u8,
@@ -479,6 +487,58 @@
         (is (= :bad-entry (verify-reason st h1 e1)) "one child")
         (is (= :bad-entry (verify-reason st h2 e2)) "split past the last chunk")
         (is (= :bad-entry (verify-reason st h3 e3)) "bits and children disagree")))))
+
+(deftest the-receiver-checks-split-51-bits-and-an-entrys-key-hash
+  (let [st (store/mem-store)
+        a (chunks->hash (concat (repeat 51 3) [0]))
+        b (chunks->hash (concat (repeat 51 3) [16]))
+        root (build st [[1 a] [2 b]])
+        [t d :as e] (store/await (store/s-get st root))
+        forged (fn [data] [(hamt/bitmap-node-hash (:elements-fuse (:measure data))
+                                                  (:bitmap data) (:split data))
+                           [t data]])]
+    (is (= 51 (:split d)))
+    (is (= 0x10001 (:bitmap d)) "chunk 51 reads one bit as 0 or 16")
+    (is (= :ok (verify-reason st root e)))
+    (testing "S2: split 51 with another bitmap, hash right, is a bad entry"
+      (let [[h1 e1] (forged (assoc d :bitmap 0x6))
+            [h2 e2] (forged (assoc d :bitmap 0x30000))]
+        (is (= :bad-entry (verify-reason st h1 e1)) "bitmap 0b110")
+        (is (= :bad-entry (verify-reason st h2 e2)) "bits 16 and 17")))
+    (testing "S2: other splits take any bits"
+      (let [st2 (store/mem-store)
+            r2 (build st2 [[1 (chunks->hash [1 1 2])] [2 (chunks->hash [1 1 3])]])
+            [_ d2] (store/await (store/s-get st2 r2))]
+        (is (= :ok (verify-reason st2 r2 (store/await (store/s-get st2 r2)))))
+        (is (not= 0x10001 (:bitmap d2)))))
+    (testing "S3: an entry whose key-hash is not its key-ref, hash right, is a bad entry"
+      (let [kh (v/hash (v/i64 st 1))
+            ent (hamt/hamt-entry-node st kh kh (v/hash (v/i64 st 2)))
+            [et ed :as ee] (store/await (store/s-get st ent))
+            ee2 [et (assoc ed :key-hash (chunks->hash [9 9 9]))]]
+        (is (= :ok (verify-reason st ent ee)))
+        (is (= :bad-entry (verify-reason st ent ee2))
+            "key-hash is in no hash, so only this check catches it")))))
+
+(deftest assoc-onto-a-misplaced-entry-is-bad-hamt-node-not-an-npe
+  ;; An entry stored where its own hash does not route it. The root splits at
+  ;; chunk 0; its slot-1 child is an entry whose hash has chunk 0 = 2 and
+  ;; otherwise [5 0 0 ...]. Assoc of the key [1 5 ...] reaches that entry at
+  ;; chunk 1, where the two agree on every chunk: no branch exists. Before the
+  ;; check this was a NullPointerException.
+  (let [st (store/mem-store)
+        root (build st [[1 (chunks->hash [1 6])] [2 (chunks->hash [2 7])]])
+        [t d] (store/await (store/s-get st root))
+        mis (hamt/hamt-assoc st (hamt/hamt-empty st) (chunks->hash [2 5])
+                             (v/hash (v/i64 st 7)) (v/hash (v/i64 st 8)))
+        data (assoc d :children [mis (second (:children d))])
+        forged (hamt/bitmap-node-hash (:elements-fuse (:measure data)) (:bitmap data) (:split data))]
+    (store/await (store/s-put st forged [t data]))
+    (is (= :bad-hamt-node
+           (try (hamt/hamt-assoc st forged (chunks->hash [1 5]) (v/hash (v/i64 st 9)) (v/hash (v/i64 st 10)))
+                :no-throw
+                (catch clojure.lang.ExceptionInfo ex (:reason (ex-data ex)))
+                (catch NullPointerException _ :npe))))))
 
 (deftest a-forged-store-with-splits-out-of-order-cannot-loop
   ;; Both nodes hash right to their own bytes; the child's split is not above
