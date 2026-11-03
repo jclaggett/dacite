@@ -356,10 +356,29 @@ What each kind of item is checked against:
 |---|---|
 | literal | Rebuilt from its bytes in a scratch store: its value hash must equal the item's. Complete, so nothing is left to check. A literal holds no `ref`: a `ref` item, or a `run` or `repeat` of `ref`, is `bad-item`. |
 | scalar | Its hash from its data. |
-| leaf page: `ft/digit` or `ft/node` with every leaf inline (no `ref`) | Its hash, from the claimed measure (`node-hash(type, elements-fuse)`); and the claimed measure must equal the one recomputed from the leaves in its body. A leaf page **verifies alone**. |
-| `hamt/entry` | Its hash from the claimed measure, and `elements-fuse = fuse(key-ref, val-ref)`. |
+| leaf page: `ft/digit` or `ft/node` with every leaf inline (no `ref`) | Its hash, from the claimed measure (`node-hash(type, elements-fuse)` = `digest(fuse(type-state, elements-fuse))`); and the claimed measure must equal the one recomputed from the leaves in its body. A leaf page **verifies alone**. |
+| `hamt/entry` | Its hash from the claimed measure, and `elements-fuse = fuse(ref->state(key-ref), ref->state(val-ref))`. |
 | branch page: `ft/deep`, `hamt/bitmap`, any page with a `ref` (a `ref` item, or a `run` of `ref`) | Its hash, from its claimed measure (local). **Not** that the measure follows from its children: the page holds their hashes, not their measures. Branch nodes are not bound to their children in v1 (section 11, Q1). A `hamt/bitmap` is also checked for its shape: a `split` of 0..51, two or more children, one per bit of the bitmap. Its hash covers the bitmap and the split. |
 | collection header (`string`, `blob`, `vector`, `map`, `set`) | **Accepted and stored on arrival; checked when its root arrives.** See below. |
+
+**The hash (hash version 2, issue #14).** A *state* is a 2x2 matrix over F_p with
+determinant 1 (p = 87078471178590763933909596057503143987, 64 bytes: four 16-byte
+big-endian cells); *fuse* is matrix multiplication; a *ref* is the 32-byte
+*digest* of a state (`(N mod 2^256) xor (N >> 252)` with N = a + b 2^127 + c 2^254 +
+d 2^381). A byte string is the product of 256 fixed generator matrices, one per
+byte; a ref enters a fuse as `ref->state`, the product of the generators of its 32
+bytes. `value_hash = digest(fuse(type_state, data_state))`, where a scalar's data
+state is the fuse of its bytes and a collection's is its `elements-fuse`, the
+product of its elements' `ref->state` in order. Every state a measure carries is
+checked by the receiver: four cells below p and determinant 1, else `bad-entry`
+(`:bad-state`). The prime, the table, the digest and the reasons are in
+`docs/design/fuse-sl2.md`; the known answers every host must reproduce are
+`fixtures/fuse-sl2/vectors.edn`. A value hash under version 1 (the old unitriangular
+fuse) is never equal to one under version 2: the store format tag (wire-v1,
+"Persisted stores") keeps the two apart on disk. The wire `version` and the
+`hello` versions are **not** bumped: the format changed (a measure is 80 bytes, was
+48), but the wire is a draft and no values are in the wild (as for #12). They must
+be bumped by the first release that has users.
 
 **Header first.** A sender writes items in reveal order: a collection's header
 before its pages, so the receiver sees `count` and `size-bytes` at once and can
@@ -405,7 +424,7 @@ children in v1: see Q1.
 shape-independent, and its shape is fixed, so a peer can check it. It has two or
 more children (never one) and a `split`: the index, 0..51, of the 5-bit hash chunk
 it branches on. Its hash is
-`fuse(node_hash("hamt/bitmap", elements_fuse), fuse_bytes(bitmap_be8 ++ [split]))`.
+`digest(fuse(fuse(type_state, elements_fuse), fuse_bytes(bitmap_be8 ++ [split])))`.
 The wire layout is `bitmap u32, split u8, n u8, children Hash32 x n` (wire-v1,
 `HamtBitmap`). The shape is canonical, which means a node is the HAMT of its own
 key set:
@@ -620,10 +639,10 @@ The whole frame of fixture `get-default`, by hand (`0x0d` is `u256`, then its
 ```hex get-default
 02 01 00000005                 ; get, FIN, stream 5
 21 00000002                    ; map, 2 pairs
-10 00000006 706f6c696379       ; "policy"
-10 00000007 64656661756c74     ; "default"
 10 00000004 68617368           ; "hash"
 0d 0000000000000001 0000000000000002 0000000000000003 00000000000000aa
+10 00000006 706f6c696379       ; "policy"
+10 00000007 64656661756c74     ; "default"
 ```
 
 Answers: `item-stream` frames, or `error` `unknown-hash` (the responder does not
@@ -828,13 +847,14 @@ These were the three open questions of the S3.3 work. Jonathan has decided them.
 
    *Alternatives considered:*
    - **Child measures in the refs** (hash + count + size-bytes + elements-fuse,
-     +48 bytes per child ref). A branch then verifies from its own bytes like a
+     +48 bytes per child ref under hash version 1; a state is now 64 bytes, so
+     +80). A branch then verifies from its own bytes like a
      leaf page. It changes the bytes of branch pages and HAMT bitmaps (a wire-v1
      entry-format change; no value hash changes). Measured on the reference
      serializer, as a share of the whole value: **+48 B a ref costs 4.5% to
      4.7% for a string, blob or vector of strings, 6.6% for a vector of ints,
      and 51% for a map of 10 000 int keys**, where a bitmap has about 5 refs and
-     each points at a 56-byte entry. Fuse-only (+32 B) is enough for content
+     each points at a 56-byte entry. Fuse-only (+32 B; +64 B with a full state) is enough for content
      integrity but leaves count and size unauthenticated (3.0% to 4.4%, and 34%
      for the map); count and size alone (+16 B) is not sound (1.5% to 2.2%, and
      17% for the map).
@@ -843,9 +863,12 @@ These were the three open questions of the S3.3 work. Jonathan has decided them.
      hosts, and it changes every existing hash. A different system, not a v1
      tweak. Not planned.
 
-   *The fuse is not a cryptographic hash.* It is a homomorphic monoid hash (a 4x4
-   triangular matrix product mod 2^64). Its resistance to an adversary needs its
-   own review before peers are untrusted.
+   *The fuse is not a cryptographic hash.* It is a homomorphic group hash (a
+   product in SL(2, F_p), p a 127-bit prime). The one attack known to us, a
+   subgroup search, was measured to cost about 1.8 p on 20- to 34-bit primes
+   (extrapolated to ~2^127 to 2^130 for this p); that is one attack, not a proof.
+   Its resistance to an adversary needs its own review before peers are
+   untrusted (docs/design/fuse-sl2.md).
 2. **Collection headers (Q2): header first, no new field, checked when the root
    arrives.** See 3.3. The review's alternative, an `elements-fuse` field in the
    header, is not taken; neither is the pages-before-header order of the first

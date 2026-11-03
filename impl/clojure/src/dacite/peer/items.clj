@@ -212,7 +212,7 @@
               (do (when-not (= (:key-hash data) (:key-ref data))
                     (bad! :bad-entry "hamt/entry key-hash is not its key-ref" {:hash hash}))
                   (when-not (= (:elements-fuse (:measure data))
-                               (hash/unchecked-fuse (:key-ref data) (:val-ref data)))
+                               (hamt/entry-fuse (:key-ref data) (:val-ref data)))
                     (bad! :bad-entry "entry measure does not match its key and value"
                           {:hash hash}))
                   (conj checks :entry-measure)))))))

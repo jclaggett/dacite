@@ -1,6 +1,7 @@
 (ns dacite.value.serial-test
   "Tests for Dacite binary serialization."
   (:require [clojure.test :refer [deftest is testing]]
+            [dacite.hash :as hash]
             [dacite.value.serial :as serial]))
 
 ;; =============================================================================
@@ -77,7 +78,7 @@
 ;; =============================================================================
 
 (def sample-measure
-  {:count 3 :size-bytes 24 :elements-fuse [100 200 300 400]})
+  {:count 3 :size-bytes 24 :elements-fuse (hash/fuse-str "sample measure")})
 
 (def sample-hash-a [1 2 3 4])
 (def sample-hash-b [5 6 7 8])
@@ -250,18 +251,18 @@
 ;; =============================================================================
 
 (deftest measure-serialization-size-test
-  (testing "Measure always occupies 48 bytes in seq/map nodes"
-    ;; ft/empty: 1(kind) + 1(subtype) + 48(measure) + 1(n_children) = 51
+  (testing "Measure always occupies 80 bytes in seq/map nodes (8 + 8 + a 64-byte state)"
+    ;; ft/empty: 1(kind) + 1(subtype) + 80(measure) + 1(n_children) = 83
     (let [bs (serial/serialize ["ft/empty" {:measure sample-measure}])]
-      (is (= 51 (alength bs))))
-    ;; hamt/empty: 1(kind) + 1(subtype) + 48(measure) = 50
+      (is (= 83 (alength bs))))
+    ;; hamt/empty: 1(kind) + 1(subtype) + 80(measure) = 82
     (let [bs (serial/serialize ["hamt/empty" {:measure sample-measure}])]
-      (is (= 50 (alength bs))))))
+      (is (= 82 (alength bs))))))
 
 (deftest entry-size-test
-  (testing "hamt/entry is 146 bytes (2 + 48 + 3*32)"
+  (testing "hamt/entry is 178 bytes (2 + 80 + 3*32)"
     (let [bs (serial/serialize ["hamt/entry" {:key-hash [0 0 0 0]
                                               :key-ref [0 0 0 0]
                                               :val-ref [0 0 0 0]
                                               :measure sample-measure}])]
-      (is (= 146 (alength bs))))))
+      (is (= 178 (alength bs))))))

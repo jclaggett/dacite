@@ -19,10 +19,10 @@
 (defn- measure-combine [m1 m2]
   {:count (+ (:count m1) (:count m2))
    :size-bytes (+ (:size-bytes m1) (:size-bytes m2))
-   :elements-fuse (hash/unchecked-fuse (:elements-fuse m1) (:elements-fuse m2))})
+   :elements-fuse (hash/fuse (:elements-fuse m1) (:elements-fuse m2))})
 
 (defn- leaf-measure [h size-bytes]
-  {:count 1 :size-bytes size-bytes :elements-fuse h})
+  {:count 1 :size-bytes size-bytes :elements-fuse (hash/ref->state h)})
 
 (defn- put-digit-of-leaves!
   "Plant an ft/digit whose children are bare value hashes."
@@ -32,7 +32,7 @@
                    (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  vhs)
         m (reduce measure-combine
-                  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
+                  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state}
                   ms)
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
     (store/await (store/s-put st dh ["ft/digit" {:children vhs :measure m}]))
@@ -84,7 +84,8 @@
           vh (put-i64 st 42)]
       (is (= 1 (ft/ft-count st vh)))
       (is (= 8 (ft/ft-size-bytes st vh)))
-      (is (= vh (ft/ft-elements-fuse st vh)))
+      (is (= (hash/ref->state vh) (ft/ft-elements-fuse st vh))
+          "a bare leaf's elements-fuse is its ref as a fuse element")
       (is (= vh (ft/ft-first st vh)))
       (is (= vh (ft/ft-last st vh)))
       (is (= vh (ft/ft-nth st vh 0)))
@@ -193,7 +194,7 @@
                    (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  vhs)
         m (reduce measure-combine
-                  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
+                  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state}
                   ms)
         body (lit/rle-lits (mapv (fn [ch] {:type "char" :body ch}) chs))
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
@@ -277,7 +278,7 @@
         src (byte-array (map unchecked-byte nums))
         blob (v/blob st src)
         hs (map #(types/scalar-value-hash ["u8" (int %)]) nums)
-        ef (reduce hash/unchecked-fuse host/zero-hash hs)
+        ef (reduce (fn [a h] (hash/fuse a (hash/ref->state h))) hash/identity-state hs)
         bufs (u8-run-buffers st blob)]
     (aset src 0 (unchecked-byte 9))
     (is (= n (v/count blob)))
@@ -301,8 +302,8 @@
         s (apply str (repeat n \x))
         dv (v/string st s)
         ch (put-char st \x)
-        ef (reduce (fn [a _] (hash/unchecked-fuse a ch))
-                   host/zero-hash
+        ef (reduce (fn [a _] (hash/fuse a (hash/ref->state ch)))
+                   hash/identity-state
                    (range n))
         live (live-ft-entries st dv)
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) live)
@@ -344,7 +345,7 @@
                    (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  [a b c])
         m (reduce measure-combine
-                  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash}
+                  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state}
                   ms)
         body [{:type "run" :body {:of "ref" :values [a b c]}}]
         dh (types/node-hash "ft/digit" (:elements-fuse m))]

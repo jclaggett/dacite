@@ -52,6 +52,18 @@
   [store h]
   (:root (types/entry-data (store/require-node store h))))
 
+(defn data-state
+  "The data state of the value stored at `h`: the fused bytes of a scalar,
+   or `elements_fuse` of a collection (what its ref digests together with
+   the type)."
+  [store h]
+  (let [entry (store/require-node store h)
+        t (types/entry-type entry)]
+    (case t
+      ("vector" "string" "blob") (ft/ft-elements-fuse store (:root (types/entry-data entry)))
+      ("map" "set") (hamt/hamt-elements-fuse store (:root (types/entry-data entry)))
+      (types/scalar-data-state entry))))
+
 (defn- wrap-hash
   "Wrap a raw hash in the appropriate Dacite value (internal helper)."
   [store h]

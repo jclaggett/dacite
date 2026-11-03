@@ -40,7 +40,7 @@ flowchart TB
   end
   subgraph core [Pure portable core - .cljc, no host interop]
     direction TB
-    tbl["dacite.byte-table - shipped byte->hash data"]
+    tbl["dacite.sl2-table - shipped byte->SL(2) generator data"]
     hash["dacite.hash - fuse algebra"]
     types["dacite.value.types - protocol + multimethods"]
     ft["dacite.value.finger-tree"]
@@ -83,7 +83,9 @@ Three layers:
 ## The host contract (`dacite.host`)
 
 A port must provide the equivalents of these operations over a native
-**unsigned 64-bit integer** ("word") type.
+**unsigned 64-bit integer** ("word") type, for refs (32-byte digests, four
+words), and over a **bignum** type with `mod` for fuse states (127-bit prime
+field cells).
 
 ### Word representation
 
@@ -100,6 +102,13 @@ arrays.
 ### Required operations
 
 **Modular arithmetic (mod 2^64):** `add64`, `sub64`, `mul64`, `neg64`.
+
+**Fuse arithmetic (mod p, p = 87078471178590763933909596057503143987):**
+`sl2-mul` (the matrix product of two states), `sl2-inverse`, `sl2-valid?`,
+`sl2->bytes` / `bytes->sl2` (64 bytes), and `sl2-digest-words` (a state to
+the four words of a ref). Cells are `BigInteger` on the JVM and `BigInt` on
+CLJS. Reduction may be the host's `mod` or Montgomery or Barrett; the cells
+returned are canonical (0..p-1).
 
 **Bit operations:** `band64`, `bor64`, `bxor64`, `bnot64`, `shl64`,
 `ushr64` (logical right shift), `popcount`.
@@ -121,17 +130,21 @@ value hashing above them are automatically identical across hosts.
 
 ---
 
-## Byte→hash table shipped as data
+## Byte→generator table shipped as data
 
-The fuse algebra is seeded by `sha256(byte)` for each of the 256 byte values.
-Rather than require a crypto primitive on every host, the 256-entry table is
-**precomputed once and shipped as a Clojure data resource**
-(`dacite.byte-table/hex-table`, generated file). The core loads it directly.
+The fuse is a product in SL(2, F_p) (docs/design/fuse-sl2.md). Each of the 256
+byte values has a generator matrix, derived from SHA-256 seeds once and kept
+only if its order is large. Rather than require a crypto primitive on every
+host, the 256-entry table is **precomputed once and shipped as a Clojure data
+resource** (`dacite.sl2-table/hex-table`, generated file, 64 bytes a row). The
+core loads it directly.
 
 - SHA-256 stays **JVM-only**, as a regeneration tool:
-  `clojure -X:dev dacite.dev.gen-byte-table/generate!`.
+  `clojure -X:dev dacite.dev.gen-sl2-table/generate!`.
 - A port either ships the same 256 hex strings verbatim, or regenerates them
-  with its own SHA-256 — the values are identical either way.
+  with its own SHA-256 (`fixtures/fuse-sl2/reference.py` is a Python
+  re-derivation) — the values are identical either way.
+- The known answers a port must reproduce are `fixtures/fuse-sl2/vectors.edn`.
 
 This removes `MessageDigest` from the core and guarantees identical seeds
 across all hosts and future language ports.
@@ -279,8 +292,9 @@ change to the core or host layer.
 To interoperate with the Clojure reference implementation, a port must:
 
 1. Implement the **`dacite.host` operations** over a native 64-bit integer,
-   reproducing two's-complement bit patterns and mod-2^64 wraparound.
-2. Ship (or regenerate) the **256-entry byte→hash table** identically.
+   reproducing two's-complement bit patterns and mod-2^64 wraparound, and the
+   fuse arithmetic over a bignum (mod p, above).
+2. Ship (or regenerate) the **256-entry byte→generator table** identically.
 3. Implement the **fuse algebra** (`dacite.hash`), **HAMT**, and **finger-tree**
    on top of the host ops — these are pure and translate directly.
 4. Implement the canonical **scalar encodings** (big-endian ints, IEEE-754

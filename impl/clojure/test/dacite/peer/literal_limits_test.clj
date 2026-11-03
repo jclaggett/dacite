@@ -248,25 +248,40 @@
   (let [r (java.util.Random. seed)]
     (apply str (repeatedly n #(char (+ 97 (.nextInt r 26)))))))
 
-(deftest value-hashes-are-the-same-as-before-the-4-kib-leaf-budget
-  ;; Expected hashes were computed on main at the 1 KiB budget, before M1.1a.
+(defn- leaf-budget-cases
+  "Seven values over up to 40,000 elements: long strings and blobs, vectors
+   of i64, strings and mixed, a map."
+  [st]
+  [(v/string st (text 20000 1))
+   (v/blob st (let [b (byte-array 40000)] (.nextBytes (java.util.Random. 2) b) b))
+   (apply v/vector st (map #(v/i64 st %) (range 4000)))
+   (apply v/vector st (map #(v/string st (text 12 (+ 10 %))) (range 2000)))
+   (apply v/vector st (map #(v/i64 st (* 1000003 %)) (range 8000)))
+   (apply v/vector st (map (fn [i] (case (mod i 3) 0 (v/null st) 1 (v/string st (str i)) 2 (v/i64 st i)))
+                           (range 3000)))
+   (apply v/map st (mapcat (fn [i] [(v/i64 st i) (v/i64 st (* 7 i))]) (range 1000)))])
+
+(def ^:private pinned-hashes
+  "Hashes under hash version 2 (the SL(2, F_p) fuse, issue #14). They were first
+   pinned on main at the 1 KiB budget before M1.1a with the old fuse; the fuse
+   changed every one of them, the budget changes none."
+  [[-1608437338314893716 -5133327593972740148 6741541439226333456 3049822642160186050]
+   [869917796440651749 4909964699656530293 6839715567209444391 3393171676771811255]
+   [-318674461802557416 -1594444943028831593 -2090323365428921652 3532552874864599798]
+   [-414548733579592048 -4556153250538002087 -8404607194181784310 -1488738295968263591]
+   [4187051056146380838 2681406369748343202 -3864871963097646763 -7566470155181605459]
+   [-5675426749939212422 5962542649192505805 -871961040353309789 7467866236764385370]
+   [3442493829875840436 9009764203932442882 2516244908180085996 5167667232749318414]])
+
+(deftest value-hashes-do-not-depend-on-the-leaf-budget
   ;; A page budget changes how elements are grouped into pages, not the
-  ;; elements-fuse a value hashes, so these must not move.
-  (let [st (store/mem-store)
-        h (fn [x] (vec (v/hash x)))]
-    (is (= [556921443261991940 321845223768230048 -6227015001349326196 7230859705705658041] (h (v/string st (text 100000 1)))))
-    (is (= [-7746543829445278298 -7686170452263083441 -946355418787483763 7271117540972285520]
-           (h (v/blob st (let [b (byte-array 300000)] (.nextBytes (java.util.Random. 2) b) b)))))
-    (is (= [-8042333575886514603 7864943929036002206 -7580366598134099796 4983339238124604683] (h (apply v/vector st (map #(v/i64 st %) (range 4000))))))
-    (is (= [-149883838514163401 -8000609268654991310 2446280707169379829 1595599979461944117]
-           (h (apply v/vector st (map #(v/string st (text 12 (+ 10 %))) (range 2000))))))
-    (is (= [2179089288235816445 522586264184947832 -4172388328751776686 8793168437925131185]
-           (h (apply v/vector st (map #(v/i64 st (* 1000003 %)) (range 8000))))))
-    (is (= [9205250687594850018 -2089264336835397224 -3659497600113136698 -4381344283639506741]
-           (h (apply v/vector st (map (fn [i] (case (mod i 3) 0 (v/null st) 1 (v/string st (str i)) 2 (v/i64 st i)))
-                                      (range 3000))))))
-    (is (= [-3202565244896424341 -853792474632279232 2629703230003370940 945274105269131032]
-           (h (apply v/map st (mapcat (fn [i] [(v/i64 st i) (v/i64 st (* 7 i))]) (range 1000))))))))
+  ;; elements-fuse a value hashes, so these must not move: the pinned hashes
+  ;; are the same at the 4 KiB budget and at the 1 KiB one. (About 3 s per
+  ;; pass: the seven values hold ~80,000 fuse steps and the two budgets are the
+  ;; point of the test.)
+  (let [hashes (fn [] (mapv #(vec (v/hash %)) (leaf-budget-cases (store/mem-store))))]
+    (is (= pinned-hashes (hashes)) "4 KiB pages")
+    (is (= pinned-hashes (binding [lit/page-budget 1024] (hashes))) "1 KiB pages")))
 
 ;; ---------------------------------------------------------------------------
 ;; Property: every page and literal is within its cap and round-trips
@@ -391,8 +406,11 @@
       )))
 
 (def ^:private property-samples
-  "Samples per frame size (it was 12): about 2.5 s of the suite for both."
-  30)
+  "Samples per frame size. Each is a value of up to a few thousand nodes and
+   every node is a few dozen fuse steps; a step costs about 1.5 us since the
+   SL(2, F_p) fuse (issue #14), 6x the old one, so 16 samples take what 30
+   did: about 3 s for both frame sizes in each of the two tests that use it."
+  16)
 
 (deftest property-pages-and-literals-stay-in-their-caps-and-round-trip
   (doseq [mf [frame/min-max-frame frame/max-frame]]

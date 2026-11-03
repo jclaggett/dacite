@@ -18,6 +18,7 @@
                             get-in assoc-in update update-in pr-str
                             type hash map deref swap! add-watch remove-watch char])
   (:require [dacite.store :as store]
+            [dacite.hash :as h]
             [dacite.value.types :as types]
             [dacite.value.scalar :as scalar]
             [dacite.value.collections :as coll]
@@ -51,9 +52,12 @@
   (types/dacite-hash v))
 
 (defn content-hash
-  "Strip a value's type tag to recover its data hash (§3.3)."
+  "The value's data hash, its type tag stripped (§3.3): the digest of its
+   data state (a scalar's fused bytes, a collection's elements_fuse). Two
+   values of different types with identical data share a content hash.
+   A ref is a digest, so the data state is read from the stored node."
   [v]
-  (types/content-hash (type v) (hash v)))
+  (h/state->ref (coll/data-state (types/dacite-store v) (hash v))))
 
 ;; =============================================================================
 ;; Wrapping & rehydrate

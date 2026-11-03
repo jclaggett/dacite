@@ -177,7 +177,7 @@ off this list. Authorization and sharing chapters remain archived; see
 store. Maps and sets are HAMTs. Sequences are finger trees. `ft/deep` is
 three hashes. `ft/digit` and `ft/node` are ~1,024-byte literal pages
 (`run` / `repeat` / nested lits / `ref`). A child that is already a page
-is a hash. Collection hashes are `fuse(type, elements_fuse)` of the logical
+is a hash. Collection hashes are `digest(fuse(type, elements_fuse))` of the logical
 leaves, so the hash does not depend on page width. A `u8` run of length
 ≥ 2 stores a copied `byte[]` (JVM) or `Uint8Array` (ClojureScript). One
 byte stays a `u8` scalar. Measure fuses the 256 `u8` scalar hashes in
@@ -303,7 +303,7 @@ emergencies. Application code that reaches for it has found a hole in
 
 ### Hash fusion (Chapter 2)
 
-- [x] `dacite.hash` — fuse, byte table, low-entropy rejection
+- [x] `dacite.hash` — fuse in SL(2, F_p), generator table, ref digest (hash version 2, issue #14; see [fuse-sl2.md](design/fuse-sl2.md))
 
 ### Rooted stores (Chapter 4)
 

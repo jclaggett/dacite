@@ -34,7 +34,7 @@ Every Dacite value carries four pieces of data:
 (def vec (v/vector st 1 2 3))
 
 (v/hash vec)
-;; => [c0 c1 c2 c3]  ; the 4-long hash
+;; => [c0 c1 c2 c3]  ; the 4-long ref (a 32-byte digest)
 
 (v/dacite-store vec)
 ;; => the store that owns this value
@@ -89,16 +89,20 @@ Every Dacite value — user-facing or internal — is hashed by the same
 rule:
 
 ```
-value_hash = fuse(type_hash, data_hash)
+value_hash = digest(fuse(type_state, data_state))
 ```
+
+(Chapter 2: a *state* is a 64-byte element of SL(2, F_p); the *digest* is
+the 32-byte ref a store files the value under.)
 
 ### The Type Hash
 
-The **type hash** identifies the kind of value. It is the fuse of the
-type name's characters followed by a terminating `0x00` byte:
+The **type state** (the book says "type hash" for short) identifies the kind
+of value. It is the fuse of the type name's characters followed by a
+terminating `0x00` byte:
 
 ```
-type_hash = fuse_bytes(type_name ++ [0x00])
+type_state = fuse_bytes(type_name ++ [0x00])
 ```
 
 Type names are ordinary character strings — `"i64"`, `"vector"`,
@@ -114,20 +118,21 @@ negotiation.
 
 ### The Data Hash
 
-The **data hash** captures the value's content. How it is computed
+The **data state** captures the value's content. How it is computed
 depends on the kind of value:
 
 - **Scalar** — the fuse of its canonical bytes:
 
 ```
-data_hash = fuse_bytes(canonical_bytes)
+data_state = fuse_bytes(canonical_bytes)
 ```
 
-- **Collection** — the fuse of all **leaf** element hashes, in sequence
-  order (vector, string, blob) or ascending key-hash order (map, set):
+- **Collection** — the fuse of all **leaf** elements, in sequence order
+  (vector, string, blob) or ascending key-hash order (map, set). An element
+  enters as the state of its ref, `ref_state(e)` (Chapter 2, §2.4):
 
 ```
-data_hash = fuse(fuse(fuse(e0, e1), e2), ..., en)
+data_state = fuse(fuse(fuse(s0, s1), s2), ..., sn)      where si = ref_state(ei)
 ```
 
 For collections, the data hash is built from the leaves **only**. The
@@ -147,16 +152,19 @@ without changing its identity.
 
 ### Cross-Type Equality
 
-Here is where Chapter 2's group structure pays off. Since
-`value_hash = fuse(type_hash, data_hash)`, the type hash can be stripped
-back off with the group inverse:
+Here is where Chapter 2's group structure pays off. A value's *state* is
+`fuse(type_state, data_state)`, so the type state can be stripped back off
+with the group inverse:
 
 ```
-content_hash(v) = fuse(inv(type_hash), value_hash) = data_hash
+data_state(v) = fuse(inv(type_state), value_state) = data_state
 ```
+
+(This works on states. A ref is a digest and cannot be inverted; a
+collection's root measure holds its data state in full.)
 
 Two values with different types but the same underlying data have the
-same content hash, computed in **O(1)**. A `"string"` and a `"vector"`
+same data state, computed in **O(1)**. A `"string"` and a `"vector"`
 holding the same characters share a data hash — because their leaves are
 literally the same content-addressed values — even though their full
 hashes differ by the type tag.
@@ -328,7 +336,7 @@ collection node — never a bare `ft/deep` as a user value.
 
 Every structural node is stored in the content-addressed store as its own
 entry. A page is bounded by the 1,024-byte payload budget (32 hashes × 32
-bytes when every child is a pointer), plus ~48 bytes of measure metadata.
+bytes when every child is a pointer), plus ~80 bytes of measure metadata.
 
 ### The Measure Monoid
 
@@ -338,7 +346,7 @@ Every node caches a **measure** of its subtree:
 Measure = {
   count:          u64,   // number of leaf elements
   size_bytes:     u64,   // total byte size of leaf scalars
-  elements_fuse:  Hash   // running fuse of all element hashes
+  elements_fuse:  State  // running fuse of all element states (64 bytes)
 }
 ```
 
@@ -348,20 +356,21 @@ Measures combine as a monoid:
 combine(m1, m2) = {
   count:         m1.count + m2.count,
   size_bytes:    m1.size_bytes + m2.size_bytes,
-  elements_fuse: unchecked_fuse(m1.elements_fuse, m2.elements_fuse)
+  elements_fuse: fuse(m1.elements_fuse, m2.elements_fuse)
 }
 
-identity = { count: 0, size_bytes: 0, elements_fuse: [0, 0, 0, 0] }
+identity = { count: 0, size_bytes: 0, elements_fuse: I }      // the identity matrix
 ```
 
-The `elements_fuse` uses `unchecked_fuse` because the identity
-`[0, 0, 0, 0]` would fail the low-entropy check — this is safe since
-measures are internal bookkeeping, not user-facing hashes.
+A measure keeps the full 64-byte state, not a digest: measures are
+combined by fusing, and a digest cannot be fused. On the wire a measure is
+80 bytes (`count` and `size_bytes`, 8 bytes each, and the 64-byte state).
+A leaf's contribution to the fuse is `ref_state` of its ref.
 
 The root's measure gives **O(1)** access to:
 - `count` — how many elements
 - `size_bytes` — total materialized size
-- `elements_fuse` — the seq's data hash
+- `elements_fuse` — the seq's data state
 
 ### Node Hashing
 
@@ -369,7 +378,7 @@ Internal nodes are hashed using their type name and semantic content,
 the same `type_hash` rule as every other value (§3.3):
 
 ```
-node_hash = fuse(fuse_str(node_type_name ++ "\0"), node.measure.elements_fuse)
+node_hash = digest(fuse(fuse_str(node_type_name ++ "\0"), node.measure.elements_fuse))
 ```
 
 The null byte terminates the type name. Nodes with the same type and the
@@ -620,7 +629,7 @@ in the same backing storage — no store parameter needed for operations.
 
 | Function | Derivation | Description |
 |----------|------------|-------------|
-| `content-hash` | `fuse(inv(type-hash), value-hash)` | Strip type tag, recover data hash |
+| `content-hash` | `digest(fuse(inv(type-state), value-state))` | Strip type tag, recover the digest of the data state |
 
 ### Properties
 

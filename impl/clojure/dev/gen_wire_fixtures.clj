@@ -12,6 +12,7 @@
             [dacite.value.types :as types]
             [dacite.value.scalar :as scalar]
             [dacite.value.finger-tree :as ft]
+            [dacite.value.lit :as lit]
             [dacite.value.hamt :as hamt]))
 
 (defn write-case!
@@ -163,11 +164,10 @@
             ;; small node: force multi-child node if available
             node-hs (mapv #(types/dacite-hash (scalar/i64-with-store st %)) (range 10))
             node-root (ft/ft-from-value-hashes st node-hs)
-            ;; walk store for an ft/node entry
-            ft-node-entry (some (fn [[h e]]
-                                  (when (= "ft/node" (types/entry-type e))
-                                    [h e]))
-                                (store/await (store/s-snapshot st)))
+            ;; one ft/node page of 24 i64 leaves (packed body: a run)
+            ft-node-h (ft/ft-node-from-value-hashes
+                       st (mapv #(types/dacite-hash (scalar/i64-with-store st %)) (range 2 26)))
+            ft-node-entry [ft-node-h (store/await (store/s-get st ft-node-h))]
             ft-empty-h (ft/ft-empty st)
             ft-empty-entry (store/await (store/s-get st ft-empty-h))]
 
@@ -256,8 +256,8 @@
                      :desc "{\"title\":\"hamt/bitmap as store node\"}\n")
         (swap! cases conj "chunk-node-hamt-bitmap")
 
-        ;; issue #12: telescoping. Keys 9422 and 19429 share their first three
-        ;; chunks (4, 11, 4) and differ at chunk 3, so their node branches on
+        ;; issue #12: telescoping. Keys 14086 and 24952 share their first three
+        ;; chunks (2, 2, 1) and differ at chunk 3, so their node branches on
         ;; split 3 directly, with no chain of one-child nodes above it. Key 1
         ;; differs from them at chunk 0, so the root splits at 0 and holds the
         ;; entry for key 1 beside that node. The case pins both nodes, with the
@@ -266,7 +266,7 @@
                                 (let [k (types/dacite-hash (scalar/i64-with-store st i))
                                       v (types/dacite-hash (scalar/i64-with-store st (+ i 100)))]
                                   [k k v]))
-                              [1 9422 19429])
+                              [1 14086 24952])
               tel-root (hamt/hamt-from-entries st tel-pairs)
               tel-root-e (store/await (store/s-get st tel-root))
               inner-h (some (fn [c]
@@ -328,13 +328,43 @@
                          :desc "{\"title\":\"ft/digit of equal chars as value-repeat\"}\n")
             (swap! cases conj "chunk-literal-repeat-char"))))
 
-      ;; Preserve multi-chunk 3000-string if already present (do not regenerate here)
-      (doseq [id ["chunk-string-3000-part-0"
-                  "chunk-string-3000-part-1"
-                  "chunk-string-3000-part-2"
-                  "chunk-literal-todo-seed"]]
-        (when (.isDirectory (io/file (bin/fixture-root) "cases" id))
-          (swap! cases conj id)))
+      ;; Multi-chunk pack series: a 3000-char string fetched at soft budget 256,
+      ;; one pack-under per missing subtree (header + root, left digit, spine). Pages are the
+      ;; 1 KiB of the first fixtures so the string is three pages, not one.
+      (binding [lit/page-budget 1024]
+        (let [s3 (coll/string-with-store st (apply str (repeat 3000 \x)))
+              sh (types/dacite-hash s3)
+              entry-of (fn [h] (store/await (store/s-get st h)))
+              root (:root (second (entry-of sh)))
+              deep (second (entry-of root))
+              left (:left deep)
+              spine (:spine deep)
+              have (atom #{})
+              ->item (fn [it]
+                       (if (= :literal (:encoding it))
+                         (lit-item (store/hex->hash (:hash it)) (select-keys it [:type :body]))
+                         (node-item (store/hex->hash (:hash it)) (:body it))))]
+          (doseq [[i h] (map-indexed vector [sh left spine])]
+            (let [chunk (pack/pack-under st h @have 256)
+                  items (mapv ->item (:items chunk))
+                  id (str "chunk-string-3000-part-" i)]
+              (swap! have into (map :hash) items)
+              (write-case! id items :budget 256
+                           :desc (str "{\"title\":\"3000-char string pack part " i "\",\"budget\":256}\n")
+                           :hash-hex (store/hash->hex h))
+              (swap! cases conj id)))))
+
+      ;; The todo seed list as a root literal
+      (let [seed [["write portable host layer" true] ["split the store" true]
+                  ["run under babashka" false] ["run under nbb" false]
+                  ["durable todo root" false]]
+            tv (apply coll/vector-with-store st
+                      (map (fn [[title done]] (coll/hash-map-with-store st "title" title "done" done)) seed))
+            tvh (types/dacite-hash tv)]
+        (write-case! "chunk-literal-todo-seed"
+                     [(lit-item tvh (pack/literal-of st tvh))]
+                     :desc "{\"title\":\"todo seed as root literal\"}\n")
+        (swap! cases conj "chunk-literal-todo-seed"))
 
       ;; Write manifest covering all case directories that exist
       (let [cases-dir (io/file (bin/fixture-root) "cases")

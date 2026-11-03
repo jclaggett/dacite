@@ -1,6 +1,7 @@
 (ns dacite.value-test
   "Tests for scalars, accessors, and store-awareness in the value layer."
   (:require [clojure.test :refer [deftest is testing]]
+            [dacite.hash :as hash]
             [dacite.store :as store]
             [dacite.value :as v2]))
 
@@ -99,6 +100,6 @@
 (deftest content-hash-strips-type
   (let [s (store/mem-store)]
     ;; An empty string's data hash is the group identity.
-    (is (= [0 0 0 0] (v2/content-hash (v2/string s ""))))))
+    (is (= (hash/state->ref hash/identity-state) (v2/content-hash (v2/string s ""))))))
 
 

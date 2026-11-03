@@ -41,12 +41,12 @@
 ;; =============================================================================
 
 (def measure-identity
-  {:count 0 :size-bytes 0 :elements-fuse host/zero-hash})
+  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state})
 
 (defn- measure-combine [m1 m2]
   {:count (+ (:count m1) (:count m2))
    :size-bytes (+ (:size-bytes m1) (:size-bytes m2))
-   :elements-fuse (hash/unchecked-fuse (:elements-fuse m1) (:elements-fuse m2))})
+   :elements-fuse (hash/fuse (:elements-fuse m1) (:elements-fuse m2))})
 
 (defn- measure-seq [measures]
   (reduce measure-combine measure-identity measures))
@@ -81,7 +81,7 @@
   "Measure of an FT cell or implicit leaf (non-ft/*).
 
    Leaf measure is synthesized: count 1, size-bytes from the entry,
-   elements-fuse = the leaf hash itself."
+   elements-fuse = the leaf's ref expanded to a state (`hash/ref->state`)."
   [store h]
   (let [entry (lookup store h)
         t (node-type entry)]
@@ -89,7 +89,7 @@
       (:measure (node-data entry))
       {:count 1
        :size-bytes (types/dacite-size entry)
-       :elements-fuse h})))
+       :elements-fuse (hash/ref->state h)})))
 
 (defn- as-leaf-hash
   "Leaf value hash (identity). Throws if h names a structural FT cell."
@@ -173,21 +173,56 @@
       (lit/rle-lits (mapv #(hash->item store %) (or (:children data) [])))))
 
 (def ^:private char-hashes
-  "char -> its scalar value hash. A page is re-measured on every append, so
-   each character's hash (UTF-8 encode + hash) would be recomputed a page's
-   worth of times per character (quadratic in the page budget). Bounded."
+  "char -> [its scalar value hash, dacite size, the hash as a fuse state]. A
+   page is re-measured on every append, so each character's hash (UTF-8
+   encode + hash + expansion, about 40 matrix products) would be recomputed a
+   page's worth of times per character (quadratic in the page budget).
+   Bounded."
   (atom {}))
 
 (defn- char-hash+size
-  "[scalar value hash, dacite size] of one character."
+  "[scalar value hash, dacite size, ref state] of one character."
   [ch]
   (or (get @char-hashes ch)
-      (let [hs [(types/scalar-value-hash ["char" ch]) (types/dacite-size ["char" ch])]]
+      (let [h (types/scalar-value-hash ["char" ch])
+            hs [h (types/dacite-size ["char" ch]) (hash/ref->state h)]]
         (when (< (count @char-hashes) 70000)
           (swap! char-hashes assoc ch hs))
         hs)))
 
-(defn- char-value-hash [ch] (first (char-hash+size ch)))
+(defn- char-state [ch] (nth (char-hash+size ch) 2))
+
+(defn- u8-hash-table
+  "The 256 u8 scalar value hashes (refs), indexed by unsigned byte."
+  []
+  (let [hs (mapv (fn [i] (types/scalar-value-hash ["u8" i])) (range 256))]
+    #?(:clj (into-array Object hs)
+       :cljs (into-array hs))))
+
+(def ^:private u8-scalar-hashes
+  "Computed once."
+  (delay (u8-hash-table)))
+
+(defn- u8-hash-at [n]
+  #?(:clj (aget ^objects @u8-scalar-hashes (int n))
+     :cljs (aget @u8-scalar-hashes n)))
+
+(defn- u8-state-table
+  "The 256 u8 scalars as fuse states (`ref->state` of each scalar's ref),
+   indexed by unsigned byte."
+  []
+  (let [hs (mapv (fn [i] (hash/ref->state (u8-hash-at i))) (range 256))]
+    #?(:clj (into-array Object hs)
+       :cljs (into-array hs))))
+
+(def ^:private u8-scalar-states
+  "Computed once (about 8,000 matrix products). A page measure fuses these
+   in place."
+  (delay (u8-state-table)))
+
+(defn- u8-state-at [n]
+  #?(:clj (aget ^objects @u8-scalar-states (int n))
+     :cljs (aget @u8-scalar-states n)))
 
 (defn- item-measure
   [store item]
@@ -197,90 +232,72 @@
       (= t "ref") (measure-of store b)
 
       (contains? lit/scalar-types t)
-      (let [[h sz] (if (= t "char")
-                     (char-hash+size b)
-                     [(types/scalar-value-hash [t b]) (types/dacite-size [t b])])]
+      (let [[sz st] (if (= t "char")
+                      (let [[_ sz st] (char-hash+size b)] [sz st])
+                      [(types/dacite-size [t b])
+                       (hash/ref->state (types/scalar-value-hash [t b]))])]
         {:count 1
          :size-bytes sz
-         :elements-fuse h})
+         :elements-fuse st})
 
       (= t "string")
       (let [s (str b)
-            ef (reduce (fn [a ch]
-                         (hash/unchecked-fuse
-                          a (char-value-hash ch)))
-                       host/zero-hash
+            ef (reduce (fn [a ch] (hash/fuse a (char-state ch)))
+                       hash/identity-state
                        (seq s))]
         {:count 1
          :size-bytes (count (host/utf8-bytes s))
-         :elements-fuse (types/value-hash "string" ef)})
+         :elements-fuse (hash/ref->state (types/value-hash "string" ef))})
 
       (= t "blob")
       (let [xs (vec b)
-            ef (reduce (fn [a n]
-                         (hash/unchecked-fuse
-                          a (types/scalar-value-hash ["u8" (int n)])))
-                       host/zero-hash
+            ef (reduce (fn [a n] (hash/fuse a (u8-state-at (int n))))
+                       hash/identity-state
                        xs)]
         {:count 1
          :size-bytes (count xs)
-         :elements-fuse (types/value-hash "blob" ef)})
+         :elements-fuse (hash/ref->state (types/value-hash "blob" ef))})
 
       :else
       (measure-of store (lit/intern-lit-item! store item)))))
 
-(defn- u8-hash-table
-  "The 256 u8 scalar value hashes, indexed by unsigned byte."
-  []
-  (let [hs (mapv (fn [i] (types/scalar-value-hash ["u8" i])) (range 256))]
-    #?(:clj (into-array Object hs)
-       :cljs (into-array hs))))
-
-(def ^:private u8-scalar-hashes
-  "Computed once. A page measure fuses these in place."
-  (delay (u8-hash-table)))
-
-(defn- u8-hash-at [n]
-  #?(:clj (aget ^objects @u8-scalar-hashes (int n))
-     :cljs (aget @u8-scalar-hashes n)))
-
 #?(:clj
    (defn- fuse-u8-array
-     "Fuse per-byte u8 scalar hashes of a byte array. No per-byte map or
+     "Fuse per-byte u8 scalar states of a byte array. No per-byte map or
       Integer is retained."
      [^bytes bs]
-     (let [^objects hs @u8-scalar-hashes
+     (let [^objects hs @u8-scalar-states
            n (alength bs)]
-       (loop [i (int 0) acc host/zero-hash]
+       (loop [i (int 0) acc hash/identity-state]
          (if (== i n)
            acc
            (recur (unchecked-inc-int i)
-                  (hash/unchecked-fuse
+                  (hash/fuse
                    acc
                    (aget hs (Byte/toUnsignedInt (aget bs i)))))))))
    :cljs
    (defn- fuse-u8-array [bs]
-     (let [hs @u8-scalar-hashes
+     (let [hs @u8-scalar-states
            n (lit/u8-count bs)]
-       (loop [i 0 acc host/zero-hash]
+       (loop [i 0 acc hash/identity-state]
          (if (== i n)
            acc
            (recur (inc i)
-                  (hash/unchecked-fuse acc (aget hs (lit/u8-nth bs i)))))))))
+                  (hash/fuse acc (aget hs (lit/u8-nth bs i)))))))))
 
 (defn- u8-run-measure
   "Measure of a u8 run: count and size are the byte length, and
-   elements-fuse is the fuse of the per-byte u8 scalar hashes."
+   elements-fuse is the fuse of the per-byte u8 scalar states."
   [values]
   (let [n (lit/u8-count values)
         ef (if (lit/u8-bytes? values)
              (fuse-u8-array values)
-             (loop [i 0 acc host/zero-hash]
+             (loop [i 0 acc hash/identity-state]
                (if (== i n)
                  acc
                  (recur (inc i)
-                        (hash/unchecked-fuse
-                         acc (u8-hash-at (lit/u8-nth values i)))))))]
+                        (hash/fuse
+                         acc (u8-state-at (lit/u8-nth values i)))))))]
     {:count n :size-bytes n :elements-fuse ef}))
 
 (defn- body-measure

@@ -47,7 +47,10 @@ Golden suite for wire-v1 (see `manifest.json`, **79** cases). Covers:
   hamt empty/entry/bitmap, and a telescoped two-level bitmap pair that pins the
   `split` byte and its place in the node hash)
 - **Sequence packing:** nested `run` / `repeat` inside `vector` / `ft/*` literals
-- Mixed encodings; multi-chunk 3000-char string pack series
+- Mixed encodings; multi-chunk 3000-char string pack series (generated at 1 KiB
+  pages and a 256-byte budget: header and root, left digit, spine)
+- Hashes are hash version 2 (the SL(2, F_p) fuse, issue #14); a `Measure` is 80
+  bytes with a 64-byte state (docs/design/fuse-sl2.md)
 
 Ports should pass every case under `cases/`.
 
