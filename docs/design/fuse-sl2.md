@@ -36,8 +36,8 @@ order at least 2^252.
 The prime is found by `fixtures/fuse-sl2/find_prime.py`, which is deterministic:
 start at SHA-256("dacite/fuse-sl2/prime/v2") with the top bit and the low bit set,
 scan upward by 2, and take the first p that is prime with p - 1 = s1 * q1 and
-p + 1 = s2 * q2, where q1 and q2 are prime and s1, s2 have only prime factors
-below 256 (here s1 = 6 and s2 = 4). Nothing is hidden in it: anyone can re-run the
+p + 1 = s2 * q2, where q1 and q2 are prime and s1, s2 are numbers below 256
+(here s1 = 6 and s2 = 4). Nothing is hidden in it: anyone can re-run the
 search.
 
 ### Verifying the prime and the factorizations
@@ -129,6 +129,10 @@ changes shape. A state is 128 bytes (four 32-byte big-endian cells). So:
   checks that each of the 256 bits is set 44% to 56% of the time over 3,000
   states, which is a sanity check and not a proof of uniformity. HAMT navigation
   reads 5-bit chunks of the digest.
+  The digest is xor-linear and not injective (32 bytes of a 128-byte state),
+  which is fine for a ref and would not be for a state: **the 32-byte digest is
+  never fed back in as a state.** A ref that becomes an element of a fuse goes
+  through `ref->state` below, which builds a different state from its bytes.
 - `ref->state` (a ref as an element of a sequence): the product of the byte
   generators of the ref's 32 big-endian bytes (31 products). This is the only
   way an element enters a fuse, so a node is checked from the same bytes the
@@ -284,7 +288,7 @@ on the JVM (0.6 million per second) and about 1.9 us on nbb. Hashing a ref into
 a sequence costs 31 products; `ref->state` is memoized, bounded at 65,536
 entries and **emptied wholesale when full**, so a workload that re-reads more
 distinct refs than that falls off a cliff to 31 products per ref (the cost
-of an uncached read; there is no LRU).
+of an uncached read; there is no LRU; issue #17).
 
 What matters is the end-to-end cost, not the step. Each row builds the value
 from nothing and takes its hash (median of 7 runs after 3 warm-ups, from
@@ -292,16 +296,28 @@ from nothing and takes its hash (median of 7 runs after 3 warm-ups, from
 
 | operation | JVM main | JVM 127-bit (7371cda) | JVM 256-bit | nbb main | nbb 256-bit |
 |---|---|---|---|---|---|
-| map, 3,000 i64 entries | 186 ms | 432 ms | 600 ms | 6.2 s | 6.6 s |
-| vector, 10,000 i64 | 199 ms | 482 ms | 634 ms | 4.3 s | 4.5 s |
-| string, 100,000 chars | 53 ms | 199 ms | 319 ms | 0.91 s | 0.97 s |
-| blob, 500 KB | 69 ms | 781 ms | 1,412 ms | 3.5 s | 2.5 s |
-| 500 assocs on a 1,000-entry map | 77 ms | 188 ms | 269 ms | 3.5 s | 3.2 s |
+| map, 3,000 i64 entries | 186 ms | 432 ms | 595 ms | 6.2 s | 6.5 s |
+| vector, 10,000 i64 | 199 ms | 482 ms | 598 ms | 4.3 s | 4.6 s |
+| string, 100,000 chars | 53 ms | 199 ms | 180 ms | 0.91 s | 0.56 s |
+| blob, 500 KB | 69 ms | 781 ms | 687 ms | 3.5 s | 1.3 s |
+| 500 assocs on a 1,000-entry map | 77 ms | 188 ms | 260 ms | 3.5 s | 3.4 s |
 
-On the JVM the 256-bit fuse is 3x slower than main for collections and 4x to 20x
-slower for the byte-heavy values (a blob pays one matrix product per byte, and a
-byte was nearly free before). On nbb, where interpreter overhead dominates, it
-is about the same as main. The first draft of this change called the fuse "as
+On the JVM the 256-bit fuse is about 3x slower than main for collections and
+strings and about 10x slower for a blob (a blob pays one matrix product per
+byte, and a byte was nearly free before). On nbb, where interpreter overhead
+dominates, it is about the same as main for collections, and faster for strings
+and blobs than main's 64-bit wraparound on BigInt. The first draft of this change called the fuse "as
 fast"; that was wrong, and an earlier "6x slower per step" figure was a
 micro-measurement that said nothing about whole operations. Making byte runs
 cheaper (a table of products of byte pairs, or a wider leaf) is future work.
+
+A blob costs 1.01 products per byte at 500 KB (1.10 at 40 KB). It cost 2.03
+before the review of PR #15 found that `ft-from-run` measured every page's
+bytes twice, once when it built the page as a digit and once when it re-wrapped
+the digit as an `ft/node` (`as-node!`; `as-digit!` did the same the other way).
+Both now pass the measure the page already holds, which is the same value, so no
+hash changes (`a-blob-costs-about-one-product-per-byte` counts the products).
+
+Open: the `ref->state` cache is a cliff, and memoizing the fuse of a node's
+children might pay (about 40% of child fuses inside one build repeat an earlier
+pair). Both are issue #17, decided by benchmark; the roadmap has the entry.

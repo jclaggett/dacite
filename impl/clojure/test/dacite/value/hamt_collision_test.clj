@@ -41,8 +41,8 @@
 
 (deftest the-two-key-map-of-issue-12
   (let [st (store/mem-store)
-        k1 (v/u16 st 61016)
-        k2 (v/f64 st 0.5)
+        k1 (v/u16 st 17736)
+        k2 (v/u16 st 47677)
         m (v/map st k1 1 k2 2)
         root (:root (second (store/await (store/s-get st (v/hash m)))))
         [_ rd] (store/await (store/s-get st root))]
@@ -51,8 +51,12 @@
     (is (= 1 (v/realize (v/get m k1))))
     (is (= 2 (v/realize (v/get m k2))))
     (is (= #{1 2} (set (map v/realize (v/vals m)))))
-    (testing "the chunks of the two hashes are 0 1 27 15 and 0 1 27 25: the
-              node branches at chunk 3, directly, with two entries under it"
+    (testing "the chunks of the two hashes are 31 31 10 7 and 31 31 10 28: a chunk
+              value repeats (31 31, as in the report of issue 12, where it made
+              two chain nodes hash alike), the three first chunks are shared, and
+              the node branches at chunk 3, directly, with two entries under it"
+      (is (= [31 31 10 7] (mapv #(hamt/hash-chunk (v/hash k1) %) (range 4))))
+      (is (= [31 31 10 28] (mapv #(hamt/hash-chunk (v/hash k2) %) (range 4))))
       (is (= 3 (:split rd)))
       (is (= 2 (count (:children rd))))
       (is (every? #(= "hamt/entry" (first (store/await (store/s-get st %)))) (:children rd))))

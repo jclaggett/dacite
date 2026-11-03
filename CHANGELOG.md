@@ -62,10 +62,12 @@ stability promise: public APIs may still change before 1.0.
     was not benchmarked.
   - **Cost (measured end to end, one core, this box; the first draft's "as
     fast" was wrong).** Building a value and hashing it, JVM, main -> 256-bit:
-    3,000-entry map 186 -> 600 ms; 10,000-element vector 199 -> 634 ms; 100,000-char
-    string 53 -> 319 ms; 500 KB blob 69 -> 1,412 ms; 500 assocs on a 1,000-entry
-    map 77 -> 269 ms. nbb is about the same as main (6.2 -> 6.6 s for the map;
-    the blob is 3.5 -> 2.5 s). A fuse step is about 1.7 us on the JVM and 1.9 us
+    3,000-entry map 186 -> 595 ms; 10,000-element vector 199 -> 598 ms; 100,000-char
+    string 53 -> 180 ms; 500 KB blob 69 -> 687 ms; 500 assocs on a 1,000-entry
+    map 77 -> 260 ms. nbb is about the same as main for collections (6.2 -> 6.5 s
+    for the map) and faster for the blob (3.5 -> 1.3 s). A blob costs 1.01
+    products per byte: `ft-from-run` used to measure every page twice (2.03),
+    and `as-node!` and `as-digit!` now reuse the measure the page holds. A fuse step is about 1.7 us on the JVM and 1.9 us
     on nbb. An element of a sequence costs 31 products. The harness is
     `impl/clojure/dev/bench_ops.cljc`; the table is in the design doc. The JVM
     suite takes about 65 s (main: 46 s).
@@ -83,7 +85,7 @@ stability promise: public APIs may still change before 1.0.
     1 KiB pages (a 4 KiB page holds it in one). The leaf-budget pins in
     `literal_limits_test` are new hashes, checked at both budgets; the property
     tests there run 10 samples per frame size (was 30) to stay near 3 s. Browser
-    bundles are rebuilt (cache busters api-8, explorer-22, library-10).
+    bundles are rebuilt (cache busters api-9, explorer-23, library-11).
 - **Fix #12: a telescoping HAMT (peer-v1 wire change).** Keys whose hashes share
   their first 5-bit chunks made a chain of one-child `hamt/bitmap` nodes holding
   the same entries; two nodes of a chain with the same chunk had one hash, so a

@@ -320,9 +320,11 @@
    (add-node! store ["ft/digit" {:body (vec body) :measure measure}])))
 
 (defn- make-node-body!
-  [store body]
-  (add-node! store ["ft/node" {:body (vec body)
-                               :measure (body-measure store body)}]))
+  ([store body]
+   (make-node-body! store body (body-measure store body)))
+  ([store body measure]
+   (add-node! store ["ft/node" {:body (vec body)
+                                :measure measure}])))
 
 (defn page-body-measure
   "Measure of an `ft/digit` or `ft/node` literal body, from the bytes alone.
@@ -443,7 +445,10 @@
         t (node-type node)]
     (case t
       "ft/digit" h
-      "ft/node" (make-digit-body! store (page-body-from-data store (node-data node)))
+      ;; the node's measure is the measure of its body, so it is the digit's too:
+      ;; passing it avoids a second scan of the page's bytes (as in as-node!)
+      "ft/node" (make-digit-body! store (page-body-from-data store (node-data node))
+                                  (:measure (node-data node)))
       (make-digit! store [h] [(measure-of store h)]))))
 
 (defn- make-deep! [store left spine right left-m spine-m right-m]
@@ -1096,7 +1101,10 @@
         t (node-type node)]
     (case t
       "ft/node" h
-      "ft/digit" (make-node-body! store (page-body-from-data store (node-data node)))
+      ;; the digit's measure is already stored: re-wrapping the same body
+      ;; must not re-scan its bytes (it doubled the products of a blob)
+      "ft/digit" (make-node-body! store (page-body-from-data store (node-data node))
+                                  (:measure (node-data node)))
       (make-node! store [h] [(measure-of store h)]))))
 
 (defn ft-from-run

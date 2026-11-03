@@ -319,7 +319,7 @@ measurements and a 36-bit collision the tests replay.
 A fuse is eight 256-bit multiplications and four reductions: about 1.7 µs on
 the JVM and 1.9 µs under nbb. What matters is the whole operation: on the
 JVM, building and hashing a 3,000-entry map takes about 3x as long as before
-the change (600 ms against 186 ms), and a 500 KB blob about 20x (a matrix
+the change (595 ms against 186 ms), and a 500 KB blob about 10x (a matrix
 product per byte); under nbb the interpreter dominates and the times are
 about the same. The design note has the table. An element of a sequence costs
 31 products (`ref_state`), which the implementation memoizes in a bounded

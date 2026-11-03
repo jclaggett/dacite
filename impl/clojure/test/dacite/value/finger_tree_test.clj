@@ -353,3 +353,33 @@
     (is (= [a b c] (vec (ft/ft-leaves st dh))))
     (is (= [a b c] (types/child-hashes (store/await (store/s-get st dh)))))
     (is (= b (ft/ft-nth st dh 1)))))
+
+(defn- count-fuses
+  "Run `f`, counting the matrix products made through `hash/fuse` and
+   `host/sl2-mul` (the two ways the code multiplies states)."
+  [f]
+  (let [n (atom 0)
+        fuse hash/fuse
+        mul host/sl2-mul]
+    (with-redefs [hash/fuse (fn [a b] (swap! n inc) (fuse a b))
+                  host/sl2-mul (fn [a b] (swap! n inc) (mul a b))]
+      (f))
+    @n))
+
+(deftest a-blob-costs-about-one-product-per-byte
+  ;; Re-wrapping a page (a digit as an ft/node) used to measure its bytes a
+  ;; second time: 2.03 products per byte, twice the time. The measure the node
+  ;; or digit already holds is passed through now, in `as-node!` and `as-digit!`
+  ;; (review of PR #15). Each byte needs one product (the floor of a homomorphic
+  ;; hash). Measured: 1.10 per byte at 40,000 bytes, 1.01 at 500,000: about
+  ;; three pages at the ends of the tree are still measured twice (a fixed cost,
+  ;; so a larger share of a small blob), hence the bound of 1.15. The warm-up
+  ;; builds the 256 u8 states (one-time). About 0.05 s.
+  (let [n 40000
+        bs (let [b (byte-array n)] (.nextBytes (java.util.Random. 3) b) b)
+        st (store/mem-store)
+        _ (v/hash (v/blob (store/mem-store) (byte-array 10)))
+        fuses (count-fuses #(v/hash (v/blob st bs)))
+        per-byte (/ fuses (double n))]
+    (is (<= n fuses) "one product per byte at least")
+    (is (<= per-byte 1.15) (str "products per byte: " per-byte))))
