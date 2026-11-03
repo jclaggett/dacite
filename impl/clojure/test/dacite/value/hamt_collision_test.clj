@@ -12,13 +12,17 @@
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
+            [dacite.hash :as hash]
+            [dacite.host :as host]
             [dacite.peer.frame :as frame]
             [dacite.peer.items :as items]
             [dacite.store :as store]
+            [dacite.service.reveal :as sr]
             [dacite.store.pack :as pack]
             [dacite.value :as v]
             [dacite.value.collections :as coll]
             [dacite.value.hamt :as hamt]
+            [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
 
 (def ^:private samples
@@ -71,15 +75,44 @@
 
 (def ^:private gen-chunk-sets
   "Distinct key hashes from 2..7 keys. The first `shared` levels use only
-   chunks 0..2, so chunk values repeat in a chain; the rest is random."
+   chunks 0..2, so chunk values repeat in a chain; the rest is random. One
+   draw in five shares 40..51 levels: a chain down to the last level (level 51
+   reads the last bit only, so there such keys differ in that one bit)."
   (gen/bind
-   (gen/tuple (gen/choose 2 7) (gen/choose 1 6))
+   (gen/tuple (gen/choose 2 7)
+              (gen/frequency [[4 (gen/choose 1 6)] [1 (gen/choose 40 51)]]))
    (fn [[n shared]]
      (gen/fmap (fn [rows]
                  (vec (distinct (map (fn [[head tail]] (chunks->hash (concat head tail))) rows))))
                (gen/vector (gen/tuple (gen/vector (gen/choose 0 2) shared)
                                       (gen/vector (gen/choose 0 31) 8))
                            n)))))
+
+(defn- check-tree
+  "Problems found in the tree under `root`, [] when sound: a node stored under
+   other than its `expected-hash` (the property that broke), a cycle, a bitmap
+   whose popcount is not its child count, a measure that is not the sum of its
+   children's."
+  [st root]
+  (let [problems (atom [])]
+    (letfn [(walk [h path]
+              (if (contains? path (vec h))
+                (swap! problems conj [:cycle (vec h)])
+                (let [e (store/await (store/s-get st h))]
+                  (when-not (= (vec h) (some-> (sr/expected-hash st e) vec))
+                    (swap! problems conj [:stored-under-another-hash (first e)]))
+                  (when (= "hamt/bitmap" (first e))
+                    (let [{:keys [bitmap children measure]} (second e)
+                          ms (map #(:measure (second (store/await (store/s-get st %)))) children)]
+                      (when-not (= (Long/bitCount (long bitmap)) (count children))
+                        (swap! problems conj [:popcount]))
+                      (when-not (and (= (:count measure) (reduce + (map :count ms)))
+                                     (= (:elements-fuse measure)
+                                        (reduce hash/unchecked-fuse host/zero-hash (map :elements-fuse ms))))
+                        (swap! problems conj [:measure]))
+                      (doseq [c children] (walk c (conj path (vec h)))))))))]
+      (walk root #{}))
+    @problems))
 
 (defn- build
   "Root of a HAMT with the [i key-hash] pairs: key hash i under the i64 key i
@@ -102,6 +135,7 @@
                (and
                 ;; count, entries, get
                 (= n (hamt/hamt-count st root))
+                (empty? (check-tree st root))
                 (= (set (map pair (range n))) (entries root))
                 (every? (fn [[i kh]] (= (second (pair i)) (some-> (hamt/hamt-get st root kh) vec)))
                         (map-indexed vector khs))
@@ -120,15 +154,14 @@
                           r' (hamt/hamt-dissoc st r kh)
                           rest' (subvec left 1)]
                       (and (nil? (hamt/hamt-get st r' kh))
+                           (empty? (check-tree st r'))
+                           ;; the history does not show: the same entries built by assoc
+                           (= (vec r') (vec (build st rest')))
                            (= (count rest') (hamt/hamt-count st r'))
                            (= (set (map (comp pair first) rest')) (entries r'))
                            (every? (fn [[j kj]] (some? (hamt/hamt-get st r' kj))) rest')
                            (recur r' rest')))))))))]
     (is (:pass? r) (str "seed " (:seed r) " failed on " (pr-str (:shrunk r))))))
-
-;; ---------------------------------------------------------------------------
-;; Real keys that collide: through the value API, literal-of and encode-value
-;; ---------------------------------------------------------------------------
 
 (def ^:private colliding-i64s
   "Four groups of i64 keys whose hashes share their first three chunks, with
@@ -137,6 +170,114 @@
    [11940 28589 44915 71283 93707]      ; 3 8 8
    [5537 7255 37583 39722 44040]        ; 27 26 27
    [14337 34890 48621 76560 84576]])    ; 12 12 13
+
+(deftest the-deepest-chain-is-built-read-and-checked
+  ;; Two keys that differ only in the last bit (level 51): 51 single-child
+  ;; nodes over one two-child node. Chunk 0 on every level repeats one bitmap.
+  (doseq [c [0 7]]
+    (let [st (store/mem-store)
+          a (chunks->hash (concat (repeat 51 c) [0]))
+          b (chunks->hash (concat (repeat 51 c) [16]))
+          [ra rb] [[1 a] [2 b]]
+          root (build st [ra rb])
+          nodes (loop [h root n 0]
+                  (let [e (store/await (store/s-get st h))]
+                    (if (= "hamt/bitmap" (first e))
+                      (recur (first (:children (second e))) (inc n))
+                      n)))]
+      (is (= 52 nodes) "51 single-child levels and the last, two-child node")
+      (is (empty? (check-tree st root)))
+      (is (= 2 (count (hamt/hamt-entries st root))))
+      (is (every? some? [(hamt/hamt-get st root a) (hamt/hamt-get st root b)]))
+      (testing "dissoc leaves the single entry a fresh one-key map has"
+        (is (= (vec (hamt/hamt-dissoc st root a)) (vec (build st [rb]))))
+        (is (= (vec (hamt/hamt-dissoc st root b)) (vec (build st [ra]))))))))
+
+(deftest property-fuzz-assoc-and-dissoc-histories-give-one-tree
+  ;; A random history of assoc and dissoc over a pool of forged key hashes:
+  ;; at every step the tree is the one assoc builds from the entries now held
+  ;; (same root hash), it is sound, and it answers get and count.
+  (let [r (tc/quick-check
+           samples
+           (prop/for-all [khs gen-chunk-sets
+                          ops (gen/vector (gen/tuple (gen/choose 0 9) (gen/choose 0 6)) 4 24)]
+             (let [st (store/mem-store)
+                   pool (vec (map-indexed vector khs))]
+               (loop [root (hamt/hamt-empty st), held {}, ops ops]
+                 (if (empty? ops)
+                   true
+                   (let [[mode j] (first ops)
+                         [i kh] (pool (mod j (count pool)))
+                         assoc? (< mode 6)
+                         root' (if assoc?
+                                 (first (let [r (hamt/hamt-assoc st root kh (v/hash (v/i64 st i))
+                                                                 (v/hash (v/i64 st (+ 1000 i))))]
+                                          [r]))
+                                 (hamt/hamt-dissoc st root kh))
+                         held' (if assoc? (assoc held i kh) (dissoc held i))]
+                     (and (empty? (check-tree st root'))
+                          (= (vec root') (vec (build st (sort-by first held'))))
+                          (= (count held') (hamt/hamt-count st root'))
+                          (every? (fn [[i kh]] (some? (hamt/hamt-get st root' kh))) held')
+                          (recur root' held' (rest ops))))))))) ]
+    (is (:pass? r) (str "seed " (:seed r) " failed on " (pr-str (:shrunk r))))))
+
+;; ---------------------------------------------------------------------------
+;; The hash rule, and reveal's check of it
+;; ---------------------------------------------------------------------------
+
+(defn- bitmap-nodes
+  "[hash entry] of every hamt/bitmap node under `root`."
+  [st root]
+  (loop [q [root] out []]
+    (if (empty? q)
+      out
+      (let [e (store/await (store/s-get st (peek q)))]
+        (recur (into (pop q) (when (= "hamt/bitmap" (first e)) (:children (second e))))
+               (if (= "hamt/bitmap" (first e)) (conj out [(peek q) e]) out))))))
+
+(defn- before-12-hash
+  "The rule before the fix: the bitmap alone, whatever the children."
+  [e]
+  (let [{:keys [measure bitmap]} (second e)]
+    (hash/unchecked-fuse (types/node-hash "hamt/bitmap" (:elements-fuse measure))
+                         (hash/fuse-bytes (host/int->bytes-be bitmap 8)))))
+
+(deftest reveal-checks-the-single-child-rule-and-rejects-a-swapped-child
+  (let [st (store/mem-store)
+        m (apply v/map st (mapcat (fn [k] [(v/i64 st k) k]) (first colliding-i64s)))
+        root (:root (second (store/await (store/s-get st (v/hash m)))))
+        nodes (bitmap-nodes st root)
+        single (filter (fn [[_ e]] (= 1 (count (:children (second e))))) nodes)
+        multi (filter (fn [[_ e]] (< 1 (count (:children (second e))))) nodes)]
+    (is (= 3 (count single)) "chunks 4 11 4: three single-child levels, then the split")
+    (is (seq multi))
+    (doseq [[h e] single]
+      (is (= (vec h) (vec (sr/expected-hash st e))) "reveal expects the stored hash")
+      (is (= (vec h) (vec (hamt/bitmap-node-hash (:elements-fuse (:measure (second e)))
+                                                 (:bitmap (second e)) (:children (second e))))))
+      (is (not= (vec h) (vec (before-12-hash e))) "and it is not the old rule's"))
+    (testing "a node with two or more children keeps the old rule"
+      (doseq [[h e] multi]
+        (is (= (vec h) (vec (before-12-hash e))))
+        (is (= (vec h) (vec (sr/expected-hash st e))))))
+    (testing "the old rule gave the first and third single-child nodes one hash (the bug)"
+      (let [olds (map (fn [[_ e]] (vec (before-12-hash e))) single)]
+        (is (< (count (distinct olds)) (count olds)))))
+    (testing "tamper: the same node with another child is a bad hash"
+      (let [[h e] (first single)
+            other (first (remove #(= (vec %) (vec (first (:children (second e)))))
+                                 (map first nodes)))
+            swapped [(first e) (assoc (second e) :children [other])]]
+        (is (not= (vec h) (vec (sr/expected-hash st swapped))))
+        (is (some? (items/verify-item! st {:enc :node :hash h :entry e})))
+        (is (= :bad-hash
+               (try (items/verify-item! st {:enc :node :hash h :entry swapped})
+                    (catch clojure.lang.ExceptionInfo ex (:reason (ex-data ex))))))))))
+
+;; ---------------------------------------------------------------------------
+;; Real keys that collide: through the value API, literal-of and encode-value
+;; ---------------------------------------------------------------------------
 
 (deftest the-collision-pool-still-collides
   (let [st (store/mem-store)]
@@ -167,6 +308,7 @@
                    expect (into {} (map (fn [k] [k k]) all))]
                (and
                 (= (count all) (v/count m))
+                (empty? (check-tree st (:root (second (store/await (store/s-get st (v/hash m)))))))
                 (= expect (into {} (map (fn [[k x]] [(v/realize k) (v/realize x)]) (v/seq m))))
                 (every? (fn [k] (= k (v/realize (v/get m (v/i64 st k))))) all)
                 (nil? (v/get m (v/i64 st 999999)))
@@ -209,3 +351,25 @@
         s (apply v/set st (map #(v/i64 st %) (first colliding-i64s)))]
     (is (= 5 (v/count s)))
     (is (every? #(v/contains? s (v/i64 st %)) (first colliding-i64s)))))
+
+(deftest colliding-keys-in-a-map-big-enough-for-node-items-round-trip
+  ;; 700 entries do not fit one literal at the smallest frame, so the stream
+  ;; carries node items (the single-child nodes among them), and so does the
+  ;; map after a dissoc of one colliding key.
+  (let [st (store/mem-store)
+        group (first colliding-i64s)
+        ks (concat group (range 300000 300700))
+        m (apply v/map st (mapcat (fn [k] [(v/i64 st k) k]) ks))
+        m2 (v/dissoc m (v/i64 st (first group)))]
+    (doseq [[mv n] [[m 705] [m2 704]]
+            :let [h (v/hash mv)
+                  {:keys [items encs]} (items/encode-value st h {:max-frame-bytes frame/min-max-frame})
+                  rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
+                                                              (frame/concat-bytes items))))
+                  rst (:store rx)
+                  rroot (:root (second (store/await (store/s-get rst h))))]]
+      (is (some #{:node} encs) "node items on the wire")
+      (is (= n (coll/coll-count rst h)))
+      (is (= n (count (hamt/hamt-entries rst rroot))))
+      (is (empty? (check-tree rst rroot)) "every node the receiver holds is under its hash")
+      (is (every? #(some? (hamt/hamt-get rst rroot (v/hash (v/i64 st %)))) (remove #{(first group)} ks))))))

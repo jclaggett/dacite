@@ -9,12 +9,30 @@ stability promise: public APIs may still change before 1.0.
 - **Fix #12: HAMT chains of single-child nodes.** Keys whose hashes share their
   first 5-bit chunks make a chain of single-child `hamt/bitmap` nodes holding
   the same entries; two nodes of a chain with the same chunk had one hash, so a
-  node was its own child (`hamt-entries` overflowed the stack, `get` found
-  nothing). A bitmap node with one child now folds that child's hash
-  (`hamt/bitmap-node-hash`, also used by reveal's check). **Value hashes do not
-  change. The hashes of interior `hamt/bitmap` nodes that have one child do**
-  (a node item's address, about 1 map in 6 of 1 to 2000 entries), and no
-  fixture or pin held one.
+  node was its own child. A bitmap node with one child now folds that child's
+  hash (`hamt/bitmap-node-hash`; reveal's check uses it too). Also, `hamt-dissoc`
+  lifts a single-child node whose child became an entry, so an assoc and a
+  dissoc history with the same entries give the same tree and root hash.
+  - **The bug hit ordinary data, not only forged hashes.** On the old code 1,142
+    sequential i64 keys from 89891 gave a map whose `count` was right but whose
+    `get` lost 2 keys and whose `seq` overflowed the stack, and a 4-key set
+    (9422, 19429, 22349, 25338) had a different hash for each insertion order and
+    `get` found none of the 4.
+  - **Value hashes of correct maps do not change; those of maps the bug
+    corrupted do** (the new hash is the right one and is the same for any
+    insertion order). Maps built correctly before keep their value hash.
+  - **Interior node hashes change for most large maps.** A `hamt/bitmap` node
+    with one child has a new hash (a node item's address). In a sample of
+    sequential-key maps, 0 of 30 with 1-9 keys, 10 of 60 with 10-99, 32 of 60
+    with 100-499, 40 of 40 with 500-999 and 40 of 40 with 1,000-2,000 keys have
+    at least one (about 1.3 to 1.9% of their bitmap nodes). Entries and nodes
+    with two or more children keep their hashes. peer-v1 is a draft, so this is
+    accepted; mixed-version peers reject each other's single-child nodes.
+  - **Old stores keep their cyclic nodes.** Reads follow the stored child hashes,
+    so a map the bug corrupted stays corrupt in a store written by the old code;
+    rebuild it from its source data. Old single-child node items also fail the
+    node-hash check of a new peer.
+  - A fixture pins a chain (`chunk-node-hamt-bitmap-single-child-chain`).
 - **`pack/default-budget` is 4 KiB** (the leaf page size; HTTP and peers), tested
   `(>= default-budget lit/page-budget)`. Durable stores (file, LMDB,
   IndexedDB) keep 1 KiB as `chunk/durable-budget`, a constant of their own.

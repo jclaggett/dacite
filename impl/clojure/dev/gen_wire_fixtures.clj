@@ -255,6 +255,28 @@
                      [(node-item bitmap-h bitmap-e)]
                      :desc "{\"title\":\"hamt/bitmap as store node\"}\n")
         (swap! cases conj "chunk-node-hamt-bitmap")
+
+        ;; issue #12: a chain of single-child bitmap nodes. Keys 9422 and 19429
+        ;; share their first three chunks (4, 11, 4), so the root and the two
+        ;; levels under it hold one child each, and the first and third have
+        ;; the same bitmap. A single-child node's hash folds in its child's
+        ;; hash (`hamt/bitmap-node-hash`); this case pins it for other ports.
+        (let [chain-pairs (mapv (fn [i]
+                                  (let [k (types/dacite-hash (scalar/i64-with-store st i))
+                                        v (types/dacite-hash (scalar/i64-with-store st (+ i 100)))]
+                                    [k k v]))
+                                [9422 19429])
+              chain-root (hamt/hamt-from-entries st chain-pairs)
+              chain-nodes (loop [h chain-root out []]
+                            (let [e (store/await (store/s-get st h))]
+                              (if (= "hamt/bitmap" (first e))
+                                (recur (first (:children (second e))) (conj out [h e]))
+                                out)))]
+          (write-case! "chunk-node-hamt-bitmap-single-child-chain"
+                       (mapv (fn [[h e]] (node-item h e)) chain-nodes)
+                       :desc "{\"title\":\"hamt/bitmap chain: three single-child nodes (issue 12) over a two-child node\"}\n"
+                       :hash-hex (store/hash->hex chain-root))
+          (swap! cases conj "chunk-node-hamt-bitmap-single-child-chain"))
         (when-let [form (pack/literal-of st bitmap-h)]
           (write-case! "chunk-literal-hamt-bitmap"
                        [(lit-item bitmap-h form)]

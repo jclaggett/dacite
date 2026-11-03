@@ -399,7 +399,8 @@ raw store error.
 **Trust.** The hash of a value commits to its ordered elements and not to the
 tree that stores them (that is what makes equal values share storage whatever
 their chunking). So no check from an item's own bytes can bind a branch node to its
-children in v1: see Q1.
+children in v1, except a `hamt/bitmap` with one child, whose hash folds its child's
+hash (issue #12): see Q1.
 
 ## 4. Streams and stream ids
 
@@ -737,11 +738,18 @@ section 11.
 
 These were the three open questions of the S3.3 work. Jonathan has decided them.
 
-1. **Branch nodes are not bound to their children (Q1). v1 assumes good actors and
-   makes no wire or hash change.** An item is verified from its own bytes, but a
-   branch node (`ft/deep`, `hamt/bitmap`, any page with a `ref`) holds its
-   children's hashes, not their measures, and its own hash covers only `(type,
-   elements-fuse)`, not the child hashes. A peer that works to deceive can send a
+1. **Branch nodes are not bound to their children (Q1), with one exception. v1
+   assumes good actors and makes no wire change.** An item is verified from its own
+   bytes, but a branch node (`ft/deep`, `hamt/bitmap`, any page with a `ref`) holds
+   its children's hashes, not their measures, and its own hash covers only `(type,
+   elements-fuse)` (and, for a `hamt/bitmap`, its bitmap), not the child hashes.
+   **The exception (issue #12):** a `hamt/bitmap` with exactly one child also folds
+   that child's hash into its own (`hamt/bitmap-node-hash`), because a chain of
+   single-child nodes holds the same entries all the way down and two of its nodes
+   had one hash. It is a hash change for those nodes only (about 1.5% of the
+   bitmap nodes of a large map), accepted while peer-v1 is a draft; a receiver
+   checks it from the node's own bytes. Every other branch node stays unbound.
+   A peer that works to deceive can send a
    page whose hash is right and whose children are other, valid nodes: each child
    verifies against its own hash, and nothing checks that the parent's measure is
    what the children add up to. The same hole is in today's reveal client (the

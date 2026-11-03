@@ -18,7 +18,8 @@
    Bitmap nodes are the one exception to shape-independence (§3.7): their
    bitmap value is folded into the hash, because two bitmaps with the same
    elements but different routing are NOT interchangeable. A bitmap with a
-   single child also folds in that child's hash (`bitmap-node-hash`).
+   single child also folds in that child's hash (`bitmap-node-hash`): the
+   exception has a second part (issue #12).
 
    The bitmap and 64-bit hash-word navigation go through dacite.host so the
    arithmetic is identical on JVM (native long) and JS (BigInt)."
@@ -243,9 +244,14 @@
                   :else
                   (make-bitmap! store new-bitmap new-children
                                 (measure-seq (mapv #(get-measure store %) new-children)))))
-              (let [new-children (assoc children idx new-child)]
-                (make-bitmap! store bitmap new-children
-                              (measure-seq (mapv #(get-measure store %) new-children)))))))))))
+              ;; A single-child node whose child became an entry is lifted away,
+              ;; so a chain left by dissoc is the shape assoc would build.
+              (if (and (= 1 (count children))
+                       (= "hamt/entry" (node-type (lookup store new-child))))
+                new-child
+                (let [new-children (assoc children idx new-child)]
+                  (make-bitmap! store bitmap new-children
+                                (measure-seq (mapv #(get-measure store %) new-children))))))))))))
 
 (defn- hamt-entries* [store node-hash]
   (let [node (lookup store node-hash)]
