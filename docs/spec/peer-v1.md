@@ -807,7 +807,9 @@ These were the three open questions of the S3.3 work. Jonathan has decided them.
    of issue #12 is not fixed by binding children: it is fixed by the telescoping
    shape of §3.3 (no one-child node, a `split` in the node and its hash), which is
    a wire change to `hamt/bitmap` nodes and their hashes, accepted while peer-v1
-   is a draft. Binding the child hashes into a HAMT node was tried first (a
+   is a draft. The wire and `hello` versions are not bumped for it (draft; no values
+   in the wild); persisted stores carry a store format tag instead (wire-v1,
+   "Persisted stores"). Binding the child hashes into a HAMT node was tried first (a
    one-child node folded its child) and replaced.
    A peer that works to deceive can send a
    page whose hash is right and whose children are other, valid nodes: each child

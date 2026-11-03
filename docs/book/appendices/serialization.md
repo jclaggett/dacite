@@ -67,6 +67,9 @@ map_node = 0x02
 - 0x01: entry (`key_hash ++ key_ref ++ val_ref`)
 - 0x02: bitmap (`u32(bitmap) ++ u8(split) ++ u8(n) ++ hash[n]`; `split` is the hash chunk the node branches on, `n >= 2`)
 
+Persisted stores (file, LMDB, IndexedDB) also hold a one-integer **store format** tag,
+checked when the store opens; see wire-v1, "Persisted stores".
+
 ### Collections (kind 0x03)
 
 ```

@@ -420,6 +420,28 @@ and fixtures use wire-v1 only.
 
 ---
 
+## Persisted stores: the store format tag
+
+A persisted store (file, LMDB, IndexedDB) carries one integer, the **store
+format** (`dacite.store/store-format`, now **1**). It is written when the store is
+created and checked every time it opens. It is not the wire version: the wire and
+`hello` versions are unchanged by it (draft; no Dacite values in the wild).
+
+| Backend | Where the tag is | Created | Checked |
+|---|---|---|---|
+| File (JVM `store.file`, nbb `store.nbb`) | the file `{base}/FORMAT`, the integer in decimal and a newline | the directory is new, or has no `.edn` node | on `file-store` |
+| LMDB (JVM `store.jvm`, nbb `store.nbb.lmdb`) | meta DB key `format` (UTF-8), the integer in decimal as UTF-8 | the content DB is empty and the key is absent | on `lmdb-store`; the env is closed before an error |
+| IndexedDB (`store.idb`) | `meta` object store, key `format`, the number | in the schema upgrade that creates the database (or on open, for an untagged database with no nodes) | on the first operation of an existing database |
+
+A store with nodes and no tag (written before tags), or with another number, is
+refused with `ex-info` `store format mismatch ...` and `ex-data`
+`{:reason :store-format-mismatch :expected 1 :found nil|n :where ...}`, before
+any node is read, so it is never a node-hash failure. `s-reset` keeps the tag.
+Bump the number when what a store holds changes shape: format 1 is the
+`hamt/bitmap` node with a `split` (issue #12).
+
+---
+
 ## Version evolution
 
 - **v1:** as specified here.  

@@ -49,13 +49,20 @@ stability promise: public APIs may still change before 1.0.
     nodes arrive: a node does not know its parent. Every other node and every value hash is as
     before. An old peer and a new peer reject each other's bitmap nodes;
     peer-v1 is a draft.
-  - **Old stores are not readable.** The persisted node payload (file, LMDB,
-    IndexedDB) is the wire layout, so a store written by an older build misreads
-    its bitmap nodes (and its cyclic nodes, if the bug hit it, are gone with
-    them). Rebuild such a store from its source data.
+  - **Persisted stores carry a format tag.** One constant,
+    `dacite.store/store-format` (1), is written when a file, LMDB or IndexedDB store
+    is created and checked when it opens: file `{base}/FORMAT`; LMDB meta key
+    `format`; IndexedDB `meta` key `format` (written in the schema upgrade). A store
+    with nodes and no tag (an older build's), or another number, is refused with
+    `ex-data {:reason :store-format-mismatch :expected :found :where}` instead of
+    failing a node-hash check; rebuild it from its source data (a store the bug
+    corrupted keeps its cyclic nodes). The wire and `hello` versions are not
+    bumped (draft). An older file store's bitmap nodes lack `:split`; an older
+    LMDB or IndexedDB store holds the old byte layout.
   - Every `hamt/bitmap` literal now round-trips to its own hash, so an inner
     HAMT node no longer falls back to a node item for that reason.
-  - Tests: forged-chunk pairs `[1 1 2]/[1 1 3]` and `[1 2 1 4]/[1 2 1 5]`, the
+  - Tests (store tags: new store tagged, reopen passes, untagged and wrong-version
+    refused, on the JVM and in the idb suite): forged-chunk pairs `[1 1 2]/[1 1 3]` and `[1 2 1 4]/[1 2 1 5]`, the
     issue's repro, a property over assoc/dissoc histories (same key set, same
     root bytes and node set; no node ever stored with one child), the last-chunk
     case, tampered `split`, bitmap and shape, a forged store with splits out of
