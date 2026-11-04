@@ -34,7 +34,8 @@
    run (type, length and value) in the summary and merge them on combine, so a
    repeat that spans pages is bounded by its real size. It is roadmap only, not built
    (docs/plan/peering.md)."
-  (:require [dacite.store :as store]
+  (:require [dacite.host :as host]
+            [dacite.store :as store]
             [dacite.value.hamt :as hamt]
             [dacite.value.lit :as lit]
             [dacite.value.types :as types]
@@ -96,9 +97,10 @@
     {:f t :l t :v v :b (+ (long (run-header t)) (long v))}))
 
 (defn- text-bytes
-  "Upper bound of the UTF-8 bytes of a text."
+  "The UTF-8 bytes of a text (a bound that is always met exactly: runs split
+   at code points, so no two runs join into a longer encoding)."
   [s]
-  (lit/utf8-len-upper s))
+  (lit/utf8-len s))
 
 (declare lit-size hash-summary)
 
@@ -143,7 +145,7 @@
                   vs (:values b)]
               (if (= of "ref")
                 (reduce combine nil (map #(ref-summary st cache %) vs))
-                (group of (if (= of "char") (count (str vs)) (lit/u8-count vs))
+                (group of (if (= of "char") (host/cp-count vs) (lit/u8-count vs))
                        (values-bytes of vs))))
       "repeat" (let [of (str (:of b))
                      n (long (:n b))]

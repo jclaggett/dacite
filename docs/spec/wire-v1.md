@@ -71,9 +71,58 @@ match fixtures byte-for-byte.
 - **Hash:** 32 bytes = four big-endian u64 words `(c0, c1, c2, c3)` (same as
   Dacite hash vector order).
 - **Lengths:** u32 counts mean “number of following elements/bytes”; never negative.
-- **Strings:** UTF-8; invalid UTF-8 is a decode error.
+- **Strings:** UTF-8; invalid UTF-8 is a decode error. Text is a sequence of
+  Unicode code points: see [Text](#text-code-points-and-utf-8) below.
 - **Reserved fields:** write as zero; ignore unknown **flags** bits only if the
   spec later marks them ignore-OK (v1: any non-zero reserved bit → error).
+
+---
+
+## Text: code points and UTF-8
+
+Text is a sequence of **Unicode scalar values** (code points U+0000..U+10FFFF
+except the surrogates U+D800..U+DFFF), and every count of text is a count of
+code points (issue #16):
+
+- a `string` of `n` elements has `n` code points; its `count`, the index of
+  `nth`, and the bounds of `slice` are code points. A character outside the
+  Basic Multilingual Plane (an emoji, say) is **one** element, a `char` of 4
+  bytes, not two. A host whose strings are UTF-16 (the JVM, JavaScript) counts
+  code points, never UTF-16 code units;
+- a `char` is one code point: `dlen` is the 1..4 bytes of its UTF-8, and a
+  `char` that decodes to zero or to more than one code point is an error;
+- the `n` of a `run` of `char` is the number of code points that its UTF-8
+  bytes decode to (a surrogate pair in a host string counts 1: `a😀é𝄞` is `n = 4`
+  and `blen = 11`, though a UTF-16 host string holds 6 code units);
+- a page of a string never ends inside a character; a page holds whole code
+  points, so every page is valid UTF-8 on its own;
+- the hash of a string is the fuse of the hashes of its characters, and the
+  hash of a character is the hash of the UTF-8 of its one code point. It does not
+  depend on paging (`fixtures/fuse-sl2/vectors.edn` `:strings`).
+
+**A lone surrogate is refused.** A string with a UTF-16 surrogate that is not
+half of a pair (a high surrogate U+D800..U+DBFF not followed by a low one,
+U+DC00..U+DFFF not preceded by a high one) is not a sequence of scalar values
+and has no UTF-8 form. An implementation does not encode it and does not repair
+it (not as `?`, which the JVM's encoder wrote, nor as U+FFFD, which a JavaScript
+`TextEncoder` writes: two hosts, two values for one string). Building a `string`
+or a `char` from such text, or encoding it, throws `ex-info` with
+`:reason :lone-surrogate` (and `:index`, `:code-unit`); on the wire the same
+bytes cannot occur, because UTF-8 has no form for them. A host that holds text
+of unknown quality repairs it first (`String.prototype.toWellFormed()` in
+JavaScript), which is the caller's choice and not Dacite's.
+
+**Invalid UTF-8 is refused**, not repaired: a bad lead or continuation byte, an
+overlong form, an encoded surrogate (CESU-8), a value above U+10FFFF, or a
+truncated sequence in a `char`, a `string` or the text of a `run` is a decode
+error (`ex-info`, `:reason :invalid-utf8`). A leading U+FEFF is text, kept (a
+JavaScript `TextDecoder` drops it unless told not to: nbb, the browser bundles
+and the browser store's HTTP bodies pass `ignoreBOM`, and `fatal` so that
+malformed bytes throw).
+
+`fixtures/fuse-sl2/vectors.edn` has the known answers (`:strings`, `:utf8`,
+`:invalid-utf8`, `:rejected-strings`), checked on the JVM, on nbb and by
+`fixtures/fuse-sl2/reference.py`.
 
 ---
 
@@ -321,7 +370,7 @@ variable sections use their own length fields.
 | `0x0C` | `f32` | 4 bytes IEEE-754 BE |
 | `0x0D` | `u256` | 32 bytes (no length prefix) |
 | `0x0E` | `negative` | (empty) |
-| `0x10` | `string` | `u32 n` ++ UTF-8 bytes |
+| `0x10` | `string` | `u32 n` ++ UTF-8 bytes (`n` is a **byte** count) |
 | `0x11` | `blob` | `u32 n` ++ bytes |
 | `0x20` | `vector` | `u32 n` ++ `Lit` × n |
 | `0x21` | `map` | `u32 n` ++ (`Lit` key ++ `Lit` val) × n |
@@ -344,7 +393,7 @@ Packed payload of a `run` (after `inner` + `n`):
 
 | Inner | Packed |
 |-------|--------|
-| `char` | `u32 blen` ++ UTF-8 bytes that decode to **n** chars |
+| `char` | `u32 blen` ++ UTF-8 bytes that decode to **n** code points |
 | `u8` | `n` raw bytes |
 | other | `n ×` the inner Lit **body** (no leading `type_id`) |
 

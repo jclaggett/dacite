@@ -13,9 +13,16 @@ Known answers for the SL(2, F_p) fuse (hash version 2, issue #14;
   `impl/clojure/dev/gen_fuse_fixtures.clj` (`clojure -M:dev -m gen-fuse-fixtures`
   from `impl/clojure`). The JVM test (`hash_test`) and the nbb test
   (`npm run peer:test`) both check every vector, so the two hosts agree.
+- Text (issue #16, `docs/design/text-code-points.md`): `:strings` (the value hash and
+  code point count of emoji, mixed BMP and non-BMP, and strings whose page ends
+  inside non-BMP characters; also the chars in `:scalars`), `:utf8` (encode and
+  decode), `:invalid-utf8` (decode must throw) and `:rejected-strings` (a lone
+  surrogate: `v/string`, `host/utf8-bytes` and `v/char` must throw
+  `:lone-surrogate`). `dacite.string-vectors/problems` runs them on any host;
+  the JVM (`unicode_test`), nbb (`npm run peer:test`) and `reference.py` all do.
 - `reference.py` - an independent pure-Python implementation. It re-derives the
   256-generator table from the seeds, asserts the table equals the shipped one,
-  and checks every vector, the kernel ones too: `python3 fixtures/fuse-sl2/reference.py`.
+  and checks every vector, the kernel and text ones too: `python3 fixtures/fuse-sl2/reference.py`.
 - `find_prime.py` - the deterministic search that found p and both factorizations.
 - `small-prime-collision.edn` - a collision for a 36-bit prime (two byte strings,
   same product), which `hash_test` replays: the weakness of a small prime as a test.

@@ -5,7 +5,8 @@ Checks the prime and both factorizations (its own Miller-Rabin, 64 random bases)
 256-generator table from the SHA-256 byte table (the 64-hex seeds in
 impl/clojure/src/dacite/byte_table.cljc) exactly as impl/clojure/dev/dacite/dev/gen_sl2_table.clj does,
 checks the order of every generator, then checks every vector in vectors.edn (fuse-str states and refs,
-ref->state, table sample), the kernel-boundary vectors (`:kernel`) and the shipped table.
+ref->state, table sample), the kernel-boundary vectors (`:kernel`), the text vectors (`:strings`, `:utf8`,
+`:invalid-utf8`, `:rejected-strings`: code points, UTF-8, lone surrogates; issue #16) and the shipped table.
 
     python3 fixtures/fuse-sl2/reference.py        # from the repo root; exits 1 on any mismatch
 """
@@ -97,7 +98,7 @@ def fuse_bytes(bs):
 
 def ref_state(ref_hex): return fuse_bytes(bytes.fromhex(ref_hex))
 
-vec = (root / "fixtures/fuse-sl2/vectors.edn").read_text()
+vec = (root / "fixtures/fuse-sl2/vectors.edn").read_text(encoding="utf-8")
 def field(name):  # crude EDN reader for our own flat maps
     return re.findall(r':%s\s+"([^"]*)"' % name, vec)
 bad = 0
@@ -144,9 +145,14 @@ def read_edn(text):
         if c == '"':
             pos += 1; out = []
             while text[pos] != '"':
-                if text[pos] == "\\": pos += 1
+                if text[pos] == "\\":
+                    pos += 1
+                    if text[pos] == "u":   # \uXXXX is one UTF-16 unit; a surrogate pair is rejoined below
+                        out.append(chr(int(text[pos + 1:pos + 5], 16))); pos += 5; continue
+                    out.append({"n": "\n", "t": "\t", "r": "\r"}.get(text[pos], text[pos])); pos += 1; continue
                 out.append(text[pos]); pos += 1
-            pos += 1; return "".join(out)
+            pos += 1
+            return "".join(out).encode("utf-16-le", "surrogatepass").decode("utf-16-le")
         j = pos
         while pos < len(text) and text[pos] not in " \t\r\n,]}": pos += 1
         tok = text[j:pos]
@@ -180,4 +186,51 @@ for e in K[":refused"]:   # every refused input is not a state (or not a ref / b
     elif f == ":bytes->state": chk(f + " refused", re.fullmatch(r"([0-9a-f]{2})*", args[0]) is not None, False)
 n = sum(len(v) for v in K.values())
 print("kernel vectors: %d checked, %d mismatching" % (n, kbad))
-sys.exit(0 if ok and bad == 0 and kbad == 0 else 1)
+
+# --- Text (issue #16): a string is a sequence of code points; a lone surrogate is refused --------------
+# value_hash(type, data_state) = digest(type_state * data_state), type_state = fuse_bytes(name ++ 0x00).
+# A char is the value hash of the UTF-8 of one code point; a string's data state is the product, in
+# order, of ref->state of each of its characters (the fuse of the elements). Paging does not enter.
+def value_ref(type_name, data_state):
+    return digest(mul(fuse_bytes(type_name.encode("utf-8") + b"\0"), data_state))
+
+def char_ref(cp):
+    return value_ref("char", fuse_bytes(chr(cp).encode("utf-8")))
+
+def string_ref(text):
+    st = I
+    for c in text: st = mul(st, ref_state(char_ref(ord(c))))
+    return value_ref("string", st)
+
+V = read_edn(vec)
+tbad = 0
+def tchk(what, got, want):
+    global tbad
+    if got != want: tbad += 1; print("TEXT MISMATCH", what, got, want)
+for e in V[":strings"]:
+    text = "".join(t * n for t, n in e[":parts"])
+    tchk("count " + e[":name"], len(text), e[":count"])   # Python str: one element per code point
+    if ":code-points" in e: tchk("code points " + e[":name"], [ord(c) for c in text], e[":code-points"])
+    tchk("ref " + e[":name"], string_ref(text), e[":ref"])
+for e in V[":scalars"]:
+    if e[":type"] == "char":
+        assert len(e[":value"]) == 1
+        tchk("char " + repr(e[":value"]), char_ref(ord(e[":value"])), e[":ref"])
+for e in V[":utf8"]:
+    tchk("utf8 encode " + repr(e[":text"]), e[":text"].encode("utf-8").hex(), e[":bytes"])
+    tchk("utf8 decode " + e[":bytes"], bytes.fromhex(e[":bytes"]).decode("utf-8"), e[":text"])
+for e in V[":invalid-utf8"]:
+    try: bytes.fromhex(e[":bytes"]).decode("utf-8"); refused = False
+    except UnicodeDecodeError: refused = True
+    tchk("invalid utf8 " + e[":bytes"], refused, True)
+def has_lone_surrogate(units):
+    """Python's own strict UTF-16 decoder is the oracle: it refuses an unpaired surrogate."""
+    try: b"".join(u.to_bytes(2, "little") for u in units).decode("utf-16-le"); return False
+    except UnicodeDecodeError: return True
+for e in V[":rejected-strings"]:
+    tchk("rejected " + e[":name"], has_lone_surrogate(e[":units"]), True)
+    tchk("reason " + e[":name"], e[":reason"], ":lone-surrogate")
+print("text vectors: %d strings, %d chars, %d utf8, %d invalid utf8, %d rejected; %d mismatching" % (
+    len(V[":strings"]), sum(1 for e in V[":scalars"] if e[":type"] == "char"), len(V[":utf8"]),
+    len(V[":invalid-utf8"]), len(V[":rejected-strings"]), tbad))
+sys.exit(0 if ok and bad == 0 and kbad == 0 and tbad == 0 else 1)

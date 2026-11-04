@@ -174,13 +174,18 @@
 (defn f64 [n] (f64-with-store store/*store* n))
 
 (defn dacite-char-with-store
+  "A character: one code point. On the JVM a `char`, or a String of one code
+   point for a character outside the BMP (a `char` cannot hold it); in
+   ClojureScript a String of one code point. A lone surrogate throws
+   (`:reason :lone-surrogate`)."
   [store c]
-  {:pre [#?(:clj (char? c) :cljs (string? c))]}
+  {:pre [(host/one-char? c)]}
+  (host/check-text! (str c))
   (scalar-with-store store "char" c))
 
 (defn dacite-char
   [c]
-  {:pre [#?(:clj (char? c) :cljs (string? c))]}
+  {:pre [(host/one-char? c)]}
   (dacite-char-with-store store/*store* c))
 
 (defn negative-with-store

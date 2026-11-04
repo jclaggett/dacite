@@ -403,18 +403,221 @@
        (.setFloat64 dv 0 x false)
        (mapv (fn [i] (.getUint8 dv i)) (range 8)))))
 
-(defn utf8-bytes
-  "UTF-8 bytes of a string as a vector of ints 0..255."
+(defn- code-unit
+  "The UTF-16 code unit of `s` at index `i`, as a long."
+  [s i]
+  #?(:clj (long (int (.charAt ^String s (int i))))
+     :cljs (long (.charCodeAt s i))))
+
+(defn lone-surrogate-index
+  "The UTF-16 index of the first lone surrogate (a high surrogate with no low
+   one after it, or a low one with no high one before it) in `s`, or nil.
+   Such a string is not a sequence of Unicode scalar values: it has no UTF-8
+   form, so Dacite does not accept it (see `check-text!`)."
   [s]
+  (let [s (str s)
+        n (long (count s))]
+    (loop [i 0]
+      (when (< i n)
+        (let [c (code-unit s i)]
+          (cond
+            (< c 0xD800) (recur (inc i))
+            (< c 0xDC00) (if (and (< (inc i) n)
+                                  (let [d (code-unit s (inc i))]
+                                    (and (>= d 0xDC00) (< d 0xE000))))
+                           (recur (+ i 2))
+                           i)
+            (< c 0xE000) i
+            :else (recur (inc i))))))))
+
+(defn- lone!
+  "Throw the lone-surrogate error for the surrogate at UTF-16 index `i`."
+  [s i]
+  (let [u (code-unit s i)]
+    (throw (ex-info (str "a lone surrogate (U+"
+                         #?(:clj (format "%04X" u)
+                            :cljs (.padStart (.toUpperCase (.toString u 16)) 4 "0"))
+                         " at UTF-16 index " i ") is not a Unicode scalar value;"
+                         " Dacite text is a sequence of code points and has no"
+                         " encoding for it")
+                    {:reason :lone-surrogate
+                     :index i
+                     :code-unit u}))))
+
+(defn check-text!
+  "Return `s`, or throw `ex-info` with `:reason :lone-surrogate` when it holds
+   a lone surrogate. The same check, with the same data, on every host: the
+   JVM would encode a lone surrogate as `?` and a JS host as U+FFFD, so the
+   same text would be two different values."
+  [s]
+  (when-let [i (lone-surrogate-index s)]
+    (lone! (str s) i))
+  s)
+
+(defn utf8-bytes
+  "UTF-8 bytes of a string as a vector of ints 0..255. A string with a lone
+   surrogate has no UTF-8 form: it throws (`check-text!`)."
+  [s]
+  (check-text! s)
   #?(:clj
      (mapv (fn [b] (bit-and 0xFF (int b))) (.getBytes ^String s "UTF-8"))
      :cljs
      (vec (.encode (js/TextEncoder.) s))))
 
 (defn utf8-decode
-  "Decode a seq of UTF-8 bytes (ints 0..255) back to a string."
+  "Decode a seq of UTF-8 bytes (ints 0..255) back to a string. Malformed
+   UTF-8 (a bad lead or continuation byte, an overlong form, a surrogate, a
+   value above U+10FFFF, a truncated sequence) throws `ex-info` with
+   `:reason :invalid-utf8` instead of becoming U+FFFD. A leading U+FEFF stays."
   [bs]
   #?(:clj
-     (String. (byte-array (map unchecked-byte bs)) "UTF-8")
+     (let [dec (doto (.newDecoder java.nio.charset.StandardCharsets/UTF_8)
+                 (.onMalformedInput java.nio.charset.CodingErrorAction/REPORT)
+                 (.onUnmappableCharacter java.nio.charset.CodingErrorAction/REPORT))]
+       (try
+         (str (.decode dec (java.nio.ByteBuffer/wrap (byte-array (map unchecked-byte bs)))))
+         (catch java.nio.charset.CharacterCodingException e
+           (throw (ex-info "malformed UTF-8" {:reason :invalid-utf8} e)))))
      :cljs
-     (.decode (js/TextDecoder.) (js/Uint8Array. (clj->js (vec bs))))))
+     (try
+       (.decode (js/TextDecoder. "utf-8" #js {:fatal true :ignoreBOM true})
+                (js/Uint8Array. (clj->js (vec bs))))
+       (catch :default e
+         (throw (ex-info "malformed UTF-8" {:reason :invalid-utf8} e))))))
+
+;; -----------------------------------------------------------------------------
+;; Characters: one code point (a Unicode scalar value), on every host
+;;
+;; A Dacite string is a sequence of code points. Host strings are UTF-16, so
+;; these helpers are the only places that map between the two. A character is
+;; `\a` (a java.lang.Character) on the JVM when it is in the BMP, and a one-
+;; code-point String when it is not (a Character is 16 bits); in ClojureScript
+;; it is always a one-code-point String.
+;; -----------------------------------------------------------------------------
+
+(defn- pair-at?
+  "True when a surrogate pair starts at UTF-16 index `i` of `s` (length `n`)."
+  [s i n]
+  (let [c (code-unit s i)]
+    (and (>= c 0xD800) (< c 0xDC00) (< (inc i) n)
+         (let [d (code-unit s (inc i))]
+           (and (>= d 0xDC00) (< d 0xE000))))))
+
+(defn code-point-at
+  "The code point at UTF-16 index `i` of `s`, as a long. A lone surrogate
+   throws (`check-text!`)."
+  [s i]
+  (let [s (str s)
+        n (long (count s))
+        c (code-unit s i)]
+    (cond
+      (or (< c 0xD800) (>= c 0xE000)) c
+      (pair-at? s i n) (+ 0x10000
+                          (bit-shift-left (- c 0xD800) 10)
+                          (- (code-unit s (inc i)) 0xDC00))
+      :else (lone! s i))))
+
+#?(:cljs
+   (def ^:private surrogate-re
+     "Any UTF-16 surrogate unit. A page of text without one (the common case)
+      has one code point per unit, so counting and indexing it need no scan."
+     (js/RegExp. "[\\uD800-\\uDFFF]")))
+
+#?(:cljs
+   (defn- no-surrogate?
+     "True when host string `s` has no surrogate unit at all (a native regex
+      scan, far cheaper than a loop in ClojureScript). JVM: not used."
+     [s]
+     (not (.test surrogate-re s))))
+
+(defn cp-count
+  "Number of code points of a host string (its UTF-16 length minus one for
+   each surrogate pair). JVM: `String.codePointCount` (constant time for a
+   Latin-1 string); JS: the length when there is no surrogate, else a scan."
+  [s]
+  (let [s (str s)]
+    #?(:clj (.codePointCount ^String s 0 (.length ^String s))
+       :cljs (if (no-surrogate? s)
+               (.-length s)
+               (let [n (long (count s))]
+                 (loop [i 0 acc 0]
+                   (if (>= i n)
+                     acc
+                     (recur (if (pair-at? s i n) (+ i 2) (inc i)) (inc acc)))))))))
+
+(defn cp-offset
+  "The UTF-16 index that is `k` code points after UTF-16 index `from` in `s`
+   (`k` may reach the end of `s`, not pass it; else `ex-info`). JVM:
+   `String.offsetByCodePoints`; JS: `from + k` when there is no surrogate."
+  [s from k]
+  (let [s (str s)
+        n (long (count s))
+        from (long from)
+        k (long k)]
+    (when (or (neg? k) (neg? from) (> from n) (> k (- n from)))
+      (throw (ex-info "code point offset out of range" {:from from :k k})))
+    #?(:clj (try (.offsetByCodePoints ^String s (int from) (int k))
+                 (catch IndexOutOfBoundsException _
+                   (throw (ex-info "code point offset out of range" {:from from :k k}))))
+       :cljs (if (no-surrogate? s)
+               (if (> (+ from k) n)
+                 (throw (ex-info "code point offset out of range" {:from from :k k}))
+                 (+ from k))
+               (loop [i from k k]
+                 (if (zero? k)
+                   i
+                   (do (when (>= i n)
+                         (throw (ex-info "code point offset out of range" {:from from :k k})))
+                       (recur (if (pair-at? s i n) (+ i 2) (inc i)) (dec k)))))))))
+
+(defn cp-subs
+  "The substring of `s` of code points `[start, end)` (or to the end)."
+  ([s start]
+   (let [s (str s)] (subs s (cp-offset s 0 start))))
+  ([s start end]
+   (let [s (str s)
+         a (cp-offset s 0 start)
+         b (cp-offset s a (- end start))]
+     (subs s a b))))
+
+(defn code-point->char
+  "The character of code point `cp`."
+  [cp]
+  #?(:clj (if (< cp 0x10000)
+            (char cp)
+            (String. (Character/toChars (int cp))))
+     :cljs (.fromCodePoint js/String cp)))
+
+(defn chars-of
+  "The characters of host string `s` as a seq, one per code point (nil when
+   empty). A supplementary character is one element, not two."
+  [s]
+  (let [s (str s)
+        n (long (count s))]
+    (loop [i 0 out (transient [])]
+      (if (>= i n)
+        (seq (persistent! out))
+        (if (pair-at? s i n)
+          (recur (+ i 2) (conj! out (subs s i (+ i 2))))
+          (recur (inc i) (conj! out #?(:clj (.charAt ^String s (int i))
+                                       :cljs (subs s i (inc i))))))))))
+
+(defn char-at
+  "The character at code point index `i` of host string `s`."
+  [s i]
+  (let [s (str s)
+        a (cp-offset s 0 i)
+        n (long (count s))]
+    (if (pair-at? s a n)
+      (subs s a (+ a 2))
+      #?(:clj (.charAt ^String s (int a))
+         :cljs (subs s a (inc a))))))
+
+(defn one-char?
+  "True when `x` is a character: on the JVM a `char`, or a String of one
+   supplementary code point (a surrogate pair; a BMP character is always a
+   `char`, so a character has one form); in ClojureScript a String of one
+   code point."
+  [x]
+  #?(:clj (or (char? x) (and (string? x) (= 2 (count x)) (= 1 (cp-count x))))
+     :cljs (and (string? x) (= 1 (cp-count x)))))
