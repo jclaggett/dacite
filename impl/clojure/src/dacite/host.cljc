@@ -517,29 +517,58 @@
                           (- (code-unit s (inc i)) 0xDC00))
       :else (lone! s i))))
 
+#?(:cljs
+   (def ^:private surrogate-re
+     "Any UTF-16 surrogate unit. A page of text without one (the common case)
+      has one code point per unit, so counting and indexing it need no scan."
+     (js/RegExp. "[\\uD800-\\uDFFF]")))
+
+#?(:cljs
+   (defn- no-surrogate?
+     "True when host string `s` has no surrogate unit at all (a native regex
+      scan, far cheaper than a loop in ClojureScript). JVM: not used."
+     [s]
+     (not (.test surrogate-re s))))
+
 (defn cp-count
   "Number of code points of a host string (its UTF-16 length minus one for
-   each surrogate pair)."
+   each surrogate pair). JVM: `String.codePointCount` (constant time for a
+   Latin-1 string); JS: the length when there is no surrogate, else a scan."
   [s]
-  (let [s (str s)
-        n (long (count s))]
-    (loop [i 0 acc 0]
-      (if (>= i n)
-        acc
-        (recur (if (pair-at? s i n) (+ i 2) (inc i)) (inc acc))))))
+  (let [s (str s)]
+    #?(:clj (.codePointCount ^String s 0 (.length ^String s))
+       :cljs (if (no-surrogate? s)
+               (.-length s)
+               (let [n (long (count s))]
+                 (loop [i 0 acc 0]
+                   (if (>= i n)
+                     acc
+                     (recur (if (pair-at? s i n) (+ i 2) (inc i)) (inc acc)))))))))
 
 (defn cp-offset
   "The UTF-16 index that is `k` code points after UTF-16 index `from` in `s`
-   (`k` may reach the end of `s`, not pass it). O(k)."
+   (`k` may reach the end of `s`, not pass it; else `ex-info`). JVM:
+   `String.offsetByCodePoints`; JS: `from + k` when there is no surrogate."
   [s from k]
   (let [s (str s)
-        n (long (count s))]
-    (loop [i (long from) k (long k)]
-      (if (zero? k)
-        i
-        (do (when (>= i n)
-              (throw (ex-info "code point offset out of range" {:s s :k k})))
-            (recur (if (pair-at? s i n) (+ i 2) (inc i)) (dec k)))))))
+        n (long (count s))
+        from (long from)
+        k (long k)]
+    (when (or (neg? k) (neg? from) (> from n))
+      (throw (ex-info "code point offset out of range" {:from from :k k})))
+    #?(:clj (try (.offsetByCodePoints ^String s (int from) (int k))
+                 (catch IndexOutOfBoundsException _
+                   (throw (ex-info "code point offset out of range" {:from from :k k}))))
+       :cljs (if (no-surrogate? s)
+               (if (> (+ from k) n)
+                 (throw (ex-info "code point offset out of range" {:from from :k k}))
+                 (+ from k))
+               (loop [i from k k]
+                 (if (zero? k)
+                   i
+                   (do (when (>= i n)
+                         (throw (ex-info "code point offset out of range" {:from from :k k})))
+                       (recur (if (pair-at? s i n) (+ i 2) (inc i)) (dec k)))))))))
 
 (defn cp-subs
   "The substring of `s` of code points `[start, end)` (or to the end)."

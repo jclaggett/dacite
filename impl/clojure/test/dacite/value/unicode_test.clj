@@ -48,6 +48,11 @@
         (is (< (lit/item-count first-page) (host/cp-count s)) "more than one page")
         (is (= smile (host/char-at (:values (:body first-page)) (dec (lit/item-count first-page)))))))))
 
+(deftest wire-and-message-behavior-agrees-on-every-host
+  ;; the same checks run on nbb (peer:test): :bad-char, the char-run count,
+  ;; a lone surrogate on encode, peer messages that report or repair one
+  (is (= [] (sv/behavior-problems))))
+
 (deftest a-character-outside-the-bmp-is-one-element
   (let [st (store/mem-store)
         s (v/string st (str "a" smile "b"))]
@@ -217,6 +222,27 @@
   (is (nil? (host/lone-surrogate-index (str "a" smile "b"))))
   (is (= [4 4 1]  [(host/cp-offset "ab😀" 0 3) (host/cp-offset "ab😀" 2 1) (host/cp-offset "ab😀" 0 1)])
       "an offset is in UTF-16 units"))
+
+(defn- best-ms
+  "The fastest of 5 runs of (f), in milliseconds."
+  [f]
+  (apply min (repeatedly 5 (fn [] (let [t (System/nanoTime)]
+                                    (f)
+                                    (/ (- (System/nanoTime) t) 1e6))))))
+
+(deftest indexing-inside-a-page-uses-the-jdk-and-is-not-a-hand-written-scan
+  ;; Review of #18: a hand-written pair-at? loop made `nth` and `slice` on BMP
+  ;; text 3-4 times slower than before the change. The cost of host/cp-offset on
+  ;; a full 4 KiB page must stay within a small factor of the JDK's own
+  ;; String.offsetByCodePoints (it is that call plus argument checks). A
+  ;; ratio and a best-of-5 keep this steady on a busy machine; it takes ~0.2 s.
+  (let [page (apply str (repeat 4000 \a))
+        n 20000
+        jdk (fn [] (dotimes [i n] (.offsetByCodePoints ^String page 0 (mod i 4000))))
+        ours (fn [] (dotimes [i n] (host/cp-offset page 0 (mod i 4000))))]
+    (jdk) (ours)                        ; warm up
+    (let [a (best-ms jdk) b (best-ms ours)]
+      (is (< b (+ 5 (* 4 a))) (str "cp-offset " b " ms vs the JDK " a " ms")))))
 
 (deftest the-explorer-style-walk-is-in-code-points
   ;; ft-seq of the string tree has one leaf per code point

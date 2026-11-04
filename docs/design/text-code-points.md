@@ -1,8 +1,10 @@
 # Text is a sequence of code points (issue #16)
 
 Status: implemented (PR for #16). Hash values of strings with a character outside
-the Basic Multilingual Plane (BMP) changed on the JVM; BMP-only text hashes as
-before. Draft, so no version bump (as for #12 and #14).
+the Basic Multilingual Plane (BMP) changed on **both** hosts (the JVM and nbb),
+and the two now agree; hashes of BMP-only text are unchanged on both. The page
+layout of non-ASCII BMP text changed on nbb (below). Draft, so no version bump
+(as for #12 and #14).
 
 ## The bug
 
@@ -88,8 +90,16 @@ on every host. A `char` that decodes to other than one code point is `:bad-char`
 
 ## What changed on disk and wire
 
-- Strings and chars of BMP text: no change. Strings with non-BMP characters
-  hash differently on the JVM (they were wrong), and now equal nbb's new hashes.
+- Hashes of strings and chars of BMP text: no change, on either host. Strings with
+  non-BMP characters hash differently on **both** hosts (the JVM hashed `?` per
+  half, nbb U+FFFD per half), and now agree.
+- **Page layout of non-ASCII BMP text changes on nbb** (hashes do not, since a hash
+  does not depend on paging). nbb used to size a character by its UTF-16 unit
+  through `(utf8-len (nth s i))`, which saw no character on ClojureScript, so it
+  cut 3-byte CJK text at 192 bytes (64 characters) per page against a 74-byte
+  budget. It now pages as the JVM does (21 characters), so a store or a wire
+  page of such text written by nbb before differs in layout from one written now,
+  though both hold the same value. The JVM's layout of BMP text is unchanged.
 - The `n` of a `run` of `char` on the wire is code points (it was UTF-16 units; the
   two agree for BMP text). A decoder checks the UTF-8 decodes to `n` code points.
 - No wire or store-format version bump: this is draft, there are no values

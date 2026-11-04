@@ -25,7 +25,8 @@ stability promise: public APIs may still change before 1.0.
   - **Malformed UTF-8 is a decode error** (`:reason :invalid-utf8`) instead of
     becoming U+FFFD (wire-v1 already said so; the code did not do it). A `char` that
     decodes to other than one code point is `:bad-char`. A leading U+FEFF is text:
-    `TextDecoder` used to drop it on nbb and in the browser (`ignoreBOM` is now set).
+    `TextDecoder` used to drop it on nbb and in the browser (`ignoreBOM` is now set, here and
+    in the browser store's HTTP bodies).
   - **Pages hold whole code points.** `chunk-run` and `split-body-at` cut at
     code point boundaries and count each character's 1 to 4 UTF-8 bytes against the
     budget (the old code could cut between the halves of a pair). `lit/utf8-len-upper`
@@ -38,12 +39,29 @@ stability promise: public APIs may still change before 1.0.
     `dacite.host` gets `cp-count`, `cp-offset`, `cp-subs`, `chars-of`, `char-at`,
     `code-point-at`, `code-point->char`, `one-char?`, `lone-surrogate-index` and
     `check-text!`.
-  - **Hashes.** BMP-only strings and chars hash as before. A string with a
-    character outside the BMP changes on the JVM (it was the hash of `?` per
-    half); nbb changes too (it was U+FFFD per half) and now they agree. No wire or
+  - **Hashes.** The hashes of BMP-only strings and chars are unchanged on both
+    hosts. A string with a character outside the BMP changes on **both**: the JVM
+    hashed `?` per half, nbb U+FFFD per half; now they agree. No wire or
     store-format version bump (draft, no values in the wild, as for #12 and #14).
+  - **Page layout of non-ASCII BMP text changes on nbb** (hashes do not: a hash
+    does not depend on paging). nbb paged such text wrongly before: it sized a
+    character through `(utf8-len (nth s i))`, which saw no character on
+    ClojureScript, so 3-byte CJK text was cut at 192 bytes (64 characters) per page
+    against a 74-byte budget. It now cuts at the budget as the JVM does (21
+    characters), so pages nbb wrote before differ in layout from pages it writes
+    now, for the same values. The JVM's layout of BMP text is unchanged.
+  - **Speed.** `count` and `nth` inside a page use `String.codePointCount` and
+    `offsetByCodePoints` on the JVM, and on JS skip the scan for a page with no
+    surrogate, so `nth` and `slice` on BMP text are as fast as before this change
+    (200,000 characters, JVM: ASCII `nth` x 2,000 243 -> 60 ms, `slice` x 200 9.6 -> 2.7 s;
+    mixed BMP 139 -> 81 ms and 8.1 -> 2.8 s; main: 59 ms and 2.7 s). No hash changes.
+  - **Messages.** `msg/problems` reports a lone surrogate in a string field
+    ("not valid Unicode") and `msg/cut-text` (so the encoder, for free text)
+    replaces it with U+FFFD, instead of throwing while a sender reports another
+    error. The browser store decodes HTTP bodies with a strict `TextDecoder`
+    (`fatal`, `ignoreBOM`), as `host/utf8-decode` does.
   - **Tests and fixtures.** `fixtures/fuse-sl2/vectors.edn` gets `:strings` (emoji,
-    mixed BMP and non-BMP, a BOM, the highest code point, and four strings whose
+    mixed BMP and non-BMP, a BOM, the highest code point, and five strings whose
     page ends inside non-BMP characters), non-BMP chars in `:scalars`, `:utf8`,
     `:invalid-utf8` and `:rejected-strings` (lone surrogates), checked by the JVM
     (`unicode_test`), nbb (`npm run peer:test`, 0.2 s) and `reference.py` (which

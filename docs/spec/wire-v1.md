@@ -116,8 +116,9 @@ JavaScript), which is the caller's choice and not Dacite's.
 overlong form, an encoded surrogate (CESU-8), a value above U+10FFFF, or a
 truncated sequence in a `char`, a `string` or the text of a `run` is a decode
 error (`ex-info`, `:reason :invalid-utf8`). A leading U+FEFF is text, kept (a
-JavaScript `TextDecoder` drops it unless told not to: nbb and the browser
-bundles pass `ignoreBOM`).
+JavaScript `TextDecoder` drops it unless told not to: nbb, the browser bundles
+and the browser store's HTTP bodies pass `ignoreBOM`, and `fatal` so that
+malformed bytes throw).
 
 `fixtures/fuse-sl2/vectors.edn` has the known answers (`:strings`, `:utf8`,
 `:invalid-utf8`, `:rejected-strings`), checked on the JVM, on nbb and by

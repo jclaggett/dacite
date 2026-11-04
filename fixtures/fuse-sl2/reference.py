@@ -145,9 +145,14 @@ def read_edn(text):
         if c == '"':
             pos += 1; out = []
             while text[pos] != '"':
-                if text[pos] == "\\": pos += 1
+                if text[pos] == "\\":
+                    pos += 1
+                    if text[pos] == "u":   # \uXXXX is one UTF-16 unit; a surrogate pair is rejoined below
+                        out.append(chr(int(text[pos + 1:pos + 5], 16))); pos += 5; continue
+                    out.append({"n": "\n", "t": "\t", "r": "\r"}.get(text[pos], text[pos])); pos += 1; continue
                 out.append(text[pos]); pos += 1
-            pos += 1; return "".join(out)
+            pos += 1
+            return "".join(out).encode("utf-16-le", "surrogatepass").decode("utf-16-le")
         j = pos
         while pos < len(text) and text[pos] not in " \t\r\n,]}": pos += 1
         tok = text[j:pos]
@@ -219,13 +224,9 @@ for e in V[":invalid-utf8"]:
     except UnicodeDecodeError: refused = True
     tchk("invalid utf8 " + e[":bytes"], refused, True)
 def has_lone_surrogate(units):
-    i = 0
-    while i < len(units):
-        u = units[i]
-        if 0xD800 <= u < 0xDC00 and i + 1 < len(units) and 0xDC00 <= units[i + 1] < 0xE000: i += 2; continue
-        if 0xD800 <= u < 0xE000: return True
-        i += 1
-    return False
+    """Python's own strict UTF-16 decoder is the oracle: it refuses an unpaired surrogate."""
+    try: b"".join(u.to_bytes(2, "little") for u in units).decode("utf-16-le"); return False
+    except UnicodeDecodeError: return True
 for e in V[":rejected-strings"]:
     tchk("rejected " + e[":name"], has_lone_surrogate(e[":units"]), True)
     tchk("reason " + e[":name"], e[":reason"], ":lone-surrogate")

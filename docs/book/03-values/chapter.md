@@ -226,7 +226,11 @@ and `seq` of a string give that `String` as the element (a BMP character stays a
 `char`). In ClojureScript every character is a one-code-point string. The
 `CharSequence` view of a JVM Dacite string (`length`, `charAt`, `subSequence`)
 indexes code points like `count` and `nth`; `charAt` of a character outside the
-BMP throws, since no `char` can hold it (use `nth` or `seq`).
+BMP throws, since no `char` can hold it (use `nth` or `seq`). The view does not
+keep the `CharSequence` contract that `toString().length() == length()` for text
+outside the BMP (`length` counts code points, the `String` has more UTF-16
+units), so `re-find` on such a string fails loudly rather than matching: take
+`(v/native s)` first.
 
 **A lone surrogate is refused.** UTF-16 text can hold a surrogate with no
 partner (a string cut in the middle of an emoji). It is not a sequence of scalar

@@ -163,15 +163,15 @@
    :ref
    "83f482dde01ac2cb773cefd87125b69d0a1340895bae89ad53e8513ace4f7423"}
   {:type "char",
-   :value "😀",
+   :value "\uD83D\uDE00",
    :ref
    "6295ee213a22ba18040d93ee42885b97230cd190d72fad1730bb8824ddf59b76"}
   {:type "char",
-   :value "𝄞",
+   :value "\uD834\uDD1E",
    :ref
    "ebfeb126e7ccae5ed178b927a4b99f71ffce6bca1a40fea07184c9c215118aba"}
   {:type "char",
-   :value "🇨",
+   :value "\uD83C\uDDE8",
    :ref
    "dc9e91b681800d7cf707c9827fc6e28e07889e13526f166ef59b72137d51e681"}
   {:type "char",
@@ -179,11 +179,11 @@
    :ref
    "8eca7fb099913f06f3c23fc81bc4c8e7ce85ac68695b6c72d82af4687d2f9933"}
   {:type "char",
-   :value "﻿",
+   :value "\uFEFF",
    :ref
    "28c128f1c43e088758e0f08f03f4c0d7b020021a3ca023bdb0b985578f927778"}
   {:type "char",
-   :value "�",
+   :value "\uFFFD",
    :ref
    "f54770571a6ce5248c619c2a9cb582b49019c208f5acad7a3ced8ea2d15e3956"}],
  :strings
@@ -205,13 +205,13 @@
    :ref
    "6159ea5be2da0377c1f8a0381ee4c57fbb4c3d4d1745410eebecde87a0363fd9"}
   {:name "emoji",
-   :parts [["😀" 1]],
+   :parts [["\uD83D\uDE00" 1]],
    :count 1,
    :code-points [128512],
    :ref
    "95be4673642603f9b3c04bbbb1712235502c536afc011e2e57e5e73031d04832"}
   {:name "emoji-between-ascii",
-   :parts [["a" 1] ["😀" 1] ["b" 1]],
+   :parts [["a" 1] ["\uD83D\uDE00" 1] ["b" 1]],
    :count 3,
    :code-points [97 128512 98],
    :ref
@@ -219,49 +219,49 @@
   {:name "mixed-bmp-and-non-bmp",
    :parts
    [["héllo " 1]
-    ["😀" 1]
+    ["\uD83D\uDE00" 1]
     [" wörld " 1]
-    ["𝄞" 1]
+    ["\uD834\uDD1E" 1]
     ["日本語" 1]
-    ["🇨🇦" 1]
+    ["\uD83C\uDDE8\uD83C\uDDE6" 1]
     ["€" 1]],
    :count 21,
    :ref
    "c8f03cad89514f37d61aad48d067374aa92f7bd1d05afedf046bff510b64e47f"}
   {:name "bom-and-replacement-char",
-   :parts [["﻿" 1] ["a" 1] ["�" 1]],
+   :parts [["\uFEFF" 1] ["a" 1] ["\uFFFD" 1]],
    :count 3,
    :code-points [65279 97 65533],
    :ref
    "4860ef83d4f08c1f0b088df87609e13abca238eebdc5556b5060d2cde87ef805"}
   {:name "highest-code-point",
-   :parts [["􏿿" 1] ["𐀀" 1]],
+   :parts [["\uDBFF\uDFFF" 1] ["\uD800\uDC00" 1]],
    :count 2,
    :code-points [1114111 65536],
    :ref
    "60044bd1898d004bb65e01042c8eef27baf5880eddedc64c34b8c757574eba53"}
   {:name "page-boundary-in-emoji",
-   :parts [["x" 1] ["😀" 1100]],
+   :parts [["x" 1] ["\uD83D\uDE00" 1100]],
    :count 1101,
    :ref
    "f7239001f22be4228a05cdc0aeddf2eb0ccc2ff3703ef9b49a1d95ad816b32fb"}
   {:name "page-boundary-in-emoji-2",
-   :parts [["xy" 1] ["😀" 1100]],
+   :parts [["xy" 1] ["\uD83D\uDE00" 1100]],
    :count 1102,
    :ref
    "18ef3a1515d0f95d55908a037f8609b19290a3331001e1970820bee7dc5c36ac"}
   {:name "page-boundary-in-emoji-3",
-   :parts [["xyz" 1] ["😀" 1100]],
+   :parts [["xyz" 1] ["\uD83D\uDE00" 1100]],
    :count 1103,
    :ref
    "f93921e0ca15521f6b5c8739bd55ca34a0e0dadc304c5c4edcbea961a906eee9"}
   {:name "page-boundary-in-mixed",
-   :parts [["日😀" 1500]],
+   :parts [["日\uD83D\uDE00" 1500]],
    :count 3000,
    :ref
    "2e7369c4862a8ea37292b1c5869b705044166276b29ee428f598cfdd837ac38a"}
   {:name "pages-of-emoji",
-   :parts [["😀" 5000]],
+   :parts [["\uD83D\uDE00" 5000]],
    :count 5000,
    :ref
    "94ec85e4271f62941077e4cd302f6936b08f3c04ae5e1e0a6e5c1a11e41789a6"}],
@@ -269,12 +269,12 @@
  [{:text "a", :bytes "61"}
   {:text "é", :bytes "c3a9"}
   {:text "€", :bytes "e282ac"}
-  {:text "😀", :bytes "f09f9880"}
-  {:text "𝄞", :bytes "f09d849e"}
-  {:text "􏿿", :bytes "f48fbfbf"}
-  {:text "﻿a", :bytes "efbbbf61"}
-  {:text "�", :bytes "efbfbd"}
-  {:text "a😀b", :bytes "61f09f988062"}],
+  {:text "\uD83D\uDE00", :bytes "f09f9880"}
+  {:text "\uD834\uDD1E", :bytes "f09d849e"}
+  {:text "\uDBFF\uDFFF", :bytes "f48fbfbf"}
+  {:text "\uFEFFa", :bytes "efbbbf61"}
+  {:text "\uFFFD", :bytes "efbfbd"}
+  {:text "a\uD83D\uDE00b", :bytes "61f09f988062"}],
  :invalid-utf8
  [{:bytes "ff"}
   {:bytes "80"}
