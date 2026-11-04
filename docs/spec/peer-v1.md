@@ -1,6 +1,6 @@
 # Dacite peer protocol v1
 
-**Status:** DRAFT (M1.1: messages and framing; M1.2: policy rules and the conformance list, sections 12 and 13). Not yet signed off. In M1.2, rules marked **Proposed (awaiting Jonathan)** are defaults he has not yet approved.
+**Status:** DRAFT (M1.1: messages and framing; M1.2: policy rules and the conformance list, sections 12 and 13). Not yet signed off. In M1.2, rules marked **Proposed (awaiting Jonathan)** are ones he has not yet ruled on; the defaults he approved on Nov 4 are marked Decided.
 **Related:** [wire-v1.md](wire-v1.md) (the byte format this protocol reuses),
 [peering design note](../design/peering-design-note.md),
 [streaming design note](../design/streaming-design-note.md),
@@ -139,7 +139,6 @@ PARTIAL without FIN is invalid. A control message carries FIN and PARTIAL=0.
 | `0x05` | `forget` | `Lit` (map) | requester → responder | 0 (session) |
 | `0x06` | `cancel` | `Lit` (map) | requester → responder | the request's id (request) |
 | `0x07` | `error` | `Lit` (map) | either | the request, or 0 (any) |
-| `0x08` | `rate` | `Lit` (map) | requester → responder | 0 (session). **Proposed (awaiting Jonathan)**, 6.7 |
 
 Type ids are dense. `have?` and `have` were dropped before v1 shipped (section 9,
 Q6), so their ids were never used; a later message takes the next free id.
@@ -610,7 +609,7 @@ there is none, send `error` `unsupported-version` with `fatal: true` and close.
 `max-frame` and `max-item` are the smaller of the two sides'. `max-streams` is per
 direction: each side's value limits what the *other* may have open. Capabilities are
 the intersection. Rates are advertised ceilings; the client shares its `R_max` across
-peers by interest and tells each peer its share (12.2, `rate` in 6.7).
+peers by interest and tells each peer its share in every `get` (`recv-max`, 6.2, 12.2).
 
 ### 6.2 `get` (0x02, new stream)
 
@@ -620,10 +619,11 @@ Ask for a value as a reveal. The answer is an item stream (6.3).
 |---|---|---|---|
 | `hash` | u256 | yes | The root of what I want. |
 | `policy` | string | yes | Reveal policy by name. v1 defines `"default"` only (the engine's default order for each value type). Any other name still decodes; the responder answers `error` `unsupported-policy` on that stream (not fatal). |
-| `interest` | map | no | `peak`, `tau-ms`, `floor`, all required if present: `I(t) = peak · exp(−t / tau)` with `peak` and `floor` in thousandths. `peak` and `tau-ms` are at least 1 (the reveal engine needs `tau > 0`); `floor` may be 0. A `floor` above `peak` is legal and pauses the reveal at once. Absent: the responder's defaults. The responder may clamp any value to its own limits, and MUST raise a `floor` below 10 and cut `tau-ms` above 60 000 and `peak` above 1000 (12.3, C09; **Proposed (awaiting Jonathan)**). |
+| `recv-max` | i64 | yes | Bytes per second I want from you, on this whole session, from now on. At least 1 (`invalid-message` at 0 or absent). The latest `get`'s value is the session budget (C03); a client SHOULD set it to its current C01/C02 share for this peer. |
+| `interest` | map | no | `peak`, `tau-ms`, `floor`, all required if present: `I(t) = peak · exp(−t / tau)` with `peak` and `floor` in thousandths. `peak` and `tau-ms` are at least 1 (the reveal engine needs `tau > 0`); `floor` may be 0. A `floor` above `peak` is legal and pauses the reveal at once. Absent: the responder's defaults. The responder may clamp any value to its own limits, and MUST raise a `floor` below 10 and cut `tau-ms` above 60 000 and `peak` above 1000 (12.3, C09). |
 
 ```clojure
-{"hash" h1 "policy" "default"
+{"hash" h1 "policy" "default" "recv-max" 750000         ; 750 kB/s from you
  "interest" {"peak" 1000 "tau-ms" 2000 "floor" 50}}   ; peak 1.0, tau 2 s, floor 0.05
 ```
 
@@ -643,17 +643,19 @@ The whole frame of fixture `get-default`, by hand (`0x0d` is `u256`, then its
 
 ```hex get-default
 02 01 00000005                 ; get, FIN, stream 5
-21 00000002                    ; map, 2 pairs
+21 00000003                    ; map, 3 pairs
 10 00000006 706f6c696379       ; "policy"
 10 00000007 64656661756c74     ; "default"
 10 00000004 68617368           ; "hash"
 0d 0000000000000001 0000000000000002 0000000000000003 00000000000000aa
+10 00000008 726563762d6d6178   ; "recv-max"
+03 00000000000b71b0            ; i64 750000
 ```
 
 Answers: `item-stream` frames, or `error` `unknown-hash` (the responder does not
 hold the hash; non-fatal, the stream ends), `unsupported-policy`, `rate-limited`,
 `overloaded`, `too-large`.
-Fixtures: `get-default`, `get-interest`, `get-probe`, `get-repeat`.
+Fixtures: `get-default`, `get-interest`, `get-probe`, `get-repeat` (each with a `recv-max`); rejects `reject-get-recv-max-zero`, `reject-get-missing-recv-max`.
 
 **Asking whether a peer holds something.** v1 has no separate message for it
 (an earlier draft had `have?`/`have` with a bitmap; it was removed, decision Q6).
@@ -735,24 +737,6 @@ ends the session, and the sender closes the connection after it.
 | `internal` | Anything else. |
 
 Fixtures: `error-unknown-hash`, `error-rate-limited`, `error-bad-entry`.
-
-### 6.7 `rate` (0x08, stream 0): Proposed (awaiting Jonathan)
-
-**Proposed (awaiting Jonathan).** The client tells a peer how much it wants from
-*that peer now*: its share of `R_max` for the requests that peer serves (12.2,
-C03, C04). No message existed for it, and a data channel gives the receiver no way
-to slow the sender.
-
-```clojure
-{"recv-max" 750000}   ; bytes per second I want from you from now on
-```
-
-`recv-max` is an `i64` of at least 1 (`invalid-message` at 0). The responder's
-rate on the session is `min(its send-max, the latest recv-max)`; before any `rate`,
-it is `hello.rates.recv-max`. A responder that does not know `rate` answers
-`error unsupported` on stream 0 (an unknown type, section 3), and the session
-continues at the `hello` value. No fixture is added in the spec PR: `rate`,
-`reject-rate-on-stream-n` and `reject-rate-zero` come with the code (M3.1).
 
 ## 7. A session
 
@@ -958,27 +942,34 @@ and charges what a peer asks for to that peer's own budget.
 *Rejected alternative:* a separate budget per peer. It is simpler, but several peers
 together could oversubscribe the client's link, which `R_max` exists to prevent.
 
-**How a responder learns its share** (**Proposed (awaiting Jonathan)**). A data
-channel gives the receiver no way to slow the sender, so the responder has to be
-told what to send. The client already knows every request's interest (decay is a
-function of the request's age), so it can compute each peer's total share. One new
-session message carries it:
+**How a responder learns its share** (*Decided*, Jonathan's option A, Nov 4). A
+data channel gives the receiver no way to slow the sender, so the responder has to
+be told what to send. The client already knows every request's interest (decay is
+a function of the request's age), so it can compute each peer's total share, and
+it says so in every `get` (`recv-max`, 6.2). There is no separate rate message.
 
-- **C03 (Proposed (awaiting Jonathan)).** A responder MUST NOT send on a session
-  faster than `min(its send-max, the session's budget)`. The budget is the latest
-  `rate` message's `recv-max` (6.7), or, before any, `hello.rates.recv-max`. The
+- **C03 (Decided).** A responder MUST NOT send on a session faster than
+  `min(its send-max, the session's budget)`. The budget is the `recv-max` of the
+  latest `get` on that session, or, before any, `hello.rates.recv-max`. The
   responder splits the session budget among that session's open streams by the
-  same formula as C01 (its own connection `peak` is 1000), so a client that sends
-  the right `rate` per peer gets exactly the C01/C02 rate on each request.
-- **C04 (Proposed (awaiting Jonathan); SHOULD).** `rate` (type `0x08`) is a session message
-  on stream 0 whose single field `recv-max` is at least 1 (6.7; the framing rules
-  that enforce this are C43 and 3). A client SHOULD send
-  one when a peer's share changes by more than 10%, and no more than 4 times a
-  second per session. A client that never sends one gets the `hello` value.
+  same formula as C01 (its own connection `peak` is 1000). A client SHOULD set each
+  `get`'s `recv-max` to its current C01/C02 share for that peer.
+- **C04 (withdrawn).** Was the `rate` session message (type `0x08`). Jonathan chose
+  option A (`recv-max` in `get`) on Nov 4, so `0x08` is unassigned and C04 has no
+  rule. The id is not reused.
 
-*Cost of the proposal:* one new message type. *Fallback if Jonathan wants no new
-message:* the client splits `R_max` once, at `hello`, as `recv-max` per peer. That
-cannot follow interest as it decays, so a peer's share would be a guess.
+**Known gap: stale `recv-max`.** After client C's share for a peer drops (for
+example because another peer became active), that peer keeps sending at the old
+`recv-max` until C sends it another `get` or its streams end (they complete, or
+interest decays below the floor: at most about 276 s, C10). During the gap the
+peer over-sends by at most *old `recv-max` − current share*, and C's total excess
+over `R_max` is at most the sum of that, over the peers with stale rates. C goes
+over `R_max` for a while, but nothing breaks: **correctness is never affected**,
+because every item is still verified (12.8). The cost is congestion: other peers'
+streams slow down and C's buffers fill, while WebRTC back-pressure (12.5) still
+bounds it. In practice the gap is short, because progressive reveal keeps C
+sending `get`s. Accepted for v1 by Jonathan; revisit with the M5.3 measurements. A
+session-level rate message is the known fix.
 
 ### 12.3 Lifecycle: dwindling interest only
 
@@ -1008,21 +999,21 @@ cannot follow interest as it decays, so a peer's share would be a guess.
   so a peer can always compute when it may forget a stream's state. `tau` stays a
   tunable default, to be measured in M5.3 (plan open question 9).
   The spec lets a requester send `floor = 0` (6.2), which has no bound, so:
-  - **C09 (Proposed (awaiting Jonathan)).** A responder MUST clamp the requested
+  - **C09 (Decided).** A responder MUST clamp the requested
     values before using them: `floor` to at least **10** (0.010), `tau-ms` to at
     most **60 000**, and `peak` to at most **1000**. Absent values take the
     responder's defaults, which are within these.
-  - **C10 (Proposed (awaiting Jonathan)).** After the clamps a stream lives at most
+  - **C10 (Decided).** After the clamps a stream lives at most
     `tau · ln(peak / floor)`: at most 60 s · ln 100 ≈ **276 s**. A responder MUST
     discard all state for a stream no later than that after its request.
     (A requester that wants longer renews, C08.)
 - **A per-peer cap on open streams** bounds the total state a peer can make another
   hold, as C10 bounds each stream's lifetime.
-  - **C11 (Proposed (awaiting Jonathan)).** A responder MUST enforce the
+  - **C11 (Decided).** A responder MUST enforce the
     `limits.max-streams` it advertised: a `get` that would exceed it is refused with
     `error overloaded` (reason `too-many-streams`) and not started (section 4). A
     closed or decayed stream frees its slot at once; its id is never reused.
-  - **C12 (Proposed (awaiting Jonathan)).** `max-streams` is at most **64** in v1. A
+  - **C12 (Decided).** `max-streams` is at most **64** in v1. A
     receiver reads a larger advertised value as 64. A peer SHOULD advertise 32 (the
     example in 6.1). So a session holds at most 64 streams, each at most 276 s old.
 
@@ -1059,7 +1050,7 @@ cannot follow interest as it decays, so a peer's share would be a guess.
 
 ### 12.5 Flow control (`bufferedAmount`)
 
-**Proposed (awaiting Jonathan).** Thresholds are in whole frames (3.1), of the
+*Decided* (Jonathan approved the defaults, Nov 4). Thresholds are in whole frames (3.1), of the
 negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
 
 | Setting | Default | At 16 KiB frames |
@@ -1067,16 +1058,15 @@ negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
 | high water mark | 4 frames | 64 KiB |
 | low (`bufferedAmountLowThreshold`) | 1 frame | 16 KiB |
 
-- **C17 (Proposed (awaiting Jonathan)).** A sender MUST NOT write a frame to a
+- **C17 (Decided).** A sender MUST NOT write a frame to a
   channel whose `bufferedAmount` is at or above the high mark, and MUST resume when
   the buffer falls to the low mark (the `bufferedamountlow` event). So at most
   5 frames are ever queued on a channel, and at most 64 streams × 5 frames
-  (about 5 MiB) per session. `cancel`, `error`, `ack`, `forget`, `rate` and `hello`
+  (about 5 MiB) per session. `cancel`, `error`, `ack`, `forget` and `hello`
   are one-frame control messages on their own channel and are not held back by a
   stream channel's buffer.
 - **How back-pressure meets `R_max`.** `R_max` and the shares decide *when a stream
-  may write*; the buffer only decides whether it *can*. **C18 (Proposed (awaiting
-  Jonathan); SHOULD).** A stream blocked by C17 SHOULD take no share while blocked:
+  may write*; the buffer only decides whether it *can*. **C18 (Decided; SHOULD).** A stream blocked by C17 SHOULD take no share while blocked:
   its share goes to the other streams of the session, as a capped peer's does (C02).
   Its interest keeps decaying (C05), so a reader that never drains loses its stream.
   It SHOULD NOT bank more than one frame of credit while blocked, so a stream does not
@@ -1086,7 +1076,7 @@ negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
 
 ### 12.6 Sent-hash record, `ack` and `forget`
 
-*Decided (the record), with Proposed parameters.*
+*Decided* (the record, and its 16 384 size, C21); C20 and C23 are still Proposed.
 
 - **C19 (Decided).** The sender keeps a **per-session record** of hashes it has
   already sent, so it need not send them again in a later response stream. It is
@@ -1096,7 +1086,7 @@ negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
 - **C20 (Proposed (awaiting Jonathan)).** The **root** of a `get` MUST always be sent,
   whatever the record says. So a requester that is missing a hash, for any reason,
   gets it by asking for that hash; no record can starve a re-request.
-- **C21 (Proposed (awaiting Jonathan)).** The record holds at most **16 384** hashes
+- **C21 (Decided).** The record holds at most **16 384** hashes
   per session; the sender forgets the oldest first when full. A sender MUST remove
   every hash named in a `forget` from the record.
 - **C22 (Decided).** The client always verifies what it receives (section 3.3, 12.8)
@@ -1182,17 +1172,17 @@ kind of item is in the table there.
 
 ### 12.9 Read-only
 
-**Proposed (awaiting Jonathan).** Section 1 already says peers are read-only. As
+*Decided* (Jonathan approved, Nov 4). Section 1 already says peers are read-only. As
 rules:
 
-- **C34 (Proposed (awaiting Jonathan)).** The message set is closed and has no write.
+- **C34 (Decided).** The message set is closed and has no write.
   A peer MUST NOT change its store because of any message except by storing items
   that passed C27 and answer a `get` it sent. There is no `put`, no root update and
   no CAS (those stay with the origin).
-- **C35 (Proposed (awaiting Jonathan)).** A requester MUST store an item only from an
+- **C35 (Decided).** A requester MUST store an item only from an
   `item-stream` on a stream it opened with a `get` and that is still open. Frames
   for a closed id are ignored; for an id it never opened, C16 applies.
-- **C36 (Proposed (awaiting Jonathan)).** A responder answers **from its own store
+- **C36 (Decided).** A responder answers **from its own store
   only.** It MUST NOT fetch a hash from another peer or the origin on a requester's
   behalf; a hash it does not hold is `error unknown-hash`. (So a requester cannot
   make a peer a relay or an amplifier.)
@@ -1212,28 +1202,28 @@ rules:
 
 ### 12.11 Request rate limits (token buckets)
 
-**Proposed (awaiting Jonathan).** `hello.rates` already carries `req-rate` and
+*Decided* (Jonathan approved 20/s, burst 40, Nov 4). `hello.rates` already carries `req-rate` and
 `req-burst` (6.1); this gives them their meaning. Defaults: a peer SHOULD advertise
 `req-rate` **20** requests a second and `req-burst` **40**. The alternative is
 **50** a second with a burst of **100**, since progressive reveal renews with many
 sub-hash `get`s and 20 may slow an honest client deep in a tree; M5.3 measures
 which one to keep.
 
-- **C40 (Proposed (awaiting Jonathan)).** A responder MUST keep one token bucket per
+- **C40 (Decided).** A responder MUST keep one token bucket per
   session, filled at `req-rate` a second up to `req-burst`. Each `get` costs one
   token, whether answered or refused. With none left it answers `error
   rate-limited` with `retry-ms` (the time to the next token), does not start the
   stream, and the session goes on. A peer that floods only gets more
   `rate-limited` errors; a flood never ends the session (C15).
-- **C41 (Proposed (awaiting Jonathan); SHOULD).** A requester SHOULD keep a bucket
+- **C41 (Decided; SHOULD).** A requester SHOULD keep a bucket
   of the same size for each peer, from the peer's `hello`, and SHOULD NOT send a
   `get` when it is empty (the responder's bucket, C40, already protects it). (It prefers to renew a stream it already has, C08, when tokens run
   low.)
-- **C42 (Proposed (awaiting Jonathan)).** A bucket belongs to one session. No bucket,
+- **C42 (Decided).** A bucket belongs to one session. No bucket,
   budget, record or clock is shared between sessions, except the client's own
   `R_max` (C01).
 
-Only `get` is metered in v1. `cancel`, `ack`, `forget` and `rate` are small and
+Only `get` is metered in v1. `cancel`, `ack` and `forget` are small and
 cost the sender their own bandwidth; whether a flood of them needs a bucket is a
 question for M3.2, when a real transport shows what they cost.
 
@@ -1247,7 +1237,7 @@ question for M3.2, when a real transport shows what they cost.
 ### 12.13 Deferred for M1.2
 
 Plan open questions 1, 3 and 4 are **deferred** for the M1.2 acceptance. Each gets a
-reason, a date and a v1 default, so no MUST depends on it.
+reason, a date and a v1 default, so no MUST depends on it. *Decided:* Jonathan approved these deferrals on Nov 4.
 
 - **Question 1, peer lists (does the origin suggest peers by root, or by network
   locality?). Deferred to M6.1.** Reason: peer discovery happens before a session
@@ -1282,7 +1272,8 @@ the responder's own uplink.
 - **C13 covers every verification failure,** not only a bad hash (Proposed).
 - **C01's formula and C26's mechanism** go beyond the decision text and are
   Proposed (12.2, 12.7).
-- **C04, C18 and C41 are SHOULDs:** tuning details, not interoperability rules.
+- **C18 and C41 are SHOULDs:** tuning details, not interoperability rules.
+- **No `rate` message.** M1.2's draft proposed one (`0x08`, C04); Jonathan chose `recv-max` in `get` instead (C03), with the stale-rate gap accepted (12.2).
 - **C40 never ends a session;** C15 now names the only session-ending rules
   (C13, C16).
 - **Offers do not wait for an ack.** The design note says a page offered and not
@@ -1297,10 +1288,11 @@ the responder's own uplink.
 
 ## 13. Conformance list and test map
 
-There are **44** numbered rules (**C01** to **C44**): **41** MUST statements
-(**11** Decided, **25** Proposed (awaiting Jonathan), **5** Existing, sections 2 to
-4) and **3** SHOULDs (C04, C18, C41, all Proposed (awaiting Jonathan)), listed in
-their own table below. In all, 11 Decided, 28 Proposed and 5 Existing. A test name
+Ids run **C01** to **C44**; **C04 is withdrawn** (the `rate` message), so there are
+**43** rules: **41** MUST statements (**23** Decided, **13** Proposed (awaiting
+Jonathan), **5** Existing, sections 2 to 4) and **2** SHOULDs (C18, C41, both
+Decided), listed in their own table below. In all, 25 Decided, 13 Proposed and 5
+Existing. A test name
 with "(exists)" is in the repo today; the others are planned. Suites: **JVM**
 (`clojure -M:dev:test`), **nbb peer** (`npm run peer:test`, the portable core on
 nbb), **browser** (the same portable tests in a browser, M5.1 and M5.2). "Lands in"
@@ -1311,23 +1303,23 @@ the M1.2 PR (spec only).
 |---|---|---|---|---|---|
 | C01 | Proposed (awaiting Jonathan) | One shared R_max split by interest (Decided); formula R_max·I/max(peak, ΣI) leaves R_max unused at low interest | `shared-rmax-splits-by-interest-across-peers` | JVM, nbb peer | M2.2 |
 | C02 | Decided | Rate = min(share, peer send-max); unused share redistributed | `capped-peer-share-is-redistributed` (property: sum <= R_max, each <= cap) | JVM, nbb peer | M2.2 |
-| C03 | Proposed (awaiting Jonathan) | Responder paces to min(send-max, session budget); splits by interest | `responder-paces-to-session-budget` (simulated clock) | JVM, nbb peer | M3.1 |
+| C03 | Decided | Responder paces to min(send-max, latest get recv-max); splits by interest | `responder-paces-to-session-budget` (simulated clock) | JVM, nbb peer | M3.1 |
 | C05 | Decided | Stream ends (FIN, PARTIAL) when interest < floor | `stream-ends-partial-when-interest-falls-below-floor` (session clock) | JVM, nbb peer | M4.1 |
 | C06 | Decided | No idle timeout; a stalled stream only decays | `stalled-stream-decays-and-frees-its-share` | JVM | M4.1 |
 | C07 | Decided | `cancel` is optional; sets interest to 0; correct without it | `cancel-stops-and-frees-share-and-is-never-required` | JVM, nbb peer | M4.1 |
 | C08 | Decided | Renewal is a new get, a new clock at peak | `renewal-is-a-new-stream-at-peak` | JVM | M4.1 |
-| C09 | Proposed (awaiting Jonathan) | Clamp floor >= 10, tau-ms <= 60 000, peak <= 1000 | `get-interest-is-clamped-by-the-responder` | JVM, nbb peer | M3.1 |
-| C10 | Proposed (awaiting Jonathan) | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (simulated clock, floor 0 request) | JVM | M4.2 |
-| C11 | Proposed (awaiting Jonathan) | Enforce advertised max-streams; slot frees at once | `too-many-streams-is-refused-and-a-closed-slot-frees` (parity half: `f3-stream-table-parity-and-duplicates`, exists) | JVM, nbb peer | M3.1 |
-| C12 | Proposed (awaiting Jonathan) | max-streams capped at 64 (read larger as 64) | `max-streams-above-64-is-read-as-64` | JVM, nbb peer | M3.1 |
+| C09 | Decided | Clamp floor >= 10, tau-ms <= 60 000, peak <= 1000 | `get-interest-is-clamped-by-the-responder` | JVM, nbb peer | M3.1 |
+| C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (simulated clock, floor 0 request) | JVM | M4.2 |
+| C11 | Decided | Enforce advertised max-streams; slot frees at once | `too-many-streams-is-refused-and-a-closed-slot-frees` (parity half: `f3-stream-table-parity-and-duplicates`, exists) | JVM, nbb peer | M3.1 |
+| C12 | Decided | max-streams capped at 64 (read larger as 64) | `max-streams-above-64-is-read-as-64` | JVM, nbb peer | M3.1 |
 | C13 | Proposed (awaiting Jonathan) | Any verification failure (not only a bad hash) ends the whole session (fatal bad-entry) | `bad-entry-ends-the-session` (item level: `tampering-is-refused`, exists) | JVM, nbb peer, browser | M2.2 |
 | C14 | Decided | A bad peer's streams are unserved and re-requested elsewhere | `bad-peer-streams-are-reasked-from-others` (simulated peers: slow, dead, corrupt, honest) | nbb peer | M6.3 |
 | C15 | Decided | Decay is the only stream lifecycle rule; sessions end only on C13/C16; others untouched | `one-session-ending-leaves-others-untouched` | nbb peer | M6.3 |
 | C16 | Proposed (awaiting Jonathan) | Protocol violation ends the session; request errors end only the stream | `protocol-violation-ends-session-request-error-ends-stream` | JVM, nbb peer | M3.1 |
-| C17 | Proposed (awaiting Jonathan) | No write at >= 4 frames buffered; resume at 1 frame | `channel-never-buffers-over-high-mark-and-resumes-at-low` (fake channel; real channel in M3.2) | nbb peer, browser | M3.2 |
+| C17 | Decided | No write at >= 4 frames buffered; resume at 1 frame | `channel-never-buffers-over-high-mark-and-resumes-at-low` (fake channel; real channel in M3.2) | nbb peer, browser | M3.2 |
 | C19 | Decided | Sent-hash record: bounded, optional; correct when empty or wrong | `empty-and-wrong-record-still-complete-every-request` (property) | JVM | M4.2 |
 | C20 | Proposed (awaiting Jonathan) | The root of a get is always sent | `root-of-a-get-is-sent-even-if-recorded` | JVM, nbb peer | M4.2 |
-| C21 | Proposed (awaiting Jonathan) | Record capped at 16 384 (oldest out); `forget` removes hashes | `record-is-capped-and-forget-removes-hashes` | JVM | M4.2 |
+| C21 | Decided | Record capped at 16 384 (oldest out); `forget` removes hashes | `record-is-capped-and-forget-removes-hashes` | JVM | M4.2 |
 | C22 | Decided | Client verifies everything; may re-request a missing hash | `forgotten-hash-is-re-requested-and-verified` | nbb peer | M4.2 |
 | C23 | Proposed (awaiting Jonathan) | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-is-optional-and-unknown-hashes-are-ignored` (N10) | JVM, nbb peer | M4.2 |
 | C24 | Decided | Reveal is breadth-first by level, top-level first | `reveal-sends-level-d-before-level-d-plus-1` | JVM, nbb peer | M2.2 |
@@ -1340,14 +1332,14 @@ the M1.2 PR (spec only).
 | C31 | Proposed (awaiting Jonathan) | Header stored on arrival, checked at its root, dropped if unchecked | `a-header-is-accepted-first-and-checked-when-its-root-arrives`, `a-stream-that-ends-early-leaves-no-unchecked-header` (exist) | JVM; nbb peer after M2.2 | M2.2 |
 | C32 | Proposed (awaiting Jonathan) | Size limits checked before buffering the payload | `every-fixture-decodes-and-re-encodes` (reject cases, exists); `item-over-max-item-is-refused-before-buffering` | JVM, nbb peer | M3.1 |
 | C33 | Proposed (awaiting Jonathan) | Nothing parked; items verify in any order | `pages-verify-in-any-order` (exists) | JVM; nbb peer after M2.2 | M2.2 |
-| C34 | Proposed (awaiting Jonathan) | No write message; the store changes only by verified own-request items | `no-message-changes-the-store-except-verified-items` | JVM, nbb peer | M3.1 |
-| C35 | Proposed (awaiting Jonathan) | Store items only from an open stream this side opened | `item-on-a-stream-never-opened-ends-the-session`, `item-on-a-closed-stream-is-ignored` | JVM, nbb peer, browser | M3.1 |
-| C36 | Proposed (awaiting Jonathan) | Answer from own store only; no fetch on behalf; unknown-hash | `responder-never-fetches-on-behalf` | JVM, nbb peer | M3.1 |
+| C34 | Decided | No write message; the store changes only by verified own-request items | `no-message-changes-the-store-except-verified-items` | JVM, nbb peer | M3.1 |
+| C35 | Decided | Store items only from an open stream this side opened | `item-on-a-stream-never-opened-ends-the-session`, `item-on-a-closed-stream-is-ignored` | JVM, nbb peer, browser | M3.1 |
+| C36 | Decided | Answer from own store only; no fetch on behalf; unknown-hash | `responder-never-fetches-on-behalf` | JVM, nbb peer | M3.1 |
 | C37 | Existing | A stream id is never derived from the hash | `stream-id-is-not-the-hash` (exists) | JVM | M1.2 (exists) |
 | C38 | Existing | Responder keys streams by (session, id); same hash twice = two streams | `same-hash-twice-is-two-independent-streams` (N1 regression) | JVM, nbb peer | M4.1 |
 | C39 | Existing | Wrong parity or duplicate id refused (malformed) | `f3-stream-table-parity-and-duplicates` (exists) | JVM | M1.2 (exists) |
-| C40 | Proposed (awaiting Jonathan) | Per-session token bucket on `get`; empty = rate-limited; a flood never ends the session | `get-over-the-bucket-is-rate-limited-and-session-lives` (simulated clock) | JVM, nbb peer | M3.1 |
-| C42 | Proposed (awaiting Jonathan) | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (flood one session; others unchanged) | JVM, nbb peer | M6.3 |
+| C40 | Decided | Per-session token bucket on `get`; empty = rate-limited; a flood never ends the session | `get-over-the-bucket-is-rate-limited-and-session-lives` (simulated clock) | JVM, nbb peer | M3.1 |
+| C42 | Decided | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (flood one session; others unchanged) | JVM, nbb peer | M6.3 |
 | C43 | Existing | Session types on stream 0, request types on stream >= 1 | `f3-message-types-and-streams` (exists; fixtures `reject-*-on-stream-*`) | JVM, nbb peer | M1.2 (exists) |
 | C44 | Existing | Literal types outside the v1 profile are rejected | `outside-the-profile` (exists) | JVM, nbb peer | M1.2 (exists) |
 
@@ -1355,6 +1347,5 @@ the M1.2 PR (spec only).
 
 | Id | Status | SHOULD (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
-| C04 | Proposed (awaiting Jonathan) | `rate` message: stream 0 only, `recv-max` >= 1 | `rate-message-fixtures-and-rejects` (fixtures `rate`, `reject-rate-on-stream-n`, `reject-rate-zero`) | JVM, nbb peer | M3.1 |
-| C18 | Proposed (awaiting Jonathan) | A blocked stream takes no share, banks <= 1 frame, keeps decaying | `blocked-stream-takes-no-share-and-banks-one-frame` | JVM, nbb peer | M3.2 |
-| C41 | Proposed (awaiting Jonathan) | Requester keeps its own bucket per peer, never sends on empty | `requester-bucket-never-overspends` | JVM, nbb peer | M3.1 |
+| C18 | Decided | A blocked stream takes no share, banks <= 1 frame, keeps decaying | `blocked-stream-takes-no-share-and-banks-one-frame` | JVM, nbb peer | M3.2 |
+| C41 | Decided | Requester keeps its own bucket per peer, never sends on empty | `requester-bucket-never-overspends` | JVM, nbb peer | M3.1 |

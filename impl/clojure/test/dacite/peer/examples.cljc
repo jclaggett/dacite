@@ -41,14 +41,14 @@
     :title "Reveal a value with the default policy and the peer's interest"
     :type :get
     :stream 5
-    :value {"hash" (msg/hash-ref h1) "policy" "default"}}
+    :value {"hash" (msg/hash-ref h1) "policy" "default" "recv-max" 750000}}
 
    {:id "get-interest"
     :title "Reveal with explicit interest: peak 1.0, tau 2 s, floor 0.05"
     :type :get
     :stream 7
     :value {"hash" (msg/hash-ref h2)
-            "policy" "default"
+            "policy" "default" "recv-max" 750000
             "interest" {"peak" 1000 "tau-ms" 2000 "floor" 50}}}
 
    {:id "get-probe"
@@ -56,14 +56,14 @@
     :type :get
     :stream 11
     :value {"hash" (msg/hash-ref h3)
-            "policy" "default"
+            "policy" "default" "recv-max" 750000
             "interest" {"peak" 1 "tau-ms" 1 "floor" 0}}}
 
    {:id "get-repeat"
     :title "A second ask for the same hash is its own stream (N1)"
     :type :get
     :stream 9
-    :value {"hash" (msg/hash-ref h1) "policy" "default"}}
+    :value {"hash" (msg/hash-ref h1) "policy" "default" "recv-max" 750000}}
 
    {:id "ack"
     :title "The client stored these pages"

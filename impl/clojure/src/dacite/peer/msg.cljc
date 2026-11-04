@@ -216,9 +216,10 @@
    :get
    [:map {"hash" :hash
           "policy" :string
+          "recv-max" :pos
           "interest" [:map {"peak" :pos "tau-ms" :pos "floor" :nat}
                       #{"peak" "tau-ms" "floor"}]}
-    #{"hash" "policy"}]
+    #{"hash" "policy" "recv-max"}]
 
    :ack
    [:map {"hashes" [:vec :hash]} #{"hashes"}]

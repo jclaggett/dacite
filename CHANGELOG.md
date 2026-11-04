@@ -9,22 +9,27 @@ stability promise: public APIs may still change before 1.0.
 - **Rename: peer message 0x05 `release` is now `forget`** (fixture `forget`,
   `dacite.reveal/forget-pages`), so "release" no longer also means `cancel`.
   Same type id; draft wire, no version bump.
-- **M1.2 spec (docs only): peer policy rules and the conformance list.**
-  `docs/spec/peer-v1.md` gains section 12 (policy rules) and section 13 (44 numbered
-  rules, C01 to C44: 41 MUSTs and 3 SHOULDs, each mapped to a planned test, suite and milestone), and
-  `docs/plan/peering.md` marks open question 2 answered and 1, 3 and 4 deferred.
-  Folded in as Jonathan decided on Nov 4: one shared `R_max` split by interest
-  across all peers, each peer's send max as a cap with the unused share
-  redistributed; a stream's life is its decaying interest (no idle timeout, `cancel`
-  optional, renewal is a new request); a verification failure
-  ends the session; the sent-hash record is an optimization only; stochastic reveal
-  order (breadth-first by level, shuffled within a level). Defaults for the rest are
-  written and marked **Proposed (awaiting Jonathan)**: a `rate` message (type
-  `0x08`, the one wire addition), `bufferedAmount` marks of 4 and 1 frames, clamps on
-  `floor`, `tau` and `peak` that bound a stream's life to about 276 s, a cap of 64
-  open streams, session end on a protocol violation, the read-only rule, a sent
-  record of 16 384 hashes with `ack` as a hint, token buckets (20 a second, burst 40),
-  and verification as MUSTs. No code, fixture or hash changes.
+- **`get` carries a required `recv-max`** (bytes per second, at least 1): the
+  latest `get` on a session sets the responder's budget for it (spec C03). New
+  fixtures `reject-get-recv-max-zero` and `reject-get-missing-recv-max`; the `get`
+  fixtures are regenerated with the field. Draft wire, no version bump.
+- **M1.2 spec: peer policy rules and the conformance list.**
+  `docs/spec/peer-v1.md` gains section 12 (policy rules) and section 13 (43 numbered
+  rules, C01 to C44 with C04 withdrawn: 41 MUSTs and 2 SHOULDs, each mapped to a
+  planned test, suite and milestone), and `docs/plan/peering.md` marks open
+  question 2 answered and 1, 3 and 4 deferred. Decided by Jonathan on Nov 4: one
+  shared `R_max` split by interest across all peers, each peer's send max as a cap
+  with the unused share redistributed; rate control by `recv-max` in each `get`
+  (option A, no `rate` message; a stale `recv-max` is a known, accepted gap); a
+  stream's life is its decaying interest (no idle timeout, `cancel` optional,
+  renewal is a new request); the sent-hash record is an optimization only (16 384
+  hashes); stochastic reveal order; `bufferedAmount` marks of 4 and 1 frames;
+  clamps on `floor`, `tau` and `peak` that bound a stream's life to about 276 s; a
+  cap of 64 open streams; the read-only rule; token buckets (20 a second, burst
+  40); and the deferrals. Still **Proposed (awaiting Jonathan)**: the C01 split
+  formula, C13 (any verification failure ends the session), C16 (session end on a
+  protocol violation), C20 and C23 (root always sent, `ack` as a hint), C26, the
+  verification MUSTs C27 to C33, and the first-most carve-out for stochastic order.
 - **Fix #17: the `ref->state` cache is a bounded LRU.** It used to empty itself
   wholesale at 65,536 entries, dropping every hot ref at once. It is now
   `dacite.cache/lru` (portable `.cljc`: a `LinkedHashMap` in access order behind

@@ -61,7 +61,7 @@
 (deftest stream-id-is-not-the-hash
   ;; N1: the envelope carries a requester-chosen id, so two asks for one
   ;; hash are two streams. Their frames differ only in the envelope.
-  (let [v {"hash" (msg/hash-ref ex/h1) "policy" "default"}
+  (let [v {"hash" (msg/hash-ref ex/h1) "policy" "default" "recv-max" 750000}
         a (msg/encode-message {:type :get :stream 5 :value v})
         b (msg/encode-message {:type :get :stream 9 :value v})]
     (is (not= (bin/bytes->hex a) (bin/bytes->hex b)))
@@ -170,7 +170,7 @@
     (doseq [[t ok bad v] [[:hello 0 5 (:value (first ex/examples))]
                           [:ack 0 7 {"hashes" [(msg/hash-ref ex/h1)]}]
                           [:forget 0 7 {"hashes" [(msg/hash-ref ex/h1)]}]
-                          [:get 1 0 {"hash" (msg/hash-ref ex/h1) "policy" "default"}]
+                          [:get 1 0 {"hash" (msg/hash-ref ex/h1) "policy" "default" "recv-max" 750000}]
                           [:cancel 5 0 {}]]]
       (is (= :accepted (thrown-reason #(msg/encode-message {:type t :stream ok :value v}))) (name t))
       (is (= :wrong-stream
@@ -215,7 +215,7 @@
         (is (= #{1 3} (:open t)))))))
 
 (deftest f4-unknown-policy-is-answered-not-refused
-  (let [wire (msg/encode-value {"hash" (msg/hash-ref ex/h1) "policy" "fancy"})
+  (let [wire (msg/encode-value {"hash" (msg/hash-ref ex/h1) "policy" "fancy" "recv-max" 750000})
         fr (frame/encode-frame {:type :get :stream 5 :flags 1 :payload wire})
         got (msg/decode-message fr)
         ans (msg/answer-error got)]
@@ -228,13 +228,13 @@
              (get-in (msg/decode-message (msg/encode-message ans)) [:value "code"])))))
   (testing "a known policy and a plain request need no answer"
     (is (nil? (msg/answer-error {:type :get :stream 5
-                                 :value {"hash" (msg/hash-ref ex/h1) "policy" "default"}})))
+                                 :value {"hash" (msg/hash-ref ex/h1) "policy" "default" "recv-max" 750000}})))
     (is (nil? (msg/answer-error {:type :hello :stream 0 :value {}}))))
   (testing "other things a responder will not serve"
     (is (= "unsupported" (get-in (msg/answer-error {:type 66 :unknown? true :stream 3})
                                  [:value "code"])))
     (is (= "unsupported"
-           (get-in (msg/answer-error {:type :get :stream 1 :value {"policy" "default"}}
+           (get-in (msg/answer-error {:type :get :stream 1 :value {"policy" "default" "recv-max" 750000}}
                                      {:caps #{}})
                    [:value "code"]))))
   (testing "an unknown hello kind is read as browser"
@@ -282,7 +282,7 @@
       (is (= :invalid-message
              (thrown-reason #(msg/encode-message
                               {:type :get :stream 5
-                               :value {"hash" (msg/hash-ref ex/h1) "policy" long}})))))
+                               :value {"hash" (msg/hash-ref ex/h1) "policy" long "recv-max" 750000}})))))
     (is (= :accepted (thrown-reason #(msg/encode-message {:type :cancel :stream 5 :value {"reason" ok}}))))
     (testing "the limit is in bytes, not characters"
       (is (= :accepted (thrown-reason #(msg/encode-message {:type :cancel :stream 5 :value {"reason" wide}}))))
@@ -359,7 +359,7 @@
       (is (every? #(= 40 (bin/byte-len %)) (:items many))))))
 
 (deftest s3-interest-bounds
-  (let [v (fn [i] {"hash" (msg/hash-ref ex/h1) "policy" "default" "interest" i})
+  (let [v (fn [i] {"hash" (msg/hash-ref ex/h1) "policy" "default" "recv-max" 750000 "interest" i})
         enc (fn [i] (thrown-reason #(msg/encode-message {:type :get :stream 5 :value (v i)})))]
     (is (= :accepted (enc {"peak" 1000 "tau-ms" 1 "floor" 0})))
     (is (= :accepted (enc {"peak" 1 "tau-ms" 2000 "floor" 5000})) "floor above peak pauses at once; allowed")

@@ -63,7 +63,7 @@
 (defn lenient-cases! []
   (let [h (msg/hash-ref ex/h1)
         hello (assoc (:value (first ex/examples)) "kind" "relay")
-        get-v {"hash" h "policy" "fancy"}]
+        get-v {"hash" h "policy" "fancy" "recv-max" 750000}]
     (write-case! "error-unknown-code"
                  {:title "A code v1 does not define: decodes, and reads as internal"
                   :expect :message :type :error :stream 5
@@ -274,7 +274,7 @@
                   :type :hello)
     (reject-case! "reject-request-on-stream-0" "get on the session stream"
                   :wrong-stream
-                  [(ctl-on :get 0 {"hash" (msg/hash-ref ex/h1) "policy" "default"})]
+                  [(ctl-on :get 0 {"hash" (msg/hash-ref ex/h1) "policy" "default" "recv-max" 750000})]
                   :type :get)
     (reject-case! "reject-ack-on-stream-n" "ack on a request's stream"
                   :wrong-stream
@@ -298,13 +298,23 @@
                   :type :cancel)
     (reject-case! "reject-interest-zero-tau" "tau-ms 0 never decays"
                   :invalid-message
-                  [(lenient-frame :get 5 {"hash" (msg/hash-ref ex/h1) "policy" "default"
+                  [(lenient-frame :get 5 {"hash" (msg/hash-ref ex/h1) "policy" "default" "recv-max" 750000
                                           "interest" {"peak" 1000 "tau-ms" 0 "floor" 0}})]
                   :type :get)
     (reject-case! "reject-interest-zero-peak" "peak 0 is no interest"
                   :invalid-message
-                  [(lenient-frame :get 5 {"hash" (msg/hash-ref ex/h1) "policy" "default"
+                  [(lenient-frame :get 5 {"hash" (msg/hash-ref ex/h1) "policy" "default" "recv-max" 750000
                                           "interest" {"peak" 0 "tau-ms" 1000 "floor" 0}})]
+                  :type :get)
+    (reject-case! "reject-get-recv-max-zero" "recv-max 0 asks for nothing"
+                  :invalid-message
+                  [(lenient-frame :get 5 {"hash" (msg/hash-ref ex/h1) "policy" "default"
+                                          "recv-max" 0})]
+                  :type :get)
+    (reject-case! "reject-get-missing-recv-max" "get without recv-max"
+                  :invalid-message
+                  [(ctl-frame :get 5 fin (msg/encode-value {"hash" (msg/hash-ref ex/h1)
+                                                            "policy" "default"}))]
                   :type :get)
     (reject-case! "reject-hello-zero-streams" "max-streams 0 accepts no request"
                   :invalid-message
