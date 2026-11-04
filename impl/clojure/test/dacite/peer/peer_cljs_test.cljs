@@ -13,6 +13,7 @@
             [dacite.peer.examples :as ex]
             [dacite.peer.msg :as msg]
             [dacite.store :as store]
+            [dacite.string-vectors :as string-vectors]
             [dacite.value :as v]
             [dacite.wire.binary :as bin]
             [dacite.value.scalar]
@@ -38,7 +39,7 @@
                (bad (str "ref->state " ref) state (hash/state->hex (hash/ref->state (hash/hex->hash ref)))))
              (:ref->state vs))
      (mapcat (fn [{:keys [type value ref]}]
-               (let [v (if (= type "char") (first value) value)]
+               (let [v (if (= type "char") (host/char-at value 0) value)]
                  (bad (str "scalar " type " " (pr-str value)) ref
                       (hash/hash->hex (types/typed-value-hash [type v])))))
              (:scalars vs))
@@ -54,6 +55,17 @@
     (if (seq (:kernel vs))
       (kernel-vectors/problems hash/kernel (:kernel vs))
       ["kernel vectors missing"])))
+
+(defn- string-problems
+  "Text on this host against the string vectors (fixtures/fuse-sl2/vectors.edn):
+   a string is code points, a lone surrogate is refused, the same as on the JVM
+   (unicode_test.clj) and in reference.py."
+  []
+  (let [fs (js/require "fs")
+        vs (reader/read-string (.readFileSync fs "fixtures/fuse-sl2/vectors.edn" "utf8"))]
+    (if (and (seq (:strings vs)) (seq (:rejected-strings vs)) (seq (:invalid-utf8 vs)))
+      (string-vectors/problems vs)
+      ["string vectors missing"])))
 
 (defn- bad-state-problems
   "A measure state outside SL(2, F_p) is refused with ex-info :bad-state on nbb
@@ -100,7 +112,7 @@
                                                     {"versions" #{2} "caps" #{} "limits" {"max-frame" 1 "max-item" 1 "max-streams" 1}})
                                      [:ok :version]))
                 ["negotiate does not pick the highest common version"]))
-        all (into (into (into (vec problems) framing) host) (concat (fuse-vector-problems) (kernel-problems) (bad-state-problems)))]
+        all (into (into (into (vec problems) framing) host) (concat (fuse-vector-problems) (kernel-problems) (string-problems) (bad-state-problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
              (count all) "problems")
     (doseq [p all] (println "  FAIL" p))

@@ -182,14 +182,14 @@ The six user value kinds divide into atomic scalars and collections.
 | `"i8"` … `"i256"` | 1–32 bytes big-endian signed | Signed integers |
 | `"u8"` … `"u256"` | 1–32 bytes big-endian unsigned | Unsigned integers |
 | `"f32"`, `"f64"` | 4 or 8 bytes IEEE 754 | Floating point |
-| `"char"` | 1–4 bytes UTF-8 | Unicode character |
+| `"char"` | 1–4 bytes UTF-8 | One Unicode code point (a scalar value; never a lone surrogate) |
 | `"negative"` | 0 bytes | Sentinel for negative sets (§3.5) |
 
 **Collection types** — a type hash over a tree of leaves:
 
 | Type Name | Leaves | Backed by | Description |
 |-----------|--------|-----------|-------------|
-| `"string"` | char scalars | finger tree | UTF-8 string |
+| `"string"` | char scalars (one per code point) | finger tree | Unicode text |
 | `"blob"` | byte scalars | finger tree | Binary data |
 | `"vector"` | arbitrary values | finger tree | Ordered collection |
 | `"map"` | key/value pairs | HAMT | Associative collection |
@@ -211,6 +211,32 @@ string `"A"` (UTF-8 `0x41`) and a one-byte blob containing `0x41` have
 the same leaves but different type hashes, and therefore different value
 hashes. Internally they share the same finger-tree machinery; only the
 type hash differs.
+
+**Text is a sequence of code points.** A string's elements are Unicode code
+points (scalar values), on every host. `count`, `nth` and `slice` count code
+points, so an emoji is one element, as is `é`. The JVM and JavaScript hold text as
+UTF-16, where an emoji is two code units; Dacite never counts or cuts those. The
+JVM walks a string by code point, a page of a string never ends inside a
+character, and the hash of a string is the same on the JVM, on nbb and in the
+browser (the vectors in `fixtures/fuse-sl2/vectors.edn` `:strings` pin it).
+
+On the JVM a character outside the BMP cannot be a `java.lang.Character` (16
+bits): `(v/char ctx s)` takes a one-code-point `String` for it, and `v/realize`
+and `seq` of a string give that `String` as the element (a BMP character stays a
+`char`). In ClojureScript every character is a one-code-point string. The
+`CharSequence` view of a JVM Dacite string (`length`, `charAt`, `subSequence`)
+indexes code points like `count` and `nth`; `charAt` of a character outside the
+BMP throws, since no `char` can hold it (use `nth` or `seq`).
+
+**A lone surrogate is refused.** UTF-16 text can hold a surrogate with no
+partner (a string cut in the middle of an emoji). It is not a sequence of scalar
+values and has no UTF-8 form, so building a string or a char from it throws
+`ex-info` with `:reason :lone-surrogate`. Dacite does not turn it into `?` (what the
+JVM's encoder did) or U+FFFD (a JavaScript encoder) because that would silently
+change the text, and hosts disagreed. Clean the text first (for example
+`String.prototype.toWellFormed()` in JavaScript). Likewise a `string` or `char`
+whose UTF-8 on the wire is malformed is a decode error (`:reason :invalid-utf8`),
+not U+FFFD.
 
 ## 3.5 Sets and Negative Sets
 
@@ -580,9 +606,9 @@ implicit `*store*` form and no `-with-store` suffix.
 | `null` | `(ctx) → Value` | Scalar |
 | `bool` | `(ctx, boolean) → Value` | Scalar |
 | `i64`, `f64`, … | `(ctx, data) → Value` | Scalar |
-| `char` | `(ctx, char) → Value` | Scalar |
+| `char` | `(ctx, char) → Value` | Scalar (one code point: a `char`, or on the JVM a one-code-point `String` outside the BMP; a lone surrogate throws `:lone-surrogate`) |
 | `negative` | `(ctx) → Value` | Scalar |
-| `string` | `(ctx, string) → Value` | Collection |
+| `string` | `(ctx, string) → Value` | Collection (elements are code points; a lone surrogate throws `:lone-surrogate`) |
 | `blob` | `(ctx, bytes) → Value` | Collection |
 | `vector` | `(ctx, values...) → Value` | Collection |
 | `set` | `(ctx, values...) → Value` | Collection |

@@ -244,9 +244,9 @@
       (let [s (str b)
             ef (reduce (fn [a ch] (hash/fuse a (char-state ch)))
                        hash/identity-state
-                       (seq s))]
+                       (host/chars-of s))]
         {:count 1
-         :size-bytes (count (host/utf8-bytes s))
+         :size-bytes (lit/utf8-len s)
          :elements-fuse (hash/ref->state (types/value-hash "string" ef))})
 
       (= t "blob")

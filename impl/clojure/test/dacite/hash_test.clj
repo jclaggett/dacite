@@ -493,7 +493,7 @@
         (is (= state (hash/state->hex (hash/ref->state (hash/hex->hash ref)))) ref)))
     (testing "scalar value hashes"
       (doseq [{:keys [type value ref]} scalars]
-        (is (= ref (hash/hash->hex (types/typed-value-hash [type (if (= "char" type) (first value) value)])))
+        (is (= ref (hash/hash->hex (types/typed-value-hash [type (if (= "char" type) (host/char-at value 0) value)])))
             (pr-str [type value]))))
     (testing "a sample of the generator table"
       (doseq [[i hex] table-sample]

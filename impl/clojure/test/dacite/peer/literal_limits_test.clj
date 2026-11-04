@@ -513,19 +513,21 @@
 (deftest utf8-len-is-the-length-of-the-utf8-bytes
   (let [host-len #(count (host/utf8-bytes %))
         hi "\uD83D" lo "\uDE00"]
-    (doseq [s ["" "a" "abc" "\u00e9" "\u03bb\u03bb" "\u20ac" "x\u20acy" (str hi lo) (str "a" hi lo "b")
-               ;; lone surrogates: the host encoder's rule, not ours
-               hi lo (str hi "a") (str "a" lo) (str lo hi) (str hi hi lo) (str "z" hi) (str lo lo)]]
+    (doseq [s ["" "a" "abc" "\u00e9" "\u03bb\u03bb" "\u20ac" "x\u20acy" (str hi lo) (str "a" hi lo "b")]]
       (is (= (host-len s) (lit/utf8-len s)) (pr-str s)))
+    (testing "a lone surrogate has no UTF-8 form: it throws, as the encoder does (#16)"
+      (doseq [s [hi lo (str hi "a") (str "a" lo) (str lo hi) (str hi hi lo) (str "z" hi) (str lo lo)]]
+        (is (= :lone-surrogate (:reason (ex-data (try (lit/utf8-len s) (catch Exception e e)))))
+            (pr-str s))))
     (testing "a character (it is called with one)"
       (is (= 2 (lit/utf8-len \u03bb)))
       (is (= 1 (lit/utf8-len \a))))
-    (let [gen-unit (gen/one-of [(gen/choose 0 0x7f) (gen/choose 0x80 0x7ff) (gen/choose 0x800 0xffff)
-                                (gen/choose 0xd800 0xdfff)])
+    (let [gen-cp (gen/one-of [(gen/choose 0 0x7f) (gen/choose 0x80 0x7ff) (gen/choose 0x800 0xd7ff)
+                              (gen/choose 0xe000 0xffff) (gen/choose 0x10000 0x10ffff)])
           r (tc/quick-check
              500
-             (prop/for-all [units (gen/vector gen-unit 0 40)]
-               (let [s (apply str (map char units))]
+             (prop/for-all [cps (gen/vector gen-cp 0 40)]
+               (let [s (apply str (map #(String. (Character/toChars (int %))) cps))]
                  (= (host-len s) (lit/utf8-len s)))))]
       (is (:pass? r) (pr-str (:shrunk r))))))
 
@@ -761,14 +763,14 @@
                 red #(reduce c nil %)]
             (is (= (red xs) (c (c (red a) (red b)) (red d)) (c (red a) (c (red b) (red d)))))))))))
 
-(deftest utf8-len-upper-is-never-below-the-text-it-joins
-  (is (= 0 (lit/utf8-len-upper "")))
-  (is (= 4 (lit/utf8-len-upper "ab\u00e9")))
-  (is (= 4 (lit/utf8-len-upper "\uD83D\uDE00")))
-  (testing "a lone surrogate counts 2: two halves of a pair, in two runs, are 4 together"
-    (let [hi "\uD83D" lo "\uDE00"]
-      (is (>= (+ (lit/utf8-len-upper hi) (lit/utf8-len-upper lo))
-              (lit/utf8-len (str hi lo)))))))
+(deftest utf8-len-adds-over-runs-cut-at-code-points
+  ;; The bound sums the bytes of runs. That is the bytes of the joined text
+  ;; only when no run cuts a surrogate pair, which the splitters never do.
+  (let [s "ab\u00e9\uD83D\uDE00x\uD83D\uDE01"]
+    (doseq [k (range (inc (host/cp-count s)))]
+      (is (= (lit/utf8-len s)
+             (+ (lit/utf8-len (host/cp-subs s 0 k)) (lit/utf8-len (host/cp-subs s k (host/cp-count s)))))
+          (str "cut at code point " k)))))
 
 (deftest a-string-over-the-cap-is-not-built-to-learn-it
   (let [st (store/mem-store)

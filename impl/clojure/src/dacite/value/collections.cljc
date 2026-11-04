@@ -21,7 +21,8 @@
    surface in dacite.value, which calls the portable operation fns
    defined here."
   (:refer-clojure :exclude [vector hash-map])
-  (:require [dacite.store :as store]
+  (:require [dacite.host :as host]
+            [dacite.store :as store]
             [dacite.value.types :as types]
             [dacite.value.scalar :as scalar]
             [dacite.value.finger-tree :as ft]
@@ -296,11 +297,18 @@
             (seq-vals store _hash))
 
        CharSequence
+       ;; Indexes are code points (the same as `count` and `nth`), not UTF-16
+       ;; units: `charAt` of a character outside the BMP has no `char` to
+       ;; return, so it throws; use `nth` or `seq` for those.
        (length [this] (.count this))
        (charAt [_ i]
-               (types/entry-data
-                (store/require-node store
-                                    (ft/ft-nth store (node-root store _hash) i))))
+               (let [c (types/entry-data
+                        (store/require-node store
+                                            (ft/ft-nth store (node-root store _hash) i)))]
+                 (if (char? c)
+                   c
+                   (throw (ex-info "character outside the BMP has no java char; use nth or seq"
+                                   {:reason :non-bmp-char :index i :char c})))))
        (subSequence [_ start end]
                     (apply clojure.core/str
                            (map #(types/entry-data (store/require-node store %))
@@ -626,7 +634,7 @@
 (defn string-with-store
   "Create a Dacite string from a host string in an explicit store."
   [store s]
-  (let [root (ft/ft-from-run store "char" (str s))]
+  (let [root (ft/ft-from-run store "char" (host/check-text! (str s)))]
     (->DaciteString store (store-seq-node! store "string" root))))
 
 (defmethod types/coerce-and-store! :string

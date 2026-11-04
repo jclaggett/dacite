@@ -132,6 +132,19 @@ for `hashCode`), `low32`, `word-zero?`, and the constants `zero-word` /
 `int->bytes-be` (i8..i64 / u8..u64), `f32->bytes` / `f64->bytes` (IEEE-754),
 `utf8-bytes` / `utf8-decode`.
 
+**Text (issue #16):** a string is a sequence of code points, so the host
+supplies the mapping from its own string type: `cp-count`, `cp-offset`,
+`cp-subs`, `chars-of`, `char-at`, `code-point-at`, `code-point->char`,
+`one-char?`, and the checks `lone-surrogate-index` and `check-text!`.
+`utf8-bytes` and `check-text!` throw `ex-info` `:reason :lone-surrogate` for a
+lone surrogate (no host may encode it as `?` or U+FFFD); `utf8-decode` throws
+`:reason :invalid-utf8` for malformed UTF-8 and keeps a leading U+FEFF. A port
+whose strings are UTF-8 (Rust, Go, C) already counts bytes and decodes code
+points itself; a UTF-16 port (JVM, JavaScript, C#) must count code points. The
+vectors `:strings`, `:utf8`, `:invalid-utf8` and `:rejected-strings` in
+`fixtures/fuse-sl2/vectors.edn` pin it (also `reference.py`). The design and the
+lone-surrogate decision: `docs/design/text-code-points.md`.
+
 Get all of these exactly right and the fuse algebra, HAMT, finger-tree, and
 value hashing above them are automatically identical across hosts.
 

@@ -99,9 +99,9 @@ First argument is always a Dacite value:
 | `conj` | Append / add entry |
 | `peek` / `pop` | Vector end |
 | `remove-nth` | Vector without index |
-| `slice` | `[start, end)` of a vector, string, or blob (same type; shared leaves; O(k log n)) |
+| `slice` | `[start, end)` of a vector, string, or blob (same type; shared leaves; O(k log n)); string indexes are code points |
 | `keys` / `vals` | Map keys or values as wrapped sequences |
-| `native` | Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char `limit` (or `*string-char-limit*`) realizes at most that prefix, then throws if the string is longer. |
+| `native` | Host atom for a scalar, or host String for a Dacite string. Collections throw. Optional char (code point) `limit` (or `*string-char-limit*`) realizes at most that prefix, then throws if the string is longer. |
 | `as-bytes` | Host bytes for a blob. Optional limit; missing nodes throw `:dacite/missing`. |
 | `pr-str` | Bounded debug render. Never throws. Long strings: `"prefix…" (n chars)`. |
 | `get-in` / `assoc-in` | Nested path lookup / update (creates intermediate maps) |
