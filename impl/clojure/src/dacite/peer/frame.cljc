@@ -82,7 +82,7 @@
    :get 0x02
    :item-stream 0x03
    :ack 0x04
-   :release 0x05
+   :forget 0x05
    :cancel 0x06
    :error 0x07})
 
@@ -93,7 +93,7 @@
    `:request` is a request's id (1 or more), `:any` is either."
   {:hello :session
    :ack :session
-   :release :session
+   :forget :session
    :get :request
    :item-stream :request
    :cancel :request

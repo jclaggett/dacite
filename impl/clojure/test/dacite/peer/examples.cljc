@@ -71,9 +71,9 @@
     :stream 0
     :value {"hashes" [(msg/hash-ref h1) (msg/hash-ref h2)]}}
 
-   {:id "release"
+   {:id "forget"
     :title "The client dropped a page and wants it resent if asked again"
-    :type :release
+    :type :forget
     :stream 0
     :value {"hashes" [(msg/hash-ref h3)] "reason" "evicted"}}
 

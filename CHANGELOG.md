@@ -6,14 +6,17 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Rename: peer message 0x05 `release` is now `forget`** (fixture `forget`,
+  `dacite.reveal/forget-pages`), so "release" no longer also means `cancel`.
+  Same type id; draft wire, no version bump.
 - **M1.2 spec (docs only): peer policy rules and the conformance list.**
   `docs/spec/peer-v1.md` gains section 12 (policy rules) and section 13 (44 numbered
-  MUSTs, C01 to C44, each mapped to a planned test, suite and milestone), and
+  rules, C01 to C44: 41 MUSTs and 3 SHOULDs, each mapped to a planned test, suite and milestone), and
   `docs/plan/peering.md` marks open question 2 answered and 1, 3 and 4 deferred.
   Folded in as Jonathan decided on Nov 4: one shared `R_max` split by interest
   across all peers, each peer's send max as a cap with the unused share
-  redistributed; a stream's life is its decaying interest (no idle timeout, release
-  optional and equal to `cancel`, renewal is a new request); a verification failure
+  redistributed; a stream's life is its decaying interest (no idle timeout, `cancel`
+  optional, renewal is a new request); a verification failure
   ends the session; the sent-hash record is an optimization only; stochastic reveal
   order (breadth-first by level, shuffled within a level). Defaults for the rest are
   written and marked **Proposed (awaiting Jonathan)**: a `rate` message (type

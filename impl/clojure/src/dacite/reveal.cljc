@@ -19,7 +19,7 @@
    Credit accrues by integrating that share. A page goes out whole when
    the credit covers its wire-item size. The next page is read when it
    is about to be sent. Offering a page does not mean the client holds
-   it: `ack-pages` records a hold, and `release-pages` puts a reset or
+   it: `ack-pages` records a hold, and `forget-pages` puts a reset or
    evicted page back on its reveal. Asking for a hash that is still
    open resumes the unsent pages and restarts its clock at the peak.
    Credit already earned toward the next page stays.
@@ -794,7 +794,7 @@
    Pages already due by `t` are returned. Later pages of this reveal
    are not sent. The reveal is dropped, so asking again is a new id.
    Hashes already offered stay offered until `ack-pages` or
-   `release-pages`.
+   `forget-pages`.
 
    Returns `{:session :pages}`."
   [session store id t params]
@@ -811,7 +811,7 @@
 (defn ack-pages
   "The client holds `hashes`. Each must be an offer that is not yet held.
 
-   A held hash is not offered again unless `release-pages`."
+   A held hash is not offered again unless `forget-pages`."
   [session hashes]
   (let [offered (:offered session)
         missing (into [] (remove #(contains? offered %)) hashes)]
@@ -822,7 +822,7 @@
         (update :offered (fn [offered]
                            (reduce dissoc offered hashes))))))
 
-(defn release-pages
+(defn forget-pages
   "The client does not hold `hashes`.
 
    A reset drops an offer the client never kept. An eviction drops a

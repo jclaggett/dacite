@@ -159,7 +159,7 @@
 ;; =============================================================================
 
 (def max-hashes
-  "Hashes in one `ack` or `release`. 256 hashes are 8 KiB."
+  "Hashes in one `ack` or `forget`. 256 hashes are 8 KiB."
   256)
 
 (def error-codes
@@ -186,9 +186,9 @@
   32)
 
 (defn max-hashes-for
-  "Hashes an `ack` or `release` can hold when frames are at most
+  "Hashes an `ack` or `forget` can hold when frames are at most
    `max-frame-bytes`: 32 bytes each, after 33 bytes of header and map
-   framing and 320 bytes kept for a `release` reason. At 16 KiB that is
+   framing and 320 bytes kept for a `forget` reason. At 16 KiB that is
    more than 256, so 256 rules; at 1024 it is 20."
   [max-frame-bytes]
   (max 1 (min max-hashes (quot (- max-frame-bytes 33 320) 32))))
@@ -223,7 +223,7 @@
    :ack
    [:map {"hashes" [:vec :hash]} #{"hashes"}]
 
-   :release
+   :forget
    [:map {"hashes" [:vec :hash] "reason" :string} #{"hashes"}]
 
    :cancel
@@ -296,7 +296,7 @@
              (not (<= frame/min-max-frame (get lim "max-frame") frame/max-frame)))
         (conj "limits.max-frame: must be 8192..16384")))
 
-    (:ack :release)
+    (:ack :forget)
     (cond-> []
       (and (vector? (get x "hashes")) (not (<= 1 (count (get x "hashes")) max-hashes)))
       (conj "hashes: 1..256 required"))
@@ -378,7 +378,7 @@
 
 (def ^:private free-text
   "The free-text keys of each message type."
-  {:hello ["agent"] :cancel ["reason"] :release ["reason"] :error ["message"]})
+  {:hello ["agent"] :cancel ["reason"] :forget ["reason"] :error ["message"]})
 
 (defn cut-free-text
   "`value` with its free-text fields cut by `cut-text`."
