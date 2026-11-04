@@ -6,6 +6,22 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M1.2 spec (docs only): peer policy rules and the conformance list.**
+  `docs/spec/peer-v1.md` gains section 12 (policy rules) and section 13 (44 numbered
+  MUSTs, C01 to C44, each mapped to a planned test, suite and milestone), and
+  `docs/plan/peering.md` marks open question 2 answered and 1, 3 and 4 deferred.
+  Folded in as Jonathan decided on Nov 4: one shared `R_max` split by interest
+  across all peers, each peer's send max as a cap with the unused share
+  redistributed; a stream's life is its decaying interest (no idle timeout, release
+  optional and equal to `cancel`, renewal is a new request); a verification failure
+  ends the session; the sent-hash record is an optimization only; stochastic reveal
+  order (breadth-first by level, shuffled within a level). Defaults for the rest are
+  written and marked **Proposed (awaiting Jonathan)**: a `rate` message (type
+  `0x08`, the one wire addition), `bufferedAmount` marks of 4 and 1 frames, clamps on
+  `floor`, `tau` and `peak` that bound a stream's life to about 276 s, a cap of 64
+  open streams, session end on a protocol violation, the read-only rule, a sent
+  record of 16 384 hashes with `ack` as a hint, token buckets (20 a second, burst 40),
+  and verification as MUSTs. No code, fixture or hash changes.
 - **Fix #17: the `ref->state` cache is a bounded LRU.** It used to empty itself
   wholesale at 65,536 entries, dropping every hot ref at once. It is now
   `dacite.cache/lru` (portable `.cljc`: a `LinkedHashMap` in access order behind
