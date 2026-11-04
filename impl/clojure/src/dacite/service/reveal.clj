@@ -310,7 +310,7 @@
                 hashes (offered-hashes session reveal-id)
                 session (if (seq hashes)
                           (try
-                            (reveal/release-pages session store hashes)
+                            (reveal/forget-pages session store hashes)
                             (catch Exception _ session))
                           session)]
             (reset! (:session conn) session))))

@@ -7,4 +7,5 @@
   {:dacite.peer.msg/u256
    "1111111111111111222222222222222233333333333333334444444444444444"},
   "policy" "default",
+  "recv-max" 750000,
   "interest" {"peak" 1000, "tau-ms" 2000, "floor" 50}}}

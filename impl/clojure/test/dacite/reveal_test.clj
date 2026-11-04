@@ -426,7 +426,7 @@
         h (v/hash (v/i64 s 42))
         opened (reveal/open-reveal (reveal/session) s h 0 fast)
         taken (reveal/take-pages (:session opened) s 1 fast)
-        released (reveal/release-pages (:session taken) s [h])
+        released (reveal/forget-pages (:session taken) s [h])
         again (reveal/take-pages released s 2 fast)]
     (is (= [h] (hashes-of (:pages taken))))
     (is (= [h] (hashes-of (:pages again))))
@@ -440,7 +440,7 @@
         taken (reveal/take-pages (:session opened) s 1 fast)
         held (reveal/ack-pages (:session taken) [h])
         quiet (reveal/take-pages held s 2 fast)
-        evicted (reveal/release-pages held s [h])
+        evicted (reveal/forget-pages held s [h])
         again (reveal/take-pages evicted s 3 fast)]
     (is (contains? (:sent held) h))
     (is (empty? (:pages quiet)))

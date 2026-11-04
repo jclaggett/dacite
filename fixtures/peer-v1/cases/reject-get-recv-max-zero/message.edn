@@ -1,0 +1,4 @@
+{:title "recv-max 0 asks for nothing",
+ :expect :reject,
+ :reason :invalid-message,
+ :type :get}
