@@ -40376,7 +40376,7 @@ dacite.host.cp_offset = function dacite$host$cp_offset(s, from, k) {
   var n = cljs.core.long$.call(null, s__$1.length);
   var from__$1 = cljs.core.long$.call(null, from);
   var k__$1 = cljs.core.long$.call(null, k);
-  if (k__$1 < 0 || (from__$1 < 0 || from__$1 > n)) {
+  if (k__$1 < 0 || (from__$1 < 0 || (from__$1 > n || k__$1 > n - from__$1))) {
     throw cljs.core.ex_info.call(null, "code point offset out of range", new cljs.core.PersistentArrayMap(null, 2, [new cljs.core.Keyword(null, "from", "from", 1815293044), from__$1, new cljs.core.Keyword(null, "k", "k", -2146297393), k__$1], null));
   } else {
   }

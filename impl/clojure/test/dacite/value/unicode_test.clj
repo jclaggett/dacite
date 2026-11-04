@@ -223,6 +223,46 @@
   (is (= [4 4 1]  [(host/cp-offset "ab😀" 0 3) (host/cp-offset "ab😀" 2 1) (host/cp-offset "ab😀" 0 1)])
       "an offset is in UTF-16 units"))
 
+(def ^:private pages
+  "ASCII, mixed BMP (Latin-1, CJK, symbols) and astral (emoji, clefs, mixed with
+   BMP) text, each a little over a 4 KiB page of UTF-16 units."
+  {:ascii (apply str (take 4100 (cycle "abcdefghij klmnop")))
+   :mixed-bmp (apply str (take 3000 (cycle "aé日本語€ x")))
+   :astral (apply str (take 2000 (cycle (str smile clef "a" smile "日"))))})
+
+(defn- unit-offsets
+  "Vector `v` where `(v k)` is the UTF-16 index after the first `k` code points
+   of `s`, from the JDK's code point stream and `Character/charCount` (not from
+   dacite.host)."
+  [s]
+  (vec (reductions + 0 (map #(Character/charCount (int %)) (cps s)))))
+
+(deftest cp-count-and-cp-offset-match-the-jdk
+  (doseq [[kind page] pages
+          :let [page ^String page
+                offs (unit-offsets page)
+                n (dec (count offs))]]
+    (testing (str kind " page")
+      (is (= n (host/cp-count page) (.codePointCount page 0 (.length page))))
+      ;; every offset from the start, and a sample from other starts
+      (is (= [] (vec (for [k (range (inc n))
+                           :let [want (offs k) got (host/cp-offset page 0 k)]
+                           :when (not= want got)]
+                       [k want got]))))
+      (is (= [] (vec (for [k (range 0 (inc n) 37)
+                           :let [j (min 11 (- n k))
+                                 want (offs (+ k j))
+                                 got (host/cp-offset page (offs k) j)]
+                           :when (not= want got)]
+                       [k want got]))))
+      (testing "counting a suffix"
+        (is (= (- n 5) (host/cp-count (subs page (offs 5))))))
+      (testing "past the end is refused, even for an absurd count"
+        (is (= :error (try (host/cp-offset page 0 (inc n)) (catch Exception _ :error))))
+        (is (= :error (try (host/cp-offset page 0 (+ n 4294967296)) (catch Exception _ :error))))
+        (is (= :error (try (host/cp-offset page (+ (.length page) 1) 0) (catch Exception _ :error))))
+        (is (= (.length page) (host/cp-offset page 0 n)))))))
+
 (defn- best-ms
   "The fastest of 5 runs of (f), in milliseconds."
   [f]
@@ -230,19 +270,42 @@
                                     (f)
                                     (/ (- (System/nanoTime) t) 1e6))))))
 
-(deftest indexing-inside-a-page-uses-the-jdk-and-is-not-a-hand-written-scan
+(defn- iterations-for-20ms
+  "A call count that makes `(run-n n)` take at least about 20 ms, so that noise
+   (a GC, a JIT compile, a scheduler slice) does not dominate a measurement."
+  [run-n]
+  (loop [n 20000]
+    (let [t (System/nanoTime)]
+      (run-n n)
+      (if (or (>= (/ (- (System/nanoTime) t) 1e6) 20.0) (>= n 100000000))
+        n
+        (recur (* n 4))))))
+
+(deftest indexing-inside-a-page-is-not-a-hand-written-scan
   ;; Review of #18: a hand-written pair-at? loop made `nth` and `slice` on BMP
-  ;; text 3-4 times slower than before the change. The cost of host/cp-offset on
-  ;; a full 4 KiB page must stay within a small factor of the JDK's own
-  ;; String.offsetByCodePoints (it is that call plus argument checks). A
-  ;; ratio and a best-of-5 keep this steady on a busy machine; it takes ~0.2 s.
-  (let [page (apply str (repeat 4000 \a))
-        n 20000
-        jdk (fn [] (dotimes [i n] (.offsetByCodePoints ^String page 0 (mod i 4000))))
-        ours (fn [] (dotimes [i n] (host/cp-offset page 0 (mod i 4000))))]
-    (jdk) (ours)                        ; warm up
-    (let [a (best-ms jdk) b (best-ms ours)]
-      (is (< b (+ 5 (* 4 a))) (str "cp-offset " b " ms vs the JDK " a " ms")))))
+  ;; text 3-4 times slower. This is a deliberately generous guard: within 5x of
+  ;; the JDK's own String.offsetByCodePoints, best of 5, each run >= ~20 ms (the
+  ;; old loop was 20 to 700x slower). Precise timing is in dev/bench_cp.clj, not
+  ;; here. Takes about 2 s (calibration plus 10 runs of >= 20 ms on each of
+  ;; three pages).
+  (doseq [[kind page] pages
+          :let [page ^String page
+                top (count (cps page))
+                ;; sum the results, so the JIT cannot drop the calls
+                jdk-n (fn [n] (loop [i 0 acc 0]
+                                (if (< i n)
+                                  (recur (inc i) (+ acc (.offsetByCodePoints page 0 (mod i top))))
+                                  acc)))
+                ours-n (fn [n] (loop [i 0 acc 0]
+                                 (if (< i n)
+                                   (recur (inc i) (+ acc (long (host/cp-offset page 0 (mod i top)))))
+                                   acc)))]]
+    (jdk-n 20000) (ours-n 20000)        ; warm up
+    (let [n (iterations-for-20ms jdk-n)
+          a (best-ms #(jdk-n n))
+          b (best-ms #(ours-n n))]
+      (is (= (jdk-n 1000) (ours-n 1000)))
+      (is (< b (* 5 a)) (str kind ": cp-offset " b " ms vs the JDK " a " ms for " n " calls")))))
 
 (deftest the-explorer-style-walk-is-in-code-points
   ;; ft-seq of the string tree has one leaf per code point

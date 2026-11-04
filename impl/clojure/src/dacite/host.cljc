@@ -554,7 +554,7 @@
         n (long (count s))
         from (long from)
         k (long k)]
-    (when (or (neg? k) (neg? from) (> from n))
+    (when (or (neg? k) (neg? from) (> from n) (> k (- n from)))
       (throw (ex-info "code point offset out of range" {:from from :k k})))
     #?(:clj (try (.offsetByCodePoints ^String s (int from) (int k))
                  (catch IndexOutOfBoundsException _
