@@ -1,12 +1,13 @@
 (ns dacite.peer.client
   "Peer protocol v1, the requesting side: sessions, and what a failure does.
    Portable (.cljc): the same code runs on the JVM and on nbb. No I/O and no
-   clock: the caller hands in each frame it reads (`on-frame!`) and gets each
-   message to send through the `:send!` callback.
+   clock of its own: the caller says what time it is (`:now`, `tick!`), hands in
+   each frame it reads (`on-frame!`) and gets each message to send through the
+   `:send!` callback.
 
-   Spec: docs/spec/peer-v1.md §12.4 (session end), §12.8 (verification).
-   M1.2 slice 1. Not here yet (slice 2 and later): flow control, token buckets,
-   the read-only rule, interest decay and `cancel`, `ack` and `forget`.
+   Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C45), §12.4 (session end, C16),
+   §12.8 (verification), §12.9 (C35), §12.11 (C41). M1.2 slices 1 and 2. Not here
+   yet (M4): interest ending a stream at its floor, `cancel`, `ack` and `forget`.
 
    One client has one store and any number of sessions, one per peer. What it
    keeps, per session: a stream table (`frame/stream-table`), and per open
@@ -26,6 +27,20 @@
    - **Other sessions are untouched (C15).** Every piece of state above is
      per session. Ending one only reads and rewrites that session's entry,
      and the hashes it was serving.
+   - **Rates (C01, C02, C45).** Every `get` carries a `recv-max` (`next-recv-max`):
+     the peer's C01/C02 share of the client's one `R_max`, at most `R_max` minus
+     the other peers' current commitments (`rates/commitment`), so the commitments
+     never sum above `R_max`. The peer's `send-max` (from its `hello`) caps its
+     share and the excess goes to the others. A new `get` starts at peak interest
+     and decays by the clock.
+   - **Request bucket (C41).** A bucket per peer from its `hello` (`req-rate`,
+     `req-burst`). A `get` is not sent to a peer whose bucket is empty: it goes to
+     another peer, or waits and is sent by `tick!` when a token is there.
+   - **Protocol violations end the session (C16).** A frame other than `hello` and
+     `error` before the peer's `hello`, a second `hello`, a malformed frame, and an
+     `item-stream` for a stream id this side never opened: `error` `malformed`,
+     fatal, on stream 0, then `:close!`. An item for a closed id is ignored (C35).
+     A request that fails (`error` on a stream) ends that stream only.
    - **What the peer was serving is re-requested elsewhere (C14).** Each
      stream still open on the ended session becomes a new `get` on another
      open session that has not already failed to serve that hash. With no
@@ -51,17 +66,29 @@
    A `get` for a hash a peer cannot serve (`error unknown-hash`, or a stream
    that ends without the hash) ends that stream only, and the hash is asked of
    another peer. A hash is never asked twice of the same peer."
-  (:require [dacite.peer.frame :as frame]
+  (:require [dacite.peer.bucket :as bucket]
+            [dacite.peer.frame :as frame]
             [dacite.peer.msg :as msg]
+            [dacite.peer.rates :as rates]
             [dacite.peer.verify :as verify]
             [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.wire.binary :as bin]))
 
-(def default-recv-max
-  "`recv-max` in every `get`, bytes a second. A placeholder: slice 2 sets it
-   to the client's C01/C02 share for the peer."
-  1000000)
+(def default-r-max
+  "The client's one `R_max`, bytes a second, when none is given."
+  10000000)
+
+(def default-interest rates/default-interest)
+
+(defn default-hello
+  "This side's `hello`: a client that wants `r-max` bytes a second in all."
+  [r-max]
+  {"versions" #{1}
+   "kind" "node"
+   "caps" #{"reveal"}
+   "limits" {"max-frame" 16384 "max-item" 1048576 "max-streams" 32}
+   "rates" {"send-max" r-max "recv-max" r-max "req-rate" 20 "req-burst" 40}})
 
 (def ^:private verification-reasons
   "Why a check can fail (verify, the wire decoder). All are `bad-entry` (C13)."
@@ -77,26 +104,38 @@
 ;; The client
 ;; =============================================================================
 
+;; The client's per-session state:
+;;   :status        :open | :ended
+;;   :table         `frame/stream-table`: this side's ids
+;;   :streams       open streams, id -> {:hash :reader :rx :t0 :peak :tau :served?}
+;;   :hello         the peer's `hello`, nil until it arrives
+;;   :bucket        request bucket (C41), from the peer's hello
+;;   :last-recv-max the `recv-max` of the latest `get` sent (C45)
+;;   :verified      hash keys this session verified (a cache for `have?`)
 (defn client
   "A client. Options:
 
      :store     where verified items go (default a new mem-store)
      :send!     (fn [peer-id message]) with message {:type :get :stream n
-                :value {...}} or {:type :error :stream 0 :value {...}}; the
+                :value {...}}, {:type :hello ...} or {:type :error ...}; the
                 caller encodes it with `msg/encode-message`
      :close!    (fn [peer-id]) the session is over; close the connection
-     :recv-max  see `default-recv-max`
+     :r-max     the client's one `R_max`, bytes a second (`default-r-max`)
+     :now       (fn [] milliseconds): the clock (default the system clock)
+     :hello     this side's hello (default `default-hello` of `r-max`)
 
    The state is in an atom under `:state`; read it through the functions
    below, not directly."
-  [{:keys [store send! close! recv-max]
-    :or {send! (fn [_ _]) close! (fn [_])
-         recv-max default-recv-max}}]
+  [{:keys [store send! close! r-max now hello]
+    :or {send! (fn [_ _]) close! (fn [_]) r-max default-r-max
+         now (fn [] #?(:clj (System/currentTimeMillis) :cljs (.now js/Date)))}}]
   {:store (or store (store/mem-store))
    :send! send!
    :close! close!
-   :recv-max recv-max
-   ;; :sessions peer-id -> {:status :open|:ended :table t :streams {id {...}}}
+   :r-max r-max
+   :now now
+   :hello (or hello (default-hello r-max))
+   ;; :sessions peer-id -> the session state above
    ;; :order    peer ids, oldest first
    ;; :wanted   hash-key -> {:hash h :tried #{peer-id} :at [peer-id stream]}
    :state (atom {:sessions {} :order [] :wanted {} :done #{}})})
@@ -115,7 +154,9 @@
   (mapv :hash (vals (get-in @(:state c) [:sessions peer-id :streams]))))
 
 (defn unserved
-  "Hashes wanted that no open session is asked for: they wait for a session."
+  "Hashes wanted that no `get` is out for: no open session can take one now (none
+   has said `hello`, or all failed to serve it, or every request bucket is empty).
+   They go out when a session opens or `tick!` finds a token."
   [c]
   (into [] (comp (filter (comp nil? :at)) (map :hash)) (vals (:wanted @(:state c)))))
 
@@ -129,47 +170,125 @@
    was stored, or a collection header whose root is stored and matches it. A
    header that still waits for its root, or a forged one, is not had, whichever
    session stored it. Only a hash that is had may be read or offered to another
-   peer."
+   peer.
+
+   A session remembers what it verified (`:verified`), so a hash that a session
+   verified is not checked again; any other hash is checked against the store
+   (`verify/checked?`)."
   [c h]
-  (verify/checked? (:store c) h))
+  (let [hk (gc/hash-key h)]
+    (and (some? (store/await (store/s-get (:store c) h)))
+         (or (some #(contains? (:verified %) hk) (vals (:sessions @(:state c))))
+             (do (swap! (:state c) update :rechecks (fnil inc 0))
+                 (verify/checked? (:store c) h))))))
+
+(defn recheck-count
+  "How many times `have?` had to check a stored hash against the store because no
+   session had verified it (see `have?`). A hash a session verified is not counted."
+  [c]
+  (get @(:state c) :rechecks 0))
+
+;; =============================================================================
+;; Rates (C01, C02, C45)
+;; =============================================================================
+
+(defn- sum-interest
+  "Σ I of a session's open streams at `now`."
+  [session now]
+  (reduce + 0 (map (fn [{:keys [peak tau t0]}] (rates/interest peak tau (- now t0)))
+                   (vals (:streams session)))))
+
+(defn- next-recv-max
+  "The `recv-max` for a new `get` to `peer` at `now` (C45): at most `peer`'s
+   C01/C02 share, counting the new stream at peak interest, and at most `R_max`
+   minus the other peers' current commitments."
+  [c sessions peer now]
+  (let [ready (into {} (filter (fn [[_ s]] (and (= :open (:status s)) (:hello s)))) sessions)
+        interest (fn [p] (+ (sum-interest (get ready p) now) (if (= p peer) rates/peak 0)))
+        shares (rates/peer-shares (:r-max c)
+                                  (into {} (map (fn [[p s]]
+                                                  [p {:interest (interest p)
+                                                      :cap (get-in s [:hello "rates" "send-max"])}]))
+                                        ready))
+        others (reduce + 0 (for [[p s] ready :when (not= p peer)]
+                             (rates/commitment (:last-recv-max s) (sum-interest s now))))]
+    (rates/recv-max (:r-max c) (get shares peer) others)))
+
+(defn commitments
+  "{peer-id commitment} now (C45): each open session's last `recv-max` times
+   `min(1, Σ I / 1000)`. Their sum stays at or below `R_max`."
+  [c]
+  (let [now ((:now c))]
+    (into {} (for [[p s] (:sessions @(:state c)) :when (= :open (:status s))]
+               [p (rates/commitment (:last-recv-max s) (sum-interest s now))]))))
 
 ;; =============================================================================
 ;; Asking
 ;; =============================================================================
 
+(defn- candidate-peers
+  "Open sessions that have said `hello`, have not failed to serve `tried`'s hash,
+   and (C41) have a token in their bucket, as [[load index] peer], fewest streams
+   first, oldest on a tie."
+  [{:keys [state now]} tried]
+  (let [{:keys [sessions order]} @state
+        t (now)]
+    (sort-by first
+             (keep-indexed
+              (fn [i p]
+                (let [s (get sessions p)]
+                  (when (and (= :open (:status s)) (:hello s)
+                             (not (contains? tried p))
+                             (bucket/has-token? (:bucket s) t))
+                    [[(count (:streams s)) i] p])))
+              order))))
+
 (defn- dispatch!
-  "Send a `get` for wanted hash `hk` to the open session with the fewest open
-   streams that has not failed to serve it. With none, the hash stays in
-   `unserved`."
+  "Send a `get` for wanted hash `hk` to the best candidate (`candidate-peers`).
+   With none, the hash stays in `unserved`."
   [c hk]
-  (let [{:keys [state store send! recv-max]} c
-        {:keys [wanted sessions order]} @state
-        {:keys [hash tried]} (get wanted hk)
-        ;; the session with the fewest open streams; the oldest on a tie
-        peer (second (first (sort-by first
-                                     (keep-indexed
-                                      (fn [i p]
-                                        (when (and (= :open (get-in sessions [p :status]))
-                                                   (not (contains? tried p)))
-                                          [[(count (get-in sessions [p :streams])) i] p]))
-                                      order))))]
+  (let [{:keys [state store send!]} c
+        {:keys [hash tried]} (get-in @state [:wanted hk])
+        peer (second (first (candidate-peers c tried)))]
     (if-not peer
       (swap! state assoc-in [:wanted hk :at] nil)
-      (let [[table sid] (frame/open-local (get-in sessions [peer :table]))]
+      (let [now ((:now c))
+            sessions (:sessions @state)
+            recv-max (next-recv-max c sessions peer now)
+            [table sid] (frame/open-local (get-in sessions [peer :table]))
+            [bucket' _ _] (bucket/take-token (get-in sessions [peer :bucket]) now)]
         (swap! state (fn [s]
                        (-> s
                            (assoc-in [:sessions peer :table] table)
+                           (assoc-in [:sessions peer :bucket] bucket')
+                           (assoc-in [:sessions peer :last-recv-max] recv-max)
                            (assoc-in [:sessions peer :streams sid]
                                      {:hash hash
                                       :reader (frame/reader sid)
-                                      :rx (verify/receiver store)})
+                                      :rx (verify/receiver store)
+                                      :t0 now
+                                      :peak (get default-interest "peak")
+                                      :tau (get default-interest "tau-ms")})
                            (assoc-in [:wanted hk :at] [peer sid]))))
         (send! peer {:type :get :stream sid
-                     :value {"hash" (msg/hash-ref (store/hash->hex hash)) "policy" "default" "recv-max" recv-max}})))))
+                     :value {"hash" (msg/hash-ref (store/hash->hex hash))
+                             "policy" "default"
+                             "recv-max" recv-max
+                             "interest" default-interest}})))))
+
+(defn- dispatch-waiting! [c]
+  (doseq [hk (keys (filter (comp nil? :at val) (:wanted @(:state c))))]
+    (dispatch! c hk)))
+
+(defn tick!
+  "Time has moved: send the `get`s that waited for a token (C41)."
+  [c]
+  (dispatch-waiting! c)
+  nil)
 
 (defn request!
   "Want `h`. Returns `:done` when it is already stored and verified, else
-   `:requested` (the `get` went out) or `:unserved` (no open session)."
+   `:requested` (the `get` went out) or `:unserved` (no session can take it now)."
   [c h]
   (let [hk (gc/hash-key h) state (:state c)]
     (cond
@@ -181,20 +300,32 @@
                 (if (get-in @state [:wanted hk :at]) :requested :unserved)))))
 
 (defn open-session!
-  "A session with `peer-id` is up. `role` is `:offerer` (this side sent the
-   WebRTC offer, odd stream ids; the default) or `:answerer`. Hashes that
-   were waiting for a session are asked of it now."
+  "A connection to `peer-id` is up. This side's `hello` is sent at once; nothing
+   else is until the peer's arrives (`on-frame!`). `role` is `:offerer` (this
+   side sent the WebRTC offer, odd stream ids; the default) or `:answerer`."
   ([c peer-id] (open-session! c peer-id :offerer))
   ([c peer-id role]
    (swap! (:state c)
           (fn [s]
             (-> s
                 (assoc-in [:sessions peer-id]
-                          {:status :open :table (frame/stream-table role 64) :streams {}})
+                          {:status :open :table (frame/stream-table role 64) :streams {}
+                           :hello nil :bucket nil :last-recv-max nil :verified #{}})
                 (update :order #(conj (vec (remove #{peer-id} %)) peer-id)))))
-   (doseq [hk (keys (filter (comp nil? :at val) (:wanted @(:state c))))]
-     (dispatch! c hk))
+   ((:send! c) peer-id {:type :hello :stream 0 :value (:hello c)})
    c))
+
+(defn- on-hello!
+  "The peer's `hello` (validated by `msg/decode-message`). Its rates give the
+   request bucket (C41) and the cap on its share (C02); hashes that waited for a
+   session go out."
+  [c peer-id value]
+  (swap! (:state c) update-in [:sessions peer-id] assoc
+         :hello value
+         :bucket (bucket/bucket (get-in value ["rates" "req-rate"])
+                                (get-in value ["rates" "req-burst"])
+                                ((:now c))))
+  (dispatch-waiting! c))
 
 ;; =============================================================================
 ;; Ending
@@ -294,8 +425,15 @@
     (swap! state assoc-in [:sessions peer-id :streams sid :reader] reader')
     ;; each item is verified, then stored, before the next is read (C27)
     (doseq [bs item-bytes]
-      (let [item (decode-item bs)]
-        (verify/accept-item! rx item)
+      (let [item (decode-item bs)
+            before (set (map gc/hash-key (verify/unchecked rx)))
+            checks (verify/accept-item! rx item)
+            after (set (map gc/hash-key (verify/unchecked rx)))]
+        ;; what this session has verified: the item (unless a header that waits)
+        ;; and the headers that its arrival checked
+        (swap! state update-in [:sessions peer-id :verified]
+               into (concat (when-not (contains? checks :pending) [(gc/hash-key (:hash item))])
+                            (remove after before)))
         (when (= (gc/hash-key (:hash item))
                  (gc/hash-key (get-in @state [:sessions peer-id :streams sid :hash])))
           (swap! state assoc-in [:sessions peer-id :streams sid :served?] true))))
@@ -321,23 +459,43 @@
 (defn on-frame!
   "The frame (bytes) that arrived on `peer-id`'s session.
 
+   - `hello` (once, first): see `on-hello!`
    - `item-stream` on an open stream: each item is verified and then stored.
-     Any failure ends the whole session (C13). A frame for an id that is not
-     open is ignored and stores nothing.
-   - `error` from the peer: see `on-error!`.
-   - anything else is ignored in this slice.
+     Any failure ends the whole session (C13). A frame for an id that was
+     opened and is closed is ignored and stores nothing (C35).
+   - `error` from the peer: see `on-error!`
+   - anything else is ignored
 
-   A frame the codec refuses ends the session with `malformed`. Returns nil."
+   A protocol violation ends the session with `malformed` (C16): a frame the
+   codec refuses, any frame but `hello` and `error` before the peer's `hello`, a
+   second `hello`, an `item-stream` for an id this side never opened. Returns nil."
   [c peer-id frame-bytes]
   (when (open? c peer-id)
     (try
-      (let [fr (frame/decode-frame frame-bytes)]
-        (case (:type fr)
-          :item-stream
-          (when (get-in @(:state c) [:sessions peer-id :streams (:stream fr)])
-            (on-items! c peer-id fr))
-          :error (on-error! c peer-id frame-bytes)
-          nil))
+      (let [fr (frame/decode-frame frame-bytes)
+            session (get-in @(:state c) [:sessions peer-id])
+            type (:type fr)]
+        (cond
+          (= :hello type)
+          (let [{:keys [value]} (msg/decode-message frame-bytes)]
+            (when (:hello session)
+              (throw (ex-info "a second hello" {:reason :second-hello})))
+            (on-hello! c peer-id value))
+
+          (= :error type) (on-error! c peer-id frame-bytes)
+
+          (nil? (:hello session))
+          (throw (ex-info "a frame before the peer's hello" {:reason :before-hello}))
+
+          (= :item-stream type)
+          (let [sid (:stream fr)]
+            (cond
+              (contains? (:streams session) sid) (on-items! c peer-id fr)
+              (contains? (:used (:table session)) sid) nil
+              :else (throw (ex-info "item-stream for a stream this side never opened"
+                                    {:reason :never-opened :stream sid}))))
+
+          :else nil))
       (catch #?(:clj Throwable :cljs :default) e
         (fail! c peer-id e))))
   nil)

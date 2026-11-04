@@ -4,8 +4,8 @@
      npm run peer:test
 
    The same checks as peer_v1_test.clj, and the portable verification and
-   client checks of M1.2 slice 1 (client_checks.cljc, also run by
-   client_test.clj on the JVM)."
+   client and flow checks of M1.2 slices 1 and 2 (client_checks.cljc and
+   flow_checks.cljc, also run by client_test.clj and flow_test.clj on the JVM)."
   (:require [cljs.reader :as reader]
             [dacite.cache-checks :as cache-checks]
             [dacite.hash :as hash]
@@ -14,6 +14,7 @@
             [dacite.peer.client-checks :as client-checks]
             [dacite.peer.conformance :as conf]
             [dacite.peer.examples :as ex]
+            [dacite.peer.flow-checks :as flow-checks]
             [dacite.peer.msg :as msg]
             [dacite.store :as store]
             [dacite.string-vectors :as string-vectors]
@@ -115,7 +116,7 @@
                                                     {"versions" #{2} "caps" #{} "limits" {"max-frame" 1 "max-item" 1 "max-streams" 1}})
                                      [:ok :version]))
                 ["negotiate does not pick the highest common version"]))
-        client (client-checks/run-all)
+        client (into (client-checks/run-all) (flow-checks/run-all))
         client-problems (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) client)
         all (into (into (into (vec problems) framing) host) (concat client-problems (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (bad-state-problems) (cache-checks/problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
