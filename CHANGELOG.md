@@ -6,6 +6,19 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M1.2 slice 1: verify before store, a bad item ends the session, and its
+  streams are re-asked.** New portable `dacite.peer.verify` (the checks and the
+  receiver of `dacite.peer.items`, moved to `.cljc`; `items` re-exports them) and
+  `dacite.peer.client` (a sans-I/O requesting side: per-session stream tables and
+  receivers, no item reaches the store except through `accept-item!`, a
+  verification failure sends a fatal `bad-entry` on stream 0, closes that session
+  and re-asks its outstanding hashes of another peer; other sessions are not
+  touched). Spec C13, C14, C15 and C27 to C31 and C33 now have tests, which run
+  on the JVM (`client_test.clj`) and on nbb (`npm run peer:test`), including a
+  lying-peer and honest-peer integration test. `dacite.reveal/page-order` no longer
+  throws on nbb for a value of more than eight pages (it keyed a persistent set by
+  vectors of BigInts, which `hash` cannot take; it keys by hex now). Flow control,
+  token buckets and the read-only rule are slice 2.
 - **Rename: peer message 0x05 `release` is now `forget`** (fixture `forget`,
   `dacite.reveal/forget-pages`), so "release" no longer also means `cancel`.
   Same type id; draft wire, no version bump.

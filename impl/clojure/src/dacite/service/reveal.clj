@@ -23,11 +23,9 @@
    ends."
   (:require [dacite.hash :as hash]
             [dacite.host :as host]
+            [dacite.peer.verify :as verify]
             [dacite.reveal :as reveal]
             [dacite.store :as store]
-            [dacite.value.finger-tree :as ft]
-            [dacite.value.hamt :as hamt]
-            [dacite.value.types :as types]
             [dacite.wire.binary :as bin])
   (:import [java.io OutputStream]))
 
@@ -58,48 +56,10 @@
                     :hash hash
                     :entry (store/require-node store hash)}))
 
-(defn- missing-node?
-  [e]
-  (and (instance? clojure.lang.ExceptionInfo e)
-       (= :missing (:reason (ex-data e)))))
-
-(defn- collection-hash
-  "Value hash of a collection node, or nil when a child is not stored yet."
-  [store type-name root]
-  (try
-    (let [ef (case type-name
-               ("string" "blob" "vector") (ft/ft-elements-fuse store root)
-               ("map" "set") (hamt/hamt-elements-fuse store root)
-               nil)]
-      (when ef
-        (types/value-hash type-name ef)))
-    (catch clojure.lang.ExceptionInfo e
-      (if (missing-node? e)
-        nil
-        (throw e)))))
-
-(defn expected-hash
+(def expected-hash
   "Content hash of a stored node, or nil when a child it needs is absent.
-
-   Structural nodes carry `elements-fuse` in their measure. A bitmap node
-   also folds its bitmap and split, matching `hamt/bitmap-node-hash`. A collection root
-   uses the same elements fuse as the value that wrote it. A scalar uses
-   `scalar-value-hash`."
-  [store entry]
-  (let [type-name (first entry)
-        data (second entry)]
-    (cond
-      (and (map? data) (contains? (:measure data) :elements-fuse))
-      (let [ef (:elements-fuse (:measure data))]
-        (if (= "hamt/bitmap" type-name)
-          (hamt/bitmap-node-hash ef (:bitmap data) (:split data))
-          (types/node-hash type-name ef)))
-
-      (#{"string" "blob" "vector" "map" "set"} type-name)
-      (collection-hash store type-name (:root data))
-
-      :else
-      (types/scalar-value-hash entry))))
+   The portable check lives in `dacite.peer.verify/expected-hash`."
+  verify/expected-hash)
 
 (defn- take-ready
   "Store items whose hash can be checked. Return those still waiting.

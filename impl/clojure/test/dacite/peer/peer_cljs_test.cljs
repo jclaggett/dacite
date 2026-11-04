@@ -3,13 +3,15 @@
 
      npm run peer:test
 
-   The same checks as peer_v1_test.clj, minus hash verification of the
-   entries (that lives in the JVM-only service namespace until M2)."
+   The same checks as peer_v1_test.clj, and the portable verification and
+   client checks of M1.2 slice 1 (client_checks.cljc, also run by
+   client_test.clj on the JVM)."
   (:require [cljs.reader :as reader]
             [dacite.cache-checks :as cache-checks]
             [dacite.hash :as hash]
             [dacite.host :as host]
             [dacite.kernel-vectors :as kernel-vectors]
+            [dacite.peer.client-checks :as client-checks]
             [dacite.peer.conformance :as conf]
             [dacite.peer.examples :as ex]
             [dacite.peer.msg :as msg]
@@ -113,9 +115,14 @@
                                                     {"versions" #{2} "caps" #{} "limits" {"max-frame" 1 "max-item" 1 "max-streams" 1}})
                                      [:ok :version]))
                 ["negotiate does not pick the highest common version"]))
-        all (into (into (into (vec problems) framing) host) (concat (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (bad-state-problems) (cache-checks/problems)))]
+        client (client-checks/run-all)
+        client-problems (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) client)
+        all (into (into (into (vec problems) framing) host) (concat client-problems (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (bad-state-problems) (cache-checks/problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
              (count all) "problems")
+    (println "client checks:" (count client) "tests,"
+             (count client-problems) "problems, slowest"
+             (apply max (map :ms client)) "ms")
     (doseq [p all] (println "  FAIL" p))
     (when (or (seq all) (< cases 50))
       (js/process.exit 1))))
