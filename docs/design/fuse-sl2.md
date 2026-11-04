@@ -285,10 +285,11 @@ the peer item reader (`service/reveal_test.clj`) and on nbb (`peer_cljs_test`).
 
 Measured on this box (one core). A fuse step (a matrix product) is about 1.7 us
 on the JVM (0.6 million per second) and about 1.9 us on nbb. Hashing a ref into
-a sequence costs 31 products; `ref->state` is memoized, bounded at 65,536
-entries and **emptied wholesale when full**, so a workload that re-reads more
-distinct refs than that falls off a cliff to 31 products per ref (the cost
-of an uncached read; there is no LRU; issue #17).
+a sequence costs 31 products; `ref->state` is memoized in a bounded LRU
+(`dacite.cache`, 65,536 entries, safe across threads on the JVM; issue #17), so a
+workload with more live refs than that evicts the least recently used ref, one
+per miss. It used to be emptied wholesale when full, which dropped every hot ref
+at once.
 
 What matters is the end-to-end cost, not the step. Each row builds the value
 from nothing and takes its hash (median of 7 runs after 3 warm-ups, from
@@ -318,6 +319,76 @@ the digit as an `ft/node` (`as-node!`; `as-digit!` did the same the other way).
 Both now pass the measure the page already holds, which is the same value, so no
 hash changes (`a-blob-costs-about-one-product-per-byte` counts the products).
 
-Open: the `ref->state` cache is a cliff, and memoizing the fuse of a node's
-children might pay (about 40% of child fuses inside one build repeat an earlier
-pair). Both are issue #17, decided by benchmark; the roadmap has the entry.
+### The `ref->state` cache, and memoizing the fuse of a node's children (issue #17)
+
+**The cache.** `ref->state` (31 products) is memoized per ref. The old cache
+emptied itself at 65,536 entries; it is now a bounded LRU (`dacite.cache`:
+a `LinkedHashMap` in access order behind a lock on the JVM, a `Map` on nbb).
+Hashes cannot change, since a hit returns what a miss would compute. The
+`ref->state` row below reads 20,000 hot refs between the refs of a 100,000-ref
+cold stream; the wholesale-clear cache loses the hot set at every flush, the LRU
+keeps it, and what is left is the cost of the 100,000 cold refs themselves.
+
+| row (impl/clojure/dev/bench_ops.cljc) | JVM before | JVM after | nbb before | nbb after |
+|---|---|---|---|---|
+| `ref->state`: 20,000 hot refs + 100,000-ref cold stream | 6.9 s | 4.8 s | 13.1 s | 10.8 s |
+| map, 3,000 i64 entries | 634 ms | 613 ms | not run | not run |
+| vector, 10,000 i64 | 652 ms | 667 ms | not run | not run |
+| string, 100,000 chars | 176 ms | 181 ms | not run | not run |
+| blob, 500 KB | 675 ms | 741 ms | not run | not run |
+| 500 assocs on a 1,000-entry map | 259 ms | 279 ms | not run | not run |
+| shared: 20 maps, 1 assoc each on one 2,000-entry map | 378 ms | 407 ms | 4.11 s | 4.20 s |
+| shared: one 1,500-entry map built 5 times | 1434 ms | 1479 ms | not run | not run |
+| shared: 400 assocs on a 1,000-entry map, hashing each | 254 ms | 263 ms | 2.66 s | 2.64 s |
+| shared: 300 conj on a 3,000-element vector, hashing each | 197 ms | 208 ms | not run | not run |
+
+Median of 7 after 3 warm-ups, one core, on a box with another worker running, so
+differences under about 8% are noise: the rows that fit in the cache moved by
+that much in both directions on repeat runs (500 assocs: 259 / 293 ms before,
+279 / 302 ms after; blob: 675 / 735 before, 741 / 725 after). A hit in the LRU
+(a lock and a list move) costs about what a hit in the old map did.
+
+**Memoizing the fuse of a node's children: tried, not kept.** About 40% of the
+`fuse` calls in a build repeat an earlier pair of states (80,037 of 195,537 for
+the 3,000-entry map, 33,913 of 88,813 for the 10,000-element vector, 32,283 of
+78,125 for 400 assocs, almost all of them (73,438 of 80,037 on the map) not involving the identity). So the experiment was
+the pairwise memo: `measure-combine` in `value/hamt.cljc` and
+`value/finger_tree.cljc` called a `fuse` memoized in a bounded LRU keyed on the
+two states. A second variant keyed `make-bitmap!` on the list of its children's
+refs: that hit 0% to 0.2% of the time on a build or on assocs (0 of 8,121 nodes
+building the 3,000-entry map, 2 of 1,054 over 400 assocs), because a node whose children are all unchanged is
+never rebuilt, since it is shared; it hit 80% only when the same map is built
+again in the same store, so it was dropped without timing.
+
+Pairwise memo, JVM (median ms, 7 runs; limit in entries; the memo is
+60 MB of heap at 65,536 entries):
+
+| row | no memo | 4,096 | 65,536 |
+|---|---|---|---|
+| map, 3,000 i64 entries | 582 | 590 | 608 |
+| 500 assocs on a 1,000-entry map | 273 | 242 | 195 |
+| shared: 20 maps, 1 assoc each | 367 | 346 | 271 |
+| shared: one 1,500-entry map built 5 times | 1445 | 1336 | 1017 |
+| shared: 400 assocs, hashing each | 251 | 229 | 195 |
+| shared: 300 conj on a 3,000-element vector | 200 | 200 | 182 |
+
+nbb (a JS `Map` keys on strings, so the key is the eight cells as decimal text),
+median ms:
+
+| row | no memo | 4,096 | 65,536 |
+|---|---|---|---|
+| 500 assocs on a 1,000-entry map | 2826 | 3406 | 3404 |
+| shared: 20 maps, 1 assoc each | 4044 | 4825 | 4692 |
+
+**Decision: not kept.** It helps the JVM by 9% to 30% on workloads that rebuild
+along a path or rebuild shared structure, and not at all on a bulk build (582 to
+608 ms), but it needs about 60 MB of heap for the 65,536 entries that give the
+gain (the 4,096-entry cache, 4 MB, gains 0% to 11%, about the noise). On nbb it
+is 20% slower, because turning two states into a key costs more than the 1.9 us
+product it saves, so a portable version would pay for it on one host to win on
+the other. A cache that is a win only on the JVM, only for incremental updates,
+at 60 MB, is not worth the portable code. Revisit it with a WASM or native fuse
+kernel (roadmap): the product gets cheaper and a key gets no cheaper, so the
+case only gets weaker; what would change it is a profile of a real workload, with
+a hit rate above what these rows show, on a store that is memory-bound or on
+the JVM only.

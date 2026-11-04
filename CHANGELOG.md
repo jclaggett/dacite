@@ -6,6 +6,13 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Fix #17: the `ref->state` cache is a bounded LRU.** It used to empty itself
+  wholesale at 65,536 entries, dropping every hot ref at once. It is now
+  `dacite.cache/lru` (portable `.cljc`: a `LinkedHashMap` in access order behind
+  a lock on the JVM, a `Map` on nbb), same 65,536 limit, evicting the least
+  recently used entry one at a time. Hashes are unchanged. Memoizing the fuse of
+  a node's children was benchmarked and not kept (roadmap, `docs/design/fuse-sl2.md`).
+
 - **Fix #14: the fuse is a product in SL(2, F_p) (hash version 2, store format 2).**
   The old fuse (a 4x4 unitriangular matrix over Z/2^64) is a nilpotent group, so
   collisions come in families: for any `a`, `b`, `x`, `y`, `z`, the sequences
@@ -32,8 +39,8 @@ stability promise: public APIs may still change before 1.0.
     `dacite.sl2-table`). A ref is still 32 bytes: the digest
     `a xor rotl64(b) xor rotl128(c) xor rotl192(d)` of the state's four 256-bit
     cells. A ref enters a fuse as the product of the generators of its 32 bytes
-    (`ref->state`, memoized in a cache that is emptied when it holds 65,536
-    entries). `value_hash = digest(fuse(type_state, data_state))`. A HAMT bitmap
+    (`ref->state`, memoized in a bounded LRU of 65,536 entries; it was first emptied
+    wholesale when full, issue #17). `value_hash = digest(fuse(type_state, data_state))`. A HAMT bitmap
     node is `digest(fuse(fuse(type_state, elements_fuse), fuse_bytes(bitmap_be8 ++ [split])))`.
     The low-entropy guard is gone (nothing to guard: `A^n` is the identity only
     at a multiple of the order, above 2^252).

@@ -28,7 +28,8 @@
 
    The arithmetic is replaceable behind five hex-in, hex-out functions, `kernel`
    at the end of this file (docs/design/fuse-sl2.md, \"The kernel boundary\")."
-  (:require [dacite.host :as host]
+  (:require [dacite.cache :as cache]
+            [dacite.host :as host]
             [dacite.sl2-table :as sl2-table]))
 
 (def hash-version
@@ -183,11 +184,21 @@
    the state, and the only way a value hash is made (docs/design/fuse-sl2.md)."
   host/sl2-digest-words)
 
-(def ^:private ref-state-cache-limit
-  "Entries kept before the ref->state cache is dropped and refilled."
+(def ref-state-cache-limit
+  "Entries the ref->state cache keeps; the least recently used is evicted
+   past that (`dacite.cache`)."
   65536)
 
-(def ^:private ref-state-cache (atom {}))
+(def ^:private ref-state-cache (cache/lru ref-state-cache-limit))
+
+(defn ref->state-in
+  "`ref->state` through the given `dacite.cache` (a seam for tests, which use a
+   small one)."
+  [cache ref]
+  (let [k #?(:clj (vec ref)
+             ;; a JS BigInt word cannot be hashed by `hash`; key on its text
+             :cljs (str (nth ref 0) "," (nth ref 1) "," (nth ref 2) "," (nth ref 3)))]
+    (cache/memo cache k #(fuse-bytes (longs->bytes ref)))))
 
 (defn ref->state
   "A ref as an element of a fuse: the product of the generators of its 32
@@ -196,17 +207,18 @@
    Memoized on the four words: a tree re-reads the same child refs while it
    re-measures pages and re-fuses along a path, and 31 products dominate the
    cost of a fuse step. The cache is a pure function of the ref, so it can
-   never change a hash; it is emptied whenever it passes the limit, which
-   bounds its memory without any eviction order."
+   never change a hash. It is a bounded LRU (`dacite.cache`): past
+   `ref-state-cache-limit` entries it drops the least recently used one, so a
+   workload with more live refs than that loses one entry per miss, not all of
+   them at once (issue #17). Safe to call from several threads."
   [ref]
-  (let [k #?(:clj (vec ref)
-             ;; a JS BigInt word cannot be hashed by `hash`; key on its text
-             :cljs (str (nth ref 0) "," (nth ref 1) "," (nth ref 2) "," (nth ref 3)))]
-    (or (@ref-state-cache k)
-        (let [s (fuse-bytes (longs->bytes ref))]
-          (swap! ref-state-cache
-                 (fn [m] (if (>= (count m) ref-state-cache-limit) {k s} (assoc m k s))))
-          s))))
+  (ref->state-in ref-state-cache ref))
+
+(defn ref-state-cache-size
+  "How many refs the ref->state cache holds now (never more than
+   `ref-state-cache-limit`). For tests."
+  []
+  (cache/size ref-state-cache))
 
 (defn fuse-refs
   "Fuse a sequence of refs left-to-right (each through `ref->state`)."

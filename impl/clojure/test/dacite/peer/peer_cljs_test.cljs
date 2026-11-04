@@ -6,6 +6,7 @@
    The same checks as peer_v1_test.clj, minus hash verification of the
    entries (that lives in the JVM-only service namespace until M2)."
   (:require [cljs.reader :as reader]
+            [dacite.cache-checks :as cache-checks]
             [dacite.hash :as hash]
             [dacite.host :as host]
             [dacite.kernel-vectors :as kernel-vectors]
@@ -100,7 +101,7 @@
                                                     {"versions" #{2} "caps" #{} "limits" {"max-frame" 1 "max-item" 1 "max-streams" 1}})
                                      [:ok :version]))
                 ["negotiate does not pick the highest common version"]))
-        all (into (into (into (vec problems) framing) host) (concat (fuse-vector-problems) (kernel-problems) (bad-state-problems)))]
+        all (into (into (into (vec problems) framing) host) (concat (fuse-vector-problems) (kernel-problems) (bad-state-problems) (cache-checks/problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
              (count all) "problems")
     (doseq [p all] (println "  FAIL" p))
