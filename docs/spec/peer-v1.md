@@ -1118,17 +1118,21 @@ them from the record and will send them again. Both stay session-wide on stream 
 (section 9, decision 7). A client SHOULD send `forget` when it evicts pages it was
 sent in the same session, and MAY send `ack` in batches of up to 256.
 
-### 12.7 Reveal order: stochastic
+### 12.7 Reveal order: deterministic in v1
 
-*Decided* (Jonathan's note on stochastic reveals).
+*Decided* (Jonathan, Nov 4): v1 reveals in a fixed order. The stochastic shuffle is
+**Deferred** until peering works in a demo (below).
 
 - **C24 (Decided).** A sender reveals child hashes **top-level first, breadth-first
   by level**: everything it sends of level *d* (the asked node is level 0, its
   children are level 1, and so on) comes before anything of level *d + 1*.
-- **C25 (Decided).** Within a level the order is **shuffled**, uniformly at random
-  per stream. A receiver MUST NOT rely on the order within a level (it verifies
-  each item on its own, 3.3, so none is needed). The shuffle has no wire field and
-  no effect on a hash; a test may fix the sender's seed.
+- **C25 (Decided).** Within a level the order is **fixed, with no shuffling**: the
+  default policy's order (3.2 and the design note): a sequence's pages left to
+  right (first-most), a map's or set's entries in key-hash order, keys before
+  values. The same request on the same store reveals in the same order. A
+  receiver MUST NOT rely on the order within a level anyway (it verifies each item
+  on its own, 3.3, so none is needed); the order has no wire field and no effect
+  on a hash.
 - **C26 (Proposed (awaiting Jonathan)).** A requester may repeatedly show interest
   in the same top-level hash (C08); **each renewal MAY reveal nodes not revealed
   before** (Decided). A responder MUST serve a renewal correctly with **no record
@@ -1138,15 +1142,20 @@ sent in the same session, and MAY send `ack` in batches of up to 256.
   but no rule depends on it. The literal rule (3.2) applies at the node where the
   sender chooses it.
 
-**Not decided: a question for Jonathan.** Section 3.2 and the design note give
-sequences a deterministic *first-most* order (the next page from the left), and a
-map *keys, then values* in key-hash order. Read literally, C24 and C25 shuffle a
-string's or vector's own pages too, which makes a progressive read of a book start
-anywhere. **Proposed (awaiting Jonathan):** keep C24 to C26 as they stand for the
-children of a node *except* the own leaf pages of a sequence (string, blob, vector
-body), which stay left to right inside their level; the shuffle then applies among
-sibling nested values and among map or set entries. If Jonathan wants the literal
-reading, the carve-out is struck and the design note's defaults are replaced.
+**Deferred until after a working peering demo** (Jonathan, Nov 4; no rule):
+
+- **Stochastic order.** Shuffling the order within a level, uniformly at random
+  per stream, so that no single subtree hogs a stream. Its planned test
+  (`order-within-a-level-varies-with-seed`) is deferred with it.
+- **The carve-out** that went with it: a sequence's own leaf pages would stay left
+  to right even when shuffling, so a progressive read of a book does not start
+  anywhere. It is moot while the order is fixed.
+
+**Deferred idea: a bloom filter as the sent-hash record** (no rule). A sender could
+keep its record (C19, C21) as a bloom filter instead of a hash set, which is far
+smaller. That is safe because the record is only an optimization (C19, C26): a
+false positive makes the sender skip a node the client lacks, and the client just
+asks for it again (C20, C22). Revisit with M5.3 measurements.
 
 ### 12.8 Verification before store
 
@@ -1182,7 +1191,7 @@ kind of item is in the table there.
   (`literal-too-large`), an unknown `enc` (`bad-item`).
 - **C33 (Proposed (awaiting Jonathan)).** No peer holds a partial value in order to
   verify. An item that cannot be verified alone is stored and checked later (C31);
-  it is never parked. Items may arrive in any order within a level (C25).
+  it is never parked. A receiver accepts items in any order within a level (C25).
 
 ### 12.9 Read-only
 
@@ -1297,8 +1306,9 @@ the responder's own uplink.
   (C06).
 - **`floor = 0`.** 6.2 lets a requester send it, the design note's placeholder
   server uses it. The responder now clamps it (C09).
-- **Order of a reveal.** The deterministic defaults of the design note (first-most,
-  keys then values) and 3.2's "the reveal's order" meet C24 and C25 in 12.7.
+- **Order of a reveal.** v1 keeps the design note's deterministic defaults
+  (first-most, keys then values) within each level, now level by level (C24, C25).
+  The stochastic shuffle in the first M1.2 draft is deferred (12.7).
 
 ## 13. Conformance list and test map
 
@@ -1306,7 +1316,9 @@ Ids run **C01** to **C45**; **C04 is withdrawn** (the `rate` message), so there 
 **44** rules: **41** MUST statements (**23** Decided, **13** Proposed (awaiting
 Jonathan), **5** Existing, sections 2 to 4) and **3** SHOULDs (C18, C41, C45, all
 Decided), listed in their own table below. In all, 26 Decided, 13 Proposed and 5
-Existing. A test name
+Existing. **Deferred, no id:** the stochastic shuffle and its carve-out (12.7),
+whose test `order-within-a-level-varies-with-seed` waits for a working peering
+demo, and a bloom-filter sent-hash record. A test name
 with "(exists)" is in the repo today; the others are planned. Suites: **JVM**
 (`clojure -M:dev:test`), **nbb peer** (`npm run peer:test`, the portable core on
 nbb), **browser** (the same portable tests in a browser, M5.1 and M5.2). "Lands in"
@@ -1337,7 +1349,7 @@ the M1.2 PR (spec only).
 | C22 | Decided | Client verifies everything; may re-request a missing hash | `forgotten-hash-is-re-requested-and-verified` | nbb peer | M4.2 |
 | C23 | Proposed (awaiting Jonathan) | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-is-optional-and-unknown-hashes-are-ignored` (N10) | JVM, nbb peer | M4.2 |
 | C24 | Decided | Reveal is breadth-first by level, top-level first | `reveal-sends-level-d-before-level-d-plus-1` | JVM, nbb peer | M2.2 |
-| C25 | Decided | Order within a level is shuffled; receiver never relies on it | `order-within-a-level-varies-with-seed-and-receiver-accepts-any` | JVM, nbb peer | M2.2 |
+| C25 | Decided | Fixed order within a level (no shuffle); receiver never relies on it | `order-within-a-level-is-fixed-and-receiver-accepts-any` | JVM, nbb peer | M2.2 |
 | C26 | Proposed (awaiting Jonathan) | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` | JVM, nbb peer | M4.2 |
 | C27 | Proposed (awaiting Jonathan) | Verify every item from its own bytes before it is stored | `every-item-stream-fixture-verifies` and `tampering-is-refused` (exist) | JVM; nbb peer, browser after M2.2 | M2.2 |
 | C28 | Proposed (awaiting Jonathan) | Literal rebuilt in a scratch store; a `ref` inside is bad-item | `a-run-of-refs-is-a-ref` (exists); `literal-hash-mismatch-is-refused` | JVM; nbb peer after M2.2 | M2.2 |
