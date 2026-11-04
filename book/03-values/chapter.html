@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5c8cd117.js";
+            window.path_to_searchindex_js = "../searchindex-2a99e50d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -328,7 +328,7 @@ hashes differ by the type tag.</p>
 <tr><td><code>"i8"</code> … <code>"i256"</code></td><td>1–32 bytes big-endian signed</td><td>Signed integers</td></tr>
 <tr><td><code>"u8"</code> … <code>"u256"</code></td><td>1–32 bytes big-endian unsigned</td><td>Unsigned integers</td></tr>
 <tr><td><code>"f32"</code>, <code>"f64"</code></td><td>4 or 8 bytes IEEE 754</td><td>Floating point</td></tr>
-<tr><td><code>"char"</code></td><td>1–4 bytes UTF-8</td><td>Unicode character</td></tr>
+<tr><td><code>"char"</code></td><td>1–4 bytes UTF-8</td><td>One Unicode code point (a scalar value; never a lone surrogate)</td></tr>
 <tr><td><code>"negative"</code></td><td>0 bytes</td><td>Sentinel for negative sets (§3.5)</td></tr>
 </tbody>
 </table>
@@ -340,7 +340,7 @@ hashes differ by the type tag.</p>
 <tr><th>Type Name</th><th>Leaves</th><th>Backed by</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>"string"</code></td><td>char scalars</td><td>finger tree</td><td>UTF-8 string</td></tr>
+<tr><td><code>"string"</code></td><td>char scalars (one per code point)</td><td>finger tree</td><td>Unicode text</td></tr>
 <tr><td><code>"blob"</code></td><td>byte scalars</td><td>finger tree</td><td>Binary data</td></tr>
 <tr><td><code>"vector"</code></td><td>arbitrary values</td><td>finger tree</td><td>Ordered collection</td></tr>
 <tr><td><code>"map"</code></td><td>key/value pairs</td><td>HAMT</td><td>Associative collection</td></tr>
@@ -361,6 +361,33 @@ string <code>"A"</code> (UTF-8 <code>0x41</code>) and a one-byte blob containing
 the same leaves but different type hashes, and therefore different value
 hashes. Internally they share the same finger-tree machinery; only the
 type hash differs.</p>
+<p><strong>Text is a sequence of code points.</strong> A string’s elements are Unicode code
+points (scalar values), on every host. <code>count</code>, <code>nth</code> and <code>slice</code> count code
+points, so an emoji is one element, as is <code>é</code>. The JVM and JavaScript hold text as
+UTF-16, where an emoji is two code units; Dacite never counts or cuts those. The
+JVM walks a string by code point, a page of a string never ends inside a
+character, and the hash of a string is the same on the JVM, on nbb and in the
+browser (the vectors in <code>fixtures/fuse-sl2/vectors.edn</code> <code>:strings</code> pin it).</p>
+<p>On the JVM a character outside the BMP cannot be a <code>java.lang.Character</code> (16
+bits): <code>(v/char ctx s)</code> takes a one-code-point <code>String</code> for it, and <code>v/realize</code>
+and <code>seq</code> of a string give that <code>String</code> as the element (a BMP character stays a
+<code>char</code>). In ClojureScript every character is a one-code-point string. The
+<code>CharSequence</code> view of a JVM Dacite string (<code>length</code>, <code>charAt</code>, <code>subSequence</code>)
+indexes code points like <code>count</code> and <code>nth</code>; <code>charAt</code> of a character outside the
+BMP throws, since no <code>char</code> can hold it (use <code>nth</code> or <code>seq</code>). The view does not
+keep the <code>CharSequence</code> contract that <code>toString().length() == length()</code> for text
+outside the BMP (<code>length</code> counts code points, the <code>String</code> has more UTF-16
+units), so <code>re-find</code> on such a string fails loudly rather than matching: take
+<code>(v/native s)</code> first.</p>
+<p><strong>A lone surrogate is refused.</strong> UTF-16 text can hold a surrogate with no
+partner (a string cut in the middle of an emoji). It is not a sequence of scalar
+values and has no UTF-8 form, so building a string or a char from it throws
+<code>ex-info</code> with <code>:reason :lone-surrogate</code>. Dacite does not turn it into <code>?</code> (what the
+JVM’s encoder did) or U+FFFD (a JavaScript encoder) because that would silently
+change the text, and hosts disagreed. Clean the text first (for example
+<code>String.prototype.toWellFormed()</code> in JavaScript). Likewise a <code>string</code> or <code>char</code>
+whose UTF-8 on the wire is malformed is a decode error (<code>:reason :invalid-utf8</code>),
+not U+FFFD.</p>
 <h2 id="35-sets-and-negative-sets"><a class="header" href="#35-sets-and-negative-sets">3.5 Sets and Negative Sets</a></h2>
 <h3 id="the-set-type"><a class="header" href="#the-set-type">The Set Type</a></h3>
 <p>A <code>"set"</code> is a user value backed by a <strong>self-map</strong> — a HAMT in which
@@ -704,9 +731,9 @@ implicit <code>*store*</code> form and no <code>-with-store</code> suffix.</p>
 <tr><td><code>null</code></td><td><code>(ctx) → Value</code></td><td>Scalar</td></tr>
 <tr><td><code>bool</code></td><td><code>(ctx, boolean) → Value</code></td><td>Scalar</td></tr>
 <tr><td><code>i64</code>, <code>f64</code>, …</td><td><code>(ctx, data) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>char</code></td><td><code>(ctx, char) → Value</code></td><td>Scalar</td></tr>
+<tr><td><code>char</code></td><td><code>(ctx, char) → Value</code></td><td>Scalar (one code point: a <code>char</code>, or on the JVM a one-code-point <code>String</code> outside the BMP; a lone surrogate throws <code>:lone-surrogate</code>)</td></tr>
 <tr><td><code>negative</code></td><td><code>(ctx) → Value</code></td><td>Scalar</td></tr>
-<tr><td><code>string</code></td><td><code>(ctx, string) → Value</code></td><td>Collection</td></tr>
+<tr><td><code>string</code></td><td><code>(ctx, string) → Value</code></td><td>Collection (elements are code points; a lone surrogate throws <code>:lone-surrogate</code>)</td></tr>
 <tr><td><code>blob</code></td><td><code>(ctx, bytes) → Value</code></td><td>Collection</td></tr>
 <tr><td><code>vector</code></td><td><code>(ctx, values...) → Value</code></td><td>Collection</td></tr>
 <tr><td><code>set</code></td><td><code>(ctx, values...) → Value</code></td><td>Collection</td></tr>
