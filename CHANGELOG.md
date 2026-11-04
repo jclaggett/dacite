@@ -6,6 +6,17 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Fix #17: the `ref->state` cache is a bounded LRU.** It used to empty itself
+  wholesale at 65,536 entries, dropping every hot ref at once. It is now
+  `dacite.cache/lru` (portable `.cljc`: a `LinkedHashMap` in access order behind
+  a lock on the JVM, a `Map` on nbb), same 65,536 limit, evicting the least
+  recently used entry one at a time. Hashes are unchanged. Memoizing the fuse of
+  a node's children was benchmarked and not kept, and the cache itself was
+  benchmarked against no cache (on the JVM, no cache is 1.25x to 1.6x slower on
+  the vector, conj, rebuild and overflow rows; roadmap, `docs/design/fuse-sl2.md`).
+  About 0.8 KB per entry, so a full cache is about 50 MB of JVM heap; one lock
+  covers reads too, so threads serialize on it (issue #20). Browser bundles are
+  rebuilt (cache busters api-13, explorer-27, library-15).
 - **Fix #16: a string is a sequence of code points, on every host; a lone
   surrogate is refused.** A string was walked as UTF-16 code units on the JVM and on
   nbb, so an emoji (U+1F600) was two elements, two lone surrogates, which the JVM
@@ -98,8 +109,8 @@ stability promise: public APIs may still change before 1.0.
     `dacite.sl2-table`). A ref is still 32 bytes: the digest
     `a xor rotl64(b) xor rotl128(c) xor rotl192(d)` of the state's four 256-bit
     cells. A ref enters a fuse as the product of the generators of its 32 bytes
-    (`ref->state`, memoized in a cache that is emptied when it holds 65,536
-    entries). `value_hash = digest(fuse(type_state, data_state))`. A HAMT bitmap
+    (`ref->state`, memoized in a bounded LRU of 65,536 entries; it was first emptied
+    wholesale when full, issue #17). `value_hash = digest(fuse(type_state, data_state))`. A HAMT bitmap
     node is `digest(fuse(fuse(type_state, elements_fuse), fuse_bytes(bitmap_be8 ++ [split])))`.
     The low-entropy guard is gone (nothing to guard: `A^n` is the identity only
     at a multiple of the order, above 2^252).
