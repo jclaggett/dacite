@@ -14,13 +14,13 @@ stability promise: public APIs may still change before 1.0.
   fixtures `reject-get-recv-max-zero` and `reject-get-missing-recv-max`; the `get`
   fixtures are regenerated with the field. Draft wire, no version bump.
 - **M1.2 spec: peer policy rules and the conformance list.**
-  `docs/spec/peer-v1.md` gains section 12 (policy rules) and section 13 (43 numbered
-  rules, C01 to C44 with C04 withdrawn: 41 MUSTs and 2 SHOULDs, each mapped to a
+  `docs/spec/peer-v1.md` gains section 12 (policy rules) and section 13 (44 numbered
+  rules, C01 to C45 with C04 withdrawn: 41 MUSTs and 3 SHOULDs, each mapped to a
   planned test, suite and milestone), and `docs/plan/peering.md` marks open
   question 2 answered and 1, 3 and 4 deferred. Decided by Jonathan on Nov 4: one
   shared `R_max` split by interest across all peers, each peer's send max as a cap
   with the unused share redistributed; rate control by `recv-max` in each `get`
-  (option A, no `rate` message; a stale `recv-max` is a known, accepted gap); a
+  (option A, no `rate` message; a stale `recv-max` is a known, accepted gap, and a client SHOULD keep the sum of its current (decayed) `recv-max` commitments at or below `R_max`, C45); a
   stream's life is its decaying interest (no idle timeout, `cancel` optional,
   renewal is a new request); the sent-hash record is an optimization only (16 384
   hashes); stochastic reveal order; `bufferedAmount` marks of 4 and 1 frames;

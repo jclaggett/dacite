@@ -9,7 +9,7 @@
 both portable `.cljc`; `dacite.peer.items` (item streams: the literal rule and
 verification, JVM `.clj` for now). **Fixtures:** [`fixtures/peer-v1/`](../../fixtures/peer-v1/).
 
-**M1.2 (sections 12 and 13):** the numbered rules (C01 to C44: 41 MUSTs and 3 SHOULDs) with a planned
+**M1.2 (sections 12 and 13):** the numbered rules (C01 to C45, C04 withdrawn: 41 MUSTs and 3 SHOULDs) with a planned
 test for each, rate sharing with the client's `R_max`, token buckets, flow control
 (`bufferedAmount`), the lifecycle (there are no idle timeouts), and the session-end
 rules. Where sections 2 to 11 touch them, they point to section 12.
@@ -900,7 +900,7 @@ every item that was still open. Terms follow
 [progressive-revelation.md](../design/progressive-revelation.md): `R_max`, interest
 `I(t) = peak · exp(−t / tau)`, `floor`, whole-page quanta.
 
-Each rule has an id, **C01** to **C44** (41 MUSTs and 3 SHOULDs, section 13), and the table in section 13 maps every id
+Each rule has an id, **C01** to **C45** (C04 withdrawn; 41 MUSTs and 3 SHOULDs, section 13), and the table in section 13 maps every id
 to a planned test. A rule is marked one of three ways:
 
 - **Decided** (Jonathan, Nov 4): folded in as he stated it.
@@ -957,6 +957,18 @@ it says so in every `get` (`recv-max`, 6.2). There is no separate rate message.
 - **C04 (withdrawn).** Was the `rate` session message (type `0x08`). Jonathan chose
   option A (`recv-max` in `get`) on Nov 4, so `0x08` is unassigned and C04 has no
   rule. The id is not reused.
+- **C45 (Decided; SHOULD; Jonathan, Nov 4).** A client SHOULD treat the
+  `recv-max` it sends a peer as a **commitment** that decays with that peer's
+  interest. Under C03 the responder paces the session at
+  `recv-max · min(1, ΣI/1000)` (the C01 split with `peak` 1000), so a peer's
+  **current commitment** is
+  `its last recv-max · min(1, ΣI_peer(t) / 1000)`, where `ΣI_peer(t)` is the
+  decayed interest of that peer's open streams. The client can compute it, because
+  decay is deterministic (C05). A new `get`'s `recv-max` SHOULD be at most
+  `R_max` minus the other peers' current commitments, so the sum of current
+  commitments stays at or below `R_max`. This trades the overshoot of a stale
+  `recv-max` for a temporary undershoot. It depends on the C01 formula, which is
+  still **Proposed (awaiting Jonathan)**; if C01 changes, so does the commitment.
 
 **Known gap: stale `recv-max`.** After client C's share for a peer drops (for
 example because another peer became active), that peer keeps sending at the old
@@ -969,7 +981,9 @@ because every item is still verified (12.8). The cost is congestion: other peers
 streams slow down and C's buffers fill, while WebRTC back-pressure (12.5) still
 bounds it. In practice the gap is short, because progressive reveal keeps C
 sending `get`s. Accepted for v1 by Jonathan; revisit with the M5.3 measurements. A
-session-level rate message is the known fix.
+session-level rate message is the known fix. **A client that follows C45 removes
+the overshoot:** commitments never sum above `R_max`, so the gap becomes a
+temporary undershoot instead.
 
 ### 12.3 Lifecycle: dwindling interest only
 
@@ -1288,10 +1302,10 @@ the responder's own uplink.
 
 ## 13. Conformance list and test map
 
-Ids run **C01** to **C44**; **C04 is withdrawn** (the `rate` message), so there are
-**43** rules: **41** MUST statements (**23** Decided, **13** Proposed (awaiting
-Jonathan), **5** Existing, sections 2 to 4) and **2** SHOULDs (C18, C41, both
-Decided), listed in their own table below. In all, 25 Decided, 13 Proposed and 5
+Ids run **C01** to **C45**; **C04 is withdrawn** (the `rate` message), so there are
+**44** rules: **41** MUST statements (**23** Decided, **13** Proposed (awaiting
+Jonathan), **5** Existing, sections 2 to 4) and **3** SHOULDs (C18, C41, C45, all
+Decided), listed in their own table below. In all, 26 Decided, 13 Proposed and 5
 Existing. A test name
 with "(exists)" is in the repo today; the others are planned. Suites: **JVM**
 (`clojure -M:dev:test`), **nbb peer** (`npm run peer:test`, the portable core on
@@ -1349,3 +1363,4 @@ the M1.2 PR (spec only).
 |---|---|---|---|---|---|
 | C18 | Decided | A blocked stream takes no share, banks <= 1 frame, keeps decaying | `blocked-stream-takes-no-share-and-banks-one-frame` | JVM, nbb peer | M3.2 |
 | C41 | Decided | Requester keeps its own bucket per peer, never sends on empty | `requester-bucket-never-overspends` | JVM, nbb peer | M3.1 |
+| C45 | Decided | Commitment = last recv-max × min(1, ΣI_peer/1000); new recv-max <= R_max − others' current commitments (needs C01) | `committed-rate-never-exceeds-rmax` (sum of current commitments <= R_max over a simulated clock) | JVM | M2.2 |
