@@ -1291,7 +1291,7 @@ the responder's own uplink.
   session message 0x05 that names hashes the client no longer holds (6.4) was
   called `release` in M1.1; M1.2 renames it `forget` (and the design note's
   `release-pages` to `forget-pages`, the fixture `release` to `forget`) so the word
-  "release" no longer means two things. The type id 0x05 is unchanged.
+  "release" no longer means two things. The type id 0x05 is unchanged; the wire is still a draft, so there is no version bump.
 - **C13 covers every verification failure,** not only a bad hash (Proposed).
 - **C01's formula and C26's mechanism** go beyond the decision text and are
   Proposed (12.2, 12.7).
