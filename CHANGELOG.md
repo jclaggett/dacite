@@ -26,10 +26,10 @@ stability promise: public APIs may still change before 1.0.
   hashes); a deterministic reveal order (breadth-first by level, a fixed order within a level; the stochastic shuffle and a bloom-filter record are deferred until a working peering demo); `bufferedAmount` marks of 4 and 1 frames;
   clamps on `floor`, `tau` and `peak` that bound a stream's life to about 276 s; a
   cap of 64 open streams; the read-only rule; token buckets (20 a second, burst
-  40); and the deferrals. Still **Proposed (awaiting Jonathan)**: the C01 split
-  formula, C13 (any verification failure ends the session), C16 (session end on a
-  protocol violation), C20 and C23 (root always sent, `ack` as a hint), C26, the
-  and the verification MUSTs C27 to C33.
+  40); and the deferrals; then the C01 split formula, C13 (any verification failure
+  ends the session), C16 (session end on a protocol violation), C20 and C23 (root
+  always sent, `ack` as a hint), C26 and the verification MUSTs C27 to C33. Every
+  numbered rule is Decided or Existing.
 - **Fix #17: the `ref->state` cache is a bounded LRU.** It used to empty itself
   wholesale at 65,536 entries, dropping every hot ref at once. It is now
   `dacite.cache/lru` (portable `.cljc`: a `LinkedHashMap` in access order behind

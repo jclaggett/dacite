@@ -1,6 +1,6 @@
 # Dacite peer protocol v1
 
-**Status:** DRAFT (M1.1: messages and framing; M1.2: policy rules and the conformance list, sections 12 and 13). Not yet signed off. In M1.2, rules marked **Proposed (awaiting Jonathan)** are ones he has not yet ruled on; the defaults he approved on Nov 4 are marked Decided.
+**Status:** DRAFT (M1.1: messages and framing; M1.2: policy rules and the conformance list, sections 12 and 13). Not yet signed off. In M1.2, every numbered rule is Decided (Jonathan, Nov 4) or Existing; a few ideas are Deferred (12.7).
 **Related:** [wire-v1.md](wire-v1.md) (the byte format this protocol reuses),
 [peering design note](../design/peering-design-note.md),
 [streaming design note](../design/streaming-design-note.md),
@@ -901,12 +901,10 @@ every item that was still open. Terms follow
 `I(t) = peak · exp(−t / tau)`, `floor`, whole-page quanta.
 
 Each rule has an id, **C01** to **C45** (C04 withdrawn; 41 MUSTs and 3 SHOULDs, section 13), and the table in section 13 maps every id
-to a planned test. A rule is marked one of three ways:
+to a planned test. A rule is marked one of two ways:
 
-- **Decided** (Jonathan, Nov 4): folded in as he stated it.
-- **Proposed (awaiting Jonathan)**: a default written for an item that was still
-  open. It is the simplest policy that meets the test below. Jonathan approves,
-  changes or strikes it; until then it is not part of the signed-off protocol.
+- **Decided** (Jonathan, Nov 4): folded in as he stated it, or written as a
+  default and then approved by him.
 - **Existing**: already in sections 2 to 4 before M1.2; numbered here so it has a test.
 
 ### 12.1 Guiding principle
@@ -925,15 +923,12 @@ and charges what a peer asks for to that peer's own budget.
 
 *Decided.* Answers plan open question 2.
 
-- **C01 (Proposed (awaiting Jonathan)).** A client has **one shared `R_max`**, split
-  by interest across all its open requests, whichever peer serves each one
-  (this much is Decided). The formula is Proposed:
+- **C01 (Decided).** A client has **one shared `R_max`**, split
+  by interest across all its open requests, whichever peer serves each one:
   `rate_i = R_max · I_i(t) / max(peak, Σ_j I_j(t))`. Dividing by
   `max(peak, Σ I)` rather than `Σ I` means that **when total interest is below
   `peak`, part of `R_max` goes unused**: decayed interest lowers the absolute rate,
-  not just the split. That is how decay frees bandwidth, but it is a design choice
-  beyond the decision, so Jonathan has to confirm it (the alternative divides by
-  `Σ I` and always uses all of `R_max`).
+  not just the split. That is how decay frees bandwidth (approved by Jonathan, Nov 4).
 - **C02 (Decided).** Each peer also caps what it will send (`hello.rates.send-max`).
   A request's rate is `min(interest share, that peer's send max)`. A client MUST
   redistribute the share a capped peer cannot use to its other requests (in
@@ -967,8 +962,7 @@ it says so in every `get` (`recv-max`, 6.2). There is no separate rate message.
   decay is deterministic (C05). A new `get`'s `recv-max` SHOULD be at most
   `R_max` minus the other peers' current commitments, so the sum of current
   commitments stays at or below `R_max`. This trades the overshoot of a stale
-  `recv-max` for a temporary undershoot. It depends on the C01 formula, which is
-  still **Proposed (awaiting Jonathan)**; if C01 changes, so does the commitment.
+  `recv-max` for a temporary undershoot.
 
 **Known gap: stale `recv-max`.** After client C's share for a peer drops (for
 example because another peer became active), that peer keeps sending at the old
@@ -1035,12 +1029,12 @@ temporary undershoot instead.
 
 *Decided.*
 
-- **C13 (Proposed (awaiting Jonathan)).** A verification failure (an item whose
+- **C13 (Decided).** A verification failure (an item whose
   hash does not match, and every other failure in 3.3) ends the **whole session**
   with that peer: the receiver sends `error` `bad-entry` with `fatal: true` on
-  stream 0 and closes. An honest peer never sends one. *Change from the decision:*
-  the decision names a bad hash; this extends it to every verification failure in
-  3.3 (bad state, header count or size, bitmap shape, and so on), 12.14.
+  stream 0 and closes. An honest peer never sends one. The original decision named a
+  bad hash; this extends it to every verification failure in
+  3.3 (bad state, header count or size, bitmap shape, and so on), approved Nov 4.
 - **C14 (Decided).** Everything that peer was serving is treated as unserved. The
   requester MUST drop the peer's unchecked headers (3.3) and re-request what it
   still needs from other peers or the origin. Items already verified and stored
@@ -1051,9 +1045,9 @@ temporary undershoot instead.
   Neither affects sessions with other peers: ending a session MUST NOT change the
   state of any other session.
 
-**Proposed (awaiting Jonathan)**, for the rest of the session-end rules:
+*Decided* (approved Nov 4), for the rest of the session-end rules:
 
-- **C16 (Proposed (awaiting Jonathan)).** A **protocol violation** MUST end the
+- **C16 (Decided).** A **protocol violation** MUST end the
   session in the same way (`error` `malformed`, `fatal: true`, then close). A
   protocol violation is: a malformed frame (3: type `0x00`, under 6 bytes, over
   the size limit, a reserved flag bit), a frame other than `hello` and `error`
@@ -1090,14 +1084,14 @@ negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
 
 ### 12.6 Sent-hash record, `ack` and `forget`
 
-*Decided* (the record, and its 16 384 size, C21); C20 and C23 are still Proposed.
+*Decided.*
 
 - **C19 (Decided).** The sender keeps a **per-session record** of hashes it has
   already sent, so it need not send them again in a later response stream. It is
   **strictly a performance optimization, never a correctness requirement**. It is
   bounded, and the sender may forget any part of it at any time. A sender MUST
   complete every request correctly with an empty or a wrong record.
-- **C20 (Proposed (awaiting Jonathan)).** The **root** of a `get` MUST always be sent,
+- **C20 (Decided).** The **root** of a `get` MUST always be sent,
   whatever the record says. So a requester that is missing a hash, for any reason,
   gets it by asking for that hash; no record can starve a re-request.
 - **C21 (Decided).** The record holds at most **16 384** hashes
@@ -1106,7 +1100,7 @@ negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
 - **C22 (Decided).** The client always verifies what it receives (section 3.3, 12.8)
   and may re-request any hash it is missing, so a forgotten or wrong record costs
   bandwidth only.
-- **C23 (Proposed (awaiting Jonathan)).** `ack` is a **hint**. Sending one is
+- **C23 (Decided).** `ack` is a **hint**. Sending one is
   optional; a sender MAY ignore it, MUST NOT wait for one, and MUST NOT need one
   to finish a stream. An `ack` or `forget` for hashes the receiver does not know is
   ignored, not an error (N10).
@@ -1133,9 +1127,9 @@ sent in the same session, and MAY send `ack` in batches of up to 256.
   receiver MUST NOT rely on the order within a level anyway (it verifies each item
   on its own, 3.3, so none is needed); the order has no wire field and no effect
   on a hash.
-- **C26 (Proposed (awaiting Jonathan)).** A requester may repeatedly show interest
+- **C26 (Decided).** A requester may repeatedly show interest
   in the same top-level hash (C08); **each renewal MAY reveal nodes not revealed
-  before** (Decided). A responder MUST serve a renewal correctly with **no record
+  before**. A responder MUST serve a renewal correctly with **no record
   at all** (C19): it walks from the requested hash and its root is always sent
   (C20). The sent-hash record is only an optimization: a responder MAY use it to
   skip nodes it already sent and spend the stream's budget on nodes below them,
@@ -1159,37 +1153,37 @@ asks for it again (C20, C22). Revisit with M5.3 measurements.
 
 ### 12.8 Verification before store
 
-**Proposed (awaiting Jonathan)** as numbered MUSTs. Their content is section 3.3,
+*Decided* (approved Nov 4) as numbered MUSTs. Their content is section 3.3,
 which M1.1 had already written down; M1.2 only numbers it. The check for each
 kind of item is in the table there.
 
-- **C27 (Proposed (awaiting Jonathan)).** A receiver MUST verify every item from its
+- **C27 (Decided).** A receiver MUST verify every item from its
   own bytes (and what earlier items already put in the store) **before** it stores
   it. No other item is ever in the store. (The one exception, a collection header,
   C31, is tracked as unchecked.)
-- **C28 (Proposed (awaiting Jonathan)).** A literal is rebuilt from its bytes in a
+- **C28 (Decided).** A literal is rebuilt from its bytes in a
   scratch store and its value hash MUST equal the item's. A literal that holds a
   `ref` (a `ref` item, or a `run` or `repeat` of `ref`) is `bad-item`.
-- **C29 (Proposed (awaiting Jonathan)).** A node item MUST be checked by kind: a
+- **C29 (Decided).** A node item MUST be checked by kind: a
   scalar's hash from its data; a leaf page's hash from its claimed measure, and the
   measure recomputed from its leaves; a `hamt/entry`'s hash, measure and
   `key-hash = key-ref`; a branch page's hash from its claimed measure, and a
   `hamt/bitmap` also its shape (`split` 0..51, two or more children, `n =
   popcount`, and at `split` 51 exactly bits 0 and 16).
-- **C30 (Proposed (awaiting Jonathan)).** Every state in a measure MUST have four cells
+- **C30 (Decided).** Every state in a measure MUST have four cells
   below `p` and determinant 1; otherwise the item is bad (`bad-state`, sent as
   `bad-entry`).
-- **C31 (Proposed (awaiting Jonathan)).** A collection header is stored on arrival and
+- **C31 (Decided).** A collection header is stored on arrival and
   tracked as unchecked; when its root is stored the receiver MUST check its hash,
   then its `count` and `size-bytes`, and a failure removes that header and ends the
   session (C13). Unchecked headers are dropped when the stream ends without their
   roots (fatal error, `cancel`, PARTIAL); a FIN without PARTIAL and without the root
   is `bad-entry`.
-- **C32 (Proposed (awaiting Jonathan)).** Size limits are checked **before** the
+- **C32 (Decided).** Size limits are checked **before** the
   payload is buffered: a frame over the negotiated `max-frame`, an item over
   `max-item` (`item-too-large`), a literal over one frame payload
   (`literal-too-large`), an unknown `enc` (`bad-item`).
-- **C33 (Proposed (awaiting Jonathan)).** No peer holds a partial value in order to
+- **C33 (Decided).** No peer holds a partial value in order to
   verify. An item that cannot be verified alone is stored and checked later (C31);
   it is never parked. A receiver accepts items in any order within a level (C25).
 
@@ -1292,9 +1286,9 @@ the responder's own uplink.
   called `release` in M1.1; M1.2 renames it `forget` (and the design note's
   `release-pages` to `forget-pages`, the fixture `release` to `forget`) so the word
   "release" no longer means two things. The type id 0x05 is unchanged; the wire is still a draft, so there is no version bump.
-- **C13 covers every verification failure,** not only a bad hash (Proposed).
-- **C01's formula and C26's mechanism** go beyond the decision text and are
-  Proposed (12.2, 12.7).
+- **C13 covers every verification failure,** not only a bad hash (approved Nov 4).
+- **C01's formula and C26's wording** go beyond the first decision text; Jonathan
+  approved both on Nov 4 (12.2, 12.7).
 - **C18 and C41 are SHOULDs:** tuning details, not interoperability rules.
 - **No `rate` message.** M1.2's draft proposed one (`0x08`, C04); Jonathan chose `recv-max` in `get` instead (C03), with the stale-rate gap accepted (12.2).
 - **C40 never ends a session;** C15 now names the only session-ending rules
@@ -1313,10 +1307,9 @@ the responder's own uplink.
 ## 13. Conformance list and test map
 
 Ids run **C01** to **C45**; **C04 is withdrawn** (the `rate` message), so there are
-**44** rules: **41** MUST statements (**23** Decided, **13** Proposed (awaiting
-Jonathan), **5** Existing, sections 2 to 4) and **3** SHOULDs (C18, C41, C45, all
-Decided), listed in their own table below. In all, 26 Decided, 13 Proposed and 5
-Existing. **Deferred, no id:** the stochastic shuffle and its carve-out (12.7),
+**44** rules: **41** MUST statements (**36** Decided, **5** Existing, sections 2
+to 4) and **3** SHOULDs (C18, C41, C45, all Decided), listed in their own table
+below. In all, 39 Decided, 0 Proposed and 5 Existing. **Deferred, no id:** the stochastic shuffle and its carve-out (12.7),
 whose test `order-within-a-level-varies-with-seed` waits for a working peering
 demo, and a bloom-filter sent-hash record. A test name
 with "(exists)" is in the repo today; the others are planned. Suites: **JVM**
@@ -1327,7 +1320,7 @@ the M1.2 PR (spec only).
 
 | Id | Status | MUST (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
-| C01 | Proposed (awaiting Jonathan) | One shared R_max split by interest (Decided); formula R_max·I/max(peak, ΣI) leaves R_max unused at low interest | `shared-rmax-splits-by-interest-across-peers` | JVM, nbb peer | M2.2 |
+| C01 | Decided | One shared R_max split by interest; R_max·I/max(peak, ΣI) leaves R_max unused at low interest | `shared-rmax-splits-by-interest-across-peers` | JVM, nbb peer | M2.2 |
 | C02 | Decided | Rate = min(share, peer send-max); unused share redistributed | `capped-peer-share-is-redistributed` (property: sum <= R_max, each <= cap) | JVM, nbb peer | M2.2 |
 | C03 | Decided | Responder paces to min(send-max, latest get recv-max); splits by interest | `responder-paces-to-session-budget` (simulated clock) | JVM, nbb peer | M3.1 |
 | C05 | Decided | Stream ends (FIN, PARTIAL) when interest < floor | `stream-ends-partial-when-interest-falls-below-floor` (session clock) | JVM, nbb peer | M4.1 |
@@ -1338,26 +1331,26 @@ the M1.2 PR (spec only).
 | C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (simulated clock, floor 0 request) | JVM | M4.2 |
 | C11 | Decided | Enforce advertised max-streams; slot frees at once | `too-many-streams-is-refused-and-a-closed-slot-frees` (parity half: `f3-stream-table-parity-and-duplicates`, exists) | JVM, nbb peer | M3.1 |
 | C12 | Decided | max-streams capped at 64 (read larger as 64) | `max-streams-above-64-is-read-as-64` | JVM, nbb peer | M3.1 |
-| C13 | Proposed (awaiting Jonathan) | Any verification failure (not only a bad hash) ends the whole session (fatal bad-entry) | `bad-entry-ends-the-session` (item level: `tampering-is-refused`, exists) | JVM, nbb peer, browser | M2.2 |
+| C13 | Decided | Any verification failure (not only a bad hash) ends the whole session (fatal bad-entry) | `bad-entry-ends-the-session` (item level: `tampering-is-refused`, exists) | JVM, nbb peer, browser | M2.2 |
 | C14 | Decided | A bad peer's streams are unserved and re-requested elsewhere | `bad-peer-streams-are-reasked-from-others` (simulated peers: slow, dead, corrupt, honest) | nbb peer | M6.3 |
 | C15 | Decided | Decay is the only stream lifecycle rule; sessions end only on C13/C16; others untouched | `one-session-ending-leaves-others-untouched` | nbb peer | M6.3 |
-| C16 | Proposed (awaiting Jonathan) | Protocol violation ends the session; request errors end only the stream | `protocol-violation-ends-session-request-error-ends-stream` | JVM, nbb peer | M3.1 |
+| C16 | Decided | Protocol violation ends the session; request errors end only the stream | `protocol-violation-ends-session-request-error-ends-stream` | JVM, nbb peer | M3.1 |
 | C17 | Decided | No write at >= 4 frames buffered; resume at 1 frame | `channel-never-buffers-over-high-mark-and-resumes-at-low` (fake channel; real channel in M3.2) | nbb peer, browser | M3.2 |
 | C19 | Decided | Sent-hash record: bounded, optional; correct when empty or wrong | `empty-and-wrong-record-still-complete-every-request` (property) | JVM | M4.2 |
-| C20 | Proposed (awaiting Jonathan) | The root of a get is always sent | `root-of-a-get-is-sent-even-if-recorded` | JVM, nbb peer | M4.2 |
+| C20 | Decided | The root of a get is always sent | `root-of-a-get-is-sent-even-if-recorded` | JVM, nbb peer | M4.2 |
 | C21 | Decided | Record capped at 16 384 (oldest out); `forget` removes hashes | `record-is-capped-and-forget-removes-hashes` | JVM | M4.2 |
 | C22 | Decided | Client verifies everything; may re-request a missing hash | `forgotten-hash-is-re-requested-and-verified` | nbb peer | M4.2 |
-| C23 | Proposed (awaiting Jonathan) | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-is-optional-and-unknown-hashes-are-ignored` (N10) | JVM, nbb peer | M4.2 |
+| C23 | Decided | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-is-optional-and-unknown-hashes-are-ignored` (N10) | JVM, nbb peer | M4.2 |
 | C24 | Decided | Reveal is breadth-first by level, top-level first | `reveal-sends-level-d-before-level-d-plus-1` | JVM, nbb peer | M2.2 |
 | C25 | Decided | Fixed order within a level (no shuffle); receiver never relies on it | `order-within-a-level-is-fixed-and-receiver-accepts-any` | JVM, nbb peer | M2.2 |
-| C26 | Proposed (awaiting Jonathan) | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` | JVM, nbb peer | M4.2 |
-| C27 | Proposed (awaiting Jonathan) | Verify every item from its own bytes before it is stored | `every-item-stream-fixture-verifies` and `tampering-is-refused` (exist) | JVM; nbb peer, browser after M2.2 | M2.2 |
-| C28 | Proposed (awaiting Jonathan) | Literal rebuilt in a scratch store; a `ref` inside is bad-item | `a-run-of-refs-is-a-ref` (exists); `literal-hash-mismatch-is-refused` | JVM; nbb peer after M2.2 | M2.2 |
-| C29 | Proposed (awaiting Jonathan) | Per-kind checks: scalar, leaf page, hamt/entry, branch, hamt/bitmap shape | `tampering-is-refused` (exists); `hamt-bitmap-shape-refusals` | JVM; nbb peer after M2.2 | M2.2 |
-| C30 | Proposed (awaiting Jonathan) | Every state: cells < p and determinant 1, else bad-state | `bad-state-is-refused-as-bad-entry` (fixtures `fuse-sl2`) | JVM, nbb peer | M2.2 |
-| C31 | Proposed (awaiting Jonathan) | Header stored on arrival, checked at its root, dropped if unchecked | `a-header-is-accepted-first-and-checked-when-its-root-arrives`, `a-stream-that-ends-early-leaves-no-unchecked-header` (exist) | JVM; nbb peer after M2.2 | M2.2 |
-| C32 | Proposed (awaiting Jonathan) | Size limits checked before buffering the payload | `every-fixture-decodes-and-re-encodes` (reject cases, exists); `item-over-max-item-is-refused-before-buffering` | JVM, nbb peer | M3.1 |
-| C33 | Proposed (awaiting Jonathan) | Nothing parked; items verify in any order | `pages-verify-in-any-order` (exists) | JVM; nbb peer after M2.2 | M2.2 |
+| C26 | Decided | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` | JVM, nbb peer | M4.2 |
+| C27 | Decided | Verify every item from its own bytes before it is stored | `every-item-stream-fixture-verifies` and `tampering-is-refused` (exist) | JVM; nbb peer, browser after M2.2 | M2.2 |
+| C28 | Decided | Literal rebuilt in a scratch store; a `ref` inside is bad-item | `a-run-of-refs-is-a-ref` (exists); `literal-hash-mismatch-is-refused` | JVM; nbb peer after M2.2 | M2.2 |
+| C29 | Decided | Per-kind checks: scalar, leaf page, hamt/entry, branch, hamt/bitmap shape | `tampering-is-refused` (exists); `hamt-bitmap-shape-refusals` | JVM; nbb peer after M2.2 | M2.2 |
+| C30 | Decided | Every state: cells < p and determinant 1, else bad-state | `bad-state-is-refused-as-bad-entry` (fixtures `fuse-sl2`) | JVM, nbb peer | M2.2 |
+| C31 | Decided | Header stored on arrival, checked at its root, dropped if unchecked | `a-header-is-accepted-first-and-checked-when-its-root-arrives`, `a-stream-that-ends-early-leaves-no-unchecked-header` (exist) | JVM; nbb peer after M2.2 | M2.2 |
+| C32 | Decided | Size limits checked before buffering the payload | `every-fixture-decodes-and-re-encodes` (reject cases, exists); `item-over-max-item-is-refused-before-buffering` | JVM, nbb peer | M3.1 |
+| C33 | Decided | Nothing parked; items verify in any order | `pages-verify-in-any-order` (exists) | JVM; nbb peer after M2.2 | M2.2 |
 | C34 | Decided | No write message; the store changes only by verified own-request items | `no-message-changes-the-store-except-verified-items` | JVM, nbb peer | M3.1 |
 | C35 | Decided | Store items only from an open stream this side opened | `item-on-a-stream-never-opened-ends-the-session`, `item-on-a-closed-stream-is-ignored` | JVM, nbb peer, browser | M3.1 |
 | C36 | Decided | Answer from own store only; no fetch on behalf; unknown-hash | `responder-never-fetches-on-behalf` | JVM, nbb peer | M3.1 |
@@ -1375,4 +1368,4 @@ the M1.2 PR (spec only).
 |---|---|---|---|---|---|
 | C18 | Decided | A blocked stream takes no share, banks <= 1 frame, keeps decaying | `blocked-stream-takes-no-share-and-banks-one-frame` | JVM, nbb peer | M3.2 |
 | C41 | Decided | Requester keeps its own bucket per peer, never sends on empty | `requester-bucket-never-overspends` | JVM, nbb peer | M3.1 |
-| C45 | Decided | Commitment = last recv-max × min(1, ΣI_peer/1000); new recv-max <= R_max − others' current commitments (needs C01) | `committed-rate-never-exceeds-rmax` (sum of current commitments <= R_max over a simulated clock) | JVM | M2.2 |
+| C45 | Decided | Commitment = last recv-max × min(1, ΣI_peer/1000); new recv-max <= R_max − others' current commitments | `committed-rate-never-exceeds-rmax` (sum of current commitments <= R_max over a simulated clock) | JVM | M2.2 |
