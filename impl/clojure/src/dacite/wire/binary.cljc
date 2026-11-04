@@ -537,6 +537,15 @@
   [bs]
   (host/utf8-decode (mapv #(bget bs %) (range (byte-len bs)))))
 
+(defn- decode-char
+  "The one character of decoded text `s`. A `char` holds exactly one code
+   point (wire-v1 section 3), so zero or several is a decode error."
+  [s]
+  (when-not (= 1 (host/cp-count s))
+    (throw (ex-info "char is not exactly one code point"
+                    {:reason :bad-char :code-points (host/cp-count s)})))
+  (host/char-at s 0))
+
 (defn- encode-inner-payload
   "Wire bytes of a nested lit body *without* the leading type_id."
   [of v]
@@ -727,7 +736,7 @@
             inner (or (name->type-id of)
                       (throw (ex-info "unknown run inner type" {:of of})))
             n (cond
-                (= of "char") (count (str values))
+                (= of "char") (host/cp-count values)
                 (= of "u8") (lit/u8-count values)
                 :else (count (or values [])))
             packed (encode-run-packed of n values)
@@ -769,9 +778,9 @@
       (let [blen (int (get-u32 buf))
             bs (get-bytes buf blen)
             s (utf8-from-wire bs)]
-        (when-not (= n (count s))
+        (when-not (= n (host/cp-count s))
           (throw (ex-info "char run length mismatch"
-                          {:n n :decoded (count s)})))
+                          {:n n :decoded (host/cp-count s)})))
         s)
 
       "u8"
@@ -795,7 +804,7 @@
       "char"
       (let [dlen (get-u8 buf)
             bs (get-bytes buf dlen)]
-        (first (seq (utf8-from-wire bs))))
+        (decode-char (utf8-from-wire bs)))
 
       "i8"
       (do (ensure-remaining buf 1)
@@ -1030,7 +1039,7 @@
           "null" ["null" nil]
           "negative" ["negative" nil]
           "bool" ["bool" (not (zero? (bget data-bs 0)))]
-          "char" ["char" (first (seq (utf8-from-wire data-bs)))]
+          "char" ["char" (decode-char (utf8-from-wire data-bs))]
           "i8" ["i8" (signed-from-be data-bs)]
           "i16" ["i16" (signed-from-be data-bs)]
           "i32" ["i32" (signed-from-be data-bs)]

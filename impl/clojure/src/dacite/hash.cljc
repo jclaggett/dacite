@@ -186,7 +186,8 @@
 
 (def ref-state-cache-limit
   "Entries the ref->state cache keeps; the least recently used is evicted
-   past that (`dacite.cache`)."
+   past that (`dacite.cache`). About 0.8 KB per entry on the JVM, so a full
+   cache is about 50 MB of heap."
   65536)
 
 (def ^:private ref-state-cache (cache/lru ref-state-cache-limit))
@@ -195,7 +196,8 @@
   "`ref->state` through the given `dacite.cache` (a seam for tests, which use a
    small one)."
   [cache ref]
-  (let [k #?(:clj (vec ref)
+  (let [k #?(:clj (vec ref) ; a ref is already a vector: `vec` returns it, no copy,
+                            ; and its hash is cached after the first lookup
              ;; a JS BigInt word cannot be hashed by `hash`; key on its text
              :cljs (str (nth ref 0) "," (nth ref 1) "," (nth ref 2) "," (nth ref 3)))]
     (cache/memo cache k #(fuse-bytes (longs->bytes ref)))))
@@ -210,7 +212,8 @@
    never change a hash. It is a bounded LRU (`dacite.cache`): past
    `ref-state-cache-limit` entries it drops the least recently used one, so a
    workload with more live refs than that loses one entry per miss, not all of
-   them at once (issue #17). Safe to call from several threads."
+   them at once (issue #17). Safe to call from several threads, but the cache has
+   one lock that reads take too, so they serialize (issue #20)."
   [ref]
   (ref->state-in ref-state-cache ref))
 

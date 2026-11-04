@@ -348,6 +348,35 @@ that much in both directions on repeat runs (500 assocs: 259 / 293 ms before,
 279 / 302 ms after; blob: 675 / 735 before, 741 / 725 after). A hit in the LRU
 (a lock and a list move) costs about what a hit in the old map did.
 
+**Is the cache worth having? No cache against the LRU.** Measured with a local
+toggle that made `ref->state` call `fuse-bytes` directly (not committed). Median
+of 7 runs after 3 warm-ups, ms; "LRU cold" clears the cache before each run (a
+first build), "LRU warm" is the `bench_ops` default (the cache persists over a
+row's runs, so the same refs hit every time). JVM figures are the mean of two
+rounds, nbb a single run, with another worker active on the box (differences
+under about 8% are noise). "Hit" is the `ref->state` hit rate of one cold run.
+
+| row | hit | JVM LRU warm | JVM LRU cold | JVM none | none / cold | nbb LRU cold | nbb none | none / cold |
+|---|---|---|---|---|---|---|---|---|
+| map, 3,000 | 7% | 602 | 866 | 854 | 0.99 | 7167 | 7347 | 1.03 |
+| vector, 10,000 | 59% | 623 | 1074 | 1722 | **1.60** | 5588 | 6808 | 1.22 |
+| string, 100,000 chars | 0% | 172 | 179 | 176 | 0.98 | 548 | 544 | 0.99 |
+| blob, 500 KB | 0% | 705 | 693 | 702 | 1.01 | 1342 | 1484 | 1.11 |
+| 500 assocs | 50% | 273 | 342 | 401 | 1.17 | 3078 | 3373 | 1.10 |
+| shared: 20 maps, 1 assoc each | 50% | 371 | 456 | 568 | 1.25 | 4261 | 4398 | 1.03 |
+| shared: map built 5 times | 83% | 1392 | 1515 | 2083 | **1.37** | 14763 | 15582 | 1.06 |
+| shared: 400 assocs, hashing each | 50% | 245 | 310 | 390 | 1.26 | 2791 | 2852 | 1.02 |
+| shared: 300 conj, hashing each | 58% | 203 | 356 | 558 | **1.57** | 1826 | 2352 | 1.29 |
+| overflow: 20,000 hot + 100,000 cold refs | 40% | 4760 | 5704 | 9018 | **1.58** | 11281 | 16620 | 1.47 |
+
+On the JVM, running without the cache is 25% to 60% slower than the cold LRU on
+the vector, conj, rebuild and overflow rows, and 1.4x to 2.8x slower than the
+warm LRU. It is within 20% only where nothing is read twice (map, string, blob)
+and on 500 assocs. On nbb most rows are within 13%, because the string key costs
+a good part of what a hit saves; the exceptions are the overflow row (1.47x),
+conj (1.29x) and vector (1.22x). So the cache stays, and the LRU is what keeps
+the overflow row from falling back to the no-cache figure.
+
 **Memoizing the fuse of a node's children: tried, not kept.** About 40% of the
 `fuse` calls in a build repeat an earlier pair of states (80,037 of 195,537 for
 the 3,000-entry map, 33,913 of 88,813 for the 10,000-element vector, 32,283 of

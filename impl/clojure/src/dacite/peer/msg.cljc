@@ -247,6 +247,9 @@
       :int (if (int-value? x) [] [(str p ": expected an integer")])
       :string (cond
                 (not (string? x)) [(str p ": expected a string")]
+                (host/lone-surrogate-index x)
+                [(str p ": not valid Unicode (a lone surrogate at UTF-16 index "
+                      (host/lone-surrogate-index x) ")")]
                 (> (utf8-length x) max-string-bytes)
                 [(str p ": longer than " max-string-bytes " UTF-8 bytes")]
                 :else [])
@@ -346,20 +349,32 @@
   #?(:clj (map #(String. (Character/toChars %)) (.toArray (.codePoints ^String s)))
      :cljs (js->clj (js/Array.from s))))
 
+(defn- repair-text
+  "`s` with each lone surrogate replaced by U+FFFD. Free text is for humans, so
+   a sender repairs it (a string value of Dacite refuses such text, issue #16)
+   rather than throw while it reports another error."
+  [s]
+  (loop [s s]
+    (if-let [i (host/lone-surrogate-index s)]
+      (recur (str (subs s 0 i) "\uFFFD" (subs s (inc i))))
+      s)))
+
 (defn cut-text
   "`s` cut to at most `max-string-bytes` UTF-8 bytes, at a character
    boundary. Free text (`agent`, `reason`, `message`) is cut by a sender,
    never rejected there: cutting loses detail nobody parses, and a receiver
-   would refuse the whole message otherwise."
-  [s]
-  (if (<= (utf8-length s) max-string-bytes)
-    s
-    (loop [cs (code-points s) n 0 out []]
-      (let [c (first cs)
-            m (when c (utf8-length c))]
-        (if (and c (<= (+ n m) max-string-bytes))
-          (recur (next cs) (+ n m) (conj out c))
-          (apply str out))))))
+   would refuse the whole message otherwise. A lone surrogate in it is
+   replaced by U+FFFD (it has no UTF-8 form)."
+  [s0]
+  (let [s (repair-text s0)]
+    (if (<= (utf8-length s) max-string-bytes)
+      s
+      (loop [cs (code-points s) n 0 out []]
+        (let [c (first cs)
+              m (when c (utf8-length c))]
+          (if (and c (<= (+ n m) max-string-bytes))
+            (recur (next cs) (+ n m) (conj out c))
+            (apply str out)))))))
 
 (def ^:private free-text
   "The free-text keys of each message type."

@@ -9,15 +9,26 @@
    returns what a miss would compute, so it can change speed but never a
    result.
 
-   JVM: a `java.util.LinkedHashMap` in access order behind a lock (a read
-   reorders it, so a read is a write); safe to share between threads. Two
-   threads that miss the same key both compute it, and the last put wins, which
-   is harmless for a pure function. nbb / ClojureScript: a JS `Map`, whose
+   JVM: a `java.util.LinkedHashMap` in access order behind ONE lock that covers
+   reads as well as writes (a read reorders the list, so a read is a write).
+   It is safe to share between threads but SERIALIZED: in a microbenchmark of
+   400,000 hits per thread, 1 thread took 23 ms and 8 threads took 1.2 s, so a
+   cache shared by parallel builds would contend (about 0.4 us per hit under
+   contention, still far less than the 31 products of a miss). Nothing builds in
+   parallel today; sharding or a concurrent cache is a follow-up (issue #20).
+   Two threads that miss the same key both compute it, and the last put wins,
+   which is harmless for a pure function.
+
+   Memory: about 0.8 KB per entry for the `ref->state` cache (the 4-Long key,
+   the state of four 256-bit BigIntegers, and the map entry), so a full
+   65,536-entry cache holds about 50 MB of JVM heap.
+
+   nbb / ClojureScript: a JS `Map`, whose
    iteration order is insertion order; a hit deletes and re-inserts its key.
    One thread, so no lock. Keys on that host must be primitives (strings,
    numbers), because a JS `Map` compares objects by identity; a vector of
    BigInts would never hit."
-  #?(:clj (:import (java.util LinkedHashMap Map$Entry))))
+  #?(:clj (:import (java.util LinkedHashMap))))
 
 (defn lru
   "A new cache that keeps at most `limit` (a positive integer) entries."
@@ -92,8 +103,8 @@
   #?(:clj (Object.) :cljs (js-obj)))
 
 (defn memo
-  "The cached value under `k`, or `(f)` computed and cached. Compute happens
-   outside the lock. `f`'s result must not be nil."
+  "The cached value under `k`, or `(f)` computed and cached. `f` runs outside
+   the lock. Any result is cached, nil and false included."
   [c k f]
   (let [v (lookup c k miss)]
     (if (identical? v miss)

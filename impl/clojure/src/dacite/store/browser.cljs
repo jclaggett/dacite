@@ -88,6 +88,13 @@
           (recur (inc i) (+ off (.-length c))))))
     out))
 
+(defn- utf8-decode-strict
+  "UTF-8 bytes to a string, as `dacite.host/utf8-decode` does: malformed UTF-8
+   throws (`fatal`) instead of becoming U+FFFD, and a leading U+FEFF is kept
+   (`ignoreBOM`). A throw inside a `.then` rejects the promise."
+  [u8]
+  (.decode (js/TextDecoder. "utf-8" #js {:fatal true :ignoreBOM true}) u8))
+
 (defn- read-response-body
   "Read `response.body` while later bytes are still arriving.
 
@@ -111,7 +118,7 @@
                        (cond
                          (nil? bytes) (ok nil)
                          binary? (ok bytes)
-                         :else (ok (.decode (js/TextDecoder. "utf-8") bytes)))))
+                         :else (ok (utf8-decode-strict bytes)))))
                    (pump []
                      (-> (.read reader)
                          (.then (fn [r]
@@ -276,7 +283,7 @@
       (let [u8 (if (instance? js/Uint8Array body)
                  body
                  (js/Uint8Array. body))
-            s (.decode (js/TextDecoder.) u8)]
+            s (utf8-decode-strict u8)]
         (wire/read-edn s)))))
 
 (defn- apply-get-body!

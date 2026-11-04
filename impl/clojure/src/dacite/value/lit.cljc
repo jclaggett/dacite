@@ -262,7 +262,7 @@
         values (:values body)]
     (cond
       (= of "char")
-      (mapv (fn [ch] {:type "char" :body ch}) (seq (str values)))
+      (mapv (fn [ch] {:type "char" :body ch}) (host/chars-of values))
 
       (= of "u8")
       (let [n (u8-count values)]
@@ -304,7 +304,7 @@
       "run" (let [of (str (:of b))
                   vs (:values b)]
               (case of
-                "char" (count (str vs))
+                "char" (host/cp-count vs)
                 "u8" (u8-count vs)
                 (count (or vs []))))
       "repeat" (long (or (:n b) 0))
@@ -320,7 +320,7 @@
       "run" (let [of (str (:of b))
                   vs (:values b)]
               (case of
-                "char" {:type "char" :body (nth (str vs) i)}
+                "char" {:type "char" :body (host/char-at vs i)}
                 "u8" {:type "u8" :body (u8-nth vs i)}
                 {:type of :body (nth vs i)}))
       "repeat" {:type (str (:of b)) :body (:value b)}
@@ -399,13 +399,22 @@
    measure is an open design item (docs/plan/peering.md, M1.1a item 2)."
   5)
 
+(defn utf8-width
+  "UTF-8 bytes of code point `cp`."
+  [cp]
+  (let [cp (long cp)]
+    (cond (< cp 0x80) 1
+          (< cp 0x800) 2
+          (< cp 0x10000) 3
+          :else 4)))
+
 (defn utf8-len
   "Number of UTF-8 bytes of `s`, counted without building them.
 
    The same answer as `(count (host/utf8-bytes s))`, which allocated the
-   bytes of the whole run for every append to a page. A lone surrogate is
-   one byte on the JVM (the encoder writes `?`) and three in CLJS (the
-   TextEncoder writes U+FFFD), as `host/utf8-bytes` does on each host."
+   bytes of the whole run for every append to a page. A lone surrogate has
+   no UTF-8 form: it throws, as `host/utf8-bytes` does, the same on each
+   host."
   [s]
   (let [s (str s)
         n (long (count s))]
@@ -417,46 +426,11 @@
           (cond
             (< c 0x80) (recur (inc i) (+ acc 1))
             (< c 0x800) (recur (inc i) (+ acc 2))
-            (and (>= c 0xD800) (< c 0xDC00))
-            ;; a high surrogate: four bytes with its low partner
-            (let [d (if (< (inc i) n)
-                      (long #?(:clj (int (.charAt ^String s (int (inc i))))
-                               :cljs (.charCodeAt s (inc i))))
-                      0)]
-              (if (and (>= d 0xDC00) (< d 0xE000))
-                (recur (+ i 2) (+ acc 4))
-                (recur (inc i) (+ acc #?(:clj 1 :cljs 3)))))
-            (and (>= c 0xDC00) (< c 0xE000))
-            (recur (inc i) (+ acc #?(:clj 1 :cljs 3)))
-            :else (recur (inc i) (+ acc 3))))))))
-
-(defn utf8-len-upper
-  "An upper bound of the UTF-8 bytes of `s` once it sits in a longer text.
-   Like `utf8-len`, except that a lone surrogate counts 2: a surrogate pair
-   split across two runs of characters is two lone surrogates here and four
-   bytes in the joined text, and a lone surrogate is one byte (JVM) or three
-   (CLJS) alone. So a sum over runs is never below the joined text."
-  [s]
-  (let [s (str s)
-        n (long (count s))]
-    (loop [i 0 acc 0]
-      (if (>= i n)
-        acc
-        (let [c (long #?(:clj (int (.charAt ^String s (int i)))
-                         :cljs (.charCodeAt s i)))]
-          (cond
-            (< c 0x80) (recur (inc i) (+ acc 1))
-            (< c 0x800) (recur (inc i) (+ acc 2))
-            (and (>= c 0xD800) (< c 0xDC00))
-            (let [d (if (< (inc i) n)
-                      (long #?(:clj (int (.charAt ^String s (int (inc i))))
-                               :cljs (.charCodeAt s (inc i))))
-                      0)]
-              (if (and (>= d 0xDC00) (< d 0xE000))
-                (recur (+ i 2) (+ acc 4))
-                (recur (inc i) (+ acc 2))))
-            (and (>= c 0xDC00) (< c 0xE000)) (recur (inc i) (+ acc 2))
-            :else (recur (inc i) (+ acc 3))))))))
+            (or (< c 0xD800) (>= c 0xE000)) (recur (inc i) (+ acc 3))
+            ;; a surrogate pair is one code point of four bytes; a lone
+            ;; surrogate throws
+            :else (let [cp (host/code-point-at s i)]
+                    (recur (+ i (if (>= cp 0x10000) 2 1)) (+ acc 4)))))))))
 
 (defn- scalar-payload-bytes
   [t v]
@@ -663,7 +637,8 @@
 
 (defn- split-char-values
   "Split a char sequence so the left side's UTF-8 length is >= target
-   (or the whole string if shorter). Character boundaries only."
+   (or the whole string if shorter). Character (code point) boundaries only:
+   a surrogate pair is never cut."
   [s target]
   (let [s (str s)
         n (count s)]
@@ -671,7 +646,9 @@
       (cond
         (>= i n) [s ""]
         (>= acc target) [(subs s 0 i) (subs s i)]
-        :else (recur (inc i) (+ acc (utf8-len (nth s i))))))))
+        :else (let [cp (host/code-point-at s i)]
+                (recur (+ i (if (>= cp 0x10000) 2 1))
+                       (+ acc (utf8-width cp))))))))
 
 (defn- split-vec-at-bytes
   "Split a vector of equal-size items so left payload >= target."
@@ -696,6 +673,16 @@
               :else (recur (inc i) (+ acc (long (scalar-payload-bytes of (nth vs i)))))))]
     [(subvec vs 0 k) (subvec vs k)]))
 
+(defn- char-piece-item
+  "The body item of a host string of characters: nil when empty, a `char`
+   for one code point, else a `run` of `char`."
+  [piece]
+  (let [n (host/cp-count piece)]
+    (cond
+      (zero? n) nil
+      (= 1 n) {:type "char" :body (host/char-at piece 0)}
+      :else {:type "run" :body {:of "char" :values piece}})))
+
 (defn- split-item-at
   "Split one body item. Returns [left-item-or-nil right-item-or-nil]."
   [item target]
@@ -711,14 +698,8 @@
         (case of
           "char"
           (let [[l r] (split-char-values vs target)]
-            [(when (pos? (count l))
-               (if (= 1 (count l))
-                 {:type "char" :body (first l)}
-                 {:type "run" :body {:of "char" :values l}}))
-             (when (pos? (count r))
-               (if (= 1 (count r))
-                 {:type "char" :body (first r)}
-                 {:type "run" :body {:of "char" :values r}}))])
+            [(char-piece-item l)
+             (char-piece-item r)])
 
           "u8"
           (let [n (u8-count vs)
@@ -770,17 +751,6 @@
       :else
       [item nil])))
 
-(defn- utf8-units
-  "UTF-8 code units of one UTF-16 code unit. A supplementary character is
-   two units here and four bytes on the wire, so a chunk that stops between
-   the pair stays inside the budget."
-  [ch]
-  (let [c (int ch)]
-    (cond
-      (< c 0x80) 1
-      (< c 0x800) 2
-      :else 3)))
-
 (defn- chunk-item
   [of piece]
   (if (= 1 (count piece))
@@ -788,8 +758,10 @@
     {:type "run" :body {:of of :values piece}}))
 
 (defn- chunk-chars
-  "One left-to-right pass. Each chunk is a fresh substring, so the tail of
-   a book is not copied on every split."
+  "One left-to-right pass over code points: a page never ends inside a
+   surrogate pair, and a character is its UTF-8 length (1 to 4 bytes) against
+   the budget. Each chunk is a fresh substring, so the tail of a book is not
+   copied on every split."
   [s budget]
   (let [n (count s)
         budget (max 1 (long budget))]
@@ -799,12 +771,12 @@
         (let [end (loop [i from acc 0]
                     (if (>= i n)
                       i
-                      (let [u (utf8-units (nth s i))]
+                      (let [cp (host/code-point-at s i)
+                            u (utf8-width cp)]
                         (if (and (pos? acc) (> (+ acc u) budget))
                           i
-                          (recur (inc i) (+ acc u))))))
-              piece (subs s from end)]
-          (recur end (conj! out (chunk-item "char" piece))))))))
+                          (recur (+ i (if (>= cp 0x10000) 2 1)) (+ acc u))))))]
+          (recur end (conj! out (char-piece-item (subs s from end)))))))))
 
 (defn- copy-range
   "A new vector of `vs[start, end)`. A subvec would keep the whole source
