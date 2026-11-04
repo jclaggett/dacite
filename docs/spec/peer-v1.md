@@ -345,8 +345,10 @@ verification never waits for its children. Each child is verified on its own whe
 it arrives. **No peer holds a partial value in order to verify.** An item that
 cannot be verified from its own bytes is stored and checked later, when the item
 it depends on arrives (only a collection header, below); it is never parked.
-`dacite.peer.items/verify-item!` is the check; `accept-item!` stores each item as it
-is verified, in arrival order. (The older `dacite.service.reveal/accept-items!`
+`dacite.peer.verify/verify-item!` is the check (portable `.cljc`; `dacite.peer.items`
+re-exports it); `accept-item!` stores each item as it is verified, in arrival order.
+`dacite.peer.client` is the requesting side that uses it: items reach its store only
+through `accept-item!`, and a failure ends that peer's session (12.4). (The older `dacite.service.reveal/accept-items!`
 does hold a collection header until its root arrives. It is not the peer rule, and
 M2.2 replaces it.)
 
@@ -413,9 +415,9 @@ cannot read elements through it, because the root is not there.
 **Order of everything else.** Pages carry their own measure, so they can arrive in any order
 relative to one another. A literal needs no order. A bad item ends the session
 with the peer: `error` `bad-entry`, `fatal`.
-Section 12.8 numbers those rules (C27 to C33) and M2.2 moves the check into the portable core;
-today verification is JVM-only. A lookup that finds nothing is `bad-entry`, never a
-raw store error.
+Section 12.8 numbers those rules (C27 to C33). The check is portable (`dacite.peer.verify`,
+M1.2 slice 1), so the JVM and nbb run the same code. A lookup that finds nothing is
+`bad-entry`, never a raw store error.
 
 **Trust.** The hash of a value commits to its ordered elements and not to the
 tree that stores them (that is what makes equal values share storage whatever
@@ -1315,8 +1317,12 @@ demo, and a bloom-filter sent-hash record. A test name
 with "(exists)" is in the repo today; the others are planned. Suites: **JVM**
 (`clojure -M:dev:test`), **nbb peer** (`npm run peer:test`, the portable core on
 nbb), **browser** (the same portable tests in a browser, M5.1 and M5.2). "Lands in"
-is the plan milestone that builds the test. No test in this table is written in
-the M1.2 PR (spec only).
+is the plan milestone that builds the test. The M1.2 spec PR (#21) wrote no tests.
+**M1.2 slice 1** (verify before store, the session-end rule, re-asking) wrote the
+ones marked "(exists, slice 1)": portable checks in
+`impl/clojure/test/dacite/peer/client_checks.cljc`, run on the JVM by `client_test.clj`
+(one `deftest` each) and on nbb by `npm run peer:test`, against the portable
+`dacite.peer.verify` and `dacite.peer.client`, with simulated peers and no clock.
 
 | Id | Status | MUST (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
@@ -1331,9 +1337,9 @@ the M1.2 PR (spec only).
 | C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (simulated clock, floor 0 request) | JVM | M4.2 |
 | C11 | Decided | Enforce advertised max-streams; slot frees at once | `too-many-streams-is-refused-and-a-closed-slot-frees` (parity half: `f3-stream-table-parity-and-duplicates`, exists) | JVM, nbb peer | M3.1 |
 | C12 | Decided | max-streams capped at 64 (read larger as 64) | `max-streams-above-64-is-read-as-64` | JVM, nbb peer | M3.1 |
-| C13 | Decided | Any verification failure (not only a bad hash) ends the whole session (fatal bad-entry) | `bad-entry-ends-the-session` (item level: `tampering-is-refused`, exists) | JVM, nbb peer, browser | M2.2 |
-| C14 | Decided | A bad peer's streams are unserved and re-requested elsewhere | `bad-peer-streams-are-reasked-from-others` (simulated peers: slow, dead, corrupt, honest) | nbb peer | M6.3 |
-| C15 | Decided | Decay is the only stream lifecycle rule; sessions end only on C13/C16; others untouched | `one-session-ending-leaves-others-untouched` | nbb peer | M6.3 |
+| C13 | Decided | Any verification failure (not only a bad hash) ends the whole session (fatal bad-entry) | `bad-entry-ends-the-session` (exists, slice 1: every way of lying, JVM and nbb; item level: `tampering-is-refused`, exists) | JVM, nbb peer (exist); browser | M1.2 s1; browser M5.1 |
+| C14 | Decided | A bad peer's streams are unserved and re-requested elsewhere | `bad-peer-streams-are-reasked-from-others` (exists, slice 1: corrupt, lost, without-the-value and honest simulated peers; the slow peer waits for decay, M4.1) | JVM, nbb peer | M1.2 s1 (exists) |
+| C15 | Decided | Decay is the only stream lifecycle rule; sessions end only on C13/C16; others untouched | `one-session-ending-leaves-others-untouched` (exists, slice 1: a failure on one session; the decay half waits for M4.1) | JVM, nbb peer | M1.2 s1 (exists) |
 | C16 | Decided | Protocol violation ends the session; request errors end only the stream | `protocol-violation-ends-session-request-error-ends-stream` | JVM, nbb peer | M3.1 |
 | C17 | Decided | No write at >= 4 frames buffered; resume at 1 frame | `channel-never-buffers-over-high-mark-and-resumes-at-low` (fake channel; real channel in M3.2) | nbb peer, browser | M3.2 |
 | C19 | Decided | Sent-hash record: bounded, optional; correct when empty or wrong | `empty-and-wrong-record-still-complete-every-request` (property) | JVM | M4.2 |
@@ -1344,17 +1350,17 @@ the M1.2 PR (spec only).
 | C24 | Decided | Reveal is breadth-first by level, top-level first | `reveal-sends-level-d-before-level-d-plus-1` | JVM, nbb peer | M2.2 |
 | C25 | Decided | Fixed order within a level (no shuffle); receiver never relies on it | `order-within-a-level-is-fixed-and-receiver-accepts-any` | JVM, nbb peer | M2.2 |
 | C26 | Decided | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` | JVM, nbb peer | M4.2 |
-| C27 | Decided | Verify every item from its own bytes before it is stored | `every-item-stream-fixture-verifies` and `tampering-is-refused` (exist) | JVM; nbb peer, browser after M2.2 | M2.2 |
-| C28 | Decided | Literal rebuilt in a scratch store; a `ref` inside is bad-item | `a-run-of-refs-is-a-ref` (exists); `literal-hash-mismatch-is-refused` | JVM; nbb peer after M2.2 | M2.2 |
-| C29 | Decided | Per-kind checks: scalar, leaf page, hamt/entry, branch, hamt/bitmap shape | `tampering-is-refused` (exists); `hamt-bitmap-shape-refusals` | JVM; nbb peer after M2.2 | M2.2 |
-| C30 | Decided | Every state: cells < p and determinant 1, else bad-state | `bad-state-is-refused-as-bad-entry` (fixtures `fuse-sl2`) | JVM, nbb peer | M2.2 |
-| C31 | Decided | Header stored on arrival, checked at its root, dropped if unchecked | `a-header-is-accepted-first-and-checked-when-its-root-arrives`, `a-stream-that-ends-early-leaves-no-unchecked-header` (exist) | JVM; nbb peer after M2.2 | M2.2 |
+| C27 | Decided | Verify every item from its own bytes before it is stored | `every-item-stream-fixture-verifies` and `tampering-is-refused` (exist); `nothing-unverified-reaches-the-store` (exists, slice 1) | JVM, nbb peer; browser after M5.1 | M1.2 s1 (exists) |
+| C28 | Decided | Literal rebuilt in a scratch store; a `ref` inside is bad-item | `a-run-of-refs-is-a-ref` (exists); `literal-hash-mismatch-is-refused` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |
+| C29 | Decided | Per-kind checks: scalar, leaf page, hamt/entry, branch, hamt/bitmap shape | `tampering-is-refused` (exists); `hamt-bitmap-shape-refusals` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |
+| C30 | Decided | Every state: cells < p and determinant 1, else bad-state | `bad-state-is-refused-as-bad-entry` (exists, slice 1; fixtures `fuse-sl2`) | JVM, nbb peer | M1.2 s1 (exists) |
+| C31 | Decided | Header stored on arrival, checked at its root, dropped if unchecked | `a-header-is-accepted-first-and-checked-when-its-root-arrives`, `a-stream-that-ends-early-leaves-no-unchecked-header` (exist); `a-session-whose-stream-ends-early-leaves-no-unchecked-header` (exists, slice 1: PARTIAL drops it, FIN without the root ends the session) | JVM, nbb peer | M1.2 s1 (exists) |
 | C32 | Decided | Size limits checked before buffering the payload | `every-fixture-decodes-and-re-encodes` (reject cases, exists); `item-over-max-item-is-refused-before-buffering` | JVM, nbb peer | M3.1 |
-| C33 | Decided | Nothing parked; items verify in any order | `pages-verify-in-any-order` (exists) | JVM; nbb peer after M2.2 | M2.2 |
+| C33 | Decided | Nothing parked; items verify in any order | `pages-verify-in-any-order` (exists); `every-page-verifies-in-any-order` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |
 | C34 | Decided | No write message; the store changes only by verified own-request items | `no-message-changes-the-store-except-verified-items` | JVM, nbb peer | M3.1 |
 | C35 | Decided | Store items only from an open stream this side opened | `item-on-a-stream-never-opened-ends-the-session`, `item-on-a-closed-stream-is-ignored` | JVM, nbb peer, browser | M3.1 |
 | C36 | Decided | Answer from own store only; no fetch on behalf; unknown-hash | `responder-never-fetches-on-behalf` | JVM, nbb peer | M3.1 |
-| C37 | Existing | A stream id is never derived from the hash | `stream-id-is-not-the-hash` (exists) | JVM | M1.2 (exists) |
+| C37 | Existing | A stream id is never derived from the hash | `stream-id-is-not-the-hash` (exists); `client-stream-ids-are-its-own-counter` (exists, slice 1) | JVM, nbb peer | M1.2 (exists) |
 | C38 | Existing | Responder keys streams by (session, id); same hash twice = two streams | `same-hash-twice-is-two-independent-streams` (N1 regression) | JVM, nbb peer | M4.1 |
 | C39 | Existing | Wrong parity or duplicate id refused (malformed) | `f3-stream-table-parity-and-duplicates` (exists) | JVM | M1.2 (exists) |
 | C40 | Decided | Per-session token bucket on `get`; empty = rate-limited; a flood never ends the session | `get-over-the-bucket-is-rate-limited-and-session-lives` (simulated clock) | JVM, nbb peer | M3.1 |

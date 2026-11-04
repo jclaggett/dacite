@@ -42,6 +42,13 @@
   #?(:clj (Math/exp (double x))
      :cljs (js/Math.exp x)))
 
+(defn- hash-key
+  "What `page-order` remembers a hash by. On nbb a hash is a vector of four
+   BigInts, which a persistent set cannot hash (`hash` of a BigInt throws once
+   a set grows past eight), so the hex string stands for it."
+  [h]
+  #?(:clj h :cljs (store/hash->hex h)))
+
 (defn- structural-type?
   [t]
   (and (string? t)
@@ -112,8 +119,8 @@
   [store h]
   (let [seen (volatile! #{})]
     (letfn [(take! [hash]
-              (when-not (contains? @seen hash)
-                (vswap! seen conj hash)
+              (when-not (contains? @seen (hash-key hash))
+                (vswap! seen conj (hash-key hash))
                 hash))
             (fresh-pages [hashes]
               (into [] (keep take!) hashes))
