@@ -32,6 +32,22 @@
      such session the hash waits in `unserved` and goes out when a session
      opens.
 
+   **Store calls are synchronous.** This code (and `dacite.peer.verify`) unwraps
+   every store call with `store/await`, which cannot wait for an unsettled
+   JavaScript promise. It works with the in-memory store only (`store/mem-store`).
+   An async store, such as the IndexedDB one the browser peer needs, will not work
+   until the store calls become asynchronous; that is planned before the browser
+   peer.
+
+   The store is shared by all sessions, so a collection header that one session
+   stored and has not yet checked is not taken as the answer for another session:
+   each session stores, tracks and checks its own copy (`verify/accept-item!`), a
+   session that gives up removes only its own copy (`verify/discard-unchecked!`),
+   and `have?` asks the store whether the header matches its root, not who sent it.
+   A session ending counts only against its own peer for the hashes it was serving.
+   A reconnecting peer is out of scope: a peer that failed to serve a hash is not
+   asked for it again.
+
    A `get` for a hash a peer cannot serve (`error unknown-hash`, or a stream
    that ends without the hash) ends that stream only, and the hash is asked of
    another peer. A hash is never asked twice of the same peer."
@@ -109,16 +125,13 @@
   (contains? (:done @(:state c)) (gc/hash-key h)))
 
 (defn have?
-  "True when `h` is stored and verified: it is in the store and is not a
-   collection header still waiting for its root (C27, C31). Only such a hash
-   may be read or offered to another peer."
+  "True when `h` is stored and verified (C27, C31): a node that checked when it
+   was stored, or a collection header whose root is stored and matches it. A
+   header that still waits for its root, or a forged one, is not had, whichever
+   session stored it. Only a hash that is had may be read or offered to another
+   peer."
   [c h]
-  (and (some? (store/await (store/s-get (:store c) h)))
-       (not-any? (fn [{:keys [streams]}]
-                   (some (fn [{:keys [rx]}]
-                           (some #(= (gc/hash-key h) (gc/hash-key %)) (verify/unchecked rx)))
-                         (vals streams)))
-                 (vals (:sessions @(:state c))))))
+  (verify/checked? (:store c) h))
 
 ;; =============================================================================
 ;; Asking
@@ -189,7 +202,8 @@
 
 (defn- reask!
   "Streams on `peer-id` stopped serving `hks`: it is never asked for them
-   again, and each goes to another session if there is one."
+   again, and each goes to another session if there is one. Only `peer-id`
+   is marked: what happens on one session never counts against another."
   [c peer-id hks]
   (swap! (:state c)
          (fn [s]
@@ -197,6 +211,14 @@
                                   (assoc-in [:wanted hk :at] nil)))
                    s hks)))
   (doseq [hk hks] (dispatch! c hk)))
+
+(defn- retry!
+  "The hash was served and verified on a stream that has since ended, but it is
+   no longer stored (another session's failure removed a copy they shared). The
+   peer did nothing wrong: it is not marked, and the hash is asked again."
+  [c hk]
+  (swap! (:state c) assoc-in [:wanted hk :at] nil)
+  (dispatch! c hk))
 
 (defn- end-session!
   "End `peer-id`'s session (C13, C15). `code`, when given, is sent as a fatal
@@ -249,16 +271,19 @@
    verified in the store; otherwise this peer did not serve it."
   [c peer-id sid partial?]
   (let [{:keys [state]} c
-        {:keys [hash rx]} (get-in @state [:sessions peer-id :streams sid])
+        {:keys [hash rx served?]} (get-in @state [:sessions peer-id :streams sid])
         hk (gc/hash-key hash)]
     (if partial? (verify/discard-unchecked! rx) (verify/finish! rx))
     (swap! state (fn [s]
                    (-> s
                        (update-in [:sessions peer-id :table] frame/close-stream sid)
                        (update-in [:sessions peer-id :streams] dissoc sid))))
-    (if (have? c hash)
+    (cond
+      (have? c hash)
       (swap! state (fn [s] (-> s (update :done conj hk) (update :wanted dissoc hk))))
-      (reask! c peer-id [hk]))))
+
+      served? (retry! c hk)
+      :else (reask! c peer-id [hk]))))
 
 (defn- on-items!
   [c peer-id fr]
@@ -269,7 +294,11 @@
     (swap! state assoc-in [:sessions peer-id :streams sid :reader] reader')
     ;; each item is verified, then stored, before the next is read (C27)
     (doseq [bs item-bytes]
-      (verify/accept-item! rx (decode-item bs)))
+      (let [item (decode-item bs)]
+        (verify/accept-item! rx item)
+        (when (= (gc/hash-key (:hash item))
+                 (gc/hash-key (get-in @state [:sessions peer-id :streams sid :hash])))
+          (swap! state assoc-in [:sessions peer-id :streams sid :served?] true))))
     (when (:fin? fr)
       (finish-stream! c peer-id sid (:partial? fr)))))
 

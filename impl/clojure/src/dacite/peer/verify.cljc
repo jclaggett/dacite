@@ -226,17 +226,44 @@
   [{:keys [pending]}]
   (into [] (comp (mapcat vals) (map :hash)) (vals @pending)))
 
+(defn- stored? [st h] (some? (store/await (store/s-get st h))))
+
+(defn checked?
+  "True when `h` is stored and verified. A node that is not a collection header
+   is verified when it is stored. A header is verified when its root is stored
+   and its hash, count and size match that root: a header that only waits for its
+   root, or that is forged, is not."
+  [st h]
+  (if-let [[type-name data :as entry] (store/await (store/s-get st h))]
+    (if (collection-type? type-name)
+      (boolean (try (when-let [m (root-measure st type-name (:root data))]
+                      (header-check type-name data h m)
+                      true)
+                    (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) _ false)))
+      (some? entry))
+    false))
+
+(defn- drop-header!
+  "Remove a header this receiver stored, unless the store holds something that
+   is not this receiver's copy (another session replaced it with its own), or the
+   header has meanwhile been verified through its root. The store is shared by
+   every session, so one session giving up must not take away what another
+   session sent or what was verified."
+  [st hash entry]
+  (when (and (= entry (store/await (store/s-get st hash)))
+             (not (checked? st hash)))
+    (store/await (store/s-delete st hash))))
+
 (defn discard-unchecked!
-  "Remove the unchecked headers from the store. A session that ends before
-   their roots arrive (a failure, a `cancel`, a PARTIAL stream) calls this,
-   so the store holds only what was verified."
+  "Remove this receiver's unchecked headers from the store. A session that ends
+   before their roots arrive (a failure, a `cancel`, a PARTIAL stream) calls this,
+   so the store holds only what was verified. A header that another session has
+   stored in its place, or that is verified by now, stays (`drop-header!`)."
   [{:keys [store pending] :as rx}]
-  (doseq [{:keys [hash]} (mapcat vals (vals @pending))]
-    (store/await (store/s-delete store hash)))
+  (doseq [{:keys [hash entry]} (mapcat vals (vals @pending))]
+    (drop-header! store hash entry))
   (reset! pending {})
   rx)
-
-(defn- stored? [st h] (some? (store/await (store/s-get st h))))
 
 (defn- resolve-pending!
   "Check the waiting headers whose root is stored now. Each failing header is
@@ -256,9 +283,13 @@
                       (fn [failures [_ {:keys [hash entry]}]]
                         (let [[type-name data] entry
                               m (root-measure store type-name (:root data))]
-                          (try (header-check type-name data hash m) failures
+                          (try (header-check type-name data hash m)
+                               ;; verified: make sure it is stored (another session's
+                               ;; giving up may have removed the shared copy)
+                               (store/await (store/s-put store hash entry))
+                               failures
                                (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
-                                 (store/await (store/s-delete store hash))
+                                 (drop-header! store hash entry)
                                  (conj failures e)))))
                       []
                       waiting)]
@@ -277,22 +308,24 @@
    A collection header comes before its pages, so it is stored now and its
    check is `#{:pending}` until its root arrives. Then the arrival of the
    root checks it, and a failure there removes the header and throws, so the
-   session ends with `bad-hash` or `bad-entry`. A header already stored is
-   not stored again."
+   session ends with `bad-hash` or `bad-entry`.
+
+   A header is always checked and tracked by the receiver that gets it, even
+   when the store already holds that hash: the store is shared by every session,
+   and the copy there may be another session's unchecked, possibly forged one.
+   Storing this session's copy replaces it, and this session then owes the check
+   for its own copy."
   [{:keys [store pending] :as rx} {:keys [enc hash entry literal] :as item}]
-  (let [header? (and (= :node enc) (collection-type? (types/entry-type entry)))]
-    (if (and header? (stored? store hash))
-      #{:known}
-      (let [checks (verify-item! store item)]
-        (case enc
-          :node (store/await (store/s-put store hash entry))
-          :literal (pack/materialize-literal! store (:type literal) (:body literal)))
-        (when (contains? checks :pending)
-          (swap! pending update (gc/hash-key (:root (types/entry-data entry)))
-                 assoc (gc/hash-key hash)
-                 {:hash hash :entry entry :root (:root (types/entry-data entry))}))
-        (when (seq @pending) (resolve-pending! rx))
-        checks))))
+  (let [checks (verify-item! store item)]
+    (case enc
+      :node (store/await (store/s-put store hash entry))
+      :literal (pack/materialize-literal! store (:type literal) (:body literal)))
+    (when (contains? checks :pending)
+      (swap! pending update (gc/hash-key (:root (types/entry-data entry)))
+             assoc (gc/hash-key hash)
+             {:hash hash :entry entry :root (:root (types/entry-data entry))}))
+    (when (seq @pending) (resolve-pending! rx))
+    checks))
 
 (defn accept-items!
   "Accept decoded items in the order they arrived. Each is checked, and

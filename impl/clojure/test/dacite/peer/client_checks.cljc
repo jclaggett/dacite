@@ -568,6 +568,98 @@
      (bad "an id is not the hash" false
           (boolean (some (fn [[_ sid]] (or (= sid (hex x)) (= sid (hex y)))) (gets n)))))))
 
+(defn liar-header-first-does-not-hide-the-honest-copy
+  "A liar's forged, unchecked collection header X reaches the shared store
+   first (inside its answer for Y, a vector that holds X); the honest peer is
+   asked for X itself, and its copy must not be skipped as 'already stored'. X
+   is done through the honest peer at once. Then the liar fails: its giving up
+   must not remove the honest header, and must not count the honest peer as having
+   failed for X. Y then comes from the honest peer, and the client ends with the
+   whole, correct value."
+  []
+  (let [src (store/mem-store)
+        xv (vector-value src 40)
+        x (v/hash xv)
+        y (v/hash (v/vector src xv (v/string src "tail")))
+        y-items (items-of src y)
+        kx (first (keep-indexed (fn [i it] (when (= (hex x) (hex (:hash it))) i)) y-items))
+        forged (update-in y-items [kx :entry 1 :count] inc)
+        ;; the liar sends Y up to and including X's forged header, then stalls
+        stall (fn [sid _] [(item-frame sid (mapv bin/encode-item (subvec forged 0 (inc kx))))])
+        n (net (array-map "liar" stall "honest" (honest src)) [x y])
+        c (:client n)
+        st (:store c)]
+    (client/request! c y)                                   ; to the liar
+    (client/request! c x)                                   ; to the honest peer
+    (pump! n)
+    (let [stored-forged? (= (second (:entry (nth forged kx)))
+                            (second (store/await (store/s-get st x))))
+          after-honest [(client/done? c x) (client/have? c x) stored-forged?]]
+      ;; now the liar fails: a bad item on its stream
+      (deliver! n "liar"
+                (let [[_ sid] (first (filter (fn [[p _]] (= p "liar")) (gets n)))
+                      bad-item (assoc (nth y-items (inc kx)) :hash (:hash (first y-items)))]
+                  [(first (frames-of sid [(bin/encode-item bad-item)]))]))
+      (pump! n)
+      (concat
+       (when-not kx ["X's header is not in Y's reveal"])
+       (bad "the honest peer's X is done while the liar's header is unchecked: [done have forged-in-store]"
+            [true true false] after-honest)
+       (bad "the liar failed" :ended (client/session-status c "liar"))
+       (bad "the honest session is open" :open (client/session-status c "honest"))
+       (bad "X is still had after the liar gave up" true (client/have? c x))
+       (bad "Y is done" true (client/done? c y))
+       (bad "nothing waits" [] (client/unserved c))
+       (bad "X was asked once (of the honest peer); Y of the liar, then of the honest peer"
+            [["liar" 1] ["honest" 1] ["honest" 3]] (gets n))
+       (bad "every node of Y is stored, equal to the source's" []
+            (vec (map (comp hex :hash)
+                      (remove (fn [it] (same-entry? (:hash it) (:entry it)
+                                                    (store/await (store/s-get st (:hash it)))))
+                              y-items))))
+       (bad "walking the client's store gives the source's reveal order"
+            (vec (map hex (reveal/page-order src y)))
+            (vec (map hex (reveal/page-order st y))))
+       (nothing-bad-stored n src)))))
+
+(defn shared-header-is-kept-when-the-other-receiver-gives-up
+  "C31 across two receivers on one store: receiver 1 stores a forged header,
+   receiver 2 then gets the honest one. Receiver 2 owns the check of its own
+   copy; receiver 1 giving up removes nothing of receiver 2's, and the header is
+   verified when receiver 2's root arrives."
+  []
+  (let [src (store/mem-store)
+        root (v/hash (vector-value src 40))
+        [hd & more] (items-of src root)
+        forged (update-in hd [:entry 1 :count] inc)
+        st (store/mem-store)
+        r1 (verify/receiver st) r2 (verify/receiver st)]
+    (verify/accept-item! r1 forged)
+    (verify/accept-item! r2 hd)
+    (let [unchecked2 (verify/unchecked r2)]
+      (verify/discard-unchecked! r1)
+      (concat
+       (bad "receiver 2 tracks the honest copy" [root] unchecked2)
+       (bad "the store holds receiver 2's copy after receiver 1 gave up" true
+            (same-entry? root (:entry hd) (store/await (store/s-get st root))))
+       (bad "not verified until its root arrives" false (verify/checked? st root))
+       (do (verify/accept-items! r2 more) (verify/finish! r2) nil)
+       (bad "verified once the root arrives" true (verify/checked? st root))
+       (bad "nothing left unchecked" [] (verify/unchecked r2))))))
+
+(defn page-order-handles-a-value-over-eight-pages
+  "`reveal/page-order` over a value of more than eight pages (a map of 30 keys
+   is some 60 items). On nbb a persistent set of BigInt-vector hashes cannot hash
+   once it grows past eight; page-order keys by hex there."
+  []
+  (let [src (store/mem-store)
+        root (v/hash (map-of src 30))
+        order (reveal/page-order src root)]
+    (concat
+     (bad "more than eight pages" true (> (count order) 8))
+     (bad "the root comes first" (hex root) (hex (first order)))
+     (bad "no page is listed twice" (count order) (count (distinct (map hex order)))))))
+
 (def checks
   "Test name (spec §13) -> check. Run order is this order."
   (array-map
@@ -581,7 +673,10 @@
    "one-session-ending-leaves-others-untouched" one-session-ending-leaves-others-untouched
    "bad-peer-streams-are-reasked-from-others" bad-peer-streams-are-reasked-from-others
    "lying-peer-and-honest-peer" lying-peer-and-honest-peer
-   "client-stream-ids-are-its-own-counter" client-stream-ids-are-its-own-counter))
+   "client-stream-ids-are-its-own-counter" client-stream-ids-are-its-own-counter
+   "liar-header-first-does-not-hide-the-honest-copy" liar-header-first-does-not-hide-the-honest-copy
+   "shared-header-is-kept-when-the-other-receiver-gives-up" shared-header-is-kept-when-the-other-receiver-gives-up
+   "page-order-handles-a-value-over-eight-pages" page-order-handles-a-value-over-eight-pages))
 
 (def max-ms
   "No check may take longer than this (milliseconds)."

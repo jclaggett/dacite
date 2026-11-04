@@ -47,6 +47,15 @@
 (deftest client-stream-ids-are-its-own-counter
   (run-check "client-stream-ids-are-its-own-counter"))
 
+(deftest liar-header-first-does-not-hide-the-honest-copy
+  (run-check "liar-header-first-does-not-hide-the-honest-copy"))
+
+(deftest shared-header-is-kept-when-the-other-receiver-gives-up
+  (run-check "shared-header-is-kept-when-the-other-receiver-gives-up"))
+
+(deftest page-order-handles-a-value-over-eight-pages
+  (run-check "page-order-handles-a-value-over-eight-pages"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)
