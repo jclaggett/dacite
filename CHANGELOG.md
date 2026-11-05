@@ -6,6 +6,28 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M1.2 slice 2: rates, flow control, token buckets, the read-only rule and
+  protocol violations.** New portable `dacite.peer.rates` (C01 split by interest,
+  C02 redistribution above `send-max` caps, C03 session rate, C45 `recv-max`),
+  `dacite.peer.bucket` (a pure token bucket) and `dacite.peer.responder` (a sans-I/O
+  answering side: paces each session at `min(send-max, latest recv-max)` split by
+  interest, never writes into a channel holding 4 frames until it is down to 1,
+  gives a blocked stream no share and at most one frame of credit, limits `get`s
+  with a bucket per session (`rate-limited`, the session lives), answers from its
+  own store only, and ends the session on a protocol violation). The client
+  (`dacite.peer.client`) now says `hello`, waits for the peer's before it asks,
+  sets each `get`'s `recv-max` to the peer's C01/C02 share (C45, relaxed: the other
+  peers' older `recv-max`s are not subtracted, so a new peer starts at its fair
+  share and the client can be over `R_max` until the others' next `get` or until
+  their interest decays, the accepted gap of option A; `default-recv-max` is gone), never sends a `get` to a peer whose
+  bucket is empty (C41, `tick!` sends the waiting ones), ends the session on a
+  protocol violation (a frame before `hello`, a second `hello`, a malformed frame, an
+  item for a stream it never opened: C16, C35; an item for a closed stream is ignored),
+  and caches per session what it verified, with the entry it stored, so `have?` does not recompute it (the cache is checked against the store and dropped when the session ends). A new
+  option `:now` and `tick!` carry the clock. Tests: `flow_checks.cljc` (14 checks, JVM
+  and nbb). Deferred to M4: interest ending a stream at its floor (C05 to C12),
+  `cancel`, `ack` and `forget` (the responder ignores them), literal items from the
+  responder (it sends node items).
 - **M1.2 slice 1: verify before store, a bad item ends the session, and its
   streams are re-asked.** New portable `dacite.peer.verify` (the checks and the
   receiver of `dacite.peer.items`, moved to `.cljc`; `items` re-exports them) and
@@ -40,7 +62,7 @@ stability promise: public APIs may still change before 1.0.
   question 2 answered and 1, 3 and 4 deferred. Decided by Jonathan on Nov 4: one
   shared `R_max` split by interest across all peers, each peer's send max as a cap
   with the unused share redistributed; rate control by `recv-max` in each `get`
-  (option A, no `rate` message; a stale `recv-max` is a known, accepted gap, and a client SHOULD keep the sum of its current (decayed) `recv-max` commitments at or below `R_max`, C45); a
+  (option A, no `rate` message; a stale `recv-max` is a known, accepted gap, and a client SHOULD send each new `get` the peer's current share, C45: relaxed on Nov 4 in M1.2 slice 2 review, so the gap stays); a
   stream's life is its decaying interest (no idle timeout, `cancel` optional,
   renewal is a new request); the sent-hash record is an optimization only (16 384
   hashes); a deterministic reveal order (breadth-first by level, a fixed order within a level; the stochastic shuffle and a bloom-filter record are deferred until a working peering demo); `bufferedAmount` marks of 4 and 1 frames;

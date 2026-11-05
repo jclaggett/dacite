@@ -16,6 +16,7 @@
             [dacite.peer.client :as client]
             [dacite.peer.frame :as frame]
             [dacite.peer.msg :as msg]
+            [dacite.peer.responder :as responder]
             [dacite.peer.verify :as verify]
             [dacite.reveal :as reveal]
             [dacite.store :as store]
@@ -30,30 +31,30 @@
 (defn- vector-value [st n]
   (apply v/vector st (map #(v/string st (str "line " % ": the quick brown fox")) (range n))))
 
-(defn- map-of [st n]
+(defn map-of [st n]
   (apply v/map st (mapcat (fn [i] [(str "key " i) (str "value " i ": jumps over the lazy dog")])
                           (range n))))
 
-(defn- items-of
+(defn items-of
   "Node items (decoded form) of a full reveal of `root` in `st`, header first."
   [st root]
   (mapv (fn [h] {:enc :node :hash h :entry (store/await (store/s-get st h))})
         (reveal/page-order st root)))
 
-(defn- frames-of
+(defn frames-of
   "Frames (bytes) for `item-bytes` on stream `sid`, small so a value takes
    several. FIN on the last; PARTIAL when `partial?`."
   ([sid item-bytes] (frames-of sid item-bytes false))
   ([sid item-bytes partial?]
    (frame/chunk-items sid item-bytes {:max-frame-bytes 1024 :partial? partial?})))
 
-(defn- error-frame [sid code fatal?]
+(defn error-frame [sid code fatal?]
   (msg/encode-message {:type :error :stream sid
                        :value {"code" code "message" "simulated" "fatal" fatal?}}))
 
-(defn- hex [h] (store/hash->hex h))
+(defn hex [h] (store/hash->hex h))
 
-(defn- snapshot [st] (store/await (store/s-snapshot st)))
+(defn snapshot [st] (store/await (store/s-snapshot st)))
 
 ;; =============================================================================
 ;; Peers that lie
@@ -123,7 +124,7 @@
 ;; The simulated network
 ;; =============================================================================
 
-(defn- honest
+(defn honest
   "A peer that serves from `src`: the items of a full reveal, or `unknown-hash`."
   [src]
   (fn [sid h]
@@ -146,10 +147,16 @@
   [peers roots]
   (let [outbox (atom []) log (atom []) closed (atom [])
         c (client/client {:store (store/mem-store)
-                          :send! (fn [p m] (swap! outbox conj [p m]) (swap! log conj [p m]))
+                          :send! (fn [p m]
+                                   (when (= :get (:type m)) (swap! outbox conj [p m]))
+                                   (swap! log conj [p m]))
                           :close! (fn [p] (swap! closed conj p))})
-        by-hex (into {} (map (juxt hex identity)) roots)]
-    (doseq [p (keys peers)] (client/open-session! c p))
+        by-hex (into {} (map (juxt hex identity)) roots)
+        peer-hello (msg/encode-message {:type :hello :stream 0 :value responder/default-hello})]
+    ;; a session starts with the peers' hellos (nothing else is sent before them)
+    (doseq [p (keys peers)]
+      (client/open-session! c p)
+      (client/on-frame! c p peer-hello))
     {:client c :peers peers :by-hex by-hex :outbox outbox :log log :closed closed}))
 
 (defn- deliver!
@@ -181,9 +188,9 @@
   [{:keys [log]}]
   (vec (filter (fn [[_ m]] (and (= :error (:type m)) (get-in m [:value "fatal"]))) @log)))
 
-(defn- cut [x] (let [t (pr-str x)] (if (> (count t) 300) (str (subs t 0 300) "...") t)))
+(defn cut [x] (let [t (pr-str x)] (if (> (count t) 300) (str (subs t 0 300) "...") t)))
 
-(defn- bad [what expected actual]
+(defn bad [what expected actual]
   (when-not (= expected actual)
     [(str what ": expected " (cut expected) ", got " (cut actual))]))
 
@@ -207,7 +214,7 @@
                   [(str "the store holds an entry that is not the source's: " (cut k))])))
             mine)))
 
-(defn- stored? [st h] (some? (store/await (store/s-get st h))))
+(defn stored? [st h] (some? (store/await (store/s-get st h))))
 
 ;; =============================================================================
 ;; The checks

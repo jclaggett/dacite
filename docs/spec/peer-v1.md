@@ -954,17 +954,17 @@ it says so in every `get` (`recv-max`, 6.2). There is no separate rate message.
 - **C04 (withdrawn).** Was the `rate` session message (type `0x08`). Jonathan chose
   option A (`recv-max` in `get`) on Nov 4, so `0x08` is unassigned and C04 has no
   rule. The id is not reused.
-- **C45 (Decided; SHOULD; Jonathan, Nov 4).** A client SHOULD treat the
-  `recv-max` it sends a peer as a **commitment** that decays with that peer's
-  interest. Under C03 the responder paces the session at
-  `recv-max · min(1, ΣI/1000)` (the C01 split with `peak` 1000), so a peer's
-  **current commitment** is
-  `its last recv-max · min(1, ΣI_peer(t) / 1000)`, where `ΣI_peer(t)` is the
-  decayed interest of that peer's open streams. The client can compute it, because
-  decay is deterministic (C05). A new `get`'s `recv-max` SHOULD be at most
-  `R_max` minus the other peers' current commitments, so the sum of current
-  commitments stays at or below `R_max`. This trades the overshoot of a stale
-  `recv-max` for a temporary undershoot.
+- **C45 (Decided; SHOULD; Jonathan, Nov 4, relaxed later on Nov 4).** A client
+  SHOULD set a new `get`'s `recv-max` to the peer's current C01/C02 share of
+  `R_max` at that moment, counting the new stream at its peak interest. It does
+  not have to lower it for the other peers' earlier `recv-max`s. A peer that joins
+  starts at its full interest-based share, as if the others had already been
+  rebalanced: with two peers at equal interest, the second one's first `get` says
+  `R_max / 2`. (An earlier draft capped a new `recv-max` at `R_max` minus the other
+  peers' current commitments, `last recv-max · min(1, ΣI_peer / 1000)`, to keep
+  the sum at or below `R_max`. That was dropped: a new peer could start at 1 byte
+  a second and stay there until some unrelated `get`, so it traded a bounded
+  overshoot for possible starvation of a peer.) The cost is the known gap below.
 
 **Known gap: stale `recv-max`.** After client C's share for a peer drops (for
 example because another peer became active), that peer keeps sending at the old
@@ -977,9 +977,18 @@ because every item is still verified (12.8). The cost is congestion: other peers
 streams slow down and C's buffers fill, while WebRTC back-pressure (12.5) still
 bounds it. In practice the gap is short, because progressive reveal keeps C
 sending `get`s. Accepted for v1 by Jonathan; revisit with the M5.3 measurements. A
-session-level rate message is the known fix. **A client that follows C45 removes
-the overshoot:** commitments never sum above `R_max`, so the gap becomes a
-temporary undershoot instead.
+session-level rate message is the known fix.
+
+**What C45 does with the gap, stated plainly.** The client does not close it. When
+peer B joins while peer A holds an older, higher `recv-max`, B's `get` carries
+B's full share and A keeps sending at its old rate. For example, A was told
+`R_max`; B joins at equal interest and is told `R_max / 2`; a third peer C is told
+`R_max / 3`: the three together can send up to `R_max · (1 + 1/2 + 1/3)`. C
+(the client) therefore runs over `R_max` until A's next `get` (which carries A's
+new, lower share), or until A's interest decays: under C03 A sends at
+`its last recv-max · min(1, ΣI_A / 1000)`, so A frees its share as its streams
+decay and end. This is the same gap Jonathan accepted for option A; no peer is
+starved, and the cost is only the temporary congestion described above.
 
 ### 12.3 Lifecycle: dwindling interest only
 
@@ -1323,12 +1332,18 @@ ones marked "(exists, slice 1)": portable checks in
 `impl/clojure/test/dacite/peer/client_checks.cljc`, run on the JVM by `client_test.clj`
 (one `deftest` each) and on nbb by `npm run peer:test`, against the portable
 `dacite.peer.verify` and `dacite.peer.client`, with simulated peers and no clock.
+**M1.2 slice 2** (rate split, flow control, token buckets, the read-only rule, protocol
+violations) wrote the ones marked "(exists, slice 2)": portable checks in
+`impl/clojure/test/dacite/peer/flow_checks.cljc`, run on the JVM by `flow_test.clj` and
+on nbb by `npm run peer:test`, against `dacite.peer.rates`, `bucket`, `responder`
+and the changed `client`, on simulated clocks. The rows for the other ids (C05 to C12,
+the lifecycle and the stream cap, and the rest) stay planned.
 
 | Id | Status | MUST (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
-| C01 | Decided | One shared R_max split by interest; R_max·I/max(peak, ΣI) leaves R_max unused at low interest | `shared-rmax-splits-by-interest-across-peers` | JVM, nbb peer | M2.2 |
-| C02 | Decided | Rate = min(share, peer send-max); unused share redistributed | `capped-peer-share-is-redistributed` (property: sum <= R_max, each <= cap) | JVM, nbb peer | M2.2 |
-| C03 | Decided | Responder paces to min(send-max, latest get recv-max); splits by interest | `responder-paces-to-session-budget` (simulated clock) | JVM, nbb peer | M3.1 |
+| C01 | Decided | One shared R_max split by interest; R_max·I/max(peak, ΣI) leaves R_max unused at low interest | `shared-rmax-splits-by-interest-across-peers` (exists, slice 2: `rates/split`, and the client counts a new stream at peak) | JVM, nbb peer | M1.2 s2 (exists) |
+| C02 | Decided | Rate = min(share, peer send-max); unused share redistributed | `capped-peer-share-is-redistributed` (property: sum <= R_max, each <= cap) (exists, slice 2: a hand case and a 300-case property over generated peers) | JVM, nbb peer | M1.2 s2 (exists) |
+| C03 | Decided | Responder paces to min(send-max, latest get recv-max); splits by interest | `responder-paces-to-session-budget` (exists, slice 2: simulated clock; budget, `send-max` cap and a 2:1 split) | JVM, nbb peer | M1.2 s2 (exists) |
 | C05 | Decided | Stream ends (FIN, PARTIAL) when interest < floor | `stream-ends-partial-when-interest-falls-below-floor` (session clock) | JVM, nbb peer | M4.1 |
 | C06 | Decided | No idle timeout; a stalled stream only decays | `stalled-stream-decays-and-frees-its-share` | JVM | M4.1 |
 | C07 | Decided | `cancel` is optional; sets interest to 0; correct without it | `cancel-stops-and-frees-share-and-is-never-required` | JVM, nbb peer | M4.1 |
@@ -1340,8 +1355,8 @@ ones marked "(exists, slice 1)": portable checks in
 | C13 | Decided | Any verification failure (not only a bad hash) ends the whole session (fatal bad-entry) | `bad-entry-ends-the-session` (exists, slice 1: every way of lying, JVM and nbb; item level: `tampering-is-refused`, exists) | JVM, nbb peer (exist); browser | M1.2 s1; browser M5.1 |
 | C14 | Decided | A bad peer's streams are unserved and re-requested elsewhere | `bad-peer-streams-are-reasked-from-others` (exists, slice 1: corrupt, lost, without-the-value and honest simulated peers; the slow peer waits for decay, M4.1) | JVM, nbb peer | M1.2 s1 (exists) |
 | C15 | Decided | Decay is the only stream lifecycle rule; sessions end only on C13/C16; others untouched | `one-session-ending-leaves-others-untouched` (exists, slice 1: a failure on one session; the decay half waits for M4.1) | JVM, nbb peer | M1.2 s1 (exists) |
-| C16 | Decided | Protocol violation ends the session; request errors end only the stream | `protocol-violation-ends-session-request-error-ends-stream` | JVM, nbb peer | M3.1 |
-| C17 | Decided | No write at >= 4 frames buffered; resume at 1 frame | `channel-never-buffers-over-high-mark-and-resumes-at-low` (fake channel; real channel in M3.2) | nbb peer, browser | M3.2 |
+| C16 | Decided | Protocol violation ends the session; request errors end only the stream | `protocol-violation-ends-session-request-error-ends-stream` (exists, slice 2: client and responder, four violations each, and request errors) | JVM, nbb peer | M1.2 s2 (exists) |
+| C17 | Decided | No write at >= 4 frames buffered; resume at 1 frame | `channel-never-buffers-over-high-mark-and-resumes-at-low` (fake channel; real channel in M3.2) (exists, slice 2: fake channel with hysteresis; the real channel is M3.2) | JVM, nbb peer, browser | M1.2 s2 (exists) |
 | C19 | Decided | Sent-hash record: bounded, optional; correct when empty or wrong | `empty-and-wrong-record-still-complete-every-request` (property) | JVM | M4.2 |
 | C20 | Decided | The root of a get is always sent | `root-of-a-get-is-sent-even-if-recorded` | JVM, nbb peer | M4.2 |
 | C21 | Decided | Record capped at 16 384 (oldest out); `forget` removes hashes | `record-is-capped-and-forget-removes-hashes` | JVM | M4.2 |
@@ -1357,13 +1372,13 @@ ones marked "(exists, slice 1)": portable checks in
 | C31 | Decided | Header stored on arrival, checked at its root, dropped if unchecked | `a-header-is-accepted-first-and-checked-when-its-root-arrives`, `a-stream-that-ends-early-leaves-no-unchecked-header` (exist); `a-session-whose-stream-ends-early-leaves-no-unchecked-header` (exists, slice 1: PARTIAL drops it, FIN without the root ends the session) | JVM, nbb peer | M1.2 s1 (exists) |
 | C32 | Decided | Size limits checked before buffering the payload | `every-fixture-decodes-and-re-encodes` (reject cases, exists); `item-over-max-item-is-refused-before-buffering` | JVM, nbb peer | M3.1 |
 | C33 | Decided | Nothing parked; items verify in any order | `pages-verify-in-any-order` (exists); `every-page-verifies-in-any-order` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |
-| C34 | Decided | No write message; the store changes only by verified own-request items | `no-message-changes-the-store-except-verified-items` | JVM, nbb peer | M3.1 |
-| C35 | Decided | Store items only from an open stream this side opened | `item-on-a-stream-never-opened-ends-the-session`, `item-on-a-closed-stream-is-ignored` | JVM, nbb peer, browser | M3.1 |
-| C36 | Decided | Answer from own store only; no fetch on behalf; unknown-hash | `responder-never-fetches-on-behalf` | JVM, nbb peer | M3.1 |
+| C34 | Decided | No write message; the store changes only by verified own-request items | `no-message-changes-the-store-except-verified-items` (exists, slice 2, responder side; client side is `nothing-unverified-reaches-the-store`) | JVM, nbb peer | M1.2 s2 (exists) |
+| C35 | Decided | Store items only from an open stream this side opened | `item-on-a-stream-never-opened-ends-the-session`, `item-on-a-closed-stream-is-ignored` (both exist, slice 2) | JVM, nbb peer, browser | M1.2 s2 (exists) |
+| C36 | Decided | Answer from own store only; no fetch on behalf; unknown-hash | `responder-never-fetches-on-behalf` (exists, slice 2) | JVM, nbb peer | M1.2 s2 (exists) |
 | C37 | Existing | A stream id is never derived from the hash | `stream-id-is-not-the-hash` (exists); `client-stream-ids-are-its-own-counter` (exists, slice 1) | JVM, nbb peer | M1.2 (exists) |
 | C38 | Existing | Responder keys streams by (session, id); same hash twice = two streams | `same-hash-twice-is-two-independent-streams` (N1 regression) | JVM, nbb peer | M4.1 |
 | C39 | Existing | Wrong parity or duplicate id refused (malformed) | `f3-stream-table-parity-and-duplicates` (exists) | JVM | M1.2 (exists) |
-| C40 | Decided | Per-session token bucket on `get`; empty = rate-limited; a flood never ends the session | `get-over-the-bucket-is-rate-limited-and-session-lives` (simulated clock) | JVM, nbb peer | M3.1 |
+| C40 | Decided | Per-session token bucket on `get`; empty = rate-limited; a flood never ends the session | `get-over-the-bucket-is-rate-limited-and-session-lives` (simulated clock) (exists, slice 2: simulated clock; burst lowered to 10 so nbb stays quick) | JVM, nbb peer | M1.2 s2 (exists) |
 | C42 | Decided | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (flood one session; others unchanged) | JVM, nbb peer | M6.3 |
 | C43 | Existing | Session types on stream 0, request types on stream >= 1 | `f3-message-types-and-streams` (exists; fixtures `reject-*-on-stream-*`) | JVM, nbb peer | M1.2 (exists) |
 | C44 | Existing | Literal types outside the v1 profile are rejected | `outside-the-profile` (exists) | JVM, nbb peer | M1.2 (exists) |
@@ -1372,6 +1387,6 @@ ones marked "(exists, slice 1)": portable checks in
 
 | Id | Status | SHOULD (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
-| C18 | Decided | A blocked stream takes no share, banks <= 1 frame, keeps decaying | `blocked-stream-takes-no-share-and-banks-one-frame` | JVM, nbb peer | M3.2 |
-| C41 | Decided | Requester keeps its own bucket per peer, never sends on empty | `requester-bucket-never-overspends` | JVM, nbb peer | M3.1 |
-| C45 | Decided | Commitment = last recv-max × min(1, ΣI_peer/1000); new recv-max <= R_max − others' current commitments | `committed-rate-never-exceeds-rmax` (sum of current commitments <= R_max over a simulated clock) | JVM | M2.2 |
+| C18 | Decided | A blocked stream takes no share, banks <= 1 frame, keeps decaying | `blocked-stream-takes-no-share-and-banks-one-frame` (exists, slice 2: the share, the one-frame bank and the decay) | JVM, nbb peer | M1.2 s2 (exists) |
+| C41 | Decided | Requester keeps its own bucket per peer, never sends on empty | `requester-bucket-never-overspends` (exists, slice 2) | JVM, nbb peer | M1.2 s2 (exists) |
+| C45 | Decided | A new get's recv-max is the peer's current C01/C02 share (SHOULD); a new peer starts at its fair share, the others' older recv-max are not subtracted (accepted gap, 12.2) | `new-peer-starts-at-its-fair-share` (exists, slice 2: second peer at R_max/2, not 1 B/s; the over-R_max sum is asserted too) | JVM, nbb peer | M1.2 s2 (exists) |
