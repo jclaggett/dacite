@@ -295,7 +295,8 @@
 
 (defrecord IdbStore [name db opening cache cache-order cache-limit
                      snap snap-epoch reset-latch
-                     root-ready root durable-cas durable-set keep retained]
+                     root-ready root durable-cas durable-set keep retained
+                     resetting]
   store/IStore
   (s-get [this h]
     (evict-while! this (store/hash->hex h))
@@ -303,6 +304,10 @@
           v (get @cache k ::none)
           epoch *drive-epoch*]
       (cond
+        ;; a reset is clearing the database: answer after it, from the cleared store
+        (and @resetting (nil? epoch))
+        (.then @resetting (fn [_] (store/s-get this h)))
+
         (hit? v)
         (do (cache-touch! this k)
             (store/completed (:node v)))
@@ -348,6 +353,9 @@
           v (get @cache k ::none)
           epoch *drive-epoch*]
       (cond
+        (and @resetting (nil? epoch))
+        (.then @resetting (fn [_] (store/s-has? this h)))
+
         (hit? v)
         (do (cache-touch! this k)
             (store/completed true))
@@ -436,11 +444,13 @@
          (fn [] this)))))
 
   (s-reset [this]
-    (let [clear! (fn []
-                   (reset! cache {})
-                   (reset! cache-order [])
-                   (reset! snap {})
-                   (reset! snap-epoch nil)
+    (let [clear-cache! (fn []
+                         (reset! cache {})
+                         (reset! cache-order [])
+                         (reset! snap {})
+                         (reset! snap-epoch nil))
+          clear! (fn []
+                   (clear-cache!)
                    (reset! reset-latch false)
                    (reset! root-ready true)
                    (reset! root nil)
@@ -461,12 +471,21 @@
                        (reset! reset-latch true))))
           nil))
 
+        ;; Outside `drive`. The in-memory state goes first, so nothing is served from
+        ;; it while the database is cleared, and `s-get` and `s-has?` wait for this
+        ;; promise (`resetting`) instead of reading the old nodes. It is cleared again
+        ;; when the database is, for a read that was already on its way.
         :else
-        (reject-cause
-         (-> (ensure-db this)
-             (.then idb-clear)
-             (.then (fn [_] (clear!) this)))
-         nil)))))
+        (let [p (reject-cause
+                 (-> (ensure-db this)
+                     (.then idb-clear)
+                     (.then (fn [_] (clear!) this)))
+                 nil)
+              done (fn [] (reset! resetting nil))
+              p (-> p (.then (fn [r] (done) r)) (.catch (fn [e] (done) (throw e))))]
+          (clear-cache!)
+          (reset! resetting p)
+          p)))))
 
 (defn idb-store
   "Content dictionary in IndexedDB database `name`.
@@ -488,7 +507,8 @@
                (atom nil)
                (atom unset)
                (atom nil)
-               (atom false))))
+               (atom false)
+               (atom nil))))
 
 (defn- ensure-root!
   [st]

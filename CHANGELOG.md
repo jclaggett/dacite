@@ -6,6 +6,15 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M1.3c: two IndexedDB nits.** `s-reset` outside `drive` clears the in-memory cache
+  before it clears the database, and reads (`s-get`, `s-has?`) made while it runs wait for
+  it, so a concurrent read can no longer return a node the reset deleted. A promise
+  that `store/await` abandons (the unsettled read in `with-reads`' fast path) is marked
+  handled, so a later store failure does not surface as an unhandled rejection. New tests:
+  a database closed under the peer rejects `:unavailable` and the peer fails that hash
+  locally with `:store-failed` and keeps the session open; a read right after a reset
+  sees nothing.
+
 - **M1.3b: the IndexedDB store returns real promises outside `drive`.**
   `dacite.store.idb`'s `s-get`, `s-put`, `s-has?`, `s-delete`, `s-snapshot`, `s-merge`
   and `s-reset`, called outside `drive`, return a JavaScript promise (fulfilling with the

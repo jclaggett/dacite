@@ -427,6 +427,75 @@
         (.then (fn [nodes]
                  (eq! (vec nodes) (mapv :entry items) "a reopened store holds every node"))))))
 
+(defn- unavailable?
+  "True when `e` (or its cause: nbb wraps an error thrown in a promise callback) is
+   `:unavailable`."
+  [e]
+  (boolean (some #(= :unavailable (:reason (ex-data %))) [e (ex-cause e)])))
+
+(defn- closed-db-fails-the-peer-locally
+  "M1.3c: a real IndexedDB failure outside `drive`. The database handle is closed
+   under the store, so the next operation fails. The promise rejects `:unavailable`,
+   and the peer client maps it to `:store-failed`: the hash fails locally, and the
+   session, which did nothing wrong, stays open."
+  []
+  (let [name (db-name)
+        src (store/mem-store)
+        root (v/hash (cc/vector-value src 20))
+        st (idb/idb-store name)
+        sent (atom [])
+        c (client/client {:store st :send! (fn [p m] (swap! sent conj [p m]))})
+        hello (msg/encode-message {:type :hello :stream 0 :value responder/default-hello})]
+    (client/open-session! c "p")
+    (client/on-frame! c "p" hello)
+    (-> (chain/native (client/request! c root))
+        (.then (fn [_]
+                 ;; the database is open now: close its handle behind the store's back
+                 (.close @(:db st))
+                 (-> (store/s-put st [1 2 3 4] (store/await (store/s-get src root)))
+                     (.then (fn [_] (fail! "put on a closed database fulfilled" {})))
+                     (.catch (fn [e]
+                               (eq! (unavailable? e) true "a closed database rejects :unavailable"))))))
+        (.then (fn [_]
+                 (let [sid (:stream (second (first (filter #(= :get (:type (second %))) @sent))))
+                       steps (mapv #(client/on-frame! c "p" %) ((cc/honest src) sid root))]
+                   (chain/native (last steps)))))
+        (.then (fn [_]
+                 (let [[f :as failed] (client/failed c)]
+                   (eq! [(mapv :hash failed) (:reason (ex-data (:error f)))
+                         (unavailable? (:cause (ex-data (:error f))))]
+                        [[root] :store-failed true]
+                        "the peer maps the failure to :store-failed")
+                   (eq! [(client/session-status c "p") (client/done? c root)] [:open false]
+                        "the session lives, the hash is not done")
+                   (idb/close st)))))))
+
+(defn- reset-does-not-serve-stale-nodes
+  "M1.3c: `s-reset` outside `drive` drops the in-memory nodes at once and a read
+   issued while the database is being cleared waits for the clear, so it cannot
+   return the old node (before: a cached hit answered with it)."
+  []
+  (let [name (db-name)
+        mem (store/mem-store)
+        h (v/hash (v/i64 mem 11))
+        node (store/await (store/s-get mem h))
+        st (idb/idb-store name)]
+    (-> (store/s-put st h node)
+        (.then (fn [_]
+                 (eq! (store/await (store/s-get st h)) node "cached before the reset")
+                 (let [reset (store/s-reset st)
+                       got (store/s-get st h)
+                       has (store/s-has? st h)]
+                   (eq! [(promise? reset) (promise? got) (promise? has)] [true true true]
+                        "reads during a reset wait for it")
+                   (js/Promise.all #js [reset (sp got) (sp has)]))))
+        (.then (fn [rs]
+                 (eq! [(aget rs 1) (aget rs 2)] [nil false] "a read during the reset sees it cleared")
+                 (-> (store/s-get st h)
+                     (.then (fn [n]
+                              (eq! n nil "and after it, from the database")
+                              (idb/close st)))))))))
+
 (defn -main
   [& _]
   (js/require "fake-indexeddb/auto")
@@ -442,6 +511,8 @@
       (.then wrong-version-store-is-a-format-mismatch)
       (.then promises-outside-drive)
       (.then peer-over-idb)
+      (.then closed-db-fails-the-peer-locally)
+      (.then reset-does-not-serve-stale-nodes)
       (.then (fn [_]
                (println "idb tests passed")))
       (.catch (fn [e]
