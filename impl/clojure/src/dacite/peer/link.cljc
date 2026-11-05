@@ -5,9 +5,9 @@
    `ITransport` (`dacite.peer.transport`), and nothing else: the peer code is the
    same whether the channel is in memory or WebRTC.
 
-   A `links` atom maps peer id -> the session's channel. Make one, pass its
-   `client-opts` or `responder-opts` to the client or responder, then attach
-   each connection:
+   A `links` atom is keyed by **peer id**: one channel (and so one connection)
+   per peer for now. Make one, pass its `client-opts` or `responder-opts` to the
+   client or responder, then attach each connection:
 
      (let [links (link/links)
            c (client/client (merge {:store st} (link/client-opts links)))]
@@ -28,9 +28,10 @@
      `buffered-amount`, for every stream on it (C17 marks are per channel).
    - **Close.** A protocol violation or a fatal error makes the peer call
      `:close!`, which closes this channel (the other layers on the connection go
-     on). A channel close, or its connection closing, ends the session on both
-     sides the way a fatal error does: the peer code's `close-session!`, nothing
-     sent.
+     on). Closing the channel — by the peer, by the other side, or by this side
+     calling `:close!` — fires this side's own close callback: the peer code's
+     `close-session!`, nothing sent. So a close from this side also ends the
+     session on this side, not only on the other.
 
    One client talks to one responder over a channel. A node that is both (one
    connection carrying a session each way) is later work."
@@ -40,7 +41,8 @@
             [dacite.peer.transport :as t]))
 
 (defn links
-  "An empty set of links: peer id -> channel."
+  "An empty map of links, keyed by peer id (one connection per peer for now):
+   peer id -> channel."
   []
   (atom {}))
 
