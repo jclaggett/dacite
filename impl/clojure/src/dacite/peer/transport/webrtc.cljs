@@ -116,11 +116,10 @@
        (.onClosed dc fire-close!)
        (.onError dc (fn [err] (js/console.error "datachannel error" name err)))
        (swap! state assoc-in [:chans name] {:dc dc :ch ch :closed? closed?})
+       ;; A channel that never opens: the caller can time out.
        (if (.isOpen dc)
          (resolve ch)
-         (do (.onOpen dc (fn [] (resolve ch)))
-             ;; a channel that never opens: the caller can time out
-             ))))))
+         (.onOpen dc (fn [] (resolve ch))))))))
 
 ;; =============================================================================
 ;; Connection
