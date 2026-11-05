@@ -6,6 +6,14 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **Fix #30: nbb `get-u32` is unsigned.** On ClojureScript, `bit-or` / `bit-shift-left`
+  are 32-bit signed, so a `hamt/bitmap` with bit 31 set (chunk 31 in use) decoded as a
+  negative Number and failed hash verification across peers. `get-u32` now finishes with
+  `unsigned-bit-shift-right` by 0 (`>>> 0`). nbb peer test covers a 60-entry map that uses
+  chunk 31. Also clarifies `dacite.peer.link`: links are keyed by peer id (one connection
+  per peer for now), and a close from this side fires this side's own close callback.
+
+
 - **M3.1 slice 1: `ITransport` with named channels, and an in-memory connection.**
   `dacite.peer.transport` defines a connection that opens named channels
   (`dacite-peer` for the peer protocol; `dacite-roots` reserved), each with `send!`,

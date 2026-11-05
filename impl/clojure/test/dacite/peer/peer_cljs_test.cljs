@@ -22,6 +22,8 @@
             [dacite.peer.examples :as ex]
             [dacite.peer.flow-checks :as flow-checks]
             [dacite.peer.msg :as msg]
+            [dacite.peer.verify :as verify]
+            [dacite.reveal :as reveal]
             [dacite.peer.transport-checks :as transport-checks]
             [dacite.store :as store]
             [dacite.string-vectors :as string-vectors]
@@ -106,6 +108,42 @@
               "a flipped bit in cell d" (flipped (+ off 127))
               "the all-zero state" zeroed}))))
 
+(defn- bitmap-u32-unsigned-problems
+  "Issue #30: a hamt/bitmap whose bitmap has bit 31 set (chunk 31 in use) must
+   decode as an unsigned u32 on nbb. Before the fix, `get-u32` used signed
+   `bit-or` and the reconstructed hash did not match."
+  []
+  (let [src (store/mem-store)
+        root (v/hash (apply v/map src (mapcat (fn [i] [(str "k" i) (str "v" i)]) (range 60))))
+        pages (reveal/page-order src root)
+        mask (host/shl64 (host/word 1) 31)
+        victim (first (for [h pages
+                            :let [e (store/await (store/s-get src h))]
+                            :when (and (= "hamt/bitmap" (first e))
+                                       (not (host/word-zero?
+                                             (host/band64 (:bitmap (second e)) mask))))]
+                        [h e]))]
+    (if-not victim
+      ["no hamt/bitmap with bit 31 set in a 60-entry map"]
+      (let [[h e] victim
+            bs (bin/encode-item {:enc :node :hash h :entry e})
+            dec (:entry (first (bin/decode-item-stream bs)))
+            orig (:bitmap (second e))
+            got (:bitmap (second dec))
+            same? (= (str orig) (str got))
+            verify (try (verify/verify-item! (store/mem-store)
+                                             {:enc :node :hash h :entry dec})
+                        :ok
+                        (catch :default e2 [:fail (ex-message e2)]))]
+        (cond-> []
+          (not same?)
+          (conj (str "bitmap with bit 31 decoded as " (pr-str got)
+                     " (type " (pr-str (type got)) "), wanted unsigned " (str orig)))
+          (neg? (js/Number got))
+          (conj (str "decoded bitmap is negative: " got))
+          (not= :ok verify)
+          (conj (str "verify-item! of the decoded node: " (pr-str verify))))))))
+
 (defn -main
   [& _]
   (let [{:keys [cases problems]} (conf/run-all)
@@ -125,7 +163,7 @@
                 ["negotiate does not pick the highest common version"]))
         client (-> (client-checks/run-all) (into (flow-checks/run-all)) (into (async-checks/run-all)) (into (transport-checks/run-all)))
         client-problems (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) client)
-        all (into (into (into (vec problems) framing) host) (concat client-problems (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (bad-state-problems) (cache-checks/problems)))]
+        all (into (into (into (vec problems) framing) host) (concat client-problems (bitmap-u32-unsigned-problems) (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (bad-state-problems) (cache-checks/problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
              (count all) "problems")
     (println "client checks:" (count client) "tests,"
