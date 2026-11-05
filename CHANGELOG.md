@@ -6,6 +6,18 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M3.3: file, LMDB and IndexedDB behind the same peer.** The nbb peer
+  (`dacite.peer.link`, the responder and the client) serves the library fixture
+  from `dacite.store.nbb`, `dacite.store.nbb.lmdb` and `dacite.store.idb`
+  (`fake-indexeddb`). One check covers get, put, has?, snapshot, eviction and a
+  write that is still there after close and reopen; a second check has a client
+  with an empty store read that reopened library over the in-memory transport
+  and verify every entry. No wire-protocol change. The WebRTC frame clamp stays
+  4096. `npm run store:test`. LMDB format v1 is `npm run lmdb:v1` (a from-source
+  compile; `npm rebuild` keeps the format-v2 prebuild, and Node loads
+  `build/Release` ahead of it). `lmdb` 3.5's range method is `iterate`; the nbb
+  store was calling `iterator` and could not open an environment.
+
 - **M3.2 slice 3: thin WebSocket signaling.** `scripts/webrtc-signal-server.mjs`
   relays offer, answer, and ICE candidates between two peers that share a room
   token. A room holds one offerer and one answerer; a third socket is closed

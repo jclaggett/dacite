@@ -168,8 +168,11 @@ Acceptance: items 1, 3, 4, 7, 9, 10, 11 and 12 land with tests; items 2 and 5 ar
   - Acceptance met on Linux: two processes, room token only, about 5 MB, hashes match.
 - **Out of scope for M3.1 and M3.2:** the browser peer (M5), TURN, peer discovery (mDNS, peer lists), authentication beyond a shared room token, media tracks (data channels only), any change to the peer wire protocol, and the roots protocol itself (design note only).
 
-**M3.3. Stores: file/LMDB and IndexedDB behind the same peer.** nbb peer serves from the nbb file or LMDB store; the same peer code runs against `idb.cljs` using `fake-indexeddb` in nbb tests.
-- Acceptance: the shared store tests (get, put, has?, eviction, snapshot) pass for file, LMDB and IDB; a peer serves the library fixture from each store.
+**M3.3. Stores: file/LMDB and IndexedDB behind the same peer (built, Nov 5).** The nbb peer does not know which store it has. `dacite.peer.link`, the responder and the client are the same code for the nbb file store (`dacite.store.nbb`), the nbb LMDB store (`dacite.store.nbb.lmdb`) and IndexedDB (`dacite.store.idb`, `fake-indexeddb` in the nbb tests). No change to the peer wire protocol. The WebRTC `max-frame` clamp stays 4096.
+- **Store check** (get, put, has?, snapshot, eviction, reopen), one function, three stores. Eviction passes `:cache-limit 1`: IndexedDB drops the older node from memory and reads it back; the file and LMDB stores have no read cache, so the same assertions are the durable contract (a put is not dropped). Reopen is write, close, open the same place, read: the node is still there.
+- **Peer check.** The library fixture (82 nodes) is written, the store is closed and opened again, and a client whose memory store starts empty reads the root over the in-memory transport. The reopened store is the only one in the session that holds the value. The client verifies every entry; the sessions stay open; the title and the first page match. On this box each peer check was about a second and the store checks were under 50 ms. Each check is under 3 s.
+- **Run.** `npm run store:test`. `npm run peer:test` and `npm run idb:test` are unchanged.
+- **LMDB format v1.** Prebuilt `lmdb` binaries are format v2 and cannot open a JVM store, and `npm rebuild` keeps that prebuild. `npm run lmdb:v1` compiles format v1 (`LMDB_DATA_V1=true npx node-gyp rebuild` in the `lmdb` package). Node loads `node_modules/lmdb/build/Release` ahead of the prebuild. `lmdb` 3.5 names the range method `iterate`; the nbb store was calling `iterator`, so an environment would not open. It calls `iterate` now. The three stores passed here after that compile.
 
 ### Phase 4: Carry-over fixes from the evening checklist (Fri Nov 13 and Mon Nov 16)
 

@@ -14,9 +14,11 @@
 
    Requires the npm `lmdb` addon built for LMDB **data format v1**
    (lmdbjava 0.9.x). Prebuilt `lmdb` binaries are format v2 and cannot
-   open a JVM store. From the repo root:
+   open a JVM store. `npm rebuild` keeps that prebuild: format v1 is a
+   from-source compile, and Node loads `build/Release` ahead of it.
+   From the repo root:
 
-     LMDB_DATA_V1=true npm rebuild lmdb
+     npm run lmdb:v1
 
    Not the default nbb store — file-store stays zero-native."
   (:require [dacite.host :as host]
@@ -72,7 +74,8 @@
     ;; Key by hex: BigInt hash words cannot be CLJS/SCI map keys.
     (store/completed
      (let [out (volatile! {})
-           it (.iterator (.getRange db #js {:keyEncoding "binary"}))]
+           ;; lmdb 3.x: the range method is `iterate` (it was `iterator`).
+           it (.iterate (.getRange db #js {:keyEncoding "binary"}))]
        (loop []
          (let [step (.next it)]
            (when-not (.-done step)
@@ -114,7 +117,7 @@
           tag (when s (if (and (not (js/isNaN n)) (= s (str n))) n s))]
       (cond
         (some? tag) (store/check-store-format! path tag)
-        (not (.-done (.next (.iterator (.getRange db #js {:keyEncoding "binary" :limit 1})))))
+        (not (.-done (.next (.iterate (.getRange db #js {:keyEncoding "binary" :limit 1})))))
         (throw (store/store-format-mismatch path nil))
         :else (.putSync meta (str-buf "format") (str-buf store/store-format))))
      (catch :default e (.close env) (throw e)))
