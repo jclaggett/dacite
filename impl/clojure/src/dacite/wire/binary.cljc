@@ -234,6 +234,13 @@
     v))
 
 (defn- get-u32
+  "Read an unsigned 32-bit big-endian integer (0..2^32-1).
+
+   On ClojureScript, `bit-or` and `bit-shift-left` are 32-bit *signed* ops, so a
+   value with the high bit set (a `hamt/bitmap` that uses chunk 31) would decode
+   as a negative Number and fail hash verification (#30). `>>> 0`
+   (`unsigned-bit-shift-right` by 0) turns the signed bits into an unsigned
+   Number. The JVM path is already unsigned: a long stays positive past 2^31."
   [buf]
   (ensure-remaining buf 4)
   (let [b0 (get-u8 buf)
@@ -244,10 +251,12 @@
                     (bit-shift-left (long b1) 16)
                     (bit-shift-left (long b2) 8)
                     (long b3))
-       :cljs (bit-or (bit-shift-left b0 24)
-                     (bit-shift-left b1 16)
-                     (bit-shift-left b2 8)
-                     b3))))
+       :cljs (unsigned-bit-shift-right
+              (bit-or (bit-shift-left b0 24)
+                      (bit-shift-left b1 16)
+                      (bit-shift-left b2 8)
+                      b3)
+              0))))
 
 (defn- get-u64
   "Read 64-bit word as host hash word (long / BigInt)."
