@@ -1,7 +1,10 @@
 (ns dacite.peer.transport-webrtc-checks
-  "M3.2 slice 2: WebRTC over node-datachannel, in one process (host ICE).
-   Run: `npm run webrtc:test`. The ~5 MB two-process transfer with manual
-   signaling is `node scripts/webrtc-transfer.mjs` (see peering.md)."
+  "M3.2 WebRTC over node-datachannel.
+   Run: `npm run webrtc:test`.
+   In-process checks use host ICE and `connect-peers`.
+   `two-peers-connect-by-room-token` spawns `scripts/webrtc-signal-server.mjs`
+   and joins one room (slice 3). The ~5 MB transfer is
+   `node scripts/webrtc-transfer.mjs` (file `--dir`, or `--ws` and `--room`)."
   (:require             [dacite.peer.client :as client]
             [dacite.peer.client-checks :as cc]
             [dacite.peer.frame :as frame]
@@ -182,12 +185,125 @@
                       (bad "buffer drained" 0 (t/buffered-amount ch-a))))))
                  100)))))))))
 
+(defn- with-timeout [p ms label]
+  (js/Promise.
+   (fn [resolve reject]
+     (let [timer (js/setTimeout #(reject (ex-info label {:reason :timeout})) ms)]
+       (-> (js/Promise.resolve p)
+           (.then (fn [v] (js/clearTimeout timer) (resolve v)))
+           (.catch (fn [e] (js/clearTimeout timer) (reject e))))))))
+
+(defn- start-signal-server!
+  "Spawn the slice-3 relay on an ephemeral port. Resolves with
+   `{:url :kill!}`."
+  []
+  (js/Promise.
+   (fn [resolve reject]
+     (let [fs (js/require "fs")
+           cp (js/require "child_process")
+           script "scripts/webrtc-signal-server.mjs"]
+       (if-not (.existsSync fs script)
+         (reject (ex-info "signal server script missing"
+                          {:reason :missing :path script :cwd (.cwd js/process)}))
+         (let [child (.spawn cp "node" #js [script "--port" "0"]
+                             #js {:stdio #js ["ignore" "pipe" "pipe"]})
+               out (atom "")
+               err (atom "")
+               done? (atom false)
+               timer (js/setTimeout
+                      #(when-not @done?
+                         (reset! done? true)
+                         (try (.kill child "SIGTERM") (catch :default _))
+                         (reject (ex-info "signal server did not listen"
+                                          {:reason :timeout :out @out :err @err})))
+                      5000)]
+           (.on (.-stdout child) "data"
+                (fn [d]
+                  (swap! out str (.toString d))
+                  (when-not @done?
+                    (when-let [m (re-find #"listening (ws://\S+)" @out)]
+                      (reset! done? true)
+                      (js/clearTimeout timer)
+                      (resolve {:url (nth m 1)
+                                :kill! (fn []
+                                         (try (.kill child "SIGTERM")
+                                              (catch :default _)))})))))
+           (.on (.-stderr child) "data" (fn [d] (swap! err str (.toString d))))
+           (.on child "error"
+                (fn [e]
+                  (when-not @done?
+                    (reset! done? true)
+                    (js/clearTimeout timer)
+                    (reject e))))
+           (.on child "exit"
+                (fn [code]
+                  (when-not @done?
+                    (reset! done? true)
+                    (js/clearTimeout timer)
+                    (reject (ex-info "signal server exited"
+                                     {:reason :signal-server
+                                      :code code
+                                      :out @out
+                                      :err @err})))))))))))
+
+(defn two-peers-connect-by-room-token
+  "Slice 3: two `create-peer` ends exchange SDP and ICE through a room token
+   and open `dacite-peer`. No signal directory."
+  []
+  (-> (start-signal-server!)
+      (.then
+       (fn [{:keys [url kill!]}]
+         (let [room (str "room-" (.now js/Date))
+               a (webrtc/create-peer :offerer {:ws {:url url :room room}})
+               b (webrtc/create-peer :answerer {:ws {:url url :room room}})
+               cleanup! (fn []
+                          (try (webrtc/close-signaling! a) (catch :default _))
+                          (try (webrtc/close-signaling! b) (catch :default _))
+                          (try (t/close-connection! (:conn a)) (catch :default _))
+                          (try (t/close-connection! (:conn b)) (catch :default _))
+                          (kill!))]
+           (-> (js/Promise.all
+                #js [(:signaling a)
+                     (:signaling b)
+                     (with-timeout (webrtc/open-peer-channel! (:conn a) (:conn b))
+                                   7000
+                                   "room data channel")])
+               (.then
+                (fn [result]
+                  (let [pair (aget result 2)
+                        ch-a (first pair)
+                        ch-b (second pair)
+                        payload (js/Uint8Array. #js [9 8 7 6 5])]
+                    (js/Promise.
+                     (fn [resolve reject]
+                       (let [timer (js/setTimeout
+                                    #(reject (ex-info "room payload was not delivered"
+                                                      {:reason :timeout}))
+                                    5000)]
+                         (t/on-message!
+                          ch-b
+                          (fn [bs]
+                            (js/clearTimeout timer)
+                            (resolve
+                             (vec
+                              (concat
+                               (bad "bytes arrived over the room" "0908070605"
+                                    (.toString (js/Buffer.from bs) "hex"))
+                               (bad "frame clamp stays 4096" frame/webrtc-max-frame
+                                    (t/max-frame-limit ch-a))
+                               (bad "the channel is dacite-peer" t/peer-channel
+                                    (t/channel-name ch-a)))))))
+                         (t/send! ch-a payload)))))))
+               (.then (fn [problems] (cleanup!) problems))
+               (.catch (fn [e] (cleanup!) (throw e)))))))))
+
 (def checks
   (array-map
    "two-peers-over-webrtc-verify-a-value" two-peers-over-webrtc-verify-a-value
    "webrtc-hello-max-frame-is-at-most-4096" webrtc-hello-max-frame-is-at-most-4096
    "channel-close-ends-the-peer-session" channel-close-ends-the-peer-session
-   "buffered-amount-back-pressure-over-webrtc" buffered-amount-back-pressure-over-webrtc))
+   "buffered-amount-back-pressure-over-webrtc" buffered-amount-back-pressure-over-webrtc
+   "two-peers-connect-by-room-token" two-peers-connect-by-room-token))
 
 (def max-ms 8000)
 

@@ -1,15 +1,22 @@
 #!/usr/bin/env node
 /**
- * M3.2 slice 2: ~5 MB over WebRTC (node-datachannel), named channel dacite-peer.
+ * ~5 MB over WebRTC (node-datachannel), named channel dacite-peer.
  *
  * In-process (default):
  *   node scripts/webrtc-transfer.mjs
  *   node scripts/webrtc-transfer.mjs --bytes 5000000 --stun
  *
- * Two terminals, manual signaling via a directory:
+ * Two terminals, manual signaling via a directory (slice 2):
  *   mkdir -p /tmp/dacite-sig && rm -f /tmp/dacite-sig/*
  *   node scripts/webrtc-transfer.mjs --role offerer  --dir /tmp/dacite-sig
  *   node scripts/webrtc-transfer.mjs --role answerer --dir /tmp/dacite-sig
+ *
+ * Two terminals, WebSocket room (slice 3). Start the relay first
+ * (`npm run webrtc:signal`, default ws://127.0.0.1:8787):
+ *   node scripts/webrtc-transfer.mjs --ws ws://127.0.0.1:8787 --room demo --role offerer
+ *   node scripts/webrtc-transfer.mjs --ws ws://127.0.0.1:8787 --room demo --role answerer
+ * Omit --role and the first process to join the room is the offerer (it sends).
+ * No signal files. The offerer and the answerer must use the same --bytes.
  *
  * ICE defaults to host-only. Pass --stun for stun:stun.l.google.com:19302.
  * Requires node-datachannel (prebuilds). If those fail on a platform, werift is
@@ -19,6 +26,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { createRequire } from 'module';
+import { applyRemote, connectSignal, diffSignal } from './webrtc-signal-client.mjs';
 const require = createRequire(import.meta.url);
 const ndc = require('node-datachannel');
 
@@ -26,9 +34,24 @@ const args = process.argv.slice(2);
 const opt = (n) => { const i = args.indexOf(n); return i < 0 ? null : (args[i+1] && !args[i+1].startsWith('-') ? args[i+1] : true); };
 const role = opt('--role');
 const dir = opt('--dir');
+const wsUrl = opt('--ws');
+const room = opt('--room');
 const bytes = parseInt(opt('--bytes') || '5000000', 10);
 const iceServers = args.includes('--stun') ? ['stun:stun.l.google.com:19302'] : [];
 const CHANNEL = 'dacite-peer';
+
+if ((wsUrl || room) && dir) {
+  console.error('use either --ws and --room, or --dir');
+  process.exit(1);
+}
+if (wsUrl === true || room === true || (Boolean(wsUrl) !== Boolean(room))) {
+  console.error('--ws and --room are required together');
+  process.exit(1);
+}
+if (role && role !== true && role !== 'offerer' && role !== 'answerer') {
+  console.error('--role must be offerer or answerer');
+  process.exit(1);
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
@@ -241,4 +264,175 @@ async function manual(roleName) {
   }
 }
 
-(role ? manual(role) : inProcess()).catch((e) => { console.error(e); process.exit(1); });
+function armChannel(dc) {
+  const q = [];
+  let waiter = null;
+  dc.onMessage((msg) => {
+    const buf = Buffer.isBuffer(msg) ? msg : Buffer.from(msg);
+    if (waiter) {
+      const w = waiter;
+      waiter = null;
+      w(buf);
+    } else q.push(buf);
+  });
+  return {
+    next() {
+      if (q.length) return Promise.resolve(q.shift());
+      return new Promise((r) => { waiter = r; });
+    },
+  };
+}
+
+function openTracked(pc, offerer) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const fail = (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      reject(err);
+    };
+    const ok = (v) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      resolve(v);
+    };
+    const t = setTimeout(() => fail(new Error('dc open timeout')), 20000);
+    const arm = (dc) => {
+      const inbox = armChannel(dc);
+      dc.onError((e) => fail(new Error(String(e))));
+      const done = () => ok({ dc, inbox });
+      if (dc.isOpen()) done();
+      else dc.onOpen(done);
+    };
+    try {
+      if (offerer) arm(pc.createDataChannel(CHANNEL, { ordered: true }));
+      else {
+        pc.onDataChannel((dc) => {
+          if (dc.getLabel() !== CHANNEL) return;
+          arm(dc);
+        });
+      }
+    } catch (err) {
+      fail(err);
+    }
+  });
+}
+
+function withTimeout(p, ms, label) {
+  return Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(label + ' timeout')), ms)),
+  ]);
+}
+
+async function drain(dc) {
+  const t0 = Date.now();
+  while (dc.bufferedAmount() > 0 && Date.now() - t0 < 5000) await sleep(10);
+}
+
+/**
+ * Slice 3. SDP and ICE go through the room. The offerer sends the payload
+ * after a one-byte ready on the data channel; the answerer sends the SHA-256
+ * back on that channel. No signal directory.
+ */
+async function overWs(roleName) {
+  const link = await connectSignal({
+    url: wsUrl,
+    room,
+    role: roleName && roleName !== true ? roleName : null,
+  });
+  const who = link.role;
+  console.log('joined room %s as %s', room, who);
+  link.onError((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+  const pc = new ndc.PeerConnection(who, { iceServers });
+  const local = { description: null, candidates: [], complete: false };
+  let sent = { description: null, candidates: [], complete: false };
+  const publish = () => {
+    for (const m of diffSignal(sent, local)) link.send(m);
+    sent = {
+      description: local.description,
+      candidates: local.candidates.slice(),
+      complete: local.complete,
+    };
+  };
+  pc.onLocalDescription((sdp, type) => {
+    local.description = { type, sdp };
+    publish();
+  });
+  pc.onLocalCandidate((candidate, mid) => {
+    if (!candidate) return;
+    local.candidates.push({ candidate, mid: mid ?? '' });
+    publish();
+  });
+  pc.onGatheringStateChange((st) => {
+    if (st === 'complete') {
+      local.complete = true;
+      publish();
+    }
+  });
+  const remote = { desc: false, queue: [] };
+  link.onSignal((msg) => applyRemote(pc, remote, msg));
+
+  const offerer = who === 'offerer';
+  const { dc, inbox } = await openTracked(pc, offerer);
+  console.log('%s open maxMessageSize=%s', who, dc.maxMessageSize());
+
+  if (offerer) {
+    await withTimeout(inbox.next(), 60000, 'ready');
+    const data = payload(bytes);
+    const want = sha(data);
+    console.log('sending %d bytes sha256=%s', bytes, want);
+    const { paused, frame, maxMsg } = await sendWithBackpressure(dc, data);
+    const resultBuf = await withTimeout(inbox.next(), 120000, 'result');
+    const result = JSON.parse(resultBuf.toString('utf8'));
+    console.log('flow-control: paused %d times; frame=%d; maxMessageSize=%d; marks 4/1 frames', paused, frame, maxMsg);
+    console.log('peer', result);
+    const match = result.sha256 === want && result.bytes === bytes;
+    await link.close();
+    try { pc.close(); } catch { /* already closed */ }
+    if (!match) {
+      console.error('HASH MISMATCH');
+      process.exit(1);
+    }
+    console.log('ok');
+    process.exit(0);
+  }
+
+  const want = sha(payload(bytes));
+  dc.sendMessageBinary(Buffer.from([1]));
+  const parts = [];
+  let n = 0;
+  while (n < bytes) {
+    const buf = await withTimeout(inbox.next(), 120000, 'recv');
+    parts.push(buf);
+    n += buf.length;
+  }
+  const got = Buffer.concat(parts).subarray(0, bytes);
+  const gotSha = sha(got);
+  console.log('received %d bytes sha256=%s', got.length, gotSha);
+  dc.sendMessageBinary(Buffer.from(JSON.stringify({ sha256: gotSha, bytes: got.length })));
+  await drain(dc);
+  if (gotSha !== want) {
+    console.error('HASH MISMATCH');
+    process.exit(1);
+  }
+  console.log('hash matches; waiting for the offerer to finish');
+  try {
+    await link.whenPeerLeft(15000);
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
+  try { pc.close(); } catch { /* already closed */ }
+  await link.close();
+  console.log('ok');
+  process.exit(0);
+}
+
+const job = wsUrl ? overWs(role) : role ? manual(role) : inProcess();
+job.catch((e) => { console.error(e); process.exit(1); });

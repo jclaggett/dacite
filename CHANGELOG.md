@@ -6,6 +6,19 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M3.2 slice 3: thin WebSocket signaling.** `scripts/webrtc-signal-server.mjs`
+  relays offer, answer, and ICE candidates between two peers that share a room
+  token. A room holds one offerer and one answerer; a third socket is closed
+  with `room-full`, and a duplicate role with `role-taken`. The server does not
+  replace a peer that is still connected. Signals that arrive before the other
+  peer are queued and flushed on join. `create-peer` takes
+  `:ws {:url :room}` (`signal-over-ws!`). `scripts/webrtc-transfer.mjs` takes
+  `--ws` and `--room` and still runs in-process and with `--dir` file signaling.
+  `npm run webrtc:signal` starts the relay; `npm run webrtc:signal-test` checks
+  the room policy and a 5 MB transfer over the room. The peer wire protocol and
+  the 4096 `max-frame` clamp are unchanged. No discovery, no TURN, no
+  authentication beyond the room token.
+
 - **M3.2 slice 2: WebRTC over `node-datachannel`.** `dacite.peer.transport.webrtc`
   (nbb) implements `ITransport` with named reliable ordered data channels. In-process
   `connect-peers` for tests; `create-peer` plus `scripts/webrtc-transfer.mjs` for
