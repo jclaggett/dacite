@@ -14,7 +14,8 @@
      peering code never sees a roots message, and roots never sees a peer frame.
 
    A **channel** (`IChannel`) has `send!`, a message callback (`on-message!`),
-   `buffered-amount` and `close!`, plus `on-close!` and `max-message-size`.
+   `buffered-amount` and `close!`, plus `on-close!`, `max-message-size` and
+   `max-frame-limit`.
 
    Rules every transport keeps (the in-memory one, `dacite.peer.transport.mem`,
    and later WebRTC):
@@ -23,7 +24,8 @@
    - **No splitting.** A message larger than the channel's `max-message-size`
      is refused by `send!` (it throws `:message-too-large`). The peer keeps
      under it: the `hello` a side sends carries a `max-frame` clamped to the
-     channel's size (`msg/clamp-hello`).
+     channel's size (`msg/clamp-hello`), then to `max-frame-limit` when the
+     transport sets one (WebRTC, 4096). The in-memory transport sets none.
    - **Order.** Messages on one channel arrive in the order sent.
    - **Back-pressure is per channel.** `buffered-amount` is the bytes sent and
      not yet delivered. The responder's 4-frame high and 1-frame low marks
@@ -57,6 +59,12 @@
     "Bytes `send!` has taken that the other side has not yet received.")
   (max-message-size [ch]
     "The largest message this channel carries, in bytes.")
+  (max-frame-limit [ch]
+    "An extra upper bound on the `max-frame` advertised in `hello`, or nil.
+     Independent of `max-message-size`: the channel may carry a larger
+     message, but the hello asks for frames no bigger than this. WebRTC
+     returns 4096 (`frame/webrtc-max-frame`, a node-datachannel 0.33.6
+     limit). The in-memory transport returns nil, so its hello keeps 16384.")
   (channel-open? [ch] "True until the channel is closed.")
   (close! [ch] "Close the channel, for both sides."))
 
