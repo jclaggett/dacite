@@ -27,11 +27,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Reveal, IndexedDB, and peer suites
+      - name: Reveal, IndexedDB, peer, and WebRTC suites
         run: |
           npm run reveal:test
           npm run idb:test
           npm run peer:test
+          npm run webrtc:test
 
       # store:test exits 2 when the LMDB addon did not load. npm rebuild
       # keeps the format-v2 prebuild, so compile format v1 before the suite.
