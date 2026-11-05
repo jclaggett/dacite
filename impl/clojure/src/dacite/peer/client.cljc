@@ -309,30 +309,36 @@
 
 (defn- drain!
   "Run the tasks that waited, one at a time: the next starts when the one before
-   it is done. Each task's outcome goes to its `Deferred`."
+   it is done. Each task's outcome goes to its `Deferred`. Taking a task, or
+   finding none and clearing `:busy?`, is one atomic update, so a task queued from
+   another thread meanwhile is never stranded."
   [c]
   (let [q (:queue c)]
     (loop []
-      (if-let [[f d] (first (:tasks @q))]
-        (do (swap! q update :tasks subvec 1)
-            (let [[tag v] (try [:ok (f)] (catch #?(:clj Throwable :cljs :default) e [:err e]))]
-              (if (= :err tag) (chain/reject! d v) (chain/pipe! d v))
-              (if (chain/pending? d)
-                (chain/on-done d #(drain! c))
-                (recur))))
-        (swap! q assoc :busy? false)))))
+      (let [[old _] (swap-vals! q (fn [s] (if (seq (:tasks s))
+                                            (update s :tasks subvec 1)
+                                            (assoc s :busy? false))))]
+        (when-let [[f d] (first (:tasks old))]
+          (let [[tag v] (try [:ok (f)] (catch #?(:clj Throwable :cljs :default) e [:err e]))]
+            (if (= :err tag) (chain/reject! d v) (chain/pipe! d v))
+            (if (chain/pending? d)
+              (chain/on-done d #(drain! c))
+              (recur))))))))
 
 (defn- serially!
   "Do task `f` (a function of no arguments that returns a step) when nothing else
    is waiting for the store, else after the tasks before it. Returns `f`'s step
-   (what `f` throws is thrown), or a `Deferred` of it when it had to wait."
+   (what `f` throws is thrown), or a `Deferred` of it when it had to wait.
+   Whether to run or to queue is decided by one atomic update (`swap-vals!`), so
+   callbacks on several JVM threads cannot both start a task."
   [c f]
-  (let [q (:queue c) d (chain/deferred)]
-    (if (:busy? @q)
-      (do (swap! q update :tasks conj [f d])
-          d)
-      (do (swap! q assoc :busy? true)
-          (let [[tag v] (try [:ok (f)] (catch #?(:clj Throwable :cljs :default) e [:err e]))]
+  (let [q (:queue c) d (chain/deferred)
+        [old _] (swap-vals! q (fn [s] (if (:busy? s)
+                                        (update s :tasks conj [f d])
+                                        (assoc s :busy? true))))]
+    (if (:busy? old)
+      d
+      (do (let [[tag v] (try [:ok (f)] (catch #?(:clj Throwable :cljs :default) e [:err e]))]
             (if (= :err tag) (chain/reject! d v) (chain/pipe! d v)))
           (if (chain/pending? d)
             (do (chain/on-done d #(drain! c))
@@ -561,8 +567,10 @@
       (if (or (zero? stream) (get value "fatal"))
         (end-session! c peer-id nil nil)
         (when-let [{:keys [hash rx]} (get-in @(:state c) [:sessions peer-id :streams stream])]
+          ;; dropping the headers is best effort, as in `end-session!`: a store that
+          ;; fails here leaves them, and the failure stays local
           (chain/then
-           (verify/discard-unchecked! rx)
+           (chain/guard #(verify/discard-unchecked! rx) (fn [_] nil))
            (fn [_]
              (swap! (:state c) (fn [s]
                                  (-> s

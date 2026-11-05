@@ -208,12 +208,40 @@
                           [(client/done? c x) (client/failed c)])
                      (bad "the session is still open" :open (client/session-status c "p"))))))))
 
+(defn store-failure-while-dropping-headers-stays-local
+  "A peer's `error` on a stream ends that stream and its unchecked header is dropped.
+   If the store fails on that delete, it is not the peer's doing and not the
+   session's: the session stays open, nothing fatal is sent, the stream is over and
+   its hash is asked of another peer (here none is left, so it waits)."
+  []
+  (let [src (store/mem-store)
+        root (v/hash (cc/vector-value src 12))
+        items (cc/items-of src root)
+        q (atom [])]
+    (binding [h/*late* q]
+      (let [n (node (h/late-store q))
+            c (:client n)
+            st (:store c)
+            _ (h/request! c root)
+            [[sid _]] (gets n)
+            ;; the header alone: stored, and unchecked until its root arrives
+            _ (h/on-frame! c "p" (cc/item-frame sid [(bin/encode-item (first items))]))
+            _ (reset! (:fail-delete st) (constantly true))
+            _ (h/on-frame! c "p" (cc/error-frame sid "unknown-hash" false))]
+        (vec (concat
+              (bad "the session is open, nothing fatal, connection open" [:open [] []]
+                   [(client/session-status c "p") (fatal-codes n) @(:closed n)])
+              (bad "the stream is over" [] (client/outstanding c "p"))
+              (bad "the hash waits for another peer" [root] (client/unserved c))
+              (bad "the header the store would not delete is not had" false (h/have? c root))))))))
+
 (def checks
   "Name -> check, the M1.3 checks that need no waiting."
   (array-map
    "synchronous-store-stays-synchronous" synchronous-store-stays-synchronous
    "two-items-back-to-back-the-second-waits-for-the-first" two-items-back-to-back-the-second-waits-for-the-first
-   "rejected-put-fails-the-hash-and-the-session-lives" rejected-put-fails-the-hash-and-the-session-lives))
+   "rejected-put-fails-the-hash-and-the-session-lives" rejected-put-fails-the-hash-and-the-session-lives
+   "store-failure-while-dropping-headers-stays-local" store-failure-while-dropping-headers-stays-local))
 
 ;; =============================================================================
 ;; The M1.2 checks over a late store

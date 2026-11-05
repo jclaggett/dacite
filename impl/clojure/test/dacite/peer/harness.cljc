@@ -48,7 +48,7 @@
     (swap! q conj [(fn [] (swap! log conj [:settle op hex]) (f)) d])
     d))
 
-(defrecord LateStore [inner q log fail-put]
+(defrecord LateStore [inner q log fail-put fail-delete]
   store/IStore
   (s-get [this h] (later this :get h #(store/await (store/s-get inner h))))
   (s-put [this h v]
@@ -59,7 +59,13 @@
              (store/await (store/s-put inner h v))
              this)))
   (s-has? [this h] (later this :has h #(store/await (store/s-has? inner h))))
-  (s-delete [this h] (later this :delete h #(do (store/await (store/s-delete inner h)) this)))
+  (s-delete [this h]
+    (later this :delete h
+           (fn []
+             (when (when-let [p @fail-delete] (p h))
+               (throw (ex-info "the store refuses" {:reason :unavailable})))
+             (store/await (store/s-delete inner h))
+             this)))
   (s-snapshot [this] (later this :snapshot nil #(store/await (store/s-snapshot inner))))
   (s-merge [this m] (later this :merge nil #(do (store/await (store/s-merge inner m)) this)))
   (s-reset [this] (later this :reset nil #(do (store/await (store/s-reset inner)) this))))
@@ -67,9 +73,10 @@
 (defn late-store
   "A `LateStore` over `inner` (default a new mem-store), its calls pending in `q`.
    `(:log s)` is an atom of [:call|:settle op hex-hash]. Set `(:fail-put s)` (an
-   atom) to a function of a hash that is truthy for a put that is refused."
+   atom) to a function of a hash that is truthy for a put that is refused;
+   `(:fail-delete s)` is the same for deletes."
   ([q] (late-store (store/mem-store) q))
-  ([inner q] (->LateStore inner q (atom []) (atom nil))))
+  ([inner q] (->LateStore inner q (atom []) (atom nil) (atom nil))))
 
 (defn inner
   "The store under a `LateStore`, for a check to read; any other store as it is."

@@ -20,6 +20,9 @@
 (deftest rejected-put-fails-the-hash-and-the-session-lives
   (run-check "rejected-put-fails-the-hash-and-the-session-lives"))
 
+(deftest store-failure-while-dropping-headers-stays-local
+  (run-check "store-failure-while-dropping-headers-stays-local"))
+
 (deftest m1-2-checks-run-on-a-late-store
   (let [results (checks/late-checks)]
     (is (= 28 (count results)) "every client and flow check ran")
