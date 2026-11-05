@@ -9,8 +9,7 @@
   (:require [dacite.reveal :as reveal]))
 
 (def peak
-  "The peak of a connection: the C01 divisor `max(peak, Σ I)` uses it, and so
-   does the C45 commitment, `min(1, Σ I / peak)`."
+  "The peak of a connection: the C01 divisor `max(peak, Σ I)` uses it."
   1000)
 
 (def default-interest
@@ -62,23 +61,14 @@
   [send-max budget]
   (min send-max budget))
 
-(defn commitment
-  "C45: what a peer is committed to send now. Under C03 the responder paces at
-   `recv-max · min(1, Σ I / peak)`, where Σ I is the interest of the peer's open
-   streams now, so the client can compute it. `nil` last `recv-max`: nothing."
-  [last-recv-max sum-interest]
-  (if last-recv-max
-    (* last-recv-max (min 1 (/ sum-interest peak)))
-    0))
-
 (defn- floor-long [x]
   #?(:clj (long (Math/floor (double x))) :cljs (js/Math.floor x)))
 
 (defn recv-max
-  "C45 with C01/C02: the `recv-max` for a new `get` to a peer whose share is
-   `share`: at most that share, and at most `r-max` minus the others' current
-   `commitments` (a number), but at least 1 (the wire needs one). So the sum of
-   current commitments stays at or below `r-max`, except that a floor of 1 byte
-   a second may add a byte when nothing is left."
-  [r-max share others-commitment]
-  (max 1 (floor-long (min share (- r-max others-commitment)))))
+  "C45: the `recv-max` for a new `get` to a peer whose current C01/C02 share is
+   `share`: that share, rounded down, and at least 1 (the wire needs a positive
+   number). It does not look at what the other peers were last told: they may still
+   be sending at an older, higher `recv-max`, and the client is over `R_max` until
+   their next `get` or their interest decays (spec 12.2, known gap)."
+  [share]
+  (max 1 (floor-long share)))

@@ -20,8 +20,8 @@
 (deftest capped-peer-share-is-redistributed
   (run-check "capped-peer-share-is-redistributed"))
 
-(deftest committed-rate-never-exceeds-rmax
-  (run-check "committed-rate-never-exceeds-rmax"))
+(deftest new-peer-starts-at-its-fair-share
+  (run-check "new-peer-starts-at-its-fair-share"))
 
 (deftest requester-bucket-never-overspends
   (run-check "requester-bucket-never-overspends"))

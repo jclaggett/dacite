@@ -954,17 +954,17 @@ it says so in every `get` (`recv-max`, 6.2). There is no separate rate message.
 - **C04 (withdrawn).** Was the `rate` session message (type `0x08`). Jonathan chose
   option A (`recv-max` in `get`) on Nov 4, so `0x08` is unassigned and C04 has no
   rule. The id is not reused.
-- **C45 (Decided; SHOULD; Jonathan, Nov 4).** A client SHOULD treat the
-  `recv-max` it sends a peer as a **commitment** that decays with that peer's
-  interest. Under C03 the responder paces the session at
-  `recv-max · min(1, ΣI/1000)` (the C01 split with `peak` 1000), so a peer's
-  **current commitment** is
-  `its last recv-max · min(1, ΣI_peer(t) / 1000)`, where `ΣI_peer(t)` is the
-  decayed interest of that peer's open streams. The client can compute it, because
-  decay is deterministic (C05). A new `get`'s `recv-max` SHOULD be at most
-  `R_max` minus the other peers' current commitments, so the sum of current
-  commitments stays at or below `R_max`. This trades the overshoot of a stale
-  `recv-max` for a temporary undershoot.
+- **C45 (Decided; SHOULD; Jonathan, Nov 4, relaxed later on Nov 4).** A client
+  SHOULD set a new `get`'s `recv-max` to the peer's current C01/C02 share of
+  `R_max` at that moment, counting the new stream at its peak interest. It does
+  not have to lower it for the other peers' earlier `recv-max`s. A peer that joins
+  starts at its full interest-based share, as if the others had already been
+  rebalanced: with two peers at equal interest, the second one's first `get` says
+  `R_max / 2`. (An earlier draft capped a new `recv-max` at `R_max` minus the other
+  peers' current commitments, `last recv-max · min(1, ΣI_peer / 1000)`, to keep
+  the sum at or below `R_max`. That was dropped: a new peer could start at 1 byte
+  a second and stay there until some unrelated `get`, so it traded a bounded
+  overshoot for possible starvation of a peer.) The cost is the known gap below.
 
 **Known gap: stale `recv-max`.** After client C's share for a peer drops (for
 example because another peer became active), that peer keeps sending at the old
@@ -977,9 +977,18 @@ because every item is still verified (12.8). The cost is congestion: other peers
 streams slow down and C's buffers fill, while WebRTC back-pressure (12.5) still
 bounds it. In practice the gap is short, because progressive reveal keeps C
 sending `get`s. Accepted for v1 by Jonathan; revisit with the M5.3 measurements. A
-session-level rate message is the known fix. **A client that follows C45 removes
-the overshoot:** commitments never sum above `R_max`, so the gap becomes a
-temporary undershoot instead.
+session-level rate message is the known fix.
+
+**What C45 does with the gap, stated plainly.** The client does not close it. When
+peer B joins while peer A holds an older, higher `recv-max`, B's `get` carries
+B's full share and A keeps sending at its old rate. For example, A was told
+`R_max`; B joins at equal interest and is told `R_max / 2`; a third peer C is told
+`R_max / 3`: the three together can send up to `R_max · (1 + 1/2 + 1/3)`. C
+(the client) therefore runs over `R_max` until A's next `get` (which carries A's
+new, lower share), or until A's interest decays: under C03 A sends at
+`its last recv-max · min(1, ΣI_A / 1000)`, so A frees its share as its streams
+decay and end. This is the same gap Jonathan accepted for option A; no peer is
+starved, and the cost is only the temporary congestion described above.
 
 ### 12.3 Lifecycle: dwindling interest only
 
@@ -1380,4 +1389,4 @@ the lifecycle and the stream cap, and the rest) stay planned.
 |---|---|---|---|---|---|
 | C18 | Decided | A blocked stream takes no share, banks <= 1 frame, keeps decaying | `blocked-stream-takes-no-share-and-banks-one-frame` (exists, slice 2: the share, the one-frame bank and the decay) | JVM, nbb peer | M1.2 s2 (exists) |
 | C41 | Decided | Requester keeps its own bucket per peer, never sends on empty | `requester-bucket-never-overspends` (exists, slice 2) | JVM, nbb peer | M1.2 s2 (exists) |
-| C45 | Decided | Commitment = last recv-max × min(1, ΣI_peer/1000); new recv-max <= R_max − others' current commitments | `committed-rate-never-exceeds-rmax` (sum of current commitments <= R_max over a simulated clock) (exists, slice 2: client with 3 peers over a simulated minute) | JVM, nbb peer | M1.2 s2 (exists) |
+| C45 | Decided | A new get's recv-max is the peer's current C01/C02 share (SHOULD); a new peer starts at its fair share, the others' older recv-max are not subtracted (accepted gap, 12.2) | `new-peer-starts-at-its-fair-share` (exists, slice 2: second peer at R_max/2, not 1 B/s; the over-R_max sum is asserted too) | JVM, nbb peer | M1.2 s2 (exists) |

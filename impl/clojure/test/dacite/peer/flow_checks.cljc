@@ -98,9 +98,6 @@
 (defn- fatal-errors [{:keys [log]}]
   (filterv (fn [[_ _ m]] (and (= :error (:type m)) (get-in m [:value "fatal"]))) @log))
 
-(defn- sum-commitments [{:keys [client]}]
-  (reduce + 0 (vals (client/commitments client))))
-
 ;; =============================================================================
 ;; The responder harness
 ;; =============================================================================
@@ -166,9 +163,9 @@
 (defn- errors-of [n] (filterv #(= :error (:type %)) (control-messages n)))
 
 (def ^:private big
-  "A store with a value of 1049 items, about 193 KB, and its root. Built once:
+  "A store with a value of about 630 items, 115 KB, and its root. Built once:
    a responder only reads it."
-  (delay (let [st (store/mem-store)] [st (v/hash (cc/map-of st 200))])))
+  (delay (let [st (store/mem-store)] [st (v/hash (cc/map-of st 120))])))
 
 (defn- big-value [] @big)
 
@@ -242,45 +239,39 @@
      (take 5 @problems))))
 
 ;; =============================================================================
-;; C45: the commitment
+;; C45: a new peer starts at its fair share
 ;; =============================================================================
 
-(defn committed-rate-never-exceeds-rmax
-  "C45: the sum of the peers' current commitments (last `recv-max` times
-   `min(1, ΣI / 1000)`) stays at or below `R_max` while `get`s go out over a
-   simulated minute and the interest decays. The first `get` takes all of
-   `R_max`; a second at the same moment gets 1 byte a second (the whole of the
-   rest is committed); later ones get more as the first decays. No `recv-max` is
-   over the peer's `send-max`."
+(defn new-peer-starts-at-its-fair-share
+  "C45 (relaxed): a `get`'s `recv-max` is the peer's current C01/C02 share of
+   `R_max`, and nothing else: the other peers' earlier `recv-max`s are not
+   subtracted. With equal interest the second peer's first `get` is half of
+   `R_max`, not 1 byte a second; a peer capped by its `send-max` gets the cap. A
+   minute on, when the first peer's interest has decayed, a new `get` to the
+   second peer takes nearly all of `R_max`. The accepted cost is checked too: the
+   `recv-max`s last told to the peers sum to more than `R_max` until the first
+   peer's next `get` (spec 12.2, known gap)."
   []
   (let [r-max 1000000
-        n (cnet {:r-max r-max :peers [["a" {}] ["b" {}] ["c" {"send-max" 1000}]]})
-        hs (distinct-hashes 40)
-        worst (atom 0)
-        look! (fn [] (swap! worst max (sum-commitments n)))
-        asked (atom [])]
-    ;; two gets at t = 0, then one every two seconds for a minute
-    (doseq [[i h] (map-indexed vector hs)]
-      (when (> i 1) (advance! n 2000))
-      (client/request! (:client n) h)
-      (look!)
-      (swap! asked conj (-> (gets-sent n) last)))
-    (let [recv-maxes (mapv (fn [[_ p m]] [p (get-in m [:value "recv-max"])]) @asked)
-          first-rm (second (first recv-maxes))
-          second-rm (second (second recv-maxes))
-          late (mapv second (take-last 5 recv-maxes))]
-      (concat
-       (bad "the first get takes all of R_max" r-max first-rm)
-       (bad "a second get at once: nothing is left but the 1 byte a second floor" 1 second-rm)
-       (bad "commitments never exceed R_max by more than the floor" true
-            (<= @worst (+ r-max 3)))
-       (bad "every recv-max is at least 1 and at most R_max" true
-            (every? #(<= 1 (second %) r-max) recv-maxes))
-       (bad "no recv-max is over the peer's send-max (c: 1000)" true
-            (every? (fn [[p rm]] (or (not= p "c") (<= rm 1000))) recv-maxes))
-       (bad "a minute on, interest has decayed and a get takes most of R_max" true
-            (some #(> % (* 0.5 r-max)) late))
-       (bad "no get was refused for a missing token" 40 (count (gets-sent n)))))))
+        hs (distinct-hashes 6)
+        n (cnet {:r-max r-max :peers [["a" {}] ["b" {}] ["c" {"send-max" 100000}]]})
+        ask! (fn [h] (client/request! (:client n) h)
+               (get-in (last (gets-sent n)) [2 :value "recv-max"]))
+        first-rm (ask! (nth hs 0))               ; a alone
+        second-rm (ask! (nth hs 1))              ; b at equal interest
+        third-rm (ask! (nth hs 2))               ; c, capped by its send-max
+        told-sum (+ first-rm second-rm third-rm)
+        ;; a minute on: every interest has decayed to about 0.25%
+        _ (advance! n 60000)
+        late-rm (ask! (nth hs 3))]
+    (concat
+     (bad "the first get, alone, takes all of R_max" r-max first-rm)
+     (bad "the second peer starts at its fair share, half of R_max (not 1 B/s)" 500000 second-rm)
+     (bad "the third peer: its send-max, 100000" 100000 third-rm)
+     (bad "the recv-maxes last told sum to more than R_max (the accepted gap)" true
+          (> told-sum r-max))
+     (bad "a minute on, a new get takes nearly all of R_max" true (> late-rm (* 0.9 r-max)))
+     (bad "no get was held back for a token" 4 (count (gets-sent n))))))
 
 ;; =============================================================================
 ;; C41: the requester's bucket
@@ -405,7 +396,8 @@
         _ (client/request! (:client n) root)
         _ (client/on-frame! (:client n) "a" (cc/error-frame 1 "unknown-hash" false))
         ;; responder side
-        [st rroot] (big-value)
+        st (store/mem-store)
+        rroot (v/hash (cc/map-of st 30))
         resp-violation (fn [what f]
                          (let [rn (rnet {:st st :hello? (not= what "get before hello")})]
                            (f rn)
@@ -446,12 +438,17 @@
      (bad "responder: not closed" [] @(:closed rn)))))
 
 (defn have-does-not-recompute-what-a-session-verified
-  "A session remembers what it verified, so `have?` on those hashes (the root, a
-   header, every item of a value of 158 items) does not check the store again. A
-   hash that is stored but that no session verified is checked, once per call."
+  "A session remembers what it verified and the entry it stored, so `have?` on
+   those hashes (the root, a header, every item of a value of 158 items) does not
+   check the store again. A hash that is stored but that no session verified is
+   checked, once per call. The memory is tied to the entry: if the store's entry
+   for a verified header is replaced by a forged one `have?` says no (and yes
+   again when the real one is back); and it is dropped when the session ends
+   (`have?` is still true, but checks the store again)."
   []
   (let [[n src root] (served-node [["a" {}]])
         c (:client n)
+        st (:store c)
         items (cc/items-of src root)
         _ (client/request! c root)
         _ (answer! n src root "a" 1)
@@ -460,17 +457,30 @@
         _ (dotimes [_ 5] (client/have? c root))
         after (client/recheck-count c)
         ;; a hash put in the store by something other than a session
-        st (:store c)
         stranger (v/hash (v/string st "a stranger"))
         _ (client/have? c stranger)
-        _ (client/have? c stranger)]
+        _ (client/have? c stranger)
+        rechecks-stranger (- (client/recheck-count c) after)
+        ;; the header's stored entry is replaced by a forged one, then restored
+        entry (store/await (store/s-get st root))
+        _ (store/await (store/s-put st root (update-in entry [1 :count] inc)))
+        forged-had? (client/have? c root)
+        _ (store/await (store/s-put st root entry))
+        restored-had? (client/have? c root)
+        before-end (client/recheck-count c)
+        _ (client/close-session! c "a")
+        had-after-end? (every? #(client/have? c (:hash %)) items)]
     (concat
      (bad "the answer was verified" true (client/done? c root))
      (bad "the answer needed no re-check" 0 after-answer)
      (bad "every item is had" true all-had?)
      (bad "have? on verified hashes re-checks nothing" 0 after)
-     (bad "a stranger hash (stored outside a session) is checked each time" 2
-          (- (client/recheck-count c) after)))))
+     (bad "a stranger hash (stored outside a session) is checked each time" 2 rechecks-stranger)
+     (bad "a forged header in the store's place is not had, whatever the cache says" false forged-had?)
+     (bad "the real entry back: had" true restored-had?)
+     (bad "after the session ends everything is still had" true had-after-end?)
+     (bad "and the session's memory is gone: the store is checked again" true
+          (> (client/recheck-count c) before-end)))))
 
 ;; =============================================================================
 ;; The responder: C03, C17, C18, C34, C36, C40
@@ -479,40 +489,36 @@
 (defn responder-paces-to-session-budget
   "C03: the responder writes at `min(send-max, budget)`, where the budget is the
    `recv-max` of the latest `get` (the `hello`'s before any), split among the
-   streams by interest. On a simulated clock, over one second each time: a
-   100000 a second budget writes about 100000 bytes (within one frame); a later
-   `get` with 20000 lowers it; a 50000 `send-max` caps a 1 MB budget; two streams
-   at interest 1000 and 500 share it two to one."
+   streams by interest. On a simulated clock, over one second each time, with a
+   `send-max` of 60000: a `get` with a 100000 budget writes about 60000 bytes
+   (within one frame; the `send-max` is the smaller); a later `get` with 20000
+   lowers the session to that; and, on another session, two streams at interest
+   1000 and 500 on a 90000 budget share it two to one."
   []
   (let [[st root] (big-value)
         slow {"peak" 1000 "tau-ms" 100000000 "floor" 50}
         pace (fn [n from]
                (dotimes [_ 20] (step! n 50))
                (item-bytes n from (+ from 1000)))
-        n1 (rnet {:st st :peer-rates {"recv-max" 100000}})
+        total #(reduce + 0 (vals %))
+        n1 (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "send-max"] 60000)})
         _ (send-to! n1 (get-bytes 1 root 100000 slow))
-        first-s (pace n1 0)
+        capped (pace n1 0)
         _ (send-to! n1 (get-bytes 3 root 20000 slow))
-        second-s (pace n1 1000)
-        n2 (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "send-max"] 50000)})
-        _ (send-to! n2 (get-bytes 1 root 1000000 slow))
-        capped (pace n2 0)
-        n3 (rnet {:st st})
-        _ (send-to! n3 (get-bytes 1 root 100000 slow))
-        _ (send-to! n3 (get-bytes 3 root 100000 (assoc slow "peak" 500)))
-        split (pace n3 0)
-        total #(reduce + 0 (vals %))]
+        lowered (pace n1 1000)
+        n2 (rnet {:st st})
+        _ (send-to! n2 (get-bytes 1 root 90000 slow))
+        _ (send-to! n2 (get-bytes 3 root 90000 (assoc slow "peak" 500)))
+        split (pace n2 0)]
     (concat
-     (bad "100000 a second: within one frame of 100000 and not over" true
-          (<= (- 100000 frame-bytes) (total first-s) 100000))
-     (bad "after a get with recv-max 20000, about 20000 (two frames of slack each stream)" true
-          (<= 3000 (total second-s) (+ 20000 (* 2 frame-bytes))))
-     (bad "send-max 50000 caps a 1 MB budget" true
-          (<= (- 50000 frame-bytes) (total capped) 50000))
-     (bad "two streams: the 1000 one gets about two thirds of 100000" true
-          (near? (get split 1 0) 66667 (+ 1 frame-bytes)))
+     (bad "budget 100000, send-max 60000: within one frame of 60000 and not over" true
+          (<= (- 60000 frame-bytes) (total capped) 60000))
+     (bad "after a get with recv-max 20000, about 20000 (two frames of slack)" true
+          (<= 3000 (total lowered) (+ 20000 (* 2 frame-bytes))))
+     (bad "two streams: the 1000 one gets about two thirds of 90000" true
+          (near? (get split 1 0) 60000 (+ 1 frame-bytes)))
      (bad "the 500 one gets about a third" true
-          (near? (get split 3 0) 33333 (+ 1 frame-bytes))))))
+          (near? (get split 3 0) 30000 (+ 1 frame-bytes))))))
 
 (defn channel-never-buffers-over-high-mark-and-resumes-at-low
   "C17, on a fake channel that the peer drains at 20000 bytes a second while the
@@ -543,7 +549,7 @@
     (concat
      (bad "no frame written at the high mark, none resumed above the low mark" [] (take 3 @violations))
      (bad "the high mark was reached" true @hit-high)
-     (bad "the channel carries the whole value in the end" true (> all 190000))
+     (bad "the channel carries the whole value in the end" true (> all 100000))
      (bad "the stream is over" #{} (responder/open-streams (:r n) "p")))))
 
 (defn blocked-stream-takes-no-share-and-banks-one-frame
@@ -589,18 +595,18 @@
 
 (defn get-over-the-bucket-is-rate-limited-and-session-lives
   "C40: the responder's bucket per session. Its hello says req-rate 20 and a
-   burst of 10 (the default burst of 40 only makes the check slower). Of 12 `get`s
+   burst of 5 (the default burst of 40 only makes the check slower). Of 7 `get`s
    at one moment (for a hash it does not hold: each costs a token, answered or
-   refused) 10 are answered `unknown-hash` and 2 `rate-limited` with a
+   refused) 5 are answered `unknown-hash` and 2 `rate-limited` with a
    `retry-ms`; the session lives; after 50 ms one token is back; a long time
    later the bucket holds its burst, not more."
   []
   (let [st (store/mem-store)
         missing (v/hash (v/string (store/mem-store) "not here"))
-        n (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "req-burst"] 10)})
+        n (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "req-burst"] 5)})
         ask! (fn [sid] (send-to! n (get-bytes sid missing 1000)))
         codes #(frequencies (map (fn [m] (get-in m [:value "code"])) (errors-of n)))
-        _ (doseq [i (range 12)] (ask! (inc (* 2 i))))
+        _ (doseq [i (range 7)] (ask! (inc (* 2 i))))
         c1 (codes)
         limited (filterv #(= "rate-limited" (get-in % [:value "code"])) (errors-of n))
         retry (get-in (first limited) [:value "retry-ms"])
@@ -609,14 +615,14 @@
         _ (ask! 93)                              ; not another
         after-50 (codes)
         _ (step! n 60000)
-        _ (doseq [i (range 12)] (ask! (+ 101 (* 2 i))))
+        _ (doseq [i (range 7)] (ask! (+ 101 (* 2 i))))
         after-long (codes)]
     (concat
-     (bad "12 gets at once: 10 unknown-hash, 2 rate-limited" {"unknown-hash" 10 "rate-limited" 2} c1)
+     (bad "7 gets at once: 5 unknown-hash, 2 rate-limited" {"unknown-hash" 5 "rate-limited" 2} c1)
      (bad "rate-limited names a retry-ms of about 50" true (and retry (<= 1 retry 100)))
-     (bad "the limited gets are on their own streams" [21 23] (mapv :stream limited))
-     (bad "50 ms later one more is answered, one limited" {"unknown-hash" 11 "rate-limited" 3} after-50)
-     (bad "a minute later the burst, 10 more, is there and no more" {"unknown-hash" 21 "rate-limited" 5} after-long)
+     (bad "the limited gets are on their own streams" [11 13] (mapv :stream limited))
+     (bad "50 ms later one more is answered, one limited" {"unknown-hash" 6 "rate-limited" 3} after-50)
+     (bad "a minute later the burst, 5 more, is there and no more" {"unknown-hash" 11 "rate-limited" 5} after-long)
      (bad "the session is open, never closed" [:open []]
           [(responder/session-status (:r n) "p") @(:closed n)]))))
 
@@ -672,7 +678,7 @@
   (array-map
    "shared-rmax-splits-by-interest-across-peers" shared-rmax-splits-by-interest-across-peers
    "capped-peer-share-is-redistributed" capped-peer-share-is-redistributed
-   "committed-rate-never-exceeds-rmax" committed-rate-never-exceeds-rmax
+   "new-peer-starts-at-its-fair-share" new-peer-starts-at-its-fair-share
    "requester-bucket-never-overspends" requester-bucket-never-overspends
    "item-on-a-stream-never-opened-ends-the-session" item-on-a-stream-never-opened-ends-the-session
    "item-on-a-closed-stream-is-ignored" item-on-a-closed-stream-is-ignored

@@ -28,11 +28,13 @@
      per session. Ending one only reads and rewrites that session's entry,
      and the hashes it was serving.
    - **Rates (C01, C02, C45).** Every `get` carries a `recv-max` (`next-recv-max`):
-     the peer's C01/C02 share of the client's one `R_max`, at most `R_max` minus
-     the other peers' current commitments (`rates/commitment`), so the commitments
-     never sum above `R_max`. The peer's `send-max` (from its `hello`) caps its
-     share and the excess goes to the others. A new `get` starts at peak interest
-     and decays by the clock.
+     the peer's C01/C02 share of the client's one `R_max`, counting the new stream
+     at peak interest. The peer's `send-max` (from its `hello`) caps its share and
+     the excess goes to the others. A new peer starts at its full share, as if the
+     others were already rebalanced. The others keep their older, higher `recv-max`
+     until their next `get` or until their interest decays, so the client can be
+     over `R_max` for a while (the accepted gap of spec 12.2). A `get` starts at
+     peak interest and decays by the clock.
    - **Request bucket (C41).** A bucket per peer from its `hello` (`req-rate`,
      `req-burst`). A `get` is not sent to a peer whose bucket is empty: it goes to
      another peer, or waits and is sent by `tick!` when a token is there.
@@ -110,8 +112,8 @@
 ;;   :streams       open streams, id -> {:hash :reader :rx :t0 :peak :tau :served?}
 ;;   :hello         the peer's `hello`, nil until it arrives
 ;;   :bucket        request bucket (C41), from the peer's hello
-;;   :last-recv-max the `recv-max` of the latest `get` sent (C45)
-;;   :verified      hash keys this session verified (a cache for `have?`)
+;;   :verified      {hash-key entry}: what this session verified and the entry it
+;;                  stored, a cache for `have?` (dropped when the session ends)
 (defn client
   "A client. Options:
 
@@ -172,13 +174,17 @@
    session stored it. Only a hash that is had may be read or offered to another
    peer.
 
-   A session remembers what it verified (`:verified`), so a hash that a session
-   verified is not checked again; any other hash is checked against the store
-   (`verify/checked?`)."
+   An open session remembers what it verified, with the entry it stored
+   (`:verified`). A hash is not checked again while the store still holds that
+   same entry; if the entry changed or is gone the cache does not count, and the
+   store is checked (`verify/checked?`). A session's memory goes when it ends.
+   Any other hash is checked against the store."
   [c h]
-  (let [hk (gc/hash-key h)]
-    (and (some? (store/await (store/s-get (:store c) h)))
-         (or (some #(contains? (:verified %) hk) (vals (:sessions @(:state c))))
+  (let [hk (gc/hash-key h)
+        entry (store/await (store/s-get (:store c) h))]
+    (and (some? entry)
+         (or (some #(let [e (get (:verified %) hk)] (and (some? e) (= e entry)))
+                   (vals (:sessions @(:state c))))
              (do (swap! (:state c) update :rechecks (fnil inc 0))
                  (verify/checked? (:store c) h))))))
 
@@ -199,9 +205,9 @@
                    (vals (:streams session)))))
 
 (defn- next-recv-max
-  "The `recv-max` for a new `get` to `peer` at `now` (C45): at most `peer`'s
-   C01/C02 share, counting the new stream at peak interest, and at most `R_max`
-   minus the other peers' current commitments."
+  "The `recv-max` for a new `get` to `peer` at `now` (C45): the peer's C01/C02
+   share, counting the new stream at peak interest. The other peers' older
+   `recv-max`s are not subtracted."
   [c sessions peer now]
   (let [ready (into {} (filter (fn [[_ s]] (and (= :open (:status s)) (:hello s)))) sessions)
         interest (fn [p] (+ (sum-interest (get ready p) now) (if (= p peer) rates/peak 0)))
@@ -209,18 +215,8 @@
                                   (into {} (map (fn [[p s]]
                                                   [p {:interest (interest p)
                                                       :cap (get-in s [:hello "rates" "send-max"])}]))
-                                        ready))
-        others (reduce + 0 (for [[p s] ready :when (not= p peer)]
-                             (rates/commitment (:last-recv-max s) (sum-interest s now))))]
-    (rates/recv-max (:r-max c) (get shares peer) others)))
-
-(defn commitments
-  "{peer-id commitment} now (C45): each open session's last `recv-max` times
-   `min(1, Σ I / 1000)`. Their sum stays at or below `R_max`."
-  [c]
-  (let [now ((:now c))]
-    (into {} (for [[p s] (:sessions @(:state c)) :when (= :open (:status s))]
-               [p (rates/commitment (:last-recv-max s) (sum-interest s now))]))))
+                                        ready))]
+    (rates/recv-max (get shares peer))))
 
 ;; =============================================================================
 ;; Asking
@@ -261,7 +257,6 @@
                        (-> s
                            (assoc-in [:sessions peer :table] table)
                            (assoc-in [:sessions peer :bucket] bucket')
-                           (assoc-in [:sessions peer :last-recv-max] recv-max)
                            (assoc-in [:sessions peer :streams sid]
                                      {:hash hash
                                       :reader (frame/reader sid)
@@ -310,7 +305,7 @@
             (-> s
                 (assoc-in [:sessions peer-id]
                           {:status :open :table (frame/stream-table role 64) :streams {}
-                           :hello nil :bucket nil :last-recv-max nil :verified #{}})
+                           :hello nil :bucket nil :verified {}})
                 (update :order #(conj (vec (remove #{peer-id} %)) peer-id)))))
    ((:send! c) peer-id {:type :hello :stream 0 :value (:hello c)})
    c))
@@ -363,7 +358,7 @@
           hks (mapv (comp gc/hash-key :hash) (vals streams))]
       (doseq [{:keys [rx]} (vals streams)] (verify/discard-unchecked! rx))
       (swap! state update-in [:sessions peer-id]
-             assoc :status :ended :streams {})
+             assoc :status :ended :streams {} :verified {})
       (when code
         (send! peer-id {:type :error :stream 0
                         :value {"code" code "message" text "fatal" true}}))
@@ -426,14 +421,17 @@
     ;; each item is verified, then stored, before the next is read (C27)
     (doseq [bs item-bytes]
       (let [item (decode-item bs)
-            before (set (map gc/hash-key (verify/unchecked rx)))
+            before-hashes (vec (verify/unchecked rx))
             checks (verify/accept-item! rx item)
             after (set (map gc/hash-key (verify/unchecked rx)))]
         ;; what this session has verified: the item (unless a header that waits)
         ;; and the headers that its arrival checked
-        (swap! state update-in [:sessions peer-id :verified]
-               into (concat (when-not (contains? checks :pending) [(gc/hash-key (:hash item))])
-                            (remove after before)))
+        (swap! state update-in [:sessions peer-id :verified] into
+               (for [h (concat (when-not (contains? checks :pending) [(:hash item)])
+                               (remove #(contains? after (gc/hash-key %)) before-hashes))
+                     :let [e (store/await (store/s-get (:store c) h))]
+                     :when (some? e)]
+                 [(gc/hash-key h) e]))
         (when (= (gc/hash-key (:hash item))
                  (gc/hash-key (get-in @state [:sessions peer-id :streams sid :hash])))
           (swap! state assoc-in [:sessions peer-id :streams sid :served?] true))))
