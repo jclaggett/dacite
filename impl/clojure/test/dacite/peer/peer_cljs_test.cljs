@@ -8,7 +8,9 @@
    flow_checks.cljc, also run by client_test.clj and flow_test.clj on the JVM),
    and the M1.3 checks of an asynchronous store (async_checks.cljc, also run by
    async_test.clj): the M1.2 checks again over a store that settles late, and a
-   store whose promises are real `js/Promise`s."
+   store whose promises are real `js/Promise`s; and the M3.1 transport checks
+   (transport_checks.cljc, also run by transport_test.clj): two peers over the
+   in-memory `ITransport`."
   (:require [cljs.reader :as reader]
             [dacite.cache-checks :as cache-checks]
             [dacite.hash :as hash]
@@ -20,6 +22,7 @@
             [dacite.peer.examples :as ex]
             [dacite.peer.flow-checks :as flow-checks]
             [dacite.peer.msg :as msg]
+            [dacite.peer.transport-checks :as transport-checks]
             [dacite.store :as store]
             [dacite.string-vectors :as string-vectors]
             [dacite.value :as v]
@@ -120,7 +123,7 @@
                                                     {"versions" #{2} "caps" #{} "limits" {"max-frame" 1 "max-item" 1 "max-streams" 1}})
                                      [:ok :version]))
                 ["negotiate does not pick the highest common version"]))
-        client (-> (client-checks/run-all) (into (flow-checks/run-all)) (into (async-checks/run-all)))
+        client (-> (client-checks/run-all) (into (flow-checks/run-all)) (into (async-checks/run-all)) (into (transport-checks/run-all)))
         client-problems (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) client)
         all (into (into (into (vec problems) framing) host) (concat client-problems (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (bad-state-problems) (cache-checks/problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"

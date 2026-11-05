@@ -421,6 +421,20 @@
               :will-accept (get lim-m "max-streams")
               :frame-literal-cap (frame/max-literal-item max-frame)}}))))
 
+(defn clamp-hello
+  "`hello` with its `max-frame` cut to `max-message-size`, the largest message a
+   transport channel carries (peer-v1 section 5): a frame then never needs
+   splitting below the peer. A channel that cannot carry the smallest legal
+   frame (`frame/min-max-frame`) cannot carry a session: it throws
+   `:channel-too-small`."
+  [hello max-message-size]
+  (when (< max-message-size frame/min-max-frame)
+    (throw (ex-info "the channel's largest message is under the smallest max-frame"
+                    {:reason :channel-too-small
+                     :max-message-size max-message-size
+                     :min-max-frame frame/min-max-frame})))
+  (update-in hello ["limits" "max-frame"] #(min % max-message-size)))
+
 ;; =============================================================================
 ;; Messages on the wire
 ;; =============================================================================

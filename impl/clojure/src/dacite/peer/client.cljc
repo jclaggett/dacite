@@ -371,9 +371,12 @@
 (defn open-session!
   "A connection to `peer-id` is up. This side's `hello` is sent at once; nothing
    else is until the peer's arrives (`on-frame!`). `role` is `:offerer` (this
-   side sent the WebRTC offer, odd stream ids; the default) or `:answerer`."
+   side sent the WebRTC offer, odd stream ids; the default) or `:answerer`.
+   `opts` may hold `:max-message-size`, the largest message the connection's
+   channel carries: the `hello` sent is clamped to it (`msg/clamp-hello`)."
   ([c peer-id] (open-session! c peer-id :offerer))
-  ([c peer-id role]
+  ([c peer-id role] (open-session! c peer-id role nil))
+  ([c peer-id role {:keys [max-message-size]}]
    (swap! (:state c)
           (fn [s]
             (-> s
@@ -381,7 +384,9 @@
                           {:status :open :table (frame/stream-table role 64) :streams {}
                            :hello nil :bucket nil :verified {}})
                 (update :order #(conj (vec (remove #{peer-id} %)) peer-id)))))
-   ((:send! c) peer-id {:type :hello :stream 0 :value (:hello c)})
+   ((:send! c) peer-id {:type :hello :stream 0
+                        :value (cond-> (:hello c)
+                                 max-message-size (msg/clamp-hello max-message-size))})
    c))
 
 (defn- on-hello!

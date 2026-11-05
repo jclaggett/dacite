@@ -548,7 +548,35 @@ intent; none of it is a conformance rule until M3.2 builds the transport and
 M1.2 wrote the numbered MUST list (section 13). Sections 2, 3, 4, 6, 12 and 13 are
 the normative part of this draft.
 
-Reliable, ordered data channels, SCTP over DTLS.
+**Named channels (decided Nov 5, M3.1; supersedes the channel layout below for v1).**
+A connection is one `RTCPeerConnection` opened by one handshake, and it carries
+*named* channels (`ITransport` in `dacite.peer.transport`). Peering uses exactly
+one, **`"dacite-peer"`**: every frame of the session, `hello` and every stream, goes
+on it, told apart by the stream id in the envelope (so many `get`s, and all their
+`item-stream` answers, share it in order). A different layer (the roots layer, later
+`"dacite-roots"`) has its own channel on the same connection; the peer code never
+sees a message of another channel. This is the "single multiplexed pipe mode" below
+made the only mode; the control channel and the channel per `get` described in the
+list are not built (a channel costs a round trip to open and moves fairness into
+SCTP). The rules a transport keeps:
+
+- **One channel carries one session.** The 4-frame high and 1-frame low marks (12.5,
+  C17) and the `max-frame` clamp below are per channel, read from that channel's
+  `bufferedAmount` and `maxMessageSize`. A paused channel holds back all its streams
+  together. The rate split (12.2) stays per stream.
+- **`max-frame` is clamped to the channel.** A side puts in its `hello` the smaller
+  of its own `max-frame` and the channel's negotiated `maxMessageSize` (browsers often
+  guarantee only 16 to 64 KiB; libdatachannel negotiates one), so no frame needs
+  splitting at the transport. The minimum (8192, 6.1) still holds: a channel that
+  cannot carry 8192 bytes cannot carry a session.
+- **Close.** A transport or connection close ends the peer session like a protocol
+  violation (C16): nothing more is sent, and the hashes it was serving are asked of
+  another peer (C14). The close of one channel ends only the session of the layer
+  that uses it.
+
+Data channels are reliable and ordered (SCTP over DTLS), and `"dacite-peer"`'s version is in `hello`.
+
+*The earlier layout, superseded by the named channel above and kept for the record:*
 
 - **Control channel:** label `dacite/v1/control`, opened by the offerer with
   `negotiated: true, id: 0`, so no side waits for the other. Carries stream 0
