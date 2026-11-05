@@ -14,6 +14,7 @@
   (:require [dacite.peer.client :as client]
             [dacite.peer.client-checks :as cc]
             [dacite.peer.frame :as frame]
+            [dacite.peer.harness :as h]
             [dacite.peer.msg :as msg]
             [dacite.peer.rates :as rates]
             [dacite.peer.responder :as responder]
@@ -78,12 +79,12 @@
    rates over the defaults, unless `:hello?` is false), on a clock the check moves."
   [{:keys [r-max peers hello?] :or {r-max 1000000 hello? true}}]
   (let [clock (atom 0) log (atom []) closed (atom [])
-        c (client/client {:r-max r-max :now (fn [] @clock)
+        c (h/client {:r-max r-max :now (fn [] @clock)
                           :send! (fn [p m] (swap! log conj [@clock p m]))
                           :close! (fn [p] (swap! closed conj p))})]
     (doseq [[p rs] peers]
       (client/open-session! c p)
-      (when hello? (client/on-frame! c p (hello-bytes (hello-with rs)))))
+      (when hello? (h/on-frame! c p (hello-bytes (hello-with rs)))))
     {:client c :clock clock :log log :closed closed}))
 
 (defn- advance! [{:keys [clock client]} ms]
@@ -111,7 +112,7 @@
   [{:keys [st hello peer-rates channel? on-write hello?]
     :or {peer-rates {} hello? true on-write (fn [_ _ _])}}]
   (let [clock (atom 0) sent (atom []) closed (atom []) bufs (atom {})
-        r (responder/responder
+        r (h/responder
            {:store st :now (fn [] @clock)
             :hello (or hello responder/default-hello)
             :send! (fn [p bs]
@@ -125,10 +126,10 @@
             :close! (fn [p] (swap! closed conj p))
             :buffered (fn [_ sid] (if channel? (get @bufs sid 0) 0))})]
     (responder/open-session! r "p")
-    (when hello? (responder/on-frame! r "p" (hello-bytes (hello-with peer-rates))))
+    (when hello? (h/responder-on-frame! r "p" (hello-bytes (hello-with peer-rates))))
     {:r r :clock clock :sent sent :closed closed :bufs bufs}))
 
-(defn- send-to! [{:keys [r]} bs] (responder/on-frame! r "p" bs))
+(defn- send-to! [{:keys [r]} bs] (h/responder-on-frame! r "p" bs))
 
 (defn- step!
   "Move the clock `ms` on and let the responder write. In a channel, `drain!` is
@@ -255,7 +256,7 @@
   (let [r-max 1000000
         hs (distinct-hashes 6)
         n (cnet {:r-max r-max :peers [["a" {}] ["b" {}] ["c" {"send-max" 100000}]]})
-        ask! (fn [h] (client/request! (:client n) h)
+        ask! (fn [h] (h/request! (:client n) h)
                (get-in (last (gets-sent n)) [2 :value "recv-max"]))
         first-rm (ask! (nth hs 0))               ; a alone
         second-rm (ask! (nth hs 1))              ; b at equal interest
@@ -287,7 +288,7 @@
   (let [hs (distinct-hashes 6)
         one (cnet {:peers [["a" {"req-rate" 2 "req-burst" 3}]]})
         overspent (atom [])
-        _ (doseq [h hs] (client/request! (:client one) h))
+        _ (doseq [h hs] (h/request! (:client one) h))
         at0 (count (gets-sent one))
         waiting0 (count (client/unserved (:client one)))
         _ (dotimes [_ 100]                      ; 10 s in 100 ms steps
@@ -296,7 +297,7 @@
               (when (> sent (+ 3 (* 2 (/ t 1000))))
                 (swap! overspent conj [t sent]))))
         two (cnet {:peers [["a" {"req-rate" 1 "req-burst" 2}] ["b" {"req-rate" 1 "req-burst" 2}]]})
-        _ (doseq [h hs] (client/request! (:client two) h))
+        _ (doseq [h hs] (h/request! (:client two) h))
         per-peer (frequencies (map second (gets-sent two)))]
     (concat
      (bad "at t = 0 only the burst is sent" 3 at0)
@@ -322,7 +323,7 @@
 (defn- answer!
   "Deliver an honest answer of `src` for `root` on stream `sid` from peer `p`."
   [n src root p sid]
-  (doseq [f ((cc/honest src) sid root)] (client/on-frame! (:client n) p f)))
+  (doseq [f ((cc/honest src) sid root)] (h/on-frame! (:client n) p f)))
 
 (defn item-on-a-stream-never-opened-ends-the-session
   "C35: an `item-stream` for an id this side never opened ends the session
@@ -330,12 +331,12 @@
    item is not stored. Other sessions are untouched."
   []
   (let [[n src root] (served-node [["a" {}] ["b" {}]])
-        st (:store (:client n))
+        st (h/inner (:store (:client n)))
         items (cc/items-of src root)
-        _ (client/request! (:client n) root)    ; stream 1 of a
+        _ (h/request! (:client n) root)    ; stream 1 of a
         before (count (cc/snapshot st))
         item (bin/encode-item (second items))
-        _ (client/on-frame! (:client n) "a" (first (cc/frames-of 99 [item])))
+        _ (h/on-frame! (:client n) "a" (first (cc/frames-of 99 [item])))
         [[_ _ m] :as errs] (fatal-errors n)]
     (concat
      (bad "the session ended" :ended (client/session-status (:client n) "a"))
@@ -350,13 +351,13 @@
    session stays, and nothing is stored."
   []
   (let [[n src root] (served-node [["a" {}]])
-        st (:store (:client n))
-        _ (client/request! (:client n) root)
+        st (h/inner (:store (:client n)))
+        _ (h/request! (:client n) root)
         _ (answer! n src root "a" 1)             ; the stream ends: it is closed
         done? (client/done? (:client n) root)
         before (count (cc/snapshot st))
         extra (bin/encode-item (second (cc/items-of src root)))
-        _ (client/on-frame! (:client n) "a" (first (cc/frames-of 1 [extra])))]
+        _ (h/on-frame! (:client n) "a" (first (cc/frames-of 1 [extra])))]
     (concat
      (bad "the first answer was verified and stored" true done?)
      (bad "the session is open" :open (client/session-status (:client n) "a"))
@@ -378,9 +379,9 @@
                       [what n]))
         item-frame (stray-frame 1)
         client-cases
-        [(violation "before hello" #(client/on-frame! (:client %) "a" item-frame))
-         (violation "second hello" #(client/on-frame! (:client %) "a" (hello-bytes (hello-with {}))))
-         (violation "malformed" #(client/on-frame! (:client %) "a" (garbage)))]
+        [(violation "before hello" #(h/on-frame! (:client %) "a" item-frame))
+         (violation "second hello" #(h/on-frame! (:client %) "a" (hello-bytes (hello-with {}))))
+         (violation "malformed" #(h/on-frame! (:client %) "a" (garbage)))]
         client-problems
         (mapcat (fn [[what n]]
                   (concat
@@ -393,8 +394,8 @@
                 client-cases)
         ;; a request error ends the stream only
         [n _ root] (served-node [["a" {}] ["b" {}]])
-        _ (client/request! (:client n) root)
-        _ (client/on-frame! (:client n) "a" (cc/error-frame 1 "unknown-hash" false))
+        _ (h/request! (:client n) root)
+        _ (h/on-frame! (:client n) "a" (cc/error-frame 1 "unknown-hash" false))
         ;; responder side
         st (store/mem-store)
         rroot (v/hash (cc/map-of st 30))
@@ -448,28 +449,28 @@
   []
   (let [[n src root] (served-node [["a" {}]])
         c (:client n)
-        st (:store c)
+        st (h/inner (:store c))
         items (cc/items-of src root)
-        _ (client/request! c root)
+        _ (h/request! c root)
         _ (answer! n src root "a" 1)
         after-answer (client/recheck-count c)
-        all-had? (every? #(client/have? c (:hash %)) items)
-        _ (dotimes [_ 5] (client/have? c root))
+        all-had? (every? #(h/have? c (:hash %)) items)
+        _ (dotimes [_ 5] (h/have? c root))
         after (client/recheck-count c)
         ;; a hash put in the store by something other than a session
         stranger (v/hash (v/string st "a stranger"))
-        _ (client/have? c stranger)
-        _ (client/have? c stranger)
+        _ (h/have? c stranger)
+        _ (h/have? c stranger)
         rechecks-stranger (- (client/recheck-count c) after)
         ;; the header's stored entry is replaced by a forged one, then restored
         entry (store/await (store/s-get st root))
         _ (store/await (store/s-put st root (update-in entry [1 :count] inc)))
-        forged-had? (client/have? c root)
+        forged-had? (h/have? c root)
         _ (store/await (store/s-put st root entry))
-        restored-had? (client/have? c root)
+        restored-had? (h/have? c root)
         before-end (client/recheck-count c)
-        _ (client/close-session! c "a")
-        had-after-end? (every? #(client/have? c (:hash %)) items)]
+        _ (h/close-session! c "a")
+        had-after-end? (every? #(h/have? c (:hash %)) items)]
     (concat
      (bad "the answer was verified" true (client/done? c root))
      (bad "the answer needed no re-check" 0 after-answer)
