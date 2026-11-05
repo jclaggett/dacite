@@ -62,15 +62,26 @@ by backends. Application code should not call it.
 | **file** content | JVM, babashka | `(dacite.store.file/file-store path)` |
 | **file** content | nbb | `(dacite.store.nbb/file-store path)` |
 | **LMDB** content | JVM | `(dacite.store.jvm/lmdb-store path)` |
+| **LMDB** content | nbb | `(dacite.store.nbb.lmdb/lmdb-store path)` |
 
 `store/*store*` and `store/with-store` are test/REPL bindings for the
 content dictionary, not the way to write an app. Use `s/mem` / `s/file`
 and pass that context to constructors.
 
 nbb LMDB uses the same `data.mdb` layout as JVM (wire-v1 node payloads or
-pack items). Prebuilt
-`lmdb` npm binaries are format v2 — rebuild with
-`LMDB_DATA_V1=true npm rebuild lmdb`.
+pack items). Prebuilt `lmdb` npm binaries are format v2 and cannot open a
+JVM store. `npm rebuild` keeps that prebuild. Format v1 is a from-source
+compile, and Node loads `node_modules/lmdb/build/Release` ahead of the
+prebuild:
+
+```bash
+npm run lmdb:v1
+```
+
+That runs `LMDB_DATA_V1=true npx node-gyp rebuild` in the `lmdb` package.
+`npm run store:test` then runs the shared get, put, has?, eviction,
+snapshot and reopen checks, and a peer serving the library fixture, for
+the nbb file store, LMDB and IndexedDB (`fake-indexeddb`).
 
 ---
 
