@@ -21,9 +21,7 @@
    pause a reveal, and the rate is not derived from load or the pipe. A
    lone decay can send at most `r-max * tau` bytes before the response
    ends."
-  (:require [dacite.hash :as hash]
-            [dacite.host :as host]
-            [dacite.peer.verify :as verify]
+  (:require [dacite.peer.verify :as verify]
             [dacite.reveal :as reveal]
             [dacite.store :as store]
             [dacite.wire.binary :as bin])

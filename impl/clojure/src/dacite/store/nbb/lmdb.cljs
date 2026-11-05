@@ -8,7 +8,7 @@
    Keys are 32-byte big-endian hashes. Values are wire-v1 node payloads
    or pack Layer-1 items (same dual codec as dacite.store.jvm).
 
-   Store format tag: meta DB key "format", the integer in decimal as UTF-8,
+   Store format tag: meta DB key \"format\", the integer in decimal as UTF-8,
    as in dacite.store.jvm. Written when the content DB is empty and untagged,
    checked on open (`:store-format-mismatch`).
 
