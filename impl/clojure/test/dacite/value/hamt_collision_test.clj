@@ -318,21 +318,6 @@
   (gen/tuple gen-chunk-sets
              (gen/vector (gen/tuple (gen/choose 0 9) (gen/choose 0 6)) 4 24)))
 
-(defn- run-history
-  "Apply the ops (assoc for mode < 6, else dissoc) over the pool of forged key
-   hashes in `st`. Returns {:root :held}, held = {i kh}."
-  [st khs ops]
-  (let [pool (vec (map-indexed vector khs))]
-    (reduce (fn [{:keys [root held]} [mode j]]
-              (let [[i kh] (pool (mod j (count pool)))]
-                (if (< mode 6)
-                  {:root (hamt/hamt-assoc st root kh (v/hash (v/i64 st i))
-                                          (v/hash (v/i64 st (+ 1000 i))))
-                   :held (assoc held i kh)}
-                  {:root (hamt/hamt-dissoc st root kh) :held (dissoc held i)})))
-            {:root (hamt/hamt-empty st) :held {}}
-            ops)))
-
 (deftest property-fuzz-assoc-and-dissoc-histories-give-one-tree
   ;; A random history of assoc and dissoc over a pool of forged key hashes.
   ;; At every step the tree is sound, canonical, and the root of the same

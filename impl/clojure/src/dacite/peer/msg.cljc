@@ -28,7 +28,6 @@
             [dacite.store.pack :as pack]
             [dacite.value :as v]
             [dacite.value.lit :as lit]
-            [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
 
 ;; =============================================================================
@@ -527,7 +526,7 @@
        (and (= :get type) (not (contains? caps "reveal")))
        (err "unsupported" "get is not served")
        (and (= :get type) (not (contains? policies (get value "policy"))))
-       (err "unsupported-policy" (str "unknown policy"))))))
+       (err "unsupported-policy" "unknown policy")))))
 
 ;; =============================================================================
 ;; EDN for fixtures

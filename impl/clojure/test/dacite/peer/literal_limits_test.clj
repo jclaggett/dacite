@@ -18,6 +18,7 @@
             [dacite.store.bound :as bound]
             [dacite.store.pack :as pack]
             [dacite.value :as v]
+            [dacite.value.finger-tree]
             [dacite.value.lit :as lit]
             [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
@@ -36,10 +37,10 @@
     (is (= (+ five 3) (lit/item-payload-bytes {:type "string" :body "abc"})))
     (is (= (+ five 4) (lit/item-payload-bytes {:type "blob" :body (bytes-of 4)})))
     (testing "a run counts every value (it counted 0), and its header"
-      (is (= (+ hdr (+ five 1) (+ five 2) (+ five 3))
+      (is (= (+ hdr five 1 five 2 five 3)
              (lit/item-payload-bytes
               {:type "run" :body {:of "string" :values ["a" "bb" "ccc"]}})))
-      (is (= (+ hdr (+ five 2) (+ five 5))
+      (is (= (+ hdr five 2 five 5)
              (lit/item-payload-bytes
               {:type "run" :body {:of "blob" :values [(bytes-of 2) (bytes-of 5)]}}))))
     (testing "a repeat counts n copies (it counted 0), and its header"

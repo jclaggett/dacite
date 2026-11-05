@@ -103,20 +103,20 @@
                   {:covered (conj covered (gc/hash-key h))
                    :picks (conj picks {:hash h :enc :node :bytes (node-bytes st h)})}))))
           {:covered #{} :picks []}
-          order)]
-     (let [oversized (into []
-                           (comp (filter #(and (= :node (:enc %))
-                                               (> (bin/byte-len (:bytes %)) cap)))
-                                 (map #(hash-map :hash (:hash %)
-                                                 :len (bin/byte-len (:bytes %)))))
-                           picks)]
-       (when (and strict-node-cap? (seq oversized))
-         (throw (ex-info "a node item is over one frame payload"
-                         {:reason :node-too-large :cap cap :oversized oversized})))
-       {:items (mapv :bytes picks)
-        :encs (mapv :enc picks)
-        :hashes (mapv :hash picks)
-        :oversized oversized}))))
+          order)
+         oversized (into []
+                         (comp (filter #(and (= :node (:enc %))
+                                             (> (bin/byte-len (:bytes %)) cap)))
+                               (map #(hash-map :hash (:hash %)
+                                               :len (bin/byte-len (:bytes %)))))
+                         picks)]
+     (when (and strict-node-cap? (seq oversized))
+       (throw (ex-info "a node item is over one frame payload"
+                       {:reason :node-too-large :cap cap :oversized oversized})))
+     {:items (mapv :bytes picks)
+      :encs (mapv :enc picks)
+      :hashes (mapv :hash picks)
+      :oversized oversized})))
 
 ;; =============================================================================
 ;; Checking and receiving

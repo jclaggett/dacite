@@ -221,7 +221,7 @@
         n (byte-len bs)
         p @(:pos buf)
         arr (:arr buf)]
-    #?(:clj (System/arraycopy ^bytes bs 0 ^bytes arr (int p) (int n))
+    #?(:clj (System/arraycopy ^bytes bs 0 ^bytes arr (int p) n)
        :cljs (.set arr bs p))
     (vreset! (:pos buf) (+ p n))))
 

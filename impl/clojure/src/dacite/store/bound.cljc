@@ -38,7 +38,6 @@
             [dacite.store :as store]
             [dacite.value.hamt :as hamt]
             [dacite.value.lit :as lit]
-            [dacite.value.types :as types]
             [dacite.rooted.gc :as gc]))
 
 (def item-header-bytes
