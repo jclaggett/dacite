@@ -18,12 +18,15 @@
     "reveal:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.reveal-cljs-test",
     "peer:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.peer-cljs-test",
     "webrtc:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.webrtc-cljs-test",
-    "webrtc:transfer": "node scripts/webrtc-transfer.mjs"
+    "webrtc:transfer": "node scripts/webrtc-transfer.mjs",
+    "webrtc:signal": "node scripts/webrtc-signal-server.mjs",
+    "webrtc:signal-test": "node scripts/webrtc-signal-test.mjs"
   },
   "dependencies": {
     "chalk": "^4.1.2",
     "node-datachannel": "^0.33.6",
-    "prompts": "^2.4.2"
+    "prompts": "^2.4.2",
+    "ws": "^8.22.1"
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.7",

@@ -582,6 +582,14 @@ SCTP). The rules a transport keeps:
   violation (C16): nothing more is sent, and the hashes it was serving are asked of
   another peer (C14). The close of one channel ends only the session of the layer
   that uses it.
+- **Signaling (M3.2).** Offer, answer, and ICE are not peer frames. Slice 2
+  carries them by hand (a file or a paste). Slice 3 relays the same JSON text
+  through a WebSocket server: a client connects to `ws://<host>:<port>/room/<token>`,
+  the server keeps at most two sockets in that room (one offerer, one answerer),
+  and it forwards each `{"type":"signal",...}` frame to the other socket. Knowing
+  the room token is the only access check. A third peer is refused (`room-full`).
+  The server drops the room when both sockets close. Origin signaling, discovery,
+  and any authentication beyond the token are M6.
 
 Data channels are reliable and ordered (SCTP over DTLS), and `"dacite-peer"`'s version is in `hello`.
 

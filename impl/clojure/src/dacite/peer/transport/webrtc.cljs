@@ -1,5 +1,5 @@
 (ns dacite.peer.transport.webrtc
-  "WebRTC `ITransport` over `node-datachannel` (M3.2 slice 2). nbb / Node only.
+  "WebRTC `ITransport` over `node-datachannel` (M3.2). nbb / Node only.
 
    One `RTCPeerConnection` per connection; named data channels (reliable,
    ordered) are `IChannel`s. Peering uses `\"dacite-peer\"`. The channel's
@@ -14,19 +14,23 @@
    is what the responder's 4/1 marks read (in frames of the clamped size).
    A channel or connection close ends the peer session (see `dacite.peer.link`).
 
-   Two ways to get a connection:
+   Ways to get a connection:
 
    - `(connect-pair opts)` — two ends in one process, signaling in memory.
      For tests. Default ICE is host-only (`:ice-servers []`); pass
      `:stun? true` (or `:ice-servers [...]`) to use a public STUN server.
-   - `(create-peer role opts)` — one end for **manual signaling** (two
-     processes). Exchange the signal map (offer/answer + ICE candidates)
-     via a file or paste; see `scripts/webrtc-transfer.mjs` and
-     `docs/plan/peering.md` M3.2 slice 2.
+   - `(create-peer role opts)` — one end for two processes. With no `:ws`,
+     exchange the signal map (offer/answer + ICE candidates) via a file or
+     paste (`scripts/webrtc-transfer.mjs --dir`). With
+     `:ws {:url \"ws://127.0.0.1:8787\" :room \"token\"}`, `signal-over-ws!`
+     relays those messages through the slice-3 room server
+     (`scripts/webrtc-signal-server.mjs`). Same token on both peers. The
+     peer wire protocol is not carried on that socket.
 
    Library: `node-datachannel` (libdatachannel N-API). If its prebuilds fail
    on a platform, fall back to `werift` (pure TypeScript) — not wired here yet."
-  (:require [dacite.peer.frame :as frame]
+  (:require [clojure.string :as string]
+            [dacite.peer.frame :as frame]
             [dacite.peer.transport :as t]
             [dacite.wire.binary :as bin]))
 
@@ -112,11 +116,10 @@
        (.onClosed dc fire-close!)
        (.onError dc (fn [err] (js/console.error "datachannel error" name err)))
        (swap! state assoc-in [:chans name] {:dc dc :ch ch :closed? closed?})
+       ;; A channel that never opens: the caller can time out.
        (if (.isOpen dc)
          (resolve ch)
-         (do (.onOpen dc (fn [] (resolve ch)))
-             ;; a channel that never opens: the caller can time out
-             ))))))
+         (.onOpen dc (fn [] (resolve ch))))))))
 
 ;; =============================================================================
 ;; Connection
@@ -221,22 +224,27 @@
                  (.then waiting (fn [ch-b] [ch-a ch-b])))))))
 
 ;; =============================================================================
-;; Manual signaling (two processes)
+;; Manual signaling (two processes) and the slice-3 WebSocket room
 ;; =============================================================================
 
+(declare signal-over-ws!)
+
 (defn create-peer
-  "One end of a WebRTC connection for manual signaling.
+  "One end of a WebRTC connection for two processes.
 
    `role` is `:offerer` or `:answerer`. Returns
-   `{:conn ITransport :pc PeerConnection :signal atom :done! (fn [])}`.
+   `{:conn :pc :role :signal :set-remote!}`. With `:ws {:url :room}` also
+   `:ws-ref` and `:signaling`, a promise from `signal-over-ws!` that resolves
+   once the remote description has been applied.
 
    The atom under `:signal` holds `{:description {:type :sdp} :candidates [{:candidate :mid}]
-   :complete?}`. Poll or watch it; write it to a file for the other process.
-   Call `(set-remote! peer signal-map)` with the other side's signal once it has
-   a description (and again as candidates arrive, or with the full map when
+   :complete?}`. Poll or watch it and write it out for the other process, or
+   pass `:ws` and the slice-3 relay carries the same map. Call
+   `(set-remote! peer signal-map)` with the other side's signal once it has a
+   description (and again as candidates arrive, or with the full map when
    gathering is complete).
 
-   Options: same ICE options as `connect-pair`."
+   Options: same ICE options as `connect-pair`, plus `:ws`."
   [role opts]
   (let [ice (ice-servers opts)
         pc (new (.-PeerConnection ndc) (name role) #js {:iceServers ice})
@@ -249,17 +257,21 @@
     (.onGatheringStateChange pc (fn [st]
                                   (when (= st "complete")
                                     (swap! signal assoc :complete? true))))
-    {:conn conn
-     :pc pc
-     :role role
-     :signal signal
-     :set-remote!
-     (fn [other]
-       (when-let [{:keys [type sdp]} (:description other)]
-         (when (and type sdp)
-           (.setRemoteDescription pc sdp type)))
-       (doseq [{:keys [candidate mid]} (:candidates other)]
-         (.addRemoteCandidate pc candidate mid)))}))
+    (let [peer {:conn conn
+                :pc pc
+                :role role
+                :signal signal
+                :set-remote!
+                (fn [other]
+                  (when-let [{:keys [type sdp]} (:description other)]
+                    (when (and type sdp)
+                      (.setRemoteDescription pc sdp type)))
+                  (doseq [{:keys [candidate mid]} (:candidates other)]
+                    (.addRemoteCandidate pc candidate mid)))}]
+      (if-let [ws-opts (:ws opts)]
+        (let [peer (assoc peer :ws-ref (atom nil))]
+          (assoc peer :signaling (signal-over-ws! peer (assoc ws-opts :role role))))
+        peer))))
 
 (defn wait-signal
   "Promise of `@signal` once it has a description and (if `need-complete?`)
@@ -282,6 +294,170 @@
             (remove-watch signal ::wait)
             (reject (ex-info "wait-signal timed out" {:reason :timeout :signal @signal})))
          timeout-ms))))))
+
+;; =============================================================================
+;; WebSocket signaling (slice 3)
+;; =============================================================================
+
+(defn- room-url
+  "Server origin plus `/room/<token>` and `?role=` when `role` is set.
+   `url` is `ws://host:port` with no path. The token character set is the
+   server's: letters, digits, and . _ ~ -."
+  [url room role]
+  (str (string/replace url #"/+$" "")
+       "/room/" room
+       (if role (str "?role=" (name role)) "")))
+
+(defn- emit-local!
+  "Send the part of `curr` that `prev` did not have. Same shapes as
+   `scripts/webrtc-signal-client.mjs` `diffSignal`."
+  [send! prev curr]
+  (when-let [d (:description curr)]
+    (when (not= d (:description prev))
+      (send! {:type "signal"
+              :description {:type (:type d) :sdp (:sdp d)}})))
+  (let [prev-n (count (:candidates prev []))
+        curr-cs (:candidates curr [])]
+    (doseq [c (drop prev-n curr-cs)]
+      (when-let [cand (:candidate c)]
+        (when (and (string? cand) (pos? (count cand)))
+          (send! {:type "signal"
+                  :candidate {:candidate cand :mid (or (:mid c) "")}})))))
+  (when (and (:complete? curr) (not (:complete? prev)))
+    (send! {:type "signal" :complete true})))
+
+(defn- apply-remote-msg!
+  "Apply one relayed signal. Candidates that arrive before the remote
+   description sit on `state` (`{:desc? :queue}`) until it does.
+   `opened!` runs once, when the description is set."
+  [pc state msg opened!]
+  (let [add! (fn [{:keys [candidate mid]}]
+               (when (and (string? candidate) (pos? (count candidate)))
+                 (if (:desc? @state)
+                   (.addRemoteCandidate pc candidate (or mid ""))
+                   (swap! state update :queue conj {:candidate candidate :mid (or mid "")}))))]
+    (when-let [d (:description msg)]
+      (when (and (not (:desc? @state)) (:sdp d) (:type d))
+        (.setRemoteDescription pc (:sdp d) (:type d))
+        (swap! state assoc :desc? true)
+        (doseq [c (:queue @state)]
+          (.addRemoteCandidate pc (:candidate c) (:mid c)))
+        (swap! state assoc :queue [])
+        (opened! true)))
+    (when-let [c (:candidate msg)] (add! c))
+    (doseq [c (:candidates msg)] (add! c))))
+
+(defn close-signaling!
+  "Close the slice-3 socket on a peer from `create-peer`, if it opened one."
+  [peer]
+  (when-let [sig (:signal peer)]
+    (remove-watch sig ::ws))
+  (when-let [ws (some-> peer :ws-ref deref)]
+    (try (.close ws) (catch :default _)))
+  nil)
+
+(defn signal-over-ws!
+  "Relay `peer`'s offer or answer and ICE candidates through the slice-3
+   server. `peer` is a `create-peer` result; pass `:ws {:url :room}` to
+   `create-peer` and it calls this.
+
+   `url` is the server origin (`ws://127.0.0.1:8787`). `room` is the shared
+   token. `role` defaults to `(:role peer)` and is sent as `?role=`, so the
+   server can reject a duplicate. Returns a promise that resolves once the
+   remote description has been applied. Later candidates still flow.
+   Rejects on `room-full`, `role-taken`, `bad-room`, a timeout, or the other
+   peer leaving before that description arrives.
+
+   The JSON frames match `scripts/webrtc-signal-server.mjs`."
+  [peer {:keys [url room role timeout-ms] :or {timeout-ms 20000}}]
+  (js/Promise.
+   (fn [resolve reject]
+     (if-not (and (string? url) (string? room) (pos? (count room)))
+       (reject (ex-info "signal-over-ws! needs :url and :room"
+                        {:reason :bad-signaling}))
+       (let [WS (js/require "ws")
+             role (or role (:role peer))
+             ws (new WS (room-url url room role) #js {:perMessageDeflate false})
+             pc (:pc peer)
+             signal (:signal peer)
+             opened? (atom false)
+             pending (atom [])
+             stopped? (atom false)
+             settled? (atom false)
+             timer (atom nil)
+             remote (atom {:desc? false :queue []})
+             send! (fn [msg]
+                     (swap! pending conj (js/JSON.stringify (clj->js msg)))
+                     (when @opened?
+                       (let [batch @pending]
+                         (reset! pending [])
+                         (doseq [s batch] (.send ws s)))))
+             settle-err! (fn [e]
+                           (when-not @settled?
+                             (reset! settled? true)
+                             (reset! stopped? true)
+                             (when-let [t @timer] (js/clearTimeout t))
+                             (remove-watch signal ::ws)
+                             (reject e)))
+             settle-ok! (fn [v]
+                          (when-not @settled?
+                            (reset! settled? true)
+                            (when-let [t @timer] (js/clearTimeout t))
+                            (resolve v)))]
+         (when-let [ref (:ws-ref peer)] (reset! ref ws))
+         (reset! timer
+                 (js/setTimeout
+                  #(settle-err! (ex-info "signaling timed out"
+                                         {:reason :timeout :room room}))
+                  timeout-ms))
+         (remove-watch signal ::ws)
+         (add-watch signal ::ws
+                    (fn [_ _ old new]
+                      (when-not @stopped?
+                        (emit-local! send! old new))))
+         (emit-local! send! {:description nil :candidates [] :complete? false} @signal)
+         (.on ws "open"
+              (fn []
+                (reset! opened? true)
+                (let [batch @pending]
+                  (reset! pending [])
+                  (doseq [s batch] (.send ws s)))))
+         (.on ws "error"
+              (fn [err]
+                (settle-err! (ex-info (str err) {:reason :signaling-error :room room}))))
+         (.on ws "close"
+              (fn []
+                (reset! stopped? true)
+                (remove-watch signal ::ws)
+                ;; The error frame is a separate event. Yield so `room-full`
+                ;; and `role-taken` win over a bare close.
+                (js/setTimeout
+                 #(settle-err! (ex-info "signaling socket closed"
+                                        {:reason :closed :room room}))
+                 0)))
+         (.on ws "message"
+              (fn [data]
+                (try
+                  (let [msg (js->clj (js/JSON.parse (.toString data)) :keywordize-keys true)]
+                    (cond
+                      (= (:type msg) "error")
+                      (do (settle-err! (ex-info (or (:message msg) "signaling error")
+                                               {:reason (keyword (or (:reason msg) "error"))
+                                                :room room}))
+                          (try (.close ws) (catch :default _)))
+                      (and (= (:type msg) "joined") role
+                           (not= (name role) (:role msg)))
+                      (settle-err! (ex-info "signaling role mismatch"
+                                            {:reason :role
+                                             :expected (name role)
+                                             :got (:role msg)}))
+                      (= (:type msg) "peer-left")
+                      (settle-err! (ex-info "the other peer left"
+                                            {:reason :peer-left :room room}))
+                      (= (:type msg) "signal")
+                      (apply-remote-msg! pc remote msg settle-ok!)))
+                  (catch :default e
+                    (settle-err! e))))))))))
 
 (defn connect-peers
   "Promise of `{:a :b :ch-a :ch-b}`: two ends with `dacite-peer` open on both.
