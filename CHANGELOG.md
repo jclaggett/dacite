@@ -6,6 +6,18 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M3.1 slice 1: `ITransport` with named channels, and an in-memory connection.**
+  `dacite.peer.transport` defines a connection that opens named channels
+  (`dacite-peer` for the peer protocol; `dacite-roots` reserved), each with `send!`,
+  `on-message!`, `buffered-amount` and `close!`. `dacite.peer.transport.mem` is an
+  in-memory connection (auto or manual delivery); `dacite.peer.link` wires a client
+  or responder to a `dacite-peer` channel. The `hello`'s `max-frame` is clamped to the
+  channel's `max-message-size` (`msg/clamp-hello`, an optional argument of both
+  `open-session!`s), so no frame is split at the transport; the responder's 4/1 marks
+  read the channel's `buffered-amount`; a channel or connection close ends the session
+  (new `responder/close-session!`). No WebRTC yet (slices 2 and 3 of the plan in
+  `docs/plan/peering.md`). Eight new checks, JVM and nbb.
+
 - **M1.3c: two IndexedDB nits.** `s-reset` outside `drive` clears the in-memory cache
   before it clears the database, and reads (`s-get`, `s-has?`) made while it runs wait for
   it, so a concurrent read can no longer return a node the reset deleted. A promise

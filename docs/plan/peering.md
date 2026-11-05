@@ -20,7 +20,7 @@ Narrow the reference implementation to one thing: a **peer**. Every Dacite clien
 
 ### Non-goals (for this plan)
 - DHT or wide-area discovery without an origin.
-- TURN relay support (direct-only until measured otherwise).
+- TURN relay support (direct-only until measured otherwise). STUN (a public server) is used for ICE from the first WebRTC slice.
 - Peers serving writes. Root updates and CAS stay with the origin.
 - Access control beyond "serve any hash you hold" (tracked as an open question).
 - QUIC/HTTP3 reveal client. The data-channel transport replaces it as the target; the existing HTTP/3 code stays as baseline, not new work.
@@ -135,11 +135,28 @@ Acceptance: items 1, 3, 4, 7, 9, 10, 11 and 12 land with tests; items 2 and 5 ar
 
 ### Phase 3: Minimal nbb peer (Tue Nov 10 to Thu Nov 12)
 
-**M3.1. Peer node with a transport abstraction.** `dacite.peer` in `.cljc`: store tiers (memory, local, peers, origin), a request handler for reveal (`have?` was removed from v1; see the peer spec, section 9), and an `ITransport` protocol. First transport is an in-process or loopback one, so protocol logic is tested without WebRTC.
+**M3.1. Peer node with a transport abstraction (slice 1 built, Nov 5).** `dacite.peer` in `.cljc`: store tiers (memory, local, peers, origin), a request handler for reveal (`have?` was removed from v1; see the peer spec, section 9), and an `ITransport` protocol. First transport is an in-process or loopback one, so protocol logic is tested without WebRTC.
 - Acceptance: two peers in one process; B reads a value stored only in A through the peer protocol; entries verified; a corrupted entry ends the session (test).
 
-**M3.2. WebRTC transport on nbb.** Adapter over `node-datachannel` (fallback `werift` if native prebuilds are a problem). Manual signaling (copy/paste or a local file) for now.
-- Acceptance: two nbb processes exchange a 5 MB value over a data channel with flow control; transfer completes with correct hashes; runs on this box (Linux) and Jonathan's Mac.
+**WebRTC plan, approved by Jonathan (Nov 5).** M3.1 and M3.2 are cut into three slices, and M3.2 gains a thin WebSocket signaling server (the origin-integrated signaling of M6 stays where it is). The decisions:
+
+- **`ITransport` is a connection that opens named channels.** One connection (one `RTCPeerConnection`, one offer/answer) carries several named channels, all negotiated in one handshake (up front, or on demand under the same names). Each channel has `send!`, `on-message!`, `buffered-amount` and `close!` (plus `on-close!` and `max-message-size` in the code: `dacite.peer.transport`, `IChannel` and `ITransport`). Messages are opaque bytes; the transport never parses a frame.
+- **Peering uses `"dacite-peer"` only.** Every peer frame (`hello`, every `get`, every item response, `ack`, `forget`, `cancel`, `error`) shares this one channel, and streams are told apart by the stream id in the frame envelope. The roots layer (publish and query a public root, a trusted peer suggesting a root the server then pulls with `get`; `docs/design/roots.md`) uses `"dacite-roots"` on the same connection. Peering never sees a roots frame, and roots never sees a peer frame. A connection close closes every channel; one channel's close ends only that layer's session.
+- **Flow control and the frame clamp are per channel.** The 4-frame high and 1-frame low marks of C17 (spec 12.5) read the channel's `bufferedAmount`; a paused channel holds back every stream on it together (fine for v1). The `max-frame` in a side's `hello` is clamped to the channel's negotiated `maxMessageSize` (browsers often guarantee only 16 to 64 KiB, libdatachannel negotiates one), and never below the 8192 minimum, so a frame never needs splitting at the transport. A channel too small for 8192 cannot carry a session.
+- **Correction recorded (Grok Bot's review):** the 4/1 marks are per *channel*, not per stream. The rate split (C01, C02) stays per *stream*: it decides when a stream may write; the buffer only decides whether the channel can take it.
+- **Close ends the session.** A transport or connection close ends the peer session exactly like a protocol violation (C16): no more frames, outstanding hashes re-asked of another peer (C14), verified items stay. A close of the `dacite-peer` channel alone ends the peer session and leaves other channels open.
+- **Library: `node-datachannel` first, `werift` as fallback.** `node-datachannel` (native libdatachannel through N-API, prebuilds) is fast and datachannel-focused; use it unless its prebuilds fail on Linux or Mac here. `werift` is pure TypeScript with a browser-like `RTCPeerConnection`, no native build, and slower; it is the fallback if the prebuilds block us. Browsers use their own `RTCPeerConnection` later (M5), not these libraries.
+- **ICE and signaling.** STUN now (a public STUN server); TURN later (open question 6). Signaling for the nbb slices: manual first (slice 2), then a thin WebSocket relay of offer, answer and ICE candidates between two peers that name a shared room token (slice 3). No peer discovery, no authentication beyond the room token.
+
+**M3.1. Slice 1: `ITransport` and the in-memory connection (built, Nov 5).** `dacite.peer.transport` (the protocols), `dacite.peer.transport.mem` (an in-memory connection of two ends; auto or manual delivery so a check can fill and drain a channel), and `dacite.peer.link` (wires a client or responder to a `dacite-peer` channel). The peer client and responder are unchanged except that `open-session!` takes the channel's `max-message-size` to clamp the `hello` (`msg/clamp-hello`), and the responder gained `close-session!` (a transport close). `mem-store` and every session rule are untouched. One client talks to one responder per channel; a node that is both on one connection is later work.
+- Acceptance: all existing peer checks still pass (JVM, `npm run peer:test`); `transport_checks.cljc` (8 checks, JVM and nbb): two peers over the in-memory transport and a verified value; the `max-frame` clamp and no splitting; a roots channel beside the peer channel that peering never sees; a channel close ending only that layer; a connection close ending the session; a corrupted entry ending the session over the transport; back-pressure through `buffered-amount`; the transport's own order and buffering rules. Tests stay under a few seconds.
+- Not done: any WebRTC, any signaling (slices 2 and 3), the roots layer itself.
+- Known, not part of this slice: on nbb a `hamt/bitmap` page does not verify (a map value), because the wire decoder reads its u32 bitmap as a signed 32-bit number; the checks use vectors and blobs. To fix before a map crosses an nbb peer.
+
+**M3.2. WebRTC transport on nbb, in two slices.** An `ITransport` adapter over `node-datachannel` (fallback `werift`), with named data channels, reliable and ordered, `bufferedAmount` and `maxMessageSize` mapped as above.
+- **Slice 2: WebRTC with manual signaling.** Two nbb processes, offer and answer pasted or exchanged through a local file, STUN for ICE. Acceptance: a value of about 5 MB transfers, every hash verifies; the 4/1 flow control is observed through `bufferedAmount`; `max-frame` is clamped to the negotiated `maxMessageSize` and no frame is split at the transport; a transport close ends the session; runs on this box (Linux); a Mac check when Jonathan is around.
+- **Slice 3: WebSocket signaling.** The same as slice 2, but offer, answer and ICE candidates go through the thin WebSocket server. Acceptance: no manual paste; two nbb peers connect by room token; the same 5 MB transfer.
+- **Out of scope for M3.1 and M3.2:** the browser peer (M5), TURN, peer discovery (mDNS, peer lists), authentication beyond a shared room token, media tracks (data channels only), any change to the peer wire protocol, and the roots protocol itself (design note only).
 
 **M3.3. Stores: file/LMDB and IndexedDB behind the same peer.** nbb peer serves from the nbb file or LMDB store; the same peer code runs against `idb.cljs` using `fake-indexeddb` in nbb tests.
 - Acceptance: the shared store tests (get, put, has?, eviction, snapshot) pass for file, LMDB and IDB; a peer serves the library fixture from each store.
@@ -236,10 +253,10 @@ About 24 working days, a decision on or near Dec 8. Phases 4 and 6 are the likel
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| `node-datachannel` native build or prebuilds fail on some platforms | Node peer can't run everywhere | Try `werift` (pure JS) in M3.2; keep the transport behind `ITransport`; headless Chromium as an emergency fallback |
+| `node-datachannel` native build or prebuilds fail on some platforms | Node peer can't run everywhere | Try `werift` (pure JS) in M3.2; keep the transport behind `ITransport` (named channels, so the library is swappable); headless Chromium as an emergency fallback |
 | nbb (SCI) performance is poor for hashing and encoding | Peer is too slow to be useful | Measure in M2.3 and M5.3; hot paths stay in `.cljc` so they can move to compiled CLJS or JS interop |
 | Browser build tooling for `.cljc` isn't set up (nbb is interpreted, browsers need compiled CLJS) | M5.1 grows to several days | Decide the tool (shadow-cljs or similar) in M2.1; spike early |
-| WebRTC flow control and message size limits differ across browsers | Stalls or dropped data | Cap message size in the spec (M1.1); test `bufferedAmount` handling in M3.2 and M5.2; test Chromium, Firefox, Safari |
+| WebRTC flow control and message size limits differ across browsers | Stalls or dropped data | Cap message size in the spec (M1.1) and clamp `max-frame` to each channel's negotiated `maxMessageSize` (M3.1); test `bufferedAmount` handling in M3.2 and M5.2; test Chromium, Firefox, Safari |
 | Reveal protocol is still moving (peer rates, token buckets, `R_max` agreement, decay parameters are open) | Spec churn after implementation | Spec only what's decided; mark the rest "experimental"; keep tuning parameters configurable |
 | Retiring the JVM server removes the only server with root CAS, auth and HTTP/3 | Lose features | Retirement criteria in M9.2; an nbb origin is a prerequisite, not an afterthought; confirm what `docs/authorization.allium` requires |
 | Malicious or buggy peers (bad data, resource exhaustion, probing) | Security, privacy | Verify every entry; drop on first bad entry; per-peer caps; read-only; privacy open question gets an answer before the demo is public |

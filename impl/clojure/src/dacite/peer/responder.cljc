@@ -98,15 +98,29 @@
 
 (defn open-session!
   "A connection from `peer` is up: send this side's `hello` and expect theirs.
-   The token bucket starts full."
+   The token bucket starts full. `opts` may hold `:max-message-size`, the largest
+   message the connection's channel carries: the `hello` sent is clamped to it
+   (`msg/clamp-hello`), so no frame this side writes needs splitting."
+  ([r peer] (open-session! r peer nil))
+  ([r peer {:keys [max-message-size]}]
+   (swap! (:state r) assoc-in [:sessions peer]
+          {:status :open :peer-hello nil :budget nil :last-tick nil :max-frame nil
+           :table nil :streams {}
+           :bucket (bucket/bucket (get (own-rates r) "req-rate") (get (own-rates r) "req-burst")
+                                  ((:now r)))})
+   (send-message! r peer {:type :hello :stream 0
+                          :value (cond-> (:hello r)
+                                   max-message-size (msg/clamp-hello max-message-size))})
+   r))
+
+(defn close-session!
+  "The connection to `peer` is gone (a transport close, not a protocol violation
+   by the peer): the session is over, nothing is sent and `:close!` is not called.
+   A no-op for a session that already ended."
   [r peer]
-  (swap! (:state r) assoc-in [:sessions peer]
-         {:status :open :peer-hello nil :budget nil :last-tick nil :max-frame nil
-          :table nil :streams {}
-          :bucket (bucket/bucket (get (own-rates r) "req-rate") (get (own-rates r) "req-burst")
-                                 ((:now r)))})
-  (send-message! r peer {:type :hello :stream 0 :value (:hello r)})
-  r)
+  (when (= :open (session-status r peer))
+    (swap! (:state r) update-in [:sessions peer] assoc :status :ended :streams {}))
+  nil)
 
 (defn- end-session!
   "C16: a protocol violation. `error malformed`, fatal, on stream 0; then close."
