@@ -21,9 +21,11 @@
      other. Another channel (`dacite-roots`) on the same connection is not its
      business and never reaches it.
    - **`max-frame` is clamped** to the channel's `max-message-size` in the
-     `hello` this side sends (`msg/clamp-hello`), so no frame ever needs
-     splitting at the transport. A channel under the smallest legal frame
-     throws `:channel-too-small`.
+     `hello` this side sends (`msg/clamp-hello`), then to `max-frame-limit`
+     when the channel has one. The in-memory transport's limit is nil, so
+     its hello keeps 16384. WebRTC's is 4096 (node-datachannel 0.33.6: 16 KiB
+     frames on a full SCTP buffer corrupted payloads). A channel under the
+     smallest frame that holds a node item throws `:channel-too-small`.
    - **Back-pressure per channel.** The responder's `:buffered` is the channel's
      `buffered-amount`, for every stream on it (C17 marks are per channel).
    - **Close.** A protocol violation or a fatal error makes the peer call
@@ -79,6 +81,13 @@
                     (swap! links (fn [m] (if (identical? ch (get m peer)) (dissoc m peer) m)))))
   (t/on-message! ch on-message))
 
+(defn- session-limits
+  "Clamp arguments for `open-session!`: the channel's message size, and its
+   `max-frame-limit` (nil on the in-memory transport, 4096 on WebRTC)."
+  [ch]
+  {:max-message-size (t/max-message-size ch)
+   :max-frame-limit (t/max-frame-limit ch)})
+
 (defn attach-client!
   "Run `client`'s session with `peer` over channel `ch`: send this side's `hello`
    (clamped to the channel), route frames in, and let a close end the session.
@@ -86,7 +95,7 @@
   ([links c peer ch] (attach-client! links c peer ch :offerer))
   ([links c peer ch role]
    (bind! links peer ch
-          #(client/open-session! c peer role {:max-message-size (t/max-message-size ch)})
+          #(client/open-session! c peer role (session-limits ch))
           (fn [bs] (client/on-frame! c peer bs))
           (fn [] (client/close-session! c peer)))
    ch))
@@ -96,16 +105,26 @@
    channel), route frames in, and let a close end the session."
   [links r peer ch]
   (bind! links peer ch
-         #(responder/open-session! r peer {:max-message-size (t/max-message-size ch)})
+         #(responder/open-session! r peer (session-limits ch))
          (fn [bs] (responder/on-frame! r peer bs))
          (fn [] (responder/close-session! r peer)))
   ch)
 
 (defn open-client-channel!
-  "The client side of `conn`: open the `dacite-peer` channel and attach."
+  "The client side of `conn`: open the `dacite-peer` channel and attach.
+
+   `open-channel!` may return the channel (the in-memory transport) or a
+   promise of it. WebRTC's does: a data channel is not usable until it is
+   open, which is when `maxMessageSize` is known. A promise resolves to the
+   attached channel; a channel is attached before this returns."
   ([links c peer conn] (open-client-channel! links c peer conn :offerer))
   ([links c peer conn role]
-   (attach-client! links c peer (t/open-channel! conn t/peer-channel) role)))
+   (let [attach (fn [ch] (attach-client! links c peer ch role))
+         opened (t/open-channel! conn t/peer-channel)]
+     #?(:clj (attach opened)
+        :cljs (if (instance? js/Promise opened)
+                (.then opened attach)
+                (attach opened))))))
 
 (defn serve!
   "The serving side of `conn`: when the other side opens `dacite-peer`, attach

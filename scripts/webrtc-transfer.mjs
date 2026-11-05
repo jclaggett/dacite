@@ -29,9 +29,6 @@ const dir = opt('--dir');
 const bytes = parseInt(opt('--bytes') || '5000000', 10);
 const iceServers = args.includes('--stun') ? ['stun:stun.l.google.com:19302'] : [];
 const CHANNEL = 'dacite-peer';
-const FRAME = 16384;
-const HIGH = 4 * FRAME;
-const LOW = 1 * FRAME;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
@@ -80,10 +77,21 @@ function openDc(pc, offerer) {
   });
 }
 
+function waitForLow(dc) {
+  return new Promise((r) => {
+    let fired = false;
+    const once = () => { if (!fired) { fired = true; r(); } };
+    dc.onBufferedAmountLow(once);
+    setTimeout(once, 2);
+  });
+}
+
 async function sendWithBackpressure(dc, data) {
-  // Frame size 4 KiB with 4/1 marks. Larger frames (16 KiB) plus a full SCTP
-  // buffer produced silent payload corruption on node-datachannel 0.33.6 in
-  // local loopback; the peer hello still clamps to the channel maxMessageSize.
+  // 4 KiB frames, 4/1 marks. node-datachannel 0.33.6 corrupted 16 KiB frames
+  // when the SCTP buffer was full (hash mismatch). The WebRTC peer hello is
+  // clamped to the same 4096; the in-memory transport keeps 16384.
+  // sendMessageBinary returning false still queued the frame on 0.33.6:
+  // sending it again duplicated bytes and the hash failed. Wait, don't retry.
   const frame = 4096;
   const high = 4 * frame;
   const low = 1 * frame;
@@ -94,16 +102,11 @@ async function sendWithBackpressure(dc, data) {
     const copy = Buffer.from(data.subarray(off, Math.min(off + frame, data.length)));
     while (dc.bufferedAmount() >= high) {
       paused++;
-      await new Promise((r) => {
-        let fired = false;
-        const once = () => { if (!fired) { fired = true; r(); } };
-        dc.onBufferedAmountLow(once);
-        setTimeout(once, 2);
-      });
+      await waitForLow(dc);
     }
-    while (!dc.sendMessageBinary(copy)) {
+    if (!dc.sendMessageBinary(copy)) {
       paused++;
-      await new Promise((r) => setTimeout(r, 2));
+      await waitForLow(dc);
     }
   }
   return { paused, frame, maxMsg };
@@ -143,6 +146,7 @@ async function inProcess() {
   p1.close(); p2.close();
   if (sha(got) !== want) { console.error('HASH MISMATCH'); process.exit(1); }
   console.log('ok');
+  process.exit(0);
 }
 
 function signalOf(pc) {

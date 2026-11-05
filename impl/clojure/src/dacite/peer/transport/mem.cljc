@@ -155,6 +155,7 @@
         (swap! pair update-in [:chans name side :on-close] conj f))))
   (buffered-amount [_] (get-in @pair [:chans name side :buffered] 0))
   (max-message-size [_] (:max-message-size @pair))
+  (max-frame-limit [_] nil)
   (channel-open? [_] (boolean (get-in @pair [:chans name :open?])))
   (close! [_]
     (when (get-in @pair [:chans name :open?])

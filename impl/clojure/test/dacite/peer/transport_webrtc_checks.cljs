@@ -2,8 +2,9 @@
   "M3.2 slice 2: WebRTC over node-datachannel, in one process (host ICE).
    Run: `npm run webrtc:test`. The ~5 MB two-process transfer with manual
    signaling is `node scripts/webrtc-transfer.mjs` (see peering.md)."
-  (:require [dacite.peer.client :as client]
+  (:require             [dacite.peer.client :as client]
             [dacite.peer.client-checks :as cc]
+            [dacite.peer.frame :as frame]
             [dacite.peer.link :as link]
             [dacite.peer.msg :as msg]
             [dacite.peer.responder :as responder]
@@ -91,23 +92,52 @@
                       (bad "sessions open" [:open :open]
                            [(client/session-status c "server")
                             (responder/session-status r "client")])
-                      (bad "channel negotiated a maxMessageSize" true (pos? max-sz))
-                      (bad "clamp-hello respects it"
+                      (bad "channel negotiated a maxMessageSize" true (> max-sz frame/webrtc-max-frame))
+                      (bad "the session hello is within the webrtc clamp" true
+                           (<= (get-in @(:state c) [:sessions "server" :hello "limits" "max-frame"])
+                               frame/webrtc-max-frame))
+                      (bad "clamp-hello still respects maxMessageSize"
                            (min 16384 max-sz)
                            (get-in (msg/clamp-hello sample-hello max-sz)
                                    ["limits" "max-frame"])))))))))))))
 
-(defn max-frame-clamped-to-webrtc-max-message-size []
-  (-> (webrtc/connect-peers {})
+(defn webrtc-hello-max-frame-is-at-most-4096
+  "The hellos exchanged over WebRTC advertise max-frame ≤ 4096, and the
+   client side opens through `open-client-channel!`, which has to wait on
+   the promise `open-channel!` returns."
+  []
+  (-> (webrtc/connect-pair {})
       (.then
-       (fn [{:keys [ch-a]}]
-         (let [max-sz (t/max-message-size ch-a)
-               hello (msg/clamp-hello sample-hello max-sz)]
-           (vec
-            (concat
-             (bad "maxMessageSize is at least the minimum frame" true (>= max-sz 8192))
-             (bad "clamp cuts 16384 to the channel" (min 16384 max-sz)
-                  (get-in hello ["limits" "max-frame"])))))))))
+       (fn [[a b]]
+         (let [now (fn [] 0)
+               rl (link/links)
+               cl (link/links)
+               r (responder/responder (merge {:store (store/mem-store) :now now}
+                                             (link/responder-opts rl)))
+               c (client/client (merge {:store (store/mem-store) :now now}
+                                       (link/client-opts cl)))
+               _ (link/serve! rl r "client" b)
+               opened (link/open-client-channel! cl c "server" a)]
+           (-> (js/Promise.resolve opened)
+               (.then (fn [_]
+                        (wait-until!
+                         #(and (get-in @(:state c) [:sessions "server" :hello])
+                               (get-in @(:state r) [:sessions "client" :peer-hello]))
+                         400)))
+               (.then
+                (fn [_]
+                  (let [from-responder (get-in @(:state c) [:sessions "server" :hello "limits" "max-frame"])
+                        from-client (get-in @(:state r) [:sessions "client" :peer-hello "limits" "max-frame"])
+                        ch (get @cl "server")]
+                    (vec
+                     (concat
+                      (bad "open-client-channel! returned a promise" true (instance? js/Promise opened))
+                      (bad "the channel's maxMessageSize is above the clamp" true
+                           (> (t/max-message-size ch) frame/webrtc-max-frame))
+                      (bad "responder hello max-frame ≤ 4096" true (<= from-responder frame/webrtc-max-frame))
+                      (bad "client hello max-frame ≤ 4096" true (<= from-client frame/webrtc-max-frame))
+                      (bad "negotiated frame is the clamp" frame/webrtc-max-frame
+                           (get-in @(:state r) [:sessions "client" :max-frame])))))))))))))
 
 (defn channel-close-ends-the-peer-session []
   (let [[src root] (blob-source 8000)]
@@ -155,7 +185,7 @@
 (def checks
   (array-map
    "two-peers-over-webrtc-verify-a-value" two-peers-over-webrtc-verify-a-value
-   "max-frame-clamped-to-webrtc-max-message-size" max-frame-clamped-to-webrtc-max-message-size
+   "webrtc-hello-max-frame-is-at-most-4096" webrtc-hello-max-frame-is-at-most-4096
    "channel-close-ends-the-peer-session" channel-close-ends-the-peer-session
    "buffered-amount-back-pressure-over-webrtc" buffered-amount-back-pressure-over-webrtc))
 

@@ -99,19 +99,22 @@
 (defn open-session!
   "A connection from `peer` is up: send this side's `hello` and expect theirs.
    The token bucket starts full. `opts` may hold `:max-message-size`, the largest
-   message the connection's channel carries: the `hello` sent is clamped to it
-   (`msg/clamp-hello`), so no frame this side writes needs splitting."
+   message the connection's channel carries, and `:max-frame-limit`, a tighter
+   cap (WebRTC passes 4096). The `hello` sent is `msg/hello-for-channel` of
+   those, and that same map is what `negotiate` later reads (`:advertised`),
+   so a library clamp is the frame size this side writes, not only the bytes
+   on the wire."
   ([r peer] (open-session! r peer nil))
-  ([r peer {:keys [max-message-size]}]
-   (swap! (:state r) assoc-in [:sessions peer]
-          {:status :open :peer-hello nil :budget nil :last-tick nil :max-frame nil
-           :table nil :streams {}
-           :bucket (bucket/bucket (get (own-rates r) "req-rate") (get (own-rates r) "req-burst")
-                                  ((:now r)))})
-   (send-message! r peer {:type :hello :stream 0
-                          :value (cond-> (:hello r)
-                                   max-message-size (msg/clamp-hello max-message-size))})
-   r))
+  ([r peer opts]
+   (let [hello (msg/hello-for-channel (:hello r) opts)]
+     (swap! (:state r) assoc-in [:sessions peer]
+            {:status :open :peer-hello nil :budget nil :last-tick nil :max-frame nil
+             :advertised hello
+             :table nil :streams {}
+             :bucket (bucket/bucket (get (own-rates r) "req-rate") (get (own-rates r) "req-burst")
+                                    ((:now r)))})
+     (send-message! r peer {:type :hello :stream 0 :value hello})
+     r)))
 
 (defn close-session!
   "The connection to `peer` is gone (a transport close, not a protocol violation
@@ -232,13 +235,14 @@
             type (:type fr)]
         (cond
           (= :hello type)
-          (let [{:keys [value]} (msg/decode-message frame-bytes)]
+          (let [{:keys [value]} (msg/decode-message frame-bytes)
+                mine (or (get-in @(:state r) [:sessions peer :advertised]) (:hello r))]
             (when hello? (throw (ex-info "a second hello" {:reason :second-hello})))
             (swap! (:state r) update-in [:sessions peer]
                    assoc :peer-hello value
                    :budget (get-in value ["rates" "recv-max"])
-                   :max-frame (get-in (msg/negotiate (:hello r) value) [:ok :max-frame])
-                   :table (frame/stream-table :answerer (get-in (:hello r) ["limits" "max-streams"]))
+                   :max-frame (get-in (msg/negotiate mine value) [:ok :max-frame])
+                   :table (frame/stream-table :answerer (get-in mine ["limits" "max-streams"]))
                    :last-tick ((:now r))))
 
           (= :error type)

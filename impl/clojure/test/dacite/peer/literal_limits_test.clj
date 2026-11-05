@@ -226,14 +226,20 @@
                   :no-throw
                   (catch clojure.lang.ExceptionInfo e (:reason (ex-data e)))))))))
 
-(deftest hello-limits-max-frame-starts-at-8192
+(deftest hello-limits-max-frame-accepts-the-webrtc-clamp
+  ;; 8192 (`min-max-frame`) still holds a node item in one frame. The codec
+  ;; also accepts 4096 (`webrtc-max-frame`): that is what the WebRTC transport
+  ;; advertises, under the node-item minimum, until node-datachannel is fixed.
   (let [hello (fn [n] {:type :hello :stream 0
                        :value (assoc-in (:value (first dacite.peer.examples/examples))
                                         ["limits" "max-frame"] n)})]
-    (is (= :invalid-message (reason-of #(msg/encode-message (hello 8191)))) "one under the smallest")
-    (is (bytes? (msg/encode-message (hello 8192))))
-    (is (bytes? (msg/encode-message (hello 16384))))
-    (is (= :invalid-message (reason-of #(msg/encode-message (hello 16385)))))))
+    (is (= :invalid-message (reason-of #(msg/encode-message (hello (dec frame/webrtc-max-frame)))))
+        "one under the webrtc clamp")
+    (is (bytes? (msg/encode-message (hello frame/webrtc-max-frame)))
+        "4096 is legal so a webrtc hello can be sent")
+    (is (bytes? (msg/encode-message (hello frame/min-max-frame))))
+    (is (bytes? (msg/encode-message (hello frame/max-frame))))
+    (is (= :invalid-message (reason-of #(msg/encode-message (hello (inc frame/max-frame))))))))
 
 (deftest the-smallest-frame-holds-the-largest-node-item
   (is (= 8192 frame/min-max-frame))

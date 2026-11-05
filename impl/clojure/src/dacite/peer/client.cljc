@@ -373,10 +373,11 @@
    else is until the peer's arrives (`on-frame!`). `role` is `:offerer` (this
    side sent the WebRTC offer, odd stream ids; the default) or `:answerer`.
    `opts` may hold `:max-message-size`, the largest message the connection's
-   channel carries: the `hello` sent is clamped to it (`msg/clamp-hello`)."
+   channel carries, and `:max-frame-limit`, a tighter cap (WebRTC passes
+   4096). The `hello` sent is `msg/hello-for-channel` of those."
   ([c peer-id] (open-session! c peer-id :offerer))
   ([c peer-id role] (open-session! c peer-id role nil))
-  ([c peer-id role {:keys [max-message-size]}]
+  ([c peer-id role opts]
    (swap! (:state c)
           (fn [s]
             (-> s
@@ -385,8 +386,7 @@
                            :hello nil :bucket nil :verified {}})
                 (update :order #(conj (vec (remove #{peer-id} %)) peer-id)))))
    ((:send! c) peer-id {:type :hello :stream 0
-                        :value (cond-> (:hello c)
-                                 max-message-size (msg/clamp-hello max-message-size))})
+                        :value (msg/hello-for-channel (:hello c) opts)})
    c))
 
 (defn- on-hello!

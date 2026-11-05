@@ -175,7 +175,10 @@ is the one size that is safe for all of them. It also means:
 `hello.limits.max-frame` lets a peer ask for smaller frames (8192..16384). It
 can never raise the limit. The effective size is the smaller of the two. The
 smallest, 8192 (`frame/min-max-frame`), holds the largest node item a sender
-writes (3.2).
+writes (3.2). The reference codec also accepts 4096 (`frame/webrtc-max-frame`):
+that is what the WebRTC transport advertises today, below this range, because
+of a node-datachannel 0.33.6 limit (section 5). A node item may span frames at
+that size. The in-memory transport still advertises 16384.
 
 ### 3.2 Serializing an item stream
 
@@ -568,7 +571,13 @@ SCTP). The rules a transport keeps:
   of its own `max-frame` and the channel's negotiated `maxMessageSize` (browsers often
   guarantee only 16 to 64 KiB; libdatachannel negotiates one), so no frame needs
   splitting at the transport. The minimum (8192, 6.1) still holds: a channel that
-  cannot carry 8192 bytes cannot carry a session.
+  cannot carry 8192 bytes cannot carry a session. The WebRTC adapter
+  (`node-datachannel` 0.33.6) then clamps further, to 4096 (`frame/webrtc-max-frame`).
+  16 KiB frames plus a full SCTP buffer caused silent payload corruption (hash
+  mismatch) in our tests; 4 KiB frames with 4/1 `bufferedAmount` marks were fine.
+  That sits below the 8192 minimum, so a node item may span frames on this
+  transport until the clamp is raised. The in-memory transport does not apply it
+  and keeps 16384. Raise the clamp when upstream is fixed.
 - **Close.** A transport or connection close ends the peer session like a protocol
   violation (C16): nothing more is sent, and the hashes it was serving are asked of
   another peer (C14). The close of one channel ends only the session of the layer
@@ -611,7 +620,7 @@ arrived.
 | `versions` | set of i64 | yes | Protocol versions I speak. This draft is `#{1}`. |
 | `kind` | string | yes | `"node"` or `"browser"`. Selection prefers Node peers. An unknown kind is accepted and read as `"browser"` (fixture `hello-unknown-kind`). |
 | `caps` | set of string | yes | Capabilities: `"reveal"` (I answer `get`). Unknown ones are ignored. |
-| `limits` | map | yes | `max-frame` (8192..16384), `max-item` (bytes, at least 1), `max-streams` (open requests I accept, at least 1). All required. |
+| `limits` | map | yes | `max-frame` (8192..16384; the codec also accepts 4096, the WebRTC transport's temporary clamp, section 5), `max-item` (bytes, at least 1), `max-streams` (open requests I accept, at least 1). All required. |
 | `rates` | map | yes | `send-max` and `recv-max` (bytes per second I will send / want to receive), `req-rate` and `req-burst` (requests per second and bucket size I accept). All required and at least 1: a peer that serves nothing leaves out the capability instead. |
 | `agent` | string | no | Software name and version. Informational. |
 

@@ -294,8 +294,9 @@
              (not (contains? kinds (get x "kind"))))
         (conj "kind: must be node or browser")
         (and (map? lim) (int-value? (get lim "max-frame"))
-             (not (<= frame/min-max-frame (get lim "max-frame") frame/max-frame)))
-        (conj "limits.max-frame: must be 8192..16384")))
+             (not (<= frame/webrtc-max-frame (get lim "max-frame") frame/max-frame)))
+        (conj (str "limits.max-frame: must be " frame/webrtc-max-frame
+                   ".." frame/max-frame))))
 
     (:ack :forget)
     (cond-> []
@@ -424,9 +425,10 @@
 (defn clamp-hello
   "`hello` with its `max-frame` cut to `max-message-size`, the largest message a
    transport channel carries (peer-v1 section 5): a frame then never needs
-   splitting below the peer. A channel that cannot carry the smallest legal
-   frame (`frame/min-max-frame`) cannot carry a session: it throws
-   `:channel-too-small`."
+   splitting below the peer. A channel that cannot carry the smallest frame
+   that holds a node item (`frame/min-max-frame`) cannot carry a session: it
+   throws `:channel-too-small`. The WebRTC library clamp below that minimum
+   is `hello-for-channel`'s `:max-frame-limit`, not this check."
   [hello max-message-size]
   (when (< max-message-size frame/min-max-frame)
     (throw (ex-info "the channel's largest message is under the smallest max-frame"
@@ -434,6 +436,22 @@
                      :max-message-size max-message-size
                      :min-max-frame frame/min-max-frame})))
   (update-in hello ["limits" "max-frame"] #(min % max-message-size)))
+
+(defn hello-for-channel
+  "The `hello` to send on a channel.
+
+   `:max-message-size` is `clamp-hello`: cut `max-frame` to what the channel
+   carries, and throw `:channel-too-small` under `frame/min-max-frame`.
+   `:max-frame-limit`, when set, cuts again. The WebRTC transport passes
+   `frame/webrtc-max-frame` (4096). That is under the minimum above: the
+   channel can carry 8192, but node-datachannel 0.33.6 corrupts a 16 KiB
+   frame on a full SCTP buffer, so the hello asks for 4096. A nil key leaves
+   the hello alone. The in-memory transport sets neither extra limit and
+   keeps 16384."
+  [hello {:keys [max-message-size max-frame-limit]}]
+  (cond-> hello
+    max-message-size (clamp-hello max-message-size)
+    max-frame-limit (update-in ["limits" "max-frame"] #(min % max-frame-limit))))
 
 ;; =============================================================================
 ;; Messages on the wire

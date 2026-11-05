@@ -134,7 +134,15 @@
      (bad "send! over the channel's size is refused" :message-too-large refused)
      (bad "clamp-hello cuts max-frame" 9000 (get-in hello ["limits" "max-frame"]))
      (bad "and keeps a smaller one" 8192
-          (get-in (msg/clamp-hello (assoc-in hello ["limits" "max-frame"] 8192) 16384) ["limits" "max-frame"])))))
+          (get-in (msg/clamp-hello (assoc-in hello ["limits" "max-frame"] 8192) 16384) ["limits" "max-frame"]))
+     (bad "the in-memory hello keeps 16384" 16384
+          (get-in @(:state (:c wide)) [:sessions "server" :hello "limits" "max-frame"]))
+     (bad "and so does the hello the responder saw" 16384
+          (get-in @(:state (:r wide)) [:sessions "client" :peer-hello "limits" "max-frame"]))
+     (bad "a frame limit is what cuts below that" 4096
+          (get-in (msg/hello-for-channel (:hello (client/client {}))
+                                         {:max-message-size 65536 :max-frame-limit 4096})
+                  ["limits" "max-frame"])))))
 
 (defn peer-never-sees-roots-messages
   "Named channels: `dacite-roots` shares the connection with `dacite-peer`.

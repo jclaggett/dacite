@@ -16,7 +16,7 @@
            (doseq [{:keys [name ms problems]} results]
              (when (seq problems) nil)
              (println " " ms "ms" name))
-           (when (seq problems) (js/process.exit 1)))))
+           (js/process.exit (if (seq problems) 1 0)))))
       (.catch
        (fn [e]
          (println "webrtc checks threw:" (ex-message e) (pr-str (ex-data e)))

@@ -10,9 +10,18 @@ stability promise: public APIs may still change before 1.0.
   (nbb) implements `ITransport` with named reliable ordered data channels. In-process
   `connect-peers` for tests; `create-peer` plus `scripts/webrtc-transfer.mjs` for
   manual two-process signaling (offer/answer files, optional `--stun`). `max-frame`
-  is clamped to `maxMessageSize`; 4/1 flow control uses `bufferedAmount`; a channel
-  close ends the peer session. `npm run webrtc:test` and `npm run webrtc:transfer`.
-  Prebuilds worked on Linux x64; werift remains the documented fallback if they fail.
+  is clamped to `maxMessageSize`, then to 4096. That second cut is a known limit of
+  `node-datachannel` 0.33.6: 16 KiB frames plus a full SCTP buffer caused silent
+  payload corruption (hash mismatch) in our tests; 4 KiB frames with 4/1
+  `bufferedAmount` marks were fine. The in-memory transport does not apply it and
+  keeps 16384. Raise the clamp when upstream is fixed. On this library version
+  `sendMessageBinary` returning false still queues the frame; the transfer script
+  and the transport do not send it again (a retry duplicated bytes and the hash
+  failed). 4/1 flow control uses `bufferedAmount`; a channel close ends the peer
+  session. `open-client-channel!`
+  accepts the promise WebRTC's `open-channel!` returns. `npm run webrtc:test` and
+  `npm run webrtc:transfer`. Prebuilds worked on Linux x64; werift remains the
+  documented fallback if they fail.
 
 - **Fix #30: nbb `get-u32` is unsigned.** On ClojureScript, `bit-or` / `bit-shift-left`
   are 32-bit signed, so a `hamt/bitmap` with bit 31 set (chunk 31 in use) decoded as a

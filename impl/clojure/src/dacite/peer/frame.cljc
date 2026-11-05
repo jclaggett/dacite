@@ -33,12 +33,25 @@
 (def max-payload (- max-frame header-bytes))
 
 (def min-max-frame
-  "Smallest `max-frame` a peer may advertise. A control message must fit,
-   and so must the largest node item (the leaf page budget, 4096 wire bytes,
-   plus the page's own fields: about 4.2 KB at most) plus the 37-byte item
-   header and the 6-byte envelope (spec 3.2). `max-node-item-bytes` is that
-   bound."
+  "Smallest `max-frame` that still holds the largest node item in one frame.
+   A control message must fit, and so must the largest node item (the leaf
+   page budget, 4096 wire bytes, plus the page's own fields: about 4.2 KB at
+   most) plus the 37-byte item header and the 6-byte envelope (spec 3.2).
+   `max-node-item-bytes` is that bound. A channel smaller than this cannot
+   carry a session (`msg/clamp-hello` throws `:channel-too-small`). The
+   WebRTC transport advertises a smaller frame anyway (`webrtc-max-frame`):
+   the codec accepts it, and a node item may span frames there."
   8192)
+
+(def webrtc-max-frame
+  "Largest `max-frame` the WebRTC transport advertises. Below
+   `min-max-frame`. A known limit of node-datachannel 0.33.6: 16 KiB frames
+   plus a full SCTP buffer caused silent payload corruption (hash mismatch)
+   in our tests; 4 KiB frames with 4/1 `bufferedAmount` marks were fine.
+   The in-memory transport does not use this and keeps `max-frame` (16384).
+   Raise this when upstream is fixed. The codec accepts a hello down to
+   this size so the two sides can agree."
+  4096)
 
 (def max-node-item-bytes
   "What the sender expects the largest node item to be on the wire. A page

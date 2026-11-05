@@ -3,9 +3,16 @@
 
    One `RTCPeerConnection` per connection; named data channels (reliable,
    ordered) are `IChannel`s. Peering uses `\"dacite-peer\"`. The channel's
-   `maxMessageSize` is what `msg/clamp-hello` clamps `max-frame` to; its
-   `bufferedAmount` is what the responder's 4/1 marks read. A channel or
-   connection close ends the peer session (see `dacite.peer.link`).
+   `maxMessageSize` is what `msg/clamp-hello` clamps `max-frame` to, and
+   `max-frame-limit` then cuts it to `frame/webrtc-max-frame` (4096). That
+   second cut is a known limit of node-datachannel 0.33.6: 16 KiB frames plus
+   a full SCTP buffer caused silent payload corruption (hash mismatch) in our
+   tests; 4 KiB frames with 4/1 `bufferedAmount` marks were fine. The
+   negotiated `maxMessageSize` is often far above 16384, so the hello would
+   otherwise stay at 16384. Raise `frame/webrtc-max-frame` when upstream is
+   fixed. The in-memory transport does not set this limit. `bufferedAmount`
+   is what the responder's 4/1 marks read (in frames of the clamped size).
+   A channel or connection close ends the peer session (see `dacite.peer.link`).
 
    Two ways to get a connection:
 
@@ -19,7 +26,8 @@
 
    Library: `node-datachannel` (libdatachannel N-API). If its prebuilds fail
    on a platform, fall back to `werift` (pure TypeScript) — not wired here yet."
-  (:require [dacite.peer.transport :as t]
+  (:require [dacite.peer.frame :as frame]
+            [dacite.peer.transport :as t]
             [dacite.wire.binary :as bin]))
 
 (def default-stun "stun:stun.l.google.com:19302")
@@ -75,9 +83,11 @@
                     (when (and (pos? max) (> (.-length buf) max))
                       (fail! :message-too-large "message over the channel's max-message-size"
                              {:channel name :size (.-length buf) :max max}))
-                    (when-not (.sendMessageBinary dc buf)
-                      (fail! :send-failed "data channel sendMessageBinary returned false"
-                             {:channel name :buffered (.bufferedAmount dc)}))
+                    ;; On node-datachannel 0.33.6 a false return still queues the
+                    ;; message once the SCTP buffer is high. Failing or sending
+                    ;; again drops or duplicates a frame that was accepted.
+                    ;; Back-pressure is the buffered amount, not this boolean.
+                    (.sendMessageBinary dc buf)
                     nil))
                 (on-message! [_ f]
                   (reset! handler f)
@@ -87,6 +97,7 @@
                   (if @closed? (f) (swap! on-close conj f)))
                 (buffered-amount [_] (.bufferedAmount dc))
                 (max-message-size [_] (let [m (.maxMessageSize dc)] (if (pos? m) m 65536)))
+                (max-frame-limit [_] frame/webrtc-max-frame)
                 (channel-open? [_] (and (not @closed?) (.isOpen dc)))
                 (close! [_]
                   (when-not @closed?
