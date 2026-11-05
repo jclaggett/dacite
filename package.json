@@ -16,10 +16,13 @@
     "lmdb:bench": "nbb -m dacite.examples.lmdb-bench",
     "idb:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.idb-test",
     "reveal:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.reveal-cljs-test",
-    "peer:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.peer-cljs-test"
+    "peer:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.peer-cljs-test",
+    "webrtc:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.webrtc-cljs-test",
+    "webrtc:transfer": "node scripts/webrtc-transfer.mjs"
   },
   "dependencies": {
     "chalk": "^4.1.2",
+    "node-datachannel": "^0.33.6",
     "prompts": "^2.4.2"
   },
   "devDependencies": {

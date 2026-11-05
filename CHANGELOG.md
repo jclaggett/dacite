@@ -6,6 +6,15 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M3.2 slice 2: WebRTC over `node-datachannel`.** `dacite.peer.transport.webrtc`
+  (nbb) implements `ITransport` with named reliable ordered data channels. In-process
+  `connect-peers` for tests; `create-peer` plus `scripts/webrtc-transfer.mjs` for
+  manual two-process signaling (offer/answer files, optional `--stun`). `max-frame`
+  is clamped to `maxMessageSize`; 4/1 flow control uses `bufferedAmount`; a channel
+  close ends the peer session. `npm run webrtc:test` and `npm run webrtc:transfer`.
+  Prebuilds worked on Linux x64; werift remains the documented fallback if they fail.
+
+
 - **M3.1 slice 1: `ITransport` with named channels, and an in-memory connection.**
   `dacite.peer.transport` defines a connection that opens named channels
   (`dacite-peer` for the peer protocol; `dacite-roots` reserved), each with `send!`,
