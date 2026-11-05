@@ -7,6 +7,7 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
+            [clojure.string]
             [dacite.peer.conformance :as conf]
             [dacite.peer.examples :as ex]
             [dacite.peer.frame :as frame]

@@ -138,7 +138,7 @@
         (cond-> []
           (not same?)
           (conj (str "bitmap with bit 31 decoded as " (pr-str got)
-                     " (type " (pr-str (type got)) "), wanted unsigned " (str orig)))
+                     " (type " (pr-str (type got)) "), wanted unsigned " orig))
           (neg? (js/Number got))
           (conj (str "decoded bitmap is negative: " got))
           (not= :ok verify)

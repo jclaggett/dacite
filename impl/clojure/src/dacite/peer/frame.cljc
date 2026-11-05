@@ -158,7 +158,7 @@
       (when bss
         (let [b (first bss)
               m (blen b)]
-          #?(:clj (System/arraycopy ^bytes b 0 ^bytes out (int at) (int m))
+          #?(:clj (System/arraycopy ^bytes b 0 ^bytes out (int at) m)
              :cljs (.set out b at))
           (recur (next bss) (+ at m)))))
     out))

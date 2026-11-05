@@ -2,7 +2,6 @@
   "Generative tests for Dacite hashing invariants."
   (:require [clojure.edn]
             [clojure.test :refer [deftest is testing]]
-            [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]

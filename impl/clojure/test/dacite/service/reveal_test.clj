@@ -2,6 +2,7 @@
   "The reveal stream: item bytes, hash checks, one HTTP/3 session,
    and the root notice beside it."
   (:require [clojure.test :refer [deftest is]]
+            [dacite.hash]
             [dacite.reveal :as reveal]
             [dacite.service :as svc]
             [dacite.service.reveal :as rv]

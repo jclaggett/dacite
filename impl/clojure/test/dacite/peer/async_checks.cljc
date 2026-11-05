@@ -17,7 +17,6 @@
   (:require [dacite.peer.client :as client]
             [dacite.peer.client-checks :as cc]
             [dacite.peer.flow-checks :as fc]
-            [dacite.peer.frame :as frame]
             [dacite.peer.harness :as h]
             [dacite.peer.msg :as msg]
             [dacite.peer.responder :as responder]
@@ -332,7 +331,7 @@
         deliver (fn []
                   (let [[[sid _]] (gets n)
                         ;; every frame at once, as a transport delivers them
-                        steps (mapv #(client/on-frame! c "p" %) ((cc/honest src) sid root))]
-                    (let [frames-waited? (boolean (some chain/pending? steps))]
-                      (when-done (last steps) #(report frames-waited?) fail))))]
+                        steps (mapv #(client/on-frame! c "p" %) ((cc/honest src) sid root))
+                        frames-waited? (boolean (some chain/pending? steps))]
+                    (when-done (last steps) #(report frames-waited?) fail)))]
     (when-done step0 deliver fail)))
