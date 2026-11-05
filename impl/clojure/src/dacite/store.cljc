@@ -133,7 +133,7 @@
     (and (map? p) (contains? p :dacite/result))
     (get p :dacite/result)
     :else
-    (throw (ex-info "not a store promise" {:value p}))))
+    (throw (ex-info "not a store promise" {:reason :not-settled :value p}))))
 
 (defn require-node
   "Await `s-get`. Return the node, or throw `{:reason :missing}` when absent.

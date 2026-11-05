@@ -32,7 +32,18 @@
    of C11/C12 are M3.1. Items are sent as node items; the literal choice of
    `dacite.peer.items/encode-value` is JVM-only.
 
-   Store calls are synchronous: this works with the in-memory store only."
+   **Store reads may be asynchronous (M1.3).** A `get` reads the store through
+   `dacite.store.chain/with-reads`, so a store that settles late works as well as
+   the in-memory store: the stream starts when the read is done, and a `get` that
+   arrives meanwhile is handled on its own (nothing here writes, so there is no
+   order to keep between them). With a store that answers at once, which is always
+   the case with `store/mem-store`, `on-frame!` is as synchronous as before and
+   returns nil; otherwise it returns a `chain/Deferred` of nil. A store that fails
+   while it is read ends that stream only, with `error internal`; the session
+   lives. The reveal walk (`dacite.reveal/page-order`) is still synchronous code:
+   it runs on a read view that fetches the subtree under each node it misses and
+   starts again, so over a store that is not settled it costs a couple of passes,
+   not one per page."
   (:require [dacite.hash :as hash]
             [dacite.peer.bucket :as bucket]
             [dacite.peer.frame :as frame]
@@ -40,6 +51,8 @@
             [dacite.peer.rates :as rates]
             [dacite.reveal :as reveal]
             [dacite.store :as store]
+            [dacite.store.chain :as chain]
+            [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
 
 (def default-hello
@@ -114,10 +127,8 @@
                            (reveal/page-order st h))
                      {:max-frame-bytes max-frame}))
 
-(defn- start-stream! [r peer sid value]
-  (let [{:keys [store now]} r
-        h (hash-hex->hash (get value "hash"))
-        {:keys [max-frame]} (get-in @(:state r) [:sessions peer])
+(defn- start-stream! [r peer sid value frames]
+  (let [{:keys [now]} r
         interest (merge default-interest (get value "interest"))]
     (swap! (:state r) update-in [:sessions peer]
            (fn [s]
@@ -125,7 +136,7 @@
                  ;; C03: the latest get's recv-max is the session budget
                  (assoc :budget (get value "recv-max"))
                  (assoc-in [:streams sid]
-                           {:frames (item-frames store h sid max-frame)
+                           {:frames frames
                             :next 0 :t0 (now) :credit 0 :blocked? false
                             :peak (get interest "peak") :tau (get interest "tau-ms")}))))))
 
@@ -158,13 +169,37 @@
           :else
           (do (swap! (:state r) assoc-in [:sessions peer :table] opened)
               ;; C36: from this store only
-              (if (nil? (store/await (store/s-get (:store r) (hash-hex->hash (get value "hash")))))
-                (do (close-stream! r peer stream)
-                    (reply! "unknown-hash" "not held here"))
-                (start-stream! r peer stream value))))))))
+              (chain/then
+               (chain/guard
+                (fn []
+                  (chain/with-reads (:store r)
+                    (fn [view]
+                      (let [h (hash-hex->hash (get value "hash"))
+                            {:keys [max-frame]} (get-in @(:state r) [:sessions peer])]
+                        (when (some? (store/await (store/s-get view h)))
+                          (item-frames view h stream max-frame))))
+                    ;; the walk reads the whole value: fetch it a subtree at a time
+                    {:expand types/child-hashes}))
+                ;; the store failed: this stream only, and the session lives
+                (fn [_] ::unreadable))
+               (fn [frames]
+                 ;; the session may have ended while the store was read
+                 (when (= :open (session-status r peer))
+                   (cond
+                     (= ::unreadable frames)
+                     (do (close-stream! r peer stream)
+                         (reply! "internal" "the store could not be read"))
+
+                     (nil? frames)
+                     (do (close-stream! r peer stream)
+                         (reply! "unknown-hash" "not held here"))
+
+                     :else (start-stream! r peer stream value frames)))))))))))
 
 (defn on-frame!
-  "The frame (bytes) that arrived from `peer`. Returns nil.
+  "The frame (bytes) that arrived from `peer`. Returns nil, or with a store that
+   settles late a `chain/Deferred` of nil, done when the `get` it carries has its
+   stream (see the namespace doc).
 
    - `hello` (once, first): it sets the budget (its `recv-max`) and the frame size
    - `get`: see the namespace doc
@@ -175,8 +210,10 @@
      violation, which ends the session (C16)"
   [r peer frame-bytes]
   (when (= :open (session-status r peer))
-    (try
-      (let [fr (frame/decode-frame frame-bytes)
+    (chain/then
+     (chain/guard
+      (fn []
+       (let [fr (frame/decode-frame frame-bytes)
             hello? (some? (get-in @(:state r) [:sessions peer :peer-hello]))
             type (:type fr)]
         (cond
@@ -206,10 +243,10 @@
 
           (#{:cancel :ack :forget} type) nil
 
-          :else (throw (ex-info "a frame this side never accepts" {:reason :unexpected :type type}))))
-      (catch #?(:clj Throwable :cljs :default) e
-        (end-session! r peer (str (name (or (:reason (ex-data e)) :error)) ": " (ex-message e))))))
-  nil)
+          :else (throw (ex-info "a frame this side never accepts" {:reason :unexpected :type type})))))
+      (fn [e]
+        (end-session! r peer (str (name (or (:reason (ex-data e)) :error)) ": " (ex-message e)))))
+     (fn [_] nil))))
 
 ;; =============================================================================
 ;; Pacing

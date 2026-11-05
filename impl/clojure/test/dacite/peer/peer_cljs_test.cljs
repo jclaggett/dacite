@@ -5,12 +5,16 @@
 
    The same checks as peer_v1_test.clj, and the portable verification and
    client and flow checks of M1.2 slices 1 and 2 (client_checks.cljc and
-   flow_checks.cljc, also run by client_test.clj and flow_test.clj on the JVM)."
+   flow_checks.cljc, also run by client_test.clj and flow_test.clj on the JVM),
+   and the M1.3 checks of an asynchronous store (async_checks.cljc, also run by
+   async_test.clj): the M1.2 checks again over a store that settles late, and a
+   store whose promises are real `js/Promise`s."
   (:require [cljs.reader :as reader]
             [dacite.cache-checks :as cache-checks]
             [dacite.hash :as hash]
             [dacite.host :as host]
             [dacite.kernel-vectors :as kernel-vectors]
+            [dacite.peer.async-checks :as async-checks]
             [dacite.peer.client-checks :as client-checks]
             [dacite.peer.conformance :as conf]
             [dacite.peer.examples :as ex]
@@ -116,7 +120,7 @@
                                                     {"versions" #{2} "caps" #{} "limits" {"max-frame" 1 "max-item" 1 "max-streams" 1}})
                                      [:ok :version]))
                 ["negotiate does not pick the highest common version"]))
-        client (into (client-checks/run-all) (flow-checks/run-all))
+        client (-> (client-checks/run-all) (into (flow-checks/run-all)) (into (async-checks/run-all)))
         client-problems (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) client)
         all (into (into (into (vec problems) framing) host) (concat client-problems (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (bad-state-problems) (cache-checks/problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
@@ -124,7 +128,10 @@
     (println "client checks:" (count client) "tests,"
              (count client-problems) "problems, slowest"
              (apply max (map :ms client)) "ms")
-    (doseq [p all] (println "  FAIL" p))
-    (when (or (seq all) (< cases 50))
-      (js/process.exit 1))))
-
+    ;; the one check that waits: a store whose promises are real js/Promises
+    (async-checks/host-promise-check
+     (fn [host]
+       (println "host-promise store:" (count host) "problems")
+       (doseq [p (concat all (map #(str "host-promise: " %) host))] (println "  FAIL" p))
+       (when (or (seq all) (seq host) (< cases 50))
+         (js/process.exit 1))))))

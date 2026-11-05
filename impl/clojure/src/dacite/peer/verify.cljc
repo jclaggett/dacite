@@ -13,10 +13,22 @@
 
    A failure is an ex-info with `:reason` `:bad-hash`, `:bad-entry` or
    `:bad-item` (or `:bad-state` from the wire decoder). The session that
-   reads one ends (`dacite.peer.client`, C13)."
+   reads one ends (`dacite.peer.client`, C13).
+
+   **Store calls may be asynchronous (M1.3).** The functions that touch the
+   store (`accept-item!`, `accept-items!`, `checked?`, `discard-unchecked!`,
+   `finish!`) chain on store promises (`dacite.store.chain`): each returns a
+   *step*, the plain value when the store answered at once (the in-memory store
+   always does) or a `Deferred` when it did not (`chain/native` makes a host
+   promise of it). The order is the same either way: an item is verified, then
+   stored, before the next is read. A store call that fails is `ex-info`
+   `:reason :store-failed`, which is not a verification failure: the item is
+   not stored and the sender did nothing wrong. `verify-item!` itself is
+   synchronous and reads only."
   (:require [dacite.host :as host]
             [dacite.rooted.gc :as gc]
             [dacite.store :as store]
+            [dacite.store.chain :as chain]
             [dacite.store.pack :as pack]
             [dacite.value.finger-tree :as ft]
             [dacite.value.hamt :as hamt]
@@ -226,84 +238,132 @@
   [{:keys [pending]}]
   (into [] (comp (mapcat vals) (map :hash)) (vals @pending)))
 
-(defn- stored? [st h] (some? (store/await (store/s-get st h))))
+(defn- stored? [view h] (some? (store/await (store/s-get view h))))
 
-(defn checked?
-  "True when `h` is stored and verified. A node that is not a collection header
-   is verified when it is stored. A header is verified when its root is stored
-   and its hash, count and size match that root: a header that only waits for its
-   root, or that is forged, is not."
-  [st h]
+(defn- checked-now? [st h]
   (if-let [[type-name data :as entry] (store/await (store/s-get st h))]
     (if (collection-type? type-name)
       (boolean (try (when-let [m (root-measure st type-name (:root data))]
                       (header-check type-name data h m)
                       true)
-                    (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) _ false)))
+                    (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
+                      (if (chain/miss? e) (throw e) false))))
       (some? entry))
     false))
+
+(defn checked?
+  "True when `h` is stored and verified. A node that is not a collection header
+   is verified when it is stored. A header is verified when its root is stored
+   and its hash, count and size match that root: a header that only waits for its
+   root, or that is forged, is not. A step (see the namespace doc)."
+  [st h]
+  (chain/with-reads st #(checked-now? % h)))
+
+(defn- put!
+  "Store one entry. A step; a store that fails is `:store-failed`."
+  [st h entry]
+  (chain/store-op #(store/s-put st h entry) h))
 
 (defn- drop-header!
   "Remove a header this receiver stored, unless the store holds something that
    is not this receiver's copy (another session replaced it with its own), or the
    header has meanwhile been verified through its root. The store is shared by
    every session, so one session giving up must not take away what another
-   session sent or what was verified."
+   session sent or what was verified. A step."
   [st hash entry]
-  (when (and (= entry (store/await (store/s-get st hash)))
-             (not (checked? st hash)))
-    (store/await (store/s-delete st hash))))
+  (chain/then (chain/store-op #(store/s-get st hash) hash)
+              (fn [current]
+                (when (= entry current)
+                  (chain/then (checked? st hash)
+                              (fn [ok]
+                                (when-not ok
+                                  (chain/store-op #(store/s-delete st hash) hash))))))))
 
 (defn discard-unchecked!
   "Remove this receiver's unchecked headers from the store. A session that ends
    before their roots arrive (a failure, a `cancel`, a PARTIAL stream) calls this,
    so the store holds only what was verified. A header that another session has
-   stored in its place, or that is verified by now, stays (`drop-header!`)."
+   stored in its place, or that is verified by now, stays (`drop-header!`).
+   A step of the receiver."
   [{:keys [store pending] :as rx}]
-  (doseq [{:keys [hash entry]} (mapcat vals (vals @pending))]
-    (drop-header! store hash entry))
-  (reset! pending {})
-  rx)
+  (let [headers (vec (mapcat vals (vals @pending)))]
+    (reset! pending {})
+    (chain/then (chain/each headers (fn [{:keys [hash entry]}] (drop-header! store hash entry)))
+                (fn [_] rx))))
+
+(defn- check-waiting!
+  "Check the headers (hash -> waiting entry) whose root is stored now. Each failing
+   header is removed from the store; the honest ones on the same root stay (a
+   passing one is stored again, in case another session's giving up removed the
+   shared copy). A step of the failures. A store failure is not one: it throws."
+  [store waiting]
+  (let [failures (atom [])]
+    (chain/then
+     (chain/each
+      (vals waiting)
+      (fn [{:keys [hash entry]}]
+        (chain/guard
+         (fn []
+           (chain/then (chain/with-reads store
+                         (fn [view]
+                           (let [[type-name data] entry
+                                 m (root-measure view type-name (:root data))]
+                             (header-check type-name data hash m))))
+                       (fn [_] (put! store hash entry))))
+         (fn [e]
+           (if (and (instance? #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e)
+                    (not (chain/store-failed? e)))
+             (chain/then (drop-header! store hash entry)
+                         (fn [_] (swap! failures conj e) nil))
+             (throw e))))))
+     (fn [_] @failures))))
 
 (defn- resolve-pending!
   "Check the waiting headers whose root is stored now. Each failing header is
    removed from the store; the honest ones on the same root stay. One error is
    thrown once all have been checked: a `:bad-hash` before a `:bad-entry`, then
-   the lowest hash, so it does not depend on the order of the pending map."
-  [{:keys [store pending]}]
-  (loop []
-    (when-let [[rk waiting]
-               (first (filter (fn [[_ ws]] (stored? store (:root (val (first ws)))))
-                              @pending))]
-      (swap! pending dissoc rk)
-      ;; Every header waiting on this root is checked on its own. A header
-      ;; that fails is removed; one that passes is verified and stays, even
-      ;; beside a forged one (the error is thrown after all are done).
-      (let [failures (reduce
-                      (fn [failures [_ {:keys [hash entry]}]]
-                        (let [[type-name data] entry
-                              m (root-measure store type-name (:root data))]
-                          (try (header-check type-name data hash m)
-                               ;; verified: make sure it is stored (another session's
-                               ;; giving up may have removed the shared copy)
-                               (store/await (store/s-put store hash entry))
-                               failures
-                               (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
-                                 (drop-header! store hash entry)
-                                 (conj failures e)))))
-                      []
-                      waiting)]
-        (when (seq failures)
-          ;; the same one whatever the order of the map: a bad hash first,
-          ;; then by hash (the code that ends the session reads its reason)
-          (throw (first (sort-by (fn [e] [(if (= :bad-hash (:reason (ex-data e))) 0 1)
-                                          (pr-str (:hash (ex-data e)))])
-                                 failures)))))
-      (recur))))
+   the lowest hash, so it does not depend on the order of the pending map. A step."
+  [{:keys [store pending] :as rx}]
+  (chain/then
+   (chain/with-reads store
+     (fn [view]
+       (first (filter (fn [[_ ws]] (stored? view (:root (val (first ws)))))
+                      @pending))))
+   (fn [found]
+     (when-let [[rk waiting] found]
+       (swap! pending dissoc rk)
+       ;; Every header waiting on this root is checked on its own: one that
+       ;; fails is removed, one that passes is verified and stays, even beside
+       ;; a forged one (the error is thrown after all are done).
+       (chain/then (check-waiting! store waiting)
+                   (fn [failures]
+                     (when (seq failures)
+                       ;; the same one whatever the order of the map: a bad hash first,
+                       ;; then by hash (the code that ends the session reads its reason)
+                       (throw (first (sort-by (fn [e] [(if (= :bad-hash (:reason (ex-data e))) 0 1)
+                                                       (pr-str (:hash (ex-data e)))])
+                                              failures))))
+                     (resolve-pending! rx)))))))
+
+(defn- literal-nodes
+  "[hash entry] of every node a literal realizes to, built in a scratch store."
+  [{:keys [type body]}]
+  (let [scratch (store/mem-store)]
+    (pack/materialize-literal! scratch type body)
+    ;; the key is the hash on the JVM, its hex on nbb
+    (vec (for [[k v] (store/await (store/s-snapshot scratch))]
+           [(if (string? k) (store/hex->hash k) k) v]))))
+
+(defn- store-item!
+  "Put what a verified item holds in the store. A step."
+  [st {:keys [enc hash entry literal]}]
+  (case enc
+    :node (put! st hash entry)
+    :literal (chain/each (literal-nodes literal) (fn [[h v]] (put! st h v)))))
 
 (defn accept-item!
   "Verify one decoded item, then store it. Throws and stores nothing when
-   it fails. Returns the checks it passed.
+   it fails. Returns the checks it passed (a step, see the namespace doc).
 
    A collection header comes before its pages, so it is stored now and its
    check is `#{:pending}` until its root arrives. Then the arrival of the
@@ -314,38 +374,43 @@
    when the store already holds that hash: the store is shared by every session,
    and the copy there may be another session's unchecked, possibly forged one.
    Storing this session's copy replaces it, and this session then owes the check
-   for its own copy."
-  [{:keys [store pending] :as rx} {:keys [enc hash entry literal] :as item}]
-  (let [checks (verify-item! store item)]
-    (case enc
-      :node (store/await (store/s-put store hash entry))
-      :literal (pack/materialize-literal! store (:type literal) (:body literal)))
-    (when (contains? checks :pending)
-      (swap! pending update (gc/hash-key (:root (types/entry-data entry)))
-             assoc (gc/hash-key hash)
-             {:hash hash :entry entry :root (:root (types/entry-data entry))}))
-    (when (seq @pending) (resolve-pending! rx))
-    checks))
+   for its own copy.
+
+   The item is checked before the first store call and stored (every node of a
+   literal) before the next item is read; with a store that settles late the
+   caller waits for the step. Nothing unverified is ever put."
+  [{:keys [store pending] :as rx} {:keys [hash entry] :as item}]
+  (chain/then
+   (chain/with-reads store #(verify-item! % item))
+   (fn [checks]
+     (chain/then
+      (store-item! store item)
+      (fn [_]
+        (when (contains? checks :pending)
+          (swap! pending update (gc/hash-key (:root (types/entry-data entry)))
+                 assoc (gc/hash-key hash)
+                 {:hash hash :entry entry :root (:root (types/entry-data entry))}))
+        (chain/then (when (seq @pending) (resolve-pending! rx))
+                    (fn [_] checks)))))))
 
 (defn accept-items!
   "Accept decoded items in the order they arrived. Each is checked, and
    stored, before the next is read: nothing is held back. The first
    failure throws; the items before it stay stored (each is verified, or is
    a header still waiting for its root: see `unchecked`). `rx` is a
-   `receiver`, or nil for a new one. Returns the receiver."
+   `receiver`, or nil for a new one. Returns the receiver (a step)."
   [rx items]
   (let [rx (or rx (receiver))]
-    (doseq [item items] (accept-item! rx item))
-    rx))
+    (chain/then (chain/each items #(accept-item! rx %)) (fn [_] rx))))
 
 (defn finish!
   "The stream ended with FIN and not PARTIAL: every header's root must have
    arrived. Throws `:bad-entry` when one has not, after removing the
-   unchecked headers. Returns the receiver."
+   unchecked headers. Returns the receiver (a step)."
   [rx]
   (let [left (unchecked rx)]
-    (when (seq left)
-      (discard-unchecked! rx)
-      (bad! :bad-entry "a collection header's root never arrived"
-            {:hashes left}))
-    rx))
+    (if (seq left)
+      (chain/then (discard-unchecked! rx)
+                  (fn [_] (bad! :bad-entry "a collection header's root never arrived"
+                                {:hashes left})))
+      rx)))

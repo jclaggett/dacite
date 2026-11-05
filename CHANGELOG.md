@@ -6,6 +6,25 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M1.3: the peer chains on store promises.** New portable `dacite.store.chain`
+  (`then`, `guard`, `each`, `with-reads`, `store-op`, `native`, a small `Deferred`):
+  `dacite.peer.client`, `.responder` and `.verify` no longer unwrap store calls with
+  `store/await`, which only works on a promise that has already settled, so a store
+  that settles later (a `CompletableFuture`, a `js/Promise`) works too. A step is the
+  plain value when the store answered at once, which is always so for `mem-store`
+  (nothing changes for a caller), or a `Deferred` (`chain/native` makes a host promise
+  of it). The client does one thing at a time (a frame, `request!`, `close-session!`):
+  one that arrives while an earlier one waits for the store is queued, so items are
+  verified and stored in the order they arrive and a bad one is never put. A store call
+  that fails (a put refused for quota) is not a bad entry: that hash fails locally
+  (`client/failed`), its stream is closed on this side, and the session lives. The
+  responder reads through `chain/with-reads` (a late store costs a couple of passes of
+  the synchronous reveal walk), and answers `error internal` on that stream when the
+  store cannot be read. No protocol change. `store/await` now says `:reason :not-settled`
+  for an unsettled promise. Tests: `async_checks.cljc` (the 28 M1.2 client and flow checks
+  again over a store that settles late, three new checks, and a host-promise store; JVM
+  and nbb). Not here: the real IndexedDB store, which still suspends and replays through
+  `drive`; async pack, HTTP and reveal-service; M4.1.
 - **M1.2 slice 2: rates, flow control, token buckets, the read-only rule and
   protocol violations.** New portable `dacite.peer.rates` (C01 split by interest,
   C02 redistribution above `send-max` caps, C03 session rate, C45 `recv-max`),

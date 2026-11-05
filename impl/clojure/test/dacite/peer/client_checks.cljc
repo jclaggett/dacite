@@ -15,6 +15,7 @@
             [dacite.hash :as hash]
             [dacite.peer.client :as client]
             [dacite.peer.frame :as frame]
+            [dacite.peer.harness :as h]
             [dacite.peer.msg :as msg]
             [dacite.peer.responder :as responder]
             [dacite.peer.verify :as verify]
@@ -28,7 +29,7 @@
 ;; Values and their items
 ;; =============================================================================
 
-(defn- vector-value [st n]
+(defn vector-value [st n]
   (apply v/vector st (map #(v/string st (str "line " % ": the quick brown fox")) (range n))))
 
 (defn map-of [st n]
@@ -146,7 +147,7 @@
    for (a `get` names its hash in hex)."
   [peers roots]
   (let [outbox (atom []) log (atom []) closed (atom [])
-        c (client/client {:store (store/mem-store)
+        c (h/client {:store (store/mem-store)
                           :send! (fn [p m]
                                    (when (= :get (:type m)) (swap! outbox conj [p m]))
                                    (swap! log conj [p m]))
@@ -156,13 +157,13 @@
     ;; a session starts with the peers' hellos (nothing else is sent before them)
     (doseq [p (keys peers)]
       (client/open-session! c p)
-      (client/on-frame! c p peer-hello))
+      (h/on-frame! c p peer-hello))
     {:client c :peers peers :by-hex by-hex :outbox outbox :log log :closed closed}))
 
 (defn- deliver!
   "Give `p`'s session frames the way the transport would."
   [{:keys [client]} p frames]
-  (doseq [f frames] (client/on-frame! client p f)))
+  (doseq [f frames] (h/on-frame! client p f)))
 
 (defn- pump!
   "Answer every queued `get` from its peer, until nothing is queued: an answer
@@ -206,7 +207,7 @@
   "Problems unless every entry in the client's store is exactly the source's
    entry under the same key: nothing forged and nothing altered is stored."
   [{:keys [client]} src]
-  (let [mine (snapshot (:store client)) theirs (snapshot src)]
+  (let [mine (snapshot (h/inner (:store client))) theirs (snapshot src)]
     (mapcat (fn [[k entry]]
               ;; the key is the hash on the JVM, its hex on nbb
               (let [h (if (string? k) (hash/hex->hash k) k)]
@@ -231,9 +232,9 @@
     (vec (mapcat
           (fn [kind]
             (let [n (net {"liar" (liar src kind)} [root])
-                  _ (client/request! (:client n) root)
+                  _ (h/request! (:client n) root)
                   _ (pump! n)
-                  st (:store (:client n))
+                  st (h/inner (:store (:client n)))
                   [k _] ((:make (failure-kinds kind)) items)
                   [[peer m] :as errs] (fatal-errors n)
                   what (str kind ": ")]
@@ -254,7 +255,7 @@
                        ((:absent (failure-kinds kind)) items k))
                (nothing-bad-stored n src)
                (bad (str what "the root is had") (:root-had? (failure-kinds kind))
-                    (client/have? (:client n) root))
+                    (h/have? (:client n) root))
                (bad (str what "no peer left: unserved") [root] (client/unserved (:client n))))))
           (keys failure-kinds)))))
 
@@ -271,7 +272,7 @@
                             :decoded
                             (catch #?(:clj Throwable :cljs :default) e (:reason (ex-data e))))
         n (net {"liar" (liar src :bad-state)} [root])]
-    (client/request! (:client n) root)
+    (h/request! (:client n) root)
     (pump! n)
     (concat
      (bad "the decoder says" :bad-state decoder-reason)
@@ -279,7 +280,7 @@
      (bad "the message names the detail" true
           (boolean (re-find #"bad-state" (str (get-in (second (first (fatal-errors n))) [:value "message"]))))))))
 
-(defn- item-frame
+(defn item-frame
   "One item-stream frame on `sid` with the items' bytes, not the last (no FIN)."
   [sid item-bytes]
   (frame/encode-frame {:type :item-stream :stream sid :flags 0
@@ -295,21 +296,21 @@
         items (items-of src root)
         [k bytes] ((:make (failure-kinds :bad-measure)) items)
         n (net {"p" silent} [root])
-        c (:client n) st (:store c)]
-    (client/request! c root)
+        c (:client n) st (h/inner (:store c))]
+    (h/request! c root)
     (let [[_ sid] (first (gets n))
           rx #(get-in @(:state c) [:sessions "p" :streams sid :rx])]
       (concat
        (when-not (= 2 k) [(str "the test expects the bad page at 2, not " k)])
-       (do (client/on-frame! c "p" (item-frame sid (subvec bytes 0 1))) nil)
+       (do (h/on-frame! c "p" (item-frame sid (subvec bytes 0 1))) nil)
        (bad "the header is stored on arrival" true (stored? st root))
        (bad "but it is unchecked" [root] (verify/unchecked (rx)))
-       (bad "so it is not had" false (client/have? c root))
-       (do (client/on-frame! c "p" (item-frame sid (subvec bytes 1 k))) nil)
-       (bad "its root arrived: checked, and had" [true []] [(client/have? c root) (verify/unchecked (rx))])
+       (bad "so it is not had" false (h/have? c root))
+       (do (h/on-frame! c "p" (item-frame sid (subvec bytes 1 k))) nil)
+       (bad "its root arrived: checked, and had" [true []] [(h/have? c root) (verify/unchecked (rx))])
        (bad "the good page before the bad one is stored" true
             (every? #(stored? st (:hash %)) (subvec items 1 k)))
-       (do (client/on-frame! c "p" (first (frames-of sid [(nth bytes k)]))) nil)
+       (do (h/on-frame! c "p" (first (frames-of sid [(nth bytes k)]))) nil)
        (bad "the bad page is not stored" false (stored? st (:hash (nth items k))))
        (bad "the session ended" :ended (client/session-status c "p"))
        (bad "what verified before it stays" true (every? #(stored? st (:hash %)) (subvec items 0 k)))
@@ -408,8 +409,8 @@
         n (net {"A" (liar src :bad-measure) "B" b} [x y])
         c (:client n)
         session #(get-in @(:state c) [:sessions "B"])]
-    (client/request! c x)                                   ; fewest streams, oldest: A
-    (client/request! c y)                                   ; A has one stream now: B
+    (h/request! c x)                                   ; fewest streams, oldest: A
+    (h/request! c y)                                   ; A has one stream now: B
     ;; pump A's liar answer last: first only B's half answer
     (let [[[pa m1] [pb m2]] (vec @(:outbox n))
           _ (reset! (:outbox n) [])
@@ -434,7 +435,7 @@
               (get-in after [:streams y-sid :reader]))
          (bad "B's header is still unchecked" unchecked-before
               (verify/unchecked (get-in after [:streams y-sid :rx])))
-         (bad "the header is still unchecked, not had" false (client/have? c y))
+         (bad "the header is still unchecked, not had" false (h/have? c y))
          (bad "B got only the re-asked X as a new stream" 1
               (- (count (:streams after)) (count (:streams before))))
          (do (pump! n) nil)
@@ -464,12 +465,12 @@
         c (:client n)]
     ;; make the liar the only one with streams: close the others' sessions? No:
     ;; the least-loaded rule spreads, so ask both of the liar by order of sessions
-    (client/request! c x)
-    (client/request! c y)
+    (h/request! c x)
+    (h/request! c y)
     (let [first-gets (gets n)]
       (pump! n)
       ;; "lost" never answers, and then the connection drops
-      (client/close-session! c "lost")
+      (h/close-session! c "lost")
       (pump! n)
       (let [by-peer (group-by first (gets n))
             asked (fn [p h] (count (filter (fn [[p' m]] (and (= p p') (= :get (:type m))
@@ -507,7 +508,7 @@
         lie (fn [sid _] (frames-of sid (mapv bin/encode-item forged)))
         n (net (array-map "liar" lie "honest" (honest src)) [root])
         c (:client n)]
-    (client/request! c root)
+    (h/request! c root)
     (pump! n)
     (concat
      (when-not (< 15 k (count items)) [(str "the test value is too small: bad item at " k)])
@@ -517,15 +518,15 @@
      (bad "one fatal bad-entry, to the liar" [["liar" "bad-entry"]]
           (mapv (fn [[p m]] [p (get-in m [:value "code"])]) (fatal-errors n)))
      (bad "the root is done" true (client/done? c root))
-     (bad "the root is had" true (client/have? c root))
+     (bad "the root is had" true (h/have? c root))
      (bad "every node of the value is stored, equal to the source's" []
           (vec (map (comp hex :hash)
                     (remove (fn [it] (same-entry? (:hash it) (:entry it)
-                                                  (store/await (store/s-get (:store c) (:hash it)))))
+                                                  (store/await (store/s-get (h/inner (:store c)) (:hash it)))))
                             items))))
      (bad "walking the client's store gives the source's reveal order"
           (vec (reveal/page-order src root))
-          (vec (reveal/page-order (:store c) root)))
+          (vec (reveal/page-order (h/inner (:store c)) root)))
      (nothing-bad-stored n src)
      (bad "nothing is waiting" [] (client/unserved c))
      (bad "the liar was asked once, then the honest peer once" [["liar" 1] ["honest" 1]]
@@ -542,20 +543,20 @@
         run (fn [partial?]
               (let [n (net {"p" silent} [root])
                     c (:client n)]
-                (client/request! c root)
+                (h/request! c root)
                 (let [[_ sid] (first (gets n))]
-                  (client/on-frame! c "p" (first (frame/chunk-items sid [header] {:partial? partial?})))
+                  (h/on-frame! c "p" (first (frame/chunk-items sid [header] {:partial? partial?})))
                   [n c])))
         [pn pc] (run true)
         [fn' fc] (run false)]
     (concat
      (bad "PARTIAL: the session goes on" :open (client/session-status pc "p"))
-     (bad "PARTIAL: the header is gone" false (stored? (:store pc) root))
+     (bad "PARTIAL: the header is gone" false (stored? (h/inner (:store pc)) root))
      (bad "PARTIAL: no fatal error" [] (fatal-errors pn))
      (bad "FIN without the root: the session ends" :ended (client/session-status fc "p"))
      (bad "FIN without the root: bad-entry" ["bad-entry"]
           (mapv (fn [[_ m]] (get-in m [:value "code"])) (fatal-errors fn')))
-     (bad "FIN without the root: no header kept" false (stored? (:store fc) root)))))
+     (bad "FIN without the root: no header kept" false (stored? (h/inner (:store fc)) root)))))
 
 (defn client-stream-ids-are-its-own-counter
   "C37 at the client: a stream id is the client's counter (odd for an offerer),
@@ -566,8 +567,8 @@
         y (v/hash (map-of src 30))
         n (net {"liar" (liar src :bad-measure) "good" (honest src)} [x y])
         c (:client n)]
-    (client/request! c x) (client/request! c y)
-    (client/request! c x)                                    ; already wanted: no new get
+    (h/request! c x) (h/request! c y)
+    (h/request! c x)                                    ; already wanted: no new get
     (pump! n)
     (concat
      (bad "ids are odd and rise by two on each session, from 1"
@@ -595,13 +596,13 @@
         stall (fn [sid _] [(item-frame sid (mapv bin/encode-item (subvec forged 0 (inc kx))))])
         n (net (array-map "liar" stall "honest" (honest src)) [x y])
         c (:client n)
-        st (:store c)]
-    (client/request! c y)                                   ; to the liar
-    (client/request! c x)                                   ; to the honest peer
+        st (h/inner (:store c))]
+    (h/request! c y)                                   ; to the liar
+    (h/request! c x)                                   ; to the honest peer
     (pump! n)
     (let [stored-forged? (= (second (:entry (nth forged kx)))
                             (second (store/await (store/s-get st x))))
-          after-honest [(client/done? c x) (client/have? c x) stored-forged?]]
+          after-honest [(client/done? c x) (h/have? c x) stored-forged?]]
       ;; now the liar fails: a bad item on its stream
       (deliver! n "liar"
                 (let [[_ sid] (first (filter (fn [[p _]] (= p "liar")) (gets n)))
@@ -614,7 +615,7 @@
             [true true false] after-honest)
        (bad "the liar failed" :ended (client/session-status c "liar"))
        (bad "the honest session is open" :open (client/session-status c "honest"))
-       (bad "X is still had after the liar gave up" true (client/have? c x))
+       (bad "X is still had after the liar gave up" true (h/have? c x))
        (bad "Y is done" true (client/done? c y))
        (bad "nothing waits" [] (client/unserved c))
        (bad "X was asked once (of the honest peer); Y of the liar, then of the honest peer"

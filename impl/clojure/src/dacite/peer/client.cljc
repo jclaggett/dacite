@@ -49,12 +49,27 @@
      such session the hash waits in `unserved` and goes out when a session
      opens.
 
-   **Store calls are synchronous.** This code (and `dacite.peer.verify`) unwraps
-   every store call with `store/await`, which cannot wait for an unsettled
-   JavaScript promise. It works with the in-memory store only (`store/mem-store`).
-   An async store, such as the IndexedDB one the browser peer needs, will not work
-   until the store calls become asynchronous; that is planned before the browser
-   peer.
+   **Store calls may be asynchronous (M1.3).** Every store call here chains on its
+   promise (`dacite.store.chain`) instead of unwrapping it with `store/await`, so a
+   store that settles late (a host promise that is not done yet) works as well as
+   the in-memory store. The functions that touch the store (`request!`, `have?`,
+   `on-frame!`, `close-session!`) return a *step*: the plain value (`on-frame!`:
+   nil) when the store answered at once, which is always the case with
+   `store/mem-store`, or a `chain/Deferred` when it did not (`chain/native` makes a
+   `js/Promise` or `CompletableFuture` of it).
+   Order is kept: the client does one thing at a time. A frame, a `request!` or a
+   `close-session!` that arrives while an earlier one still waits for the store is
+   queued and runs after it, in the order of arrival, across all sessions (the store
+   is shared, so two sessions never read-modify-write it at once). Within a frame,
+   an item is verified, then stored, before the next is read. `open-session!` and
+   `tick!` touch no store and run at once.
+   **A store that fails does not end the session (M1.3).** If a store call fails
+   (a put that is refused for quota, a read that cannot be answered), the peer did
+   nothing wrong: that hash fails locally. Its stream is closed on this side (its
+   later items are ignored, C35), its unchecked headers are dropped, and the hash
+   is not asked of another peer (another peer would hit the same store). The
+   session stays open and its other streams go on. The hash is in `failed`; asking
+   for it again with `request!` tries again.
 
    The store is shared by all sessions, so a collection header that one session
    stored and has not yet checked is not taken as the answer for another session:
@@ -75,6 +90,7 @@
             [dacite.peer.verify :as verify]
             [dacite.rooted.gc :as gc]
             [dacite.store :as store]
+            [dacite.store.chain :as chain]
             [dacite.wire.binary :as bin]))
 
 (def default-r-max
@@ -140,7 +156,9 @@
    ;; :sessions peer-id -> the session state above
    ;; :order    peer ids, oldest first
    ;; :wanted   hash-key -> {:hash h :tried #{peer-id} :at [peer-id stream]}
-   :state (atom {:sessions {} :order [] :wanted {} :done #{}})})
+   :state (atom {:sessions {} :order [] :wanted {} :done #{} :failed {}})
+   ;; one thing at a time (`serially!`): whether a task runs, and the tasks that wait
+   :queue (atom {:busy? false :tasks []})})
 
 (defn- open? [c peer-id]
   (= :open (get-in @(:state c) [:sessions peer-id :status])))
@@ -172,7 +190,7 @@
    was stored, or a collection header whose root is stored and matches it. A
    header that still waits for its root, or a forged one, is not had, whichever
    session stored it. Only a hash that is had may be read or offered to another
-   peer.
+   peer. A step (see the namespace doc).
 
    An open session remembers what it verified, with the entry it stored
    (`:verified`). A hash is not checked again while the store still holds that
@@ -180,13 +198,21 @@
    store is checked (`verify/checked?`). A session's memory goes when it ends.
    Any other hash is checked against the store."
   [c h]
-  (let [hk (gc/hash-key h)
-        entry (store/await (store/s-get (:store c) h))]
-    (and (some? entry)
-         (or (some #(let [e (get (:verified %) hk)] (and (some? e) (= e entry)))
-                   (vals (:sessions @(:state c))))
-             (do (swap! (:state c) update :rechecks (fnil inc 0))
-                 (verify/checked? (:store c) h))))))
+  (let [hk (gc/hash-key h)]
+    (chain/then
+     (chain/store-op #(store/s-get (:store c) h) h)
+     (fn [entry]
+       (and (some? entry)
+            (or (some #(let [e (get (:verified %) hk)] (and (some? e) (= e entry)))
+                      (vals (:sessions @(:state c))))
+                (do (swap! (:state c) update :rechecks (fnil inc 0))
+                    (verify/checked? (:store c) h))))))))
+
+(defn failed
+  "The hashes that failed locally because the store failed (see the namespace
+   doc): [{:hash :error}]."
+  [c]
+  (vec (vals (:failed @(:state c)))))
 
 (defn recheck-count
   "How many times `have?` had to check a stored hash against the store because no
@@ -281,18 +307,66 @@
   (dispatch-waiting! c)
   nil)
 
+(defn- drain!
+  "Run the tasks that waited, one at a time: the next starts when the one before
+   it is done. Each task's outcome goes to its `Deferred`. Taking a task, or
+   finding none and clearing `:busy?`, is one atomic update, so a task queued from
+   another thread meanwhile is never stranded."
+  [c]
+  (let [q (:queue c)]
+    (loop []
+      (let [[old _] (swap-vals! q (fn [s] (if (seq (:tasks s))
+                                            (update s :tasks subvec 1)
+                                            (assoc s :busy? false))))]
+        (when-let [[f d] (first (:tasks old))]
+          (let [[tag v] (try [:ok (f)] (catch #?(:clj Throwable :cljs :default) e [:err e]))]
+            (if (= :err tag) (chain/reject! d v) (chain/pipe! d v))
+            (if (chain/pending? d)
+              (chain/on-done d #(drain! c))
+              (recur))))))))
+
+(defn- serially!
+  "Do task `f` (a function of no arguments that returns a step) when nothing else
+   is waiting for the store, else after the tasks before it. Returns `f`'s step
+   (what `f` throws is thrown), or a `Deferred` of it when it had to wait.
+   Whether to run or to queue is decided by one atomic update (`swap-vals!`), so
+   callbacks on several JVM threads cannot both start a task."
+  [c f]
+  (let [q (:queue c) d (chain/deferred)
+        [old _] (swap-vals! q (fn [s] (if (:busy? s)
+                                        (update s :tasks conj [f d])
+                                        (assoc s :busy? true))))]
+    (if (:busy? old)
+      d
+      (do (let [[tag v] (try [:ok (f)] (catch #?(:clj Throwable :cljs :default) e [:err e]))]
+            (if (= :err tag) (chain/reject! d v) (chain/pipe! d v)))
+          (if (chain/pending? d)
+            (do (chain/on-done d #(drain! c))
+                d)
+            (do (drain! c)
+                (chain/result d)))))))
+
 (defn request!
   "Want `h`. Returns `:done` when it is already stored and verified, else
-   `:requested` (the `get` went out) or `:unserved` (no session can take it now)."
+   `:requested` (the `get` went out) or `:unserved` (no session can take it now).
+   A step: with a store that settles late, a `Deferred` of one of those; with other
+   work still waiting for the store, it runs after it."
   [c h]
-  (let [hk (gc/hash-key h) state (:state c)]
-    (cond
-      (have? c h) (do (swap! state update :done conj hk) :done)
-      (contains? (:wanted @state) hk)
-      (if (get-in @state [:wanted hk :at]) :requested :unserved)
-      :else (do (swap! state assoc-in [:wanted hk] {:hash h :tried #{} :at nil})
-                (dispatch! c hk)
-                (if (get-in @state [:wanted hk :at]) :requested :unserved)))))
+  (serially! c
+        (fn []
+          (let [hk (gc/hash-key h) state (:state c)]
+            (chain/then
+             (have? c h)
+             (fn [had]
+               (cond
+                 had (do (swap! state update :done conj hk) :done)
+                 (contains? (:wanted @state) hk)
+                 (if (get-in @state [:wanted hk :at]) :requested :unserved)
+                 :else (do (swap! state (fn [s] (-> s
+                                                    (update :failed dissoc hk)
+                                                    (assoc-in [:wanted hk] {:hash h :tried #{} :at nil}))))
+                           (dispatch! c hk)
+                           (if (get-in @state [:wanted hk :at]) :requested :unserved)))))))))
 
 (defn open-session!
   "A connection to `peer-id` is up. This side's `hello` is sent at once; nothing
@@ -348,22 +422,25 @@
 
 (defn- end-session!
   "End `peer-id`'s session (C13, C15). `code`, when given, is sent as a fatal
-   `error` on stream 0 first. The session's unchecked headers are dropped
-   (verified items stay), the connection is closed, and each stream still open
-   is asked of another session (C14). No other session is read or changed."
+   `error` on stream 0 first. The session is over at once: the error goes out and
+   the connection closes. Then its unchecked headers are dropped (verified items
+   stay; a store that fails here leaves them), and each stream still open is asked
+   of another session (C14). No other session is read or changed. A step."
   [c peer-id code text]
   (when (open? c peer-id)
     (let [{:keys [state send! close!]} c
           {:keys [streams]} (get-in @state [:sessions peer-id])
           hks (mapv (comp gc/hash-key :hash) (vals streams))]
-      (doseq [{:keys [rx]} (vals streams)] (verify/discard-unchecked! rx))
       (swap! state update-in [:sessions peer-id]
              assoc :status :ended :streams {} :verified {})
       (when code
         (send! peer-id {:type :error :stream 0
                         :value {"code" code "message" text "fatal" true}}))
       (close! peer-id)
-      (reask! c peer-id hks))))
+      (chain/then (chain/guard #(chain/each (vals streams)
+                                            (fn [{:keys [rx]}] (verify/discard-unchecked! rx)))
+                               (fn [_] nil))
+                  (fn [_] (reask! c peer-id hks) nil)))))
 
 (defn- fail!
   "Exception `e` ends `peer-id`'s session with `error` and fatal true."
@@ -373,9 +450,9 @@
 
 (defn close-session!
   "The connection to `peer-id` is gone. Like a fatal error from the peer:
-   nothing is sent, and what it was serving is asked of other sessions."
+   nothing is sent, and what it was serving is asked of other sessions. A step."
   [c peer-id]
-  (end-session! c peer-id nil nil))
+  (serially! c #(end-session! c peer-id nil nil)))
 
 ;; =============================================================================
 ;; Receiving
@@ -394,106 +471,164 @@
 (defn- finish-stream!
   "The stream ended (FIN). Its headers are checked (`finish!`) or, when the
    stream was PARTIAL, dropped. The hash that was asked for is done when it is
-   verified in the store; otherwise this peer did not serve it."
+   verified in the store; otherwise this peer did not serve it. A step."
   [c peer-id sid partial?]
   (let [{:keys [state]} c
         {:keys [hash rx served?]} (get-in @state [:sessions peer-id :streams sid])
         hk (gc/hash-key hash)]
-    (if partial? (verify/discard-unchecked! rx) (verify/finish! rx))
-    (swap! state (fn [s]
-                   (-> s
-                       (update-in [:sessions peer-id :table] frame/close-stream sid)
-                       (update-in [:sessions peer-id :streams] dissoc sid))))
-    (cond
-      (have? c hash)
-      (swap! state (fn [s] (-> s (update :done conj hk) (update :wanted dissoc hk))))
+    (chain/then
+     (if partial? (verify/discard-unchecked! rx) (verify/finish! rx))
+     (fn [_]
+       (chain/then
+        (have? c hash)
+        (fn [had]
+          (swap! state (fn [s]
+                         (-> s
+                             (update-in [:sessions peer-id :table] frame/close-stream sid)
+                             (update-in [:sessions peer-id :streams] dissoc sid))))
+          (cond
+            had (swap! state (fn [s] (-> s (update :done conj hk) (update :wanted dissoc hk))))
+            served? (retry! c hk)
+            :else (reask! c peer-id [hk]))))))))
 
-      served? (retry! c hk)
-      :else (reask! c peer-id [hk]))))
+(defn- fail-locally!
+  "The store failed (`e` is `:store-failed`) on a stream of `peer-id`'s session.
+   The peer did nothing wrong, so the session lives: this stream is closed on this
+   side, its unchecked headers are dropped, and the hash is recorded in `failed`
+   and not asked again. A step."
+  [c peer-id sid e]
+  (let [{:keys [state]} c
+        {:keys [hash rx]} (get-in @state [:sessions peer-id :streams sid])]
+    (when rx
+      (let [hk (gc/hash-key hash)]
+        (swap! state (fn [s]
+                       (-> s
+                           (update-in [:sessions peer-id :table] frame/close-stream sid)
+                           (update-in [:sessions peer-id :streams] dissoc sid)
+                           (update :wanted dissoc hk)
+                           (assoc-in [:failed hk] {:hash hash :error e}))))
+        (chain/guard #(verify/discard-unchecked! rx) (fn [_] nil))))))
+
+(defn- on-item!
+  "One item: decoded, verified, stored, and noted in the session's verified cache
+   (what `have?` need not check again). A step."
+  [c peer-id sid bs]
+  (let [{:keys [state]} c
+        {:keys [rx]} (get-in @state [:sessions peer-id :streams sid])
+        item (decode-item bs)
+        before-hashes (vec (verify/unchecked rx))]
+    (chain/then
+     (verify/accept-item! rx item)
+     (fn [checks]
+       (let [after (set (map gc/hash-key (verify/unchecked rx)))
+             ;; what this session has verified: the item (unless a header that
+             ;; waits) and the headers that its arrival checked
+             verified (concat (when-not (contains? checks :pending) [(:hash item)])
+                              (remove #(contains? after (gc/hash-key %)) before-hashes))]
+         (chain/then
+          (chain/each verified
+                      (fn [h]
+                        (chain/then (chain/store-op #(store/s-get (:store c) h) h)
+                                    (fn [e]
+                                      (when (some? e)
+                                        (swap! state assoc-in [:sessions peer-id :verified (gc/hash-key h)] e))))))
+          (fn [_]
+            (when (= (gc/hash-key (:hash item))
+                     (gc/hash-key (get-in @state [:sessions peer-id :streams sid :hash])))
+              (swap! state assoc-in [:sessions peer-id :streams sid :served?] true)))))))))
 
 (defn- on-items!
+  "The items of one frame, in order: each is verified, then stored, before the
+   next is read (C27). A failed store call is local to the stream (`fail-locally!`);
+   any other failure goes up and ends the session. A step."
   [c peer-id fr]
   (let [{:keys [state]} c
         sid (:stream fr)
-        {:keys [reader rx]} (get-in @state [:sessions peer-id :streams sid])
+        {:keys [reader]} (get-in @state [:sessions peer-id :streams sid])
         [reader' item-bytes] (frame/feed reader fr)]
     (swap! state assoc-in [:sessions peer-id :streams sid :reader] reader')
-    ;; each item is verified, then stored, before the next is read (C27)
-    (doseq [bs item-bytes]
-      (let [item (decode-item bs)
-            before-hashes (vec (verify/unchecked rx))
-            checks (verify/accept-item! rx item)
-            after (set (map gc/hash-key (verify/unchecked rx)))]
-        ;; what this session has verified: the item (unless a header that waits)
-        ;; and the headers that its arrival checked
-        (swap! state update-in [:sessions peer-id :verified] into
-               (for [h (concat (when-not (contains? checks :pending) [(:hash item)])
-                               (remove #(contains? after (gc/hash-key %)) before-hashes))
-                     :let [e (store/await (store/s-get (:store c) h))]
-                     :when (some? e)]
-                 [(gc/hash-key h) e]))
-        (when (= (gc/hash-key (:hash item))
-                 (gc/hash-key (get-in @state [:sessions peer-id :streams sid :hash])))
-          (swap! state assoc-in [:sessions peer-id :streams sid :served?] true))))
-    (when (:fin? fr)
-      (finish-stream! c peer-id sid (:partial? fr)))))
+    (chain/guard
+     (fn []
+       (chain/then (chain/each item-bytes #(on-item! c peer-id sid %))
+                   (fn [_]
+                     (when (:fin? fr)
+                       (finish-stream! c peer-id sid (:partial? fr))))))
+     (fn [e]
+       (if (chain/store-failed? e)
+         (fail-locally! c peer-id sid e)
+         (throw e))))))
 
 (defn- on-error!
   "An `error` the peer sent. Fatal on stream 0: the session is over. On a
-   stream: that stream is over, and the peer did not serve its hash."
+   stream: that stream is over, and the peer did not serve its hash. A step."
   [c peer-id bs]
   (let [{:keys [type stream value]} (msg/decode-message bs)]
     (when (= :error type)
       (if (or (zero? stream) (get value "fatal"))
         (end-session! c peer-id nil nil)
         (when-let [{:keys [hash rx]} (get-in @(:state c) [:sessions peer-id :streams stream])]
-          (verify/discard-unchecked! rx)
-          (swap! (:state c) (fn [s]
-                              (-> s
-                                  (update-in [:sessions peer-id :table] frame/close-stream stream)
-                                  (update-in [:sessions peer-id :streams] dissoc stream))))
-          (reask! c peer-id [(gc/hash-key hash)]))))))
+          ;; dropping the headers is best effort, as in `end-session!`: a store that
+          ;; fails here leaves them, and the failure stays local
+          (chain/then
+           (chain/guard #(verify/discard-unchecked! rx) (fn [_] nil))
+           (fn [_]
+             (swap! (:state c) (fn [s]
+                                 (-> s
+                                     (update-in [:sessions peer-id :table] frame/close-stream stream)
+                                     (update-in [:sessions peer-id :streams] dissoc stream))))
+             (reask! c peer-id [(gc/hash-key hash)]))))))))
+
+(defn- handle-frame!
+  "What one frame does (see `on-frame!`). A step; throws a protocol violation."
+  [c peer-id frame-bytes]
+  (let [fr (frame/decode-frame frame-bytes)
+        session (get-in @(:state c) [:sessions peer-id])
+        type (:type fr)]
+    (cond
+      (= :hello type)
+      (let [{:keys [value]} (msg/decode-message frame-bytes)]
+        (when (:hello session)
+          (throw (ex-info "a second hello" {:reason :second-hello})))
+        (on-hello! c peer-id value))
+
+      (= :error type) (on-error! c peer-id frame-bytes)
+
+      (nil? (:hello session))
+      (throw (ex-info "a frame before the peer's hello" {:reason :before-hello}))
+
+      (= :item-stream type)
+      (let [sid (:stream fr)]
+        (cond
+          (contains? (:streams session) sid) (on-items! c peer-id fr)
+          (contains? (:used (:table session)) sid) nil
+          :else (throw (ex-info "item-stream for a stream this side never opened"
+                                {:reason :never-opened :stream sid}))))
+
+      :else nil)))
 
 (defn on-frame!
   "The frame (bytes) that arrived on `peer-id`'s session.
 
    - `hello` (once, first): see `on-hello!`
    - `item-stream` on an open stream: each item is verified and then stored.
-     Any failure ends the whole session (C13). A frame for an id that was
-     opened and is closed is ignored and stores nothing (C35).
+     A verification failure ends the whole session (C13). A frame for an id that
+     was opened and is closed is ignored and stores nothing (C35). A store that
+     fails ends only that stream (see the namespace doc).
    - `error` from the peer: see `on-error!`
    - anything else is ignored
 
    A protocol violation ends the session with `malformed` (C16): a frame the
    codec refuses, any frame but `hello` and `error` before the peer's `hello`, a
-   second `hello`, an `item-stream` for an id this side never opened. Returns nil."
+   second `hello`, an `item-stream` for an id this side never opened.
+
+   Returns nil, or with a store that settles late a `Deferred` of nil that is done
+   when the frame has been handled. Frames run in the order of arrival: one that
+   comes while an earlier one waits for the store is queued."
   [c peer-id frame-bytes]
-  (when (open? c peer-id)
-    (try
-      (let [fr (frame/decode-frame frame-bytes)
-            session (get-in @(:state c) [:sessions peer-id])
-            type (:type fr)]
-        (cond
-          (= :hello type)
-          (let [{:keys [value]} (msg/decode-message frame-bytes)]
-            (when (:hello session)
-              (throw (ex-info "a second hello" {:reason :second-hello})))
-            (on-hello! c peer-id value))
-
-          (= :error type) (on-error! c peer-id frame-bytes)
-
-          (nil? (:hello session))
-          (throw (ex-info "a frame before the peer's hello" {:reason :before-hello}))
-
-          (= :item-stream type)
-          (let [sid (:stream fr)]
-            (cond
-              (contains? (:streams session) sid) (on-items! c peer-id fr)
-              (contains? (:used (:table session)) sid) nil
-              :else (throw (ex-info "item-stream for a stream this side never opened"
-                                    {:reason :never-opened :stream sid}))))
-
-          :else nil))
-      (catch #?(:clj Throwable :cljs :default) e
-        (fail! c peer-id e))))
-  nil)
+  (serially! c
+        (fn []
+          (when (open? c peer-id)
+            (chain/then
+             (chain/guard (fn [] (handle-frame! c peer-id frame-bytes))
+                          (fn [e] (fail! c peer-id e)))
+             (fn [_] nil))))))
