@@ -13,6 +13,7 @@ docs/book/mermaid-init.js
 
 # clojure build files
 .cache/
+impl/clojure/.cpcache/
 
 # clojure lsp files
 .lsp
