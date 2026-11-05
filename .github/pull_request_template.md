@@ -9,6 +9,8 @@
 - nbb:  npm run reveal:test
 - nbb:  npm run idb:test
 - nbb:  npm run peer:test
+- nbb:  npm run webrtc:test
+- nbb:  npm run lmdb:v1 && npm run store:test
 Plus any new tests, and whether they failed before the change. -->
 
 ## Checklist items closed
