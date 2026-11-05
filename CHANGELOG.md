@@ -6,6 +6,11 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **CI runs the nbb suites.** `.github/workflows/test.yml` on pull requests and
+  pushes to `main`: Node 20, `npm ci`, then `reveal:test`, `idb:test`,
+  `peer:test`, `lmdb:v1`, and `store:test`. Format v1 is compiled before the
+  durable-store checks. The JVM suite stays local.
+
 - **M3.3: file, LMDB and IndexedDB behind the same peer.** The nbb peer
   (`dacite.peer.link`, the responder and the client) serves the library fixture
   from `dacite.store.nbb`, `dacite.store.nbb.lmdb` and `dacite.store.idb`
