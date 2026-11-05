@@ -133,7 +133,12 @@
     (and (map? p) (contains? p :dacite/result))
     (get p :dacite/result)
     :else
-    (throw (ex-info "not a store promise" {:reason :not-settled :value p}))))
+    (do
+      ;; A promise that has not settled is abandoned here (the caller retries, see
+      ;; `dacite.store.chain/with-reads`). If it fails later nobody is waiting for
+      ;; it: mark it handled, so the host does not report an unhandled rejection.
+      #?(:cljs (when (and (some? p) (fn? (.-catch p))) (.catch p (fn [_] nil))))
+      (throw (ex-info "not a store promise" {:reason :not-settled :value p})))))
 
 (defn require-node
   "Await `s-get`. Return the node, or throw `{:reason :missing}` when absent.

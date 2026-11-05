@@ -12,10 +12,20 @@
    another tag, rejects with `:store-format-mismatch` (not wrapped in
    `:unavailable`). `s-reset` keeps the tag.
 
-   IndexedDB completes later. Methods throw `:dacite/suspend` with a
-   promise, and `drive` runs the operation again. The in-memory cache
-   makes the replay settle. `dacite.store.browser/drive` catches the
-   same exception, so one drive can cover this store and HTTP together.
+   IndexedDB completes later. Called **outside** `drive`, a method that has to
+   wait returns a promise of its result (a JavaScript `Promise` that fulfils with
+   the node, `nil`, a boolean or the store, as the method says; a failure rejects
+   with `:unavailable`). Code that chains on store promises (`dacite.store.chain`,
+   so `dacite.peer.client`) uses it so. A hit in the in-memory cache is still a
+   settled promise (`store/completed`).
+
+   Called **inside** `drive` (the epoch is bound), a method that has to wait throws
+   `:dacite/suspend` with a promise, and `drive` runs the operation again. The
+   in-memory cache makes the replay settle. This is how the synchronous layers
+   above this store (`chunk/chunked`, `rooted`, the value API) still work: they
+   unwrap with `store/await`, which cannot wait. `dacite.store.browser/drive`
+   catches the same exception, so one drive can cover this store and HTTP
+   together. The rooted store (`open`) and its root cell stay `drive` only.
 
    A rooted compare-and-set publishes the new root only on the replay
    that finds the meta write already durable. Publishing earlier would
@@ -58,6 +68,15 @@
 (defn- suspend
   [p]
   (throw (ex-info "indexeddb suspended" {:dacite/suspend p})))
+
+(defn- wait
+  "A method of the store has to wait for IndexedDB, on promise `p`. Inside `drive`
+   it suspends (throws `p`, the operation is replayed). Outside, it returns a
+   promise of `(value)`, which runs once `p` is done."
+  [p value]
+  (if (some? *drive-epoch*)
+    (suspend p)
+    (.then p (fn [_] (value)))))
 
 (defn- fail
   [h cause]
@@ -276,7 +295,8 @@
 
 (defrecord IdbStore [name db opening cache cache-order cache-limit
                      snap snap-epoch reset-latch
-                     root-ready root durable-cas durable-set keep retained]
+                     root-ready root durable-cas durable-set keep retained
+                     resetting]
   store/IStore
   (s-get [this h]
     (evict-while! this (store/hash->hex h))
@@ -284,6 +304,10 @@
           v (get @cache k ::none)
           epoch *drive-epoch*]
       (cond
+        ;; a reset is clearing the database: answer after it, from the cleared store
+        (and @resetting (nil? epoch))
+        (.then @resetting (fn [_] (store/s-get this h)))
+
         (hit? v)
         (do (cache-touch! this k)
             (store/completed (:node v)))
@@ -292,15 +316,18 @@
         (store/completed nil)
 
         :else
-        (suspend
-         (reject-cause
-          (-> (ensure-db this)
-              (.then (fn [db*] (idb-get db* node-store k)))
-              (.then (fn [bs]
-                       (if-let [node (decode-node h bs)]
-                         (cache-store! this k {:node node :epoch epoch})
-                         (cache-store! this k {:miss epoch})))))
-          h)))))
+        (let [found (atom nil)]
+          (wait
+           (reject-cause
+            (-> (ensure-db this)
+                (.then (fn [db*] (idb-get db* node-store k)))
+                (.then (fn [bs]
+                         (if-let [node (decode-node h bs)]
+                           (do (reset! found node)
+                               (cache-store! this k {:node node :epoch epoch}))
+                           (cache-store! this k {:miss epoch})))))
+            h)
+           #(deref found))))))
 
   (s-put [this h value]
     (evict-while! this (store/hash->hex h))
@@ -309,7 +336,7 @@
           epoch *drive-epoch*]
       (if (and (hit? v) (= (:node v) value))
         (store/completed this)
-        (suspend
+        (wait
          (reject-cause
           (-> (ensure-db this)
               (.then (fn [db*]
@@ -317,7 +344,8 @@
                                 (bin/encode-store-value value))))
               (.then (fn [_]
                        (cache-store! this k {:node value :epoch epoch}))))
-          h)))))
+          h)
+         (fn [] this)))))
 
   (s-has? [this h]
     (evict-while! this (store/hash->hex h))
@@ -325,6 +353,9 @@
           v (get @cache k ::none)
           epoch *drive-epoch*]
       (cond
+        (and @resetting (nil? epoch))
+        (.then @resetting (fn [_] (store/s-has? this h)))
+
         (hit? v)
         (do (cache-touch! this k)
             (store/completed true))
@@ -333,15 +364,18 @@
         (store/completed false)
 
         :else
-        (suspend
-         (reject-cause
-          (-> (ensure-db this)
-              (.then (fn [db*] (idb-get db* node-store k)))
-              (.then (fn [bs]
-                       (if-let [node (decode-node h bs)]
-                         (cache-store! this k {:node node :epoch epoch})
-                         (cache-store! this k {:miss epoch})))))
-          h)))))
+        (let [found (atom false)]
+          (wait
+           (reject-cause
+            (-> (ensure-db this)
+                (.then (fn [db*] (idb-get db* node-store k)))
+                (.then (fn [bs]
+                         (if-let [node (decode-node h bs)]
+                           (do (reset! found true)
+                               (cache-store! this k {:node node :epoch epoch}))
+                           (cache-store! this k {:miss epoch})))))
+            h)
+           #(deref found))))))
 
   (s-delete [this h]
     (evict-while! this (store/hash->hex h))
@@ -349,19 +383,20 @@
           epoch *drive-epoch*]
       (if (fresh-miss? (get @cache k))
         (store/completed this)
-        (suspend
+        (wait
          (reject-cause
           (-> (ensure-db this)
               (.then (fn [db*] (idb-del db* node-store k)))
               (.then (fn [_]
                        (cache-store! this k {:miss epoch}))))
-          h)))))
+          h)
+         (fn [] this)))))
 
   (s-snapshot [this]
     (if (and (some? *drive-epoch*) (= @snap-epoch *drive-epoch*))
       (store/completed @snap)
       (let [epoch *drive-epoch*]
-        (suspend
+        (wait
          (reject-cause
           (-> (ensure-db this)
               (.then idb-all)
@@ -379,7 +414,8 @@
                          (reset! cache-order [])
                          (doseq [[k node] decoded]
                            (cache-store! this k {:node node :epoch epoch}))))))
-          nil)))))
+          nil)
+         #(deref snap)))))
 
   (s-merge [this m]
     (evict-while! this nil)
@@ -393,7 +429,7 @@
                          m)]
       (if (empty? pending)
         (store/completed this)
-        (suspend
+        (wait
          (reject-cause
           (-> (ensure-db this)
               (.then (fn [db*]
@@ -404,27 +440,52 @@
               (.then (fn [_]
                        (doseq [[k v] pending]
                          (cache-store! this k {:node v :epoch epoch})))))
-          nil)))))
+          nil)
+         (fn [] this)))))
 
   (s-reset [this]
-    (if @reset-latch
-      (do (reset! cache {})
-          (reset! cache-order [])
-          (reset! snap {})
-          (reset! snap-epoch nil)
-          (reset! reset-latch false)
-          (reset! root-ready true)
-          (reset! root nil)
-          (reset! durable-cas nil)
-          (reset! durable-set unset)
-          (store/completed this))
-      (suspend
-       (reject-cause
-        (-> (ensure-db this)
-            (.then idb-clear)
-            (.then (fn [_]
-                     (reset! reset-latch true))))
-        nil)))))
+    (let [clear-cache! (fn []
+                         (reset! cache {})
+                         (reset! cache-order [])
+                         (reset! snap {})
+                         (reset! snap-epoch nil))
+          clear! (fn []
+                   (clear-cache!)
+                   (reset! reset-latch false)
+                   (reset! root-ready true)
+                   (reset! root nil)
+                   (reset! durable-cas nil)
+                   (reset! durable-set unset))]
+      (cond
+        ;; the replay of a `drive` that already cleared the database
+        @reset-latch
+        (do (clear!)
+            (store/completed this))
+
+        (some? *drive-epoch*)
+        (suspend
+         (reject-cause
+          (-> (ensure-db this)
+              (.then idb-clear)
+              (.then (fn [_]
+                       (reset! reset-latch true))))
+          nil))
+
+        ;; Outside `drive`. The in-memory state goes first, so nothing is served from
+        ;; it while the database is cleared, and `s-get` and `s-has?` wait for this
+        ;; promise (`resetting`) instead of reading the old nodes. It is cleared again
+        ;; when the database is, for a read that was already on its way.
+        :else
+        (let [p (reject-cause
+                 (-> (ensure-db this)
+                     (.then idb-clear)
+                     (.then (fn [_] (clear!) this)))
+                 nil)
+              done (fn [] (reset! resetting nil))
+              p (-> p (.then (fn [r] (done) r)) (.catch (fn [e] (done) (throw e))))]
+          (clear-cache!)
+          (reset! resetting p)
+          p)))))
 
 (defn idb-store
   "Content dictionary in IndexedDB database `name`.
@@ -446,7 +507,8 @@
                (atom nil)
                (atom unset)
                (atom nil)
-               (atom false))))
+               (atom false)
+               (atom nil))))
 
 (defn- ensure-root!
   [st]
