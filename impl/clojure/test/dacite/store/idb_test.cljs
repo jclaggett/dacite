@@ -3,7 +3,12 @@
 
      npm install
      npx nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.idb-test"
-  (:require [dacite.store :as store]
+  (:require [dacite.peer.client :as client]
+            [dacite.peer.client-checks :as cc]
+            [dacite.peer.msg :as msg]
+            [dacite.peer.responder :as responder]
+            [dacite.store :as store]
+            [dacite.store.chain :as chain]
             [dacite.store.client-cache :as cache]
             [dacite.store.idb :as idb]
             [dacite.value :as v]
@@ -323,6 +328,105 @@
                                 (eq! (:found d) 7 "wrong version: found 7")
                                 (idb/close st))))))))))
 
+(defn- promise? [x] (instance? js/Promise x))
+
+(defn- not-settled?
+  "True when `store/await` refuses `p` because it has not settled."
+  [p]
+  (try (store/await p) false
+       (catch :default e (= :not-settled (:reason (ex-data e))))))
+
+(defn- sp
+  "A host promise of a store promise, which may be a settled map."
+  [p]
+  (chain/native p))
+
+(defn- promises-outside-drive
+  "M1.3b: called outside `drive`, a method that has to wait returns an unsettled
+   promise that then fulfils with its result, and never throws `:dacite/suspend`.
+   A cache hit is a settled promise. Inside `drive` nothing changed (the other
+   tests)."
+  []
+  (let [name (db-name)
+        mem (store/mem-store)
+        node-v (v/i64 mem 5)
+        h (v/hash node-v)
+        node (store/await (store/s-get mem h))
+        other (v/hash (v/i64 mem 6))
+        st (idb/idb-store name)
+        put (store/s-put st h node)]
+    (eq! [(promise? put) (not-settled? put)] [true true] "put is an unsettled promise")
+    (-> put
+        (.then (fn [r]
+                 (eq! r st "put fulfils with the store")
+                 ;; now a cache hit: settled
+                 (eq! (store/await (store/s-get st h)) node "get is settled after put")
+                 (idb/close st)
+                 (let [again (idb/idb-store name)
+                       got (store/s-get again h)]
+                   (eq! [(promise? got) (not-settled? got)] [true true] "get of an uncached node is unsettled")
+                   (-> got
+                       (.then (fn [n]
+                                (eq! n node "get fulfils with the node")
+                                (eq! (store/await (store/s-get again h)) node "then it is settled (cached)")
+                                (-> (sp (store/s-get again other))
+                                    (.then (fn [n2]
+                                             (eq! n2 nil "an absent node fulfils with nil")
+                                             (sp (store/s-has? again other))))
+                                    (.then (fn [b]
+                                             (eq! b false "has? of an absent node is false")
+                                             (sp (store/s-has? again h))))
+                                    (.then (fn [b]
+                                             (eq! b true "has? of a held node is true")
+                                             (sp (store/s-snapshot again))))
+                                    (.then (fn [snap]
+                                             (eq! (get snap (store/hash->hex h)) node "snapshot fulfils with the map")
+                                             (sp (store/s-delete again h))))
+                                    (.then (fn [r]
+                                             (eq! r again "delete fulfils with the store")
+                                             (sp (store/s-merge again {h node}))))
+                                    (.then (fn [r]
+                                             (eq! r again "merge fulfils with the store")
+                                             (sp (store/s-reset again))))
+                                    (.then (fn [r]
+                                             (eq! r again "reset fulfils with the store")
+                                             (sp (store/s-snapshot again))))
+                                    (.then (fn [snap]
+                                             (eq! snap {} "reset emptied it")
+                                             (idb/close again)))))))))))))
+
+(defn- peer-over-idb
+  "M1.3b: the peer client of M1.3 against the IndexedDB store, with no replay
+   adapter: frames are delivered back to back, every node of the value is verified
+   and put into IndexedDB, and a reopened store holds them."
+  []
+  (let [name (db-name)
+        src (store/mem-store)
+        root (v/hash (cc/vector-value src 40))
+        items (cc/items-of src root)
+        st (idb/idb-store name)
+        sent (atom [])
+        c (client/client {:store st :send! (fn [p m] (swap! sent conj [p m]))})
+        hello (msg/encode-message {:type :hello :stream 0 :value responder/default-hello})]
+    (client/open-session! c "p")
+    (client/on-frame! c "p" hello)
+    (-> (chain/native (client/request! c root))
+        (.then (fn [r]
+                 (eq! r :requested "request! over idb")
+                 (let [sid (:stream (second (first (filter #(= :get (:type (second %))) @sent))))
+                       steps (mapv #(client/on-frame! c "p" %) ((cc/honest src) sid root))]
+                   (eq! (boolean (some chain/pending? steps)) true "frames wait for IndexedDB")
+                   (chain/native (last steps)))))
+        (.then (fn [_]
+                 (eq! [(client/done? c root) (client/session-status c "p") (client/failed c)]
+                      [true :open []] "the value was received and verified")
+                 (idb/close st)
+                 (let [again (idb/idb-store name)]
+                   (js/Promise.all
+                    (clj->js (mapv (fn [it] (store/s-get again (:hash it))) items))))))
+        (.then (fn [nodes]
+                 (eq! (vec nodes) (mapv :entry items) "a reopened store holds every node"))))))
+
 (defn -main
   [& _]
   (js/require "fake-indexeddb/auto")
@@ -336,6 +440,8 @@
       (.then new-store-is-tagged-and-reopen-passes)
       (.then untagged-store-is-a-format-mismatch)
       (.then wrong-version-store-is-a-format-mismatch)
+      (.then promises-outside-drive)
+      (.then peer-over-idb)
       (.then (fn [_]
                (println "idb tests passed")))
       (.catch (fn [e]

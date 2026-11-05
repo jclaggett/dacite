@@ -6,6 +6,19 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M1.3b: the IndexedDB store returns real promises outside `drive`.**
+  `dacite.store.idb`'s `s-get`, `s-put`, `s-has?`, `s-delete`, `s-snapshot`, `s-merge`
+  and `s-reset`, called outside `drive`, return a JavaScript promise (fulfilling with the
+  node, `nil`, a boolean, the map or the store, as each method says; a failure rejects
+  `:unavailable`) instead of throwing `:dacite/suspend`. A cache hit is still a settled
+  promise. Inside `drive` nothing changed: it still suspends and replays, which is what
+  the synchronous layers above the store (`chunk/chunked`, `rooted`, the value API,
+  `IdbRooted`) need, so no existing caller changes. The peer client of M1.3 now works
+  against `idb-store` with no replay adapter. Tests (`npm run idb:test`): the methods
+  return unsettled promises that settle, and the peer client receives and verifies a
+  whole value into IndexedDB (fake-indexeddb) and a reopened store holds every node.
+  Not here: the rooted store (`idb/open`) and `dacite.store.browser` (HTTP) still
+  suspend and need `drive`.
 - **M1.3: the peer chains on store promises.** New portable `dacite.store.chain`
   (`then`, `guard`, `each`, `with-reads`, `store-op`, `native`, a small `Deferred`):
   `dacite.peer.client`, `.responder` and `.verify` no longer unwrap store calls with
