@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-54a8be91.js";
+            window.path_to_searchindex_js = "../searchindex-d1e39483.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -208,7 +208,7 @@ built.</p>
   (s-get [store hash]  "Return the stored value, or nil")
   (s-put [store hash value] "Store value at hash, return the store")
   (s-has? [store hash] "Check if hash exists")
-  (s-snapshot [store] "Return a map of all {hash → value}")
+  (s-keys [store] "List the hashes this store holds. Values are not loaded")
   (s-merge [store m] "Merge {hash → value} into the store")
   (s-reset [store] "Clear all entries"))
 </code></pre>
@@ -220,6 +220,7 @@ built.</p>
 (s-get store h)   ;; =&gt; node, or nil if absent
 (s-has? store h)  ;; =&gt; true
 </code></pre>
+<p>A store is not dumped as a <code>{hash → value}</code> map. <code>s-keys</code> lists the hashes it holds, and each value is an <code>s-get</code> of a hash you already have. Garbage collection uses that list to find hashes no root reaches.</p>
 <p>Application code rarely calls <code>s-get</code> / <code>s-put</code> directly. Instead it uses the value constructors of Chapter 3, which persist nodes into a store on your behalf. The public value API always takes a store (implicitly via a current-store binding, or explicitly as the first argument) so that persistence stays visible rather than hidden.</p>
 <h2 id="13-content-addressing"><a class="header" href="#13-content-addressing">1.3 Content Addressing</a></h2>
 <p>Because a store is addressed by content hash, it has two useful properties for free:</p>
@@ -258,7 +259,7 @@ built.</p>
 <h2 id="15-what-this-layer-provides"><a class="header" href="#15-what-this-layer-provides">1.5 What This Layer Provides</a></h2>
 <ol>
 <li>An immutable, content-addressed dictionary: <code>hash → value</code>.</li>
-<li>A minimal protocol — <code>s-get</code> / <code>s-put</code> / <code>s-has?</code> / <code>s-snapshot</code> / <code>s-merge</code> / <code>s-reset</code>.</li>
+<li>A minimal protocol — <code>s-get</code> / <code>s-put</code> / <code>s-has?</code> / <code>s-keys</code> / <code>s-merge</code> / <code>s-reset</code>.</li>
 <li>Content addressing, and with it free deduplication and idempotent writes.</li>
 <li>Composable backends: memory, file, LMDB, and layered caching — all interchangeable.</li>
 </ol>

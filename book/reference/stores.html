@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-54a8be91.js";
+            window.path_to_searchindex_js = "../searchindex-d1e39483.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-0aeace7d.js"></script>
@@ -218,7 +218,7 @@ concatenate. This is local convenience, not an HTTP path: a lens over
 <a href="../04-rooted-stores/chapter.html">Rooted Stores chapter</a>.</p>
 <hr>
 <h2 id="not-part-of-the-app-api"><a class="header" href="#not-part-of-the-app-api">Not part of the app API</a></h2>
-<p><code>IStore</code> (<code>s-get</code>, <code>s-put</code>, <code>s-snapshot</code>, …) is the content dictionary used
+<p><code>IStore</code> (<code>s-get</code>, <code>s-put</code>, <code>s-keys</code>, …) is the content dictionary used
 by backends. Application code should not call it.</p>
 <div class="table-wrapper">
 <table>
@@ -248,7 +248,7 @@ prebuild:</p>
 </code></pre>
 <p>That runs <code>LMDB_DATA_V1=true npx node-gyp rebuild</code> in the <code>lmdb</code> package.
 <code>npm run store:test</code> then runs the shared get, put, has?, eviction,
-snapshot and reopen checks, and a peer serving the library fixture, for
+key-scan and reopen checks, and a peer serving the library fixture, for
 the nbb file store, LMDB and IndexedDB (<code>fake-indexeddb</code>).</p>
 <hr>
 <h2 id="client-composition-remote--sync"><a class="header" href="#client-composition-remote--sync">Client composition (remote / sync)</a></h2>
