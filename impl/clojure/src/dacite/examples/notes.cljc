@@ -25,6 +25,7 @@
      npx nbb -m dacite.examples.notes -- show
      npx nbb -m dacite.examples.notes -- --lmdb show"
   (:require [clojure.string :as str]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.value :as v]))
 
@@ -160,9 +161,9 @@
     (subs (store/hash->hex h) 0 12)))
 
 (defn node-count
-  "Number of entries in the value's content store (all versions)."
+  "Nodes reachable from `v`, including history the notebook still holds."
   [v]
-  (count (store/await (store/s-keys (v/dacite-store v)))))
+  (count (gc/mark-reachable (v/dacite-store v) (v/hash v))))
 
 (defn measure-sharing
   "Apply a title-only edit then a body rewrite. Returns node deltas and

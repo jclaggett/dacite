@@ -228,7 +228,7 @@ on compiled ClojureScript) are **optional sugar** so idiomatic `count` /
 ## Store protocol (`dacite.store`)
 
 `IStore` is the portable storage interface: `s-get`, `s-put`, `s-has?`,
-`s-delete`, `s-keys`, `s-merge`, `s-reset`. The portable core ships
+`s-delete`, `s-merge`, `s-reset`. It does not list every hash. The portable core ships
 `MemStore` (atom-backed), `LayeredStore`, and `LruStore` (`dacite.store.lru`).
 Durable backends live outside the pure core:
 

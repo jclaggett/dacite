@@ -24,6 +24,7 @@
   (:require [dacite.host :as host]
             [dacite.rooted :as rooted]
             [dacite.store :as store]
+            [dacite.store.bytes :as bytes]
             [dacite.wire.binary :as bin]))
 
 (def ^:private default-map-size
@@ -70,19 +71,6 @@
     (.removeSync db (hash->buf h))
     (store/completed this))
 
-  (s-keys [_]
-    ;; Keys only. Values stay in LMDB.
-    (store/completed
-     (let [out (volatile! [])
-           ;; lmdb 3.x: the range method is `iterate` (it was `iterator`).
-           it (.iterate (.getRange db #js {:keyEncoding "binary"}))]
-       (loop []
-         (let [step (.next it)]
-           (when-not (.-done step)
-             (vswap! out conj (buf->hash (.-key (.-value step))))
-             (recur))))
-       @out)))
-
   (s-merge [this m]
     (.transactionSync env
                       (fn []
@@ -93,7 +81,39 @@
 
   (s-reset [this]
     (.clearSync db)
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live]
+    ;; Keys only. Values stay in LMDB and are not returned.
+    (let [it (.iterate (.getRange db #js {:keyEncoding "binary"}))
+          drop (volatile! [])]
+      (loop []
+        (let [step (.next it)]
+          (when-not (.-done step)
+            (let [k (.-key (.-value step))
+                  hex (store/hash->hex (buf->hash k))]
+              (when-not (contains? live hex)
+                (vswap! drop conj (js/Buffer.from k))))
+            (recur))))
+      (doseq [k @drop]
+        (.removeSync db k))
+      (store/completed {:removed (count @drop)})))
+
+  store/ILocalStats
+  (local-stats [_]
+    (let [it (.iterate (.getRange db #js {:keyEncoding "binary"}))]
+      (store/completed
+       (loop [entries 0 edn 0 wire 0]
+         (let [step (.next it)]
+           (if (.-done step)
+             {:entries entries :edn-bytes edn :wire-bytes wire}
+             (let [entry (.-value step)
+                   h (buf->hash (.-key entry))
+                   v (bin/decode-store-value h (.-value entry))]
+               (recur (inc entries)
+                      (+ edn (bytes/edn-bytes v))
+                      (+ wire (bytes/wire-bytes v)))))))))))
 
 (defn lmdb-store
   "Open (or create) an LMDB env at `path`. Same named DBs as JVM."

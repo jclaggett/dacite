@@ -14,6 +14,7 @@
   (:require [clojure.string :as str]
             [dacite.hash :as hash]
             [dacite.peer.client :as client]
+            [dacite.rooted.gc :as gc]
             [dacite.peer.frame :as frame]
             [dacite.peer.harness :as h]
             [dacite.peer.msg :as msg]
@@ -56,14 +57,9 @@
 (defn hex [h] (store/hash->hex h))
 
 (defn store-count
-  "How many hashes `st` holds."
+  "How many entries `st` holds. A backend count, not a key list."
   [st]
-  (count (store/await (store/s-keys st))))
-
-(defn store-hexes
-  "The hashes `st` holds, as a set of hex strings."
-  [st]
-  (set (map hex (store/await (store/s-keys st)))))
+  (:entries (store/await (store/local-stats st))))
 
 ;; =============================================================================
 ;; Peers that lie
@@ -212,15 +208,21 @@
           (bin/bytes->hex (bin/encode-item {:enc :node :hash h :entry b})))))
 
 (defn- nothing-bad-stored
-  "Problems unless every entry in the client's store is exactly the source's
-   entry under the same key: nothing forged and nothing altered is stored."
-  [{:keys [client]} src]
-  (let [mine (h/inner (:store client))]
-    (mapcat (fn [h]
-              (let [entry (store/await (store/s-get mine h))]
-                (when-not (same-entry? h entry (store/await (store/s-get src h)))
-                  [(str "the store holds an entry that is not the source's: " (cut (hex h)))])))
-            (store/await (store/s-keys mine)))))
+  "Problems unless every node reachable from `roots` is the source's entry,
+   and the store holds no other entry."
+  [{:keys [client]} src roots]
+  (let [mine (h/inner (:store client))
+        live (reduce (fn [s root]
+                       (into s (gc/mark-reachable mine root)))
+                     #{}
+                     roots)]
+    (concat
+     (mapcat (fn [hk]
+               (let [h (gc/->hash hk)
+                     entry (store/await (store/s-get mine h))]
+                 (when-not (same-entry? h entry (store/await (store/s-get src h)))
+                   [(str "the store holds an entry that is not the source's: " (cut (hex h)))])))
+             live))))
 
 (defn stored? [st h] (some? (store/await (store/s-get st h))))
 
@@ -260,7 +262,7 @@
                          (when (stored? st (:hash it))
                            [(str what "stored " (store/hash->hex (:hash it)))]))
                        ((:absent (failure-kinds kind)) items k))
-               (nothing-bad-stored n src)
+               (nothing-bad-stored n src [root])
                (bad (str what "the root is had") (:root-had? (failure-kinds kind))
                     (h/have? (:client n) root))
                (bad (str what "no peer left: unserved") [root] (client/unserved (:client n))))))
@@ -321,7 +323,7 @@
        (bad "the bad page is not stored" false (stored? st (:hash (nth items k))))
        (bad "the session ended" :ended (client/session-status c "p"))
        (bad "what verified before it stays" true (every? #(stored? st (:hash %)) (subvec items 0 k)))
-       (nothing-bad-stored n src)))))
+       (nothing-bad-stored n src [root])))))
 
 (defn every-page-verifies-in-any-order
   "C33: pages carry their own measure, so they verify in any order and nothing
@@ -450,7 +452,7 @@
          (do (deliver! n "B" (y-rest y-sid)) nil)
          (bad "Y is done through B" true (client/done? c y))
          (bad "X is done through B" true (client/done? c x))
-         (nothing-bad-stored n src)
+         (nothing-bad-stored n src [x y])
          (bad "B was never ended" :open (client/session-status c "B"))
          (when (empty? sent-to-b) ["B was sent nothing"]))))))
 
@@ -496,7 +498,7 @@
                             :when (> (asked p h) 1)] [p (hex h)])))
          (bad "the honest peer served both" 2 (count (get by-peer "good")))
          (bad "every wanted hash is served" [] (client/unserved c))
-         (nothing-bad-stored n src))))))
+         (nothing-bad-stored n src [x y]))))))
 
 (defn lying-peer-and-honest-peer
   "Integration: a liar sends good items, then a forged one, for a value it is
@@ -534,7 +536,7 @@
      (bad "walking the client's store gives the source's reveal order"
           (vec (reveal/page-order src root))
           (vec (reveal/page-order (h/inner (:store c)) root)))
-     (nothing-bad-stored n src)
+     (nothing-bad-stored n src [root])
      (bad "nothing is waiting" [] (client/unserved c))
      (bad "the liar was asked once, then the honest peer once" [["liar" 1] ["honest" 1]]
           (gets n)))))
@@ -635,7 +637,7 @@
        (bad "walking the client's store gives the source's reveal order"
             (vec (map hex (reveal/page-order src y)))
             (vec (map hex (reveal/page-order st y))))
-       (nothing-bad-stored n src)))))
+       (nothing-bad-stored n src [x y])))))
 
 (defn shared-header-is-kept-when-the-other-receiver-gives-up
   "C31 across two receivers on one store: receiver 1 stores a forged header,

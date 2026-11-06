@@ -291,7 +291,6 @@
   (s-put [this hash v] (host-later #(do (store/await (store/s-put inner hash v)) this)))
   (s-has? [_ hash] (host-later #(store/await (store/s-has? inner hash))))
   (s-delete [this hash] (host-later #(do (store/await (store/s-delete inner hash)) this)))
-  (s-keys [_] (host-later #(store/await (store/s-keys inner))))
   (s-merge [this m] (host-later #(do (store/await (store/s-merge inner m)) this)))
   (s-reset [this] (host-later #(do (store/await (store/s-reset inner)) this))))
 
@@ -316,17 +315,22 @@
         n (node (->HostStore inner))
         c (:client n)
         fail (fn [e] (done [(str "threw " (ex-message e) " " (pr-str (ex-data e)))]))
-        snap (fn [st] (set (map store/hash->hex (store/await (store/s-keys st)))))
         step0 (client/request! c root)
         step0-waited? (chain/pending? step0)
         wanted (set (map (comp cc/hex :hash) (cc/items-of src root)))
+        held (fn [st]
+               {:entries (:entries (store/await (store/local-stats st)))
+                :present (set (filter #(store/await (store/s-has? st (store/hex->hash %)))
+                                      wanted))})
         report (fn [frames-waited?]
                  (done (vec (concat
                              (bad "the request and the frames waited for the store" true
                                   (boolean (and step0-waited? frames-waited?)))
                              (bad "the hash is done" true (client/done? c root))
                              (bad "the session is open" :open (client/session-status c "p"))
-                             (bad "the store holds exactly the value's nodes" wanted (snap inner))))))
+                             (bad "the store holds exactly the value's nodes"
+                                  {:entries (count wanted) :present wanted}
+                                  (held inner))))))
         deliver (fn []
                   (let [[[sid _]] (gets n)
                         ;; every frame at once, as a transport delivers them

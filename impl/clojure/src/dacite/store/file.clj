@@ -13,6 +13,7 @@
    LMDB lives in dacite.store.jvm — keep this ns free of native deps so
    babashka can load it."
   (:require [dacite.store :as store]
+            [dacite.store.bytes :as bytes]
             [dacite.wire :as wire]
             [clojure.java.io :as io]
             [clojure.edn :as edn]
@@ -95,17 +96,6 @@
         (.delete f)))
     (store/completed this))
 
-  (s-keys [_]
-    ;; Filenames are the hashes. The node files are not read.
-    (store/completed
-     (into []
-           (comp
-            (filter #(.isFile ^File %))
-            (filter #(.endsWith (.getName ^File %) ".edn"))
-            (map (fn [^File f]
-                   (store/hex->hash (subs (.getName f) 0 64)))))
-           (file-seq base-dir))))
-
   (s-merge [this m]
     (doseq [[h v] m]
       (store/await (store/s-put this h v)))
@@ -115,7 +105,35 @@
     (doseq [^File f (file-seq base-dir)
             :when (and (.isFile f) (.endsWith (.getName f) ".edn"))]
       (.delete f))
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live]
+    ;; Filenames are the hashes. Node files that are kept are not read.
+    (let [removed (volatile! 0)]
+      (doseq [^File f (file-seq base-dir)
+              :when (and (.isFile f) (.endsWith (.getName f) ".edn"))
+              :let [hex (subs (.getName f) 0 64)]
+              :when (not (contains? live hex))]
+        (.delete f)
+        (vswap! removed inc))
+      (store/completed {:removed @removed})))
+
+  store/ILocalStats
+  (local-stats [this]
+    (let [files (filterv (fn [^File f]
+                           (and (.isFile f) (.endsWith (.getName f) ".edn")))
+                         (file-seq base-dir))]
+      (store/completed
+       (reduce (fn [acc ^File f]
+                 (let [hex (subs (.getName f) 0 64)
+                       v (store/await (store/s-get this (store/hex->hash hex)))]
+                   (-> acc
+                       (update :entries inc)
+                       (update :edn-bytes + (bytes/edn-bytes v))
+                       (update :wire-bytes + (bytes/wire-bytes v)))))
+               {:entries 0 :edn-bytes 0 :wire-bytes 0}
+               files)))))
 
 (defn file-store
   "Create a file-based content-addressed store."

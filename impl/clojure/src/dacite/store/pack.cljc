@@ -586,6 +586,46 @@
       (throw (ex-info "cannot materialize literal type"
                       {:type type})))))
 
+(defrecord ^:private WrittenStore [inner acc]
+  store/IStore
+  (s-get [_ h] (store/s-get inner h))
+  (s-put [this h value]
+    (store/await (store/s-put inner h value))
+    (let [hk (store/hash->hex h)]
+      (swap! acc (fn [{:keys [order by]}]
+                   {:order (if (contains? by hk) order (conj order hk))
+                    :by (assoc by hk [h value])})))
+    (store/completed this))
+  (s-has? [_ h] (store/s-has? inner h))
+  (s-delete [this h]
+    (store/await (store/s-delete inner h))
+    (store/completed this))
+  (s-merge [this m]
+    (store/await (store/s-merge inner m))
+    (swap! acc (fn [state]
+                 (reduce (fn [{:keys [order by]} [h value]]
+                           (let [hk (store/hash->hex h)]
+                             {:order (if (contains? by hk) order (conj order hk))
+                              :by (assoc by hk [h value])}))
+                         state
+                         m)))
+    (store/completed this))
+  (s-reset [this]
+    (store/await (store/s-reset inner))
+    (reset! acc {:order [] :by {}})
+    (store/completed this)))
+
+(defn literal-entries
+  "Every [hash entry] `materialize-literal!` writes for `type` and `body`.
+
+   The pairs are those writes. Nothing scans a store afterwards."
+  [type body]
+  (let [acc (atom {:order [] :by {}})
+        st (->WrittenStore (store/mem-store) acc)]
+    (materialize-literal! st type body)
+    (let [{:keys [order by]} @acc]
+      (mapv by order))))
+
 (defn- literal-round-trips?
   "True if materializing form yields exactly h."
   [h type body]

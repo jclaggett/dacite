@@ -145,6 +145,7 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.peer.origin` | `host` | `impl/clojure/src/dacite/peer/origin.cljc` | Verify origin pack chunks into a store. No host marker. Requires `dacite.peer.verify`, the store, and the wire codec. |
 | `dacite.reveal` | `host` | `impl/clojure/src/dacite/reveal.cljc` | Store adapter for `dacite.reveal.engine`. Builds the node source from `dacite.store`, `dacite.value.types`, `dacite.value.hamt`, and `dacite.wire.binary`. No host marker of its own. |
 | `dacite.rooted.gc` | `host` | `impl/clojure/src/dacite/rooted/gc.cljc` | Mark-and-sweep in portable Clojure. Requires `dacite.store` and `dacite.value.types`. |
+| `dacite.store.bytes` | `host` | `impl/clojure/src/dacite/store/bytes.cljc` | Byte sizes of one stored value, for a backend's own stats. Requires `dacite.wire.binary`. |
 | `dacite.store.chunk` | `host` | `impl/clojure/src/dacite/store/chunk.cljc` | Chunked overlay. Requires `dacite.store`, `dacite.store.pack`, and `dacite.rooted.gc`. |
 | `dacite.store.client-cache` | `host` | `impl/clojure/src/dacite/store/client_cache.cljc` | Client cache policies. Requires `dacite.store`, `dacite.store.pack`, and `dacite.rooted.gc`. |
 | `dacite.store.lru` | `host` | `impl/clojure/src/dacite/store/lru.cljc` | LRU content store over `IStore`. Requires `dacite.store`. |

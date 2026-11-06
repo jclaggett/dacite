@@ -162,7 +162,7 @@
     (testing "nothing is stored by a refused string"
       (let [st2 (store/mem-store)]
         (reason #(v/string st2 (str (apply str (repeat 5000 "a")) hi)))
-        (is (= 0 (count (store/await (store/s-keys st2)))) "no page of it")))
+        (is (zero? (:entries (store/await (store/local-stats st2)))) "no page of it")))
     (testing "text inside a collection"
       (is (= :lone-surrogate (reason #(v/map st hi 1))))
       (is (= :lone-surrogate (reason #(v/vector st (str "a" lo))))))

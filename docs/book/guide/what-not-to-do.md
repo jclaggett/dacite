@@ -22,7 +22,7 @@ Domain code must not require:
 - `dacite.value.collections` / `.finger-tree` / `.hamt`
 - `dacite.store.pack`
 - `dacite.wire` / `dacite.wire.binary`
-- `IStore` methods (`s-get`, `s-keys`, `s-reset`, …)
+- `IStore` methods (`s-get`, `s-has?`, `s-reset`, …)
 
 If you need them, the public API is missing a function.
 

@@ -34,7 +34,13 @@
     {:copied 0 :skipped 0 :live 0 :via :nodes}
 
     (pack/find-chunk-transport dest)
-    (let [skip (into #{} (map gc/hash-key) (store/await (store/s-keys dest)))
+    ;; Skip hashes dest already has. The live set comes from src; each
+    ;; one is an `s-has?` on dest. Dest is not listed.
+    (let [live (gc/mark-reachable src root-h)
+          skip (into #{}
+                     (filter (fn [hk]
+                               (store/await (store/s-has? dest (gc/->hash hk)))))
+                     live)
           result (pack/flush-from! dest src root-h skip)]
       {:copied (long (:items result 0))
        :skipped 0

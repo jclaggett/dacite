@@ -109,7 +109,7 @@
   (count (filter (fn [[hx node]] (not (same-node? node (lookup hx)))) entries)))
 
 ;; =============================================================================
-;; Store: get, put, has?, key scan, eviction, reopen
+;; Store: get, put, has?, entry count, eviction, reopen
 ;; =============================================================================
 
 (defn- roundtrip [problems backend]
@@ -133,10 +133,12 @@
                  (await-store (store/s-get st other))))
         (.then (fn [got]
                  (keep! problems (bad "get of another hash" nil got))
-                 (await-store (store/s-keys st))))
-        (.then (fn [ks]
-                 (keep! problems (bad "key count" 1 (count ks)))
-                 (keep! problems (bad "the key is the hash" (hex hash) (hex (first ks))))))
+                 (await-store (store/local-stats st))))
+        (.then (fn [stats]
+                 (keep! problems (bad "entry count" 1 (:entries stats)))
+                 (await-store (store/s-has? st hash))))
+        (.then (fn [has]
+                 (keep! problems (bad "the hash is stored" true has))))
         (.finally (fn [] (shut backend st))))))
 
 (defn- eviction
@@ -158,9 +160,15 @@
                  (await-store (store/s-has? st (:hash a)))))
         (.then (fn [has]
                  (keep! problems (bad "evicted node has?" true has))
-                 (await-store (store/s-keys st))))
-        (.then (fn [ks]
-                 (keep! problems (bad "keys after eviction" 2 (count ks)))))
+                 (await-store (store/s-has? st (:hash a)))))
+        (.then (fn [has-a]
+                 (keep! problems (bad "evicted node still stored" true has-a))
+                 (await-store (store/s-has? st (:hash b)))))
+        (.then (fn [has-b]
+                 (keep! problems (bad "newest node still stored" true has-b))
+                 (await-store (store/local-stats st))))
+        (.then (fn [stats]
+                 (keep! problems (bad "entry count after eviction" 2 (:entries stats)))))
         (.finally (fn [] (shut backend st))))))
 
 (defn- reopen
@@ -183,17 +191,18 @@
                                 (await-store (store/s-has? again other))))
                        (.then (fn [has]
                                 (keep! problems (bad "reopen of an unwritten hash" false has))
-                                (await-store (store/s-keys again))))
-                       (.then (fn [ks]
-                                (keep! problems (bad "reopen key count" 1 (count ks)))
-                                (keep! problems (bad "reopen key" (hex hash) (hex (first ks))))))
+                                (await-store (store/local-stats again))))
+                       (.then (fn [stats]
+                                (keep! problems (bad "reopen entry count" 1 (:entries stats)))
+                                (keep! problems (bad "reopen still has the hash" true
+                                                     (store/await (store/s-has? again hash))))))
                        (.finally (fn [] (shut backend again)))))))
         (.catch (fn [e]
                   (shut backend st)
                   (throw e))))))
 
 (defn store-problems
-  "Problems of get, put, has?, a key scan, eviction and reopen on `backend`:
+  "Problems of get, put, has?, entry count, eviction and reopen on `backend`:
    `:fresh` makes an empty place, `:open` takes the place and opts
    (`:cache-limit` when the store has a cache), `:close` releases it.
    A promise of `{:problems [...]}`."

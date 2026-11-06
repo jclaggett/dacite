@@ -23,6 +23,7 @@
      npx nbb -m dacite.examples.event-log -- --reset show
      npx nbb -m dacite.examples.event-log -- --lmdb --n 50 show"
   (:require [clojure.string :as str]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.value :as v]
             #?(:clj [dacite.store.remote :as remote])))
@@ -159,8 +160,10 @@
   (v/slice (log-of ledger) 0 end))
 
 (defn node-count
+  "Nodes reachable from `v`. Construction debris the value no longer
+   reaches is not counted."
   [v]
-  (count (store/await (store/s-keys (v/dacite-store v)))))
+  (count (gc/mark-reachable (v/dacite-store v) (v/hash v))))
 
 (defn measure-append
   "Node-delta of one append at each size in `sizes`. Builds a fresh ledger

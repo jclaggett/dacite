@@ -20,6 +20,7 @@
             [dacite.peer.responder :as responder]
             [dacite.peer.verify :as verify]
             [dacite.reveal :as reveal]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.value :as v]
             [dacite.wire.binary :as bin]))
@@ -721,8 +722,8 @@
    `nothing-unverified-reaches-the-store`.)"
   []
   (let [[st root] (big-value)
-        keys-of #(cc/store-hexes st)
-        before (keys-of)
+        fingerprint #(vector (cc/store-count st) (gc/mark-reachable st root))
+        before (fingerprint)
         n (rnet {:st st})
         h (msg/hash-ref (store/hash->hex root))
         item (stray-frame 1)
@@ -731,9 +732,9 @@
         _ (send-to! n (msg/encode-message {:type :ack :stream 0 :value {"hashes" [h]}}))
         _ (send-to! n (msg/encode-message {:type :cancel :stream 1 :value {}}))
         _ (dotimes [_ 5] (step! n 100))
-        mid (keys-of)
+        mid (fingerprint)
         _ (send-to! n item)                       ; a protocol violation: ends it
-        after (keys-of)]
+        after (fingerprint)]
     (concat
      (bad "unchanged after gets, ack, cancel and serving" before mid)
      (bad "unchanged after an item-stream (which ends the session)" before after)

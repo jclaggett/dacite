@@ -22,6 +22,7 @@
      npx nbb -m dacite.examples.sync -- --reset seed
      npx nbb -m dacite.examples.sync -- --lmdb --reset seed"
   (:require [clojure.string :as str]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.value :as v]
             #?(:clj [clojure.java.io :as io])))
@@ -134,8 +135,10 @@
   [file-e]
   (v/hash (entry-blob file-e)))
 
-(defn node-count [v]
-  (count (store/await (store/s-keys (v/dacite-store v)))))
+(defn node-count
+  "Nodes reachable from `v`."
+  [v]
+  (count (gc/mark-reachable (v/dacite-store v) (v/hash v))))
 
 (defn measure-sharing
   "Sample tree: copy.txt and readme.txt must share a blob; listing must

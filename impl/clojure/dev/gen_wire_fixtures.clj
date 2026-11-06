@@ -5,6 +5,7 @@
      clojure -M:dev -m gen-wire-fixtures"
   (:require [clojure.java.io :as io]
             [cheshire.core :as json]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.store.pack :as pack]
             [dacite.wire.binary :as bin]
@@ -311,11 +312,13 @@
       ;; Nested run / repeat (not top-level store types)
       (let [v-run (coll/vector-with-store st 1 2 3)
             vh (types/dacite-hash v-run)
-            _s-rep (coll/string-with-store st (apply str (repeat 8 \x)))
-            digit (some (fn [h]
-                          (let [e (store/await (store/s-get st h))]
+            s-rep (coll/string-with-store st (apply str (repeat 8 \x)))
+            rep-h (types/dacite-hash s-rep)
+            digit (some (fn [hk]
+                          (let [h (store/hex->hash hk)
+                                e (store/await (store/s-get st h))]
                             (when (= "ft/digit" (types/entry-type e)) [h e])))
-                        (store/await (store/s-keys st)))]
+                        (gc/mark-reachable st rep-h))]
         (write-case! "chunk-literal-run-i64"
                      [(lit-item vh (pack/literal-of st vh))]
                      :desc "{\"title\":\"vector of i64s as one type-run\"}\n")

@@ -177,9 +177,6 @@
                    (store/await (store/s-delete pack-local h))
                    this))))
 
-  (s-keys [_]
-    (store/s-keys pack-local))
-
   (s-merge [this m]
     (doseq [[h v] m]
       (store/await (store/s-put this h v)))
@@ -188,6 +185,10 @@
   (s-reset [this]
     (store/await (store/s-reset pack-local))
     (store/completed this))
+
+  store/ISweep
+  ;; The server is not listed. Sweep only the pack cache this client holds.
+  (sweep-unmarked [_ live] (store/sweep-unmarked pack-local live))
 
   pack/IChunkTransport
   (send-chunk! [this chunk]
@@ -226,13 +227,15 @@
   (s-delete [this h]
     (store/await (store/s-delete content h))
     (store/completed this))
-  (s-keys [_] (store/s-keys content))
   (s-merge [this m]
     (store/await (store/s-merge content m))
     (store/completed this))
   (s-reset [this]
     (store/await (store/s-reset content))
     (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live] (store/sweep-unmarked content live))
 
   pack/IChunkTransport
   (send-chunk! [_ chunk]
@@ -360,8 +363,13 @@
                      (vec (remove nil? roots))
                      :else [roots])
          root-hexes (mapv store/hash->hex root-list)
-         have-hexes (mapv store/hash->hex
-                          (or have (store/await (store/s-keys dest))))
+         have-hexes (cond
+                      (some? have) (mapv store/hash->hex have)
+                      (client-cache/write-back-store? remote) (vec @(:flushed remote))
+                      :else (vec (reduce (fn [s h]
+                                           (into s (gc/mark-reachable dest h)))
+                                         #{}
+                                         root-list)))
          url (str (str/replace (:base-url rs) #"/$" "") "/nodes/get")
          body {:roots root-hexes
                :have have-hexes

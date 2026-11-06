@@ -18,6 +18,8 @@
             StringRequestContent]
            [org.eclipse.jetty.http HttpVersion]))
 
+(declare holds-exactly?)
+
 (defn- post-reveal
   "POST /reveal and return {:status :type :version :items}."
   [client h3-url h]
@@ -122,16 +124,14 @@
     (try
       (let [node (store/await (store/s-get via-reveal h))]
         (is (= (store/require-node rooted h) node))
-        (is (= (set order)
-               (set (store/await (store/s-keys (:pack-local via-reveal))))))
+        (is (holds-exactly? (:pack-local via-reveal) order))
         ((:close! primary))
         (is (= (store/require-node rooted child)
                (store/await (store/s-get via-reveal child)))
             "a page this stream stored is a later local read")
         (is (= (store/require-node rooted h)
                (store/await (store/s-get again h))))
-        (is (= (set order)
-               (set (store/await (store/s-keys (:pack-local again))))))
+        (is (holds-exactly? (:pack-local again) order))
         (let [packed (remote/remote-store base-url)
               pack (svc/handle-request rooted "GET"
                                        (str "/node/" (store/hash->hex h))
@@ -166,17 +166,22 @@
        :in (.getInputStream listener)
        :listener listener})))
 
+(defn- holds-exactly?
+  "True when `st` holds each of `hashes` and no other entry."
+  [st hashes]
+  (and (= (count hashes) (:entries (store/await (store/local-stats st))))
+       (every? #(store/await (store/s-has? st %)) hashes)))
+
 (defn- wait-for-other-page
   "True once `pack` holds some page and does not yet hold `avoid`."
   [pack avoid]
   (loop [n 0]
-    (let [have (set (store/await (store/s-keys pack)))]
-      (cond
-        (contains? have avoid) false
-        (seq have) true
-        (>= n 200) :timeout
-        :else (do (Thread/sleep 20)
-                  (recur (inc n)))))))
+    (cond
+      (store/await (store/s-has? pack avoid)) false
+      (pos? (:entries (store/await (store/local-stats pack)))) true
+      (>= n 200) :timeout
+      :else (do (Thread/sleep 20)
+                (recur (inc n))))))
 
 (deftest focused-child-is-its-own-stream
   (let [rooted (svc/make-demo-rooted)
@@ -517,14 +522,18 @@
         ((:close! primary))
         (stop!)))))
 
-(defn- stored-hashes
-  [pack]
-  (set (store/await (store/s-keys pack))))
-
-(defn- held-hashes
-  "Pages stored, plus items still waiting on a child."
-  [pack waiting]
-  (into (stored-hashes pack) (map :hash) @waiting))
+(defn- held-hexes
+  "Hex of the known pages `pack` holds, plus hashes still waiting.
+   Known pages are `order`. An extra stored hash shows up as an entry
+   count the set does not cover."
+  [pack waiting order]
+  (let [stored (into #{}
+                     (comp (filter #(store/await (store/s-has? pack %)))
+                           (map store/hash->hex))
+                     order)]
+    (into stored
+          (map (comp store/hash->hex :hash))
+          (remove #(store/await (store/s-has? pack (:hash %))) @waiting))))
 
 (deftest a-paused-reveal-ends-and-a-re-ask-resumes
   (let [rooted (svc/make-demo-rooted)
@@ -552,7 +561,7 @@
       (let [started (System/nanoTime)
             _ (reveal-client/fetch! session h local)
             elapsed (/ (- (System/nanoTime) started) 1.0e9)
-            n (count (held-hashes local (:waiting session)))]
+            n (count (held-hexes local (:waiting session) order))]
         (is (< elapsed 10.0) "the pause ends the response")
         (is (< 0 n (count order)))
         ;; A re-ask can bank credit and end before the next page fits.
@@ -562,15 +571,15 @@
         ;; three on every run.
         (let [{:keys [done? kept?]}
               (loop [tries 0
-                     prev (held-hashes local (:waiting session))
+                     prev (held-hexes local (:waiting session) order)
                      kept? true]
                 (cond
-                  (= (set order) (stored-hashes local)) {:done? true :kept? kept?}
+                  (holds-exactly? local order) {:done? true :kept? kept?}
                   (>= tries 4) {:done? false :kept? kept?}
                   :else
                   (do
                     (reveal-client/fetch! session h local)
-                    (let [now (held-hashes local (:waiting session))]
+                    (let [now (held-hexes local (:waiting session) order)]
                       (recur (inc tries) now (and kept? (every? now prev)))))))]
           (is done? "a re-ask finishes the value")
           (is kept? "a re-ask does not drop a page already held")
@@ -605,7 +614,7 @@
       (let [started (System/nanoTime)
             _ (reveal-client/fetch! session h local)
             elapsed (/ (- (System/nanoTime) started) 1.0e9)
-            n (count (held-hashes local (:waiting session)))]
+            n (count (held-hexes local (:waiting session) order))]
         (is (< elapsed 10.0) "the budget ends the response")
         (is (< 0 n (count order)))
         ;; One ask banks the unspent integral. The next page can be larger
@@ -615,15 +624,15 @@
         ;; three on every run.
         (let [{:keys [done? kept?]}
               (loop [tries 0
-                     prev (held-hashes local (:waiting session))
+                     prev (held-hexes local (:waiting session) order)
                      kept? true]
                 (cond
-                  (= (set order) (stored-hashes local)) {:done? true :kept? kept?}
+                  (holds-exactly? local order) {:done? true :kept? kept?}
                   (>= tries 8) {:done? false :kept? kept?}
                   :else
                   (do
                     (reveal-client/fetch! session h local)
-                    (let [now (held-hashes local (:waiting session))]
+                    (let [now (held-hexes local (:waiting session) order)]
                       (recur (inc tries) now (and kept? (every? now prev)))))))]
           (is done? "a re-ask finishes the value")
           (is kept? "a re-ask does not drop a page already held")

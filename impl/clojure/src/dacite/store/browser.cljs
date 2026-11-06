@@ -30,6 +30,7 @@
 
    Prefer (client-cache/wrap (remote-store base) :write-back) for the demo."
   (:require [clojure.string :as str]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.store.stats :as stats]
             [dacite.store.pack :as pack]
@@ -354,7 +355,6 @@
             (store/completed this))
         (store/unavailable h {:status status}))))
 
-  (s-keys [_] (store/s-keys pack-local))
   (s-merge [this m]
     (doseq [[h v] m]
       (store/await (store/s-put this h v)))
@@ -362,6 +362,10 @@
   (s-reset [this]
     (store/await (store/s-reset pack-local))
     (store/completed this))
+
+  store/ISweep
+  ;; The server is not listed. Sweep only the pack cache this page holds.
+  (sweep-unmarked [_ live] (store/sweep-unmarked pack-local live))
 
   pack/IChunkTransport
   (send-chunk! [this chunk]
@@ -445,8 +449,13 @@
                      (vec (remove nil? roots))
                      :else [roots])
          root-hexes (mapv store/hash->hex root-list)
-         have-hexes (mapv store/hash->hex
-                          (or have (store/await (store/s-keys dest))))
+         have-hexes (cond
+                      (some? have) (mapv store/hash->hex have)
+                      (client-cache/write-back-store? remote) (vec @(:flushed remote))
+                      :else (vec (reduce (fn [s h]
+                                           (into s (gc/mark-reachable dest h)))
+                                         #{}
+                                         root-list)))
          url (str (trim-base (:base-url rs)) "/nodes/get")
          payload {:roots root-hexes
                   :have have-hexes
