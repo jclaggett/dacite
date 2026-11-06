@@ -19,14 +19,6 @@
 (defn- dir-bytes [^java.io.File dir]
   (reduce + 0 (map #(.length ^java.io.File %) (edn-files dir))))
 
-(defn- copy-live
-  "Exploded store of only hashes reachable from root-h."
-  [src root-h dest]
-  (doseq [hk (gc/mark-reachable src root-h)]
-    (let [h (gc/->hash hk)]
-      (store/await (store/s-put dest h (store/await (store/s-get src h))))))
-  dest)
-
 (deftest seed-catalog-flushes-to-pack-items
   (let [cs (chunk/chunked (store/mem-store))
         catalog (lib/seed-library cs)
@@ -95,12 +87,11 @@
   (let [plain (store/mem-store)
         catalog (lib/seed-library plain)
         h (v/hash catalog)
-        live (store/mem-store)
-        _ (copy-live plain h live)
-        live-bytes (reduce (fn [n h]
-                             (+ n (count (pr-str (store/await (store/s-get live h))))))
+        live-hexes (gc/mark-reachable plain h)
+        live-bytes (reduce (fn [n hk]
+                             (+ n (count (pr-str (store/await (store/s-get plain (gc/->hash hk)))))))
                            0
-                           (store/await (store/s-keys live)))
+                           live-hexes)
         cs (chunk/chunked (store/mem-store))
         c2 (lib/seed-library cs)
         _ (chunk/flush! cs (v/hash c2))
@@ -109,7 +100,7 @@
              "chunked" (:edn-bytes inner)
              "ratio" (format "%.2f" (double (/ live-bytes (max 1 (:edn-bytes inner))))))
     (is (< (:edn-bytes inner) live-bytes))
-    (is (< (:entries inner) (count (store/await (store/s-keys live)))))))
+    (is (< (:entries inner) (count live-hexes)))))
 
 (deftest chunked-file-smaller-than-exploded-file
   (let [dir-e (io/file (str "target/dacite-chunk-exploded-" (System/nanoTime)))

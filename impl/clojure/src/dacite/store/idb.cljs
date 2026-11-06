@@ -37,6 +37,7 @@
    its batch in one transaction."
   (:require [dacite.rooted :as rooted]
             [dacite.store :as store]
+            [dacite.store.bytes :as bytes]
             [dacite.store.chunk :as chunk]
             [dacite.wire.binary :as bin]))
 
@@ -218,22 +219,61 @@
     (.put (.objectStore tx meta-store) store/store-format format-key)
     (tx-complete tx)))
 
-(defn- idb-keys
-  "Hashes in the nodes store. The values are not decoded."
-  [db]
+(defn- idb-sweep
+  "Delete node keys whose hex is not in `live`. The cursor value is not
+   read and nothing is written to the read cache. Resolves to how many
+   keys were deleted."
+  [db live]
   (js/Promise.
    (fn [ok err]
-     (let [tx (.transaction db #js [node-store] "readonly")
-           req (.getAllKeys (.objectStore tx node-store))]
+     (let [tx (.transaction db #js [node-store] "readwrite")
+           req (.openCursor (.objectStore tx node-store))
+           removed (atom 0)]
        (set! (.-onerror req) (fn [_] (err (.-error req))))
        (set! (.-onsuccess req)
              (fn [_]
-               (ok (mapv #(store/hex->hash (str %)) (vec (.-result req))))))))))
+               (when-let [cursor (.-result req)]
+                 (when-not (contains? live (str (.-key cursor)))
+                   (.delete cursor)
+                   (swap! removed inc))
+                 (.continue cursor))))
+       (-> (tx-complete tx)
+           (.then (fn [_] (ok @removed)))
+           (.catch err))))))
 
 (defn- decode-node
   [h bs]
   (when (present? bs)
     (bin/decode-store-value h (bin/as-wire-bytes bs))))
+
+(defn- idb-stats
+  "Entry count and byte sizes. Values are decoded for the sizes and are
+   not written to the read cache."
+  [db]
+  (js/Promise.
+   (fn [ok err]
+     (let [tx (.transaction db #js [node-store] "readonly")
+           req (.openCursor (.objectStore tx node-store))
+           entries (atom 0)
+           edn (atom 0)
+           wire (atom 0)]
+       (set! (.-onerror req) (fn [_] (err (.-error req))))
+       (set! (.-onsuccess req)
+             (fn [_]
+               (when-let [cursor (.-result req)]
+                 (let [v (decode-node (store/hex->hash (str (.-key cursor)))
+                                      (.-value cursor))]
+                   (swap! entries inc)
+                   (when (some? v)
+                     (swap! edn + (bytes/edn-bytes v))
+                     (swap! wire + (bytes/wire-bytes v))))
+                 (.continue cursor))))
+       (-> (tx-complete tx)
+           (.then (fn [_]
+                    (ok {:entries @entries
+                         :edn-bytes @edn
+                         :wire-bytes @wire})))
+           (.catch err))))))
 
 (defn- hit?
   [v]
@@ -319,7 +359,8 @@
   (into [] (keep f) coll))
 
 (defrecord IdbStore [name db opening cache cache-order cache-limit
-                     key-cache key-epoch reset-latch
+                     sweep-token sweep-result stats-token stats-result
+                     reset-latch
                      root-ready root durable-cas durable-set keep retained
                      resetting]
   store/IStore
@@ -423,33 +464,6 @@
           h)
          (fn [] this)))))
 
-  (s-keys [this]
-    (cond
-      ;; a reset is clearing the database: answer after it, from the cleared store
-      (and @resetting (nil? *drive-epoch*))
-      (.then @resetting (fn [_] (store/s-keys this)))
-
-      ;; One drive replays until the call settles. The list is hashes only,
-      ;; and the node cache is not touched (N14a). Outside `drive` every
-      ;; call reads IndexedDB again.
-      (and (some? *drive-epoch*) (= @key-epoch *drive-epoch*))
-      (store/completed @key-cache)
-
-      :else
-      (let [epoch *drive-epoch*
-            found (atom nil)]
-        (wait
-         (reject-cause
-          (-> (ensure-db this)
-              (.then idb-keys)
-              (.then (fn [ks]
-                       (reset! found ks)
-                       (when (some? epoch)
-                         (reset! key-cache ks)
-                         (reset! key-epoch epoch)))))
-          nil)
-         #(deref found)))))
-
   (s-merge [this m]
     (evict-while! this nil)
     (let [epoch *drive-epoch*
@@ -480,8 +494,10 @@
     (let [          clear-cache! (fn []
                          (reset! cache {})
                          (reset! cache-order (js/Map.))
-                         (reset! key-cache [])
-                         (reset! key-epoch nil))
+                         (reset! sweep-token nil)
+                         (reset! sweep-result nil)
+                         (reset! stats-token nil)
+                         (reset! stats-result nil))
           clear! (fn []
                    (clear-cache!)
                    (reset! reset-latch false)
@@ -518,7 +534,62 @@
               p (-> p (.then (fn [r] (done) r)) (.catch (fn [e] (done) (throw e))))]
           (clear-cache!)
           (reset! resetting p)
-          p)))))
+          p))))
+
+  store/ISweep
+  (sweep-unmarked [this live]
+    (let [epoch *drive-epoch*
+          token [epoch (hash live) (count live)]]
+      (cond
+        (and @resetting (nil? epoch))
+        (.then @resetting (fn [_] (store/sweep-unmarked this live)))
+
+        ;; Replay of this drive. The walk already finished and did not
+        ;; fill the read cache (N14a).
+        (and (some? epoch) (= @sweep-token token))
+        (store/completed @sweep-result)
+
+        :else
+        (do
+          (doseq [k (keys @cache)]
+            (when-not (contains? live k)
+              (cache-drop! this k)))
+          (wait
+           (reject-cause
+            (-> (ensure-db this)
+                (.then (fn [db*] (idb-sweep db* live)))
+                (.then (fn [n]
+                         (let [result {:removed n}]
+                           (reset! sweep-result result)
+                           (when (some? epoch)
+                             (reset! sweep-token token))
+                           result))))
+            nil)
+           (fn [] @sweep-result))))))
+
+  store/ILocalStats
+  (local-stats [this]
+    (let [epoch *drive-epoch*]
+      (cond
+        (and @resetting (nil? epoch))
+        (.then @resetting (fn [_] (store/local-stats this)))
+
+        (and (some? epoch) (= @stats-token epoch))
+        (store/completed @stats-result)
+
+        :else
+        (wait
+         (reject-cause
+          (-> (ensure-db this)
+              (.then idb-stats)
+              (.then (fn [stats]
+                       (reset! stats-result stats)
+                       (when (some? epoch)
+                         (reset! stats-token epoch))
+                       stats)))
+          nil)
+         (fn [] @stats-result)))))
+)
 
 (defn idb-store
   "Content dictionary in IndexedDB database `name`.
@@ -532,7 +603,9 @@
                (atom {})
                (atom (js/Map.))
                cache-limit
-               (atom [])
+               (atom nil)
+               (atom nil)
+               (atom nil)
                (atom nil)
                (atom false)
                (atom false)
@@ -617,13 +690,15 @@
   (s-delete [this h]
     (store/await (store/s-delete content h))
     (store/completed this))
-  (s-keys [_] (store/s-keys content))
   (s-merge [this m]
     (store/await (store/s-merge content m))
     (store/completed this))
   (s-reset [this]
     (store/await (store/s-reset content))
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live] (store/sweep-unmarked content live)))
 
 (defn open
   "Rooted IndexedDB store. Pack-literal inner; flush on root commit.

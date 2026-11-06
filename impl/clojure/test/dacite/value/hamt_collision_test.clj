@@ -329,7 +329,8 @@
            (prop/for-all [[khs ops] gen-history
                           seed (gen/choose 0 1000)]
              (let [st (store/mem-store)
-                   pool (vec (map-indexed vector khs))]
+                   pool (vec (map-indexed vector khs))
+                   roots (volatile! [])]
                (and
                 (loop [root (hamt/hamt-empty st), held {}, ops ops]
                   (if (empty? ops)
@@ -347,6 +348,7 @@
                                                    (v/hash (v/i64 st (+ 1000 i))))
                                   (hamt/hamt-dissoc st root kh))
                           held' (if assoc? (assoc held i kh) (dissoc held i))]
+                      (vswap! roots conj root')
                       (and (empty? (check-tree st root'))
                            (or (empty? held')
                                (= (canon (vals held')) (shape st root')))
@@ -354,12 +356,12 @@
                            (= (count held') (hamt/hamt-count st root'))
                            (every? (fn [[i kh]] (some? (hamt/hamt-get st root' kh))) held')
                            (recur root' held' (rest ops))))))
-                ;; every node the history stored
+                ;; every bitmap the history reached, including ones a later
+                ;; root no longer reaches
                 (every? (fn [[_ e]]
                           (or (not= "hamt/bitmap" (first e))
                               (<= 2 (count (:children (second e))))))
-                        (map (fn [h] [h (store/await (store/s-get st h))])
-                             (store/await (store/s-keys st))))))))]
+                        (mapcat (fn [h] (reachable st h)) @roots))))))]
     (is (:pass? r) (str "seed " (:seed r) " failed on " (pr-str (:shrunk r))))))
 
 ;; ---------------------------------------------------------------------------

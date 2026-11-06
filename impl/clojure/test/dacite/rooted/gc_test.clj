@@ -27,14 +27,14 @@
   (testing "removes detached collection tree"
     (let [s (store/mem-store)
           v1 (v/vector s 1 2)
-          h1 (v/hash v1)]
-      (v/vector s 3 4)
-      (let [before (count (store/await (store/s-keys s)))
-            result (gc/collect-garbage! s h1)
-            after (count (store/await (store/s-keys s)))]
-        (is (< after before))
-        (is (pos? (:removed result)))
-        (is (store/await (store/s-has? s h1)))))))
+          h1 (v/hash v1)
+          dead (v/vector s 3 4)
+          dead-h (v/hash dead)
+          result (gc/collect-garbage! s h1)]
+      (is (pos? (:removed result)))
+      (is (= (:kept result) (count (gc/mark-reachable s h1))))
+      (is (store/await (store/s-has? s h1)))
+      (is (not (store/await (store/s-has? s dead-h)))))))
 
 (deftest collect-garbage-rooted-store-test
   (testing "collect-garbage! on rooted store uses content + current root"

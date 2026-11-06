@@ -16,7 +16,8 @@
    pr-str would emit unreadable #object[BigInt …], so we encode them as
    #dacite/u64 \"…\" tagged literals for EDN round-trip."
   (:require [clojure.edn :as edn]
-            [dacite.store :as store]))
+            [dacite.store :as store]
+            [dacite.store.bytes :as bytes]))
 
 (def ^:private fs (js/require "fs"))
 (def ^:private path (js/require "path"))
@@ -122,13 +123,6 @@
         (.unlinkSync fs p)))
     (store/completed this))
 
-  (s-keys [_]
-    ;; Filenames are the hashes. The node files are not read.
-    (store/completed
-     (mapv (fn [p]
-             (store/hex->hash (.substring (.basename path p) 0 64)))
-           (walk-edn-files (str base)))))
-
   (s-merge [this m]
     (doseq [[h v] m]
       (store/await (store/s-put this h v)))
@@ -137,7 +131,31 @@
   (s-reset [this]
     (doseq [p (walk-edn-files (str base))]
       (.unlinkSync fs p))
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live]
+    ;; Filenames are the hashes. Node files that are kept are not read.
+    (let [removed (volatile! 0)]
+      (doseq [p (walk-edn-files (str base))
+              :let [hex (.substring (.basename path p) 0 64)]
+              :when (not (contains? live hex))]
+        (.unlinkSync fs p)
+        (vswap! removed inc))
+      (store/completed {:removed @removed})))
+
+  store/ILocalStats
+  (local-stats [this]
+    (store/completed
+     (reduce (fn [acc p]
+               (let [hex (.substring (.basename path p) 0 64)
+                     v (store/await (store/s-get this (store/hex->hash hex)))]
+                 (-> acc
+                     (update :entries inc)
+                     (update :edn-bytes + (bytes/edn-bytes v))
+                     (update :wire-bytes + (bytes/wire-bytes v)))))
+             {:entries 0 :edn-bytes 0 :wire-bytes 0}
+             (walk-edn-files (str base))))))
 
 (defn- check-format!
   "Tag a new (no nodes) store directory; check an existing one."

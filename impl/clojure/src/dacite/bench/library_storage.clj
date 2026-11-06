@@ -65,37 +65,20 @@
       (store/await (store/s-put dest h (store/await (store/s-get src h))))))
   dest)
 
-(defn- value-wire-bytes
-  [v]
-  (cond
-    (chunk/pack-item? v)
-    (bin/pack-item-wire-bytes v)
-
-    (and (vector? v) (= 2 (count v)) (string? (first v)))
-    (bin/byte-len (bin/encode-node-bytes v))
-
-    :else
-    (count (pr-str v))))
-
-(defn- store-wire-bytes
-  [st]
-  (reduce (fn [n h]
-            (+ n (value-wire-bytes (store/await (store/s-get st h)))))
-          0
-          (store/await (store/s-keys st))))
-
 (defn- file-measure
   [dir st extras]
-  (merge {:backend :file
-          :entries (count (store/await (store/s-keys st)))
-          :data-file-bytes (file-data-bytes dir)
-          :file-count (count (edn-files (io/file dir)))
-          :wire-bytes (store-wire-bytes st)}
-         extras))
+  (let [stats (store/await (store/local-stats st))]
+    (merge {:backend :file
+            :entries (:entries stats)
+            :data-file-bytes (file-data-bytes dir)
+            :file-count (count (edn-files (io/file dir)))
+            :wire-bytes (:wire-bytes stats)}
+           extras)))
 
 (defn- lmdb-measure
   [path st extras]
   (let [stat (jvm/lmdb-db-stat st)
+        stats (store/await (store/local-stats st))
         mdb (.length (io/file path "data.mdb"))]
     (merge {:backend :lmdb
             :entries (:entries stat)
@@ -103,8 +86,7 @@
             :data-file-bytes mdb
             :page-size (:page-size stat)
             :map-size (:map-size stat)
-            :wire-bytes (try (store-wire-bytes st)
-                             (catch Exception _ nil))}
+            :wire-bytes (:wire-bytes stats)}
            extras)))
 
 (defn- with-file-dir

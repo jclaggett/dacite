@@ -5,17 +5,23 @@
             [clojure.test :refer [deftest is testing]]
             [dacite.hash :as hash]
             [dacite.host :as host]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.value :as v]
             [dacite.value.finger-tree :as ft]
             [dacite.value.lit :as lit]
             [dacite.value.types :as types]))
 
-(defn- stored
-  "Pairs of [hash node]. One `s-get` per key."
-  [st]
-  (map (fn [h] [h (store/await (store/s-get st h))])
-       (store/await (store/s-keys st))))
+(defn- nodes-under
+  "Pairs of [hash node] reachable from `roots`. One `s-get` per live hash."
+  [st & roots]
+  (mapv (fn [hk]
+          (let [h (gc/->hash hk)]
+            [h (store/await (store/s-get st h))]))
+        (reduce (fn [s root]
+                  (into s (gc/mark-reachable st root)))
+                #{}
+                roots)))
 
 (defn- put-i64
   "Store an i64 and return its value hash."
@@ -59,7 +65,7 @@
         r0 (ft/ft-empty st)
         r1 (ft/ft-conj-right st r0 a)
         r2 (ft/ft-conj-right st r1 b)
-        snap (stored st)
+        snap (nodes-under st r0 r1 r2)
         singles (filter (fn [[_ e]] (= "ft/single" (types/entry-type e))) snap)]
     (is (= 1 (ft/ft-count st r1)))
     (is (= r1 a) "1-elem root is the bare value hash")
@@ -82,7 +88,7 @@
         h2 (types/value-hash "vector" (ft/ft-elements-fuse st root))]
     (is (= h h2))
     (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
-                        (stored st))))))
+                        (nodes-under st h root))))))
 
 (deftest bare-leaf-root-ops
   (testing "1-element tree root is a bare value hash"
@@ -146,7 +152,7 @@
       (is (= (nth vhs i) (ft/ft-nth st root i))))
     (is (= vhs (vec (ft/ft-seq st root))))
     (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
-                        (stored st))))))
+                        (nodes-under st root))))))
 
 (deftest long-string-seq-matches-count
   ;; Overflowed digits mix leaves and nodes; seq must flatten to every char.
@@ -181,11 +187,13 @@
   (let [st (store/mem-store)
         n 50
         vhs (mapv #(put-i64 st %) (range n))
-        _ (ft/ft-from-value-hashes st vhs)
-        snap (stored st)
-        by-type (frequencies (map (fn [[_ e]] (types/entry-type e)) snap))]
+        root (ft/ft-from-value-hashes st vhs)
+        snap (nodes-under st root)
+        by-type (frequencies (map (fn [[_ e]] (types/entry-type e)) snap))
+        leaves (mapv (fn [h] (store/await (store/s-get st h))) vhs)]
     (is (nil? (get by-type "ft/single")))
-    (is (= n (get by-type "i64")))
+    (is (= n (count leaves)))
+    (is (every? #(= "i64" (types/entry-type %)) leaves))
     (is (pos? (get by-type "ft/deep" 0)))))
 
 (defn- put-char [st ch]
@@ -328,7 +336,7 @@
   (let [st (store/mem-store)
         n 200
         dv (apply v/vector st (range n))
-        snap (stored st)
+        snap (nodes-under st (v/hash dv))
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)
         bodies (map (fn [[_ e]] (:body (types/entry-data e))) digits)]
     (is (= n (v/count dv)))

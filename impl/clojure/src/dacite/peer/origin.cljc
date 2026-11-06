@@ -48,34 +48,35 @@
                 (count live)))]
       (step (list root) #{}))))
 
-(defn- child-hexes
-  "A step of the child hexes named by the nodes at `hashes`."
-  [st hashes]
-  (let [out (atom [])]
-    (chain/then
-     (chain/each hashes
-                 (fn [h]
-                   (chain/then
-                    (store/s-get st h)
-                    (fn [node]
-                      (when (some? node)
-                        (swap! out into (map gc/hash-key (or (types/child-hashes node) []))))
-                      nil))))
-     (fn [_] @out))))
-
 (defn- missing-hexes
-  "A step of the hex hashes named by stored nodes that are neither stored
-   nor already requested. Hashes come from `s-keys`; each node is read
-   with `s-get`."
-  [st fetched]
-  (chain/then
-   (store/s-keys st)
-   (fn [hashes]
-     (chain/then
-      (child-hexes st hashes)
-      (fn [children]
-        (let [have (into fetched (map gc/hash-key) hashes)]
-          (into [] (comp (remove have) (distinct)) children)))))))
+  "A step of the hex hashes reached from `frontier` that are not stored
+   and not already requested.
+
+   Stored nodes are expanded with `s-get`. A hash already in `seen` is
+   not read again. A missing hash is not marked seen: the caller fetches
+   it and passes it as the next frontier. The store is not listed."
+  [st frontier seen fetched]
+  (letfn [(step [queue missing]
+            (if-let [h (first queue)]
+              (let [hk (gc/hash-key h)]
+                (if (or (nil? h) (contains? @seen hk))
+                  (step (rest queue) missing)
+                  (chain/then
+                   (store/s-get st h)
+                   (fn [node]
+                     (if (nil? node)
+                       (step (rest queue)
+                             (if (contains? fetched hk)
+                               missing
+                               (conj missing hk)))
+                       (do
+                         (swap! seen conj hk)
+                         (step (into (rest queue)
+                                     (remove nil?)
+                                     (or (types/child-hashes node) []))
+                               missing)))))))
+              (into [] (distinct) missing)))]
+    (step (seq frontier) [])))
 
 (defn verify-from-origin!
   "Fetch `root` through `fetch-chunk` and verify it into `st`.
@@ -85,7 +86,9 @@
    of `{:root :entries}`."
   [st root fetch-chunk]
   (let [rx (verify/receiver st)
-        fetched (atom #{})]
+        fetched (atom #{})
+        seen (atom #{})
+        frontier (atom [])]
     (letfn [(take-chunk [h]
               (let [hx (gc/hash-key h)]
                 (when-not (contains? @fetched hx)
@@ -102,15 +105,20 @@
                 (throw (ex-info "the origin pull did not finish"
                                 {:reason :too-many-chunks :chunks n}))
                 (chain/then
-                 (missing-hexes st @fetched)
+                 (missing-hexes st @frontier seen @fetched)
                  (fn [need]
                    (if (seq need)
-                     (chain/then (chain/each need #(take-chunk (store/hex->hash %)))
-                                 (fn [_] (step (inc n))))
+                     (do
+                       (reset! frontier (mapv store/hex->hash need))
+                       (chain/then (chain/each need #(take-chunk (store/hex->hash %)))
+                                   (fn [_] (step (inc n)))))
                      (chain/then (verify/finish! rx)
                                  (fn [_]
                                    (chain/then (count-reachable st root)
                                                (fn [n-live]
                                                  {:root root
                                                   :entries n-live})))))))))]
-      (chain/then (take-chunk root) (fn [_] (step 1))))))
+      (chain/then (take-chunk root)
+                  (fn [_]
+                    (reset! frontier [root])
+                    (step 1))))))

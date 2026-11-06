@@ -66,7 +66,6 @@
                (throw (ex-info "the store refuses" {:reason :unavailable})))
              (store/await (store/s-delete inner h))
              this)))
-  (s-keys [this] (later this :keys nil #(store/await (store/s-keys inner))))
   (s-merge [this m] (later this :merge nil #(do (store/await (store/s-merge inner m)) this)))
   (s-reset [this] (later this :reset nil #(do (store/await (store/s-reset inner)) this))))
 

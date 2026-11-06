@@ -41,8 +41,8 @@
            (eq! (store/await (store/s-get st h)) node "get after put")
            (eq! (store/await (store/s-has? st h)) true "has after put")
            (eq! (store/await (store/s-get st [1 2 3 4])) nil "absent is nil")
-           (let [ks (set (map store/hash->hex (store/await (store/s-keys st))))]
-             (eq! (contains? ks (store/hash->hex h)) true "keys include the node"))))
+           (eq! (store/await (store/s-has? st h)) true "the node is stored")
+           (eq! (:entries (store/await (store/local-stats st))) 1 "one entry")))
         (.then (fn []
                  (idb/drive
                   (fn []
@@ -378,13 +378,15 @@
                                              (sp (store/s-has? again h))))
                                     (.then (fn [b]
                                              (eq! b true "has? of a held node is true")
-                                             (sp (store/s-keys again))))
-                                    (.then (fn [ks]
-                                             (eq! (set (map store/hash->hex ks))
-                                                  #{(store/hash->hex h)}
-                                                  "keys fulfil with the hash")
-                                             (eq! (store/await (store/s-get again h)) node
-                                                  "the node is still a get")
+                                             (sp (store/local-stats again))))
+                                    (.then (fn [stats]
+                                             (eq! (:entries stats) 1 "stats count the node")
+                                             (sp (store/s-has? again h))))
+                                    (.then (fn [b]
+                                             (eq! b true "the hash is still there")
+                                             (sp (store/s-get again h))))
+                                    (.then (fn [n]
+                                             (eq! n node "the node is still a get")
                                              (sp (store/s-delete again h))))
                                     (.then (fn [r]
                                              (eq! r again "delete fulfils with the store")
@@ -394,9 +396,12 @@
                                              (sp (store/s-reset again))))
                                     (.then (fn [r]
                                              (eq! r again "reset fulfils with the store")
-                                             (sp (store/s-keys again))))
-                                    (.then (fn [ks]
-                                             (eq! (vec ks) [] "reset emptied it")
+                                             (sp (store/local-stats again))))
+                                    (.then (fn [stats]
+                                             (eq! (:entries stats) 0 "reset emptied it")
+                                             (sp (store/s-has? again h))))
+                                    (.then (fn [b]
+                                             (eq! b false "the hash is gone after reset")
                                              (idb/close again)))))))))))))
 
 (defn- peer-over-idb
@@ -530,9 +535,10 @@
                  (eq! got (second a) "get, evict, get again returns the node")
                  (idb/close st))))))
 
-(defn- key-scan-does-not-fill-the-read-cache
-  "N14a: `s-keys` lists every hash and does not load those nodes into the
-   read cache. A node the cache dropped is still read back."
+(defn- sweep-does-not-fill-the-read-cache
+  "N14a: an internal sweep walks every hash and does not load those nodes
+   into the read cache. A node the cache dropped is still read back when
+   the sweep kept it."
   []
   (let [name (db-name)
         mem (store/mem-store)
@@ -540,19 +546,20 @@
                       (let [h (v/hash (v/i64 mem i))]
                         [h (store/await (store/s-get mem h))]))
                     (range 5))
-        st (idb/idb-store name {:cache-limit 1})]
+        st (idb/idb-store name {:cache-limit 1})
+        live (set (map (comp store/hash->hex first) nodes))]
     (-> (unwrap (store/s-merge st (into {} nodes)))
-        ;; A get evicts down to the limit. The scan must not fill it again.
+        ;; A get evicts down to the limit. The sweep must not fill it again.
         (.then (fn [_] (unwrap (store/s-get st (first (peek nodes))))))
         (.then (fn [_]
                  (eq! (<= (.-size @(:cache-order st)) 1) true
-                      "the read cache is within its limit before the scan")
+                      "the read cache is within its limit before the sweep")
                  (let [before (.-size @(:cache-order st))]
-                   (-> (unwrap (store/s-keys st))
-                       (.then (fn [ks]
-                                (eq! (count ks) 5 "the scan lists every hash")
+                   (-> (unwrap (store/sweep-unmarked st live))
+                       (.then (fn [result]
+                                (eq! (:removed result) 0 "every known hash is kept")
                                 (eq! (.-size @(:cache-order st)) before
-                                     "the scan does not load nodes into the read cache")
+                                     "the sweep does not load nodes into the read cache")
                                 (unwrap (store/s-get st (ffirst nodes)))))))))
         (.then (fn [got]
                  (eq! got (second (first nodes)) "a node dropped from the cache is read back")
@@ -601,7 +608,7 @@
       (.then closed-db-fails-the-peer-locally)
       (.then reset-does-not-serve-stale-nodes)
       (.then evicting-store-get-evict-get-again)
-      (.then key-scan-does-not-fill-the-read-cache)
+      (.then sweep-does-not-fill-the-read-cache)
       (.then a-miss-outside-drive-does-not-evict-a-hit)
       (.then (fn [_]
                (println "idb tests passed")))

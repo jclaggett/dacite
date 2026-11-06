@@ -25,6 +25,7 @@
    Intentionally out of the pure portable core so SCI/nbb never loads
    java.nio / LMDB."
   (:require [dacite.store :as store]
+            [dacite.store.bytes :as bytes]
             [dacite.store.file :as file]
             [dacite.rooted :as rooted]
             [dacite.wire.binary :as bin]
@@ -133,16 +134,6 @@
       (.commit txn))
     (store/completed this))
 
-  (s-keys [_]
-    ;; Cursor keys only. Values stay in LMDB.
-    (store/completed
-     (with-open [txn (.txnRead env)]
-       (with-open [cursor (.openCursor db txn)]
-         (loop [result (transient [])]
-           (if (.next cursor)
-             (recur (conj! result (lmdb-key->hash (.key cursor))))
-             (persistent! result)))))))
-
   (s-merge [this m]
     (with-open [txn (.txnWrite env)]
       (doseq [[h v] m]
@@ -156,7 +147,40 @@
     (with-open [txn (.txnWrite env)]
       (.drop db txn)
       (.commit txn))
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live]
+    ;; Cursor keys only. Values stay in LMDB. The hashes are not returned.
+    (let [drop (with-open [txn (.txnRead env)]
+                 (with-open [cursor (.openCursor db txn)]
+                   (loop [acc []]
+                     (if (.next cursor)
+                       (let [h (lmdb-key->hash (.key cursor))]
+                         (recur (if (contains? live (store/hash->hex h))
+                                  acc
+                                  (conj acc h))))
+                       acc))))]
+      (when (seq drop)
+        (with-open [txn (.txnWrite env)]
+          (doseq [h drop]
+            (.delete db txn (hash->lmdb-key h)))
+          (.commit txn)))
+      (store/completed {:removed (count drop)})))
+
+  store/ILocalStats
+  (local-stats [_]
+    (store/completed
+     (with-open [txn (.txnRead env)]
+       (with-open [cursor (.openCursor db txn)]
+         (loop [entries 0 edn 0 wire 0]
+           (if (.next cursor)
+             (let [h (lmdb-key->hash (.key cursor))
+                   v (lmdb-val->entry h (.val cursor))]
+               (recur (inc entries)
+                      (+ edn (bytes/edn-bytes v))
+                      (+ wire (bytes/wire-bytes v))))
+             {:entries entries :edn-bytes edn :wire-bytes wire})))))))
 
 (defn- check-lmdb-format!
   "Tag a new (empty, untagged) store; check an existing one."

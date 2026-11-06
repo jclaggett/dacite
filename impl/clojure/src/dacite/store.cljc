@@ -7,8 +7,10 @@
               '[dacite.value :as v])
      (def r (v/root (s/mem)))          ; or (s/file path), (s/remote url)
 
-   IStore (s-get, s-put, …) is the content-dictionary protocol used by
-   backends and the value layer. Apps should not call it.
+   IStore (s-get, s-put, s-has?, s-delete, s-merge, s-reset) is the
+   content-dictionary protocol used by backends and the value layer.
+   A store is a hash-addressed bank: it does not list its entries.
+   Apps should not call IStore.
 
    Application constructors: mem, file, lmdb, remote.
    A lens `(s/lens rs path)` is local convenience at a nested path
@@ -77,6 +79,10 @@
 (defprotocol IStore
   "Protocol for content-addressed storage.
 
+   A store is a hash-addressed bank. The operations are get, put, has, and
+   delete, plus merge and reset. Listing the entries is not part of this
+   protocol. A caller reads a hash it already has.
+
    Every method returns a promise: a settled map from `completed` or
    `rejected`, or (on the JVM) a future whose body is the blocking call.
    Callers unwrap it with `await`. They do not branch on which store they
@@ -85,9 +91,26 @@
   (s-put [this h value] "Promise of the store after storing value at hash.")
   (s-has? [this h] "Promise of true when hash exists in this store.")
   (s-delete [this h] "Promise of the store after removing hash.")
-  (s-keys [this] "Promise of the hashes this store holds, as a vector. Values are not loaded. Order is unspecified.")
   (s-merge [this m] "Promise of the store after merging {hash value} pairs.")
   (s-reset [this] "Promise of the store after clearing all entries."))
+
+(defprotocol ISweep
+  "Internal. Not an IStore operation and not a way to list a store.
+
+   The backend that holds the entries deletes every one whose hash is not
+   in `live`. Wrappers that do not hold entries delegate. The method does
+   not return the hashes and does not load values into a read cache."
+  (sweep-unmarked [this live]
+    "Promise of {:removed n}. `live` is a set of hex hashes to keep.
+     An empty set deletes every entry this backend holds."))
+
+(defprotocol ILocalStats
+  "Internal. Not an IStore operation.
+
+   A backend reports how much it holds. The result is counts, not hashes."
+  (local-stats [this]
+    "Promise of {:entries n :edn-bytes n}, and :wire-bytes when this
+     backend computes it."))
 
 ;; =============================================================================
 ;; Promises
@@ -164,18 +187,35 @@
   [h]
   #?(:clj h :cljs (hash/hash->hex h)))
 
+(defn- key-hex
+  "Hex identity of a map key, which is a hash vector or already hex."
+  [k]
+  (if (string? k) k (hash/hash->hex k)))
+
 (defrecord MemStore [data]
   IStore
   (s-get [_ h] (completed (get @data (mkey h))))
   (s-put [this h value] (swap! data assoc (mkey h) value) (completed this))
   (s-has? [_ h] (completed (contains? @data (mkey h))))
   (s-delete [this h] (swap! data dissoc (mkey h)) (completed this))
-  (s-keys [_]
-    (completed
-     (mapv (fn [k] (if (string? k) (hash/hex->hash k) k))
-           (keys @data))))
   (s-merge [this m] (swap! data merge m) (completed this))
-  (s-reset [this] (reset! data {}) (completed this)))
+  (s-reset [this] (reset! data {}) (completed this))
+  ISweep
+  (sweep-unmarked [_ live]
+    (let [before (count @data)]
+      (swap! data (fn [m]
+                    (reduce-kv (fn [acc k v]
+                                 (if (contains? live (key-hex k))
+                                   (assoc acc k v)
+                                   acc))
+                               {}
+                               m)))
+      (completed {:removed (- before (count @data))})))
+  ILocalStats
+  (local-stats [_]
+    (let [m @data]
+      (completed {:entries (count m)
+                  :edn-bytes (reduce (fn [n v] (+ n (count (pr-str v)))) 0 (vals m))}))))
 
 (defn mem-store
   "Create an in-memory content-addressed store."
@@ -213,16 +253,6 @@
       (await (s-delete layer h)))
     (completed this))
 
-  (s-keys [_]
-    ;; One hash, even when several layers hold it. Hex membership: a
-    ;; ClojureScript hash vector's words are BigInts and cannot sit in a set.
-    (completed
-     (into []
-           (comp (map hash/hash->hex)
-                 (distinct)
-                 (map hash/hex->hash))
-           (mapcat #(await (s-keys %)) layers))))
-
   (s-merge [this m]
     (doseq [layer layers]
       (await (s-merge layer m)))
@@ -231,7 +261,15 @@
   (s-reset [this]
     (doseq [layer layers]
       (await (s-reset layer)))
-    (completed this)))
+    (completed this))
+
+  ISweep
+  (sweep-unmarked [this live]
+    (completed
+     {:removed (reduce (fn [n layer]
+                         (+ n (:removed (await (sweep-unmarked layer live)) 0)))
+                       0
+                       layers)})))
 
 (defn layered-store
   "Create a layered store. Reads fall through from first to last.

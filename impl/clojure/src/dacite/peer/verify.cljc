@@ -346,12 +346,10 @@
                      (resolve-pending! rx)))))))
 
 (defn- literal-nodes
-  "[hash entry] of every node a literal realizes to, built in a scratch store."
+  "[hash entry] of every node a literal realizes. `materialize-literal!`
+   already wrote them; this returns those writes and does not scan a store."
   [{:keys [type body]}]
-  (let [scratch (store/mem-store)]
-    (pack/materialize-literal! scratch type body)
-    (mapv (fn [h] [h (store/await (store/s-get scratch h))])
-          (store/await (store/s-keys scratch)))))
+  (pack/literal-entries type body))
 
 (defn- store-item!
   "Put what a verified item holds in the store. A step."

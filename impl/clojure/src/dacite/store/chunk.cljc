@@ -77,10 +77,6 @@
     (store/await (store/s-delete inner h))
     (store/completed this))
 
-  (s-keys [_]
-    ;; The working set. Inner pack items are retained by `flush!`, not here.
-    (store/s-keys overlay))
-
   (s-merge [this m]
     (store/await (store/s-merge overlay m))
     (store/completed this))
@@ -88,7 +84,13 @@
   (s-reset [this]
     (store/await (store/s-reset overlay))
     (store/await (store/s-reset inner))
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live]
+    (let [over (store/await (store/sweep-unmarked overlay live))
+          inn (store/await (store/sweep-unmarked inner live))]
+      (store/completed {:removed (+ (:removed over 0) (:removed inn 0))}))))
 
 (defn chunked
   "Wrap `inner` with a mem overlay. Puts go to the overlay; `flush!` writes
@@ -127,14 +129,14 @@
      :budget b}))
 
 (defn retain-inner!
-  "Delete inner keys not in `keep` (hash vectors)."
+  "Delete inner entries whose hash is not in `keep` (hash vectors).
+
+   The inner backend sweeps itself. The keep set is not turned into a
+   listing of what inner held."
   [cs keep]
-  (let [in (inner cs)
-        keep-hex (into #{} (map gc/hash-key) keep)]
-    (doseq [h (store/await (store/s-keys in))]
-      (when-not (contains? keep-hex (gc/hash-key h))
-        (store/await (store/s-delete in h))))
-    cs))
+  (store/await (store/sweep-unmarked (inner cs)
+                                     (into #{} (map gc/hash-key) keep)))
+  cs)
 
 (defn flush!
   "Persist pack items for `root-h` and drop other inner keys. Returns
@@ -151,29 +153,20 @@
        :covered (count covered)
        :budget budget})))
 
-(defn- edn-bytes
-  "EDN size of the values at `hashes`, read one at a time."
-  [st hashes]
-  (reduce (fn [n h]
-            (+ n (count (pr-str (store/await (store/s-get st h))))))
-          0
-          hashes))
-
 (defn inner-stats
-  "Durable (inner) entry count and EDN byte size of values."
+  "Durable (inner) entry count and EDN byte size of values.
+
+   The count comes from the backend. It is not a listing of hashes."
   [cs]
-  (let [in (inner cs)
-        hashes (store/await (store/s-keys in))]
-    {:entries (count hashes)
-     :edn-bytes (edn-bytes in hashes)}))
+  (store/await (store/local-stats (inner cs))))
 
 (defn overlay-stats
-  "Working overlay entry count and EDN byte size."
+  "Working overlay entry count and EDN byte size.
+
+   The count comes from the overlay backend. Reachable nodes from a root
+   are `live-count`; this number includes construction debris."
   [cs]
-  (let [over (overlay cs)
-        hashes (store/await (store/s-keys over))]
-    {:entries (count hashes)
-     :edn-bytes (edn-bytes over hashes)}))
+  (store/await (store/local-stats (overlay cs))))
 
 (defn live-count
   "Reachable exploded hashes in the overlay from `root-h`."

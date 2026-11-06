@@ -235,7 +235,6 @@
   (s-has? [this h] (store/completed (some? (store/await (store/s-get this h)))))
   (s-put [_ _ _] (throw (ex-info "a read view is read only" {})))
   (s-delete [_ _] (throw (ex-info "a read view is read only" {})))
-  (s-keys [_] (throw (ex-info "a read view has no key scan" {})))
   (s-merge [_ _] (throw (ex-info "a read view is read only" {})))
   (s-reset [_] (throw (ex-info "a read view is read only" {}))))
 

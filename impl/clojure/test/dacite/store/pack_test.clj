@@ -1,6 +1,7 @@
 (ns dacite.store.pack-test
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.store.pack :as pack]
             [dacite.wire :as wire]
@@ -16,11 +17,16 @@
             [dacite.value.scalar :as scalar]
             [dacite.value :as v]))
 
-(defn- stored
-  "Pairs of [hash node]. One `s-get` per key; not a store-wide map."
-  [st]
-  (map (fn [h] [h (store/await (store/s-get st h))])
-       (store/await (store/s-keys st))))
+(defn- nodes-under
+  "Pairs of [hash node] reachable from `roots`. One `s-get` per live hash."
+  [st & roots]
+  (mapv (fn [hk]
+          (let [h (gc/->hash hk)]
+            [h (store/await (store/s-get st h))]))
+        (reduce (fn [s root]
+                  (into s (gc/mark-reachable st root)))
+                #{}
+                roots)))
 
 (defn- round-trip-hash
   "literal-of → materialize in fresh store; return [original-h got-h form]."
@@ -149,7 +155,7 @@
 (deftest rle-char-run-on-string-spine
   (let [st (store/mem-store)
         s (coll/string-with-store st "abcdefghij")
-        snap (stored st)
+        snap (nodes-under st (types/dacite-hash s))
         ft (filter (fn [[_ e]]
                      (str/starts-with? (str (types/entry-type e)) "ft/"))
                    snap)]
@@ -206,8 +212,8 @@
 
 (deftest rle-char-run-wire-round-trip
   (let [st (store/mem-store)
-        _s (coll/string-with-store st (apply str (repeat 24 \x)))
-        snap (stored st)
+        s (coll/string-with-store st (apply str (repeat 24 \x)))
+        snap (nodes-under st (types/dacite-hash s))
         nodes (filter (fn [[_ e]]
                         (#{"ft/node" "ft/digit"} (types/entry-type e)))
                       snap)]
@@ -265,7 +271,7 @@
   ;; 2c′: spine nodes have leaf-payload literals (not nil).
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (range 20))
-        snap (stored st)
+        snap (nodes-under st (types/dacite-hash v))
         ft-hs (keep (fn [[h e]]
                       (when (str/starts-with? (str (types/entry-type e)) "ft/")
                         h))
@@ -368,7 +374,7 @@
   (let [st (store/mem-store)
         s (coll/string-with-store st "ab")
         h (types/dacite-hash s)
-        live (count (stored st))
+        live (count (gc/mark-reachable st h))
         {:keys [items covered]} (pack/encode-reachable st h)]
     (is (= 1 (count items)))
     (is (= :literal (:encoding (first items))))
@@ -381,7 +387,7 @@
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (range 20))
         _h (types/dacite-hash v)
-        snap (stored st)
+        snap (nodes-under st (types/dacite-hash v))
         ft-entries (filter (fn [[_ e]]
                              (str/starts-with? (str (types/entry-type e)) "ft/"))
                            snap)
@@ -581,7 +587,7 @@
 (deftest intermediate-ft-digit-round-trip
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (range 12))
-        snap (stored st)
+        snap (nodes-under st (types/dacite-hash v))
         singles (filter (fn [[_ e]] (= "ft/single" (types/entry-type e))) snap)
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)]
     (is (empty? singles) "ft/single fully removed")
@@ -595,7 +601,7 @@
 (deftest intermediate-ft-deep-round-trip
   (let [st (store/mem-store)
         v (apply coll/vector-with-store st (range 20))
-        snap (stored st)
+        snap (nodes-under st (types/dacite-hash v))
         deeps (filter (fn [[_ e]] (= "ft/deep" (types/entry-type e))) snap)]
     (is (seq deeps))
     (doseq [[fh _] deeps]
@@ -628,7 +634,7 @@
 (deftest intermediate-hamt-entry-round-trip
   (let [st (store/mem-store)
         m (coll/hash-map-with-store st "a" 1 "b" 2)
-        snap (stored st)
+        snap (nodes-under st (types/dacite-hash m))
         entries (filter (fn [[_ e]] (= "hamt/entry" (types/entry-type e))) snap)]
     (is (seq entries))
     (doseq [[eh _] entries]
@@ -801,7 +807,7 @@
   (let [st (store/mem-store)
         m (apply coll/hash-map-with-store st
                  (mapcat (fn [i] [(str "k" i) i]) (range 12)))
-        snap (stored st)
+        snap (nodes-under st (types/dacite-hash m))
         bitmaps (filter (fn [[_ e]] (= "hamt/bitmap" (types/entry-type e))) snap)
         results (mapv (fn [[bh _]]
                         (let [form (pack/literal-of st bh)

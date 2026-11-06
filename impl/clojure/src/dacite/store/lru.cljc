@@ -32,11 +32,6 @@
     (swap! order #(vec (remove (fn [k] (= k h)) %)))
     (store/completed this))
 
-  (s-keys [_]
-    (store/completed
-     (mapv (fn [k] (if (string? k) (store/hex->hash k) k))
-           (keys @data))))
-
   (s-merge [this m]
     (doseq [[h v] m]
       (store/await (store/s-put this h v)))
@@ -45,7 +40,23 @@
   (s-reset [this]
     (reset! data {})
     (reset! order [])
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live]
+    (let [drop (filterv (fn [k]
+                          (not (contains? live (if (string? k) k (store/hash->hex k)))))
+                        (keys @data))]
+      (doseq [k drop]
+        (swap! data dissoc k)
+        (swap! order #(vec (remove (fn [x] (= x k)) %))))
+      (store/completed {:removed (count drop)})))
+
+  store/ILocalStats
+  (local-stats [_]
+    (let [m @data]
+      (store/completed {:entries (count m)
+                        :edn-bytes (reduce (fn [n v] (+ n (count (pr-str v)))) 0 (vals m))}))))
 
 (defn lru-store
   "Create an LRU-bounded in-memory store. capacity 0 means unbounded."

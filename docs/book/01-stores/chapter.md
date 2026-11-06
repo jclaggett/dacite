@@ -36,7 +36,7 @@ Every content store implements `IStore`:
   (s-get [store hash]  "Return the stored value, or nil")
   (s-put [store hash value] "Store value at hash, return the store")
   (s-has? [store hash] "Check if hash exists")
-  (s-keys [store] "List the hashes this store holds. Values are not loaded")
+  (s-delete [store hash] "Remove the entry at hash")
   (s-merge [store m] "Merge {hash → value} into the store")
   (s-reset [store] "Clear all entries"))
 ```
@@ -52,7 +52,7 @@ Typical usage at this layer:
 (s-has? store h)  ;; => true
 ```
 
-A store is not dumped as a `{hash → value}` map. `s-keys` lists the hashes it holds, and each value is an `s-get` of a hash you already have. Garbage collection uses that list to find hashes no root reaches.
+A store is a hash-addressed bank. It is not dumped, and it is not listed. You read a node with `s-get` of a hash you already have, and you ask `s-has?` of a hash you already have. Garbage collection marks what a root reaches, with `s-get` only. The backend that holds the entries then deletes the rest. That sweep does not hand the key list back.
 
 Application code rarely calls `s-get` / `s-put` directly. Instead it uses the value constructors of Chapter 3, which persist nodes into a store on your behalf. The public value API always takes a store (implicitly via a current-store binding, or explicitly as the first argument) so that persistence stays visible rather than hidden.
 
@@ -111,7 +111,7 @@ A single write policy (write-to-all) is intentional at this layer; richer per-la
 ## 1.5 What This Layer Provides
 
 1. An immutable, content-addressed dictionary: `hash → value`.
-2. A minimal protocol — `s-get` / `s-put` / `s-has?` / `s-keys` / `s-merge` / `s-reset`.
+2. A minimal protocol — `s-get` / `s-put` / `s-has?` / `s-delete` / `s-merge` / `s-reset`.
 3. Content addressing, and with it free deduplication and idempotent writes.
 4. Composable backends: memory, file, LMDB, and layered caching — all interchangeable.
 

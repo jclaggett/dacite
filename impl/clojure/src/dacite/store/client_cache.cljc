@@ -21,22 +21,23 @@
   (swap! flushed-atom conj (gc/hash-key h)))
 
 (defn- absorb-remote-pack-cache!
-  "Copy pack-local entries from a pack-aware remote into client local.
+  "Copy the neighborhood of `h` from a pack-aware remote into client local.
 
-   Pack-filled GET /node installs a neighborhood into the remote's pack-local
-   cache; client-cache layers must absorb that so subsequent ops (and
-   write-back flush) see the full subgraph without re-fetching."
-  [local remote flushed-atom]
+   Pack-filled GET /node installs that neighborhood into the remote's
+   pack-local cache. The copy walks from `h` with `s-get`. It does not
+   list the cache."
+  [local remote flushed-atom h]
   (loop [r remote]
     (cond
       (nil? r) nil
 
       (and (record? r) (contains? r :pack-local))
-      (doseq [h (store/await (store/s-keys (:pack-local r)))]
-        (when-let [v (store/await (store/s-get (:pack-local r) h))]
-          (store/await (store/s-put local h v))
-          (when flushed-atom
-            (flushed-conj! flushed-atom h))))
+      (doseq [hk (gc/mark-reachable (:pack-local r) h)]
+        (let [hh (gc/->hash hk)]
+          (when-let [v (store/await (store/s-get (:pack-local r) hh))]
+            (store/await (store/s-put local hh v))
+            (when flushed-atom
+              (flushed-conj! flushed-atom hh)))))
 
       (and (record? r) (contains? r :remote))
       (recur (:remote r))
@@ -51,7 +52,7 @@
        v
        (when-let [v (store/await (store/s-get remote h))]
          (store/await (store/s-put local h v))
-         (absorb-remote-pack-cache! local remote nil)
+         (absorb-remote-pack-cache! local remote nil h)
          v))))
 
   (s-put [this h value]
@@ -71,13 +72,6 @@
     (store/await (store/s-delete remote h))
     (store/completed this))
 
-  (s-keys [_]
-    (store/completed
-     (into []
-           (comp (map gc/hash-key) (distinct) (map store/hex->hash))
-           (concat (store/await (store/s-keys remote))
-                   (store/await (store/s-keys local))))))
-
   (s-merge [this m]
     (doseq [[h v] m]
       (store/await (store/s-put this h v)))
@@ -85,7 +79,13 @@
 
   (s-reset [this]
     (store/await (store/s-reset local))
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live]
+    (let [a (store/await (store/sweep-unmarked local live))
+          b (store/await (store/sweep-unmarked remote live))]
+      (store/completed {:removed (+ (:removed a 0) (:removed b 0))}))))
 
 (defrecord WriteBackStore [local remote flushed]
   ;; flushed — atom of set of hex hash keys already uploaded to remote
@@ -97,8 +97,8 @@
        (when-let [v (store/await (store/s-get remote h))]
          (store/await (store/s-put local h v))
          (flushed-conj! flushed h)
-         ;; Absorb entire pack neighborhood (not only h) into write-back local
-         (absorb-remote-pack-cache! local remote flushed)
+         ;; Absorb the pack neighborhood of h into the write-back local.
+         (absorb-remote-pack-cache! local remote flushed h)
          v))))
 
   (s-put [this h value]
@@ -116,13 +116,6 @@
     (swap! flushed disj (gc/hash-key h))
     (store/completed this))
 
-  (s-keys [_]
-    (store/completed
-     (into []
-           (comp (map gc/hash-key) (distinct) (map store/hex->hash))
-           (concat (store/await (store/s-keys remote))
-                   (store/await (store/s-keys local))))))
-
   (s-merge [this m]
     (doseq [[h v] m]
       (store/await (store/s-put this h v)))
@@ -131,7 +124,13 @@
   (s-reset [this]
     (store/await (store/s-reset local))
     (reset! flushed #{})
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live]
+    (let [a (store/await (store/sweep-unmarked local live))
+          b (store/await (store/sweep-unmarked remote live))]
+      (store/completed {:removed (+ (:removed a 0) (:removed b 0))}))))
 
 (defn write-back-store?
   [s]

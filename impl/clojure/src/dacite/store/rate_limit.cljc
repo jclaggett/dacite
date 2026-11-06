@@ -123,13 +123,15 @@
   (s-delete [this h]
     (store/await (store/s-delete inner h))
     (store/completed this))
-  (s-keys [_] (store/s-keys inner))
   (s-merge [this m]
     (store/await (store/s-merge inner m))
     (store/completed this))
   (s-reset [this]
     (store/await (store/s-reset inner))
-    (store/completed this)))
+    (store/completed this))
+
+  store/ISweep
+  (sweep-unmarked [_ live] (store/sweep-unmarked inner live)))
 
 (defn rate-limit-store
   "Wrap inner store with a token-bucket limiter on send-chunk!.

@@ -25,6 +25,7 @@
      clojure -M:cljs-library
      clojure -M:service   ; then /app/library/"
   (:require [clojure.string :as str]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.value :as v]
             #?(:clj [clojure.java.io :as io])
@@ -386,8 +387,9 @@ enough that slice and a full native are different amounts of work.
         [(v/deref lib-ref) false]))))
 
 (defn node-count
+  "Nodes reachable from `x`."
   [x]
-  (count (store/await (store/s-keys (v/dacite-store x)))))
+  (count (gc/mark-reachable (v/dacite-store x) (v/hash x))))
 
 #?(:clj
    (defn- chunked-seed-stats
