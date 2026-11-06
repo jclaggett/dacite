@@ -8,6 +8,7 @@ Three UIs share the HTTP content-store + root CAS protocol
 | http://127.0.0.1:8080/app/ | Todo — write Dacite values, CAS the root |
 | http://127.0.0.1:8080/app/explorer/ | **Value explorer** — typed tree of the current root |
 | http://127.0.0.1:8080/app/library/ | **Library** — shelf → TOC → page via `v/slice` |
+| http://127.0.0.1:8080/app/peer/ | **Browser peer** — verify the origin root into IndexedDB |
 
 ---
 
@@ -168,3 +169,24 @@ Browser: `open-store` (HTTP + `:write-back`) → `load-or-seed!` (CAS) → same 
 | Todo Values + file Store | `impl/clojure/src/dacite/examples/todo.cljc` |
 | Web UI (Store + Values + DOM) | `impl/clojure/src/dacite/examples/todo_web.cljs` |
 | nbb interactive UI | `impl/clojure/src/dacite/examples/todo_ui.cljs` |
+
+## Browser peer (M5.1)
+
+shadow-cljs compiles the peer namespaces, IndexedDB, and the browser
+`RTCPeerConnection` transport. The `:cljs-web`, `:cljs-explorer`, and
+`:cljs-library` aliases are unchanged.
+
+```bash
+# from the repo root
+npm install
+npm run peer:build          # examples/web/peer/js
+npm run browser:test        # compiled transport + IndexedDB checks
+
+# origin with the canonical value, and the static page
+cd impl/clojure && clojure -M:peer-origin
+```
+
+Open http://127.0.0.1:8080/app/peer/ . The page reads `GET /root`, verifies
+each pack item into IndexedDB, and shows the root hash and the entry count.
+Those two numbers are also printed by `peer-origin`. A session with an nbb
+peer is M5.2.

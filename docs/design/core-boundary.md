@@ -11,10 +11,11 @@ core is allowed to call) is [portable-core.md](portable-core.md). This
 document is the **inventory**: every namespace on the Clojure source path,
 labeled `core`, `host`, or `server-only`.
 
-Counted here: **84 namespaces** (7 `core`, 73 `host`, 4 `server-only`) under
+Counted here: **88 namespaces** (7 `core`, 77 `host`, 4 `server-only`) under
 `impl/clojure/src` and `impl/clojure/dev`. `impl/clojure/test` is not
 inventoried; tests may require any class. `impl/clojure/archive` is not on
-the classpath.
+the classpath. M5.1 added the browser peer (`dacite.peer.transport.browser`,
+`dacite.peer.origin`, `dacite.examples.peer-web`, `dacite.examples.peer-origin`).
 
 ## Rules
 
@@ -62,14 +63,17 @@ The repo already has three one-shot bundles, each a single `:main` via
 - `:cljs-explorer` → `dacite.examples.explorer-web`
 - `:cljs-library` → `dacite.examples.library-web`
 
-There is no shadow-cljs, Figwheel, or ClojureScript test runner config.
+**shadow-cljs** is the compiled browser target and the compiled-CLJS test
+of this core (M2.1 decision, set up in M5.1). Config:
+`impl/clojure/shadow-cljs.edn`.
 
-**Recommendation: shadow-cljs** for the compiled browser target (M5) and
-for any compiled-CLJS test of this core. One config can hold several
-builds, npm libraries, and a test runner. [host-collection-adapters.md](host-collection-adapters.md)
-already names shadow-cljs for the compiled-CLJS protocol work. Leave the
-three `:cljs-*` aliases on `cljs.build.api` until a later change migrates
-the example bundles. This milestone does not add the toolchain.
+- `:peer` → `dacite.examples.peer-web` (`npm run peer:build`, output
+  `examples/web/peer/js`, served at `/app/peer/`)
+- `:peer-node` → `dacite.peer.browser-test` (`npm run browser:test`)
+
+The three `:cljs-*` aliases stay on `cljs.build.api`. [host-collection-adapters.md](host-collection-adapters.md)
+can use this config for compiled-CLJS protocol tests; that work is not
+part of M5.1.
 
 ## Core
 
@@ -138,6 +142,7 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.examples.hello` | `host` | `impl/clojure/src/dacite/examples/hello.cljc` | Hello example, domain only. Requires `dacite.store` and `dacite.value`. |
 | `dacite.examples.parity` | `host` | `impl/clojure/src/dacite/examples/parity.cljc` | Cross-host hash example. Requires `dacite.store` and `dacite.value`. |
 | `dacite.examples.todo` | `host` | `impl/clojure/src/dacite/examples/todo.cljc` | Todo domain. Requires `dacite.store` and `dacite.value`. |
+| `dacite.peer.origin` | `host` | `impl/clojure/src/dacite/peer/origin.cljc` | Verify origin pack chunks into a store. No host marker. Requires `dacite.peer.verify`, the store, and the wire codec. |
 | `dacite.reveal` | `host` | `impl/clojure/src/dacite/reveal.cljc` | Store adapter for `dacite.reveal.engine`. Builds the node source from `dacite.store`, `dacite.value.types`, `dacite.value.hamt`, and `dacite.wire.binary`. No host marker of its own. |
 | `dacite.rooted.gc` | `host` | `impl/clojure/src/dacite/rooted/gc.cljc` | Mark-and-sweep in portable Clojure. Requires `dacite.store` and `dacite.value.types`. |
 | `dacite.store.chunk` | `host` | `impl/clojure/src/dacite/store/chunk.cljc` | Chunked overlay. Requires `dacite.store`, `dacite.store.pack`, and `dacite.rooted.gc`. |
@@ -163,10 +168,13 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.examples.explorer-web` | `host` | `impl/clojure/src/dacite/examples/explorer_web.cljs` | Compiled browser explorer. DOM and `dacite.store.browser`. |
 | `dacite.examples.library-web` | `host` | `impl/clojure/src/dacite/examples/library_web.cljs` | Compiled browser library reader. DOM and `dacite.store.browser`. |
 | `dacite.examples.lmdb-bench` | `host` | `impl/clojure/src/dacite/examples/lmdb_bench.cljs` | nbb file-versus-LMDB timings. Node `fs` and `dacite.store.nbb.lmdb`. |
+| `dacite.examples.peer-origin` | `host` | `impl/clojure/src/dacite/examples/peer_origin.clj` | JVM origin for the browser peer page. Seeds the canonical value and starts `dacite.service`. |
+| `dacite.examples.peer-web` | `host` | `impl/clojure/src/dacite/examples/peer_web.cljs` | Compiled browser peer page. DOM, `fetch`, and IndexedDB. |
 | `dacite.examples.todo-ui` | `host` | `impl/clojure/src/dacite/examples/todo_ui.cljs` | nbb todo CLI. `promesa` and Node. |
 | `dacite.examples.todo-web` | `host` | `impl/clojure/src/dacite/examples/todo_web.cljs` | Compiled browser todo UI. DOM and `dacite.store.browser`. |
 | `dacite.json` | `host` | `impl/clojure/src/dacite/json.clj` | JVM JSON via Cheshire, over `dacite.convert`. |
 | `dacite.peer.items` | `host` | `impl/clojure/src/dacite/peer/items.clj` | JVM-only peer item writer. Calls `dacite.service.reveal/encode-page`. |
+| `dacite.peer.transport.browser` | `host` | `impl/clojure/src/dacite/peer/transport/browser.cljs` | Browser WebRTC adapter over `RTCPeerConnection`. |
 | `dacite.peer.transport.webrtc` | `host` | `impl/clojure/src/dacite/peer/transport/webrtc.cljs` | nbb WebRTC adapter over `node-datachannel`. |
 | `dacite.store.browser` | `host` | `impl/clojure/src/dacite/store/browser.cljs` | Browser remote store. `fetch` and `Uint8Array`. |
 | `dacite.store.file` | `host` | `impl/clojure/src/dacite/store/file.clj` | Filesystem store for the JVM and babashka (`java.io`). |
@@ -219,8 +227,9 @@ adding a row.
 
 `impl/clojure/test/dacite/core_boundary_test.clj` is part of the JVM suite
 (`cognitect.test-runner` picks up every `*_test.clj`). GitHub Actions
-`.github/workflows/test.yml` runs the nbb suites only; the JVM suite stays
-local.
+`.github/workflows/test.yml` runs the nbb suites, then `npm run peer:build`
+and `npm run browser:test` (that step installs Java 21 and the Clojure CLI,
+because shadow-cljs starts through `clojure`). The JVM suite stays local.
 
 ```bash
 cd impl/clojure && clojure -M:dev:test -n dacite.core-boundary-test

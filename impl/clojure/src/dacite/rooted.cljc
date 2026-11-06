@@ -17,11 +17,12 @@
   (:require [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.store.chunk :as chunk]
-            [clojure.string :as str]
-            ;; java.io on JVM + babashka (file-root-cell). LMDB root cells
-            ;; live in dacite.store.jvm so this ns stays free of native deps.
-            #?@(:cljs []
-                :default [[clojure.java.io :as io]])))
+            ;; java.io and clojure.string on JVM + babashka. nbb trims the
+            ;; root file too. The compiled browser branch does not.
+            #?@(:org.babashka/nbb [[clojure.string :as str]]
+                :cljs []
+                :default [[clojure.string :as str]
+                          [clojure.java.io :as io]])))
 
 ;; =============================================================================
 ;; Root cell — durable root persistence
@@ -47,19 +48,31 @@
 ;; File root cell — same layout on JVM and Node: {base}/ROOT holds hex or empty
 ;; -----------------------------------------------------------------------------
 
+;; Node `require` stays on the nbb branch. A compiled browser build reads
+;; the `:cljs` branch, and shadow-cljs treats `js/require` as a module
+;; dependency even inside a function that the page never calls.
+#_{:clj-kondo/ignore [:unused-private-var]}
+(defn- browser-file-root! []
+  (throw #?(:cljs (js/Error. "file root cells are JVM or nbb")
+            :default (ex-info "file root cells are JVM or nbb" {}))))
+
+#_{:clj-kondo/ignore [:unused-private-var]}
 (defn- root-file-path [base]
-  #?(:cljs (let [path (js/require "path")]
-             (.join path (str base) "ROOT"))
+  #?(:org.babashka/nbb
+     (let [path (js/require "path")]
+       (.join path (str base) "ROOT"))
+     :cljs (browser-file-root!)
      :default (io/file base "ROOT")))
 
 (defn- read-root-file [base]
-  #?(:cljs
+  #?(:org.babashka/nbb
      (let [fs (js/require "fs")
            p (root-file-path base)]
        (when (.existsSync fs p)
          (let [s (str/trim (.readFileSync fs p "utf8"))]
            (when (seq s)
              (store/hex->hash s)))))
+     :cljs (browser-file-root!)
      :default
      (let [f (root-file-path base)]
        (when (.exists f)
@@ -68,11 +81,12 @@
              (store/hex->hash s)))))))
 
 (defn- write-root-file! [base h]
-  #?(:cljs
+  #?(:org.babashka/nbb
      (let [fs (js/require "fs")
            p (root-file-path base)]
        (.mkdirSync fs (str base) #js {:recursive true})
        (.writeFileSync fs p (if h (store/hash->hex h) "") "utf8"))
+     :cljs (browser-file-root!)
      :default
      (let [dir (io/file base)
            f (root-file-path base)]

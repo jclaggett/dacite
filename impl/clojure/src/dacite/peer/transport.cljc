@@ -62,9 +62,11 @@
   (max-frame-limit [ch]
     "An extra upper bound on the `max-frame` advertised in `hello`, or nil.
      Independent of `max-message-size`: the channel may carry a larger
-     message, but the hello asks for frames no bigger than this. WebRTC
-     returns 4096 (`frame/webrtc-max-frame`, a node-datachannel 0.33.6
-     limit). The in-memory transport returns nil, so its hello keeps 16384.")
+     message, but the hello asks for frames no bigger than this. The
+     node-datachannel adapter returns 4096 (`frame/webrtc-max-frame`, a
+     0.33.6 limit). The browser `RTCPeerConnection` adapter returns nil, so
+     the only cut is `max-message-size`. The in-memory transport returns
+     nil too, and its hello keeps 16384.")
   (channel-open? [ch] "True until the channel is closed.")
   (close! [ch] "Close the channel, for both sides."))
 

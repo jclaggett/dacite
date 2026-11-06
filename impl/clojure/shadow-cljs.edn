@@ -1,0 +1,12 @@
+{:deps {:aliases [:shadow]}
+ :builds
+ {:peer
+  {:target :browser
+   :output-dir "../../examples/web/peer/js"
+   :asset-path "/app/peer/js"
+   :modules {:main {:init-fn dacite.examples.peer-web/init}}}
+
+  :peer-node
+  {:target :node-script
+   :output-to "target/peer-node.js"
+   :main dacite.peer.browser-test/main}}}

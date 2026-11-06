@@ -385,8 +385,9 @@
    else is until the peer's arrives (`on-frame!`). `role` is `:offerer` (this
    side sent the WebRTC offer, odd stream ids; the default) or `:answerer`.
    `opts` may hold `:max-message-size`, the largest message the connection's
-   channel carries, and `:max-frame-limit`, a tighter cap (WebRTC passes
-   4096). The `hello` sent is `msg/hello-for-channel` of those."
+   channel carries, and `:max-frame-limit`, a tighter cap (the
+   node-datachannel adapter passes 4096; the browser adapter passes nil).
+   The `hello` sent is `msg/hello-for-channel` of those."
   ([c peer-id] (open-session! c peer-id :offerer))
   ([c peer-id role] (open-session! c peer-id role nil))
   ([c peer-id role opts]

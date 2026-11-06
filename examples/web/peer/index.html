@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dacite browser peer</title>
+  <style>
+    body { font: 16px/1.45 system-ui, sans-serif; margin: 2rem; max-width: 42rem; color: #1c1c1c; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    p { margin: 0.4rem 0; }
+    .hex, code { font-family: ui-monospace, monospace; word-break: break-all; }
+    .muted { color: #555; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Dacite browser peer</h1>
+    <p class="muted">Verifies the origin's root into IndexedDB and shows its hash and entry count.</p>
+    <p id="status">loading…</p>
+    <p>root <span id="root" class="hex">—</span></p>
+    <p>entries <span id="entries">—</span></p>
+    <p id="build" class="muted"></p>
+  </main>
+  <script>
+    window.DACITE_API_BASE = window.DACITE_API_BASE || "";
+  </script>
+  <script src="/app/peer/js/main.js"></script>
+</body>
+</html>
