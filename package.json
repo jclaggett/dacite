@@ -6,6 +6,8 @@
   "scripts": {
     "hello": "nbb -m dacite.examples.hello",
     "parity": "nbb -m dacite.examples.parity",
+    "parity:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.parity.checks",
+    "parity:suite": "bash bin/parity.sh",
     "todo": "nbb -m dacite.examples.todo-ui",
     "todo:batch": "nbb -m dacite.examples.todo",
     "config": "nbb -m dacite.examples.config",

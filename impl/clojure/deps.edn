@@ -116,6 +116,12 @@
   :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}}
           :ns-default build}
 
+  ;; Reveal/pack parity on the JVM. bin/parity.sh runs this and the nbb side.
+  ;;   cd impl/clojure && clojure -M:parity
+  ;;   cd impl/clojure && clojure -M:parity --write
+  :parity {:extra-paths ["test"]
+           :main-opts ["-m" "dacite.parity.checks"]}
+
   ;; Linting: clojure -M:lint
   :lint {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.01.19"}}
          :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"]}

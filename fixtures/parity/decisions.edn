@@ -1,0 +1,869 @@
+;; Golden reveal and pack decisions. bin/parity.sh
+;; Given a value and a clock, :order and each step's
+;; :pages (hash and byte count) match on every host.
+{:canonical-root
+ "6df85bbe02ac9065af16f48938416d4436835d1cb5d2d7c8625ac342e46f018c",
+ :pack
+ [{:chunk-hex
+   "44414331010100000000010000100001cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b0000000903000000000000002a",
+   :encodings ["literal"],
+   :form {:body 42, :type "i64"},
+   :id "i64",
+   :root
+   "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+   :round-trip
+   "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+   :wire-bytes 46}
+  {:chunk-hex
+   "4441433101010000000001000010000132f38f75ef14c1595f832cf490706f03467cf6bde176067edfe4d022b2af90d10000000a100000000568656c6c6f",
+   :encodings ["literal"],
+   :form {:body "hello", :type "string"},
+   :id "string-hello",
+   :root
+   "32f38f75ef14c1595f832cf490706f03467cf6bde176067edfe4d022b2af90d1",
+   :round-trip
+   "32f38f75ef14c1595f832cf490706f03467cf6bde176067edfe4d022b2af90d1",
+   :wire-bytes 47}
+  {:chunk-hex
+   "444143310101000000000100001000018f4d2ff3dc9f635aa486d8e6890e4e0bc0c96521b40615a5f8bd6cc6b8eb3618000000232000000001500300000003000000000000000100000000000000020000000000000003",
+   :encodings ["literal"],
+   :form
+   {:body [{:body {:of "i64", :values [1 2 3]}, :type "run"}],
+    :type "vector"},
+   :id "vector-123",
+   :root
+   "8f4d2ff3dc9f635aa486d8e6890e4e0bc0c96521b40615a5f8bd6cc6b8eb3618",
+   :round-trip
+   "8f4d2ff3dc9f635aa486d8e6890e4e0bc0c96521b40615a5f8bd6cc6b8eb3618",
+   :wire-bytes 72}
+  {:chunk-hex
+   "44414331010100000000010000100001876534827d5835ceb311e80c9b1c9c6d699176275e5d2af4e8ec70feac22bc490000001d20000000015010000000020000000568656c6c6f00000005776f726c64",
+   :encodings ["literal"],
+   :form
+   {:body
+    [{:body {:of "string", :values ["hello" "world"]}, :type "run"}],
+    :type "vector"},
+   :id "vector-strings",
+   :root
+   "876534827d5835ceb311e80c9b1c9c6d699176275e5d2af4e8ec70feac22bc49",
+   :round-trip
+   "876534827d5835ceb311e80c9b1c9c6d699176275e5d2af4e8ec70feac22bc49",
+   :wire-bytes 66}
+  {:chunk-hex
+   "44414331010100000000010000100001f052e891ca74b2d3fc644639a44174a5ac467ce08d3fafb28b9263fb1e19d227000000232100000002100000000162030000000000000002100000000161030000000000000001",
+   :encodings ["literal"],
+   :form
+   {:body
+    [[{:body "b", :type "string"} {:body 2, :type "i64"}]
+     [{:body "a", :type "string"} {:body 1, :type "i64"}]],
+    :type "map"},
+   :id "map-ab",
+   :root
+   "f052e891ca74b2d3fc644639a44174a5ac467ce08d3fafb28b9263fb1e19d227",
+   :round-trip
+   "f052e891ca74b2d3fc644639a44174a5ac467ce08d3fafb28b9263fb1e19d227",
+   :wire-bytes 72}
+  {:chunk-hex
+   "444143310101000000000100001000017d04383a65871026a4eb47565265c16c21edb529a66af7b4cd571ff4c3caf21a000000232200000001500300000003000000000000000300000000000000010000000000000002",
+   :encodings ["literal"],
+   :form
+   {:body [{:body {:of "i64", :values [3 1 2]}, :type "run"}],
+    :type "set"},
+   :id "set-123",
+   :root
+   "7d04383a65871026a4eb47565265c16c21edb529a66af7b4cd571ff4c3caf21a",
+   :round-trip
+   "7d04383a65871026a4eb47565265c16c21edb529a66af7b4cd571ff4c3caf21a",
+   :wire-bytes 72}
+  {:chunk-hex
+   "444143310101000000000100001000013eef5afefff27a7491ac3415435fcc921df65cb9a2970573e32122154246513d000000051000000000",
+   :encodings ["literal"],
+   :form {:body "", :type "string"},
+   :id "empty-string",
+   :root
+   "3eef5afefff27a7491ac3415435fcc921df65cb9a2970573e32122154246513d",
+   :round-trip
+   "3eef5afefff27a7491ac3415435fcc921df65cb9a2970573e32122154246513d",
+   :wire-bytes 42}
+  {:chunk-hex
+   "444143310101000000000100001000010913ef9195857823a6851c8473efcf1aefacc65b2cbc15c0a29adae197ab596c000000052000000000",
+   :encodings ["literal"],
+   :form {:body [], :type "vector"},
+   :id "empty-vector-pack",
+   :root
+   "0913ef9195857823a6851c8473efcf1aefacc65b2cbc15c0a29adae197ab596c",
+   :round-trip
+   "0913ef9195857823a6851c8473efcf1aefacc65b2cbc15c0a29adae197ab596c",
+   :wire-bytes 42}
+  {:chunk-hex
+   "4441433101010000000001000010000195504972e3ff7cc54172f9b74826307f1e48adb23202c9fcd4bdf832e41745d8000000052100000000",
+   :encodings ["literal"],
+   :form {:body [], :type "map"},
+   :id "empty-map",
+   :root
+   "95504972e3ff7cc54172f9b74826307f1e48adb23202c9fcd4bdf832e41745d8",
+   :round-trip
+   "95504972e3ff7cc54172f9b74826307f1e48adb23202c9fcd4bdf832e41745d8",
+   :wire-bytes 42}
+  {:chunk-hex
+   "44414331010100000000010000100001ea9ae9a8644eca1ced8a8d0fb5a1bd591e7076baab216d0424b7d66c8d3aec4a000000052200000000",
+   :encodings ["literal"],
+   :form {:body [], :type "set"},
+   :id "empty-set",
+   :root
+   "ea9ae9a8644eca1ced8a8d0fb5a1bd591e7076baab216d0424b7d66c8d3aec4a",
+   :round-trip
+   "ea9ae9a8644eca1ced8a8d0fb5a1bd591e7076baab216d0424b7d66c8d3aec4a",
+   :wire-bytes 42}
+  {:chunk-hex
+   "444143310101000000000100001000015dd8da8913a9ac15bd805314de3a41477a2d14b4c60b9afb3e6251938d72545f00000069100000006478787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878",
+   :encodings ["literal"],
+   :form
+   {:body
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    :type "string"},
+   :id "string-100",
+   :root
+   "5dd8da8913a9ac15bd805314de3a41477a2d14b4c60b9afb3e6251938d72545f",
+   :round-trip
+   "5dd8da8913a9ac15bd805314de3a41477a2d14b4c60b9afb3e6251938d72545f",
+   :wire-bytes 142}
+  {:chunk-hex
+   "44414331010100000000010000100001f7ca395e556e75caf8d6539b194318fbf7ccb5b0532482590ad34b62d65bb51d0000000c200000000151010000000800",
+   :encodings ["literal"],
+   :form
+   {:body [{:body {:n 8, :of "bool", :value false}, :type "repeat"}],
+    :type "vector"},
+   :id "bool-repeat",
+   :root
+   "f7ca395e556e75caf8d6539b194318fbf7ccb5b0532482590ad34b62d65bb51d",
+   :round-trip
+   "f7ca395e556e75caf8d6539b194318fbf7ccb5b0532482590ad34b62d65bb51d",
+   :wire-bytes 49}
+  {:chunk-hex
+   "4441433101010000000001000010000150b829f316312bc989236cef81a7adab99a559726c223505f45cf4ea2ca199b70000002120000000025003000000020000000000000001000000000000000210000000017a",
+   :encodings ["literal"],
+   :form
+   {:body
+    [{:body {:of "i64", :values [1 2]}, :type "run"}
+     {:body "z", :type "string"}],
+    :type "vector"},
+   :id "mixed-vector",
+   :root
+   "50b829f316312bc989236cef81a7adab99a559726c223505f45cf4ea2ca199b7",
+   :round-trip
+   "50b829f316312bc989236cef81a7adab99a559726c223505f45cf4ea2ca199b7",
+   :wire-bytes 70}
+  {:encoding "literal",
+   :form
+   {:body [{:body {:n 24, :of "char", :value "x"}, :type "repeat"}],
+    :type "ft/node"},
+   :id "char-repeat",
+   :root
+   "01c9147eebf58c7dacec66170e315d8649cc374892c5d55a255e7da065808dbf",
+   :round-trip
+   "01c9147eebf58c7dacec66170e315d8649cc374892c5d55a255e7da065808dbf",
+   :type "ft/node",
+   :wire-bytes 50}
+  {:chunk-hex
+   ["4441433101010000000004000000c80000000000000000000000000000000000000000000000000000000000000000000000000b00030800000000000000000000000000000000000000000000000000000000000000000000000000000000010000000b00030800000000000000010000000000000000000000000000000000000000000000000000000000000000020000000b00030800000000000000020000000000000000000000000000000000000000000000000000000000000000030000000b0003080000000000000003"
+    "4441433101010000000004000000c80000000000000000000000000000000000000000000000000000000000000000040000000b00030800000000000000040000000000000000000000000000000000000000000000000000000000000000050000000b00030800000000000000050000000000000000000000000000000000000000000000000000000000000000060000000b00030800000000000000060000000000000000000000000000000000000000000000000000000000000000070000000b0003080000000000000007"
+    "4441433101010000000004000000c80000000000000000000000000000000000000000000000000000000000000000080000000b00030800000000000000080000000000000000000000000000000000000000000000000000000000000000090000000b000308000000000000000900000000000000000000000000000000000000000000000000000000000000000a0000000b000308000000000000000a00000000000000000000000000000000000000000000000000000000000000000b0000000b000308000000000000000b"
+    "4441433101010000000004000000c800000000000000000000000000000000000000000000000000000000000000000c0000000b000308000000000000000c00000000000000000000000000000000000000000000000000000000000000000d0000000b000308000000000000000d00000000000000000000000000000000000000000000000000000000000000000e0000000b000308000000000000000e00000000000000000000000000000000000000000000000000000000000000000f0000000b000308000000000000000f"
+    "4441433101010000000004000000c80000000000000000000000000000000000000000000000000000000000000000100000000b00030800000000000000100000000000000000000000000000000000000000000000000000000000000000110000000b00030800000000000000110000000000000000000000000000000000000000000000000000000000000000120000000b00030800000000000000120000000000000000000000000000000000000000000000000000000000000000130000000b0003080000000000000013"],
+   :chunks 5,
+   :id "pack-budget",
+   :items [4 4 4 4 4],
+   :wire-bytes 1035}
+  {:chunks 3,
+   :covered 5,
+   :fits-literal false,
+   :id "large-string",
+   :items 5,
+   :literals 3,
+   :nodes 2,
+   :oversized true,
+   :root
+   "4f12bb23fd0f1af04fddfa3f8c8ace691d8e0417e9e1da3031ada6a8dcce66a0",
+   :root-encoding "node",
+   :wire-bytes 12523}
+  {:id "vector-tight",
+   :items 5,
+   :literals 2,
+   :nodes 3,
+   :root
+   "d1a252cecbdd24930592e7153733b0c429bea9e18757dc173e718e73ea94ad62",
+   :root-encoding "node",
+   :wire-bytes 1072}
+  {:chunk-hex
+   "444143310101000000000100001000016df85bbe02ac9065af16f48938416d4436835d1cb5d2d7c8625ac342e46f018c000000a2200000000450030000000500000000000000000000000000000001ffffffffffffffff00000000000000ff0000000000000100100000000568656c6c6f210000000210000000016b03000000000000002a10000000066e657374656420000000015003000000030000000000000007000000000000000800000000000000092200000001500300000003000000000000000300000000000000010000000000000002",
+   :chunks 1,
+   :covered 26,
+   :encodings ["literal"],
+   :id "canonical",
+   :items 1,
+   :root
+   "6df85bbe02ac9065af16f48938416d4436835d1cb5d2d7c8625ac342e46f018c",
+   :same-root true,
+   :wire-bytes 199}],
+ :reveal
+ [{:id "scalar",
+   :order
+   [{:bytes 48,
+     :hash
+     "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+     :type "i64"}],
+   :root
+   "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b"}
+  {:id "empty-vector",
+   :order
+   [{:bytes 87,
+     :hash
+     "0913ef9195857823a6851c8473efcf1aefacc65b2cbc15c0a29adae197ab596c",
+     :type "vector"}
+    {:bytes 184,
+     :hash
+     "83c4b9acb1ce0144370f05367058612eb967deb7593a4e988808e90df196caa4",
+     :type "ft/empty"}],
+   :root
+   "0913ef9195857823a6851c8473efcf1aefacc65b2cbc15c0a29adae197ab596c"}
+  {:id "inlined-scalars",
+   :order
+   [{:bytes 87,
+     :hash
+     "a61ff05c4a2346ab7996a08323f8cd8692d12adc6548bd5a0f5b4b66c75a059b",
+     :type "vector"}
+    {:bytes 280,
+     :hash
+     "f584267e49dacdd9a4c91367e8d82d46ba6a3ea850f79489364343a575fa5429",
+     :type "ft/deep"}
+    {:bytes 193,
+     :hash
+     "90db0c6964bbbddd129b73652b65b4d140e11bdd7cedf9e5a0e3deaf34a4ff65",
+     :type "ft/digit"}
+    {:bytes 184,
+     :hash
+     "83c4b9acb1ce0144370f05367058612eb967deb7593a4e988808e90df196caa4",
+     :type "ft/empty"}
+    {:bytes 502,
+     :hash
+     "9e23c8c0bc0bbd3f25203154b57b29dec3c1784175fc762f3fe044c5edfc165e",
+     :type "ft/digit"}],
+   :root
+   "a61ff05c4a2346ab7996a08323f8cd8692d12adc6548bd5a0f5b4b66c75a059b"}
+  {:id "bare-leaf",
+   :order
+   [{:bytes 87,
+     :hash
+     "f9e60c4444438a60692622ff6541283f6e5a22e89ee5f5939cee42ded210bf9b",
+     :type "vector"}
+    {:bytes 48,
+     :hash
+     "86bf44663af2a6885a651c2fec509c5abeeaa5884883875b8fb1bef30e975750",
+     :type "i64"}],
+   :root
+   "f9e60c4444438a60692622ff6541283f6e5a22e89ee5f5939cee42ded210bf9b"}
+  {:id "nested-vectors",
+   :order
+   [{:bytes 87,
+     :hash
+     "b252f30c9248012073b29289183b0b77de1bbc3561e50e8321c45b64ede053f0",
+     :type "vector"}
+    {:bytes 280,
+     :hash
+     "853dca2a576b401bec0b4fd91536c96b0430448ea863d001c01442c6cd9943cd",
+     :type "ft/deep"}
+    {:bytes 217,
+     :hash
+     "ba523cc5268fa5e2b8e687eec19538fdd09349bd2f1a3406a7ca78dcdac4d912",
+     :type "ft/digit"}
+    {:bytes 184,
+     :hash
+     "83c4b9acb1ce0144370f05367058612eb967deb7593a4e988808e90df196caa4",
+     :type "ft/empty"}
+    {:bytes 217,
+     :hash
+     "7a5f77c9c37d5cd56bdb8b6107f5118d58c67013867b92e495bdaf2d751bc4e2",
+     :type "ft/digit"}
+    {:bytes 87,
+     :hash
+     "ad8213b7698450e12223e7735b6b69530e5ea734b38d031a25cbbe22cbdf34d8",
+     :type "vector"}
+    {:bytes 48,
+     :hash
+     "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+     :type "i64"}
+    {:bytes 87,
+     :hash
+     "a36fcab2125656f9a26f2b003b7adf3e36045b908447ce277d65f8829bf3508c",
+     :type "vector"}
+    {:bytes 48,
+     :hash
+     "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918",
+     :type "i64"}],
+   :root
+   "b252f30c9248012073b29289183b0b77de1bbc3561e50e8321c45b64ede053f0"}
+  {:first-leaf "a",
+   :id "long-string",
+   :last-leaf "z",
+   :order
+   [{:bytes 87,
+     :hash
+     "29a5b7d50e3944645d7d600317663a6830ca7f40b0f71cd26a2b61e1f91ca512",
+     :type "string"}
+    {:bytes 280,
+     :hash
+     "d3f81ef77e95ff67892d52da757020f5571289bd2d51525546b7b0311a65e5ea",
+     :type "ft/deep"}
+    {:bytes 4280,
+     :hash
+     "a6eaf8e87f8e451b52678e6ca2367928e86acbbbc6e622ecdcd42ae41113100d",
+     :type "ft/digit"}
+    {:bytes 4280,
+     :hash
+     "7f68006f992b4423efc3b9e876168d350e708a51a854b3aef10e163b99a10784",
+     :type "ft/node"}
+    {:bytes 214,
+     :hash
+     "f6488e1e9481a4f263ccc0443655f4397b24f7367fd13b196e96379269b88486",
+     :type "ft/digit"}],
+   :root
+   "29a5b7d50e3944645d7d600317663a6830ca7f40b0f71cd26a2b61e1f91ca512"}
+  {:id "map-order",
+   :order
+   [{:bytes 87,
+     :hash
+     "39c1103b902813c674693380ab11c2be55201b2ee75a53822f9f459ac773194e",
+     :type "map"}
+    {:bytes 253,
+     :hash
+     "b2b88457b7781fa26ce31016c23cd114005eb2053c431d3cc9c960f8523c8d83",
+     :type "hamt/bitmap"}
+    {:bytes 253,
+     :hash
+     "e2222db32a8501abcf4bfdf1c3ba508fd1f0a9df9ec3b5747f182e0ba2e76a2f",
+     :type "hamt/bitmap"}
+    {:bytes 279,
+     :hash
+     "74c5c43faaa5dd53723b9455b3d737ff86e9bdcb5a976065198e28fc52ae7cc4",
+     :type "hamt/entry"}
+    {:bytes 279,
+     :hash
+     "413a084de76672db058baf93bd69709e44a7ab67316890c1bb13b22ba71c8287",
+     :type "hamt/entry"}
+    {:bytes 279,
+     :hash
+     "7e52616857e428a37273baad44eee2dbb0ffcfee4852843626e6f515dcb1661a",
+     :type "hamt/entry"}
+    {:bytes 48,
+     :hash
+     "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+     :type "i64"}
+    {:bytes 48,
+     :hash
+     "86bf44663af2a6885a651c2fec509c5abeeaa5884883875b8fb1bef30e975750",
+     :type "i64"}
+    {:bytes 48,
+     :hash
+     "cac6596de3216bf76582802745f5675c68f44bf91ccb15b0f7c3046aad71eb67",
+     :type "i64"}
+    {:bytes 87,
+     :hash
+     "e414b5afa94676dcc85e67b25b3d0b2b2299415815d9558d23c8d33c70483170",
+     :type "string"}
+    {:bytes 187,
+     :hash
+     "494e39c8ead2100669ce3e2dce2341524e27330e00cfef836b2cb4ca119f1391",
+     :type "ft/digit"}
+    {:bytes 87,
+     :hash
+     "070f38828223b00517175b3ec658312563dc2d058ca67cc259cbafc2115d2e43",
+     :type "string"}
+    {:bytes 187,
+     :hash
+     "71ff6ef6dda3dcb85695b0d35f4c11de566b79f58370de5171cdba9c3a429b0e",
+     :type "ft/digit"}
+    {:bytes 87,
+     :hash
+     "673a0394aa8f2ec7c4734f4e27d716b4e57e9b1357e873dcdebbd80d28f6f97e",
+     :type "string"}
+    {:bytes 187,
+     :hash
+     "b01d9c3c49ed55db9a9039a421d2523507dd0c616867a627cb14127249930fb6",
+     :type "ft/digit"}],
+   :root
+   "39c1103b902813c674693380ab11c2be55201b2ee75a53822f9f459ac773194e"}
+  {:id "set-order",
+   :order
+   [{:bytes 87,
+     :hash
+     "7d04383a65871026a4eb47565265c16c21edb529a66af7b4cd571ff4c3caf21a",
+     :type "set"}
+    {:bytes 285,
+     :hash
+     "3f9a7a9f18bbfba0c96cad9a412cf9ddeb1f95b4721034476c4515c32a94ba9a",
+     :type "hamt/bitmap"}
+    {:bytes 279,
+     :hash
+     "11af6d6ef63bc404b23bbadd5f0e19e81e0cce3774bdeee952b46fe7e0673725",
+     :type "hamt/entry"}
+    {:bytes 279,
+     :hash
+     "b69edffe81bfb9f6159568c47367285db770ac0f06871fed55bf976f349a4183",
+     :type "hamt/entry"}
+    {:bytes 279,
+     :hash
+     "e9992d6f9aa7b39d2117204460000e9f9d3edb5444c56042d589f19b5a4d6688",
+     :type "hamt/entry"}
+    {:bytes 48,
+     :hash
+     "4bdcb1bfb22597cc035319e90e815a272c6f12d09895938378a511d0ab9d70f3",
+     :type "i64"}
+    {:bytes 48,
+     :hash
+     "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+     :type "i64"}
+    {:bytes 48,
+     :hash
+     "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918",
+     :type "i64"}],
+   :root
+   "7d04383a65871026a4eb47565265c16c21edb529a66af7b4cd571ff4c3caf21a"}
+  {:id "omit-sent", :kept ["b" "d"]}
+  {:at-zero 4, :id "interest", :tau-zero true}
+  {:below-floor ["new"],
+   :cancel ["b"],
+   :cancelled-next nil,
+   :done [],
+   :id "shares",
+   :next "new"}
+  {:id "one-page",
+   :order
+   [{:bytes 48,
+     :hash
+     "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+     :type "i64"}],
+   :root
+   "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+   :steps
+   [{:label "early", :pages []}
+    {:label "short", :pages []}
+    {:label "due",
+     :pages
+     [{:bytes 48,
+       :hash
+       "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+       :id 1}]}
+    {:label "later", :pages []}]}
+  {:id "reveal-order",
+   :order
+   [{:bytes 87,
+     :hash
+     "0f943d4840872545f5fd4e32c886fb1ba8bc29308deb2d11f2ef9ff0ea701f92",
+     :type "string"}
+    {:bytes 280,
+     :hash
+     "2cf69f2fb71e42e5c837a08815a6a8a34681b23686752db0880b4b56e041fb41",
+     :type "ft/deep"}
+    {:bytes 4280,
+     :hash
+     "a6eaf8e87f8e451b52678e6ca2367928e86acbbbc6e622ecdcd42ae41113100d",
+     :type "ft/digit"}
+    {:bytes 4280,
+     :hash
+     "a69bf067bfba49d1c408e75c84aa26274e2eab8c50ced799dae26018dc567f0f",
+     :type "ft/node"}
+    {:bytes 1022,
+     :hash
+     "0677de99c050558eafbc93ab90045b6cc895e0a0404360f9064f2c79b4bd3313",
+     :type "ft/digit"}],
+   :root
+   "0f943d4840872545f5fd4e32c886fb1ba8bc29308deb2d11f2ef9ff0ea701f92",
+   :steps
+   [{:label "t1",
+     :pages
+     [{:bytes 87,
+       :hash
+       "0f943d4840872545f5fd4e32c886fb1ba8bc29308deb2d11f2ef9ff0ea701f92",
+       :id 1}
+      {:bytes 280,
+       :hash
+       "2cf69f2fb71e42e5c837a08815a6a8a34681b23686752db0880b4b56e041fb41",
+       :id 1}
+      {:bytes 4280,
+       :hash
+       "a6eaf8e87f8e451b52678e6ca2367928e86acbbbc6e622ecdcd42ae41113100d",
+       :id 1}
+      {:bytes 4280,
+       :hash
+       "a69bf067bfba49d1c408e75c84aa26274e2eab8c50ced799dae26018dc567f0f",
+       :id 1}
+      {:bytes 1022,
+       :hash
+       "0677de99c050558eafbc93ab90045b6cc895e0a0404360f9064f2c79b4bd3313",
+       :id 1}]}]}
+  {:id "equal-shares",
+   :roots
+   ["868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50"
+    "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918"],
+   :steps
+   [{:label "t2",
+     :pages
+     [{:bytes 48,
+       :hash
+       "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+       :id 1}
+      {:bytes 48,
+       :hash
+       "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918",
+       :id 2}]}]}
+  {:id "below-floor",
+   :root
+   "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+   :steps
+   [{:label "paused", :pages []}
+    {:label "again", :pages []}
+    {:label "still", :pages []}
+    {:label "due",
+     :pages
+     [{:bytes 48,
+       :hash
+       "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+       :id 1}]}]}
+  {:bursts
+   [[{:bytes 87,
+      :hash
+      "4f12bb23fd0f1af04fddfa3f8c8ace691d8e0417e9e1da3031ada6a8dcce66a0",
+      :id 1}
+     {:bytes 280,
+      :hash
+      "e67ead3ea5da98f98b32e95d7aaa60825f80172634dd7f9bb67874b5aefce375",
+      :id 1}]
+    [{:bytes 4280,
+      :hash
+      "e34d49646bd648f135461e4f677ed20887ac301231d74f6c19fa0c9b777904dd",
+      :id 1}]
+    [{:bytes 4280,
+      :hash
+      "f0d16673901479b60f9df961cf65dbadc8c45b240e4c6c9191ac1ec016efbc8f",
+      :id 1}]
+    [{:bytes 4022,
+      :hash
+      "f206b4918934f74095c88e1f6c09d93a24d5b466bf5846a16cef4ecc5ad42e24",
+      :id 1}]],
+   :id "budget",
+   :order
+   [{:bytes 87,
+     :hash
+     "4f12bb23fd0f1af04fddfa3f8c8ace691d8e0417e9e1da3031ada6a8dcce66a0",
+     :type "string"}
+    {:bytes 280,
+     :hash
+     "e67ead3ea5da98f98b32e95d7aaa60825f80172634dd7f9bb67874b5aefce375",
+     :type "ft/deep"}
+    {:bytes 4280,
+     :hash
+     "e34d49646bd648f135461e4f677ed20887ac301231d74f6c19fa0c9b777904dd",
+     :type "ft/digit"}
+    {:bytes 4280,
+     :hash
+     "f0d16673901479b60f9df961cf65dbadc8c45b240e4c6c9191ac1ec016efbc8f",
+     :type "ft/node"}
+    {:bytes 4022,
+     :hash
+     "f206b4918934f74095c88e1f6c09d93a24d5b466bf5846a16cef4ecc5ad42e24",
+     :type "ft/digit"}],
+   :root
+   "4f12bb23fd0f1af04fddfa3f8c8ace691d8e0417e9e1da3031ada6a8dcce66a0"}
+  {:bursts
+   [[{:bytes 87,
+      :hash
+      "4f12bb23fd0f1af04fddfa3f8c8ace691d8e0417e9e1da3031ada6a8dcce66a0",
+      :id 1}
+     {:bytes 280,
+      :hash
+      "e67ead3ea5da98f98b32e95d7aaa60825f80172634dd7f9bb67874b5aefce375",
+      :id 1}]
+    [{:bytes 4280,
+      :hash
+      "e34d49646bd648f135461e4f677ed20887ac301231d74f6c19fa0c9b777904dd",
+      :id 1}]
+    [{:bytes 4280,
+      :hash
+      "f0d16673901479b60f9df961cf65dbadc8c45b240e4c6c9191ac1ec016efbc8f",
+      :id 1}]
+    [{:bytes 4022,
+      :hash
+      "f206b4918934f74095c88e1f6c09d93a24d5b466bf5846a16cef4ecc5ad42e24",
+      :id 1}]],
+   :id "reask-stall",
+   :order
+   [{:bytes 87,
+     :hash
+     "4f12bb23fd0f1af04fddfa3f8c8ace691d8e0417e9e1da3031ada6a8dcce66a0",
+     :type "string"}
+    {:bytes 280,
+     :hash
+     "e67ead3ea5da98f98b32e95d7aaa60825f80172634dd7f9bb67874b5aefce375",
+     :type "ft/deep"}
+    {:bytes 4280,
+     :hash
+     "e34d49646bd648f135461e4f677ed20887ac301231d74f6c19fa0c9b777904dd",
+     :type "ft/digit"}
+    {:bytes 4280,
+     :hash
+     "f0d16673901479b60f9df961cf65dbadc8c45b240e4c6c9191ac1ec016efbc8f",
+     :type "ft/node"}
+    {:bytes 4022,
+     :hash
+     "f206b4918934f74095c88e1f6c09d93a24d5b466bf5846a16cef4ecc5ad42e24",
+     :type "ft/digit"}],
+   :root
+   "4f12bb23fd0f1af04fddfa3f8c8ace691d8e0417e9e1da3031ada6a8dcce66a0"}
+  {:id "child-focus",
+   :order
+   [{:bytes 87,
+     :hash
+     "bd8c0e1d55a869c04ae21577de07d929c3075996bf10b218c74e29d7d02071c7",
+     :type "vector"}
+    {:bytes 87,
+     :hash
+     "7e1ff9e91fc5e25940bf5f037a14b51cc1bdadc7559d7fccea1aabb8b9ba906a",
+     :type "set"}
+    {:bytes 253,
+     :hash
+     "6aabafbb3ebc404f53d05a64e2c5c89868632a54a34ee34b21422d1ae639a7e9",
+     :type "hamt/bitmap"}
+    {:bytes 279,
+     :hash
+     "b69edffe81bfb9f6159568c47367285db770ac0f06871fed55bf976f349a4183",
+     :type "hamt/entry"}
+    {:bytes 279,
+     :hash
+     "e9992d6f9aa7b39d2117204460000e9f9d3edb5444c56042d589f19b5a4d6688",
+     :type "hamt/entry"}
+    {:bytes 48,
+     :hash
+     "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+     :type "i64"}
+    {:bytes 48,
+     :hash
+     "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918",
+     :type "i64"}],
+   :root
+   "bd8c0e1d55a869c04ae21577de07d929c3075996bf10b218c74e29d7d02071c7",
+   :steps
+   [{:label "parent",
+     :pages
+     [{:bytes 87,
+       :hash
+       "bd8c0e1d55a869c04ae21577de07d929c3075996bf10b218c74e29d7d02071c7",
+       :id 1}
+      {:bytes 87,
+       :hash
+       "7e1ff9e91fc5e25940bf5f037a14b51cc1bdadc7559d7fccea1aabb8b9ba906a",
+       :id 1}
+      {:bytes 253,
+       :hash
+       "6aabafbb3ebc404f53d05a64e2c5c89868632a54a34ee34b21422d1ae639a7e9",
+       :id 1}
+      {:bytes 279,
+       :hash
+       "b69edffe81bfb9f6159568c47367285db770ac0f06871fed55bf976f349a4183",
+       :id 1}
+      {:bytes 279,
+       :hash
+       "e9992d6f9aa7b39d2117204460000e9f9d3edb5444c56042d589f19b5a4d6688",
+       :id 1}
+      {:bytes 48,
+       :hash
+       "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+       :id 1}
+      {:bytes 48,
+       :hash
+       "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918",
+       :id 1}]}
+    {:label "open-child", :pages []}
+    {:label "child", :pages []}]}
+  {:id "cancel",
+   :roots
+   ["868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50"
+    "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918"],
+   :steps
+   [{:label "cancel", :pages []}
+    {:label "taken",
+     :pages
+     [{:bytes 48,
+       :hash
+       "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+       :id 1}]}
+    {:label "rest",
+     :pages
+     [{:bytes 48,
+       :hash
+       "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918",
+       :id 3}]}]}
+  {:id "already-sent",
+   :order
+   [{:bytes 87,
+     :hash
+     "acc5f867c9250665e95ff8230cffb8b6243089f0150a1c5c08c67c04a4fdef7f",
+     :type "vector"}
+    {:bytes 280,
+     :hash
+     "651fc05001730c5ed4cc947af89237a1734a06d5788c607106bc59ff04634dda",
+     :type "ft/deep"}
+    {:bytes 217,
+     :hash
+     "ba523cc5268fa5e2b8e687eec19538fdd09349bd2f1a3406a7ca78dcdac4d912",
+     :type "ft/digit"}
+    {:bytes 184,
+     :hash
+     "83c4b9acb1ce0144370f05367058612eb967deb7593a4e988808e90df196caa4",
+     :type "ft/empty"}
+    {:bytes 193,
+     :hash
+     "bb2a1d47a00c1567bc48570639b79cc1fb5d13fd88104cf1f9a70f225a1c661a",
+     :type "ft/digit"}
+    {:bytes 87,
+     :hash
+     "ad8213b7698450e12223e7735b6b69530e5ea734b38d031a25cbbe22cbdf34d8",
+     :type "vector"}
+    {:bytes 48,
+     :hash
+     "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+     :type "i64"}],
+   :root
+   "acc5f867c9250665e95ff8230cffb8b6243089f0150a1c5c08c67c04a4fdef7f",
+   :steps
+   [{:label "part",
+     :pages
+     [{:bytes 87,
+       :hash
+       "ad8213b7698450e12223e7735b6b69530e5ea734b38d031a25cbbe22cbdf34d8",
+       :id 1}
+      {:bytes 48,
+       :hash
+       "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+       :id 1}]}
+    {:label "rest",
+     :pages
+     [{:bytes 87,
+       :hash
+       "acc5f867c9250665e95ff8230cffb8b6243089f0150a1c5c08c67c04a4fdef7f",
+       :id 2}
+      {:bytes 280,
+       :hash
+       "651fc05001730c5ed4cc947af89237a1734a06d5788c607106bc59ff04634dda",
+       :id 2}
+      {:bytes 217,
+       :hash
+       "ba523cc5268fa5e2b8e687eec19538fdd09349bd2f1a3406a7ca78dcdac4d912",
+       :id 2}
+      {:bytes 184,
+       :hash
+       "83c4b9acb1ce0144370f05367058612eb967deb7593a4e988808e90df196caa4",
+       :id 2}
+      {:bytes 193,
+       :hash
+       "bb2a1d47a00c1567bc48570639b79cc1fb5d13fd88104cf1f9a70f225a1c661a",
+       :id 2}]}]}
+  {:id "newer",
+   :roots
+   ["0f943d4840872545f5fd4e32c886fb1ba8bc29308deb2d11f2ef9ff0ea701f92"
+    "744152e2fddaeea7feef782f93d0fb17a1c1473ebe0edd866be69b134d4b1d7e"],
+   :steps
+   [{:label "first",
+     :pages
+     [{:bytes 87,
+       :hash
+       "0f943d4840872545f5fd4e32c886fb1ba8bc29308deb2d11f2ef9ff0ea701f92",
+       :id 1}]}
+    {:label "next",
+     :pages
+     [{:bytes 87,
+       :hash
+       "744152e2fddaeea7feef782f93d0fb17a1c1473ebe0edd866be69b134d4b1d7e",
+       :id 2}]}]}
+  {:clock true,
+   :id "clock-rejects",
+   :r-max true,
+   :root
+   "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50"}
+  {:id "resume",
+   :order
+   [{:bytes 87,
+     :hash
+     "0f943d4840872545f5fd4e32c886fb1ba8bc29308deb2d11f2ef9ff0ea701f92",
+     :type "string"}
+    {:bytes 280,
+     :hash
+     "2cf69f2fb71e42e5c837a08815a6a8a34681b23686752db0880b4b56e041fb41",
+     :type "ft/deep"}
+    {:bytes 4280,
+     :hash
+     "a6eaf8e87f8e451b52678e6ca2367928e86acbbbc6e622ecdcd42ae41113100d",
+     :type "ft/digit"}
+    {:bytes 4280,
+     :hash
+     "a69bf067bfba49d1c408e75c84aa26274e2eab8c50ced799dae26018dc567f0f",
+     :type "ft/node"}
+    {:bytes 1022,
+     :hash
+     "0677de99c050558eafbc93ab90045b6cc895e0a0404360f9064f2c79b4bd3313",
+     :type "ft/digit"}],
+   :root
+   "0f943d4840872545f5fd4e32c886fb1ba8bc29308deb2d11f2ef9ff0ea701f92",
+   :steps
+   [{:label "one",
+     :pages
+     [{:bytes 87,
+       :hash
+       "0f943d4840872545f5fd4e32c886fb1ba8bc29308deb2d11f2ef9ff0ea701f92",
+       :id 1}]}
+    {:label "more",
+     :pages
+     [{:bytes 280,
+       :hash
+       "2cf69f2fb71e42e5c837a08815a6a8a34681b23686752db0880b4b56e041fb41",
+       :id 1}]}]}
+  {:ack-needs-offer true,
+   :id "release",
+   :root
+   "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+   :steps
+   [{:label "taken",
+     :pages
+     [{:bytes 48,
+       :hash
+       "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+       :id 1}]}
+    {:label "again",
+     :pages
+     [{:bytes 48,
+       :hash
+       "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+       :id 1}]}]}
+  {:id "ack-evict",
+   :root
+   "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+   :steps
+   [{:label "taken",
+     :pages
+     [{:bytes 48,
+       :hash
+       "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+       :id 1}]}
+    {:label "quiet", :pages []}
+    {:label "again",
+     :pages
+     [{:bytes 48,
+       :hash
+       "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
+       :id 1}]}]}
+  {:credit-rose true,
+   :id "floor-instant",
+   :roots
+   ["868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50"
+    "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918"],
+   :steps [{:label "at-one", :pages []} {:label "later", :pages []}]}]}

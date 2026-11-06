@@ -2,7 +2,9 @@
 
 **Status:** Inventory of the tree as of Nov 6, 2026. M2.1 classified
 every namespace. M2.2 moved the host-neutral reveal engine into `core`.
-The parity suite is M2.3.
+M2.3 added the parity suite under `impl/clojure/test` and
+`fixtures/parity`. Those are not source namespaces, so the counts below
+are unchanged.
 
 The portability contract (what a host must provide, and what the portable
 core is allowed to call) is [portable-core.md](portable-core.md). This

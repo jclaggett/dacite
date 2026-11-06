@@ -312,8 +312,23 @@ bin/hash-parity.sh
 #   OK: identical root hash on all 3 host(s)
 ```
 
+Reveal decisions and pack bytes are checked the same way.
+`dacite.parity.checks` builds fixed values, runs the reveal clock, and
+packs them. Given a value and a clock, the page order and the bytes are
+`fixtures/parity/decisions.edn`. `bin/parity.sh` runs the root-hash check
+above and then the decision suite on the JVM and on nbb. It fails if a
+host fails or the digests differ. The canonical root from `parity.cljc`
+is one field of that golden.
+
+```bash
+bin/parity.sh
+# npm run parity:suite
+# JVM alone:  cd impl/clojure && clojure -M:parity
+# nbb alone:  npm run parity:test
+```
+
 The full JVM test suite (`clojure -M:dev:test`) must also stay green after any
-change to the core or host layer.
+change to the core or host layer. `dacite.parity-test` is part of that suite.
 
 ---
 
