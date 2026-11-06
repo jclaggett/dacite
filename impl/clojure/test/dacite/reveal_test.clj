@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [dacite.reveal :as reveal]
+            [dacite.reveal.session-checks :as session-checks]
             [dacite.store :as store]
             [dacite.value :as v]
             [dacite.value.finger-tree :as ft]
@@ -430,8 +431,9 @@
         again (reveal/take-pages released s 2 fast)]
     (is (= [h] (hashes-of (:pages taken))))
     (is (= [h] (hashes-of (:pages again))))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"offered"
-                          (reveal/ack-pages (reveal/session) [h])))))
+    (let [session (reveal/session)]
+      (is (= session (reveal/ack-pages session [h]))
+          "an unknown hash is ignored"))))
 
 (deftest an-acknowledged-page-is-sent-again-after-eviction
   (let [s (store/mem-store)
@@ -445,6 +447,26 @@
     (is (contains? (:sent held) h))
     (is (empty? (:pages quiet)))
     (is (= [h] (hashes-of (:pages again))))))
+
+(defn- session-check
+  [f]
+  (let [problems (:problems (f))]
+    (is (empty? problems) (pr-str problems))))
+
+(deftest duplicate-request-on-the-same-hash
+  (session-check session-checks/duplicate-request))
+
+(deftest paused-reveal-ends-without-an-idle-timeout
+  (session-check session-checks/paused-reveal-ends))
+
+(deftest a-lone-page-larger-than-the-budget-completes
+  (session-check session-checks/page-larger-than-budget))
+
+(deftest focused-child-receives-pages-already-offered-by-the-parent
+  (session-check session-checks/focused-child-receives-offered-pages))
+
+(deftest ack-of-an-unknown-hash-is-ignored
+  (session-check session-checks/ack-ignores-unknown))
 
 (deftest the-floor-is-a-single-instant
   (let [s (store/mem-store)

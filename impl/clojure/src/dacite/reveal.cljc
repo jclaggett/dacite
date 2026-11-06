@@ -144,9 +144,12 @@
   (engine/cancel-reveal session (nodes store) id t params))
 
 (defn ack-pages
-  "The client holds `hashes`. Each must be an offer that is not yet held.
+  "The client holds the offered hashes among `hashes`.
 
-   A held hash is not offered again unless `forget-pages`."
+   A hash that is not an outstanding offer is ignored. That includes a
+   hash already held and a hash this session has never offered. An ack
+   is a hint and is never an error (N10). A held hash is not offered
+   again unless `forget-pages`."
   [session hashes]
   (engine/ack-pages session hashes))
 
@@ -157,7 +160,7 @@
    hash it no longer keeps. The page is queued again on the reveal that
    offered it, when that reveal is still open. A cancelled reveal is
    already gone; a later `open-reveal` of a value that contains the hash
-   sends it."
+   sends it. A hash that was neither offered nor held is ignored (N10)."
   [session store hashes]
   (engine/forget-pages session (nodes store) hashes))
 

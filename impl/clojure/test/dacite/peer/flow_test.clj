@@ -50,6 +50,9 @@
 (deftest get-over-the-bucket-is-rate-limited-and-session-lives
   (run-check "get-over-the-bucket-is-rate-limited-and-session-lives"))
 
+(deftest same-hash-twice-is-two-independent-streams
+  (run-check "same-hash-twice-is-two-independent-streams"))
+
 (deftest responder-never-fetches-on-behalf
   (run-check "responder-never-fetches-on-behalf"))
 

@@ -782,18 +782,20 @@
      :pages pages}))
 
 (defn ack-pages
-  "The client holds `hashes`. Each must be an offer that is not yet held.
+  "The client holds the offered hashes among `hashes`.
 
-   A held hash is not offered again unless `forget-pages`."
+   A hash that is not an outstanding offer is ignored. That includes a
+   hash already held and a hash this session has never offered. An ack
+   is a hint and is never an error (N10). A held hash is not offered
+   again unless `forget-pages`."
   [session hashes]
-  (let [offered (:offered session)
-        missing (into [] (remove #(contains? offered %)) hashes)]
-    (when (seq missing)
-      (throw (ex-info "page was not offered" {:hashes missing})))
-    (-> session
-        (update :sent into hashes)
-        (update :offered (fn [offered]
-                           (reduce dissoc offered hashes))))))
+  (let [known (into [] (filter #(contains? (:offered session) %)) hashes)]
+    (if (empty? known)
+      session
+      (-> session
+          (update :sent into known)
+          (update :offered (fn [offered]
+                             (reduce dissoc offered known)))))))
 
 (defn forget-pages
   "The client does not hold `hashes`.
@@ -802,12 +804,13 @@
    hash it no longer keeps. The page is queued again on the reveal that
    offered it, when that reveal is still open. A cancelled reveal is
    already gone; a later `open-reveal` of a value that contains the hash
-   sends it."
+   sends it. A hash that was neither offered nor held is ignored (N10)."
   [session nodes hashes]
   (reduce (fn [session h]
             (if-not (or (contains? (:offered session) h)
                         (contains? (:sent session) h))
-              (throw (ex-info "page was not offered" {:hash h}))
+              ;; Unknown hashes are ignored, as with `ack-pages` (N10).
+              session
               (let [id (get (:owner session) h)
                     page {:hash h :bytes (page-bytes nodes h)}
                     session (-> session

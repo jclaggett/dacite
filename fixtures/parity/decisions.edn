@@ -827,8 +827,7 @@
        :hash
        "2cf69f2fb71e42e5c837a08815a6a8a34681b23686752db0880b4b56e041fb41",
        :id 1}]}]}
-  {:ack-needs-offer true,
-   :id "release",
+  {:id "release",
    :root
    "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
    :steps
@@ -843,7 +842,8 @@
      [{:bytes 48,
        :hash
        "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
-       :id 1}]}]}
+       :id 1}]}],
+   :unknown-ack-ignored true}
   {:id "ack-evict",
    :root
    "cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b",
@@ -866,4 +866,114 @@
    :roots
    ["868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50"
     "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918"],
-   :steps [{:label "at-one", :pages []} {:label "later", :pages []}]}]}
+   :steps [{:label "at-one", :pages []} {:label "later", :pages []}]}
+  {:again-id 1,
+   :id "duplicate-request",
+   :live 1,
+   :open-pages 0,
+   :order
+   ["dc64af6e486639afa3b3479f165c4b5ae86d35f0c2d560e6956c0e0ac7ba1ed3"
+    "c2541c6cfe070cb7d1beef8d8b2c3f990c497593ca1ea6faa9972458bb413f01"
+    "b56984cfd5b7b388f254c17d4682cedf5274e84d83a182a7b564098d8178a7ed"
+    "83c4b9acb1ce0144370f05367058612eb967deb7593a4e988808e90df196caa4"
+    "bb2a1d47a00c1567bc48570639b79cc1fb5d13fd88104cf1f9a70f225a1c661a"],
+   :pages
+   [{:bytes 87,
+     :hash
+     "dc64af6e486639afa3b3479f165c4b5ae86d35f0c2d560e6956c0e0ac7ba1ed3",
+     :id 1}
+    {:bytes 280,
+     :hash
+     "c2541c6cfe070cb7d1beef8d8b2c3f990c497593ca1ea6faa9972458bb413f01",
+     :id 1}
+    {:bytes 193,
+     :hash
+     "b56984cfd5b7b388f254c17d4682cedf5274e84d83a182a7b564098d8178a7ed",
+     :id 1}
+    {:bytes 184,
+     :hash
+     "83c4b9acb1ce0144370f05367058612eb967deb7593a4e988808e90df196caa4",
+     :id 1}
+    {:bytes 193,
+     :hash
+     "bb2a1d47a00c1567bc48570639b79cc1fb5d13fd88104cf1f9a70f225a1c661a",
+     :id 1}],
+   :reveal-id 1}
+  {:done false,
+   :id "paused-ends",
+   :kept-id true,
+   :later-pages 0,
+   :order 2,
+   :pages
+   [{:bytes 87,
+     :hash
+     "104be7748cd49d12fe4a73fa5769a7f95e7353d694697d70cd9656ff65fb8ae0",
+     :id 1}],
+   :paused-pages 1,
+   :stalled true,
+   :still-stalled true}
+  {:bursts [0 0 1],
+   :id "page-over-budget",
+   :pages
+   ["cfed5a628dc41d104ef73707f381205875e89c485e6938a654c7a389b407df4b"],
+   :stalled true}
+  {:child
+   [{:bytes 253,
+     :hash
+     "6aabafbb3ebc404f53d05a64e2c5c89868632a54a34ee34b21422d1ae639a7e9",
+     :id 2}
+    {:bytes 279,
+     :hash
+     "b69edffe81bfb9f6159568c47367285db770ac0f06871fed55bf976f349a4183",
+     :id 1}
+    {:bytes 279,
+     :hash
+     "e9992d6f9aa7b39d2117204460000e9f9d3edb5444c56042d589f19b5a4d6688",
+     :id 2}
+    {:bytes 48,
+     :hash
+     "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50",
+     :id 1}
+    {:bytes 48,
+     :hash
+     "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918",
+     :id 1}],
+   :id "child-receives",
+   :open-child [],
+   :order
+   [{:bytes 87,
+     :hash
+     "bd8c0e1d55a869c04ae21577de07d929c3075996bf10b218c74e29d7d02071c7"}
+    {:bytes 87,
+     :hash
+     "7e1ff9e91fc5e25940bf5f037a14b51cc1bdadc7559d7fccea1aabb8b9ba906a"}
+    {:bytes 253,
+     :hash
+     "6aabafbb3ebc404f53d05a64e2c5c89868632a54a34ee34b21422d1ae639a7e9"}
+    {:bytes 279,
+     :hash
+     "b69edffe81bfb9f6159568c47367285db770ac0f06871fed55bf976f349a4183"}
+    {:bytes 279,
+     :hash
+     "e9992d6f9aa7b39d2117204460000e9f9d3edb5444c56042d589f19b5a4d6688"}
+    {:bytes 48,
+     :hash
+     "868cd89aa1c5dc4e6d5405029d5b4be08477dec98be47b0e79fda4b38aa11f50"}
+    {:bytes 48,
+     :hash
+     "bae37b510a0e4bb02db8a63eb4d6164b602aab9de754b012a4968c7366a3e918"}],
+   :prefix
+   [{:bytes 87,
+     :hash
+     "bd8c0e1d55a869c04ae21577de07d929c3075996bf10b218c74e29d7d02071c7",
+     :id 1}
+    {:bytes 87,
+     :hash
+     "7e1ff9e91fc5e25940bf5f037a14b51cc1bdadc7559d7fccea1aabb8b9ba906a",
+     :id 1}]}
+  {:held true,
+   :id "unknown-ack",
+   :quiet-pages 0,
+   :second-ack-ignored true,
+   :unknown-ack-ignored true,
+   :unknown-forget-ignored true}]}

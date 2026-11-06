@@ -4,11 +4,13 @@
      npm run reveal:test
 
    The cases are the pure functions in `reveal_test.clj` (page order,
-   omit-sent, interest, shares, next-reveal) plus the three session-clock
-   cases that depend on `next-up` and the exponential integral. The rest
-   of the session tests stay on the JVM until M2.3."
+   omit-sent, interest, shares, next-reveal), the three session-clock
+   cases that depend on `next-up` and the exponential integral, and the
+   M4.1 session checks (duplicate request, pause, over-budget page,
+   focused child, unknown ack)."
   (:require [clojure.string :as str]
             [dacite.reveal :as reveal]
+            [dacite.reveal.session-checks :as session-checks]
             [dacite.store :as store]
             [dacite.value :as v]
             [dacite.value.finger-tree :as ft]
@@ -260,6 +262,12 @@
     (eq! (count (:pages due)) 1 "the integral reaches the page")
     (eq! (:hash (first (:pages due))) h "the page is the scalar")))
 
+(defn- session-case
+  [f]
+  (let [problems (:problems (f))]
+    (when (seq problems)
+      (fail! (str/join "; " problems) {:problems problems}))))
+
 (def ^:private cases
   [scalar-is-one-node
    empty-vector-has-no-element-body
@@ -275,7 +283,12 @@
    next-page-goes-to-the-largest-share
    lone-decay
    floor-at-a-power-of-two
-   page-is-later-than-the-constant-rate])
+   page-is-later-than-the-constant-rate
+   #(session-case session-checks/duplicate-request)
+   #(session-case session-checks/paused-reveal-ends)
+   #(session-case session-checks/page-larger-than-budget)
+   #(session-case session-checks/focused-child-receives-offered-pages)
+   #(session-case session-checks/ack-ignores-unknown)])
 
 (defn -main
   [& _]

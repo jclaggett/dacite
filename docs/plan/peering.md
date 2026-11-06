@@ -187,6 +187,12 @@ Triage of `reveal-review-checklist-evening.md` (52 items). Items split by where 
 
 **M4.1. Core and protocol fixes, part 1.** N1, N2a, N2b, N3, N10, plus tests.
 - Acceptance: new tests for duplicate request on the same hash, paused reveal ends without the 20 s timeout, lone reveal larger than `r_max * tau` completes, focused child receives pages already offered by the parent. Baseline still green.
+- **Status (Nov 6, built).** The evening checklist file is not in the repo; these follow the plan wording, `docs/spec/peer-v1.md`, and the reveal session. N1, N2a, N2b, and N3 were already correct (the Oct 30 resume work, and stream ids on the peer). N10 was not: `ack-pages` and `forget-pages` threw on a hash the session did not know. They ignore that hash now. A known offer in the same call is still held. M4.2 is untouched (no wire `ack`/`forget` handler, no N11, N12, N14, N15, no bound on `:reveals`/`:sent`/`:owner`).
+  - **N1, already correct.** `duplicate-request-on-the-same-hash` (session: a second open keeps the reveal id and sends the pages once). `a-duplicate-request-does-not-clobber-the-first` (service: both calls return, the pages are not split onto a replaced stream). `same-hash-twice-is-two-independent-streams` (peer: two `get`s, two stream ids, each delivers the value).
+  - **N2a, already correct.** `paused-reveal-ends-without-an-idle-timeout` (session clock: stalled, a far step sends nothing, the reveal stays). `a-paused-reveal-ends-without-the-idle-timeout` (service: the call returns on the pause, not the 20 s idle bound).
+  - **N2b, already correct.** `a-lone-page-larger-than-the-budget-completes` (one page bigger than `r-max * tau` completes across asks). `a-lone-reveal-larger-than-its-budget-completes` (the service call returns each time, and the page arrives).
+  - **N3, already correct.** `focused-child-receives-pages-already-offered-by-the-parent`: the parent has offered the child root; it is not sent again; every child page is in that offer or sent on the child reveal.
+  - **N10, fixed.** `ack-of-an-unknown-hash-is-ignored`. The same check is `unknown-ack` in the parity golden. `releasing-an-offer-sends-that-page-again` now expects the unknown ack to leave the session as it was.
 
 **M4.2. Part 2.** N7/N8 ack/release implemented per M1.2, N11, N12, N14a-d, N15, bounded growth of `:reveals`/`:sent`/`:owner`.
 - Acceptance: evicting-store test (get, evict, get again returns the node); failed-stream retry does not resend confirmed pages; frame parser linear-time test; docs agree with code.
