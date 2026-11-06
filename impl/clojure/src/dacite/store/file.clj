@@ -95,19 +95,16 @@
         (.delete f)))
     (store/completed this))
 
-  (s-snapshot [_]
+  (s-keys [_]
+    ;; Filenames are the hashes. The node files are not read.
     (store/completed
-     (let [files (file-seq base-dir)]
-       (into {}
-             (comp
-              (filter #(.isFile ^File %))
-              (filter #(.endsWith (.getName ^File %) ".edn"))
-              (map (fn [^File f]
-                     (let [hex (subs (.getName f) 0 64)
-                           h (store/hex->hash hex)
-                           v (read-edn (slurp f))]
-                       [h v]))))
-             files))))
+     (into []
+           (comp
+            (filter #(.isFile ^File %))
+            (filter #(.endsWith (.getName ^File %) ".edn"))
+            (map (fn [^File f]
+                   (store/hex->hash (subs (.getName f) 0 64)))))
+           (file-seq base-dir))))
 
   (s-merge [this m]
     (doseq [[h v] m]

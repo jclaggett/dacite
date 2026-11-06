@@ -55,7 +55,15 @@
 
 (defn hex [h] (store/hash->hex h))
 
-(defn snapshot [st] (store/await (store/s-snapshot st)))
+(defn store-count
+  "How many hashes `st` holds."
+  [st]
+  (count (store/await (store/s-keys st))))
+
+(defn store-hexes
+  "The hashes `st` holds, as a set of hex strings."
+  [st]
+  (set (map hex (store/await (store/s-keys st)))))
 
 ;; =============================================================================
 ;; Peers that lie
@@ -207,13 +215,12 @@
   "Problems unless every entry in the client's store is exactly the source's
    entry under the same key: nothing forged and nothing altered is stored."
   [{:keys [client]} src]
-  (let [mine (snapshot (h/inner (:store client))) theirs (snapshot src)]
-    (mapcat (fn [[k entry]]
-              ;; the key is the hash on the JVM, its hex on nbb
-              (let [h (if (string? k) (hash/hex->hash k) k)]
-                (when-not (same-entry? h entry (get theirs k))
-                  [(str "the store holds an entry that is not the source's: " (cut k))])))
-            mine)))
+  (let [mine (h/inner (:store client))]
+    (mapcat (fn [h]
+              (let [entry (store/await (store/s-get mine h))]
+                (when-not (same-entry? h entry (store/await (store/s-get src h)))
+                  [(str "the store holds an entry that is not the source's: " (cut (hex h)))])))
+            (store/await (store/s-keys mine)))))
 
 (defn stored? [st h] (some? (store/await (store/s-get st h))))
 

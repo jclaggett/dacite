@@ -4,9 +4,9 @@
    Walks from a root hash, marks reachable nodes via types/child-hashes,
    and deletes detached entries from the store.
 
-   Portable: same source on JVM, babashka, and nbb. Snapshot key form may
-   differ by host (hash vectors on JVM, hex strings in cljs mem-store);
-   keys are normalized before set membership and delete.
+   Portable: same source on JVM, babashka, and nbb. `s-keys` returns hash
+   vectors. Set membership uses hex: a ClojureScript hash vector's words
+   are BigInts, and the engine cannot attach a hash cache to a BigInt.
 
    Important (CLJS): hash vectors contain BigInt words and cannot be
    elements of cljs.core hash-sets (engine cannot attach hash cache to
@@ -23,7 +23,7 @@
     :else (store/hash->hex h)))
 
 (defn ->hash
-  "Normalize a snapshot key or hex string to a hash vector."
+  "Normalize a hash vector or hex string to a hash vector."
   [k]
   (if (string? k)
     (store/hex->hash k)
@@ -58,7 +58,7 @@
    Returns {:removed n :kept n}. No-op when root-hash is nil."
   [store root-hash]
   (let [live (mark-reachable store root-hash)
-        all-hashes (map ->hash (keys (store/await (store/s-snapshot store))))
+        all-hashes (store/await (store/s-keys store))
         detached (remove (fn [h] (contains? live (hash-key h))) all-hashes)
         removed (count detached)]
     (doseq [h detached]

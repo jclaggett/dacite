@@ -79,12 +79,15 @@
 
 (defn- store-wire-bytes
   [st]
-  (reduce + 0 (map value-wire-bytes (vals (store/await (store/s-snapshot st))))))
+  (reduce (fn [n h]
+            (+ n (value-wire-bytes (store/await (store/s-get st h)))))
+          0
+          (store/await (store/s-keys st))))
 
 (defn- file-measure
   [dir st extras]
   (merge {:backend :file
-          :entries (count (store/await (store/s-snapshot st)))
+          :entries (count (store/await (store/s-keys st)))
           :data-file-bytes (file-data-bytes dir)
           :file-count (count (edn-files (io/file dir)))
           :wire-bytes (store-wire-bytes st)}

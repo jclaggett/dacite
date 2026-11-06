@@ -133,15 +133,14 @@
       (.commit txn))
     (store/completed this))
 
-  (s-snapshot [_]
+  (s-keys [_]
+    ;; Cursor keys only. Values stay in LMDB.
     (store/completed
      (with-open [txn (.txnRead env)]
        (with-open [cursor (.openCursor db txn)]
-         (loop [result (transient {})]
+         (loop [result (transient [])]
            (if (.next cursor)
-             (let [k (lmdb-key->hash (.key cursor))
-                   v (lmdb-val->entry k (.val cursor))]
-               (recur (assoc! result k v)))
+             (recur (conj! result (lmdb-key->hash (.key cursor))))
              (persistent! result)))))))
 
   (s-merge [this m]

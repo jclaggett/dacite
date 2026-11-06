@@ -123,7 +123,7 @@
   (s-delete [this h]
     (store/await (store/s-delete inner h))
     (store/completed this))
-  (s-snapshot [_] (store/s-snapshot inner))
+  (s-keys [_] (store/s-keys inner))
   (s-merge [this m]
     (store/await (store/s-merge inner m))
     (store/completed this))

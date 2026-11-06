@@ -77,8 +77,9 @@
     (store/await (store/s-delete inner h))
     (store/completed this))
 
-  (s-snapshot [_]
-    (store/s-snapshot overlay))
+  (s-keys [_]
+    ;; The working set. Inner pack items are retained by `flush!`, not here.
+    (store/s-keys overlay))
 
   (s-merge [this m]
     (store/await (store/s-merge overlay m))
@@ -129,11 +130,10 @@
   "Delete inner keys not in `keep` (hash vectors)."
   [cs keep]
   (let [in (inner cs)
-        keep (into #{} (map gc/->hash keep))]
-    (doseq [k (keys (store/await (store/s-snapshot in)))]
-      (let [h (gc/->hash k)]
-        (when-not (contains? keep h)
-          (store/await (store/s-delete in h)))))
+        keep-hex (into #{} (map gc/hash-key) keep)]
+    (doseq [h (store/await (store/s-keys in))]
+      (when-not (contains? keep-hex (gc/hash-key h))
+        (store/await (store/s-delete in h))))
     cs))
 
 (defn flush!
@@ -152,22 +152,28 @@
        :budget budget})))
 
 (defn- edn-bytes
-  [snap]
-  (reduce + 0 (map (fn [v] (count (pr-str v))) (vals snap))))
+  "EDN size of the values at `hashes`, read one at a time."
+  [st hashes]
+  (reduce (fn [n h]
+            (+ n (count (pr-str (store/await (store/s-get st h))))))
+          0
+          hashes))
 
 (defn inner-stats
   "Durable (inner) entry count and EDN byte size of values."
   [cs]
-  (let [snap (store/await (store/s-snapshot (inner cs)))]
-    {:entries (count snap)
-     :edn-bytes (edn-bytes snap)}))
+  (let [in (inner cs)
+        hashes (store/await (store/s-keys in))]
+    {:entries (count hashes)
+     :edn-bytes (edn-bytes in hashes)}))
 
 (defn overlay-stats
   "Working overlay entry count and EDN byte size."
   [cs]
-  (let [snap (store/await (store/s-snapshot (overlay cs)))]
-    {:entries (count snap)
-     :edn-bytes (edn-bytes snap)}))
+  (let [over (overlay cs)
+        hashes (store/await (store/s-keys over))]
+    {:entries (count hashes)
+     :edn-bytes (edn-bytes over hashes)}))
 
 (defn live-count
   "Reachable exploded hashes in the overlay from `root-h`."

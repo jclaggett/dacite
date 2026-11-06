@@ -23,46 +23,59 @@
   "Safety cap on GET /node rounds for one value."
   10000)
 
-(defn- snap-entry
-  "The node at `h` in a snapshot. JVM keys are hash vectors; ClojureScript
-   keys are hex."
-  [snap h]
-  (or (get snap h) (get snap (gc/hash-key h))))
-
-(defn entry-count
-  "How many entries in `snap` are reachable from `root`.
+(defn count-reachable
+  "A step of how many nodes in `st` are reachable from `root`.
 
    A literal expands into every node it realizes, including scalars the
    origin had inlined and that nothing references. Those stay in the
    store. The count is the live value, the same set `gc/mark-reachable`
-   walks."
-  [snap root]
-  (loop [queue (list root)
-         live #{}]
-    (if-let [h (first queue)]
-      (let [hk (gc/hash-key h)
-            node (snap-entry snap h)]
-        (if (or (contains? live hk) (nil? node))
-          (recur (rest queue) live)
-          (recur (into (rest queue) (or (types/child-hashes node) []))
-                 (conj live hk))))
-      (count live))))
+   walks. Each node is read with `s-get`."
+  [st root]
+  (if (nil? root)
+    0
+    (letfn [(step [queue live]
+              (if-let [h (first queue)]
+                (let [hk (gc/hash-key h)]
+                  (if (contains? live hk)
+                    (step (rest queue) live)
+                    (chain/then
+                     (store/s-get st h)
+                     (fn [node]
+                       (if (nil? node)
+                         (step (rest queue) live)
+                         (step (into (rest queue) (or (types/child-hashes node) []))
+                               (conj live hk)))))))
+                (count live)))]
+      (step (list root) #{}))))
 
-(defn- snap-hexes
-  [snap]
-  (into #{} (map gc/hash-key) (keys snap)))
+(defn- child-hexes
+  "A step of the child hexes named by the nodes at `hashes`."
+  [st hashes]
+  (let [out (atom [])]
+    (chain/then
+     (chain/each hashes
+                 (fn [h]
+                   (chain/then
+                    (store/s-get st h)
+                    (fn [node]
+                      (when (some? node)
+                        (swap! out into (map gc/hash-key (or (types/child-hashes node) []))))
+                      nil))))
+     (fn [_] @out))))
 
 (defn- missing-hexes
-  "Hex hashes named by stored nodes that are neither stored nor already
-   requested."
-  [snap fetched]
-  (let [have (into fetched (snap-hexes snap))]
-    (into []
-          (comp (mapcat (fn [[_ entry]] (or (types/child-hashes entry) [])))
-                (map gc/hash-key)
-                (remove have)
-                (distinct))
-          snap)))
+  "A step of the hex hashes named by stored nodes that are neither stored
+   nor already requested. Hashes come from `s-keys`; each node is read
+   with `s-get`."
+  [st fetched]
+  (chain/then
+   (store/s-keys st)
+   (fn [hashes]
+     (chain/then
+      (child-hexes st hashes)
+      (fn [children]
+        (let [have (into fetched (map gc/hash-key) hashes)]
+          (into [] (comp (remove have) (distinct)) children)))))))
 
 (defn verify-from-origin!
   "Fetch `root` through `fetch-chunk` and verify it into `st`.
@@ -89,14 +102,15 @@
                 (throw (ex-info "the origin pull did not finish"
                                 {:reason :too-many-chunks :chunks n}))
                 (chain/then
-                 (store/s-snapshot st)
-                 (fn [snap]
-                   (let [need (missing-hexes snap @fetched)]
-                     (if (seq need)
-                       (chain/then (chain/each need #(take-chunk (store/hex->hash %)))
-                                   (fn [_] (step (inc n))))
-                       (chain/then (verify/finish! rx)
-                                   (fn [_]
-                                     {:root root
-                                      :entries (entry-count snap root)}))))))))]
+                 (missing-hexes st @fetched)
+                 (fn [need]
+                   (if (seq need)
+                     (chain/then (chain/each need #(take-chunk (store/hex->hash %)))
+                                 (fn [_] (step (inc n))))
+                     (chain/then (verify/finish! rx)
+                                 (fn [_]
+                                   (chain/then (count-reachable st root)
+                                               (fn [n-live]
+                                                 {:root root
+                                                  :entries n-live})))))))))]
       (chain/then (take-chunk root) (fn [_] (step 1))))))

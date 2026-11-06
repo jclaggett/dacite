@@ -122,16 +122,11 @@
         (.unlinkSync fs p)))
     (store/completed this))
 
-  (s-snapshot [_]
-    ;; Key by hex: a hash is a vector of BigInts, which cannot be a
-    ;; CLJS/SCI map key (same workaround as dacite.store/mem-store).
+  (s-keys [_]
+    ;; Filenames are the hashes. The node files are not read.
     (store/completed
-     (into {}
-           (map (fn [p]
-                  (let [name (.basename path p)
-                        hex (.substring name 0 64)
-                        v (read-edn p)]
-                    [hex v])))
+     (mapv (fn [p]
+             (store/hex->hash (.substring (.basename path p) 0 64)))
            (walk-edn-files (str base)))))
 
   (s-merge [this m]

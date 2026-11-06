@@ -11,6 +11,12 @@
             [dacite.value.lit :as lit]
             [dacite.value.types :as types]))
 
+(defn- stored
+  "Pairs of [hash node]. One `s-get` per key."
+  [st]
+  (map (fn [h] [h (store/await (store/s-get st h))])
+       (store/await (store/s-keys st))))
+
 (defn- put-i64
   "Store an i64 and return its value hash."
   [st n]
@@ -53,7 +59,7 @@
         r0 (ft/ft-empty st)
         r1 (ft/ft-conj-right st r0 a)
         r2 (ft/ft-conj-right st r1 b)
-        snap (store/await (store/s-snapshot st))
+        snap (stored st)
         singles (filter (fn [[_ e]] (= "ft/single" (types/entry-type e))) snap)]
     (is (= 1 (ft/ft-count st r1)))
     (is (= r1 a) "1-elem root is the bare value hash")
@@ -76,7 +82,7 @@
         h2 (types/value-hash "vector" (ft/ft-elements-fuse st root))]
     (is (= h h2))
     (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
-                        (store/await (store/s-snapshot st)))))))
+                        (stored st))))))
 
 (deftest bare-leaf-root-ops
   (testing "1-element tree root is a bare value hash"
@@ -140,7 +146,7 @@
       (is (= (nth vhs i) (ft/ft-nth st root i))))
     (is (= vhs (vec (ft/ft-seq st root))))
     (is (empty? (filter (fn [[_ e]] (= "ft/single" (types/entry-type e)))
-                        (store/await (store/s-snapshot st)))))))
+                        (stored st))))))
 
 (deftest long-string-seq-matches-count
   ;; Overflowed digits mix leaves and nodes; seq must flatten to every char.
@@ -176,7 +182,7 @@
         n 50
         vhs (mapv #(put-i64 st %) (range n))
         _ (ft/ft-from-value-hashes st vhs)
-        snap (store/await (store/s-snapshot st))
+        snap (stored st)
         by-type (frequencies (map (fn [[_ e]] (types/entry-type e)) snap))]
     (is (nil? (get by-type "ft/single")))
     (is (= n (get by-type "i64")))
@@ -322,7 +328,7 @@
   (let [st (store/mem-store)
         n 200
         dv (apply v/vector st (range n))
-        snap (store/await (store/s-snapshot st))
+        snap (stored st)
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)
         bodies (map (fn [[_ e]] (:body (types/entry-data e))) digits)]
     (is (= n (v/count dv)))

@@ -358,7 +358,8 @@
                 (every? (fn [[_ e]]
                           (or (not= "hamt/bitmap" (first e))
                               (<= 2 (count (:children (second e))))))
-                        (store/await (store/s-snapshot st)))))))]
+                        (map (fn [h] [h (store/await (store/s-get st h))])
+                             (store/await (store/s-keys st))))))))]
     (is (:pass? r) (str "seed " (:seed r) " failed on " (pr-str (:shrunk r))))))
 
 ;; ---------------------------------------------------------------------------

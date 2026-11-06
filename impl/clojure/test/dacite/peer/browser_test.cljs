@@ -290,8 +290,7 @@
       (bin/encode-pack-edn chunk))))
 
 (defn- snap-entries [st root]
-  (-> (store/s-snapshot st)
-      (.then (fn [snap] (origin/entry-count snap root)))))
+  (chain/native (origin/count-reachable st root)))
 
 (defn verifies-a-value-into-indexeddb []
   (let [src (store/mem-store)

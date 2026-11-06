@@ -58,15 +58,14 @@
       (is (store/await (store/s-has? s h)))
       (is (= v (store/await (store/s-get s h)))))))
 
-(deftest mem-store-snapshot-test
-  (testing "snapshot returns plain map"
+(deftest mem-store-keys-test
+  (testing "s-keys lists hashes; the value is a separate get"
     (let [s (store/mem-store)]
       (store/await (store/s-put s [1 2 3 4] :a))
       (store/await (store/s-put s [5 6 7 8] :b))
-      (let [snap (store/await (store/s-snapshot s))]
-        (is (map? snap))
-        (is (= 2 (count snap)))
-        (is (= :a (get snap [1 2 3 4])))))))
+      (let [ks (set (map store/hash->hex (store/await (store/s-keys s))))]
+        (is (= #{(store/hash->hex [1 2 3 4]) (store/hash->hex [5 6 7 8])} ks))
+        (is (= :a (store/await (store/s-get s [1 2 3 4]))))))))
 
 (deftest mem-store-merge-test
   (testing "merge adds multiple entries"
@@ -81,7 +80,7 @@
       (store/await (store/s-put s [1 2 3 4] :a))
       (store/await (store/s-reset s))
       (is (nil? (store/await (store/s-get s [1 2 3 4]))))
-      (is (= {} (store/await (store/s-snapshot s)))))))
+      (is (empty? (store/await (store/s-keys s)))))))
 
 (deftest mem-store-init-test
   (testing "mem-store can be initialized with data"
@@ -121,13 +120,13 @@
         (is (.exists expected-dir))
         (is (.isDirectory expected-dir))))))
 
-(deftest file-store-snapshot-test
-  (testing "snapshot reads all files"
+(deftest file-store-keys-test
+  (testing "s-keys lists every node file"
     (let [s (sj/file-store (str *temp-dir*))]
       (store/await (store/s-put s [1 2 3 4] :a))
       (store/await (store/s-put s [5 6 7 8] :b))
-      (let [snap (store/await (store/s-snapshot s))]
-        (is (= 2 (count snap)))))))
+      (is (= 2 (count (store/await (store/s-keys s)))))
+      (is (= :b (store/await (store/s-get s [5 6 7 8])))))))
 
 (deftest file-store-reset-test
   (testing "reset deletes all files"
@@ -180,14 +179,14 @@
       (is (store/await (store/s-has? s [1 2 3 4])))
       (is (not (store/await (store/s-has? s [9 9 9 9])))))))
 
-(deftest layered-store-snapshot-test
-  (testing "snapshot merges all layers, fast wins"
+(deftest layered-store-keys-test
+  (testing "s-keys is the union; a get still prefers the fast layer"
     (let [fast (store/mem-store {[1 2 3 4] :fast})
           slow (store/mem-store {[1 2 3 4] :slow [5 6 7 8] :only-slow})
-          s (store/layered-store fast slow)
-          snap (store/await (store/s-snapshot s))]
-      (is (= :fast (get snap [1 2 3 4])))
-      (is (= :only-slow (get snap [5 6 7 8]))))))
+          s (store/layered-store fast slow)]
+      (is (= :fast (store/await (store/s-get s [1 2 3 4]))))
+      (is (= :only-slow (store/await (store/s-get s [5 6 7 8]))))
+      (is (= 2 (count (store/await (store/s-keys s))))))))
 
 (deftest layered-store-with-file-test
   (testing "mem + file layered store"
@@ -232,8 +231,8 @@
           slow (store/mem-store {[5 6 7 8] :b})
           s (store/layered-store fast slow)]
       (store/await (store/s-reset s))
-      (is (= {} (store/await (store/s-snapshot fast))))
-      (is (= {} (store/await (store/s-snapshot slow)))))))
+      (is (empty? (store/await (store/s-keys fast))))
+      (is (empty? (store/await (store/s-keys slow)))))))
 
 ;; =============================================================================
 ;; LmdbStore
@@ -270,16 +269,15 @@
           (finally
             (sj/lmdb-close s)))))))
 
-(deftest lmdb-store-snapshot-test
-  (testing "LMDB snapshot returns all entries"
-    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-snap"))]
+(deftest lmdb-store-keys-test
+  (testing "LMDB s-keys lists every hash; values stay a get"
+    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-keys"))]
       (try
         (store/await (store/s-put s [1 2 3 4] ["i64" 1]))
         (store/await (store/s-put s [5 6 7 8] ["i64" 2]))
-        (let [snap (store/await (store/s-snapshot s))]
-          (is (= 2 (count snap)))
-          (is (= ["i64" 1] (get snap [1 2 3 4])))
-          (is (= ["i64" 2] (get snap [5 6 7 8]))))
+        (is (= 2 (count (store/await (store/s-keys s)))))
+        (is (= ["i64" 1] (store/await (store/s-get s [1 2 3 4]))))
+        (is (= ["i64" 2] (store/await (store/s-get s [5 6 7 8]))))
         (finally
           (sj/lmdb-close s))))))
 
@@ -300,7 +298,7 @@
         (store/await (store/s-put s [1 2 3 4] ["i64" 1]))
         (store/await (store/s-reset s))
         (is (nil? (store/await (store/s-get s [1 2 3 4]))))
-        (is (= {} (store/await (store/s-snapshot s))))
+        (is (empty? (store/await (store/s-keys s))))
         (finally
           (sj/lmdb-close s))))))
 
@@ -463,7 +461,7 @@
     (let [s (store/mem-store)]
       (store/await (store/s-put s [1 2 3 4] :v))
       (store/await (store/s-put s [1 2 3 4] :v))
-      (is (= 1 (count (store/await (store/s-snapshot s))))))))
+      (is (= 1 (count (store/await (store/s-keys s))))))))
 
 (deftest missing-node-fails-walk-test
   (testing "a value walk of a hash this store does not hold fails as :missing"

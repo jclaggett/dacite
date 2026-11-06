@@ -227,7 +227,7 @@
      (bad "the connection is closed" false (t/connection-open? cb))
      (bad "the hash is waiting for another peer" [(store/hash->hex root)]
           (mapv store/hash->hex (client/unserved c)))
-     (bad "nothing unverified was stored" 0 (count (cc/snapshot (:dst net)))))))
+     (bad "nothing unverified was stored" 0 (cc/store-count (:dst net))))))
 
 (defn a-corrupted-entry-ends-the-session-over-the-transport
   "M3.1: a responder serves an entry that does not match its hash. The client

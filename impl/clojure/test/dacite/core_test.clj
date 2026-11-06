@@ -531,19 +531,19 @@
 
 (deftest with-store-isolation-test
   (testing "with-store creates isolated context"
-    (let [_ (v/i64 (ctx) 42)
+    (let [global (v/hash (v/i64 (ctx) 42))
           [iso-store _result] (store/with-store [_s {}]
                                 (apply v/vector (ctx) [1 2 3]))]
-      ;; isolated store should not contain the global i64
-      (is (not (contains? iso-store (v/hash (v/i64 (ctx) 42))))))))
+      (is (not (store/await (store/s-has? iso-store global)))))))
 
 (deftest with-store-returns-store-and-result-test
-  (testing "Returns [final-store last-value]"
-    (let [[store result] (store/with-store [_s {}]
-                           (let [v (v/i64 (ctx) 99)]
-                             (is (= 99 (v/realize v)))
-                             v))]
-      (is (map? store))
+  (testing "Returns [store last-value]"
+    (let [[st result] (store/with-store [_s {}]
+                        (let [v (v/i64 (ctx) 99)]
+                          (is (= 99 (v/realize v)))
+                          v))]
+      (is (satisfies? store/IStore st))
+      (is (store/await (store/s-has? st (v/hash result))))
       (is (= "i64" (v/type result))))))
 
 ;; =============================================================================
@@ -895,9 +895,10 @@
 (deftest with-store-istore-test
   (testing "with-store accepts IStore directly"
     (let [s (store/mem-store)
-          [snap result] (store/with-store [st s]
-                          (let [v (v/i64 (ctx) 99)]
-                            (is (= 99 (v/realize v)))
-                            :done))]
-      (is (map? snap))
+          [st result] (store/with-store [bound s]
+                        (let [v (v/i64 (ctx) 99)]
+                          (is (identical? s bound))
+                          (is (= 99 (v/realize v)))
+                          :done))]
+      (is (identical? s st))
       (is (= :done result)))))

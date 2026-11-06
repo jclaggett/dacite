@@ -291,7 +291,7 @@
   (s-put [this hash v] (host-later #(do (store/await (store/s-put inner hash v)) this)))
   (s-has? [_ hash] (host-later #(store/await (store/s-has? inner hash))))
   (s-delete [this hash] (host-later #(do (store/await (store/s-delete inner hash)) this)))
-  (s-snapshot [_] (host-later #(store/await (store/s-snapshot inner))))
+  (s-keys [_] (host-later #(store/await (store/s-keys inner))))
   (s-merge [this m] (host-later #(do (store/await (store/s-merge inner m)) this)))
   (s-reset [this] (host-later #(do (store/await (store/s-reset inner)) this))))
 
@@ -316,8 +316,7 @@
         n (node (->HostStore inner))
         c (:client n)
         fail (fn [e] (done [(str "threw " (ex-message e) " " (pr-str (ex-data e)))]))
-        snap (fn [st] (set (map (fn [[k _]] (if (string? k) k (store/hash->hex k)))
-                                (store/await (store/s-snapshot st)))))
+        snap (fn [st] (set (map store/hash->hex (store/await (store/s-keys st)))))
         step0 (client/request! c root)
         step0-waited? (chain/pending? step0)
         wanted (set (map (comp cc/hex :hash) (cc/items-of src root)))

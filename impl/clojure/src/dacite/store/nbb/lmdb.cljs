@@ -70,19 +70,16 @@
     (.removeSync db (hash->buf h))
     (store/completed this))
 
-  (s-snapshot [_]
-    ;; Key by hex: BigInt hash words cannot be CLJS/SCI map keys.
+  (s-keys [_]
+    ;; Keys only. Values stay in LMDB.
     (store/completed
-     (let [out (volatile! {})
+     (let [out (volatile! [])
            ;; lmdb 3.x: the range method is `iterate` (it was `iterator`).
            it (.iterate (.getRange db #js {:keyEncoding "binary"}))]
        (loop []
          (let [step (.next it)]
            (when-not (.-done step)
-             (let [e (.-value step)]
-               (vswap! out assoc
-                       (store/hash->hex (buf->hash (.-key e)))
-                       (bin/decode-store-value (buf->hash (.-key e)) (.-value e))))
+             (vswap! out conj (buf->hash (.-key (.-value step))))
              (recur))))
        @out)))
 

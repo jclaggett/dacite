@@ -123,7 +123,7 @@
       (let [node (store/await (store/s-get via-reveal h))]
         (is (= (store/require-node rooted h) node))
         (is (= (set order)
-               (set (keys (store/await (store/s-snapshot (:pack-local via-reveal)))))))
+               (set (store/await (store/s-keys (:pack-local via-reveal))))))
         ((:close! primary))
         (is (= (store/require-node rooted child)
                (store/await (store/s-get via-reveal child)))
@@ -131,7 +131,7 @@
         (is (= (store/require-node rooted h)
                (store/await (store/s-get again h))))
         (is (= (set order)
-               (set (keys (store/await (store/s-snapshot (:pack-local again)))))))
+               (set (store/await (store/s-keys (:pack-local again))))))
         (let [packed (remote/remote-store base-url)
               pack (svc/handle-request rooted "GET"
                                        (str "/node/" (store/hash->hex h))
@@ -170,7 +170,7 @@
   "True once `pack` holds some page and does not yet hold `avoid`."
   [pack avoid]
   (loop [n 0]
-    (let [have (set (keys (store/await (store/s-snapshot pack))))]
+    (let [have (set (store/await (store/s-keys pack)))]
       (cond
         (contains? have avoid) false
         (seq have) true
@@ -519,7 +519,7 @@
 
 (defn- stored-hashes
   [pack]
-  (set (keys (store/await (store/s-snapshot pack)))))
+  (set (store/await (store/s-keys pack))))
 
 (defn- held-hashes
   "Pages stored, plus items still waiting on a child."

@@ -34,7 +34,7 @@
     {:copied 0 :skipped 0 :live 0 :via :nodes}
 
     (pack/find-chunk-transport dest)
-    (let [skip (set (map gc/hash-key (keys (or (store/await (store/s-snapshot dest)) {}))))
+    (let [skip (into #{} (map gc/hash-key) (store/await (store/s-keys dest)))
           result (pack/flush-from! dest src root-h skip)]
       {:copied (long (:items result 0))
        :skipped 0

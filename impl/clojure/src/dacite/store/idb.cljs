@@ -218,20 +218,17 @@
     (.put (.objectStore tx meta-store) store/store-format format-key)
     (tx-complete tx)))
 
-(defn- idb-all
+(defn- idb-keys
+  "Hashes in the nodes store. The values are not decoded."
   [db]
   (js/Promise.
    (fn [ok err]
      (let [tx (.transaction db #js [node-store] "readonly")
-           req (.openCursor (.objectStore tx node-store))
-           acc (volatile! {})]
+           req (.getAllKeys (.objectStore tx node-store))]
        (set! (.-onerror req) (fn [_] (err (.-error req))))
        (set! (.-onsuccess req)
              (fn [_]
-               (if-let [cur (.-result req)]
-                 (do (vswap! acc assoc (.-key cur) (.-value cur))
-                     (.continue cur))
-                 (ok @acc))))))))
+               (ok (mapv #(store/hex->hash (str %)) (vec (.-result req))))))))))
 
 (defn- decode-node
   [h bs]
@@ -322,7 +319,7 @@
   (into [] (keep f) coll))
 
 (defrecord IdbStore [name db opening cache cache-order cache-limit
-                     snap snap-epoch reset-latch
+                     key-cache key-epoch reset-latch
                      root-ready root durable-cas durable-set keep retained
                      resetting]
   store/IStore
@@ -426,33 +423,32 @@
           h)
          (fn [] this)))))
 
-  (s-snapshot [this]
-    (if (and (some? *drive-epoch*) (= @snap-epoch *drive-epoch*))
-      (store/completed @snap)
-      (let [epoch *drive-epoch*]
+  (s-keys [this]
+    (cond
+      ;; a reset is clearing the database: answer after it, from the cleared store
+      (and @resetting (nil? *drive-epoch*))
+      (.then @resetting (fn [_] (store/s-keys this)))
+
+      ;; One drive replays until the call settles. The list is hashes only,
+      ;; and the node cache is not touched (N14a). Outside `drive` every
+      ;; call reads IndexedDB again.
+      (and (some? *drive-epoch*) (= @key-epoch *drive-epoch*))
+      (store/completed @key-cache)
+
+      :else
+      (let [epoch *drive-epoch*
+            found (atom nil)]
         (wait
          (reject-cause
           (-> (ensure-db this)
-              (.then idb-all)
-              (.then (fn [raw]
-                       (let [decoded
-                             (into {}
-                                   (keepv (fn [[k bs]]
-                                            (let [h (store/hex->hash k)
-                                                  node (decode-node h bs)]
-                                              (when node [k node])))
-                                          raw))]
-                         (reset! snap decoded)
-                         (reset! snap-epoch epoch)
-                         (reset! cache {})
-                         (reset! cache-order (js/Map.))
-                         (doseq [[k node] decoded]
-                           (cache-store! this k {:node node :epoch epoch}))
-                         ;; The snapshot map holds every node. The read cache
-                         ;; does not: it stays within `cache-limit` (N14a).
-                         (evict-while! this nil)))))
+              (.then idb-keys)
+              (.then (fn [ks]
+                       (reset! found ks)
+                       (when (some? epoch)
+                         (reset! key-cache ks)
+                         (reset! key-epoch epoch)))))
           nil)
-         #(deref snap)))))
+         #(deref found)))))
 
   (s-merge [this m]
     (evict-while! this nil)
@@ -481,11 +477,11 @@
          (fn [] this)))))
 
   (s-reset [this]
-    (let [clear-cache! (fn []
+    (let [          clear-cache! (fn []
                          (reset! cache {})
                          (reset! cache-order (js/Map.))
-                         (reset! snap {})
-                         (reset! snap-epoch nil))
+                         (reset! key-cache [])
+                         (reset! key-epoch nil))
           clear! (fn []
                    (clear-cache!)
                    (reset! reset-latch false)
@@ -536,7 +532,7 @@
                (atom {})
                (atom (js/Map.))
                cache-limit
-               (atom {})
+               (atom [])
                (atom nil)
                (atom false)
                (atom false)
@@ -621,7 +617,7 @@
   (s-delete [this h]
     (store/await (store/s-delete content h))
     (store/completed this))
-  (s-snapshot [_] (store/s-snapshot content))
+  (s-keys [_] (store/s-keys content))
   (s-merge [this m]
     (store/await (store/s-merge content m))
     (store/completed this))

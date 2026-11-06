@@ -312,10 +312,10 @@
       (let [v-run (coll/vector-with-store st 1 2 3)
             vh (types/dacite-hash v-run)
             _s-rep (coll/string-with-store st (apply str (repeat 8 \x)))
-            snap (store/await (store/s-snapshot st))
-            digit (some (fn [[h e]]
-                          (when (= "ft/digit" (types/entry-type e)) [h e]))
-                        snap)]
+            digit (some (fn [h]
+                          (let [e (store/await (store/s-get st h))]
+                            (when (= "ft/digit" (types/entry-type e)) [h e])))
+                        (store/await (store/s-keys st)))]
         (write-case! "chunk-literal-run-i64"
                      [(lit-item vh (pack/literal-of st vh))]
                      :desc "{\"title\":\"vector of i64s as one type-run\"}\n")

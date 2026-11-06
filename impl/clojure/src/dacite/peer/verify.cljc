@@ -350,9 +350,8 @@
   [{:keys [type body]}]
   (let [scratch (store/mem-store)]
     (pack/materialize-literal! scratch type body)
-    ;; the key is the hash on the JVM, its hex on nbb
-    (vec (for [[k v] (store/await (store/s-snapshot scratch))]
-           [(if (string? k) (store/hex->hash k) k) v]))))
+    (mapv (fn [h] [h (store/await (store/s-get scratch h))])
+          (store/await (store/s-keys scratch)))))
 
 (defn- store-item!
   "Put what a verified item holds in the store. A step."

@@ -179,7 +179,7 @@
   (s-delete [this h]
     (store/await (store/s-delete base h))
     (store/completed this))
-  (s-snapshot [_] (store/s-snapshot base))
+  (s-keys [_] (store/s-keys base))
   (s-merge [this m]
     (store/await (store/s-merge base m))
     (store/completed this))

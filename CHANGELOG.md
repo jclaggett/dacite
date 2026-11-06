@@ -6,6 +6,8 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **`s-snapshot` is removed from `IStore`.** This is the follow-up after M5.1, not M5.2. A content store is addressed by hash, so it no longer dumps every node as a `{hash → value}` map. `s-keys` lists the hashes a store holds and does not load values. Garbage collection, the pack path in `dacite.store.sync` (the skip set), chunk retain, and origin verify scan that way, and read a node with `s-get` when they need one. `snapshot-store` is gone. `with-store` returns `[store last-value]`. `s-merge` and `s-reset` are unchanged. IndexedDB's key scan does not fill the read cache.
+
 - **M4.2: ack, one encode per page, a linear frame reader, a bounded IndexedDB cache, bounded reveal session state.** The responder keeps a sent-hash record (16 384, oldest first). `ack` is a hint. The root of a `get` is always sent, so a missing page is recovered by asking for that hash. The wire `forget` message (type `0x05`) is withdrawn. A reveal page is encoded once. The frame reader refuses a length past `max-item` before buffering the payload, and joins an item's bytes once. IndexedDB's read cache stays within its limit across a snapshot, touches in constant time, and does not keep misses outside `drive`. A reveal session's `:sent` and `:reveals` are capped. A responder stream is dropped by its clamped lifetime (at most about 276 s). Local `forget-pages` is unchanged.
 
 - **CI runs the nbb suites.** `.github/workflows/test.yml` on pull requests and
