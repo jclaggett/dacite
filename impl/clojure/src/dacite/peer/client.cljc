@@ -6,8 +6,14 @@
    `:send!` callback.
 
    Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C45), §12.4 (session end, C16),
-   §12.8 (verification), §12.9 (C35), §12.11 (C41). M1.2 slices 1 and 2. Not here
-   yet (M4): interest ending a stream at its floor, `cancel`, `ack` and `forget`.
+   §12.8 (verification), §12.9 (C35), §12.11 (C41). M1.2 slices 1 and 2.
+
+   **`ack` and `forget` (M4.2).** When a stream ends, the hashes it stored are
+   acked in batches of at most 256. `forget!` tells that peer the client no
+   longer holds those pages. The item reader uses the negotiated `max-item`
+   and literal cap, so a length past what the session agreed is refused
+   before the payload is buffered (C32). Not here: interest ending a stream
+   at its floor, and `cancel`.
 
    One client has one store and any number of sessions, one per peer. What it
    keeps, per session: a stream table (`frame/stream-table`), and per open
@@ -278,14 +284,19 @@
             sessions (:sessions @state)
             recv-max (next-recv-max c sessions peer now)
             [table sid] (frame/open-local (get-in sessions [peer :table]))
-            [bucket' _ _] (bucket/take-token (get-in sessions [peer :bucket]) now)]
+            [bucket' _ _] (bucket/take-token (get-in sessions [peer :bucket]) now)
+            limits (get-in sessions [peer :limits])]
         (swap! state (fn [s]
                        (-> s
                            (assoc-in [:sessions peer :table] table)
                            (assoc-in [:sessions peer :bucket] bucket')
                            (assoc-in [:sessions peer :streams sid]
                                      {:hash hash
-                                      :reader (frame/reader sid)
+                                      :reader (frame/reader sid
+                                                            (or (:max-item limits)
+                                                                frame/default-max-item)
+                                                            (or (:frame-literal-cap limits)
+                                                                (frame/max-literal-item)))
                                       :rx (verify/receiver store)
                                       :t0 now
                                       :peak (get default-interest "peak")
@@ -378,28 +389,38 @@
   ([c peer-id] (open-session! c peer-id :offerer))
   ([c peer-id role] (open-session! c peer-id role nil))
   ([c peer-id role opts]
-   (swap! (:state c)
-          (fn [s]
-            (-> s
-                (assoc-in [:sessions peer-id]
-                          {:status :open :table (frame/stream-table role 64) :streams {}
-                           :hello nil :bucket nil :verified {}})
-                (update :order #(conj (vec (remove #{peer-id} %)) peer-id)))))
-   ((:send! c) peer-id {:type :hello :stream 0
-                        :value (msg/hello-for-channel (:hello c) opts)})
-   c))
+   (let [hello (msg/hello-for-channel (:hello c) opts)]
+     (swap! (:state c)
+            (fn [s]
+              (-> s
+                  (assoc-in [:sessions peer-id]
+                            {:status :open :table (frame/stream-table role 64) :streams {}
+                             :hello nil :bucket nil :verified {} :acked #{}
+                             :advertised hello})
+                  (update :order #(conj (vec (remove #{peer-id} %)) peer-id)))))
+     ((:send! c) peer-id {:type :hello :stream 0 :value hello})
+     c)))
 
 (defn- on-hello!
   "The peer's `hello` (validated by `msg/decode-message`). Its rates give the
    request bucket (C41) and the cap on its share (C02); hashes that waited for a
-   session go out."
+   session go out. The negotiated `max-item` and literal cap bound the item
+   reader (C32). No version in common ends the session."
   [c peer-id value]
-  (swap! (:state c) update-in [:sessions peer-id] assoc
-         :hello value
-         :bucket (bucket/bucket (get-in value ["rates" "req-rate"])
-                                (get-in value ["rates" "req-burst"])
-                                ((:now c))))
-  (dispatch-waiting! c))
+  (let [mine (or (get-in @(:state c) [:sessions peer-id :advertised]) (:hello c))
+        neg (msg/negotiate mine value)]
+    (if-let [err (:error neg)]
+      (do ((:send! c) peer-id err)
+          ((:close! c) peer-id)
+          (swap! (:state c) update-in [:sessions peer-id]
+                 assoc :status :ended :streams {} :verified {}))
+      (do (swap! (:state c) update-in [:sessions peer-id] assoc
+                 :hello value
+                 :limits (:ok neg)
+                 :bucket (bucket/bucket (get-in value ["rates" "req-rate"])
+                                        (get-in value ["rates" "req-burst"])
+                                        ((:now c))))
+          (dispatch-waiting! c)))))
 
 ;; =============================================================================
 ;; Ending
@@ -473,6 +494,37 @@
                                     :bad-state
                                     :bad-item)})))))
 
+(defn- send-acks!
+  "Ack the hashes this session has stored and not yet acked, in batches of
+   256 (C23). The peer may ignore them. A hint, sent when a stream ends."
+  [c peer-id]
+  (when (open? c peer-id)
+    (let [verified (get-in @(:state c) [:sessions peer-id :verified])
+          acked (get-in @(:state c) [:sessions peer-id :acked] #{})
+          pending (into [] (remove #(contains? acked %)) (keys verified))]
+      (when (seq pending)
+        (doseq [batch (partition-all 256 pending)]
+          ((:send! c) peer-id
+           {:type :ack :stream 0
+            :value {"hashes" (mapv msg/hash-ref batch)}}))
+        (swap! (:state c) update-in [:sessions peer-id :acked]
+               (fnil into #{}) pending)))))
+
+(defn forget!
+  "Tell `peer-id` that the client no longer holds `hashes` (a reset or an
+   eviction), so a later `get` sends them again (C21). A hash the peer has
+   not recorded is ignored there. No-op when the session is not open.
+   `hashes` are hash vectors or hex strings."
+  [c peer-id hashes]
+  (when (and (open? c peer-id) (seq hashes))
+    (doseq [batch (partition-all 256 hashes)]
+      ((:send! c) peer-id
+       {:type :forget :stream 0
+        :value {"hashes" (mapv (fn [h]
+                                 (msg/hash-ref (if (string? h) h (store/hash->hex h))))
+                               batch)
+                "reason" "evicted"}}))))
+
 (defn- finish-stream!
   "The stream ended (FIN). Its headers are checked (`finish!`) or, when the
    stream was PARTIAL, dropped. The hash that was asked for is done when it is
@@ -491,6 +543,7 @@
                          (-> s
                              (update-in [:sessions peer-id :table] frame/close-stream sid)
                              (update-in [:sessions peer-id :streams] dissoc sid))))
+          (send-acks! c peer-id)
           (cond
             had (swap! state (fn [s] (-> s (update :done conj hk) (update :wanted dissoc hk))))
             served? (retry! c hk)

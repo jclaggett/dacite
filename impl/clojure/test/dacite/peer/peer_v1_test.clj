@@ -378,6 +378,57 @@
 
 ;; S4: the spec's own hex, written by hand from the layout rules, is the
 ;; same bytes as the fixture frames.
+(deftest frame-parser-does-not-trust-a-length-past-max-item
+  ;; N12: the length in the item header is a claim. Past the reader's
+  ;; max-item it is refused from the header, before any further payload
+  ;; is buffered.
+  (let [hdr (fn [plen]
+              (let [b (byte-array 37)]
+                (aset-byte b 0 (byte 0))
+                (aset-byte b 33 (unchecked-byte (bit-and 0xff (unsigned-bit-shift-right plen 24))))
+                (aset-byte b 34 (unchecked-byte (bit-and 0xff (unsigned-bit-shift-right plen 16))))
+                (aset-byte b 35 (unchecked-byte (bit-and 0xff (unsigned-bit-shift-right plen 8))))
+                (aset-byte b 36 (unchecked-byte (bit-and 0xff plen)))
+                b))
+        feed (fn [max-item plen]
+               (frame/feed (frame/reader 1 max-item)
+                           (frame/decode-frame
+                            (frame/encode-frame {:type :item-stream :stream 1
+                                                 :payload (hdr plen)}))))]
+    (is (= :item-too-large (thrown-reason #(feed 1000 5000))))
+    (is (= :accepted (thrown-reason #(feed 1000 10)))
+        "a length inside the cap is buffered, not refused")))
+
+(deftest frame-parser-is-linear
+  ;; N12: the reader used to concatenate the whole buffer on every frame.
+  ;; 400 KB in 64-byte frames is about six thousand recopyings of a growing
+  ;; buffer (on the order of a gigabyte). Linear joins the item once, at
+  ;; the end, and stays well under a second.
+  (let [payload-len 400000
+        hdr (byte-array 37)
+        _ (aset-byte hdr 0 (byte 0))
+        _ (aset-byte hdr 33 (unchecked-byte (bit-and 0xff (unsigned-bit-shift-right payload-len 24))))
+        _ (aset-byte hdr 34 (unchecked-byte (bit-and 0xff (unsigned-bit-shift-right payload-len 16))))
+        _ (aset-byte hdr 35 (unchecked-byte (bit-and 0xff (unsigned-bit-shift-right payload-len 8))))
+        _ (aset-byte hdr 36 (unchecked-byte (bit-and 0xff payload-len)))
+        item (frame/concat-bytes [hdr (byte-array payload-len)])
+        room 64
+        n (bin/byte-len item)
+        frames (mapv (fn [from]
+                       (frame/decode-frame
+                        (frame/encode-frame
+                         {:type :item-stream :stream 1
+                          :payload (frame/slice item from (min (+ from room) n))})))
+                     (range 0 n room))
+        t0 (System/nanoTime)
+        [_ items] (reduce (fn [[st _] fr] (frame/feed st fr))
+                          [(frame/reader 1) []]
+                          frames)
+        ms (/ (- (System/nanoTime) t0) 1.0e6)]
+    (is (= 1 (count items)))
+    (is (= n (bin/byte-len (first items))))
+    (is (< ms 1500) (str "took " ms " ms"))))
+
 (deftest spec-hex-blocks-match-fixtures
   (let [spec (slurp (str (.getParentFile (java.io.File. (conf/fixtures-root))) "/../docs/spec/peer-v1.md"))
         blocks (re-seq #"(?s)```hex ([a-z0-9?-]+)\n(.*?)```" spec)]

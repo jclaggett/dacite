@@ -59,6 +59,30 @@
 (deftest no-message-changes-the-store-except-verified-items
   (run-check "no-message-changes-the-store-except-verified-items"))
 
+(deftest record-is-capped-and-forget-removes-hashes
+  (run-check "record-is-capped-and-forget-removes-hashes"))
+
+(deftest failed-stream-retry-does-not-resend-confirmed-pages
+  (run-check "failed-stream-retry-does-not-resend-confirmed-pages"))
+
+(deftest root-of-a-get-is-sent-even-if-recorded
+  (run-check "root-of-a-get-is-sent-even-if-recorded"))
+
+(deftest empty-and-wrong-record-still-complete-every-request
+  (run-check "empty-and-wrong-record-still-complete-every-request"))
+
+(deftest forgotten-hash-is-re-requested-and-verified
+  (run-check "forgotten-hash-is-re-requested-and-verified"))
+
+(deftest ack-is-optional-and-unknown-hashes-are-ignored
+  (run-check "ack-is-optional-and-unknown-hashes-are-ignored"))
+
+(deftest renewal-is-correct-with-no-record-and-may-reveal-more
+  (run-check "renewal-is-correct-with-no-record-and-may-reveal-more"))
+
+(deftest stream-state-is-forgotten-by-its-lifetime-bound
+  (run-check "stream-state-is-forgotten-by-its-lifetime-bound"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

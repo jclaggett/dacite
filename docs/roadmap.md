@@ -57,7 +57,7 @@ Do this next:
    its reveal's credit covers it. The share is
    `R_max * I / max(peak, sum I)`, and the clock integrates that
    exponential, so a lone reveal decays from the open. Offering a page
-   does not hold it. `ack-pages` records the hold, and `release-pages`
+   does not hold it. `ack-pages` records the hold, and `forget-pages`
    queues a reset or evicted page again. A hash already held, or still
    offered, is skipped. Asking again for a hash still open resumes the
    pages the client does not hold and restarts that clock at the peak.
@@ -67,9 +67,10 @@ Do this next:
    `Content-Length`. One connection keeps one session. On HTTP/3 the
    connection is the QUIC session, because each request is its own
    stream object. A stream that finishes acknowledges the pages it
-   wrote. A stream that fails cancels that reveal and releases those
-   offers. There is no client ack or release message yet, so that
-   completion stands in for one. `remote-store` opts into the stream
+   wrote. A stream that fails cancels that reveal and forgets those
+   offers. The HTTP stream still has no client ack or forget message, so
+   that completion stands in for one. Peer v1 does (`ack` and `forget`,
+   spec 6.4): the responder's sent-hash record honors them. `remote-store` opts into the stream
    with `:reveal`: a missing hash is one `POST /reveal` on a kept
    HTTP/3 connection, and the pages land in its local cache. The
    default read is still pack GET. A second `POST /reveal` on that

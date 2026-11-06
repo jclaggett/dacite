@@ -42,7 +42,17 @@
 ;; Writing
 ;; =============================================================================
 
-(defn- node-bytes [st h] (sr/encode-page st {:hash h}))
+(defn- node-bytes
+  "Wire bytes of the node item for `h`. Reuses a measurement made while
+   `bin/*node-wire-cache*` is bound, so a page measured for the literal
+   comparison is not encoded again (N11)."
+  [st h]
+  (let [hk (store/hash->hex h)]
+    (if-let [hit (when bin/*node-wire-cache* (get @bin/*node-wire-cache* hk))]
+      hit
+      (let [bs (sr/encode-page st {:hash h})]
+        (when bin/*node-wire-cache* (swap! bin/*node-wire-cache* assoc hk bs))
+        bs))))
 
 (defn literal-bytes
   "Wire-v1 bytes of the literal item for `h`, or nil when it has none, holds
@@ -80,6 +90,7 @@
   ([st root] (encode-value st root {}))
   ([st root {:keys [max-frame-bytes strict-node-cap?]
              :or {max-frame-bytes frame/max-frame}}]
+   (binding [bin/*node-wire-cache* (atom {})]
    (let [cap (frame/max-literal-item max-frame-bytes)
          cache (atom {})
          order (reveal/page-order st root)
@@ -116,7 +127,7 @@
      {:items (mapv :bytes picks)
       :encs (mapv :enc picks)
       :hashes (mapv :hash picks)
-      :oversized oversized})))
+      :oversized oversized}))))
 
 ;; =============================================================================
 ;; Checking and receiving

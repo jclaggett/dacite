@@ -3,8 +3,10 @@
             [clojure.test :refer [deftest is testing]]
             [dacite.reveal :as reveal]
             [dacite.reveal.session-checks :as session-checks]
+            [dacite.service.reveal :as sr]
             [dacite.store :as store]
             [dacite.value :as v]
+            [dacite.wire.binary :as bin]
             [dacite.value.finger-tree :as ft]
             [dacite.value.hamt :as hamt]
             [dacite.value.types :as types]))
@@ -485,3 +487,37 @@
     ;; A's floor is t = 1, a power of two. Stepping past that instant is
     ;; what lets B keep earning. A nudge that stays on t = 1 stops the clock.
     (is (> c2 (+ c1 1.0e-6)))))
+
+(deftest a-page-is-encoded-once
+  ;; N11: the clock used to encode each page to learn its size, and the
+  ;; sender encoded it again to write it.
+  (let [s (store/mem-store)
+        h (v/hash (v/string s (apply str (repeat 9000 "a"))))
+        n (atom 0)
+        taken (binding [bin/*on-encode* (fn [_] (swap! n inc))]
+                (let [opened (reveal/open-reveal (reveal/session) s h 0 fast)]
+                  (reveal/take-pages (:session opened) s 1 fast)))
+        pages (:pages taken)]
+    (is (> (count pages) 1))
+    (is (= (count pages) @n) "one encode per page, not two")
+    (is (every? #(= (:bytes %) (bin/byte-len (:wire %))) pages))
+    (doseq [p pages]
+      (is (identical? (:wire p) (sr/encode-page s p))
+          "the writer uses the bytes already encoded"))))
+
+(deftest reveals-sent-and-owner-stay-bounded
+  (let [s (store/mem-store)
+        sess (assoc (reveal/session) :sent-limit 2 :reveal-limit 2)
+        hs (mapv #(v/hash (v/i64 s %)) (range 4))
+        step (fn [session [i h]]
+               (let [t (double (* i 2))
+                     opened (reveal/open-reveal session s h t fast)
+                     taken (reveal/take-pages (:session opened) s (inc t) fast)]
+                 (reveal/ack-pages (:session taken) (hashes-of (:pages taken)))))
+        end (reduce step sess (map-indexed vector hs))]
+    (is (<= (count (:reveals end)) 2))
+    (is (<= (count (:sent end)) 2))
+    (is (= (count (:sent end)) (count (:sent-order end))))
+    (is (every? #(or (contains? (:sent end) %)
+                     (contains? (:offered end) %))
+                (keys (:owner end))))))

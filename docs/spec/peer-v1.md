@@ -856,8 +856,8 @@ section 11.
 
 ## 10. Known issues
 
-- Item verification is JVM-only (`dacite.peer.items`) until M2.2, so the nbb test
-  checks framing, packing and item decoding, not entry hashes.
+- Item verification is portable (`dacite.peer.verify`, M2.2). `npm run peer:test`
+  checks entry hashes on nbb, not only framing.
 - The pack chunk budget is decided (M1.1a review). `pack/default-budget` is 4096, the leaf
   page size, for the HTTP chunk transport and for peers: a full leaf page is then a literal,
   so the first GET of a long string carries its first characters, not only its header and
@@ -1351,7 +1351,9 @@ the responder's own uplink.
   (C13, C16).
 - **Offers do not wait for an ack.** The design note says a page offered and not
   acknowledged stays with its offer until `ack-pages` or `forget-pages`. With C19
-  and C23 nothing waits: the record is an optimization. M4.2 changes the reveal engine.
+  and C23 nothing waits: the record is an optimization. M4.2 built that record
+  on the responder (`record-sent`, `record-ack`, `record-forget`) and bounds the
+  reveal session's `:sent` the same way.
 - **No idle timeouts.** The M1.2 plan entry listed them; the decision removes them
   (C06).
 - **`floor = 0`.** 6.2 lets a requester send it, the design note's placeholder
@@ -1394,7 +1396,7 @@ the lifecycle and the stream cap, and the rest) stay planned.
 | C07 | Decided | `cancel` is optional; sets interest to 0; correct without it | `cancel-stops-and-frees-share-and-is-never-required` | JVM, nbb peer | M4.1 |
 | C08 | Decided | Renewal is a new get, a new clock at peak | `renewal-is-a-new-stream-at-peak` | JVM | M4.1 |
 | C09 | Decided | Clamp floor >= 10, tau-ms <= 60 000, peak <= 1000 | `get-interest-is-clamped-by-the-responder` | JVM, nbb peer | M3.1 |
-| C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (simulated clock, floor 0 request) | JVM | M4.2 |
+| C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (exists, M4.2: simulated clock; the C09 clamps bound the lifetime) | JVM, nbb peer | M4.2 (exists) |
 | C11 | Decided | Enforce advertised max-streams; slot frees at once | `too-many-streams-is-refused-and-a-closed-slot-frees` (parity half: `f3-stream-table-parity-and-duplicates`, exists) | JVM, nbb peer | M3.1 |
 | C12 | Decided | max-streams capped at 64 (read larger as 64) | `max-streams-above-64-is-read-as-64` | JVM, nbb peer | M3.1 |
 | C13 | Decided | Any verification failure (not only a bad hash) ends the whole session (fatal bad-entry) | `bad-entry-ends-the-session` (exists, slice 1: every way of lying, JVM and nbb; item level: `tampering-is-refused`, exists) | JVM, nbb peer (exist); browser | M1.2 s1; browser M5.1 |
@@ -1402,14 +1404,14 @@ the lifecycle and the stream cap, and the rest) stay planned.
 | C15 | Decided | Decay is the only stream lifecycle rule; sessions end only on C13/C16; others untouched | `one-session-ending-leaves-others-untouched` (exists, slice 1: a failure on one session; the decay half waits for M4.1) | JVM, nbb peer | M1.2 s1 (exists) |
 | C16 | Decided | Protocol violation ends the session; request errors end only the stream | `protocol-violation-ends-session-request-error-ends-stream` (exists, slice 2: client and responder, four violations each, and request errors) | JVM, nbb peer | M1.2 s2 (exists) |
 | C17 | Decided | No write at >= 4 frames buffered; resume at 1 frame | `channel-never-buffers-over-high-mark-and-resumes-at-low` (fake channel; real channel in M3.2) (exists, slice 2: fake channel with hysteresis; the real channel is M3.2) | JVM, nbb peer, browser | M1.2 s2 (exists) |
-| C19 | Decided | Sent-hash record: bounded, optional; correct when empty or wrong | `empty-and-wrong-record-still-complete-every-request` (property) | JVM | M4.2 |
-| C20 | Decided | The root of a get is always sent | `root-of-a-get-is-sent-even-if-recorded` | JVM, nbb peer | M4.2 |
-| C21 | Decided | Record capped at 16 384 (oldest out); `forget` removes hashes | `record-is-capped-and-forget-removes-hashes` | JVM | M4.2 |
-| C22 | Decided | Client verifies everything; may re-request a missing hash | `forgotten-hash-is-re-requested-and-verified` | nbb peer | M4.2 |
-| C23 | Decided | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-of-an-unknown-hash-is-ignored` (N10, engine). The wire `ack` message is still ignored until M4.2 | JVM, nbb reveal | M4.1 engine; M4.2 wire |
+| C19 | Decided | Sent-hash record: bounded, optional; correct when empty or wrong | `empty-and-wrong-record-still-complete-every-request` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
+| C20 | Decided | The root of a get is always sent | `root-of-a-get-is-sent-even-if-recorded` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
+| C21 | Decided | Record capped at 16 384 (oldest out); `forget` removes hashes | `record-is-capped-and-forget-removes-hashes` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
+| C22 | Decided | Client verifies everything; may re-request a missing hash | `forgotten-hash-is-re-requested-and-verified` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
+| C23 | Decided | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-of-an-unknown-hash-is-ignored` (N10, engine, M4.1). `ack-is-optional-and-unknown-hashes-are-ignored` (wire, M4.2) | JVM, nbb peer | M4.1 engine; M4.2 wire (exists) |
 | C24 | Decided | Reveal is breadth-first by level, top-level first | `reveal-sends-level-d-before-level-d-plus-1` | JVM, nbb peer | M2.2 |
 | C25 | Decided | Fixed order within a level (no shuffle); receiver never relies on it | `order-within-a-level-is-fixed-and-receiver-accepts-any` | JVM, nbb peer | M2.2 |
-| C26 | Decided | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` | JVM, nbb peer | M4.2 |
+| C26 | Decided | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
 | C27 | Decided | Verify every item from its own bytes before it is stored | `every-item-stream-fixture-verifies` and `tampering-is-refused` (exist); `nothing-unverified-reaches-the-store` (exists, slice 1) | JVM, nbb peer; browser after M5.1 | M1.2 s1 (exists) |
 | C28 | Decided | Literal rebuilt in a scratch store; a `ref` inside is bad-item | `a-run-of-refs-is-a-ref` (exists); `literal-hash-mismatch-is-refused` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |
 | C29 | Decided | Per-kind checks: scalar, leaf page, hamt/entry, branch, hamt/bitmap shape | `tampering-is-refused` (exists); `hamt-bitmap-shape-refusals` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |

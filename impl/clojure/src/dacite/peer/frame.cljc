@@ -376,6 +376,12 @@
     (fail! :wrong-stream "frame for another stream" {:expected stream :got (:stream fr)}))
   (let [chunks (conj chunks (:payload fr))
         buffered (+ buffered (blen (:payload fr)))
+        ;; The item length is a claim. It may make us wait for more frames,
+        ;; but never for more than `max-item` bytes, and never before the
+        ;; header has been checked against that cap (C32).
+        _ (when (and need (> buffered max-item))
+            (fail! :item-too-large "item exceeds max-item"
+                   {:size buffered :max max-item}))
         finish (fn [chunks buffered need items]
                  (when (and (:fin? fr) (pos? buffered))
                    (fail! :truncated-item "stream ended inside an item" {:left buffered}))
@@ -395,11 +401,18 @@
             [items at need]
             (loop [at 0 need need items []]
               (let [avail (- n at)
-                    need (or need
-                             (when (>= avail item-header-bytes)
-                               (check-header! bs at max-item max-literal)))]
+                    claimed (when (>= avail item-header-bytes)
+                              (check-header! bs at max-item max-literal))
+                    ;; A length remembered from an earlier frame has to be the
+                    ;; length the header still says. The header is checked
+                    ;; against `max-item` again here, before the payload is
+                    ;; cut out (C32).
+                    _ (when (and need claimed (not= need claimed))
+                        (fail! :bad-item "item length does not match its header"
+                               {:need need :claimed claimed}))
+                    need (or need claimed)]
                 (cond
-                  (nil? need) [items at nil]
+                  (or (nil? need) (< need item-header-bytes)) [items at nil]
                   (< avail need) [items at need]
                   :else (recur (+ at need) nil (conj items (slice bs at (+ at need)))))))]
         (finish (if (< at n) [(slice bs at n)] [])

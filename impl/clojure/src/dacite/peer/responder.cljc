@@ -27,9 +27,22 @@
      stream 0, then `:close!`. A request that cannot be served ends that stream
      only.
 
-   Not here (M4): interest decay ending a stream at the floor (C05), `cancel`,
-   the sent-hash record, `ack` and `forget`. The clamps of C09 and the stream cap
-   of C11/C12 are M3.1. Items are sent as node items; the literal choice of
+   **Sent-hash record, `ack` and `forget` (M4.2, C19 to C23, C26).** One record
+   per session, at most 16 384 hashes, oldest dropped first. A hash is recorded
+   when the frame that finishes its item is written. A later `get` skips
+   recorded hashes and spends its stream on others, except the root, which is
+   always sent (C20). `ack` is a hint: known hashes are kept the longest, unknown
+   hashes are ignored, and nothing waits for an ack. `forget` removes hashes so
+   the next `get` sends them again. An empty or a wrong record still answers
+   (C19). `cancel` is still ignored.
+
+   **Stream lifetime (C10).** After the C09 clamps a stream is dropped at
+   `tau · ln(peak / floor)` from its request, at most about 276 s. A renewal is
+   a new `get`.
+
+   Not here: interest decay ending a stream at the floor (C05). The clamps are
+   applied to that lifetime; they do not change the send rate. The stream cap
+   of C11/C12 is M3.1. Items are sent as node items; the literal choice of
    `dacite.peer.items/encode-value` is JVM-only.
 
    **Store reads may be asynchronous (M1.3).** A `get` reads the store through
@@ -49,6 +62,7 @@
             [dacite.peer.frame :as frame]
             [dacite.peer.msg :as msg]
             [dacite.peer.rates :as rates]
+            [dacite.host :as host]
             [dacite.reveal :as reveal]
             [dacite.store :as store]
             [dacite.store.chain :as chain]
@@ -67,6 +81,62 @@
 (def low-frames "C17: resume writing at this many frames buffered." 1)
 
 (def default-interest rates/default-interest)
+
+(def sent-cap
+  "Hashes in one session's sent-record (C21)."
+  16384)
+
+(defn record-empty
+  "An empty sent-hash record."
+  []
+  {:set #{} :order [] :cap sent-cap})
+
+(defn- drop-oldest [rec]
+  (-> rec
+      (assoc :order (into [] (rest (:order rec))))
+      (update :set disj (first (:order rec)))))
+
+(defn record-sent
+  "Record hex keys `hks` as sent. Past the cap, the oldest is dropped.
+   A key already recorded stays where it is."
+  [rec hks]
+  (reduce (fn [rec hk]
+            (if (or (nil? hk) (contains? (:set rec) hk))
+              rec
+              (let [rec (-> rec (update :set conj hk) (update :order conj hk))]
+                (if (<= (count (:order rec)) (:cap rec)) rec (drop-oldest rec)))))
+          rec hks))
+
+(defn record-ack
+  "Move recorded keys in `hks` to the newest end, so they are dropped last.
+   A key the record does not hold is ignored (C23, N10)."
+  [rec hks]
+  (reduce (fn [rec hk]
+            (if-not (contains? (:set rec) hk)
+              rec
+              (let [order (into [] (remove #(= hk %) (:order rec)))]
+                (assoc rec :order (conj order hk)))))
+          rec hks))
+
+(defn record-forget
+  "Remove `hks` from the record. A key that is not there is ignored (N10)."
+  [rec hks]
+  (reduce (fn [rec hk]
+            (if-not (contains? (:set rec) hk)
+              rec
+              (let [order (into [] (remove #(= hk %) (:order rec)))]
+                (-> rec
+                    (update :set disj hk)
+                    (assoc :order order)))))
+          rec hks))
+
+(defn- lifetime-ms
+  "C10, after the C09 clamps: at most 60 s · ln(1000/10) ≈ 276 s."
+  [peak tau floor]
+  (let [peak (double (min 1000 (max 1 (or peak 1))))
+        tau (double (min 60000 (max 1 (or tau 1))))
+        floor (double (max 10 (or floor 10)))]
+    (* tau (host/log (/ peak floor)))))
 
 (defn responder
   "A responder over `:store`. Options:
@@ -110,6 +180,7 @@
      (swap! (:state r) assoc-in [:sessions peer]
             {:status :open :peer-hello nil :budget nil :last-tick nil :max-frame nil
              :advertised hello
+             :record (record-empty)
              :table nil :streams {}
              :bucket (bucket/bucket (get (own-rates r) "req-rate") (get (own-rates r) "req-burst")
                                     ((:now r)))})
@@ -135,26 +206,73 @@
 
 (defn- hash-hex->hash [h] (hash/hex->hash (msg/hash-ref-hex h)))
 
-(defn- item-frames
-  "Frames answering `h` from `st`: a full reveal as node items, header first."
-  [st h sid max-frame]
-  (frame/chunk-items sid
-                     (mapv (fn [x] (bin/encode-item {:enc :node :hash x
-                                                     :entry (store/await (store/s-get st x))}))
-                           (reveal/page-order st h))
-                     {:max-frame-bytes max-frame}))
+(defn- item-end-indexes
+  "Frame index where each item's last byte lands. The cuts match
+   `frame/chunk-items` for a payload of `room` bytes."
+  [sizes room]
+  (loop [sizes (seq sizes) idx 0 used 0 ends []]
+    (if (nil? sizes)
+      ends
+      (let [n (first sizes)]
+        (cond
+          (and (<= n room) (<= (+ used n) room))
+          (recur (next sizes) idx (+ used n) (conj ends idx))
 
-(defn- start-stream! [r peer sid value frames]
+          (<= n room)
+          (recur (next sizes) (inc idx) n (conj ends (inc idx)))
+
+          :else
+          (let [idx (if (pos? used) (inc idx) idx)
+                cuts (quot (+ n (dec room)) room)
+                last-idx (+ idx (dec cuts))
+                tail (let [m (rem n room)] (if (zero? m) room m))]
+            (recur (next sizes) last-idx tail (conj ends last-idx))))))))
+
+(defn- plan-items
+  "Item frames for `hashes`, and per frame the hex keys whose item ends there.
+   The root is the caller's concern: every hash here is sent."
+  [st hashes sid max-frame]
+  (let [room (- max-frame frame/header-bytes)
+        encoded (mapv (fn [h]
+                        {:hk (store/hash->hex h)
+                         :bytes (bin/encode-item {:enc :node :hash h
+                                                  :entry (store/await (store/s-get st h))})})
+                      hashes)
+        frames (frame/chunk-items sid (mapv :bytes encoded) {:max-frame-bytes max-frame})
+        ends (item-end-indexes (mapv #(bin/byte-len (:bytes %)) encoded) room)]
+    {:frames frames
+     :ends (reduce (fn [v [idx hk]] (update v idx (fnil conj #{}) hk))
+                   (vec (repeat (count frames) #{}))
+                   (map vector ends (map :hk encoded)))}))
+
+(defn- pages-to-send
+  "Reveal order of `h`, without hashes the session has already sent, except
+   `h` itself: the root of a get is always sent (C20)."
+  [st h record]
+  (let [skip (:set record)
+        root (store/hash->hex h)]
+    (into []
+          (remove (fn [x]
+                    (let [k (store/hash->hex x)]
+                      (and (not= k root) (contains? skip k)))))
+          (reveal/page-order st h))))
+
+(defn- start-stream! [r peer sid value plan]
   (let [{:keys [now]} r
-        interest (merge default-interest (get value "interest"))]
+        interest (merge default-interest (get value "interest"))
+        t0 (now)]
     (swap! (:state r) update-in [:sessions peer]
            (fn [s]
              (-> s
                  ;; C03: the latest get's recv-max is the session budget
                  (assoc :budget (get value "recv-max"))
                  (assoc-in [:streams sid]
-                           {:frames frames
-                            :next 0 :t0 (now) :credit 0 :blocked? false
+                           {:frames (:frames plan)
+                            :ends (:ends plan)
+                            :next 0 :t0 t0 :credit 0 :blocked? false
+                            :deadline (+ t0 (lifetime-ms (get interest "peak")
+                                                        (get interest "tau-ms")
+                                                        (get interest "floor")))
                             :peak (get interest "peak") :tau (get interest "tau-ms")}))))))
 
 (defn- close-stream! [r peer sid]
@@ -192,9 +310,10 @@
                   (chain/with-reads (:store r)
                     (fn [view]
                       (let [h (hash-hex->hash (get value "hash"))
-                            {:keys [max-frame]} (get-in @(:state r) [:sessions peer])]
+                            session (get-in @(:state r) [:sessions peer])
+                            {:keys [max-frame record]} session]
                         (when (some? (store/await (store/s-get view h)))
-                          (item-frames view h stream max-frame))))
+                          (plan-items view (pages-to-send view h record) stream max-frame))))
                     ;; the walk reads the whole value: fetch it a subtree at a time
                     {:expand types/child-hashes}))
                 ;; the store failed: this stream only, and the session lives
@@ -221,7 +340,8 @@
    - `hello` (once, first): it sets the budget (its `recv-max`) and the frame size
    - `get`: see the namespace doc
    - `error` fatal or on stream 0: the peer ended the session
-   - `cancel`, `ack`, `forget`: ignored (M4)
+   - `ack` and `forget`: update the sent-hash record (unknown hashes ignored)
+   - `cancel`: ignored
    - an unknown type: `error unsupported` on its stream
    - anything else, a second `hello`, or any frame before the `hello`: a protocol
      violation, which ends the session (C16)"
@@ -259,7 +379,13 @@
           (number? type) (send-message! r peer (error-message (:stream fr) "unsupported"
                                                               "unknown message type" false))
 
-          (#{:cancel :ack :forget} type) nil
+          (#{:ack :forget} type)
+          (let [{:keys [value]} (msg/decode-message frame-bytes)
+                hks (mapv msg/hash-ref-hex (get value "hashes"))]
+            (swap! (:state r) update-in [:sessions peer :record]
+                   #((if (= :ack type) record-ack record-forget) (or % (record-empty)) hks)))
+
+          (= :cancel type) nil
 
           :else (throw (ex-info "a frame this side never accepts" {:reason :unexpected :type type})))))
       (fn [e]
@@ -277,7 +403,21 @@
     (> buffered (* low-frames max-frame))
     (>= buffered (* high-frames max-frame))))
 
+(defn- drop-expired!
+  "C10: a stream's state is gone by its lifetime, even if frames remain."
+  [r peer now]
+  (doseq [[sid st] (get-in @(:state r) [:sessions peer :streams])]
+    (when (and (:deadline st) (>= (double now) (double (:deadline st))))
+      (close-stream! r peer sid))))
+
+(defn- note-frame-sent! [r peer st idx]
+  (when-let [hks (get (:ends st) idx)]
+    (when (seq hks)
+      (swap! (:state r) update-in [:sessions peer :record]
+             #(record-sent (or % (record-empty)) hks)))))
+
 (defn- tick-session! [r peer now]
+  (drop-expired! r peer now)
   (let [{:keys [state buffered]} r
         {:keys [budget last-tick max-frame streams] :as s} (get-in @state [:sessions peer])
         dt (/ (max 0 (- now last-tick)) 1000)
@@ -308,6 +448,7 @@
 
               (and (not blocked) (>= credit size))
               (do ((:send! r) peer f)
+                  (note-frame-sent! r peer st next)
                   (recur (- credit size) (inc next)
                          (blocked? false (buffered peer sid) max-frame)))
 
