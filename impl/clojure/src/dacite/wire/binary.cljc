@@ -1136,6 +1136,18 @@
 ;; Chunk message
 ;; =============================================================================
 
+(def ^:dynamic *on-encode*
+  "Nil, or a function called with `:node` or `:literal` each time
+   `encode-item` builds an item. Tests count encodings (N11)."
+  nil)
+
+(def ^:dynamic *node-wire-cache*
+  "Nil, or an atom `{hex-hash node-item-bytes}` for one send.
+
+   Measuring a page and then sending it used to encode the node twice
+   (N11). While this is bound, the bytes from the measurement are reused."
+  nil)
+
 (defn encode-item
   "Encode one logical item map to bytes (without outer chunk header).
 
@@ -1152,6 +1164,7 @@
                   (throw (ex-info "enc must be :node or :literal" {:enc enc})))
         enc-b (case enc :node enc-node :literal enc-literal)
         buf (bb (+ 1 32 4 (byte-len payload)))]
+    (when *on-encode* (*on-encode* enc))
     (put-u8 buf enc-b)
     (put-hash buf hash)
     (put-u32 buf (byte-len payload))
@@ -1410,10 +1423,25 @@
   [bs]
   (wire-map->pack-edn (decode-chunk bs)))
 
+(defn node-item-wire
+  "Wire bytes of one Layer-1 node item. A hit in `*node-wire-cache*` is
+   returned as it was measured, so the page is not encoded again (N11)."
+  [item]
+  (let [hk (:hash item)
+        hit (when (and *node-wire-cache* (= :node (:encoding item)) hk)
+               (get @*node-wire-cache* hk))]
+    (or hit
+        (let [bs (encode-item (pack-item->wire-item item))]
+          (when (and *node-wire-cache* (= :node (:encoding item)) hk)
+            (swap! *node-wire-cache* assoc hk bs))
+          bs))))
+
 (defn pack-item-wire-bytes
   "Sent size of one Layer-1 pack item on wire-v1."
   [item]
-  (byte-len (encode-item (pack-item->wire-item item))))
+  (byte-len (if (and *node-wire-cache* (= :node (:encoding item)))
+              (node-item-wire item)
+              (encode-item (pack-item->wire-item item)))))
 
 (defn- pack-item-map?
   [v]

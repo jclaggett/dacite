@@ -39,25 +39,35 @@
             [dacite.wire.binary :as bin]))
 
 (defn- nodes
-  "Node source over `store` for `dacite.reveal.engine`."
+  "Node source over `store` for `dacite.reveal.engine`.
+
+   One call keeps the encoded node item of each hash it meets, so the
+   clock's byte count and the `:wire` bytes on the page are one encode,
+   not two (N11). The cache lives only for this call."
   [store]
-  {:node-entry
-   (fn [h]
-     (let [n (store/require-node store h)
-           data (types/entry-data n)]
-       {:type (types/entry-type n)
-        :root (when (map? data) (:root data))
-        :child-hashes (into [] (remove nil?) (or (types/child-hashes n) []))}))
-   :assoc-order
-   (fn [root kind]
-     (let [entries (hamt/hamt-entries store root)]
-       (if (= kind "set")
-         (map first entries)
-         (concat (map first entries) (map second entries)))))
-   :node-bytes
-   (fn [h]
-     (let [node (store/require-node store h)]
-       (bin/byte-len (bin/encode-item {:enc :node :hash h :entry node}))))})
+  (let [wire (atom {})
+        item (fn [h]
+               (let [k (store/hash->hex h)]
+                 (or (get @wire k)
+                     (let [bs (bin/encode-item {:enc :node :hash h
+                                                :entry (store/require-node store h)})]
+                       (swap! wire assoc k bs)
+                       bs))))]
+    {:node-entry
+     (fn [h]
+       (let [n (store/require-node store h)
+             data (types/entry-data n)]
+         {:type (types/entry-type n)
+          :root (when (map? data) (:root data))
+          :child-hashes (into [] (remove nil?) (or (types/child-hashes n) []))}))
+     :assoc-order
+     (fn [root kind]
+       (let [entries (hamt/hamt-entries store root)]
+         (if (= kind "set")
+           (map first entries)
+           (concat (map first entries) (map second entries)))))
+     :node-wire item
+     :node-bytes (fn [h] (bin/byte-len (item h)))}))
 
 (defn page-order
   "Hashes a default reveal of `h` would send, in order.

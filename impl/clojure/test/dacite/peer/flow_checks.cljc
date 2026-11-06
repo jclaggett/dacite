@@ -18,6 +18,7 @@
             [dacite.peer.msg :as msg]
             [dacite.peer.rates :as rates]
             [dacite.peer.responder :as responder]
+            [dacite.peer.verify :as verify]
             [dacite.reveal :as reveal]
             [dacite.store :as store]
             [dacite.value :as v]
@@ -669,8 +670,9 @@
 
 (defn same-hash-twice-is-two-independent-streams
   "N1, C38. Two `get`s for one hash are two streams, keyed by stream id.
-   Each delivers the value. Opening the second does not cancel the first,
-   and neither stream is an error."
+   Opening the second does not cancel the first, and neither stream is an
+   error. The first stream, planned with an empty record, delivers every
+   page. The second sends the root and the pages not yet recorded (C19, C20)."
   []
   (let [st (store/mem-store)
         root (v/hash (v/string st (apply str (repeat 20000 "q"))))
@@ -702,13 +704,18 @@
      (bad "the first stream is sending when the second get arrives" true started)
      (bad "both streams are open together" #{1 3} both)
      (bad "stream 1 delivers every page" order (get done 1))
-     (bad "stream 3 delivers every page" order (get done 3))
+     ;; The sent-hash record skips pages stream 1 has already written (C19).
+     ;; Stream 3 is still its own stream: it sends the root (C20) and whatever
+     ;; stream 1 had not recorded when this get was planned.
+     (bad "stream 3 sends the root" (first order) (first (get done 3)))
+     (bad "together the two streams cover the value" (set order)
+          (set (concat (get done 1) (get done 3))))
      (bad "neither stream is an error" [] (mapv :stream errs))
      (bad "both streams end" #{} (responder/open-streams (:r n) "p")))))
 
 (defn no-message-changes-the-store-except-verified-items
   "C34: no message changes a responder's store, whatever it says. A `get` for
-   a held hash and for a missing one, `ack`, `forget`, `cancel`, an unknown
+   a held hash and for a missing one, `ack`, `cancel`, an unknown
    type, a second `hello`, an `item-stream` and a garbage frame leave its keys as
    they were. (On the client side, only a verified item reaches the store: see
    `nothing-unverified-reaches-the-store`.)"
@@ -722,16 +729,243 @@
         _ (send-to! n (get-bytes 1 root 100000))
         _ (send-to! n (get-bytes 3 (v/hash (v/string (store/mem-store) "none")) 100000))
         _ (send-to! n (msg/encode-message {:type :ack :stream 0 :value {"hashes" [h]}}))
-        _ (send-to! n (msg/encode-message {:type :forget :stream 0 :value {"hashes" [h]}}))
         _ (send-to! n (msg/encode-message {:type :cancel :stream 1 :value {}}))
         _ (dotimes [_ 5] (step! n 100))
         mid (keys-of)
         _ (send-to! n item)                       ; a protocol violation: ends it
         after (keys-of)]
     (concat
-     (bad "unchanged after gets, ack, forget, cancel and serving" before mid)
+     (bad "unchanged after gets, ack, cancel and serving" before mid)
      (bad "unchanged after an item-stream (which ends the session)" before after)
      (bad "that ended the session" :ended (responder/session-status (:r n) "p")))))
+
+(defn- hex-ref [h] (msg/hash-ref (store/hash->hex h)))
+
+(defn- read-items
+  "Hashes of the items `n` wrote on stream `sid`, in order."
+  [n sid]
+  (let [frames (into []
+                     (keep (fn [[_ _ bs]]
+                             (let [fr (frame/decode-frame bs)]
+                               (when (and (= :item-stream (:type fr)) (= sid (:stream fr)))
+                                 fr))))
+                     @(:sent n))]
+    (loop [frames frames st (frame/reader sid) out []]
+      (if (empty? frames)
+        out
+        (let [[st' items] (frame/feed st (first frames))]
+          (recur (rest frames) st'
+                 (into out (mapcat (fn [bs] (map :hash (bin/decode-item-stream bs))) items))))))))
+
+(defn- ack! [n hashes]
+  (send-to! n (msg/encode-message
+               {:type :ack :stream 0
+                :value {"hashes" (mapv hex-ref hashes)}})))
+
+(defn record-is-capped-oldest-first
+  "C21: the sent-hash record holds 16 384 hashes and drops the oldest. There
+   is no wire message that removes one. `ack` of a hash the record holds
+   moves it to the newest end; an unknown hash is ignored (C23)."
+  []
+  (let [cap responder/sent-cap
+        keys (mapv #(str "k" %) (range (+ cap 2)))
+        full (responder/record-sent (responder/record-empty) (take cap keys))
+        overflow (responder/record-sent full (drop cap keys))
+        oldest (first keys)
+        acked (responder/record-ack overflow [(nth keys 2) "not-recorded"])]
+    (concat
+     (bad "the cap is 16 384" 16384 cap)
+     (bad "a full record has the cap" cap (count (:set full)))
+     (bad "the oldest is still there at the cap" true (contains? (:set full) oldest))
+     (bad "one past the cap drops the oldest" false (contains? (:set overflow) oldest))
+     (bad "the newest past the cap is kept" true (contains? (:set overflow) (last keys)))
+     (bad "still at the cap" cap (count (:set overflow)))
+     (bad "ack of an unknown hash does not grow the record" cap (count (:set acked)))
+     (bad "ack keeps a recorded hash" true (contains? (:set acked) (nth keys 2)))
+     (bad "ack moves that hash to the newest end" (nth keys 2) (last (:order acked))))))
+
+(defn failed-stream-retry-does-not-resend-confirmed-pages
+  "A get that stops after a few pages, once those pages are acked, is retried
+   as a new get. The retry sends the root again (C20) and does not send the
+   pages the client already confirmed."
+  []
+  (let [st (store/mem-store)
+        root (v/hash (v/string st (apply str (repeat 30000 "q"))))
+        order (reveal/page-order st root)
+        n (rnet {:st st})
+        _ (send-to! n (get-bytes 1 root 40000))
+        _ (step! n 300)
+        sent1 (read-items n 1)
+        confirmed (into [] (remove #(= % root)) sent1)
+        _ (ack! n sent1)
+        _ (send-to! n (get-bytes 3 root 10000000))
+        _ (step! n 2000)
+        sent2 (read-items n 3)]
+    (concat
+     (bad "the first stream confirmed a page that is not the root" true (boolean (seq confirmed)))
+     (bad "the value has pages the first stream did not send" true
+          (< (count sent1) (count order)))
+     (bad "the retry sends the root" true (boolean (some #(= % root) sent2)))
+     (bad "the retry does not resend a confirmed page" []
+          (into [] (filter (set confirmed)) sent2))
+     (bad "the retry sends a page the first stream had not reached" true
+          (boolean (some (complement (set sent1)) sent2)))
+     (bad "the session stays open" :open (responder/session-status (:r n) "p")))))
+
+(defn root-of-a-get-is-sent-even-if-recorded
+  "C20: after a value has been sent and acked, asking again still sends the
+   root, and does not send the other pages again."
+  []
+  (let [st (store/mem-store)
+        root (v/hash (v/vector st (v/i64 st 1) (v/i64 st 2) (v/i64 st 3)))
+        order (reveal/page-order st root)
+        n (rnet {:st st})
+        _ (send-to! n (get-bytes 1 root 10000000))
+        _ (step! n 200)
+        sent1 (read-items n 1)
+        _ (ack! n sent1)
+        _ (send-to! n (get-bytes 3 root 10000000))
+        _ (step! n 200)
+        sent2 (read-items n 3)]
+    (concat
+     (bad "the first get sent every page" (count order) (count sent1))
+     (bad "the second get sends the root" [root] (filterv #(= % root) sent2))
+     (bad "and only the root" [root] sent2))))
+
+(defn empty-and-wrong-record-still-complete-every-request
+  "C19: an empty record sends the whole value. A record that names a child
+   skips that child and still sends the root; asking for the child itself
+   sends it, because that ask's root is the child."
+  []
+  (let [st (store/mem-store)
+        root (v/hash (v/vector st (v/i64 st 1) (v/string st "child")))
+        order (reveal/page-order st root)
+        child (second order)
+        whole (fn []
+                (let [n (rnet {:st st})]
+                  (send-to! n (get-bytes 1 root 10000000))
+                  (step! n 200)
+                  (read-items n 1)))
+        wrong (let [n (rnet {:st st})
+                    rec (responder/record-sent (responder/record-empty)
+                                               [(store/hash->hex child) "not-a-page"])]
+                (swap! (:state (:r n)) assoc-in [:sessions "p" :record] rec)
+                (send-to! n (get-bytes 1 root 10000000))
+                (step! n 200)
+                (read-items n 1))
+        asked (let [n (rnet {:st st})]
+                (send-to! n (get-bytes 1 child 10000000))
+                (step! n 200)
+                (read-items n 1))]
+    (concat
+     (bad "an empty record sends every page" (set order) (set (whole)))
+     (bad "a wrong record still sends the root" true (boolean (some #(= % root) wrong)))
+     (bad "a wrong record skips the child it names" false (boolean (some #(= % child) wrong)))
+     (bad "asking for that child sends it" true (boolean (some #(= % child) asked))))))
+
+(defn a-get-of-a-recorded-hash-is-sent-and-verified
+  "C20 and C22: a hash already in the sent record is still delivered when a
+   later `get` names it. That is how a client recovers a page it evicted or
+   never stored. The item verifies from its own bytes."
+  []
+  (let [src (store/mem-store)
+        root (v/hash (v/vector src (v/i64 src 7) (v/i64 src 8)))
+        order (reveal/page-order src root)
+        child (last order)
+        n (rnet {:st src})
+        _ (send-to! n (get-bytes 1 root 10000000))
+        _ (step! n 200)
+        sent-first (read-items n 1)
+        _ (send-to! n (get-bytes 3 child 10000000))
+        _ (step! n 200)
+        sent (read-items n 3)
+        frames (into []
+                     (keep (fn [[_ _ bs]]
+                             (let [fr (frame/decode-frame bs)]
+                               (when (and (= :item-stream (:type fr)) (= 3 (:stream fr)))
+                                 fr))))
+                     @(:sent n))
+        items (loop [frames frames st (frame/reader 3) out []]
+                (if (empty? frames)
+                  out
+                  (let [[st' bs] (frame/feed st (first frames))]
+                    (recur (rest frames) st'
+                           (into out (mapcat bin/decode-item-stream bs))))))
+        child-item (first (filter #(= child (:hash %)) items))
+        checked (when child-item (verify/verify-item! (store/mem-store) child-item))]
+    (concat
+     (bad "the first get recorded the child" true (boolean (some #(= % child) sent-first)))
+     (bad "a get of that hash sends it again" true (boolean (some #(= % child) sent)))
+     (bad "the resent page verifies from its own bytes" true (set? checked)))))
+
+(defn ack-is-optional-and-unknown-hashes-are-ignored
+  "C23: a stream finishes with no ack. An ack that names a hash the
+   responder has never sent does not end the session and does not change
+   what the next get sends."
+  []
+  (let [st (store/mem-store)
+        root (v/hash (v/i64 st 4))
+        other (v/hash (v/i64 (store/mem-store) 5))
+        n (rnet {:st st})
+        _ (ack! n [other])
+        _ (send-to! n (get-bytes 1 root 10000000))
+        _ (step! n 100)
+        sent (read-items n 1)]
+    (concat
+     (bad "no ack was required: the page was sent" [root] sent)
+     (bad "the stream is finished" #{} (responder/open-streams (:r n) "p"))
+     (bad "an unknown ack did not end the session" :open
+          (responder/session-status (:r n) "p"))
+     (bad "no error was sent" [] (errors-of n)))))
+
+(defn renewal-is-correct-with-no-record-and-may-reveal-more
+  "C26: a second get is a new stream. With nothing recorded it sends the
+   value again. After the first pages are recorded, the renewal sends pages
+   the first stream had not reached."
+  []
+  (let [st (store/mem-store)
+        root (v/hash (v/string st (apply str (repeat 30000 "r"))))
+        order (reveal/page-order st root)
+        fresh (rnet {:st st})
+        _ (send-to! fresh (get-bytes 1 root 10000000))
+        _ (step! fresh 500)
+        all (read-items fresh 1)
+        paced (rnet {:st st})
+        _ (send-to! paced (get-bytes 1 root 40000))
+        _ (step! paced 300)
+        first (read-items paced 1)
+        _ (send-to! paced (get-bytes 3 root 10000000))
+        _ (step! paced 2000)
+        more (read-items paced 3)]
+    (concat
+     (bad "no record: the get sends every page" (set order) (set all))
+     (bad "the paced get did not finish the value" true (< (count first) (count order)))
+     (bad "the renewal sends a page the first stream had not" true
+          (boolean (some (complement (set first)) more)))
+     (bad "the renewal still sends the root" true (boolean (some #(= % root) more))))))
+
+(defn stream-state-is-forgotten-by-its-lifetime-bound
+  "C10: a stream that has not finished is dropped once `tau · ln(peak / floor)`
+   has passed (the clamps make that at most about 276 s). The session lives,
+   and a new get is a new stream."
+  []
+  (let [st (store/mem-store)
+        root (v/hash (v/string st (apply str (repeat 80000 "z"))))
+        n (rnet {:st st})
+        _ (send-to! n (get-bytes 1 root 1000))
+        _ (step! n 20)
+        open-before (responder/open-streams (:r n) "p")
+        _ (step! n 40000)
+        _ (send-to! n (get-bytes 3 root 10000000))
+        _ (step! n 50)]
+    (concat
+     (bad "the slow stream was open" #{1} open-before)
+     (bad "past the lifetime that stream is gone" false
+          (contains? (responder/open-streams (:r n) "p") 1))
+     (bad "the session lives" :open (responder/session-status (:r n) "p"))
+     (bad "a new get is accepted" true
+          (boolean (or (contains? (responder/open-streams (:r n) "p") 3)
+                       (seq (read-items n 3))))))))
 
 (def checks
   "Test name (spec §13) -> check. Run order is this order."
@@ -750,7 +984,15 @@
    "get-over-the-bucket-is-rate-limited-and-session-lives" get-over-the-bucket-is-rate-limited-and-session-lives
    "same-hash-twice-is-two-independent-streams" same-hash-twice-is-two-independent-streams
    "responder-never-fetches-on-behalf" responder-never-fetches-on-behalf
-   "no-message-changes-the-store-except-verified-items" no-message-changes-the-store-except-verified-items))
+   "no-message-changes-the-store-except-verified-items" no-message-changes-the-store-except-verified-items
+   "record-is-capped-oldest-first" record-is-capped-oldest-first
+   "failed-stream-retry-does-not-resend-confirmed-pages" failed-stream-retry-does-not-resend-confirmed-pages
+   "root-of-a-get-is-sent-even-if-recorded" root-of-a-get-is-sent-even-if-recorded
+   "empty-and-wrong-record-still-complete-every-request" empty-and-wrong-record-still-complete-every-request
+   "a-get-of-a-recorded-hash-is-sent-and-verified" a-get-of-a-recorded-hash-is-sent-and-verified
+   "ack-is-optional-and-unknown-hashes-are-ignored" ack-is-optional-and-unknown-hashes-are-ignored
+   "renewal-is-correct-with-no-record-and-may-reveal-more" renewal-is-correct-with-no-record-and-may-reveal-more
+   "stream-state-is-forgotten-by-its-lifetime-bound" stream-state-is-forgotten-by-its-lifetime-bound))
 
 (def max-ms
   "No check may take longer than this (milliseconds)."

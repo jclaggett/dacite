@@ -496,6 +496,83 @@
                               (eq! n nil "and after it, from the database")
                               (idb/close st)))))))))
 
+(defn- unwrap
+  "A host promise of the store method's value. A cache hit is already settled
+   (`{:dacite/result ...}`), not a `js/Promise`."
+  [p]
+  (if (instance? js/Promise p)
+    p
+    (js/Promise.resolve (store/await p))))
+
+(defn- evicting-store-get-evict-get-again
+  "N14c, outside `drive`: put two nodes into a one-node cache, get the newer
+   (that evicts the older), get the older again. IndexedDB still has it."
+  []
+  (let [name (db-name)
+        mem (store/mem-store)
+        a (let [h (v/hash (v/i64 mem 1))]
+            [h (store/await (store/s-get mem h))])
+        b (let [h (v/hash (v/i64 mem 2))]
+            [h (store/await (store/s-get mem h))])
+        st (idb/idb-store name {:cache-limit 1})]
+    (-> (unwrap (store/s-put st (first a) (second a)))
+        (.then (fn [_] (unwrap (store/s-put st (first b) (second b)))))
+        (.then (fn [_] (unwrap (store/s-get st (first b)))))
+        (.then (fn [got]
+                 (eq! got (second b) "the newest node stays cached")
+                 (eq! (.-size @(:cache-order st)) 1 "the older node was evicted")
+                 (unwrap (store/s-get st (first a)))))
+        (.then (fn [got]
+                 (eq! got (second a) "get, evict, get again returns the node")
+                 (idb/close st))))))
+
+(defn- snapshot-does-not-grow-the-read-cache
+  "N14a: `s-snapshot` returns every node, and the read cache stays within
+   its limit. A node the cache dropped is still read back."
+  []
+  (let [name (db-name)
+        mem (store/mem-store)
+        nodes (mapv (fn [i]
+                      (let [h (v/hash (v/i64 mem i))]
+                        [h (store/await (store/s-get mem h))]))
+                    (range 5))
+        st (idb/idb-store name {:cache-limit 1})]
+    (-> (unwrap (store/s-merge st (into {} nodes)))
+        (.then (fn [_] (unwrap (store/s-snapshot st))))
+        (.then (fn [snap]
+                 (eq! (count snap) 5 "the snapshot has every node")
+                 (eq! (<= (.-size @(:cache-order st)) 1) true
+                      "the read cache stays within its limit")
+                 (unwrap (store/s-get st (ffirst nodes)))))
+        (.then (fn [got]
+                 (eq! got (second (first nodes)) "a node dropped from the cache is read back")
+                 (idb/close st))))))
+
+(defn- a-miss-outside-drive-does-not-evict-a-hit
+  "N14d: a get of a hash that is not stored, outside `drive`, must not occupy
+   a cache slot. The node that was cached stays a hit."
+  []
+  (counting-transactions
+   (fn [n]
+     (let [name (db-name)
+           mem (store/mem-store)
+           h (v/hash (v/i64 mem 3))
+           node (store/await (store/s-get mem h))
+           st (idb/idb-store name {:cache-limit 1})]
+       (-> (unwrap (store/s-put st h node))
+           (.then (fn [_] (unwrap (store/s-get st h))))
+           (.then (fn [_]
+                    (reset! n 0)
+                    (unwrap (store/s-get st [9 9 9 9]))))
+           (.then (fn [miss]
+                    (eq! miss nil "the missing hash is absent")
+                    (reset! n 0)
+                    (unwrap (store/s-get st h))))
+           (.then (fn [got]
+                    (eq! got node "the cached node is still a hit")
+                    (eq! @n 0 "a miss did not push it out of the cache")
+                    (idb/close st))))))))
+
 (defn -main
   [& _]
   (js/require "fake-indexeddb/auto")
@@ -513,6 +590,9 @@
       (.then peer-over-idb)
       (.then closed-db-fails-the-peer-locally)
       (.then reset-does-not-serve-stale-nodes)
+      (.then evicting-store-get-evict-get-again)
+      (.then snapshot-does-not-grow-the-read-cache)
+      (.then a-miss-outside-drive-does-not-evict-a-hit)
       (.then (fn [_]
                (println "idb tests passed")))
       (.catch (fn [e]

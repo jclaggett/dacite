@@ -56,6 +56,17 @@
   [h]
   (host/hash-key h))
 
+(def sent-limit
+  "Held hashes one session remembers. The oldest are dropped first. The same
+   cap as the peer sent-hash record (peer-v1 C21)."
+  16384)
+
+(def reveal-limit
+  "Reveals one session keeps. A finished reveal whose pages are all
+   acknowledged is dropped. A reveal with a page still offered stays, so
+   the cap never throws away an in-flight page."
+  64)
+
 (defn- node-entry
   [nodes h]
   ((:node-entry nodes) h))
@@ -246,9 +257,16 @@
 
 (defn session
   "An empty reveal session. The clock starts on the first call that
-   names a time. Nothing has been offered or held."
+   names a time. Nothing has been offered or held.
+
+   `:sent` holds at most `:sent-limit` hashes (oldest dropped first) and
+   `:owner` only names hashes still sent or offered. A finished reveal
+   with nothing left in flight is removed, and idle reveals past
+   `:reveal-limit` are dropped oldest first. Those three collections
+   therefore stay bounded for the life of the session."
   []
-  {:t nil :sent #{} :offered {} :owner {} :seq 0 :reveals []})
+  {:t nil :sent #{} :sent-order [] :offered {} :owner {} :seq 0 :reveals []
+   :sent-limit sent-limit :reveal-limit reveal-limit})
 
 (defn- skip-set
   "Hashes that must not be offered again: held, or still in flight."
@@ -336,6 +354,17 @@
                    seen
                    (inc guard))))))))
 
+(defn- read-page
+  "The page for `h`: its wire size, and the encoded item when the node
+   source builds one (`:node-wire`). The size and the bytes come from one
+   encode, so a sender that writes `:wire` does not encode the page again
+   (N11)."
+  [nodes h]
+  (let [wire (when-let [f (:node-wire nodes)] (f h))
+        n (page-bytes nodes h)]
+    (cond-> {:hash h :bytes n}
+      wire (assoc :wire wire))))
+
 (defn- ensure-reveal
   "Queue the next unsent page, when this reveal does not already have one."
   [reveal nodes skip]
@@ -346,7 +375,7 @@
       (if (nil? h)
         (assoc reveal :cursor cursor :pages [] :done? true)
         (assoc reveal :cursor cursor :done? false
-               :pages [{:hash h :bytes (page-bytes nodes h)}])))))
+               :pages [(read-page nodes h)])))))
 
 (defn- ensure-reveals
   [session nodes]
@@ -503,17 +532,18 @@
                                  (:cursor reveal)))]
     {:session (-> session
                   (update :offered assoc (:hash page)
-                          {:id (:id reveal) :bytes (:bytes page)})
+                          {:id (:id reveal) :bytes (:bytes page) :hash (:hash page)})
                   (update :owner assoc (:hash page) (:id reveal))
                   (update :reveals
                           (fn [rs]
                             (mapv (fn [r]
                                     (if (= (:id reveal) (:id r)) reveal' r))
                                   rs))))
-     :page {:id (:id reveal)
-            :hash (:hash page)
-            :bytes (:bytes page)
-            :at (double t)}}))
+     :page (cond-> {:id (:id reveal)
+                    :hash (:hash page)
+                    :bytes (:bytes page)
+                    :at (double t)}
+             (:wire page) (assoc :wire (:wire page)))}))
 
 (defn- advance
   "Move the session clock forward to `t`, offering every page whose
@@ -713,6 +743,8 @@
     (assoc reveal :cursor {:stack [] :seen #{}} :pages [])
     reveal))
 
+(declare trim-reveals)
+
 (defn open-reveal
   "Open a reveal of `h` at time `t`, or resume one already open.
 
@@ -737,11 +769,12 @@
             closed (bank-tail session id t params)
             restarted (restart-clock closed id t)
             granted (snap-covered (bank-tail restarted id t params) id)]
-        {:session (if (and (> (double (reveal-credit granted id))
-                              (double (reveal-credit restarted id)))
-                           (<= (double (:floor params)) 0.0))
-                    (exhaust-clock granted id t params)
-                    granted)
+        {:session (trim-reveals
+                   (if (and (> (double (reveal-credit granted id))
+                               (double (reveal-credit restarted id)))
+                            (<= (double (:floor params)) 0.0))
+                     (exhaust-clock granted id t params)
+                     granted))
          :pages pages
          :id id})
       (let [id (inc (:seq session))
@@ -755,9 +788,10 @@
                         :done? false}
                        (ensure-reveal nodes (skip-set session))
                        slim-done)]
-        {:session (-> session
-                      (assoc :seq id :t t)
-                      (update :reveals conj reveal))
+        {:session (trim-reveals
+                   (-> session
+                       (assoc :seq id :t t)
+                       (update :reveals conj reveal)))
          :pages pages
          :id id}))))
 
@@ -781,21 +815,67 @@
                         (into [] (remove #(= id (:id %))) rs)))
      :pages pages}))
 
+(defn- remember-sent
+  "Record `hashes` as held. Past `:sent-limit`, the oldest held hash is
+   dropped, and so is its `:owner` entry when nothing still offers it."
+  [session hashes]
+  (let [limit (:sent-limit session sent-limit)]
+    (reduce (fn [session h]
+              (let [k h]
+                (if (contains? (:sent session) k)
+                  session
+                  (let [session (-> session
+                                    (update :sent conj k)
+                                    (update :sent-order conj k))]
+                    (if (<= (count (:sent-order session)) limit)
+                      session
+                      (let [old (first (:sent-order session))]
+                        (-> session
+                            (assoc :sent-order (into [] (rest (:sent-order session))))
+                            (update :sent disj old)
+                            (update :owner (fn [owner]
+                                             (if (contains? (:offered session) old)
+                                               owner
+                                               (dissoc owner old)))))))))))
+            session
+            hashes)))
+
+(defn- trim-reveals
+  "While the session holds more than `:reveal-limit` reveals, drop the oldest
+   one that has nothing in flight (finished, or idle with no page queued).
+   A reveal with a page queued or still offered stays, so `forget-pages` can
+   requeue onto it. Under the cap, finished reveals stay too: an eviction
+   forgets a page back onto the reveal that sent it."
+  [session]
+  (let [busy (set (map :id (vals (:offered session))))
+        limit (:reveal-limit session reveal-limit)
+        droppable? (fn [r]
+                     (and (not (contains? busy (:id r)))
+                          (or (:done? r) (empty? (:pages r)))))]
+    (assoc session :reveals
+           (loop [rs (:reveals session)]
+             (if (or (<= (count rs) limit) (not-any? droppable? rs))
+               rs
+               (let [victim (:id (first (filter droppable? rs)))]
+                 (recur (into [] (remove #(= victim (:id %))) rs))))))))
+
 (defn ack-pages
   "The client holds the offered hashes among `hashes`.
 
    A hash that is not an outstanding offer is ignored. That includes a
    hash already held and a hash this session has never offered. An ack
    is a hint and is never an error (N10). A held hash is not offered
-   again unless `forget-pages`."
+   again unless `forget-pages`. Held hashes past `:sent-limit` are
+   forgotten oldest first."
   [session hashes]
   (let [known (into [] (filter #(contains? (:offered session) %)) hashes)]
     (if (empty? known)
       session
-      (-> session
-          (update :sent into known)
-          (update :offered (fn [offered]
-                             (reduce dissoc offered known)))))))
+      (trim-reveals
+       (-> session
+           (remember-sent known)
+           (update :offered (fn [offered]
+                              (reduce dissoc offered known))))))))
 
 (defn forget-pages
   "The client does not hold `hashes`.
@@ -807,27 +887,30 @@
    sends it. A hash that was neither offered nor held is ignored (N10)."
   [session nodes hashes]
   (reduce (fn [session h]
-            (if-not (or (contains? (:offered session) h)
-                        (contains? (:sent session) h))
-              ;; Unknown hashes are ignored, as with `ack-pages` (N10).
-              session
-              (let [id (get (:owner session) h)
-                    page {:hash h :bytes (page-bytes nodes h)}
-                    session (-> session
-                                (update :offered dissoc h)
-                                (update :sent disj h)
-                                (update :owner dissoc h))]
-                (update session :reveals
-                        (fn [rs]
-                          (mapv (fn [r]
-                                  (if (and (= id (:id r))
-                                           (not (some #(= h (:hash %))
-                                                      (:pages r))))
-                                    (-> r
-                                        (update :pages #(into [page] %))
-                                        (assoc :done? false))
-                                    r))
-                                rs))))))
+            (let [k h]
+              (if-not (or (contains? (:offered session) k)
+                          (contains? (:sent session) k))
+                ;; Unknown hashes are ignored, as with `ack-pages` (N10).
+                session
+                (let [id (get (:owner session) k)
+                      raw (or (:hash (get (:offered session) k)) h)
+                      page (read-page nodes raw)
+                      session (-> session
+                                  (update :offered dissoc k)
+                                  (update :sent disj k)
+                                  (update :sent-order (fn [o] (into [] (remove #(= k %)) o)))
+                                  (update :owner dissoc k))]
+                  (update session :reveals
+                          (fn [rs]
+                            (mapv (fn [r]
+                                    (if (and (= id (:id r))
+                                             (not (some #(= raw (:hash %))
+                                                        (:pages r))))
+                                      (-> r
+                                          (update :pages #(into [page] %))
+                                          (assoc :done? false))
+                                      r))
+                                  rs)))))))
           session
           hashes))
 

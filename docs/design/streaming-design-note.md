@@ -89,6 +89,12 @@ Blocker: `IStore` (`dacite/store.cljc`) is synchronous today (`s-get`, `s-put`, 
 
 ## Future direction: LAN peer caching
 
+This section is the Oct 27 sketch. The design that the code follows is
+[peer-v1](../spec/peer-v1.md) and [the peering plan](../plan/peering.md): one
+`dacite-peer` data channel, `get` / `item-stream` / `ack`, and a
+sent-hash record that is only an optimization. The options below are the
+history of that decision, not a second protocol.
+
 Because Dacite entries are immutable and content-addressed, any peer's cache is a safe source: a receiver verifies each entry against its hash, so peers never need to be trusted. This leverages a core Dacite design choice (immutable, highly cacheable data).
 
 Idea: Alice and Bob on the same LAN each offer a Dacite Store fronting their local cache (e.g., IndexedDB), and check LAN peers before going to internet servers. Store tiers become: memory, then local IndexedDB, then LAN peers, then the internet server.

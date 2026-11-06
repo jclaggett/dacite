@@ -158,7 +158,7 @@
 ;; =============================================================================
 
 (def max-hashes
-  "Hashes in one `ack` or `forget`. 256 hashes are 8 KiB."
+  "Hashes in one `ack`. 256 hashes are 8 KiB."
   256)
 
 (def error-codes
@@ -185,12 +185,11 @@
   32)
 
 (defn max-hashes-for
-  "Hashes an `ack` or `forget` can hold when frames are at most
-   `max-frame-bytes`: 32 bytes each, after 33 bytes of header and map
-   framing and 320 bytes kept for a `forget` reason. At 16 KiB that is
-   more than 256, so 256 rules; at 1024 it is 20."
+  "Hashes an `ack` can hold when frames are at most `max-frame-bytes`:
+   32 bytes each, after 33 bytes of header and map framing. At 16 KiB
+   that is more than 256, so 256 rules; at 1024 it is 30."
   [max-frame-bytes]
-  (max 1 (min max-hashes (quot (- max-frame-bytes 33 320) 32))))
+  (max 1 (min max-hashes (quot (- max-frame-bytes 33) 32))))
 
 (def policies
   "Reveal policies v1 defines. `get` names one."
@@ -222,9 +221,6 @@
 
    :ack
    [:map {"hashes" [:vec :hash]} #{"hashes"}]
-
-   :forget
-   [:map {"hashes" [:vec :hash] "reason" :string} #{"hashes"}]
 
    :cancel
    [:map {"reason" :string} #{}]
@@ -297,7 +293,7 @@
         (conj (str "limits.max-frame: must be " frame/webrtc-max-frame
                    ".." frame/max-frame))))
 
-    (:ack :forget)
+    :ack
     (cond-> []
       (and (vector? (get x "hashes")) (not (<= 1 (count (get x "hashes")) max-hashes)))
       (conj "hashes: 1..256 required"))
@@ -379,7 +375,7 @@
 
 (def ^:private free-text
   "The free-text keys of each message type."
-  {:hello ["agent"] :cancel ["reason"] :forget ["reason"] :error ["message"]})
+  {:hello ["agent"] :cancel ["reason"] :error ["message"]})
 
 (defn cut-free-text
   "`value` with its free-text fields cut by `cut-text`."

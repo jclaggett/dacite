@@ -203,7 +203,7 @@ that reveal and does not replace the stream that is writing it. When
 the write fails, or the stream goes 20 seconds with no new page, and
 it is the last stream on that reveal, the server cancels the reveal and
 forgets those offers, so a retry on the same connection can send them.
-There is no client-to-server `ack` or `forget` message here yet (peer v1 has them, spec 6.4). That inference
+There is no client-to-server `ack` message here yet (peer v1 has `ack`, spec 6.4). There is no wire `forget`. That inference
 is a gap.
 
 `peak`, `tau`, `floor`, and `r-max` are server configuration, merged

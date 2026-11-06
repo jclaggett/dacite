@@ -164,7 +164,8 @@
   (if-let [db @(:db st)]
     (js/Promise.resolve db)
     (or @(:opening st)
-        (let [p (-> (open-db (:name st))
+        (let [slot (atom nil)
+              p (-> (open-db (:name st))
                     (.then (fn [[db fresh?]]
                              (if fresh?
                                db
@@ -172,7 +173,14 @@
                                    (.catch (fn [e] (.close db) (throw e)))))))
                     (.then (fn [db]
                              (reset! (:db st) db)
-                             db)))]
+                             db))
+                    (.catch (fn [e]
+                              ;; A failed open must not stick, or the next call
+                              ;; retries the same rejection forever.
+                              (when (identical? @(:opening st) @slot)
+                                (reset! (:opening st) nil))
+                              (throw e))))]
+          (reset! slot p)
           (reset! (:opening st) p)
           p))))
 
@@ -249,14 +257,37 @@
        (or (= (:epoch v) *drive-epoch*)
            (= (:miss v) *drive-epoch*))))
 
+(defn- order-touch!
+  "Make `k` the newest key. A `js/Map` iterates in insertion order, so
+   delete-then-set is the move, in constant time. Rebuilding a vector with
+   `remove` on every touch was quadratic in the cache (N14b)."
+  [order k]
+  (.delete order k)
+  (.set order k true))
+
+(defn- order-oldest
+  "The oldest key for which `skip?` is false, or nil."
+  [order skip?]
+  (let [it (.keys order)]
+    (loop []
+      (let [n (.next it)]
+        (when-not (.-done n)
+          (let [k (.-value n)]
+            (if (skip? k) (recur) k)))))))
+
+(defn- cache-drop!
+  "Forget `k`. A miss outside `drive` is not remembered: it would occupy a
+   slot and is never served (`fresh-miss?` needs an epoch) (N14d)."
+  [st k]
+  (swap! (:cache st) dissoc k)
+  (.delete @(:cache-order st) k))
+
 (defn- cache-store!
   "Remember `value` without evicting. The IndexedDB callback runs outside
-   `drive`'s binding, so eviction happens on the next replay instead."
+   `drive`'s binding, so eviction happens on the next call instead."
   [st k value]
   (swap! (:cache st) assoc k value)
-  (swap! (:cache-order st)
-         (fn [order]
-           (conj (into [] (remove #(= k %)) order) k))))
+  (order-touch! @(:cache-order st) k))
 
 (defn- evict-while!
   "Drop the oldest unpinned entries until the cache is within its limit.
@@ -265,26 +296,23 @@
    turn a hit into another IndexedDB read. Entries written by the drive
    now replaying stay too: dropping those would make the replay write again."
   [st keep-key]
-  (let [limit (:cache-limit st)]
+  (let [limit (:cache-limit st)
+        order @(:cache-order st)]
     (when (pos? limit)
       (loop []
-        (let [order @(:cache-order st)]
-          (when (> (count order) limit)
-            (let [victim (first (remove (fn [k]
-                                          (or (= k keep-key)
-                                              (pinned? (get @(:cache st) k))))
-                                        order))]
-              (when victim
-                (swap! (:cache st) dissoc victim)
-                (swap! (:cache-order st)
-                       (fn [o] (into [] (remove #(= victim %)) o)))
-                (recur)))))))))
+        (when (> (.-size order) limit)
+          (let [victim (order-oldest order
+                                     (fn [k]
+                                       (or (= k keep-key)
+                                           (pinned? (get @(:cache st) k)))))]
+            (when victim
+              (swap! (:cache st) dissoc victim)
+              (.delete order victim)
+              (recur))))))))
 
 (defn- cache-touch!
   [st k]
-  (swap! (:cache-order st)
-         (fn [order]
-           (conj (into [] (remove #(= k %)) order) k)))
+  (order-touch! @(:cache-order st) k)
   (evict-while! st k))
 
 (defn- keepv
@@ -325,7 +353,9 @@
                          (if-let [node (decode-node h bs)]
                            (do (reset! found node)
                                (cache-store! this k {:node node :epoch epoch}))
-                           (cache-store! this k {:miss epoch})))))
+                           (if epoch
+                             (cache-store! this k {:miss epoch})
+                             (cache-drop! this k))))))
             h)
            #(deref found))))))
 
@@ -373,7 +403,9 @@
                          (if-let [node (decode-node h bs)]
                            (do (reset! found true)
                                (cache-store! this k {:node node :epoch epoch}))
-                           (cache-store! this k {:miss epoch})))))
+                           (if epoch
+                             (cache-store! this k {:miss epoch})
+                             (cache-drop! this k))))))
             h)
            #(deref found))))))
 
@@ -388,7 +420,9 @@
           (-> (ensure-db this)
               (.then (fn [db*] (idb-del db* node-store k)))
               (.then (fn [_]
-                       (cache-store! this k {:miss epoch}))))
+                       (if epoch
+                         (cache-store! this k {:miss epoch})
+                         (cache-drop! this k)))))
           h)
          (fn [] this)))))
 
@@ -411,9 +445,12 @@
                          (reset! snap decoded)
                          (reset! snap-epoch epoch)
                          (reset! cache {})
-                         (reset! cache-order [])
+                         (reset! cache-order (js/Map.))
                          (doseq [[k node] decoded]
-                           (cache-store! this k {:node node :epoch epoch}))))))
+                           (cache-store! this k {:node node :epoch epoch}))
+                         ;; The snapshot map holds every node. The read cache
+                         ;; does not: it stays within `cache-limit` (N14a).
+                         (evict-while! this nil)))))
           nil)
          #(deref snap)))))
 
@@ -446,7 +483,7 @@
   (s-reset [this]
     (let [clear-cache! (fn []
                          (reset! cache {})
-                         (reset! cache-order [])
+                         (reset! cache-order (js/Map.))
                          (reset! snap {})
                          (reset! snap-epoch nil))
           clear! (fn []
@@ -497,7 +534,7 @@
                (atom nil)
                (atom nil)
                (atom {})
-               (atom [])
+               (atom (js/Map.))
                cache-limit
                (atom {})
                (atom nil)

@@ -136,12 +136,15 @@ PARTIAL without FIN is invalid. A control message carries FIN and PARTIAL=0.
 | `0x02` | `get` | `Lit` (map) | requester → responder | new id, 1 or more (request) |
 | `0x03` | `item-stream` | wire-v1 `Item` bytes | responder → requester | the `get`'s id (request) |
 | `0x04` | `ack` | `Lit` (map) | requester → responder | 0 (session) |
-| `0x05` | `forget` | `Lit` (map) | requester → responder | 0 (session) |
 | `0x06` | `cancel` | `Lit` (map) | requester → responder | the request's id (request) |
 | `0x07` | `error` | `Lit` (map) | either | the request, or 0 (any) |
 
-Type ids are dense. `have?` and `have` were dropped before v1 shipped (section 9,
-Q6), so their ids were never used; a later message takes the next free id.
+Type ids are not all dense. `have?` and `have` were dropped before v1 shipped
+(section 9, Q6), so their ids were never used. `0x05` was `forget` (earlier
+`release`) and is unassigned: the M4.2 revision withdrew it. A client that
+evicted or never stored a page recovers by `get` of that hash (C20). `0x08`
+stays unassigned (the withdrawn `rate` message, 12.14). A later message takes
+the next free id.
 
 **Stream rule.** A `session` type MUST be on stream 0. A `request` type MUST be
 on a stream of 1 or more. Sender and receiver both enforce it: a frame that
@@ -493,7 +496,7 @@ its hash routes it by makes `assoc` throw `bad-hamt-node` too.
 
 A **stream** is one request and its answer. The requester picks the stream id.
 
-- **Stream 0** is the session: `hello`, `ack`, `forget`, and fatal errors.
+- **Stream 0** is the session: `hello`, `ack`, and fatal errors.
 - A request (`get`) opens stream *n* ≥ 1. The answer and any
   `error` or `cancel` for it carry the same *n*.
 - *n* is a u32. The peer that sent the WebRTC offer uses odd ids (1, 3, 5, …),
@@ -597,7 +600,7 @@ Data channels are reliable and ordered (SCTP over DTLS), and `"dacite-peer"`'s v
 
 - **Control channel:** label `dacite/v1/control`, opened by the offerer with
   `negotiated: true, id: 0`, so no side waits for the other. Carries stream 0
-  (`hello`, `ack`, `forget`).
+  (`hello`, `ack`).
 - **One channel per `get`**, at most `max-streams` open at once (decision Q10):
   the requester opens a channel labelled
   `dacite/v1/get/<stream id>`. Its first message is the `get` frame; the
@@ -643,13 +646,13 @@ arrived.
 
 Fixtures: `hello-node` (343 bytes), `hello-browser`.
 
-**Batch size.** An `ack` or `forget` holds at most
+**Batch size.** An `ack` holds at most
 `min(256, max-hashes-for(max-frame))` hashes, where
-`max-hashes-for(f) = min(256, floor((f - 33 - 320) / 32))`: 32 bytes a hash,
-33 bytes of header and framing, and 320 kept for a `forget` `reason`. At 16384
-that is 256; at 8192 (the smallest allowed) it is 244; at 1024 it would be 20 (a
-helper test still checks it, though no peer may ask for that now). `msg/max-hashes-for` is the helper, and a test
-encodes a full batch at each frame size.
+`max-hashes-for(f) = min(256, floor((f - 33) / 32))`: 32 bytes a hash and
+33 bytes of header and framing. At 16384 that is 256; at 8192 (the smallest
+allowed) it is 254; at 1024 it would be 30 (a helper test still checks it,
+though no peer may ask for that now). `msg/max-hashes-for` is the helper, and a
+test encodes a full batch at each frame size.
 
 Negotiation (`msg/negotiate`, tested): the version is the highest in both sets; if
 there is none, send `error` `unsupported-version` with `fatal: true` and close.
@@ -728,21 +731,21 @@ item over one payload, 4 frames), `item-stream-partial`
 (3.2). Their `message.edn` lists every item's hash, size and encoding, and the JVM
 test accepts each stream through `items/accept-items!`.
 
-### 6.4 `ack` (0x04) and `forget` (0x05), stream 0
+### 6.4 `ack` (0x04), stream 0
 
-These are the explicit client messages the reveal engine needed (N7, N8). They
-are session-wide: they name hashes, not streams, matching `ack-pages` and
-`forget-pages`.
+This is the explicit client hint the reveal engine needed (N7). It is
+session-wide: it names hashes, not streams, matching `ack-pages`. There is no
+wire `forget`. A page the client evicted or never stored is recovered by a
+`get` of that hash (C20). Local session bookkeeping (`forget-pages`) is not
+this message.
 
 ```clojure
-;; ack: I stored these pages; you may stop tracking them as offered
+;; ack: I stored these pages; you may keep them in the sent-hash record longest
 {"hashes" [h1 h2]}
-;; forget: I do not hold these (reset, evicted); send them again if asked
-{"hashes" [h3] "reason" "evicted"}
 ```
 
-1 to 256 hashes each. `reason` is free text. Fixtures: `ack`, `forget`.
-Both are optional hints and correctness never waits for them; the sender's record is bounded and may be forgotten at any time (12.6, C19 to C23).
+1 to 256 hashes. Fixture: `ack`.
+`ack` is an optional hint and correctness never waits for it; the sender's record is bounded and may drop its oldest hashes at any time (12.6, C19 to C23).
 
 ### 6.5 `cancel` (0x06, the request's stream)
 
@@ -800,7 +803,7 @@ get/5     get {h1 default}  ------------------------>           stream 5: same h
 
 ## 8. Fixtures and tests
 
-`fixtures/peer-v1/` has 50 cases. Each is a directory with `frames.hex` (one
+`fixtures/peer-v1/` has 52 cases. Each is a directory with `frames.hex` (one
 frame per line, lowercase hex) and `message.edn` (what the frames mean).
 `message.edn` has `:expect`:
 
@@ -835,15 +838,15 @@ the draft's.
 3. **No floats in control messages.** Interest stays fixed point (thousandths and
    milliseconds).
 4. **16 KiB frames and a 1 MiB `max-item` stay.** (The `have?` cap of 256 went
-   with `have?`; `ack` and `forget` keep their 256.)
+   with `have?`; `ack` keeps its 256.)
 5. **Literal items in an item stream: yes, as the serializer's rule.** An item is a
    node or a literal; the shorter wins; a literal is at most one frame payload, so
    it never spans frames; a larger value falls back to node items. See 3.2.
 6. **`have?` and `have` are removed from v1** (code, spec, fixtures, tests and the
    `have` capability, and `limits.max-have`). A `get` with the smallest interest
    covers it (6.2). A bitmap `have?` is a possible later optimization only.
-7. **`ack` and `forget` stay session-wide, on stream 0.** (`forget`, 0x05, was
-   named `release` until M1.2; renamed so "release" never means two things, 12.14.)
+7. **`ack` stays session-wide, on stream 0.** (`forget`, 0x05, was named
+   `release` until M1.2, then withdrawn in the M4.2 revision, 12.14.)
 8. **PARTIAL on FIN** marks a paused or exhausted reveal. No separate message.
 9. **`cancel` stays,** though interest decays like a lease.
 10. **Channels:** one control channel, plus one channel per `get`, capped by
@@ -856,8 +859,8 @@ section 11.
 
 ## 10. Known issues
 
-- Item verification is JVM-only (`dacite.peer.items`) until M2.2, so the nbb test
-  checks framing, packing and item decoding, not entry hashes.
+- Item verification is portable (`dacite.peer.verify`, M2.2). `npm run peer:test`
+  checks entry hashes on nbb, not only framing.
 - The pack chunk budget is decided (M1.1a review). `pack/default-budget` is 4096, the leaf
   page size, for the HTTP chunk transport and for peers: a full leaf page is then a literal,
   so the first GET of a long string carries its first characters, not only its header and
@@ -1053,8 +1056,8 @@ starved, and the cost is only the temporary congestion described above.
   release".) It sets the stream's interest to zero; it is a shortcut, and
   correctness never depends on it. On the wire this is `cancel` (section 4.2, 6.5): a responder MUST stop the stream and free its share
   when it gets one, MUST ignore one for a closed stream, and MUST work if one
-  never comes. (The `forget` message, 6.4, is a different thing: it names *hashes*
-  a client no longer holds, 12.6.)
+  never comes. A missing page is a new `get` of that hash (C20), not a
+  session message.
 - **C08 (Decided).** **Renewal is a new request** (a new `get` with a new stream id),
   for the same hash or for a sub hash the client still needs, as progressive
   revelation already works. The responder MUST treat it as independent of the
@@ -1126,7 +1129,7 @@ negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
   channel whose `bufferedAmount` is at or above the high mark, and MUST resume when
   the buffer falls to the low mark (the `bufferedamountlow` event). So at most
   5 frames are ever queued on a channel, and at most 64 streams × 5 frames
-  (about 5 MiB) per session. `cancel`, `error`, `ack`, `forget` and `hello`
+  (about 5 MiB) per session. `cancel`, `error`, `ack` and `hello`
   are one-frame control messages on their own channel and are not held back by a
   stream channel's buffer.
 - **How back-pressure meets `R_max`.** `R_max` and the shares decide *when a stream
@@ -1138,7 +1141,7 @@ negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
   its own channel (one channel per `get`, section 5); in single-pipe mode it holds
   back only its own session.
 
-### 12.6 Sent-hash record, `ack` and `forget`
+### 12.6 Sent-hash record and `ack`
 
 *Decided.*
 
@@ -1151,22 +1154,22 @@ negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
   whatever the record says. So a requester that is missing a hash, for any reason,
   gets it by asking for that hash; no record can starve a re-request.
 - **C21 (Decided).** The record holds at most **16 384** hashes
-  per session; the sender forgets the oldest first when full. A sender MUST remove
-  every hash named in a `forget` from the record.
+  per session; the sender drops the oldest first when full. Nothing on the wire
+  removes one hash: a client that needs a recorded hash asks for it (C20).
 - **C22 (Decided).** The client always verifies what it receives (section 3.3, 12.8)
   and may re-request any hash it is missing, so a forgotten or wrong record costs
   bandwidth only.
 - **C23 (Decided).** `ack` is a **hint**. Sending one is
   optional; a sender MAY ignore it, MUST NOT wait for one, and MUST NOT need one
-  to finish a stream. An `ack` or `forget` for hashes the receiver does not know is
+  to finish a stream. An `ack` for hashes the receiver does not know is
   ignored, not an error (N10).
 
-How `ack` and `forget` fit (this closes the wire gap of N7/N8): `ack` says *I
-stored these* (the sender may keep them in the record longest, or ignore it);
-`forget` says *I do not hold these any more* (reset, evicted) so the sender drops
-them from the record and will send them again. Both stay session-wide on stream 0
-(section 9, decision 7). A client SHOULD send `forget` when it evicts pages it was
-sent in the same session, and MAY send `ack` in batches of up to 256.
+How `ack` fits (this closes the wire gap of N7): `ack` says *I stored these*
+(the sender may keep them in the record longest, or ignore it). It stays
+session-wide on stream 0 (section 9, decision 7). A client MAY send `ack` in
+batches of up to 256. A page the client does not hold is a new `get` of that
+hash. The root of that `get` is always sent (C20), so the sent-hash record
+cannot hide it.
 
 ### 12.7 Reveal order: deterministic in v1
 
@@ -1296,7 +1299,7 @@ which one to keep.
   budget, record or clock is shared between sessions, except the client's own
   `R_max` (C01).
 
-Only `get` is metered in v1. `cancel`, `ack` and `forget` are small and
+Only `get` is metered in v1. `cancel` and `ack` are small and
 cost the sender their own bandwidth; whether a flood of them needs a bucket is a
 question for M3.2, when a real transport shows what they cost.
 
@@ -1336,12 +1339,13 @@ the responder's own uplink.
 
 ### 12.14 Where this differs from earlier text
 
-- **`cancel` and `forget`, not "release".** The decision's stream-level
-  "explicit release" (set interest to zero) is `cancel` on the wire (C07). The
-  session message 0x05 that names hashes the client no longer holds (6.4) was
-  called `release` in M1.1; M1.2 renames it `forget` (and the design note's
-  `release-pages` to `forget-pages`, the fixture `release` to `forget`) so the word
-  "release" no longer means two things. The type id 0x05 is unchanged; the wire is still a draft, so there is no version bump.
+- **`cancel`, not "release".** The decision's stream-level "explicit release"
+  (set interest to zero) is `cancel` on the wire (C07). The session message
+  0x05 was called `release` in M1.1 and `forget` in M1.2. The M4.2 revision
+  withdraws it: there is no wire message that drops hashes from the sent
+  record. `0x05` is unassigned. Local `forget-pages` stays; it is session
+  bookkeeping, not a peer frame. The wire is still a draft, so there is no
+  version bump.
 - **C13 covers every verification failure,** not only a bad hash (approved Nov 4).
 - **C01's formula and C26's wording** go beyond the first decision text; Jonathan
   approved both on Nov 4 (12.2, 12.7).
@@ -1351,7 +1355,9 @@ the responder's own uplink.
   (C13, C16).
 - **Offers do not wait for an ack.** The design note says a page offered and not
   acknowledged stays with its offer until `ack-pages` or `forget-pages`. With C19
-  and C23 nothing waits: the record is an optimization. M4.2 changes the reveal engine.
+  and C23 nothing waits: the record is an optimization. M4.2 built that record
+  on the responder (`record-sent`, `record-ack`) and bounds the
+  reveal session's `:sent` the same way.
 - **No idle timeouts.** The M1.2 plan entry listed them; the decision removes them
   (C06).
 - **`floor = 0`.** 6.2 lets a requester send it, the design note's placeholder
@@ -1394,7 +1400,7 @@ the lifecycle and the stream cap, and the rest) stay planned.
 | C07 | Decided | `cancel` is optional; sets interest to 0; correct without it | `cancel-stops-and-frees-share-and-is-never-required` | JVM, nbb peer | M4.1 |
 | C08 | Decided | Renewal is a new get, a new clock at peak | `renewal-is-a-new-stream-at-peak` | JVM | M4.1 |
 | C09 | Decided | Clamp floor >= 10, tau-ms <= 60 000, peak <= 1000 | `get-interest-is-clamped-by-the-responder` | JVM, nbb peer | M3.1 |
-| C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (simulated clock, floor 0 request) | JVM | M4.2 |
+| C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (exists, M4.2: simulated clock; the C09 clamps bound the lifetime) | JVM, nbb peer | M4.2 (exists) |
 | C11 | Decided | Enforce advertised max-streams; slot frees at once | `too-many-streams-is-refused-and-a-closed-slot-frees` (parity half: `f3-stream-table-parity-and-duplicates`, exists) | JVM, nbb peer | M3.1 |
 | C12 | Decided | max-streams capped at 64 (read larger as 64) | `max-streams-above-64-is-read-as-64` | JVM, nbb peer | M3.1 |
 | C13 | Decided | Any verification failure (not only a bad hash) ends the whole session (fatal bad-entry) | `bad-entry-ends-the-session` (exists, slice 1: every way of lying, JVM and nbb; item level: `tampering-is-refused`, exists) | JVM, nbb peer (exist); browser | M1.2 s1; browser M5.1 |
@@ -1402,14 +1408,14 @@ the lifecycle and the stream cap, and the rest) stay planned.
 | C15 | Decided | Decay is the only stream lifecycle rule; sessions end only on C13/C16; others untouched | `one-session-ending-leaves-others-untouched` (exists, slice 1: a failure on one session; the decay half waits for M4.1) | JVM, nbb peer | M1.2 s1 (exists) |
 | C16 | Decided | Protocol violation ends the session; request errors end only the stream | `protocol-violation-ends-session-request-error-ends-stream` (exists, slice 2: client and responder, four violations each, and request errors) | JVM, nbb peer | M1.2 s2 (exists) |
 | C17 | Decided | No write at >= 4 frames buffered; resume at 1 frame | `channel-never-buffers-over-high-mark-and-resumes-at-low` (fake channel; real channel in M3.2) (exists, slice 2: fake channel with hysteresis; the real channel is M3.2) | JVM, nbb peer, browser | M1.2 s2 (exists) |
-| C19 | Decided | Sent-hash record: bounded, optional; correct when empty or wrong | `empty-and-wrong-record-still-complete-every-request` (property) | JVM | M4.2 |
-| C20 | Decided | The root of a get is always sent | `root-of-a-get-is-sent-even-if-recorded` | JVM, nbb peer | M4.2 |
-| C21 | Decided | Record capped at 16 384 (oldest out); `forget` removes hashes | `record-is-capped-and-forget-removes-hashes` | JVM | M4.2 |
-| C22 | Decided | Client verifies everything; may re-request a missing hash | `forgotten-hash-is-re-requested-and-verified` | nbb peer | M4.2 |
-| C23 | Decided | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-of-an-unknown-hash-is-ignored` (N10, engine). The wire `ack` message is still ignored until M4.2 | JVM, nbb reveal | M4.1 engine; M4.2 wire |
+| C19 | Decided | Sent-hash record: bounded, optional; correct when empty or wrong | `empty-and-wrong-record-still-complete-every-request` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
+| C20 | Decided | The root of a get is always sent | `root-of-a-get-is-sent-even-if-recorded` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
+| C21 | Decided | Record capped at 16 384 (oldest out); no wire message removes one hash | `record-is-capped-oldest-first` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
+| C22 | Decided | Client verifies everything; may re-request a missing hash | `a-get-of-a-recorded-hash-is-sent-and-verified` (exists, M4.2: a `get` of a recorded hash, C20) | JVM, nbb peer | M4.2 (exists) |
+| C23 | Decided | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-of-an-unknown-hash-is-ignored` (N10, engine, M4.1). `ack-is-optional-and-unknown-hashes-are-ignored` (wire, M4.2) | JVM, nbb peer | M4.1 engine; M4.2 wire (exists) |
 | C24 | Decided | Reveal is breadth-first by level, top-level first | `reveal-sends-level-d-before-level-d-plus-1` | JVM, nbb peer | M2.2 |
 | C25 | Decided | Fixed order within a level (no shuffle); receiver never relies on it | `order-within-a-level-is-fixed-and-receiver-accepts-any` | JVM, nbb peer | M2.2 |
-| C26 | Decided | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` | JVM, nbb peer | M4.2 |
+| C26 | Decided | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
 | C27 | Decided | Verify every item from its own bytes before it is stored | `every-item-stream-fixture-verifies` and `tampering-is-refused` (exist); `nothing-unverified-reaches-the-store` (exists, slice 1) | JVM, nbb peer; browser after M5.1 | M1.2 s1 (exists) |
 | C28 | Decided | Literal rebuilt in a scratch store; a `ref` inside is bad-item | `a-run-of-refs-is-a-ref` (exists); `literal-hash-mismatch-is-refused` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |
 | C29 | Decided | Per-kind checks: scalar, leaf page, hamt/entry, branch, hamt/bitmap shape | `tampering-is-refused` (exists); `hamt-bitmap-shape-refusals` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |

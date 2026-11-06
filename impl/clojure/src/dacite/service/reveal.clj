@@ -48,11 +48,15 @@
   20000)
 
 (defn encode-page
-  "Wire-v1 item for one page the session has offered."
-  ^bytes [store {:keys [hash]}]
-  (bin/encode-item {:enc :node
-                    :hash hash
-                    :entry (store/require-node store hash)}))
+  "Wire-v1 item for one page the session has offered.
+
+   The session measured this page by encoding it once and kept those
+   bytes on `:wire`. Writing them again would encode the page twice (N11)."
+  ^bytes [store {:keys [hash wire]}]
+  (or wire
+      (bin/encode-item {:enc :node
+                        :hash hash
+                        :entry (store/require-node store hash)})))
 
 (def expected-hash
   "Content hash of a stored node, or nil when a child it needs is absent.
