@@ -27,14 +27,15 @@
      stream 0, then `:close!`. A request that cannot be served ends that stream
      only.
 
-   **Sent-hash record, `ack` and `forget` (M4.2, C19 to C23, C26).** One record
-   per session, at most 16 384 hashes, oldest dropped first. A hash is recorded
+   **Sent-hash record and `ack` (M4.2, C19 to C23, C26).** One record per
+   session, at most 16 384 hashes, oldest dropped first. A hash is recorded
    when the frame that finishes its item is written. A later `get` skips
    recorded hashes and spends its stream on others, except the root, which is
-   always sent (C20). `ack` is a hint: known hashes are kept the longest, unknown
-   hashes are ignored, and nothing waits for an ack. `forget` removes hashes so
-   the next `get` sends them again. An empty or a wrong record still answers
-   (C19). `cancel` is still ignored.
+   always sent (C20). A page the client does not hold is recovered by a `get`
+   of that hash, not by a wire message. `ack` is a hint: known hashes are kept
+   the longest, unknown hashes are ignored, and nothing waits for an ack. An
+   empty or a wrong record still answers (C19). There is no wire `forget`.
+   `cancel` is still ignored.
 
    **Stream lifetime (C10).** After the C09 clamps a stream is dropped at
    `tau · ln(peak / floor)` from its request, at most about 276 s. A renewal is
@@ -116,18 +117,6 @@
               rec
               (let [order (into [] (remove #(= hk %) (:order rec)))]
                 (assoc rec :order (conj order hk)))))
-          rec hks))
-
-(defn record-forget
-  "Remove `hks` from the record. A key that is not there is ignored (N10)."
-  [rec hks]
-  (reduce (fn [rec hk]
-            (if-not (contains? (:set rec) hk)
-              rec
-              (let [order (into [] (remove #(= hk %) (:order rec)))]
-                (-> rec
-                    (update :set disj hk)
-                    (assoc :order order)))))
           rec hks))
 
 (defn- lifetime-ms
@@ -340,7 +329,7 @@
    - `hello` (once, first): it sets the budget (its `recv-max`) and the frame size
    - `get`: see the namespace doc
    - `error` fatal or on stream 0: the peer ended the session
-   - `ack` and `forget`: update the sent-hash record (unknown hashes ignored)
+   - `ack`: refresh the sent-hash record (unknown hashes ignored)
    - `cancel`: ignored
    - an unknown type: `error unsupported` on its stream
    - anything else, a second `hello`, or any frame before the `hello`: a protocol
@@ -379,11 +368,11 @@
           (number? type) (send-message! r peer (error-message (:stream fr) "unsupported"
                                                               "unknown message type" false))
 
-          (#{:ack :forget} type)
+          (= :ack type)
           (let [{:keys [value]} (msg/decode-message frame-bytes)
                 hks (mapv msg/hash-ref-hex (get value "hashes"))]
             (swap! (:state r) update-in [:sessions peer :record]
-                   #((if (= :ack type) record-ack record-forget) (or % (record-empty)) hks)))
+                   #(record-ack (or % (record-empty)) hks)))
 
           (= :cancel type) nil
 

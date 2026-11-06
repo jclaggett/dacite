@@ -715,7 +715,7 @@
 
 (defn no-message-changes-the-store-except-verified-items
   "C34: no message changes a responder's store, whatever it says. A `get` for
-   a held hash and for a missing one, `ack`, `forget`, `cancel`, an unknown
+   a held hash and for a missing one, `ack`, `cancel`, an unknown
    type, a second `hello`, an `item-stream` and a garbage frame leave its keys as
    they were. (On the client side, only a verified item reaches the store: see
    `nothing-unverified-reaches-the-store`.)"
@@ -729,14 +729,13 @@
         _ (send-to! n (get-bytes 1 root 100000))
         _ (send-to! n (get-bytes 3 (v/hash (v/string (store/mem-store) "none")) 100000))
         _ (send-to! n (msg/encode-message {:type :ack :stream 0 :value {"hashes" [h]}}))
-        _ (send-to! n (msg/encode-message {:type :forget :stream 0 :value {"hashes" [h]}}))
         _ (send-to! n (msg/encode-message {:type :cancel :stream 1 :value {}}))
         _ (dotimes [_ 5] (step! n 100))
         mid (keys-of)
         _ (send-to! n item)                       ; a protocol violation: ends it
         after (keys-of)]
     (concat
-     (bad "unchanged after gets, ack, forget, cancel and serving" before mid)
+     (bad "unchanged after gets, ack, cancel and serving" before mid)
      (bad "unchanged after an item-stream (which ends the session)" before after)
      (bad "that ended the session" :ended (responder/session-status (:r n) "p")))))
 
@@ -763,23 +762,17 @@
                {:type :ack :stream 0
                 :value {"hashes" (mapv hex-ref hashes)}})))
 
-(defn- forget! [n hashes]
-  (send-to! n (msg/encode-message
-               {:type :forget :stream 0
-                :value {"hashes" (mapv hex-ref hashes) "reason" "evicted"}})))
-
-(defn record-is-capped-and-forget-removes-hashes
-  "C21: the sent-hash record holds 16 384 hashes and drops the oldest. `forget`
-   removes every named hash. `ack` of a hash the record holds moves it to the
-   newest end; an unknown hash is ignored."
+(defn record-is-capped-oldest-first
+  "C21: the sent-hash record holds 16 384 hashes and drops the oldest. There
+   is no wire message that removes one. `ack` of a hash the record holds
+   moves it to the newest end; an unknown hash is ignored (C23)."
   []
   (let [cap responder/sent-cap
         keys (mapv #(str "k" %) (range (+ cap 2)))
         full (responder/record-sent (responder/record-empty) (take cap keys))
         overflow (responder/record-sent full (drop cap keys))
         oldest (first keys)
-        acked (responder/record-ack overflow [oldest (nth keys 2) "not-recorded"])
-        forgotten (responder/record-forget acked [(nth keys 3) "still-unknown"])]
+        acked (responder/record-ack overflow [(nth keys 2) "not-recorded"])]
     (concat
      (bad "the cap is 16 384" 16384 cap)
      (bad "a full record has the cap" cap (count (:set full)))
@@ -789,9 +782,7 @@
      (bad "still at the cap" cap (count (:set overflow)))
      (bad "ack of an unknown hash does not grow the record" cap (count (:set acked)))
      (bad "ack keeps a recorded hash" true (contains? (:set acked) (nth keys 2)))
-     (bad "ack moves that hash to the newest end" (nth keys 2) (last (:order acked)))
-     (bad "forget removes a recorded hash" false (contains? (:set forgotten) (nth keys 3)))
-     (bad "forget of an unknown hash is not an error" (dec cap) (count (:set forgotten))))))
+     (bad "ack moves that hash to the newest end" (nth keys 2) (last (:order acked))))))
 
 (defn failed-stream-retry-does-not-resend-confirmed-pages
   "A get that stops after a few pages, once those pages are acked, is retried
@@ -872,9 +863,10 @@
      (bad "a wrong record skips the child it names" false (boolean (some #(= % child) wrong)))
      (bad "asking for that child sends it" true (boolean (some #(= % child) asked))))))
 
-(defn forgotten-hash-is-re-requested-and-verified
-  "C22: `forget` drops a hash the peer had sent. The next get of the value
-   sends it again, and the client checks it."
+(defn a-get-of-a-recorded-hash-is-sent-and-verified
+  "C20 and C22: a hash already in the sent record is still delivered when a
+   later `get` names it. That is how a client recovers a page it evicted or
+   never stored. The item verifies from its own bytes."
   []
   (let [src (store/mem-store)
         root (v/hash (v/vector src (v/i64 src 7) (v/i64 src 8)))
@@ -883,8 +875,8 @@
         n (rnet {:st src})
         _ (send-to! n (get-bytes 1 root 10000000))
         _ (step! n 200)
-        _ (forget! n [child])
-        _ (send-to! n (get-bytes 3 root 10000000))
+        sent-first (read-items n 1)
+        _ (send-to! n (get-bytes 3 child 10000000))
         _ (step! n 200)
         sent (read-items n 3)
         frames (into []
@@ -902,13 +894,13 @@
         child-item (first (filter #(= child (:hash %)) items))
         checked (when child-item (verify/verify-item! (store/mem-store) child-item))]
     (concat
-     (bad "the forgotten page is sent again" true (boolean (some #(= % child) sent)))
-     (bad "the root is sent too" true (boolean (some #(= % root) sent)))
+     (bad "the first get recorded the child" true (boolean (some #(= % child) sent-first)))
+     (bad "a get of that hash sends it again" true (boolean (some #(= % child) sent)))
      (bad "the resent page verifies from its own bytes" true (set? checked)))))
 
 (defn ack-is-optional-and-unknown-hashes-are-ignored
-  "C23: a stream finishes with no ack. An ack or forget that names a hash
-   the responder has never sent does not end the session and does not change
+  "C23: a stream finishes with no ack. An ack that names a hash the
+   responder has never sent does not end the session and does not change
    what the next get sends."
   []
   (let [st (store/mem-store)
@@ -916,7 +908,6 @@
         other (v/hash (v/i64 (store/mem-store) 5))
         n (rnet {:st st})
         _ (ack! n [other])
-        _ (forget! n [other])
         _ (send-to! n (get-bytes 1 root 10000000))
         _ (step! n 100)
         sent (read-items n 1)]
@@ -994,11 +985,11 @@
    "same-hash-twice-is-two-independent-streams" same-hash-twice-is-two-independent-streams
    "responder-never-fetches-on-behalf" responder-never-fetches-on-behalf
    "no-message-changes-the-store-except-verified-items" no-message-changes-the-store-except-verified-items
-   "record-is-capped-and-forget-removes-hashes" record-is-capped-and-forget-removes-hashes
+   "record-is-capped-oldest-first" record-is-capped-oldest-first
    "failed-stream-retry-does-not-resend-confirmed-pages" failed-stream-retry-does-not-resend-confirmed-pages
    "root-of-a-get-is-sent-even-if-recorded" root-of-a-get-is-sent-even-if-recorded
    "empty-and-wrong-record-still-complete-every-request" empty-and-wrong-record-still-complete-every-request
-   "forgotten-hash-is-re-requested-and-verified" forgotten-hash-is-re-requested-and-verified
+   "a-get-of-a-recorded-hash-is-sent-and-verified" a-get-of-a-recorded-hash-is-sent-and-verified
    "ack-is-optional-and-unknown-hashes-are-ignored" ack-is-optional-and-unknown-hashes-are-ignored
    "renewal-is-correct-with-no-record-and-may-reveal-more" renewal-is-correct-with-no-record-and-may-reveal-more
    "stream-state-is-forgotten-by-its-lifetime-bound" stream-state-is-forgotten-by-its-lifetime-bound))

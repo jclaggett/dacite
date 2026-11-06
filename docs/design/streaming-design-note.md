@@ -91,7 +91,7 @@ Blocker: `IStore` (`dacite/store.cljc`) is synchronous today (`s-get`, `s-put`, 
 
 This section is the Oct 27 sketch. The design that the code follows is
 [peer-v1](../spec/peer-v1.md) and [the peering plan](../plan/peering.md): one
-`dacite-peer` data channel, `get` / `item-stream` / `ack` / `forget`, and a
+`dacite-peer` data channel, `get` / `item-stream` / `ack`, and a
 sent-hash record that is only an optimization. The options below are the
 history of that decision, not a second protocol.
 

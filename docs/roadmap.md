@@ -68,9 +68,10 @@ Do this next:
    connection is the QUIC session, because each request is its own
    stream object. A stream that finishes acknowledges the pages it
    wrote. A stream that fails cancels that reveal and forgets those
-   offers. The HTTP stream still has no client ack or forget message, so
-   that completion stands in for one. Peer v1 does (`ack` and `forget`,
-   spec 6.4): the responder's sent-hash record honors them. `remote-store` opts into the stream
+   offers. The HTTP stream still has no client ack message, so that
+   completion stands in for one. Peer v1 has `ack` (spec 6.4): a hint the
+   responder's sent-hash record may honor. A missing page is a new `get`
+   of that hash. `remote-store` opts into the stream
    with `:reveal`: a missing hash is one `POST /reveal` on a kept
    HTTP/3 connection, and the pages land in its local cache. The
    default read is still pack GET. A second `POST /reveal` on that

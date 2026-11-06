@@ -170,7 +170,6 @@
   (testing "session messages are on stream 0, requests on a request id"
     (doseq [[t ok bad v] [[:hello 0 5 (:value (first ex/examples))]
                           [:ack 0 7 {"hashes" [(msg/hash-ref ex/h1)]}]
-                          [:forget 0 7 {"hashes" [(msg/hash-ref ex/h1)]}]
                           [:get 1 0 {"hash" (msg/hash-ref ex/h1) "policy" "default" "recv-max" 750000}]
                           [:cancel 5 0 {}]]]
       (is (= :accepted (thrown-reason #(msg/encode-message {:type t :stream ok :value v}))) (name t))
@@ -244,15 +243,12 @@
 
 (deftest s1-max-hashes-follows-max-frame
   (is (= 256 (msg/max-hashes-for 16384)))
-  (is (= 20 (msg/max-hashes-for 1024)))
+  (is (= 30 (msg/max-hashes-for 1024)))
   (doseq [mf [1024 2048 4096 16384]
           :let [n (msg/max-hashes-for mf)
-                hs (vec (repeat n (msg/hash-ref ex/h1)))
-                reason (apply str (repeat msg/max-string-bytes "r"))]]
+                hs (vec (repeat n (msg/hash-ref ex/h1)))]]
     (is (= :accepted (thrown-reason #(msg/encode-message {:type :ack :stream 0 :max-frame-bytes mf
-                                                          :value {"hashes" hs}}))) mf)
-    (is (= :accepted (thrown-reason #(msg/encode-message {:type :forget :stream 0 :max-frame-bytes mf
-                                                          :value {"hashes" hs "reason" reason}}))) mf)))
+                                                          :value {"hashes" hs}}))) mf)))
 
 (deftest s2-strings-and-sets-are-bounded
   (let [long (apply str (repeat 257 "x"))
@@ -260,17 +256,15 @@
         wide (apply str (repeat 86 "é"))] ; 172 bytes
     (testing "a receiver rejects an over-long string (fixture reject-string-too-long)"
       (doseq [[t v] [[:cancel {"reason" long}]
-                     [:error {"code" "internal" "fatal" false "message" long}]
-                     [:forget {"hashes" [(msg/hash-ref ex/h1)] "reason" long}]]
-              :let [fr (frame/encode-frame {:type t :stream (if (= t :forget) 0 5) :flags 1
+                     [:error {"code" "internal" "fatal" false "message" long}]]
+              :let [fr (frame/encode-frame {:type t :stream 5 :flags 1
                                             :payload (msg/encode-value v)})]]
         (is (= :invalid-message (thrown-reason #(msg/decode-message fr))) (name t))))
     (testing "a sender cuts free text instead of failing (S1)"
       (doseq [[t v k] [[:cancel {"reason" long} "reason"]
                        [:error {"code" "internal" "fatal" false "message" long} "message"]
-                       [:forget {"hashes" [(msg/hash-ref ex/h1)] "reason" long} "reason"]
                        [:hello (assoc (:value (first ex/examples)) "agent" long) "agent"]]
-              :let [bs (msg/encode-message {:type t :stream (case t (:forget :hello) 0 5) :value v})
+              :let [bs (msg/encode-message {:type t :stream (case t :hello 0 5) :value v})
                     got (get-in (msg/decode-message bs) [:value k])]]
         (is (= ok got) (name t))))
     (testing "the cut is at a character boundary, in bytes"

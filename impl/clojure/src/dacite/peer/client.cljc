@@ -8,12 +8,13 @@
    Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C45), §12.4 (session end, C16),
    §12.8 (verification), §12.9 (C35), §12.11 (C41). M1.2 slices 1 and 2.
 
-   **`ack` and `forget` (M4.2).** When a stream ends, the hashes it stored are
-   acked in batches of at most 256. `forget!` tells that peer the client no
-   longer holds those pages. The item reader uses the negotiated `max-item`
-   and literal cap, so a length past what the session agreed is refused
-   before the payload is buffered (C32). Not here: interest ending a stream
-   at its floor, and `cancel`.
+   **`ack` (M4.2).** When a stream ends, the hashes it stored are acked in
+   batches of at most 256. `ack` is a hint. A page the client does not hold
+   is recovered by a new `get` of that hash: the root of a `get` is always
+   sent (C20). There is no wire `forget`. The item reader uses the negotiated
+   `max-item` and literal cap, so a length past what the session agreed is
+   refused before the payload is buffered (C32). Not here: interest ending a
+   stream at its floor, and `cancel`.
 
    One client has one store and any number of sessions, one per peer. What it
    keeps, per session: a stream table (`frame/stream-table`), and per open
@@ -509,21 +510,6 @@
             :value {"hashes" (mapv msg/hash-ref batch)}}))
         (swap! (:state c) update-in [:sessions peer-id :acked]
                (fnil into #{}) pending)))))
-
-(defn forget!
-  "Tell `peer-id` that the client no longer holds `hashes` (a reset or an
-   eviction), so a later `get` sends them again (C21). A hash the peer has
-   not recorded is ignored there. No-op when the session is not open.
-   `hashes` are hash vectors or hex strings."
-  [c peer-id hashes]
-  (when (and (open? c peer-id) (seq hashes))
-    (doseq [batch (partition-all 256 hashes)]
-      ((:send! c) peer-id
-       {:type :forget :stream 0
-        :value {"hashes" (mapv (fn [h]
-                                 (msg/hash-ref (if (string? h) h (store/hash->hex h))))
-                               batch)
-                "reason" "evicted"}}))))
 
 (defn- finish-stream!
   "The stream ended (FIN). Its headers are checked (`finish!`) or, when the

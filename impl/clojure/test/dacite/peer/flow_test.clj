@@ -59,8 +59,8 @@
 (deftest no-message-changes-the-store-except-verified-items
   (run-check "no-message-changes-the-store-except-verified-items"))
 
-(deftest record-is-capped-and-forget-removes-hashes
-  (run-check "record-is-capped-and-forget-removes-hashes"))
+(deftest record-is-capped-oldest-first
+  (run-check "record-is-capped-oldest-first"))
 
 (deftest failed-stream-retry-does-not-resend-confirmed-pages
   (run-check "failed-stream-retry-does-not-resend-confirmed-pages"))
@@ -71,8 +71,8 @@
 (deftest empty-and-wrong-record-still-complete-every-request
   (run-check "empty-and-wrong-record-still-complete-every-request"))
 
-(deftest forgotten-hash-is-re-requested-and-verified
-  (run-check "forgotten-hash-is-re-requested-and-verified"))
+(deftest a-get-of-a-recorded-hash-is-sent-and-verified
+  (run-check "a-get-of-a-recorded-hash-is-sent-and-verified"))
 
 (deftest ack-is-optional-and-unknown-hashes-are-ignored
   (run-check "ack-is-optional-and-unknown-hashes-are-ignored"))
