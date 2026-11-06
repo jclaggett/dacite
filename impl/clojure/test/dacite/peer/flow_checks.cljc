@@ -18,6 +18,7 @@
             [dacite.peer.msg :as msg]
             [dacite.peer.rates :as rates]
             [dacite.peer.responder :as responder]
+            [dacite.reveal :as reveal]
             [dacite.store :as store]
             [dacite.value :as v]
             [dacite.wire.binary :as bin]))
@@ -647,6 +648,64 @@
      (bad "the store holds exactly what it did" false
           (boolean (store/await (store/s-get st elsewhere)))))))
 
+(defn- stream-hashes
+  "Hex hashes of the node items each stream has delivered, in order."
+  [{:keys [sent]}]
+  (let [readers (reduce (fn [readers [_ _ bs]]
+                          (let [fr (frame/decode-frame bs)]
+                            (if-not (= :item-stream (:type fr))
+                              readers
+                              (let [sid (:stream fr)
+                                    [r items] (frame/feed (get readers sid (frame/reader sid)) fr)
+                                    hashes (mapv (fn [item]
+                                                   (store/hash->hex
+                                                    (:hash (first (bin/decode-item-stream item)))))
+                                                 items)]
+                                (assoc readers sid
+                                       (assoc r :hashes (into (:hashes r []) hashes)))))))
+                        {}
+                        @sent)]
+    (into {} (map (fn [[sid r]] [sid (:hashes r)])) readers)))
+
+(defn same-hash-twice-is-two-independent-streams
+  "N1, C38. Two `get`s for one hash are two streams, keyed by stream id.
+   Each delivers the value. Opening the second does not cancel the first,
+   and neither stream is an error."
+  []
+  (let [st (store/mem-store)
+        root (v/hash (v/string st (apply str (repeat 20000 "q"))))
+        order (mapv store/hash->hex (reveal/page-order st root))
+        slow {"peak" 1000 "tau-ms" 100000000 "floor" 0}
+        n (rnet {:st st})
+        _ (send-to! n (get-bytes 1 root 4000 slow))
+        ;; The first frame is a full max-frame, so a few tenths of a
+        ;; second of credit are not enough to write it. Four simulated
+        ;; seconds covers that frame and leaves the rest of the string.
+        started (loop [i 0]
+                  (step! n 100)
+                  (let [open (responder/open-streams (:r n) "p")
+                        nsent (count (get (stream-hashes n) 1))]
+                    (cond
+                      (and (contains? open 1) (pos? nsent)) true
+                      (not (contains? open 1)) false
+                      (< i 40) (recur (inc i))
+                      :else false)))
+        _ (send-to! n (get-bytes 3 root 4000 slow))
+        both (responder/open-streams (:r n) "p")
+        _ (loop [i 0]
+            (when (and (seq (responder/open-streams (:r n) "p")) (< i 120))
+              (step! n 200)
+              (recur (inc i))))
+        done (stream-hashes n)
+        errs (errors-of n)]
+    (concat
+     (bad "the first stream is sending when the second get arrives" true started)
+     (bad "both streams are open together" #{1 3} both)
+     (bad "stream 1 delivers every page" order (get done 1))
+     (bad "stream 3 delivers every page" order (get done 3))
+     (bad "neither stream is an error" [] (mapv :stream errs))
+     (bad "both streams end" #{} (responder/open-streams (:r n) "p")))))
+
 (defn no-message-changes-the-store-except-verified-items
   "C34: no message changes a responder's store, whatever it says. A `get` for
    a held hash and for a missing one, `ack`, `forget`, `cancel`, an unknown
@@ -689,6 +748,7 @@
    "channel-never-buffers-over-high-mark-and-resumes-at-low" channel-never-buffers-over-high-mark-and-resumes-at-low
    "blocked-stream-takes-no-share-and-banks-one-frame" blocked-stream-takes-no-share-and-banks-one-frame
    "get-over-the-bucket-is-rate-limited-and-session-lives" get-over-the-bucket-is-rate-limited-and-session-lives
+   "same-hash-twice-is-two-independent-streams" same-hash-twice-is-two-independent-streams
    "responder-never-fetches-on-behalf" responder-never-fetches-on-behalf
    "no-message-changes-the-store-except-verified-items" no-message-changes-the-store-except-verified-items))
 

@@ -12,7 +12,8 @@
             [dacite.value :as v]
             [dacite.wire :as wire]
             [dacite.wire.binary :as bin])
-  (:import [java.util.concurrent TimeUnit]
+  (:import [java.io ByteArrayOutputStream]
+           [java.util.concurrent TimeUnit]
            [org.eclipse.jetty.client InputStreamResponseListener
             StringRequestContent]
            [org.eclipse.jetty.http HttpVersion]))
@@ -656,3 +657,94 @@
       (is (= :bad-entry (:reason (ex-data e))))
       (is (= :bad-state (:detail (ex-data e))))
       (is (= :bad-state (:reason (ex-data (ex-cause e))))))))
+
+(defn- body-hashes
+  [out]
+  (mapv :hash (bin/decode-item-stream (.toByteArray ^ByteArrayOutputStream out))))
+
+(defn- reveal-call
+  "Run `f` (`begin-reveal!`) on its own thread.
+
+   `f` returns as soon as the reveal finishes, pauses, or spends its
+   budget. The 3 s bound fails the test if that call is instead waiting
+   on the 20 s idle timeout. On the timeout path, stop the connection
+   so the thread is not left parked on the promise."
+  [conn f]
+  (let [p (promise)
+        t (Thread. #(deliver p (try [:ok (f)]
+                                    (catch Throwable e [:err (ex-message e)]))))]
+    (.start t)
+    (let [r (deref p 3000 [:timeout])]
+      (when (= [:timeout] r)
+        (rv/stop-conn! conn))
+      r)))
+
+(deftest a-duplicate-request-does-not-clobber-the-first
+  (let [s (store/mem-store)
+        h (v/hash (v/vector s (v/i64 s 1) (v/i64 s 2)
+                            (v/string s (apply str (repeat 2000 "y")))))
+        order (reveal/page-order s h)
+        conn (rv/start-conn s rv/default-params)
+        a-out (ByteArrayOutputStream.)
+        b-out (ByteArrayOutputStream.)
+        gate (promise)
+        run (fn [out]
+              (deref gate)
+              (reveal-call conn #(rv/begin-reveal! conn h out)))]
+    (try
+      (let [a (future (run a-out))
+            b (future (run b-out))]
+        (Thread/sleep 20)
+        (deliver gate true)
+        (let [a-r (deref a 4000 [:timeout])
+              b-r (deref b 4000 [:timeout])
+              ah (body-hashes a-out)
+              bh (body-hashes b-out)]
+          (is (= [:ok :ok] a-r))
+          (is (= [:ok :ok] b-r))
+          (is (empty? (filter (set ah) bh)))
+          (is (= (set order) (set (concat ah bh))))
+          (is (some #(and (= h (:hash %)) (:done? %))
+                    (:reveals @(:session conn))))))
+      (finally
+        (rv/stop-conn! conn)))))
+
+(deftest a-paused-reveal-ends-without-the-idle-timeout
+  (let [s (store/mem-store)
+        h (v/hash (v/string s (apply str (repeat 4000 "x"))))
+        order (reveal/page-order s h)
+        total (double (reduce + 0 (map #(reveal/page-bytes s %) order)))
+        conn (rv/start-conn s {:peak 1.0 :tau 0.2 :floor 0.1 :r-max (/ total 0.4)})
+        out (ByteArrayOutputStream.)]
+    (try
+      (let [r (reveal-call conn #(rv/begin-reveal! conn h out))
+            n (count (body-hashes out))
+            rev (first (filter #(= h (:hash %)) (:reveals @(:session conn))))]
+        (is (= [:ok :ok] r))
+        (is (< 0 n (count order)))
+        (is (some? rev))
+        (is (not (:done? rev))))
+      (finally
+        (rv/stop-conn! conn)))))
+
+(deftest a-lone-reveal-larger-than-its-budget-completes
+  (let [s (store/mem-store)
+        h (v/hash (v/i64 s 7))
+        n (double (reveal/page-bytes s h))
+        conn (rv/start-conn s {:peak 1.0 :tau 1.0 :floor 0.0 :r-max (/ n 2.5)})]
+    (try
+      (let [result (loop [i 0 got #{}]
+                     (cond
+                       (contains? got h) {:ok true :got got :calls i}
+                       (>= i 6) {:ok false :got got :calls i}
+                       :else
+                       (let [out (ByteArrayOutputStream.)
+                             r (reveal-call conn #(rv/begin-reveal! conn h out))]
+                         (if (= [:ok :ok] r)
+                           (recur (inc i) (into got (set (body-hashes out))))
+                           {:ok false :got got :calls i :err r}))))]
+        (is (:ok result) (pr-str result))
+        (is (contains? (:got result) h))
+        (is (<= 1 (:calls result) 6)))
+      (finally
+        (rv/stop-conn! conn)))))

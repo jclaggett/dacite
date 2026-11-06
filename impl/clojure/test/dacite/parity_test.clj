@@ -20,10 +20,13 @@
 
 (deftest reveal-clock-matches-the-golden
   (ok #{"one-page" "equal-shares" "below-floor" "cancel" "already-sent"
-        "clock-rejects" "release" "ack-evict" "floor-instant"}))
+        "clock-rejects" "release" "ack-evict" "floor-instant"
+        "duplicate-request" "paused-ends" "page-over-budget"
+        "unknown-ack"}))
 
 (deftest reveal-multipage-clock-matches-the-golden
-  (ok #{"reveal-order" "budget" "reask-stall" "child-focus" "newer" "resume"}))
+  (ok #{"reveal-order" "budget" "reask-stall" "child-focus" "newer" "resume"
+        "child-receives"}))
 
 (deftest pack-decisions-match-the-golden
   (ok #{"i64" "string-hello" "vector-123" "vector-strings" "map-ab" "set-123"

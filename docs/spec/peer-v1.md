@@ -1406,7 +1406,7 @@ the lifecycle and the stream cap, and the rest) stay planned.
 | C20 | Decided | The root of a get is always sent | `root-of-a-get-is-sent-even-if-recorded` | JVM, nbb peer | M4.2 |
 | C21 | Decided | Record capped at 16 384 (oldest out); `forget` removes hashes | `record-is-capped-and-forget-removes-hashes` | JVM | M4.2 |
 | C22 | Decided | Client verifies everything; may re-request a missing hash | `forgotten-hash-is-re-requested-and-verified` | nbb peer | M4.2 |
-| C23 | Decided | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-is-optional-and-unknown-hashes-are-ignored` (N10) | JVM, nbb peer | M4.2 |
+| C23 | Decided | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-of-an-unknown-hash-is-ignored` (N10, engine). The wire `ack` message is still ignored until M4.2 | JVM, nbb reveal | M4.1 engine; M4.2 wire |
 | C24 | Decided | Reveal is breadth-first by level, top-level first | `reveal-sends-level-d-before-level-d-plus-1` | JVM, nbb peer | M2.2 |
 | C25 | Decided | Fixed order within a level (no shuffle); receiver never relies on it | `order-within-a-level-is-fixed-and-receiver-accepts-any` | JVM, nbb peer | M2.2 |
 | C26 | Decided | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` | JVM, nbb peer | M4.2 |
@@ -1421,7 +1421,7 @@ the lifecycle and the stream cap, and the rest) stay planned.
 | C35 | Decided | Store items only from an open stream this side opened | `item-on-a-stream-never-opened-ends-the-session`, `item-on-a-closed-stream-is-ignored` (both exist, slice 2) | JVM, nbb peer, browser | M1.2 s2 (exists) |
 | C36 | Decided | Answer from own store only; no fetch on behalf; unknown-hash | `responder-never-fetches-on-behalf` (exists, slice 2) | JVM, nbb peer | M1.2 s2 (exists) |
 | C37 | Existing | A stream id is never derived from the hash | `stream-id-is-not-the-hash` (exists); `client-stream-ids-are-its-own-counter` (exists, slice 1) | JVM, nbb peer | M1.2 (exists) |
-| C38 | Existing | Responder keys streams by (session, id); same hash twice = two streams | `same-hash-twice-is-two-independent-streams` (N1 regression) | JVM, nbb peer | M4.1 |
+| C38 | Existing | Responder keys streams by (session, id); same hash twice = two streams | `same-hash-twice-is-two-independent-streams` (N1 regression; built) | JVM, nbb peer | M4.1 |
 | C39 | Existing | Wrong parity or duplicate id refused (malformed) | `f3-stream-table-parity-and-duplicates` (exists) | JVM | M1.2 (exists) |
 | C40 | Decided | Per-session token bucket on `get`; empty = rate-limited; a flood never ends the session | `get-over-the-bucket-is-rate-limited-and-session-lives` (simulated clock) (exists, slice 2: simulated clock; burst lowered to 10 so nbb stays quick) | JVM, nbb peer | M1.2 s2 (exists) |
 | C42 | Decided | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (flood one session; others unchanged) | JVM, nbb peer | M6.3 |

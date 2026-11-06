@@ -28,6 +28,7 @@
             [dacite.examples.parity :as parity]
             [dacite.host :as host]
             [dacite.reveal :as reveal]
+            [dacite.reveal.session-checks :as session-checks]
             [dacite.store :as store]
             [dacite.store.pack :as pack]
             [dacite.value :as v]
@@ -780,17 +781,17 @@
         taken (reveal/take-pages (:session opened) st 1 fast)
         released (reveal/forget-pages (:session taken) st [h])
         again (reveal/take-pages released st 2 fast)
-        ack-msg (thrown-msg #(reveal/ack-pages (reveal/session) [h]))]
+        plain (reveal/session)
+        ignored (reveal/ack-pages plain [h])]
     (reveal {:id "release"
              :root (hex h)
              :steps [{:label "taken" :pages (pages-of (:pages taken))}
                      {:label "again" :pages (pages-of (:pages again))}]
-             :ack-needs-offer (boolean (and ack-msg (str/includes? ack-msg "offered")))}
+             :unknown-ack-ignored (= plain ignored)}
             (-> []
                 (bad (= [(hex h)] (hashes-of (:pages taken))) "the page is offered")
                 (bad (= [(hex h)] (hashes-of (:pages again))) "release sends that page again")
-                (bad (boolean (and ack-msg (str/includes? ack-msg "offered")))
-                     "ack of a page that was not offered fails")))))
+                (bad (= plain ignored) "ack of a page that was not offered is ignored")))))
 
 (defn- ack-evict []
   (let [st (store/mem-store)
@@ -811,6 +812,16 @@
                 (bad (empty? (:pages quiet)) "a held page is not sent again")
                 (bad (= [(hex h)] (hashes-of (:pages again)))
                      "eviction sends the page again")))))
+
+(defn- from-session [f]
+  (let [{:keys [problems decision]} (f)]
+    (reveal decision problems)))
+
+(defn- duplicate-request [] (from-session session-checks/duplicate-request))
+(defn- paused-ends [] (from-session session-checks/paused-reveal-ends))
+(defn- page-over-budget [] (from-session session-checks/page-larger-than-budget))
+(defn- child-receives [] (from-session session-checks/focused-child-receives-offered-pages))
+(defn- unknown-ack [] (from-session session-checks/ack-ignores-unknown))
 
 (defn- floor-instant []
   (let [st (store/mem-store)
@@ -1029,6 +1040,11 @@
    ["release" release]
    ["ack-evict" ack-evict]
    ["floor-instant" floor-instant]
+   ["duplicate-request" duplicate-request]
+   ["paused-ends" paused-ends]
+   ["page-over-budget" page-over-budget]
+   ["child-receives" child-receives]
+   ["unknown-ack" unknown-ack]
    ["i64" i64-literal]
    ["string-hello" string-hello]
    ["vector-123" vector-123]

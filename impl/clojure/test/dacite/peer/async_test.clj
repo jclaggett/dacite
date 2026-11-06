@@ -2,7 +2,9 @@
   "M1.3 on the JVM: the portable checks in async_checks.cljc, one deftest each.
    nbb runs the same checks in `npm run peer:test`."
   (:require [clojure.test :refer [deftest is]]
-            [dacite.peer.async-checks :as checks]))
+            [dacite.peer.async-checks :as checks]
+            [dacite.peer.client-checks :as client-checks]
+            [dacite.peer.flow-checks :as flow-checks]))
 
 (defn- run-check [name]
   (let [t0 (System/currentTimeMillis)
@@ -25,7 +27,9 @@
 
 (deftest m1-2-checks-run-on-a-late-store
   (let [results (checks/late-checks)]
-    (is (= 28 (count results)) "every client and flow check ran")
+    (is (= (+ (count client-checks/checks) (count flow-checks/checks))
+           (count results))
+        "every client and flow check ran")
     (doseq [{:keys [name problems]} results]
       (is (empty? problems) (str name ": " (pr-str problems))))))
 
