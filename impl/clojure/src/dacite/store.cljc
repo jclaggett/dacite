@@ -85,7 +85,7 @@
   (s-put [this h value] "Promise of the store after storing value at hash.")
   (s-has? [this h] "Promise of true when hash exists in this store.")
   (s-delete [this h] "Promise of the store after removing hash.")
-  (s-snapshot [this] "Promise of the current contents as a plain map.")
+  (s-keys [this] "Promise of the hashes this store holds, as a vector. Values are not loaded. Order is unspecified.")
   (s-merge [this m] "Promise of the store after merging {hash value} pairs.")
   (s-reset [this] "Promise of the store after clearing all entries."))
 
@@ -170,7 +170,10 @@
   (s-put [this h value] (swap! data assoc (mkey h) value) (completed this))
   (s-has? [_ h] (completed (contains? @data (mkey h))))
   (s-delete [this h] (swap! data dissoc (mkey h)) (completed this))
-  (s-snapshot [_] (completed @data))
+  (s-keys [_]
+    (completed
+     (mapv (fn [k] (if (string? k) (hash/hex->hash k) k))
+           (keys @data))))
   (s-merge [this m] (swap! data merge m) (completed this))
   (s-reset [this] (reset! data {}) (completed this)))
 
@@ -210,12 +213,15 @@
       (await (s-delete layer h)))
     (completed this))
 
-  (s-snapshot [_]
+  (s-keys [_]
+    ;; One hash, even when several layers hold it. Hex membership: a
+    ;; ClojureScript hash vector's words are BigInts and cannot sit in a set.
     (completed
-     (reduce (fn [acc layer]
-               (merge acc (await (s-snapshot layer))))
-             {}
-             (reverse layers))))
+     (into []
+           (comp (map hash/hash->hex)
+                 (distinct)
+                 (map hash/hex->hash))
+           (mapcat #(await (s-keys %)) layers))))
 
   (s-merge [this m]
     (doseq [layer layers]
@@ -265,11 +271,6 @@
   [h value]
   (await (s-put *store* h value)))
 
-(defn snapshot-store
-  "Return a plain {hash value} map snapshot of the current store."
-  []
-  (await (s-snapshot *store*)))
-
 (defn merge-store!
   "Merge a map of {hash value} pairs into the current store."
   [m]
@@ -283,7 +284,7 @@
 
 (defmacro with-store
   "Execute body with an isolated store. init can be an IStore or a map
-   (which will be wrapped in a mem-store). Returns [snapshot last-value]."
+   (which will be wrapped in a mem-store). Returns [store last-value]."
   [[sym init] & body]
   `(let [store# (let [i# ~init]
                   (if (satisfies? IStore i#)
@@ -292,7 +293,7 @@
          ~sym store#]
      (bind-store store#
                  (let [result# (do ~@body)]
-                   [(await (s-snapshot store#)) result#]))))
+                   [store# result#]))))
 
 ;; =============================================================================
 ;; Rooted store (hash-level) — deferred re-export from dacite.rooted

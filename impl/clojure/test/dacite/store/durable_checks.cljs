@@ -2,7 +2,7 @@
   "M3.3: one durable-store check and one peer check, parameterized over the
    nbb file store, nbb LMDB, and IndexedDB.
 
-   The store check is get, put, has?, eviction, snapshot, and a write that is
+   The store check is get, put, has?, eviction, a key scan, and a write that is
    still there after the store is closed and opened again. Eviction passes
    `:cache-limit 1` (IndexedDB drops the older node from memory and reads it
    back; the file and LMDB stores have no read cache, so the same assertions
@@ -90,13 +90,26 @@
   [a b]
   (and (some? a) (some? b) (= (node-bytes a) (node-bytes b))))
 
+(defn- lost-count
+  "A promise of how many `entries` (hex → node) `st` does not still hold.
+   Each hash is read with `s-get`."
+  [st entries]
+  (reduce (fn [p [hx node]]
+            (-> p
+                (.then (fn [n]
+                         (-> (await-store (store/s-get st (store/hex->hash hx)))
+                             (.then (fn [got]
+                                      (if (same-node? node got) n (inc n)))))))))
+          (js/Promise.resolve 0)
+          entries))
+
 (defn- mismatch-count
   "How many of `entries` (hex to node) are not the same node as `(lookup hx)`."
   [entries lookup]
   (count (filter (fn [[hx node]] (not (same-node? node (lookup hx)))) entries)))
 
 ;; =============================================================================
-;; Store: get, put, has?, snapshot, eviction, reopen
+;; Store: get, put, has?, key scan, eviction, reopen
 ;; =============================================================================
 
 (defn- roundtrip [problems backend]
@@ -120,10 +133,10 @@
                  (await-store (store/s-get st other))))
         (.then (fn [got]
                  (keep! problems (bad "get of another hash" nil got))
-                 (await-store (store/s-snapshot st))))
-        (.then (fn [snap]
-                 (keep! problems (bad "snapshot count" 1 (count snap)))
-                 (keep! problems (bad "snapshot node" node (get snap (hex hash))))))
+                 (await-store (store/s-keys st))))
+        (.then (fn [ks]
+                 (keep! problems (bad "key count" 1 (count ks)))
+                 (keep! problems (bad "the key is the hash" (hex hash) (hex (first ks))))))
         (.finally (fn [] (shut backend st))))))
 
 (defn- eviction
@@ -145,13 +158,9 @@
                  (await-store (store/s-has? st (:hash a)))))
         (.then (fn [has]
                  (keep! problems (bad "evicted node has?" true has))
-                 (await-store (store/s-snapshot st))))
-        (.then (fn [snap]
-                 (keep! problems (bad "snapshot after eviction" 2 (count snap)))
-                 (keep! problems (bad "snapshot keeps the evicted node"
-                                      (:node a) (get snap (hex (:hash a)))))
-                 (keep! problems (bad "snapshot keeps the newest node"
-                                      (:node b) (get snap (hex (:hash b)))))))
+                 (await-store (store/s-keys st))))
+        (.then (fn [ks]
+                 (keep! problems (bad "keys after eviction" 2 (count ks)))))
         (.finally (fn [] (shut backend st))))))
 
 (defn- reopen
@@ -174,17 +183,17 @@
                                 (await-store (store/s-has? again other))))
                        (.then (fn [has]
                                 (keep! problems (bad "reopen of an unwritten hash" false has))
-                                (await-store (store/s-snapshot again))))
-                       (.then (fn [snap]
-                                (keep! problems (bad "reopen snapshot count" 1 (count snap)))
-                                (keep! problems (bad "reopen snapshot" node (get snap (hex hash))))))
+                                (await-store (store/s-keys again))))
+                       (.then (fn [ks]
+                                (keep! problems (bad "reopen key count" 1 (count ks)))
+                                (keep! problems (bad "reopen key" (hex hash) (hex (first ks))))))
                        (.finally (fn [] (shut backend again)))))))
         (.catch (fn [e]
                   (shut backend st)
                   (throw e))))))
 
 (defn store-problems
-  "Problems of get, put, has?, snapshot, eviction and reopen on `backend`:
+  "Problems of get, put, has?, a key scan, eviction and reopen on `backend`:
    `:fresh` makes an empty place, `:open` takes the place and opts
    (`:cache-limit` when the store has a cache), `:close` releases it.
    A promise of `{:problems [...]}`."
@@ -315,12 +324,11 @@
               (.then (fn [got]
                        (when-not (same-node? (get (:entries seeded) (hex (:root seeded))) got)
                          (keep! problems "reopened store returns a different library root"))
-                       (await-store (store/s-snapshot st))))
-              (.then (fn [snap]
-                       (let [lost (mismatch-count (:entries seeded) (fn [hx] (get snap hx)))]
-                         (when (pos? lost)
-                           (keep! problems (str "reopen lost " lost " of "
-                                                (count (:entries seeded)) " library nodes"))))
+                       (lost-count st (:entries seeded))))
+              (.then (fn [lost]
+                       (when (pos? lost)
+                         (keep! problems (str "reopen lost " lost " of "
+                                              (count (:entries seeded)) " library nodes")))
                        (fetch problems (open!) seeded async?)))))
         (.finally shut!))))
 

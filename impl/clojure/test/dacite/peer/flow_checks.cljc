@@ -336,7 +336,7 @@
         st (h/inner (:store (:client n)))
         items (cc/items-of src root)
         _ (h/request! (:client n) root)    ; stream 1 of a
-        before (count (cc/snapshot st))
+        before (cc/store-count st)
         item (bin/encode-item (second items))
         _ (h/on-frame! (:client n) "a" (first (cc/frames-of 99 [item])))
         [[_ _ m] :as errs] (fatal-errors n)]
@@ -345,7 +345,7 @@
      (bad "one fatal error, to a" ["a"] (mapv second errs))
      (bad "malformed, on stream 0" ["malformed" 0] [(get-in m [:value "code"]) (:stream m)])
      (bad "closed" ["a"] @(:closed n))
-     (bad "nothing was stored" before (count (cc/snapshot st)))
+     (bad "nothing was stored" before (cc/store-count st))
      (bad "b is untouched" :open (client/session-status (:client n) "b")))))
 
 (defn item-on-a-closed-stream-is-ignored
@@ -357,14 +357,14 @@
         _ (h/request! (:client n) root)
         _ (answer! n src root "a" 1)             ; the stream ends: it is closed
         done? (client/done? (:client n) root)
-        before (count (cc/snapshot st))
+        before (cc/store-count st)
         extra (bin/encode-item (second (cc/items-of src root)))
         _ (h/on-frame! (:client n) "a" (first (cc/frames-of 1 [extra])))]
     (concat
      (bad "the first answer was verified and stored" true done?)
      (bad "the session is open" :open (client/session-status (:client n) "a"))
      (bad "no error was sent" [] (fatal-errors n))
-     (bad "nothing more was stored" before (count (cc/snapshot st))))))
+     (bad "nothing more was stored" before (cc/store-count st)))))
 
 (defn protocol-violation-ends-session-request-error-ends-stream
   "C16 on both sides. Client: an item frame before the peer's `hello`, a second
@@ -721,7 +721,7 @@
    `nothing-unverified-reaches-the-store`.)"
   []
   (let [[st root] (big-value)
-        keys-of #(set (keys (cc/snapshot st)))
+        keys-of #(cc/store-hexes st)
         before (keys-of)
         n (rnet {:st st})
         h (msg/hash-ref (store/hash->hex root))

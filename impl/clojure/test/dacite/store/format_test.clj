@@ -51,7 +51,7 @@
         (store/await (store/s-put st h e)))
       (let [again (file/file-store (str dir))]
         (is (= e (store/await (store/s-get again h))) "reopened, data intact")
-        (is (= 1 (count (store/await (store/s-snapshot again)))) "the tag is not a node"))
+        (is (= 1 (count (store/await (store/s-keys again)))) "the tag is not a node"))
       (testing "s-reset keeps the tag"
         (let [st (file/file-store (str dir))]
           (store/await (store/s-reset st))

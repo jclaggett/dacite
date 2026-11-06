@@ -15,16 +15,6 @@
             [dacite.store.pack :as pack]
             [dacite.rooted.gc :as gc]))
 
-(defn- snapshot-entry->hash
-  "Normalize a snapshot map key to a hash vector.
-
-   Mem-store on CLJS keys by hex string (BigInt vectors are not map keys);
-   on JVM keys are hash vectors. s-put always expects a hash vector."
-  [k]
-  (if (string? k)
-    (store/hex->hash k)
-    k))
-
 (defn- flushed-conj!
   "Add hash to flushed set using portable hex key (CLJS-safe)."
   [flushed-atom h]
@@ -42,8 +32,8 @@
       (nil? r) nil
 
       (and (record? r) (contains? r :pack-local))
-      (doseq [[k v] (store/await (store/s-snapshot (:pack-local r)))]
-        (let [h (snapshot-entry->hash k)]
+      (doseq [h (store/await (store/s-keys (:pack-local r)))]
+        (when-let [v (store/await (store/s-get (:pack-local r) h))]
           (store/await (store/s-put local h v))
           (when flushed-atom
             (flushed-conj! flushed-atom h))))
@@ -81,10 +71,12 @@
     (store/await (store/s-delete remote h))
     (store/completed this))
 
-  (s-snapshot [_]
+  (s-keys [_]
     (store/completed
-     (merge (store/await (store/s-snapshot remote))
-            (store/await (store/s-snapshot local)))))
+     (into []
+           (comp (map gc/hash-key) (distinct) (map store/hex->hash))
+           (concat (store/await (store/s-keys remote))
+                   (store/await (store/s-keys local))))))
 
   (s-merge [this m]
     (doseq [[h v] m]
@@ -124,10 +116,12 @@
     (swap! flushed disj (gc/hash-key h))
     (store/completed this))
 
-  (s-snapshot [_]
+  (s-keys [_]
     (store/completed
-     (merge (store/await (store/s-snapshot remote))
-            (store/await (store/s-snapshot local)))))
+     (into []
+           (comp (map gc/hash-key) (distinct) (map store/hex->hash))
+           (concat (store/await (store/s-keys remote))
+                   (store/await (store/s-keys local))))))
 
   (s-merge [this m]
     (doseq [[h v] m]

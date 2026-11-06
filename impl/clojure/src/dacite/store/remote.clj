@@ -177,8 +177,8 @@
                    (store/await (store/s-delete pack-local h))
                    this))))
 
-  (s-snapshot [_]
-    (store/s-snapshot pack-local))
+  (s-keys [_]
+    (store/s-keys pack-local))
 
   (s-merge [this m]
     (doseq [[h v] m]
@@ -226,7 +226,7 @@
   (s-delete [this h]
     (store/await (store/s-delete content h))
     (store/completed this))
-  (s-snapshot [_] (store/s-snapshot content))
+  (s-keys [_] (store/s-keys content))
   (s-merge [this m]
     (store/await (store/s-merge content m))
     (store/completed this))
@@ -361,10 +361,7 @@
                      :else [roots])
          root-hexes (mapv store/hash->hex root-list)
          have-hexes (mapv store/hash->hex
-                          (or have
-                              (map (fn [k]
-                                     (if (string? k) (store/hex->hash k) k))
-                                   (keys (or (store/await (store/s-snapshot dest)) {})))))
+                          (or have (store/await (store/s-keys dest))))
          url (str (str/replace (:base-url rs) #"/$" "") "/nodes/get")
          body {:roots root-hexes
                :have have-hexes

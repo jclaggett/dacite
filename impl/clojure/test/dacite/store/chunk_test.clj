@@ -97,8 +97,10 @@
         h (v/hash catalog)
         live (store/mem-store)
         _ (copy-live plain h live)
-        live-bytes (reduce + 0 (map #(count (pr-str %))
-                                    (vals (store/await (store/s-snapshot live)))))
+        live-bytes (reduce (fn [n h]
+                             (+ n (count (pr-str (store/await (store/s-get live h))))))
+                           0
+                           (store/await (store/s-keys live)))
         cs (chunk/chunked (store/mem-store))
         c2 (lib/seed-library cs)
         _ (chunk/flush! cs (v/hash c2))
@@ -107,7 +109,7 @@
              "chunked" (:edn-bytes inner)
              "ratio" (format "%.2f" (double (/ live-bytes (max 1 (:edn-bytes inner))))))
     (is (< (:edn-bytes inner) live-bytes))
-    (is (< (:entries inner) (count (store/await (store/s-snapshot live)))))))
+    (is (< (:entries inner) (count (store/await (store/s-keys live)))))))
 
 (deftest chunked-file-smaller-than-exploded-file
   (let [dir-e (io/file (str "target/dacite-chunk-exploded-" (System/nanoTime)))

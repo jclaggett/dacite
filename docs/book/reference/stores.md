@@ -51,7 +51,7 @@ See [Values — root](values.md#root-value-level) and
 
 ## Not part of the app API
 
-`IStore` (`s-get`, `s-put`, `s-snapshot`, …) is the content dictionary used
+`IStore` (`s-get`, `s-put`, `s-keys`, …) is the content dictionary used
 by backends. Application code should not call it.
 
 | Store | Host | Internal ctor |
@@ -80,7 +80,7 @@ npm run lmdb:v1
 
 That runs `LMDB_DATA_V1=true npx node-gyp rebuild` in the `lmdb` package.
 `npm run store:test` then runs the shared get, put, has?, eviction,
-snapshot and reopen checks, and a peer serving the library fixture, for
+key-scan and reopen checks, and a peer serving the library fixture, for
 the nbb file store, LMDB and IndexedDB (`fake-indexeddb`).
 
 ---

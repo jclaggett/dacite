@@ -32,8 +32,10 @@
     (swap! order #(vec (remove (fn [k] (= k h)) %)))
     (store/completed this))
 
-  (s-snapshot [_]
-    (store/completed @data))
+  (s-keys [_]
+    (store/completed
+     (mapv (fn [k] (if (string? k) (store/hex->hash k) k))
+           (keys @data))))
 
   (s-merge [this m]
     (doseq [[h v] m]

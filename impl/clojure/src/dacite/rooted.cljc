@@ -207,7 +207,7 @@
   (s-delete [this h]
     (store/await (store/s-delete content h))
     (store/completed this))
-  (s-snapshot [_] (store/s-snapshot content))
+  (s-keys [_] (store/s-keys content))
   (s-merge [this m]
     (store/await (store/s-merge content m))
     (store/completed this))

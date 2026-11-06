@@ -354,7 +354,7 @@
             (store/completed this))
         (store/unavailable h {:status status}))))
 
-  (s-snapshot [_] (store/s-snapshot pack-local))
+  (s-keys [_] (store/s-keys pack-local))
   (s-merge [this m]
     (doseq [[h v] m]
       (store/await (store/s-put this h v)))
@@ -446,10 +446,7 @@
                      :else [roots])
          root-hexes (mapv store/hash->hex root-list)
          have-hexes (mapv store/hash->hex
-                          (or have
-                              (map (fn [k]
-                                     (if (string? k) (store/hex->hash k) k))
-                                   (keys (or (store/await (store/s-snapshot dest)) {})))))
+                          (or have (store/await (store/s-keys dest))))
          url (str (trim-base (:base-url rs)) "/nodes/get")
          payload {:roots root-hexes
                   :have have-hexes
