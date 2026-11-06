@@ -3,9 +3,11 @@
 
    Everything the pure core needs from the host language lives behind this
    namespace: 64-bit modular arithmetic, the handful of 64-bit bit ops used
-   for hash navigation, popcount, byte<->long<->hex conversion, and the
-   canonical big-endian encodings for scalar values. The rest of the core
-   (dacite.hash, dacite.value.*) is plain portable Clojure built on top.
+   for hash navigation, popcount, byte<->long<->hex conversion, the
+   canonical big-endian encodings for scalar values, and the real-number
+   operations the reveal clock uses (`exp`, `log`, `next-up`, `floor`).
+   The rest of the core (dacite.hash, dacite.value.*, dacite.reveal.engine)
+   is plain portable Clojure built on top.
 
    Representation of a 64-bit word:
    - JVM / babashka: a native (signed) long. Modular 2^64 arithmetic is
@@ -24,7 +26,8 @@
    NOTE: each operation is a single top-level defn with the host branch in
    its body. We deliberately avoid wrapping several defns in a top-level
    `(do ...)`, because SCI (babashka/nbb) does not promote defns nested in
-   a top-level do to namespace vars.")
+   a top-level do to namespace vars."
+  (:refer-clojure :exclude [infinite?]))
 
 ;; =============================================================================
 ;; ClojureScript BigInt helpers
@@ -621,3 +624,82 @@
   [x]
   #?(:clj (or (char? x) (and (string? x) (= 2 (count x)) (= 1 (cp-count x))))
      :cljs (and (string? x) (= 1 (cp-count x)))))
+
+;; =============================================================================
+;; Real numbers and hash identity for the reveal clock
+;; =============================================================================
+;; These do not affect root hashes. The reveal engine calls them so a core
+;; namespace never names Math, Double, or js/Math itself.
+
+(defn exp
+  "e to the power `x`."
+  [x]
+  #?(:clj (Math/exp (double x))
+     :cljs (js/Math.exp x)))
+
+(defn log
+  "Natural logarithm of `x`."
+  [x]
+  #?(:clj (Math/log (double x))
+     :cljs (js/Math.log x)))
+
+(defn finite?
+  "True when `x` is a finite double."
+  [x]
+  #?(:clj (Double/isFinite (double x))
+     :cljs (js/isFinite x)))
+
+(defn infinite?
+  "True when `x` is positive or negative infinity."
+  [x]
+  #?(:clj (Double/isInfinite (double x))
+     :cljs (and (number? x) (not (js/isFinite x)) (not (js/isNaN x)))))
+
+(defn floor
+  "Greatest integer less than or equal to `x`. A long on the JVM, a number
+   on JavaScript."
+  [x]
+  #?(:clj (long (Math/floor (double x)))
+     :cljs (js/Math.floor x)))
+
+(defn next-up
+  "The next double after `x`, matching Java's Math/nextUp.
+
+   Adding half an ulp rounds back to `x` at powers of two, so on
+   JavaScript the IEEE-754 bit pattern itself is stepped. Positive zero
+   and negative zero both step to the smallest positive value."
+  [x]
+  #?(:clj (Math/nextUp (double x))
+     :cljs
+     (let [x (double x)]
+       (cond
+         (js/isNaN x) x
+         (= x js/Number.POSITIVE_INFINITY) x
+         (= x js/Number.NEGATIVE_INFINITY) (- js/Number.MAX_VALUE)
+         :else
+         (let [x (if (zero? x) 0.0 x)
+               buf (js/ArrayBuffer. 8)
+               view (js/DataView. buf)]
+           (.setFloat64 view 0 x false)
+           (let [hi (.getUint32 view 0 false)
+                 lo (.getUint32 view 4 false)
+                 [hi lo] (if (neg? x)
+                           (if (zero? lo)
+                             [(dec hi) 4294967295]
+                             [hi (dec lo)])
+                           (if (= lo 4294967295)
+                             [(inc hi) 0]
+                             [hi (inc lo)]))]
+             (.setUint32 view 0 hi false)
+             (.setUint32 view 4 lo false)
+             (.getFloat64 view 0 false)))))))
+
+(defn hash-key
+  "What a set remembers a content hash by.
+
+   On the JVM the four-word vector is a fine set element. On JavaScript a
+   hash is four BigInts, and hashing a BigInt throws once a set grows past
+   eight, so the hex string stands for it."
+  [h]
+  #?(:clj h
+     :cljs (longs->hex h)))

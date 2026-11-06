@@ -145,8 +145,18 @@ vectors `:strings`, `:utf8`, `:invalid-utf8` and `:rejected-strings` in
 `fixtures/fuse-sl2/vectors.edn` pin it (also `reference.py`). The design and the
 lone-surrogate decision: `docs/design/text-code-points.md`.
 
+**Reveal clock (does not affect root hashes):** `exp` and `log` (natural
+log), `next-up` (the next IEEE-754 double, Java `Math/nextUp`; on
+JavaScript the bit pattern is stepped, including at powers of two),
+`finite?`, `infinite?`, `floor` (greatest integer at most `x`; a long on
+the JVM), and `hash-key` (a content hash as a set element: the word vector
+on the JVM, its hex on JavaScript, because a BigInt is not a persistent-set
+key past eight elements). `dacite.reveal.engine` is the caller.
+
 Get all of these exactly right and the fuse algebra, HAMT, finger-tree, and
-value hashing above them are automatically identical across hosts.
+value hashing above them are automatically identical across hosts. The
+reveal clock ops are separate: they keep page order and session credit the
+same across hosts, and they are not part of a hash.
 
 ---
 
