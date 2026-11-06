@@ -4,9 +4,10 @@
    Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45).
 
    Interest is in thousandths, as on the wire (`peak` 1000 is 1.0). One
-   interest curve, `I(t) = peak · exp(−t / tau)`, is `dacite.reveal/interest`.
-   A rate is bytes a second."
-  (:require [dacite.reveal :as reveal]))
+   interest curve, `I(t) = peak · exp(−t / tau)`, is
+   `dacite.reveal.engine/interest`. A rate is bytes a second."
+  (:require [dacite.host :as host]
+            [dacite.reveal.engine :as reveal]))
 
 (def peak
   "The peak of a connection: the C01 divisor `max(peak, Σ I)` uses it."
@@ -61,9 +62,6 @@
   [send-max budget]
   (min send-max budget))
 
-(defn- floor-long [x]
-  #?(:clj (long (Math/floor (double x))) :cljs (js/Math.floor x)))
-
 (defn recv-max
   "C45: the `recv-max` for a new `get` to a peer whose current C01/C02 share is
    `share`: that share, rounded down, and at least 1 (the wire needs a positive
@@ -71,4 +69,4 @@
    be sending at an older, higher `recv-max`, and the client is over `R_max` until
    their next `get` or their interest decays (spec 12.2, known gap)."
   [share]
-  (max 1 (floor-long share)))
+  (max 1 (host/floor share)))

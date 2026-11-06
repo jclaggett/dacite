@@ -1,15 +1,15 @@
 # Core boundary inventory
 
-**Status:** M2.1 inventory of the tree as of Nov 5, 2026. This is a
-classification, not a move. Reveal-engine extraction is M2.2. The parity
-suite is M2.3.
+**Status:** Inventory of the tree as of Nov 6, 2026. M2.1 classified
+every namespace. M2.2 moved the host-neutral reveal engine into `core`.
+The parity suite is M2.3.
 
 The portability contract (what a host must provide, and what the portable
 core is allowed to call) is [portable-core.md](portable-core.md). This
 document is the **inventory**: every namespace on the Clojure source path,
 labeled `core`, `host`, or `server-only`.
 
-Counted here: **83 namespaces** (5 `core`, 74 `host`, 4 `server-only`) under
+Counted here: **84 namespaces** (7 `core`, 73 `host`, 4 `server-only`) under
 `impl/clojure/src` and `impl/clojure/dev`. `impl/clojure/test` is not
 inventoried; tests may require any class. `impl/clojure/archive` is not on
 the classpath.
@@ -34,9 +34,8 @@ A namespace is **`core`** when all of these hold:
 
 `dacite.host` is **`host`**. It is the portability contract in
 [portable-core.md](portable-core.md): the one host namespace `core` may
-require. Allowing that edge does not add any namespace to `core` today.
-Every current caller of `dacite.host` also has its own host marker or
-requires some other host namespace.
+require. `dacite.reveal.engine` and `dacite.peer.rates` are `core` and
+require it. They have no host marker of their own.
 
 A namespace is **`server-only`** when its name is `dacite.service` or
 `dacite.service.*`. That is the HTTP service process. A JVM HTTP *client*
@@ -80,14 +79,15 @@ Pure `.cljc`. No host marker, no dynamic load, and no require outside
 | `dacite.byte-table` | `core` | `impl/clojure/src/dacite/byte_table.cljc` | Shipped byte-to-hash seed table. Data only, no requires. |
 | `dacite.examples` | `core` | `impl/clojure/src/dacite/examples.cljc` | Example index. Docstring only; the namespaces it names are host. |
 | `dacite.peer.bucket` | `core` | `impl/clojure/src/dacite/peer/bucket.cljc` | Token bucket. Time is an argument, so there is no host clock. |
+| `dacite.peer.rates` | `core` | `impl/clojure/src/dacite/peer/rates.cljc` | C01/C02 rate split. Interest is `dacite.reveal.engine/interest`. `floor` is `dacite.host/floor`. |
 | `dacite.peer.transport` | `core` | `impl/clojure/src/dacite/peer/transport.cljc` | `ITransport` and `IChannel` protocols and the channel names. No I/O. |
+| `dacite.reveal.engine` | `core` | `impl/clojure/src/dacite/reveal/engine.cljc` | Page order, interest, shares, the session clock, session state, ack and release. Node lookup is a function map. `exp`, `log`, `next-up`, `finite?`, `infinite?`, and `hash-key` are `dacite.host`. |
 | `dacite.sl2-table` | `core` | `impl/clojure/src/dacite/sl2_table.cljc` | Shipped SL(2) generator table. Data only, no requires. |
 
 ## Host: `.cljc` that still has host interop
 
 These files are shared source, and they still branch on the host. They are
-`host`, not `core`, until that interop moves behind `dacite.host` (M2.2
-for the reveal engine).
+`host`, not `core`, until that interop moves behind `dacite.host`.
 
 | Namespace | Class | File | Rationale |
 |-----------|-------|------|-----------|
@@ -105,11 +105,9 @@ for the reveal engine).
 | `dacite.peer.frame` | `host` | `impl/clojure/src/dacite/peer/frame.cljc` | Frame bytes: `byte-array` and `Uint8Array`, `System/arraycopy`. |
 | `dacite.peer.link` | `host` | `impl/clojure/src/dacite/peer/link.cljc` | Wires a session to a channel. A `js/Promise` branch when the channel opens asynchronously. |
 | `dacite.peer.msg` | `host` | `impl/clojure/src/dacite/peer/msg.cljc` | Control messages. `bytes?`, `Long`/`Integer`, and JS string code points. |
-| `dacite.peer.rates` | `host` | `impl/clojure/src/dacite/peer/rates.cljc` | Rate split. `Math/floor` and `js/Math.floor`. Requires `dacite.reveal`. |
 | `dacite.peer.responder` | `host` | `impl/clojure/src/dacite/peer/responder.cljc` | Peer responder. Same host clock split as the client. |
 | `dacite.peer.transport.mem` | `host` | `impl/clojure/src/dacite/peer/transport/mem.cljc` | In-memory transport. Catches `Throwable` or `:default`. Requires `dacite.wire.binary`. |
 | `dacite.peer.verify` | `host` | `impl/clojure/src/dacite/peer/verify.cljc` | Item checks. `clojure.lang.ExceptionInfo` or `ExceptionInfo`. |
-| `dacite.reveal` | `host` | `impl/clojure/src/dacite/reveal.cljc` | Page order, interest, and the session clock, with `Math/exp`, `Math/log`, `Double`, and `js/Math`. Moving the host-neutral parts is M2.2. |
 | `dacite.rooted` | `host` | `impl/clojure/src/dacite/rooted.cljc` | Root cell. `clojure.java.io`, Node `fs`, and JVM `clojure.lang` ref interfaces. |
 | `dacite.store` | `host` | `impl/clojure/src/dacite/store.cljc` | `IStore` and the memory store, plus futures, JS promises, and backend constructors loaded with `requiring-resolve`. |
 | `dacite.store.bound` | `host` | `impl/clojure/src/dacite/store/bound.cljc` | Literal-size bound. Catches `clojure.lang.ExceptionInfo` or the CLJS default. |
@@ -138,6 +136,7 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.examples.hello` | `host` | `impl/clojure/src/dacite/examples/hello.cljc` | Hello example, domain only. Requires `dacite.store` and `dacite.value`. |
 | `dacite.examples.parity` | `host` | `impl/clojure/src/dacite/examples/parity.cljc` | Cross-host hash example. Requires `dacite.store` and `dacite.value`. |
 | `dacite.examples.todo` | `host` | `impl/clojure/src/dacite/examples/todo.cljc` | Todo domain. Requires `dacite.store` and `dacite.value`. |
+| `dacite.reveal` | `host` | `impl/clojure/src/dacite/reveal.cljc` | Store adapter for `dacite.reveal.engine`. Builds the node source from `dacite.store`, `dacite.value.types`, `dacite.value.hamt`, and `dacite.wire.binary`. No host marker of its own. |
 | `dacite.rooted.gc` | `host` | `impl/clojure/src/dacite/rooted/gc.cljc` | Mark-and-sweep in portable Clojure. Requires `dacite.store` and `dacite.value.types`. |
 | `dacite.store.chunk` | `host` | `impl/clojure/src/dacite/store/chunk.cljc` | Chunked overlay. Requires `dacite.store`, `dacite.store.pack`, and `dacite.rooted.gc`. |
 | `dacite.store.client-cache` | `host` | `impl/clojure/src/dacite/store/client_cache.cljc` | Client cache policies. Requires `dacite.store`, `dacite.store.pack`, and `dacite.rooted.gc`. |
