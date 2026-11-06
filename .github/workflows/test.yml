@@ -46,6 +46,20 @@ jobs:
       - name: Durable store suite
         run: npm run store:test
 
+      # shadow-cljs.edn uses :deps, so peer:build and browser:test start
+      # the compiler with the `clojure` executable. The suites above do not.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Clojure CLI
+        run: |
+          curl -fsSL -o /tmp/linux-install.sh \
+            https://github.com/clojure/brew-install/releases/download/1.12.6.1673/linux-install.sh
+          sudo bash /tmp/linux-install.sh
+          clojure --version
+
       - name: Browser peer build and compiled test
         run: |
           npm run peer:build

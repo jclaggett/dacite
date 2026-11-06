@@ -227,8 +227,9 @@ adding a row.
 
 `impl/clojure/test/dacite/core_boundary_test.clj` is part of the JVM suite
 (`cognitect.test-runner` picks up every `*_test.clj`). GitHub Actions
-`.github/workflows/test.yml` runs the nbb suites only; the JVM suite stays
-local.
+`.github/workflows/test.yml` runs the nbb suites, then `npm run peer:build`
+and `npm run browser:test` (that step installs Java 21 and the Clojure CLI,
+because shadow-cljs starts through `clojure`). The JVM suite stays local.
 
 ```bash
 cd impl/clojure && clojure -M:dev:test -n dacite.core-boundary-test
