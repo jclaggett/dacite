@@ -45,3 +45,8 @@ jobs:
 
       - name: Durable store suite
         run: npm run store:test
+
+      - name: Browser peer build and compiled test
+        run: |
+          npm run peer:build
+          npm run browser:test

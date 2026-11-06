@@ -216,9 +216,10 @@ Land design + link from portable-core. No behavior change required.
 ### Phase 2 — Compiled CLJS protocols
 
 - Add `#?(:cljs …)` protocol implementations mirroring Phase 1 semantics.
-- Requires a **compiled** CLJS test path (not only nbb). If the repo has
-  no shadow-cljs/figwheel setup yet, add a minimal one or test via a
-  small cljs target — call out in the implementing PR.
+- Requires a **compiled** CLJS test path (not only nbb). shadow-cljs is
+  set up for the browser peer (M5.1, `impl/clojure/shadow-cljs.edn`).
+  Phase 2 can add its tests on that config. The `:cljs-*` example
+  aliases stay on `cljs.build.api`.
 - Hash parity with JVM still validated via portable functional path /
   `bin/hash-parity.sh` (nbb), not via protocol dispatch.
 
@@ -249,8 +250,11 @@ recipe and `ensure-in-store!`).
 
 1. **Set API completeness** — is `IPersistentSet` + `disjoin` required for
    v1 or can sets stay “lookup + conj + seq” until needed?
-2. **Compiled CLJS toolchain** — introduce shadow-cljs (or similar) for
-   Phase 2 tests, or wait until a CLJS product target exists?
+2. **Compiled CLJS toolchain: answered for the browser peer (M5.1).**
+   shadow-cljs compiles that target and its node test
+   (`impl/clojure/shadow-cljs.edn`). Phase 2 protocol tests can use the
+   same config. The `:cljs-web`, `:cljs-explorer`, and `:cljs-library`
+   aliases stay on `cljs.build.api`.
 3. **Deep equiv to host collections** — any app that needs it before we
    stick to hash-identity forever?
 4. **Performance** — prioritize fixing vector `assoc` rebuild paths as part

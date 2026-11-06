@@ -23,9 +23,11 @@
    - **`max-frame` is clamped** to the channel's `max-message-size` in the
      `hello` this side sends (`msg/clamp-hello`), then to `max-frame-limit`
      when the channel has one. The in-memory transport's limit is nil, so
-     its hello keeps 16384. WebRTC's is 4096 (node-datachannel 0.33.6: 16 KiB
-     frames on a full SCTP buffer corrupted payloads). A channel under the
-     smallest frame that holds a node item throws `:channel-too-small`.
+     its hello keeps 16384. The node-datachannel adapter's is 4096 (0.33.6:
+     16 KiB frames on a full SCTP buffer corrupted payloads). The browser
+     `RTCPeerConnection` adapter's limit is nil; `max-message-size` is the
+     only cut. A channel under the smallest frame that holds a node item
+     throws `:channel-too-small`.
    - **Back-pressure per channel.** The responder's `:buffered` is the channel's
      `buffered-amount`, for every stream on it (C17 marks are per channel).
    - **Close.** A protocol violation or a fatal error makes the peer call

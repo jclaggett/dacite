@@ -1,8 +1,15 @@
 # Dacite Roadmap
 
-*Last updated: 2026-10-29*
+*Last updated: 2026-11-06*
 
 ## Current direction
+
+**Peering is the active plan** ([plan/peering.md](plan/peering.md)). M5.1
+compiled the peer for the browser with shadow-cljs. That page's local
+tier is IndexedDB (`dacite.store.idb`). The browser transport is
+`RTCPeerConnection` (`dacite.peer.transport.browser`). The earlier
+`:cljs-web`, `:cljs-explorer`, and `:cljs-library` bundles stay on
+`cljs.build.api`.
 
 **Client/server reveal is the work.** The public-domain library is large
 enough to show the transport cost, and that cost is the current problem.
@@ -28,9 +35,10 @@ library CLI and browser reader (`/app/library/`) live in
 `s/file` and `s/lmdb` (pack-literal flush on root commit). Sequences are
 ~1,024-byte literal pages, and a `u8` run payload is a copied byte buffer.
 
-A web client has no durable store of its own. `s/mem`, `s/file`, and
-`s/lmdb` are JVM or nbb. In compiled ClojureScript those constructors
-throw, and the page's store is the remote behind `dacite.store.browser`.
+`s/mem`, `s/file`, and `s/lmdb` are JVM or nbb. In compiled ClojureScript
+those constructors throw. The todo, explorer, and library pages still
+read through `dacite.store.browser`. The browser peer page stores
+verified entries in IndexedDB (`dacite.store.idb`).
 
 `IStore` methods return a promise on every host. `s-get` fulfills with
 nil when this dictionary has no hash. A required read fails as
