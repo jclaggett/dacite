@@ -6,6 +6,8 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M5.2: the browser reads a value held only by the nbb peer.** The page is the WebRTC offerer and `dacite.examples.peer-nbb` is the answerer. They exchange offer, answer, and ICE through the slice-3 room relay (a shared token; no origin discovery). The browser creates `dacite-peer` in-band, which is what the nbb answerer already receives. The page requires `GET /node/{root}` to be 404, then the client verifies every item into IndexedDB and checks each reachable entry. `npm run peer:e2e` runs that in headless Chromium. Safari and Firefox are a one-time hand check, written under M5.2 in `docs/plan/peering.md`. The 4096 frame clamp stays on node-datachannel. `IStore` is unchanged.
+
 - **`s-keys` is removed from `IStore`.** This is the follow-up after #43, not M5.2. A store is a hash-addressed bank. The public operations are `s-get`, `s-put`, `s-has?`, and `s-delete`. `s-merge` and `s-reset` stay. Nothing on the public protocol lists every hash. Garbage collection marks from a root with `s-get`, then the backend that holds the entries deletes the rest (`sweep-unmarked`) and does not return the key list. Pack skip and origin hole-finding walk from a root or use `s-has?`. A literal's nodes are the ones `materialize-literal!` wrote. IndexedDB's internal sweep still does not fill the read cache.
 
 - **`s-snapshot` is removed from `IStore`.** This is the follow-up after M5.1, not M5.2. A content store is addressed by hash, so it no longer dumps every node as a `{hash → value}` map. `snapshot-store` is gone. `with-store` returns `[store last-value]`. `s-merge` and `s-reset` are unchanged.

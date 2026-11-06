@@ -188,5 +188,9 @@ cd impl/clojure && clojure -M:peer-origin
 
 Open http://127.0.0.1:8080/app/peer/ . The page reads `GET /root`, verifies
 each pack item into IndexedDB, and shows the root hash and the entry count.
-Those two numbers are also printed by `peer-origin`. A session with an nbb
-peer is M5.2.
+Those two numbers are also printed by `peer-origin`.
+
+To read a value held only by an nbb peer, start the slice-3 relay and
+`nbb -m dacite.examples.peer-nbb`, then open the URL that process prints.
+`npm run peer:e2e` runs the same session in headless Chromium. The Safari
+and Firefox steps are under M5.2 in `docs/plan/peering.md`.

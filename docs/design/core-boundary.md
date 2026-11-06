@@ -11,11 +11,12 @@ core is allowed to call) is [portable-core.md](portable-core.md). This
 document is the **inventory**: every namespace on the Clojure source path,
 labeled `core`, `host`, or `server-only`.
 
-Counted here: **88 namespaces** (7 `core`, 77 `host`, 4 `server-only`) under
+Counted here: **89 namespaces** (7 `core`, 78 `host`, 4 `server-only`) under
 `impl/clojure/src` and `impl/clojure/dev`. `impl/clojure/test` is not
 inventoried; tests may require any class. `impl/clojure/archive` is not on
 the classpath. M5.1 added the browser peer (`dacite.peer.transport.browser`,
 `dacite.peer.origin`, `dacite.examples.peer-web`, `dacite.examples.peer-origin`).
+M5.2 added `dacite.examples.peer-nbb`, the nbb peer the browser reads from.
 
 ## Rules
 
@@ -169,6 +170,7 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.examples.explorer-web` | `host` | `impl/clojure/src/dacite/examples/explorer_web.cljs` | Compiled browser explorer. DOM and `dacite.store.browser`. |
 | `dacite.examples.library-web` | `host` | `impl/clojure/src/dacite/examples/library_web.cljs` | Compiled browser library reader. DOM and `dacite.store.browser`. |
 | `dacite.examples.lmdb-bench` | `host` | `impl/clojure/src/dacite/examples/lmdb_bench.cljs` | nbb file-versus-LMDB timings. Node `fs` and `dacite.store.nbb.lmdb`. |
+| `dacite.examples.peer-nbb` | `host` | `impl/clojure/src/dacite/examples/peer_nbb.cljs` | nbb peer for M5.2. Holds a value the origin does not and answers the browser over `node-datachannel`. |
 | `dacite.examples.peer-origin` | `host` | `impl/clojure/src/dacite/examples/peer_origin.clj` | JVM origin for the browser peer page. Seeds the canonical value and starts `dacite.service`. |
 | `dacite.examples.peer-web` | `host` | `impl/clojure/src/dacite/examples/peer_web.cljs` | Compiled browser peer page. DOM, `fetch`, and IndexedDB. |
 | `dacite.examples.todo-ui` | `host` | `impl/clojure/src/dacite/examples/todo_ui.cljs` | nbb todo CLI. `promesa` and Node. |
@@ -228,9 +230,10 @@ adding a row.
 
 `impl/clojure/test/dacite/core_boundary_test.clj` is part of the JVM suite
 (`cognitect.test-runner` picks up every `*_test.clj`). GitHub Actions
-`.github/workflows/test.yml` runs the nbb suites, then `npm run peer:build`
-and `npm run browser:test` (that step installs Java 21 and the Clojure CLI,
-because shadow-cljs starts through `clojure`). The JVM suite stays local.
+`.github/workflows/test.yml` runs the nbb suites, then `npm run peer:build`,
+`npm run browser:test`, and `npm run peer:e2e` (that step installs Java 21
+and the Clojure CLI, because shadow-cljs starts through `clojure`, then
+Playwright's Chromium). The JVM suite stays local.
 
 ```bash
 cd impl/clojure && clojure -M:dev:test -n dacite.core-boundary-test

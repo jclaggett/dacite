@@ -108,6 +108,9 @@
   ;; Build the script first, from the repo root: npm run peer:build
   ;;   cd impl/clojure && clojure -M:peer-origin
   ;;   open http://127.0.0.1:8080/app/peer/
+  ;; M5.2 reads a different value from the nbb peer (query root, signal, room).
+  ;;   npm run peer:e2e
+  ;; The hand check for Safari and Firefox is in docs/plan/peering.md.
   :peer-origin {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
                            "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
                 :main-opts ["-m" "dacite.examples.peer-origin"]}
