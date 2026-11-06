@@ -27,9 +27,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Reveal, IndexedDB, peer, and WebRTC suites
+      # parity:test is the nbb half of bin/parity.sh. The JVM half and
+      # the digest compare need Clojure, so they stay local, like
+      # core-boundary-test.
+      - name: Reveal, parity, IndexedDB, peer, and WebRTC suites
         run: |
           npm run reveal:test
+          npm run parity:test
           npm run idb:test
           npm run peer:test
           npm run webrtc:test
