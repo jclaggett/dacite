@@ -24,8 +24,7 @@
    throws once it grows past eight; page-order already keys by hex, the
    session does not, and this suite does not change that."
   (:refer-clojure :exclude [abs])
-  (:require [clojure.edn :as edn]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [dacite.examples.parity :as parity]
             [dacite.host :as host]
             [dacite.reveal :as reveal]
@@ -37,6 +36,7 @@
             [dacite.value.scalar :as scalar]
             [dacite.value.types :as types]
             [dacite.wire.binary :as bin]
+            #?(:clj [clojure.edn :as edn])
             #?(:clj [clojure.java.io :as io]
                :cljs [cljs.reader :as reader])
             #?(:cljs ["fs" :as fs])
@@ -82,13 +82,14 @@
     #?(:clj (edn/read-string text)
        :cljs (reader/read-string text))))
 
-(defn- sorted
-  "Maps with keyword keys, in key order, so the golden file is stable."
-  [x]
-  (cond
-    (map? x) (into (sorted-map) (map (fn [[k v]] [k (sorted v)]) x))
-    (vector? x) (mapv sorted x)
-    :else x))
+#?(:clj
+   (defn- sorted
+     "Maps with keyword keys, in key order, so the golden file is stable."
+     [x]
+     (cond
+       (map? x) (into (sorted-map) (map (fn [[k v]] [k (sorted v)]) x))
+       (vector? x) (mapv sorted x)
+       :else x)))
 
 #?(:clj
    (defn- write-golden!
