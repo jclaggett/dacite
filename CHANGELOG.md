@@ -8,7 +8,8 @@ stability promise: public APIs may still change before 1.0.
 
 - **M6.1: origin signaling is specified.** `docs/spec/peer-v1.md` section 14
   is the JSON channel a peer will use with the origin: a Bearer on the
-  opening request (the same header as HTTP), an announcement with network
+  opening request (the HTTP header, or `?token=` for a browser WebSocket),
+  an announcement with network
   hints, a locality suggestion, and an offer/answer/ICE relay. The origin
   suggests peers by locality only. The slice-3 room relay is unchanged.
   The endpoint is M6.2.

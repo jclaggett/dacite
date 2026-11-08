@@ -1471,8 +1471,8 @@ follows the SHOULD table.
 | Id | Status | MUST (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
 | S01 | Decided | Signaling is JSON with the origin, never a peer-v1 frame | `signaling-json-is-not-a-peer-frame` | JVM | M6.2 |
-| S02 | Decided | WebSocket `/signal` carries the HTTP Bearer; long-poll may carry the same objects | `signal-opening-carries-the-http-bearer` | JVM | M6.2 |
-| S03 | Decided | A well-formed Bearer binds `bearer:<token>`; anything else is unauthenticated and closes | `missing-bearer-is-unauthenticated` | JVM | M6.2 |
+| S02 | Decided | WebSocket `/signal`; Bearer by header or `?token=`; long-poll cannot push `suggest` | `signal-opening-accepts-header-or-query-token` | JVM | M6.2 |
+| S03 | Decided | Header and `?token=` bind `bearer:<token>` when they agree; a mismatch is unauthenticated | `mismatched-bearer-and-query-token-is-unauthenticated` | JVM | M6.2 |
 | S04 | Decided | `authenticated` is first; no suggest or relay until `announce` | `signal-before-announce-is-not-announced` | JVM | M6.2 |
 | S05 | Decided | Origin sets public-ip; ignores a client public-ip, root, and hash; the peer id is not the token | `origin-sets-public-ip-and-ignores-a-root` | JVM | M6.2 |
 | S06 | Decided | Suggest the full locality set, or empty; do not rank or shorten it | `suggests-only-local-peers` | JVM | M6.2 |
@@ -1537,19 +1537,27 @@ for them.
 The default carrier is a WebSocket on the same host and port as the origin's
 HTTP service. The path is `/signal`. The scheme is `ws` when the origin is
 `http`, and `wss` when it is `https`. An origin at `http://127.0.0.1:8080`
-is signaled at `ws://127.0.0.1:8080/signal`. There is no room token in the
-path.
+is signaled at `ws://127.0.0.1:8080/signal`. A browser, which cannot set a
+request header, uses `ws://127.0.0.1:8080/signal?token=lab-1`. There is no
+room token in the path. The query name `token` is this Bearer, not a
+slice-3 room.
 
-The opening handshake carries the header the HTTP client already sends.
+The opening request presents the token `remote-store` already has.
 `dacite.store.remote/remote-store` adds `Authorization: Bearer <token>` when
-opened with `:token` (`merge-token-headers`). This channel uses that header.
-It does not define a second credential.
+opened with `:token` (`merge-token-headers`). A client that can set headers
+MAY send only that header. A browser cannot. `js/WebSocket` takes a URL and
+no headers, which is how `dacite.peer.transport.browser/signal-over-ws!`
+opens its socket today. The browser sends the raw token in the `token`
+query parameter, percent-encoded, with no `Bearer ` prefix. At least one of
+the header and the query parameter MUST be present and well-formed. When
+both are present they MUST be the same token (14.3). This is one
+credential, carried two ways.
 
-A long-poll carrier, if M6.2 adds one, exchanges these same objects.
-`POST /signal` with `Content-Type: application/json` and the same
-`Authorization` header carries one client object and returns one origin
-object. The messages do not change. M6.2 may ship the WebSocket and no
-long-poll.
+A long-poll carrier, if M6.2 adds one, exchanges these same JSON objects
+and presents the token the same way. `POST /signal` carries one client
+object and returns one origin object. That response cannot push a later
+`suggest`. A browser does not use long-poll as its signaling carrier. M6.2
+may ship the WebSocket and no long-poll.
 
 The carrier is ordered. The last `suggest` on a connection is the current
 set. Signals from one sender to one target stay in the order the origin
@@ -1560,10 +1568,17 @@ the room relay's `MAX_MESSAGE`. One object per message. No second object
 after the first, and no binary frame.
 
 - **S02 (Decided, M6.1).** The default carrier MUST be a WebSocket to
-  `/signal` on the origin. The opening handshake MUST include
-  `Authorization` with a Bearer token, the header `remote-store` sends for
-  `:token`. A long-poll carrier MAY carry the same JSON objects and MUST
-  use that header. It MUST NOT define a different set of messages.
+  `/signal` on the origin. The opening request MUST present the Bearer
+  token, either as the `Authorization` header `remote-store` sends for
+  `:token` or as the raw token in the `token` query parameter. A browser
+  MAY send only `?token=`, because `js/WebSocket` cannot set headers. A
+  header-capable client MAY send only `Authorization`. At least one MUST
+  be present and well-formed. A malformed header or a malformed query
+  refuses the connection even when the other is well-formed (S03). A
+  long-poll carrier MAY carry the same JSON
+  objects and MUST present the token the same way. It MUST NOT define a
+  different set of messages. Its one-object response MUST NOT be treated
+  as a browser signaling carrier: it cannot push a later `suggest`.
 - **S08 (Decided, M6.1).** Each carrier message MUST be one JSON object,
   UTF-8 text, at most 65536 bytes. A binary frame, a message that is not
   one JSON object, a message over that size, an unknown `type`, a message
@@ -1585,13 +1600,41 @@ is `bearer:<token>` when that returns a token, otherwise `ip:<host>`.
 Signaling uses that parser and that `bearer:` key. It does not add a user
 directory, a session cookie, or a room token.
 
-The channel is stricter than the throttle about a missing header. Throttle
-names a bucket for a public hash read. This channel relays ICE candidates,
-which are network addresses. A remote IP MUST NOT stand in for the Bearer.
+The channel is stricter than the throttle about a missing credential.
+Throttle names a bucket for a public hash read. This channel relays ICE
+candidates, which are network addresses. A remote IP MUST NOT stand in for
+the token.
 
-The origin reads the header before it reads any client message. When
-`bearer-token` returns a token, the connection is bound to
-`bearer:<token>`. The first message the origin sends is `authenticated`.
+The origin reads the credential before it reads any client message. The
+header token is what `bearer-token` returns for `Authorization`. No header,
+no header token. A header that is present and that `bearer-token` rejects
+is malformed: a scheme other than Bearer, or a token that is not one
+non-whitespace run.
+
+The query token is the `token` parameter. No such parameter, no query
+token. More than one `token` parameter is malformed. The origin
+percent-decodes the value once as UTF-8 and does not treat `+` as a space.
+A bad percent-encoding is malformed. The decoded string is a token only
+when `bearer-token` of the synthetic header `Bearer <decoded>` returns
+that same string. That is the grammar `bearer-token` already uses,
+`(?i)Bearer\s+(\S+)` on the whole header. The query value is the capture,
+the raw token, not the word `Bearer`.
+
+The origin then binds one client key, or refuses:
+
+| Header | Query | Result |
+|---|---|---|
+| a token | absent | bind `bearer:` plus that token |
+| absent | a token | bind `bearer:` plus that token |
+| a token | the same string | bind `bearer:` plus that token |
+| a token | a different token | `unauthenticated`, close |
+| present, malformed | anything, including a good query | `unauthenticated`, close |
+| anything, including a good header | present, malformed | `unauthenticated`, close |
+| absent | absent | `unauthenticated`, close |
+
+A refusal sends `error` `unauthenticated` and closes. The origin does not
+read an `announce` on that connection, and it suggests the connection to
+nobody. On success the first message the origin sends is `authenticated`.
 The client MAY send `announce` as soon as the socket is open. The origin
 still sends `authenticated` before `announced`.
 
@@ -1600,30 +1643,46 @@ are two announcements, with two peer ids. The token names the client. The
 peer id names the announcement. v1 accepts any well-formed token. A later
 productization may reject unknown tokens. This section does not.
 
-A missing header, a scheme other than Bearer, or a header that
-`bearer-token` rejects is refused. The origin sends `error`
-`unauthenticated` and closes.
-It does not read an `announce` on that connection, and it suggests the
-connection to nobody.
+Header-only and token-only both succeed with the same answer. A browser's
+token-only open is `ws://127.0.0.1:8080/signal?token=lab-1`, and the origin
+binds `bearer:lab-1`:
 
 ```json
 { "type": "authenticated" }
 ```
 
+Neither the header nor the query was a token:
+
 ```json
 {
   "type": "error",
   "reason": "unauthenticated",
-  "message": "Authorization Bearer is required"
+  "message": "a Bearer token is required"
+}
+```
+
+The header and the query are both present and are not the same string.
+`Authorization: Bearer lab-1` with `?token=lab-2` is this refusal. The
+origin does not pick one of them:
+
+```json
+{
+  "type": "error",
+  "reason": "unauthenticated",
+  "message": "Authorization and token query differ"
 }
 ```
 
 - **S03 (Decided, M6.1).** The origin MUST accept the connection only when
-  `dacite.service.throttle/bearer-token` returns a token. It MUST record
-  the client key `bearer:` plus that token. It MUST NOT accept a missing
-  header, a non-Bearer scheme, or an empty token, and it MUST NOT
-  substitute the remote IP. The refusal is `error` `unauthenticated`, then
-  the carrier closes. v1 MUST NOT consult a user directory.
+  the header and the `token` query yield one token, by the table above.
+  The header token MUST be what `dacite.service.throttle/bearer-token`
+  returns. The query token MUST be the percent-decoded `token` value, and
+  MUST be accepted only when `bearer-token` of `Bearer <decoded>` returns
+  that value. If both yield tokens, they MUST be the same string. A
+  mismatch, a missing credential, or a malformed one is `error`
+  `unauthenticated`, then the carrier closes. On success the origin MUST
+  record the client key `bearer:` plus that token. It MUST NOT substitute
+  the remote IP. v1 MUST NOT consult a user directory.
 - **S04 (Decided, M6.1).** On a connection S03 accepted, the first message
   the origin sends MUST be `authenticated`. The origin MUST NOT include
   the connection in any `suggest`, and MUST NOT relay a `signal` for it,
@@ -1958,7 +2017,7 @@ Once ICE connects, the peers open `"dacite-peer"` and send `hello`
 
 | `reason` | When | Then |
 |---|---|---|
-| `unauthenticated` | The opening header is not a Bearer `bearer-token` accepts. | Close. |
+| `unauthenticated` | No well-formed token from the header or from `?token=`, or the two tokens differ (14.3). | Close. |
 | `bad-message` | Not one JSON object, over 65536 bytes, binary, unknown `type`, wrong direction, or a field that breaks this section. | Close. |
 | `overloaded` | A `suggest` of the full local set would exceed 65536 bytes. | Close. No shorter list is sent. |
 | `not-announced` | `signal` before the origin has accepted `announce`. | Stay open. |
@@ -2009,8 +2068,9 @@ The origin sends only these reasons. `message` is for logs.
 
 ### 14.8 Sequences
 
-Happy path. A is a node and B is a browser. Each presents its own Bearer.
-They match because both announce site `lab`. The tokens may differ.
+Happy path. A is a node and B is a browser. A sends the header. B sends
+`?token=`, because `js/WebSocket` cannot set `Authorization`. They match
+because both announce site `lab`. The tokens may differ.
 B's `announce` is the same shape as A's with `"kind": "browser"`.
 The origin writes `public-ip` from each socket. Either side may send the
 offer. This diagram has A send it.
@@ -2021,7 +2081,7 @@ origin -> A    authenticated
 A -> origin    announce {kind node, hints.site lab}
 origin -> A    announced {peer n1, hints.public-ip from A's socket}
 origin -> A    suggest {peers []}
-B -> origin    Authorization: Bearer lab-2, WebSocket /signal
+B -> origin    WebSocket /signal?token=lab-2
 origin -> B    authenticated
 B -> origin    announce {kind browser, hints.site lab}
 origin -> B    announced {peer b1, hints.public-ip from B's socket}
@@ -2038,11 +2098,23 @@ origin -> B    signal {from n1, to b1, complete true}
 A and B        dacite-peer, then hello (section 7)
 ```
 
-Unauthenticated. The origin does not announce A and does not suggest A.
+Unauthenticated. No header and no `token` query. The origin does not
+announce A and does not suggest A.
 
 ```text
 A                                      origin
-WS /signal (no Authorization) ------>
+WS /signal (no Authorization, no token) -->
+       <------------------------------ error {reason unauthenticated}
+       connection closed
+```
+
+The header and the query disagree. Same refusal, and the connection
+closes. The golden is `message` "Authorization and token query differ".
+
+```text
+A                                      origin
+Authorization: Bearer lab-1
+WS /signal?token=lab-2 ------------->
        <------------------------------ error {reason unauthenticated}
        connection closed
 ```
