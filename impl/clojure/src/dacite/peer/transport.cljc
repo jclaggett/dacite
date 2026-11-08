@@ -33,7 +33,7 @@
    - **Close.** `close!` on a channel ends that channel on both sides, and only
      that layer's session. `close-connection!` closes every channel and then
      the connection; both end every session on them, like a protocol violation."
-  )
+  (:require [clojure.string :as string]))
 
 (def peer-channel
   "The channel label of the peer protocol."
@@ -42,6 +42,48 @@
 (def roots-channel
   "The channel label of the roots layer (reserved; not built yet)."
   "dacite-roots")
+
+(def probe-frames
+  "How many messages each side of an M5.2 browser↔nbb session sends on
+   `dacite-roots` while sampling `buffered-amount`. Fixed, so a Playwright
+   assertion can require this count on every run. This is not the roots
+   protocol."
+  16)
+
+(def probe-bytes
+  "Bytes in one M5.2 probe message. The responder's high mark is 4 frames
+   of the node-datachannel `max-frame` (4096), which is 16384 bytes."
+  4096)
+
+(defn signal-room-url
+  "Slice-3 room URL. `url` is `ws://host:port` with no path. `role` is
+   `:offerer`, `:answerer`, or nil (the server assigns a free role).
+   The token is not escaped: it must already be the server's set
+   (letters, digits, and . _ ~ -)."
+  [url room role]
+  (str (string/replace (or url "") #"/+$" "")
+       "/room/" room
+       (if role (str "?role=" (name role)) "")))
+
+(defn emit-new-signals
+  "Call `send!` with each slice-3 signal map in `curr` that `prev` did not
+   have. Same shapes as `scripts/webrtc-signal-client.mjs`. `prev` and
+   `curr` are `{:description {:type :sdp} :candidates [{:candidate :mid}]
+   :complete?}`."
+  [send! prev curr]
+  (when-let [d (:description curr)]
+    (when (not= d (:description prev))
+      (send! {:type "signal"
+              :description {:type (:type d) :sdp (:sdp d)}})))
+  (let [prev-n (count (:candidates prev []))
+        curr-cs (:candidates curr [])]
+    (doseq [c (drop prev-n curr-cs)]
+      (when-let [cand (:candidate c)]
+        (when (and (string? cand) (pos? (count cand)))
+          (send! {:type "signal"
+                  :candidate {:candidate cand :mid (or (:mid c) "")}})))))
+  (when (and (:complete? curr) (not (:complete? prev)))
+    (send! {:type "signal" :complete true})))
 
 (defprotocol IChannel
   (channel-name [ch] "The label this channel was opened with.")

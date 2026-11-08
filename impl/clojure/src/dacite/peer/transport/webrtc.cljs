@@ -25,12 +25,15 @@
      `:ws {:url \"ws://127.0.0.1:8787\" :room \"token\"}`, `signal-over-ws!`
      relays those messages through the slice-3 room server
      (`scripts/webrtc-signal-server.mjs`). Same token on both peers. The
-     peer wire protocol is not carried on that socket.
+     peer wire protocol is not carried on that socket. A browser offerer
+     (`dacite.peer.transport.browser/create-peer`) speaks this same room
+     and creates `dacite-peer` in-band. This side, as the answerer, receives
+     that channel on `onDataChannel`. Negotiated channel ids stay on the
+     in-page browser pair.
 
    Library: `node-datachannel` (libdatachannel N-API). If its prebuilds fail
    on a platform, fall back to `werift` (pure TypeScript) — not wired here yet."
-  (:require [clojure.string :as string]
-            [dacite.peer.frame :as frame]
+  (:require [dacite.peer.frame :as frame]
             [dacite.peer.transport :as t]
             [dacite.wire.binary :as bin]))
 
@@ -300,31 +303,9 @@
 ;; =============================================================================
 
 (defn- room-url
-  "Server origin plus `/room/<token>` and `?role=` when `role` is set.
-   `url` is `ws://host:port` with no path. The token character set is the
-   server's: letters, digits, and . _ ~ -."
+  "Same URL `signal-room-url` builds. Kept as a name at the call below."
   [url room role]
-  (str (string/replace url #"/+$" "")
-       "/room/" room
-       (if role (str "?role=" (name role)) "")))
-
-(defn- emit-local!
-  "Send the part of `curr` that `prev` did not have. Same shapes as
-   `scripts/webrtc-signal-client.mjs` `diffSignal`."
-  [send! prev curr]
-  (when-let [d (:description curr)]
-    (when (not= d (:description prev))
-      (send! {:type "signal"
-              :description {:type (:type d) :sdp (:sdp d)}})))
-  (let [prev-n (count (:candidates prev []))
-        curr-cs (:candidates curr [])]
-    (doseq [c (drop prev-n curr-cs)]
-      (when-let [cand (:candidate c)]
-        (when (and (string? cand) (pos? (count cand)))
-          (send! {:type "signal"
-                  :candidate {:candidate cand :mid (or (:mid c) "")}})))))
-  (when (and (:complete? curr) (not (:complete? prev)))
-    (send! {:type "signal" :complete true})))
+  (t/signal-room-url url room role))
 
 (defn- apply-remote-msg!
   "Apply one relayed signal. Candidates that arrive before the remote
@@ -414,8 +395,8 @@
          (add-watch signal ::ws
                     (fn [_ _ old new]
                       (when-not @stopped?
-                        (emit-local! send! old new))))
-         (emit-local! send! {:description nil :candidates [] :complete? false} @signal)
+                        (t/emit-new-signals send! old new))))
+         (t/emit-new-signals send! {:description nil :candidates [] :complete? false} @signal)
          (.on ws "open"
               (fn []
                 (reset! opened? true)

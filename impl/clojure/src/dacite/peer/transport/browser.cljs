@@ -15,9 +15,16 @@
 
    `(transport pc role)` wraps a connection that already exists.
    `(connect-pair)` builds two connections in this page, creates the two
-   reserved channels, and exchanges offer, answer, and ICE in memory.
-   Signaling to an nbb peer is M5.2; this namespace does not open a
-   WebSocket or write a signal file."
+   reserved channels with negotiated ids, and exchanges offer, answer,
+   and ICE in memory.
+
+   `(create-peer)` is one end of a session with another process (M5.2).
+   The browser is the offerer: it creates `dacite-peer` and `dacite-roots`
+   in-band (no negotiated id) before the offer, which is what an nbb
+   answerer receives on `onDataChannel`. Signaling is the slice-3 room
+   (`signal-over-ws!`): a shared token, not origin discovery. The 4096
+   frame clamp stays on the nbb peer. `bufferedAmount` is still what a
+   responder's 4/1 marks read; this side's channel reports it too."
   (:require [dacite.peer.transport :as t]
             [dacite.wire.binary :as bin]))
 
@@ -48,12 +55,12 @@
   (throw (ex-info text (assoc data :reason reason))))
 
 (defn- js-present?
-  "False for nil, undefined, and JavaScript null. `js/null` is truthy in
-   ClojureScript, and ICE signals the end of candidates with null."
+  "False for nil and undefined. A JavaScript null from ICE or
+   `localDescription` is nil here. Do not mention `js/null`: shadow-cljs
+   compiles that name to a var that is not defined."
   [x]
   (and (some? x)
-       (not (undefined? x))
-       (not (identical? x js/null))))
+       (not (undefined? x))))
 
 (defn- as-u8 [bs]
   (cond
@@ -143,15 +150,21 @@
     (swap! state assoc-in [:unclaimed name] ch)))
 
 (defn- ensure-dc!
-  "Create the negotiated data channel `name` once. When it opens, hand the
-   IChannel to `on-channel!` or keep it for `open-channel!`."
+  "Create data channel `name` once. When it opens, hand the IChannel to
+   `on-channel!` or keep it for `open-channel!`.
+
+   In-band (a remote nbb peer) the offerer calls `createDataChannel` with
+   no id, so the channel is in the offer and the answerer receives it.
+   Otherwise both sides use the negotiated id from `channel-id`."
   [state pc name]
   (or (get-in @state [:dcs name])
       (let [delivered? (atom false)
-            dc (.createDataChannel pc name
-                                   #js {:ordered true
-                                        :negotiated true
-                                        :id (channel-id name)})
+            dc (if (and (:in-band? @state) (= (:role @state) :offerer))
+                 (.createDataChannel pc name #js {:ordered true})
+                 (.createDataChannel pc name
+                                     #js {:ordered true
+                                          :negotiated true
+                                          :id (channel-id name)}))
             opened! (fn []
                       (when-not @delivered?
                         (reset! delivered? true)
@@ -164,10 +177,15 @@
         dc)))
 
 (defn- note-remote-channel! [state dc]
-  (let [name (.-label dc)]
+  (let [name (.-label dc)
+        deliver! (fn []
+                   (when-not (get-in @state [:made name])
+                     (swap! state assoc-in [:made name] true)
+                     (deliver-channel! state name (make-channel name dc))))]
     (swap! state assoc-in [:dcs name] dc)
-    (when (= "open" (.-readyState dc))
-      (deliver-channel! state name (make-channel name dc)))))
+    (cond
+      (= "open" (.-readyState dc)) (deliver!)
+      (:in-band? @state) (set! (.-onopen dc) deliver!))))
 
 ;; =============================================================================
 ;; Connection
@@ -175,11 +193,17 @@
 
 (defn- make-transport
   "Build the ITransport. Returns `{:conn :prepare!}`. `prepare!` creates
-   negotiated channels before the offer so they are in the handshake."
-  [pc role]
-  (let [state (atom {:role role :dcs {} :on-channel {} :unclaimed {}
-                     :taken #{} :on-conn-close [] :open? true})
-        fire-conn-close! (fn []
+   channels before the offer so they are in the handshake.
+
+   `:in-band?` (default false) is the remote-peer path: the offerer creates
+   channels without a negotiated id, and the answerer waits for
+   `ondatachannel`."
+  ([pc role] (make-transport pc role nil))
+  ([pc role {:keys [in-band?]}]
+   (let [state (atom {:role role :in-band? (boolean in-band?)
+                      :dcs {} :on-channel {} :unclaimed {} :made {}
+                      :taken #{} :on-conn-close [] :open? true})
+         fire-conn-close! (fn []
                            (let [[old _] (swap-vals! state
                                                      (fn [s]
                                                        (assoc s :open? false
@@ -202,7 +226,8 @@
                                "this side already opened the channel"
                                {:channel name}))
                       (swap! state update :taken conj name)
-                      (ensure-dc! state pc name)
+                      (when-not (and (:in-band? @state) (= role :answerer))
+                        (ensure-dc! state pc name))
                       (if-let [ch (get-in @state [:unclaimed name])]
                         (do (swap! state update :unclaimed dissoc name)
                             (resolve ch))
@@ -236,7 +261,7 @@
     {:conn conn
      :prepare! (fn [names]
                  (doseq [name names]
-                   (ensure-dc! state pc name)))}))
+                   (ensure-dc! state pc name)))})))
 
 (defn transport
   "An ITransport over an existing `RTCPeerConnection`.
@@ -288,3 +313,200 @@
      ((:prepare! b) reserved-channels)
      (-> (negotiate! pc1 pc2)
          (.then (fn [] [(:conn a) (:conn b)]))))))
+
+;; =============================================================================
+;; One end, for an nbb peer (M5.2)
+;; =============================================================================
+
+(defn- publish-local! [signal pc]
+  (let [d (.-localDescription pc)]
+    (when (js-present? d)
+      (swap! signal assoc :description {:type (.-type d) :sdp (.-sdp d)}))))
+
+(defn- start-offer! [pc signal]
+  (-> (.createOffer pc)
+      (.then (fn [offer] (.setLocalDescription pc offer)))
+      (.then (fn [] (publish-local! signal pc)))))
+
+(defn- add-cand! [pc {:keys [candidate mid]}]
+  (when (and (string? candidate) (pos? (count candidate)))
+    (-> (.addIceCandidate pc (clj->js {:candidate candidate
+                                       :sdpMid (or mid "")
+                                       :sdpMLineIndex 0}))
+        (.catch (fn [e] (js/console.error "ice candidate" e))))))
+
+(defn- apply-description! [peer remote opened! failed!]
+  (let [pc (:pc peer)
+        d (:description remote)
+        answer? (= (:role peer) :answerer)
+        desc (clj->js {:type (:type d) :sdp (:sdp d)})
+        applied (if answer?
+                  (-> (.setRemoteDescription pc desc)
+                      (.then (fn [] (.createAnswer pc)))
+                      (.then (fn [answer] (.setLocalDescription pc answer)))
+                      (.then (fn [] (publish-local! (:signal peer) pc))))
+                  (.setRemoteDescription pc desc))]
+    (-> applied
+        (.then (fn [] (opened!)))
+        (.catch (fn [e] (failed! e))))))
+
+(defn signal-over-ws!
+  "Relay `peer`'s offer or answer and ICE candidates through the slice-3
+   server. `peer` is a `create-peer` result. `url` is `ws://host:port`.
+   `room` is the shared token. `role` defaults to the peer's role.
+
+   Returns a promise that resolves once the remote description has been
+   applied. Later candidates still flow. Rejects on a room error, a
+   timeout, or the other peer leaving before that description arrives.
+   The JSON frames match `scripts/webrtc-signal-server.mjs`."
+  [peer {:keys [url room role timeout-ms] :or {timeout-ms 20000}}]
+  (js/Promise.
+   (fn [resolve reject]
+     (if-not (and (string? url) (string? room) (pos? (count room)))
+       (reject (ex-info "signal-over-ws! needs :url and :room"
+                        {:reason :bad-signaling}))
+       (let [role (or role (:role peer))
+             ws (js/WebSocket. (t/signal-room-url url room role))
+             signal (:signal peer)
+             opened? (atom false)
+             pending (atom [])
+             stopped? (atom false)
+             settled? (atom false)
+             remote (atom {:desc? false :queue []})
+             timer (js/setTimeout
+                    #(when-not @settled?
+                       (reset! settled? true)
+                       (reset! stopped? true)
+                       (remove-watch signal ::ws)
+                       (reject (ex-info "signaling timed out"
+                                        {:reason :timeout :room room})))
+                    timeout-ms)
+             settle-err! (fn [e]
+                           (when-not @settled?
+                             (reset! settled? true)
+                             (reset! stopped? true)
+                             (js/clearTimeout timer)
+                             (remove-watch signal ::ws)
+                             (reject e)))
+             settle-ok! (fn [v]
+                          (when-not @settled?
+                            (reset! settled? true)
+                            (js/clearTimeout timer)
+                            (resolve v)))
+             send! (fn [msg]
+                     (let [text (js/JSON.stringify (clj->js msg))]
+                       (if (and @opened? (= (.-readyState ws) 1))
+                         (.send ws text)
+                         (swap! pending conj text))))
+             flush! (fn []
+                      (let [batch @pending]
+                        (reset! pending [])
+                        (doseq [text batch] (.send ws text))))]
+         (add-watch signal ::ws
+                    (fn [_ _ old new]
+                      (when-not @stopped?
+                        (t/emit-new-signals send! old new))))
+         (t/emit-new-signals send! {:description nil :candidates [] :complete? false}
+                             @signal)
+         (set! (.-onopen ws)
+               (fn []
+                 (reset! opened? true)
+                 (flush!)))
+         (set! (.-onerror ws)
+               (fn []
+                 (settle-err! (ex-info "signaling socket error"
+                                       {:reason :signaling-error :room room}))))
+         (set! (.-onclose ws)
+               (fn []
+                 (reset! stopped? true)
+                 (remove-watch signal ::ws)
+                 (js/setTimeout
+                  #(settle-err! (ex-info "signaling socket closed"
+                                         {:reason :closed :room room}))
+                  0)))
+         (set! (.-onmessage ws)
+               (fn [ev]
+                 (try
+                   (let [msg (js->clj (js/JSON.parse (.-data ev)) :keywordize-keys true)]
+                     (cond
+                       (= (:type msg) "error")
+                       (do (settle-err! (ex-info (or (:message msg) "signaling error")
+                                                {:reason (keyword (or (:reason msg) "error"))
+                                                 :room room}))
+                           (try (.close ws) (catch :default _)))
+
+                       (and (= (:type msg) "joined") role
+                            (not= (name role) (:role msg)))
+                       (settle-err! (ex-info "signaling role mismatch"
+                                             {:reason :role
+                                              :expected (name role)
+                                              :got (:role msg)}))
+
+                       (= (:type msg) "peer-left")
+                       (settle-err! (ex-info "the other peer left"
+                                             {:reason :peer-left :room room}))
+
+                       (= (:type msg) "signal")
+                       (do
+                         (when-let [d (:description msg)]
+                           (when (and (not (:desc? @remote)) (:sdp d) (:type d))
+                             (apply-description!
+                              peer (assoc msg :description d)
+                              (fn []
+                                (swap! remote assoc :desc? true)
+                                (doseq [c (:queue @remote)] (add-cand! (:pc peer) c))
+                                (swap! remote assoc :queue [])
+                                (settle-ok! true))
+                              settle-err!)))
+                         (when-let [c (:candidate msg)]
+                           (if (:desc? @remote)
+                             (add-cand! (:pc peer) c)
+                             (swap! remote update :queue conj c)))
+                         (doseq [c (:candidates msg)]
+                           (if (:desc? @remote)
+                             (add-cand! (:pc peer) c)
+                             (swap! remote update :queue conj c))))))
+                   (catch :default e
+                     (settle-err! e))))))))))
+
+(defn- watch-ice! [pc signal]
+  (set! (.-onicecandidate pc)
+        (fn [ev]
+          (let [c (.-candidate ev)]
+            (if (js-present? c)
+              (let [line (.-candidate c)]
+                (when (and (string? line) (pos? (count line)))
+                  (swap! signal update :candidates conj
+                         {:candidate line :mid (or (.-sdpMid c) "")})))
+              (swap! signal assoc :complete? true)))))
+  (set! (.-onicegatheringstatechange pc)
+        (fn []
+          (when (= "complete" (.-iceGatheringState pc))
+            (swap! signal assoc :complete? true)))))
+
+(defn create-peer
+  "One end of a WebRTC connection to a peer in another process.
+
+   `role` is `:offerer` or `:answerer`. Returns `{:conn :pc :role :signal}`.
+   With `:ws {:url :room}` also `:signaling`, a promise from `signal-over-ws!`
+   that resolves once the remote description has been applied.
+
+   The offerer creates `dacite-peer` and `dacite-roots` in-band before the
+   offer. The answerer waits for those channels. `connect-pair` is unchanged
+   and still uses negotiated ids inside one page.
+
+   ICE options match `connect-pair` (`:ice-servers`, `:stun?`). Host
+   candidates are the default. The room token is the manual signaling step."
+  [role opts]
+  (let [pc (peer-connection (ice-config opts))
+        built (make-transport pc role {:in-band? true})
+        signal (atom {:description nil :candidates [] :complete? false})
+        peer {:conn (:conn built) :pc pc :role role :signal signal}]
+    (when (= role :offerer)
+      ((:prepare! built) reserved-channels))
+    (watch-ice! pc signal)
+    (when (= role :offerer)
+      (start-offer! pc signal))
+    (if-let [ws-opts (:ws opts)]
+      (assoc peer :signaling (signal-over-ws! peer (assoc ws-opts :role role)))
+      peer)))
