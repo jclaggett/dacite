@@ -1,6 +1,6 @@
 # Dacite peer protocol v1
 
-**Status:** DRAFT (M1.1: messages and framing; M1.2: policy rules and the conformance list, sections 12 and 13). Not yet signed off. In M1.2, every numbered rule is Decided (Jonathan, Nov 4) or Existing; a few ideas are Deferred (12.7).
+**Status:** DRAFT (M1.1: messages and framing; M1.2: policy rules and the conformance list, sections 12 and 13; M6.1: origin signaling, section 14). Not yet signed off. In M1.2, every numbered rule is Decided (Jonathan, Nov 4) or Existing; a few ideas are Deferred (12.7). S01 to S08 are Decided for M6.1.
 **Related:** [wire-v1.md](wire-v1.md) (the byte format this protocol reuses),
 [peering design note](../design/peering-design-note.md),
 [streaming design note](../design/streaming-design-note.md),
@@ -13,6 +13,12 @@ verification, JVM `.clj` for now). **Fixtures:** [`fixtures/peer-v1/`](../../fix
 test for each, rate sharing with the client's `R_max`, token buckets, flow control
 (`bufferedAmount`), the lifecycle (there are no idle timeouts), and the session-end
 rules. Where sections 2 to 11 touch them, they point to section 12.
+
+**M6.1 (section 14):** origin signaling. A peer authenticates to the origin,
+announces itself with network hints, is told which peers share its locality,
+and relays offer, answer, and ICE with one of them. The messages are JSON,
+exchanged before `hello`. They are not data-channel frames. Their rules are
+S01 to S08. The slice-3 room relay in section 5 is the path that runs today.
 
 The words MUST, SHOULD and MAY are used as in RFC 2119.
 
@@ -586,13 +592,19 @@ SCTP). The rules a transport keeps:
   another peer (C14). The close of one channel ends only the session of the layer
   that uses it.
 - **Signaling (M3.2).** Offer, answer, and ICE are not peer frames. Slice 2
-  carries them by hand (a file or a paste). Slice 3 relays the same JSON text
-  through a WebSocket server: a client connects to `ws://<host>:<port>/room/<token>`,
-  the server keeps at most two sockets in that room (one offerer, one answerer),
-  and it forwards each `{"type":"signal",...}` frame to the other socket. Knowing
-  the room token is the only access check. A third peer is refused (`room-full`).
-  The server drops the room when both sockets close. Origin signaling, discovery,
-  and any authentication beyond the token are M6.
+  carries them by hand (a file or a paste). Slice 3 is the relay the nbb and
+  browser peers use today (`scripts/webrtc-signal-server.mjs`). A client
+  connects to `ws://<host>:<port>/room/<token>`. The server keeps at most two
+  sockets in that room, one offerer and one answerer, and forwards each
+  `{"type":"signal",...}` object to the other socket. It answers `joined`,
+  then `ready` when both are present, and `peer-left` when the other socket
+  closes. Knowing the room token is the only access check. A third peer is
+  refused (`room-full`). Signals sent before the other peer arrives are queued
+  (up to 64). The server drops the room when both sockets close. That relay
+  is unchanged, and it is still the path those peers use. Section 14
+  specifies the channel that succeeds it: authentication, peer
+  announcement, locality, and the same offer, answer, and ICE objects.
+  The endpoint that speaks section 14 is M6.2.
 
 Data channels are reliable and ordered (SCTP over DTLS), and `"dacite-peer"`'s version is in `hello`.
 
@@ -805,6 +817,8 @@ get/5     get {h1 default}  ------------------------>           stream 5: same h
 
 `fixtures/peer-v1/` has 52 cases. Each is a directory with `frames.hex` (one
 frame per line, lowercase hex) and `message.edn` (what the frames mean).
+These fixtures are peer frames only. Origin signaling is JSON, and its
+goldens are in section 14, not under `fixtures/peer-v1/`.
 `message.edn` has `:expect`:
 
 | `:expect` | Port must |
@@ -1312,13 +1326,19 @@ question for M3.2, when a real transport shows what they cost.
 
 ### 12.13 Deferred for M1.2
 
-Plan open questions 1, 3 and 4 are **deferred** for the M1.2 acceptance. Each gets a
-reason, a date and a v1 default, so no MUST depends on it. *Decided:* Jonathan approved these deferrals on Nov 4.
+Plan open questions 3 and 4 are **deferred** for the M1.2 acceptance. Question 1
+is decided in M6.1 (below and section 14). Each deferred question gets a
+reason, a date and a v1 default, so no MUST depends on it. *Decided:* Jonathan
+approved these deferrals on Nov 4. The M6.1 decision keeps the locality default
+that deferral recorded.
 
 - **Question 1, peer lists (does the origin suggest peers by root, or by network
-  locality?). Deferred to M6.1.** Reason: peer discovery happens before a session
-  exists and has no message in peer v1; the protocol here starts at `hello`. The
-  v1 default is locality only (plan M6.1), which needs no per-root knowledge.
+  locality?). Decided in M6.1.** The origin suggests peers by locality only.
+  Two peers match when they share a site tag, or, when neither has a site tag,
+  when they share the observed public IP or the same subnet string (section 14).
+  The origin does not suggest by who holds a root, and an announcement carries
+  no root that matching reads. Discovery still happens before a session exists.
+  It is not a peer-v1 frame. The session protocol still starts at `hello`.
 - **Question 3, privacy (does asking a peer for a hash reveal what the client
   reads?). Deferred to before M8.1 (the public demo).** Reason: it is a deployment
   policy (which peers a client dials), not a wire rule, and v1 assumes good actors
@@ -1389,6 +1409,10 @@ violations) wrote the ones marked "(exists, slice 2)": portable checks in
 on nbb by `npm run peer:test`, against `dacite.peer.rates`, `bucket`, `responder`
 and the changed `client`, on simulated clocks. The rows for the other ids (C05 to C12,
 the lifecycle and the stream cap, and the rest) stay planned.
+**M6.1 signaling** is not part of the count above. S01 to S08 (section 14) are
+JSON messages with the origin, not peer frames. All eight are MUSTs, Decided
+for M6.1. Their tests are planned for M6.2. This spec writes none. The table
+follows the SHOULD table.
 
 | Id | Status | MUST (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
@@ -1441,3 +1465,607 @@ the lifecycle and the stream cap, and the rest) stay planned.
 | C18 | Decided | A blocked stream takes no share, banks <= 1 frame, keeps decaying | `blocked-stream-takes-no-share-and-banks-one-frame` (exists, slice 2: the share, the one-frame bank and the decay) | JVM, nbb peer | M1.2 s2 (exists) |
 | C41 | Decided | Requester keeps its own bucket per peer, never sends on empty | `requester-bucket-never-overspends` (exists, slice 2) | JVM, nbb peer | M1.2 s2 (exists) |
 | C45 | Decided | A new get's recv-max is the peer's current C01/C02 share (SHOULD); a new peer starts at its fair share, the others' older recv-max are not subtracted (accepted gap, 12.2) | `new-peer-starts-at-its-fair-share` (exists, slice 2: second peer at R_max/2, not 1 B/s; the over-R_max sum is asserted too) | JVM, nbb peer | M1.2 s2 (exists) |
+
+**Signaling (section 14).** These are not peer-frame rules. The tests are planned for M6.2. None are in the repo.
+
+| Id | Status | MUST (short) | Planned test | Suite | Lands in |
+|---|---|---|---|---|---|
+| S01 | Decided | Signaling is JSON with the origin, never a peer-v1 frame | `signaling-json-is-not-a-peer-frame` | JVM | M6.2 |
+| S02 | Decided | WebSocket `/signal` carries the HTTP Bearer; long-poll may carry the same objects | `signal-opening-carries-the-http-bearer` | JVM | M6.2 |
+| S03 | Decided | A well-formed Bearer binds `bearer:<token>`; anything else is unauthenticated and closes | `missing-bearer-is-unauthenticated` | JVM | M6.2 |
+| S04 | Decided | `authenticated` is first; no suggest or relay until `announce` | `signal-before-announce-is-not-announced` | JVM | M6.2 |
+| S05 | Decided | Origin sets public-ip; ignores a client public-ip, root, and hash; the peer id is not the token | `origin-sets-public-ip-and-ignores-a-root` | JVM | M6.2 |
+| S06 | Decided | Suggest the full locality set, or empty; do not rank or shorten it | `suggests-only-local-peers` | JVM | M6.2 |
+| S07 | Decided | Relay signal only to a local peer, in order, with `from` set by the origin | `signal-is-relayed-only-to-a-local-peer` | JVM | M6.2 |
+| S08 | Decided | One JSON text object, at most 65536 bytes; otherwise bad-message and close | `oversize-signaling-text-is-bad-message` | JVM | M6.2 |
+
+## 14. Origin signaling (M6.1)
+
+This section is **normative**. It is the origin-integrated signaling channel:
+how a peer authenticates to the origin, announces itself, learns which other
+peers share its locality, and exchanges the WebRTC offer, answer, and ICE
+candidates that open one data channel. The messages are JSON text. They are
+exchanged before `hello`. They are not the frames of sections 3 and 6, and a
+reveal session does not carry them.
+
+The slice-3 room relay (section 5) is the path the nbb and browser peers use
+today. A shared room token, `joined`, `ready`, `peer-left`, and the queue of
+64 are that relay. This section does not change it. M6.2 is the origin
+endpoint that speaks this section, on the JVM service, and it is not built
+here. The default carrier below is a choice for that endpoint. M6.2 may ship
+the WebSocket and leave long-poll out.
+
+Open question 1 is decided here, as the v1 default already recorded in 12.13.
+The origin suggests peers by locality. It does not suggest by who holds a
+root, and it has no root-based matching scheme. A `root` or `hash` a client
+sends on `announce` is not a match key (14.4).
+
+Not in this section: which suggested peer a client dials, preferring a Node
+peer, preferring a LAN address, latency, a cap on open sessions, and falling
+back to the origin after a timeout (M6.3). mDNS and peers named in a config
+file (Phase 7). The public demo (Phase 8). Any change to `IStore` or to the
+reveal session.
+
+The JSON objects in 14.3 through 14.7 are the goldens. Whitespace and key
+order are not significant. `message` strings on `error` are examples: a
+sender MAY use other text, and a receiver MUST NOT branch on it. The other
+fields are the contract. These goldens are not hex fixtures and they are not
+produced by `gen-peer-fixtures`. Signaling is not a peer frame, so it has no
+type id and no `frames.hex`.
+
+### 14.1 Not a peer frame
+
+A signaling message is one JSON object. The peer session, once the data
+channel is open, still starts at `hello` on `"dacite-peer"` (sections 5 and
+6). Nothing in this section is stored, hashed, or revealed.
+
+- **S01 (Decided, M6.1).** Signaling messages MUST be JSON text objects
+  exchanged with the origin. They MUST NOT be encoded as peer-v1 frames,
+  MUST NOT use type ids `0x01` through `0x08`, and MUST NOT be sent on
+  `dacite-peer` or any other data channel. A `hello` MUST NOT be sent on
+  the signaling channel. The origin MUST NOT send `hello`.
+
+The origin messages are `authenticated`, `announced`, `suggest`, `signal`,
+and `error`. The client messages are `announce` and `signal`. A message
+whose `type` is not one of those, or a message sent in the wrong direction,
+is `bad-message` (14.7). The room-relay names `joined`, `ready`, and
+`peer-left` are not origin messages. A client of this section MUST NOT wait
+for them.
+
+### 14.2 Carrier
+
+The default carrier is a WebSocket on the same host and port as the origin's
+HTTP service. The path is `/signal`. The scheme is `ws` when the origin is
+`http`, and `wss` when it is `https`. An origin at `http://127.0.0.1:8080`
+is signaled at `ws://127.0.0.1:8080/signal`. There is no room token in the
+path.
+
+The opening handshake carries the header the HTTP client already sends.
+`dacite.store.remote/remote-store` adds `Authorization: Bearer <token>` when
+opened with `:token` (`merge-token-headers`). This channel uses that header.
+It does not define a second credential.
+
+A long-poll carrier, if M6.2 adds one, exchanges these same objects.
+`POST /signal` with `Content-Type: application/json` and the same
+`Authorization` header carries one client object and returns one origin
+object. The messages do not change. M6.2 may ship the WebSocket and no
+long-poll.
+
+The carrier is ordered. The last `suggest` on a connection is the current
+set. Signals from one sender to one target stay in the order the origin
+received them (S07).
+
+Each message is one UTF-8 JSON text, at most 65536 bytes, the same cap as
+the room relay's `MAX_MESSAGE`. One object per message. No second object
+after the first, and no binary frame.
+
+- **S02 (Decided, M6.1).** The default carrier MUST be a WebSocket to
+  `/signal` on the origin. The opening handshake MUST include
+  `Authorization` with a Bearer token, the header `remote-store` sends for
+  `:token`. A long-poll carrier MAY carry the same JSON objects and MUST
+  use that header. It MUST NOT define a different set of messages.
+- **S08 (Decided, M6.1).** Each carrier message MUST be one JSON object,
+  UTF-8 text, at most 65536 bytes. A binary frame, a message that is not
+  one JSON object, a message over that size, an unknown `type`, a message
+  in the wrong direction, or a field of the wrong shape or grammar is
+  `error` reason `bad-message`, and then the carrier closes.
+  `not-announced`, `unknown-peer`, and `not-local` are not `bad-message`.
+  The origin MUST NOT persist an announcement after the connection closes.
+  A new connection announces again and receives a new peer id.
+
+### 14.3 Authentication
+
+HTTP at the origin does not grant access from this header.
+[service.md](../design/service.md) names a Bearer as the MVP credential and,
+in the same section, records that the running service does not look the
+token up. `dacite.service.throttle`
+says the token is a bucket name, not auth: `bearer-token` returns the
+credential when the header matches `Bearer` plus one token, and `client-key`
+is `bearer:<token>` when that returns a token, otherwise `ip:<host>`.
+Signaling uses that parser and that `bearer:` key. It does not add a user
+directory, a session cookie, or a room token.
+
+The channel is stricter than the throttle about a missing header. Throttle
+names a bucket for a public hash read. This channel relays ICE candidates,
+which are network addresses. A remote IP MUST NOT stand in for the Bearer.
+
+The origin reads the header before it reads any client message. When
+`bearer-token` returns a token, the connection is bound to
+`bearer:<token>`. The first message the origin sends is `authenticated`.
+The client MAY send `announce` as soon as the socket is open. The origin
+still sends `authenticated` before `announced`.
+
+One token MAY hold many connections. Two browsers that send the same token
+are two announcements, with two peer ids. The token names the client. The
+peer id names the announcement. v1 accepts any well-formed token. A later
+productization may reject unknown tokens. This section does not.
+
+A missing header, a scheme other than Bearer, or a header that
+`bearer-token` rejects is refused. The origin sends `error`
+`unauthenticated` and closes.
+It does not read an `announce` on that connection, and it suggests the
+connection to nobody.
+
+```json
+{ "type": "authenticated" }
+```
+
+```json
+{
+  "type": "error",
+  "reason": "unauthenticated",
+  "message": "Authorization Bearer is required"
+}
+```
+
+- **S03 (Decided, M6.1).** The origin MUST accept the connection only when
+  `dacite.service.throttle/bearer-token` returns a token. It MUST record
+  the client key `bearer:` plus that token. It MUST NOT accept a missing
+  header, a non-Bearer scheme, or an empty token, and it MUST NOT
+  substitute the remote IP. The refusal is `error` `unauthenticated`, then
+  the carrier closes. v1 MUST NOT consult a user directory.
+- **S04 (Decided, M6.1).** On a connection S03 accepted, the first message
+  the origin sends MUST be `authenticated`. The origin MUST NOT include
+  the connection in any `suggest`, and MUST NOT relay a `signal` for it,
+  until it has accepted an `announce` on that connection. A `signal`
+  before that `announce` is `error` `not-announced`, and the connection
+  stays open. A refused connection's first message is `unauthenticated`
+  (S03), not `authenticated`.
+
+On a WebSocket the closing reasons `unauthenticated`, `bad-message`, and
+`overloaded` use close code 1008, the code the room relay uses. The error
+object is sent first.
+
+The client key is the same string HTTP throttle uses. v1 does not take
+signaling messages out of the HTTP request bucket. A burst of ICE
+candidates is not a `GET /node`. M6.2 may meter the channel on its own,
+under that same key.
+
+### 14.4 Announcement and network hints
+
+After the connection is bound, the client announces one peer. The origin
+assigns the peer id and echoes the hints it stored.
+
+| Field | Who | Req | Meaning |
+|---|---|---|---|
+| `type` | both | yes | `"announce"` from the client, `"announced"` from the origin. |
+| `kind` | client | yes | `"node"` or `"browser"`, the same two names as `hello` (6.1). |
+| `peer` | origin | yes | The id the origin assigned. 1 to 32 characters from `A-Za-z0-9`. Unique among live peers. Opaque. |
+| `hints` | both | no on `announce`, yes on `announced` | Object. Keys below. Absent keys are omitted, not null. On `announced`, `hints` is `{}` when nothing was stored. |
+
+| Hint | Set by | Grammar |
+|---|---|---|
+| `public-ip` | origin | The remote address of this connection, spelled as below. A value the client sends is ignored, whatever its type. |
+| `subnet` | client | Optional. At most 64 characters, matching `^[0-9A-Za-z:.]+/[0-9]{1,3}$`, and the integer after `/` is 0 through 128, written with no leading zero except for `0`. `10.1.0.0/24` and `2001:db8:1::/64` pass. `10.1.0.0`, `10.1.0.0/024`, and `10.1.0.0/129` do not. The origin does not check that the address is a network number. |
+| `site` | client | Optional site tag. 1 to 64 characters from `A-Za-z0-9._~-`. `lab` passes. `lab/1` does not. |
+
+The origin takes `public-ip` from the TCP remote address of the accepted
+connection. It does not read an address out of SDP, and it does not read
+the one in the announcement. An IPv4 address, and an IPv6 address in the
+v4-mapped range `::ffff:0:0/96`, is dotted decimal (`203.0.113.10`,
+`127.0.0.1`). Any other IPv6 address is RFC 5952 text: lowercase hex,
+compressed, no brackets, no zone index. Two peers match on `public-ip`
+when those strings are equal. If the carrier has no remote address, the
+origin omits `public-ip`.
+
+A present `subnet` or `site` that fails its grammar is `bad-message`, and
+the connection closes. The peer was not announced. A second `announce` on
+the same connection keeps the peer id and replaces `kind` and the stored
+hints. The origin answers `announced` again and refreshes suggestions
+(14.5).
+
+`root`, `hash`, and any other key are ignored. They are not stored and
+they are not match keys. Sending them does not change who is suggested.
+
+The peer id MUST NOT be the Bearer token and MUST NOT be the client key
+`bearer:<token>`. Other peers in the locality set see the id. They do not
+learn the token from it.
+
+```json
+{
+  "type": "announce",
+  "kind": "node",
+  "hints": {
+    "subnet": "10.1.0.0/24",
+    "site": "lab"
+  }
+}
+```
+
+```json
+{
+  "type": "announced",
+  "peer": "n1",
+  "hints": {
+    "public-ip": "203.0.113.10",
+    "subnet": "10.1.0.0/24",
+    "site": "lab"
+  }
+}
+```
+
+An announcement with no client hints, from a socket the origin spells as
+`203.0.113.50`:
+
+```json
+{
+  "type": "announced",
+  "peer": "b9",
+  "hints": {
+    "public-ip": "203.0.113.50"
+  }
+}
+```
+
+- **S05 (Decided, M6.1).** An `announce` MUST include `kind` of `node` or
+  `browser`. `hints.subnet` and `hints.site`, when present, MUST match the
+  grammars above. The origin MUST set `hints.public-ip` from the remote
+  address of the connection, spelled as above, and MUST ignore a
+  client-supplied `public-ip`. It MUST ignore `root`, `hash`, and any other
+  unknown key when matching, and MUST NOT store them on the peer. The peer
+  id MUST match the id grammar, MUST be unique among live peers, and MUST
+  NOT be the Bearer token or the client key. A later `announce` on the same
+  connection keeps the id and replaces `kind` and the hints.
+
+### 14.5 Who is suggested
+
+A peer is live from the acceptance of its `announce` until its carrier
+closes. Two live peers are local to each other by the following rule, and
+by nothing else. A peer is not local to itself.
+
+Let each peer have a site, a public IP, and a subnet, each either a string
+or absent. Site, subnet, and public-ip compare as exact strings,
+case-sensitive. The origin does not rewrite a client subnet or site.
+
+- Both have a site: they are local only when the site strings are equal.
+  Different strings are not local. The public IP and the subnet are not
+  consulted.
+- One has a site and the other does not: they are not local. The public
+  IP and the subnet are not consulted.
+- Neither has a site: they are local when their public-IP strings are
+  equal, or when both have a subnet and those strings are equal.
+- Otherwise they are not local.
+
+The Bearer is not a locality key. Two peers match, or fail to match, the
+same way whatever tokens they presented.
+
+The same site tag matches across addresses. That is what an admin-assigned
+tag is for. A different tag does not match, which is the M6.2 check that a
+peer behind another site tag is not suggested. With no tag, the observed
+address or the exact subnet string is the locality. Subnet comparison is
+the exact string the client sent. The origin does not test prefix overlap,
+so `10.1.0.0/24` and `10.1.0.0/024` do not match, and the grammar already
+rejects the second spelling.
+
+Kind is not a match key. A node and a browser with the same site are both
+suggested. Who holds a root is not a match key. The origin does not ask
+the store. Preferring a node, a nearer address, or a faster peer, and
+capping how many sessions a client opens, are M6.3. The suggestion still
+carries `kind` and the hints, so that later policy can read them. This
+section does not sort on them.
+
+| A's hints | B's hints | Suggested to each other |
+|---|---|---|
+| site `lab`, any address | site `lab`, any address | yes |
+| site `lab` | site `other` | no |
+| site `lab` | no site | no |
+| no site, public-ip `203.0.113.10` | no site, public-ip `203.0.113.10` | yes |
+| no site, subnet `10.1.0.0/24`, public-ip `203.0.113.10` | no site, subnet `10.1.0.0/24`, public-ip `198.51.100.4` | yes |
+| no site, subnet `10.1.0.0/24`, public-ip `203.0.113.10` | no site, subnet `10.2.0.0/24`, public-ip `203.0.113.10` | yes |
+| no site, public-ip `203.0.113.10` | no site, public-ip `198.51.100.4` | no |
+| no site, subnet `10.1.0.0/24`, public-ip `203.0.113.10` | no site, no subnet, public-ip `198.51.100.4` | no |
+
+After each accepted `announce`, and when a live peer leaves or its hints
+change, the origin stores the new hints first, then sends a `suggest` to
+every peer whose set changed, including the announcer. `suggest` is the
+full set of other live local peers at that moment. The client replaces its previous set. It does not
+merge. The array order is not a preference. An empty array means no other
+peer is local. That is a normal result, not an error. The peer stays
+announced and can be suggested to someone who arrives later.
+
+If that JSON object would be larger than 65536 bytes, the origin sends
+`overloaded` and closes that connection. It does not send a shorter list.
+A shorter list would be a hidden choice of which peers matter.
+
+`suggest` does not carry a token, a client key, a root, a hash, or an
+address to dial. WebRTC learns the addresses from the ICE that follows.
+
+| Field | Req | Meaning |
+|---|---|---|
+| `type` | yes | `"suggest"`. |
+| `peers` | yes | Array. Each entry is `peer`, `kind`, and `hints`, the same shapes as `announced`. |
+
+Nobody else local:
+
+```json
+{ "type": "suggest", "peers": [] }
+```
+
+One browser in the same locality as `n1`:
+
+```json
+{
+  "type": "suggest",
+  "peers": [
+    {
+      "peer": "b1",
+      "kind": "browser",
+      "hints": {
+        "public-ip": "203.0.113.10",
+        "subnet": "10.1.0.0/24",
+        "site": "lab"
+      }
+    }
+  ]
+}
+```
+
+- **S06 (Decided, M6.1).** A `suggest` MUST list every other live peer that
+  is local by the rule above, and no one else. It MUST NOT include the
+  recipient. It replaces any earlier `suggest` on that connection. The
+  array order MUST NOT be read as a ranking. The origin MUST NOT filter or
+  sort the set by kind, latency, load, or by who holds a root. An empty
+  `peers` array means no other peer is local. If the object would exceed
+  65536 bytes, the origin MUST send `overloaded` and close, and MUST NOT
+  send a shorter list.
+
+### 14.6 Offer, answer, and ICE
+
+`signal` is the relay. The payload fields are the ones the slice-3 client
+already builds (`scripts/webrtc-signal-client.mjs`, `diffSignal` and
+`applyRemote`): `description`, `candidate`, `candidates`, and `complete`.
+`applyRemote` ignores `from` and `to`. This section adds those two fields
+because the origin holds more than one pair. The room relay has a single
+other socket and does not.
+
+The client sends `to`. The origin sets `from` to the sender's peer id and
+forwards the object to that peer. A `from` on the client message is
+ignored, so a client cannot name some other sender. The origin forwards
+only `type`, `from`, `to`, and the payload fields that were present. Other
+top-level keys are dropped.
+
+| Field | Req | Meaning |
+|---|---|---|
+| `type` | yes | `"signal"`. |
+| `to` | yes | Peer id of the recipient. |
+| `from` | on the copy the origin sends | Sender's peer id. The origin writes it. |
+| `description` | no | Object, forwarded as received. `type` is `offer` or `answer`. `sdp` is a string. The SDP is opaque. `pranswer` and `rollback` are `bad-message` in v1. |
+| `candidate` | no | Object, forwarded as received. `candidate` and `mid` are strings. `mid` is the slice-3 name for the SDP mid. Extra keys inside the object stay. |
+| `candidates` | no | Array of those candidate objects. |
+| `complete` | no | Boolean. Gathering finished when `true`. |
+
+At least one of `description`, `candidate`, `candidates`, and `complete`
+is present. The origin does not parse SDP and does not drop a candidate
+because of its text. A payload field of the wrong shape is `bad-message`.
+
+The origin forwards a signal only when the sender is announced and `to`
+names a different live peer that is local to the sender. A malformed
+`signal` is `bad-message` before the rows below (S08). The origin then
+checks the rows in order and uses the first that applies:
+
+| Condition | `reason` | Connection |
+|---|---|---|
+| Sender has not announced | `not-announced` | stays open |
+| `to` is not a live peer | `unknown-peer` | stays open |
+| `to` is live, including the sender's own id, and is not local | `not-local` | stays open |
+
+There is no queue. The room relay queues up to 64 signals for the empty
+slot in a room. This protocol has no slot. A signal to a peer that has not
+announced is `unknown-peer` at once. Either side MAY send an offer. The
+origin forwards both. It does not assign offerer or answerer. What a
+client does when it sees two offers is M6.3.
+
+Offer, as the client sends it:
+
+```json
+{
+  "type": "signal",
+  "to": "b1",
+  "description": { "type": "offer", "sdp": "v=0" }
+}
+```
+
+The same offer, as the origin delivers it to `b1`:
+
+```json
+{
+  "type": "signal",
+  "from": "n1",
+  "to": "b1",
+  "description": { "type": "offer", "sdp": "v=0" }
+}
+```
+
+Answer, delivered to `n1`:
+
+```json
+{
+  "type": "signal",
+  "from": "b1",
+  "to": "n1",
+  "description": { "type": "answer", "sdp": "v=0" }
+}
+```
+
+One ICE candidate, and the end of gathering. `192.0.2.5` is an example
+address, not a peer the origin matches on. Matching uses the hints of
+14.4, not the addresses inside SDP.
+
+```json
+{
+  "type": "signal",
+  "to": "b1",
+  "candidate": {
+    "candidate": "candidate:1 1 udp 2122260223 192.0.2.5 50000 typ host",
+    "mid": "0"
+  }
+}
+```
+
+```json
+{
+  "type": "signal",
+  "to": "b1",
+  "candidates": [
+    {
+      "candidate": "candidate:1 1 udp 2122260223 192.0.2.5 50000 typ host",
+      "mid": "0"
+    }
+  ]
+}
+```
+
+```json
+{ "type": "signal", "to": "b1", "complete": true }
+```
+
+- **S07 (Decided, M6.1).** The origin MUST relay a `signal` only from an
+  announced peer to a different live peer that is local to it. It MUST
+  copy `description`, `candidate`, `candidates`, and `complete` unchanged,
+  MUST set `from` to the sender's peer id, and MUST ignore a
+  client-supplied `from`. It MUST forward those messages, from one sender
+  to one target, in the order received. It MUST NOT choose which side
+  offers, MUST NOT queue a signal for a peer that is not announced, and
+  MUST NOT relay to a peer that is not local. `unknown-peer` and
+  `not-local` leave the connection open.
+
+Once ICE connects, the peers open `"dacite-peer"` and send `hello`
+(sections 5 and 7). That session is not part of signaling. A signaling
+`error` does not end a peer session that is already open, and a peer-session
+`error` is not a signaling message.
+
+### 14.7 Errors
+
+| `reason` | When | Then |
+|---|---|---|
+| `unauthenticated` | The opening header is not a Bearer `bearer-token` accepts. | Close. |
+| `bad-message` | Not one JSON object, over 65536 bytes, binary, unknown `type`, wrong direction, or a field that breaks this section. | Close. |
+| `overloaded` | A `suggest` of the full local set would exceed 65536 bytes. | Close. No shorter list is sent. |
+| `not-announced` | `signal` before the origin has accepted `announce`. | Stay open. |
+| `unknown-peer` | `to` is not a live peer. | Stay open. |
+| `not-local` | `to` is live and is not local to the sender, including a signal to the sender's own id. | Stay open. |
+
+The origin sends only these reasons. `message` is for logs.
+
+```json
+{
+  "type": "error",
+  "reason": "not-announced",
+  "message": "announce before signal"
+}
+```
+
+```json
+{
+  "type": "error",
+  "reason": "not-local",
+  "message": "peer is not in your locality"
+}
+```
+
+```json
+{
+  "type": "error",
+  "reason": "unknown-peer",
+  "message": "no such peer"
+}
+```
+
+```json
+{
+  "type": "error",
+  "reason": "bad-message",
+  "message": "signaling messages are one JSON object"
+}
+```
+
+```json
+{
+  "type": "error",
+  "reason": "overloaded",
+  "message": "suggest does not fit"
+}
+```
+
+### 14.8 Sequences
+
+Happy path. A is a node and B is a browser. Each presents its own Bearer.
+They match because both announce site `lab`. The tokens may differ.
+B's `announce` is the same shape as A's with `"kind": "browser"`.
+The origin writes `public-ip` from each socket. Either side may send the
+offer. This diagram has A send it.
+
+```text
+A -> origin    Authorization: Bearer lab-1, WebSocket /signal
+origin -> A    authenticated
+A -> origin    announce {kind node, hints.site lab}
+origin -> A    announced {peer n1, hints.public-ip from A's socket}
+origin -> A    suggest {peers []}
+B -> origin    Authorization: Bearer lab-2, WebSocket /signal
+origin -> B    authenticated
+B -> origin    announce {kind browser, hints.site lab}
+origin -> B    announced {peer b1, hints.public-ip from B's socket}
+origin -> B    suggest {peers [n1]}
+origin -> A    suggest {peers [b1]}
+A -> origin    signal {to b1, description offer}
+origin -> B    signal {from n1, to b1, description offer}
+B -> origin    signal {to n1, description answer}
+origin -> A    signal {from b1, to n1, description answer}
+A -> origin    signal {to b1, candidate}
+origin -> B    signal {from n1, to b1, candidate}
+A -> origin    signal {to b1, complete true}
+origin -> B    signal {from n1, to b1, complete true}
+A and B        dacite-peer, then hello (section 7)
+```
+
+Unauthenticated. The origin does not announce A and does not suggest A.
+
+```text
+A                                      origin
+WS /signal (no Authorization) ------>
+       <------------------------------ error {reason unauthenticated}
+       connection closed
+```
+
+No local peers. A's public IP is unique, and A sent no site and no subnet.
+A stays announced.
+
+```text
+A                                      origin
+... authenticated ...
+announce {browser} ----------------->
+       <------------------------------ announced {peer b9, public-ip 203.0.113.50}
+       <------------------------------ suggest {peers []}
+```
+
+A different site tag. C is live and announced with site `other`. The offer
+is not forwarded. A's connection stays open.
+
+```text
+A (site lab)                           origin                                   C (site other)
+... both announced ...
+signal {to c1, offer} -------------->
+       <------------------------------ error {reason not-local}
+                                       (C is not sent the offer)
+```
+

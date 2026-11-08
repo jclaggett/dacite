@@ -123,10 +123,12 @@ candidate, mDNS for Node peers on a LAN, and a tab that serves after
 the user opts in. A DHT stays off this road. `GET have` stays shelved
 with the other pack query opt-outs.
 
-Still open on that line: peer lists by root, whether asking a peer
-exposes the read and who may be asked, whether a peer serves every
-hash it holds, how peer bytes sit in the client rate budget, and
-whether a TURN relay is worth it for a cache.
+Peer lists are decided (M6.1, `docs/spec/peer-v1.md` section 14): the
+origin suggests by locality, not by who holds a root. Still open on
+that line: whether asking a peer exposes the read and who may be
+asked, whether a peer serves every hash it holds, how peer bytes sit
+in the client rate budget, and whether a TURN relay is worth it for a
+cache.
 
 The library project waits until the reveal client and the streamed pack
 are done. Come back to it for:

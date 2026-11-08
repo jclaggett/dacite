@@ -6,6 +6,13 @@ stability promise: public APIs may still change before 1.0.
 
 ## Unreleased
 
+- **M6.1: origin signaling is specified.** `docs/spec/peer-v1.md` section 14
+  is the JSON channel a peer will use with the origin: a Bearer on the
+  opening request (the same header as HTTP), an announcement with network
+  hints, a locality suggestion, and an offer/answer/ICE relay. The origin
+  suggests peers by locality only. The slice-3 room relay is unchanged.
+  The endpoint is M6.2.
+
 - **M5.3: the library reader loads a chapter and a plate from the nbb peer.** `dacite.examples.library-web` still uses the HTTP store. With `signal` and `room` it asks the nbb peer (`dacite.examples.library-nbb`) for the origin's root and renders that value. If the peer does not deliver before `peer-timeout`, it reads the same root from the origin. The seed catalog carries a 16×16 public-domain PNG (`seed-plate`) and the chapter page shows it. `npm run library:e2e` records origin-only against peer-assisted (round trips, bytes, time to first render) in `docs/plan/measurements.md`. No `IStore` change and no Phase 6 discovery. `tau` stays 10 s.
 
 - **M5.2: the browser reads a value held only by the nbb peer.** The page is the WebRTC offerer and `dacite.examples.peer-nbb` is the answerer. They exchange offer, answer, and ICE through the slice-3 room relay (a shared token; no origin discovery). The browser creates `dacite-peer` in-band, which is what the nbb answerer already receives. The page requires `GET /node/{root}` to be 404, then the client verifies every item into IndexedDB and checks each reachable entry. `npm run peer:e2e` runs that in headless Chromium. Safari and Firefox are a one-time hand check, written under M5.2 in `docs/plan/peering.md`. The 4096 frame clamp stays on node-datachannel. `IStore` is unchanged.

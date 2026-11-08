@@ -51,7 +51,7 @@ Selection: prefer Node peers over browser peers, LAN over WAN, and low latency o
 
 ## Open questions
 
-1. Does the origin hand out peer lists by root, or only by network locality?
+1. Does the origin hand out peer lists by root, or only by network locality? **Answered (M6.1):** locality only. See [peer-v1.md](../spec/peer-v1.md) section 14.
 2. Privacy: does asking a peer for a hash reveal what the client is reading? Should probing a peer (a `get` with the smallest interest; `have?` was removed from v1) be restricted to known peers or a site?
 3. Access control: should a peer serve any hash it holds, or only to clients authorized for that root?
 4. How do peer rates fit into the client's global rate budget and token buckets?
