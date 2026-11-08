@@ -2,10 +2,13 @@
   "Library: sets are tables, title index is a vector, a page is slice."
   (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [dacite.examples.library :as lib]
+            [dacite.examples.library-origin :as origin]
             [dacite.service :as svc]
             [dacite.store :as store]
-            [dacite.value :as v]))
+            [dacite.value :as v]
+            [dacite.wire :as wire]))
 
 (def mini-a
   {:title "Apple Tales"
@@ -114,6 +117,31 @@
     (is (= 1 (v/count (lib/epubs-of only))))
     (is (zero? (v/count (lib/books-of only))))
     (is (= (v/hash only) (v/hash (lib/add-epub only blob))))))
+
+(deftest seed-plate-is-a-png-the-reader-can-show
+  (let [st (store/mem)
+        catalog (lib/seed-library st)
+        book (v/nth (lib/title-index catalog) 0)
+        img (lib/book-image book)
+        bs (wire/bytes->vec (v/as-bytes img))
+        plain (lib/ingest (lib/empty-library st) mini-a)]
+    (is (= [137 80 78 71 13 10 26 10] (subvec lib/seed-plate 0 8)))
+    (is (= (vec lib/seed-plate) bs))
+    (is (= "blob" (v/type img)))
+    (is (nil? (lib/book-image (lib/book-of plain "Apple Tales"))))
+    (is (str/includes? (lib/chapter-page book 0 0 400) "CHAPTER I. The Shelf"))
+    (is (str/includes? (lib/chapter-page book 0 0 80) "The catalog is a set of books"))))
+
+(deftest origin-publishes-the-seed-library
+  (let [st (store/mem)
+        catalog (lib/seed-library st)
+        {:keys [rooted root entries]} (origin/seed-origin!)
+        resp (svc/handle-request rooted "GET" "/root" nil nil)]
+    (is (= 200 (:status resp)))
+    (is (= (store/hash->hex (v/hash catalog))
+           (store/hash->hex root)
+           (:root (wire/read-edn (:body resp)))))
+    (is (> entries 1))))
 
 (deftest seed-has-three-chapters
   (let [r (v/root (lib/open-mem))
