@@ -26,7 +26,9 @@
     "webrtc:signal-test": "node scripts/webrtc-signal-test.mjs",
     "peer:build": "cd impl/clojure && node ../../node_modules/shadow-cljs/cli/runner.js compile peer",
     "browser:test": "cd impl/clojure && node ../../node_modules/shadow-cljs/cli/runner.js compile peer-node && node target/peer-node.js",
-    "peer:e2e": "node scripts/peer-browser-e2e.mjs"
+    "peer:e2e": "node scripts/peer-browser-e2e.mjs",
+    "library:build": "cd impl/clojure && clojure -M:cljs-library",
+    "library:e2e": "node scripts/library-peer-e2e.mjs"
   },
   "dependencies": {
     "chalk": "^4.1.2",

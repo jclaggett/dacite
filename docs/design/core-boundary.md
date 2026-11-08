@@ -11,12 +11,15 @@ core is allowed to call) is [portable-core.md](portable-core.md). This
 document is the **inventory**: every namespace on the Clojure source path,
 labeled `core`, `host`, or `server-only`.
 
-Counted here: **89 namespaces** (7 `core`, 78 `host`, 4 `server-only`) under
+Counted here: **91 namespaces** (7 `core`, 80 `host`, 4 `server-only`) under
 `impl/clojure/src` and `impl/clojure/dev`. `impl/clojure/test` is not
 inventoried; tests may require any class. `impl/clojure/archive` is not on
 the classpath. M5.1 added the browser peer (`dacite.peer.transport.browser`,
 `dacite.peer.origin`, `dacite.examples.peer-web`, `dacite.examples.peer-origin`).
 M5.2 added `dacite.examples.peer-nbb`, the nbb peer the browser reads from.
+M5.3 added `dacite.examples.library-nbb` and `dacite.examples.library-origin`.
+The library page stays on `:cljs-library` (`cljs.build.api`); that bundle
+now includes the browser peer.
 
 ## Rules
 
@@ -168,7 +171,9 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.dev.inspect` | `host` | `impl/clojure/dev/dacite/dev/inspect.clj` | JVM reflection over `clojure.lang` collection interfaces. |
 | `dacite.examples.cards` | `host` | `impl/clojure/src/dacite/examples/cards.clj` | JVM cards example (`clojure -M:cards`), LMDB through the store API. |
 | `dacite.examples.explorer-web` | `host` | `impl/clojure/src/dacite/examples/explorer_web.cljs` | Compiled browser explorer. DOM and `dacite.store.browser`. |
-| `dacite.examples.library-web` | `host` | `impl/clojure/src/dacite/examples/library_web.cljs` | Compiled browser library reader. DOM and `dacite.store.browser`. |
+| `dacite.examples.library-nbb` | `host` | `impl/clojure/src/dacite/examples/library_nbb.cljs` | nbb peer for M5.3. Holds the seed library and answers the browser over `node-datachannel`. |
+| `dacite.examples.library-origin` | `host` | `impl/clojure/src/dacite/examples/library_origin.clj` | JVM origin for the library reader. Seeds the catalog and starts `dacite.service`. |
+| `dacite.examples.library-web` | `host` | `impl/clojure/src/dacite/examples/library_web.cljs` | Compiled browser library reader. DOM, `dacite.store.browser`, and the browser peer. |
 | `dacite.examples.lmdb-bench` | `host` | `impl/clojure/src/dacite/examples/lmdb_bench.cljs` | nbb file-versus-LMDB timings. Node `fs` and `dacite.store.nbb.lmdb`. |
 | `dacite.examples.peer-nbb` | `host` | `impl/clojure/src/dacite/examples/peer_nbb.cljs` | nbb peer for M5.2. Holds a value the origin does not and answers the browser over `node-datachannel`. |
 | `dacite.examples.peer-origin` | `host` | `impl/clojure/src/dacite/examples/peer_origin.clj` | JVM origin for the browser peer page. Seeds the canonical value and starts `dacite.service`. |

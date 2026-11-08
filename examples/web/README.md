@@ -53,6 +53,11 @@ cd impl/clojure && clojure -M:cljs-library
 # open http://127.0.0.1:8080/app/library/
 ```
 
+Peer-assisted chapter and plate (M5.3): `npm run library:build`, then
+`clojure -M:library-origin` and
+`nbb -m dacite.examples.library-nbb`. The page takes `chapter`, `signal`,
+and `room`. Measurements: `docs/plan/measurements.md`.
+
 After pulling server/client pack changes, recompile the UI (`clojure -M:cljs-web`)
 and **hard-refresh** the browser (cached `main.js` will break load/add if the
 server returns pack chunks but the client still expects bare nodes).

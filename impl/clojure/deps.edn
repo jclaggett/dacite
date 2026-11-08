@@ -115,6 +115,17 @@
                            "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
                 :main-opts ["-m" "dacite.examples.peer-origin"]}
 
+  ;; Library reader origin: seed the catalog and serve examples/web.
+  ;; Compile the page first, from the repo root: npm run library:build
+  ;;   cd impl/clojure && clojure -M:library-origin
+  ;;   open http://127.0.0.1:8080/app/library/?chapter=0
+  ;; Peer-assisted read (M5.3) adds signal and room. The nbb peer is
+  ;;   nbb -m dacite.examples.library-nbb --ws ws://127.0.0.1:8787 --room TOKEN
+  ;; npm run library:e2e measures origin-only against that peer.
+  :library-origin {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
+                              "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
+                   :main-opts ["-m" "dacite.examples.library-origin"]}
+
   ;; Compile browser bundle (portable core + todo-web)
   ;;   cd impl/clojure && clojure -M:cljs-web
   :cljs-web {:extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}

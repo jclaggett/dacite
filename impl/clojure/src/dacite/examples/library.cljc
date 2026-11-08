@@ -6,10 +6,12 @@
       \"books\"   #{record …}
       \"indexes\" {\"title\" [record …]}}   ; sorted by title, then author
 
-   A record is {title, author, epub, text, source, license, chapters}.
-   `epub` is the same blob as the set member (shared hash). `text` is the
-   linearized reading string. The shelf is `v/slice` of the title index;
-   a display page is `nth` of characters (slice would hash a new spine).
+   A record is {title, author, epub, text, source, license, chapters}
+   and, for the seed work, image. `epub` is the same blob as the set
+   member (shared hash). `text` is the linearized reading string. `image`
+   is a PNG blob the reader shows; it is not a second text page. The
+   shelf is `v/slice` of the title index; a display page is `nth` of
+   characters (slice would hash a new spine).
 
    **Store** — file-rooted or HTTP remote-rooted.
 
@@ -43,6 +45,18 @@
 (def seed-author "A Public Domain Clerk")
 (def seed-source "dacite.examples.library")
 (def seed-license "public-domain")
+
+(def seed-plate
+  "Public-domain plate drawn for this catalog: a 16×16 RGBA PNG of a
+   shelf and four spines. The bytes are the image. Nothing outside this
+   tree is copied."
+  [137 80 78 71 13 10 26 10 0 0 0 13 73 72 68 82
+   0 0 0 16 0 0 0 16 8 6 0 0 0 31 243 255
+   97 0 0 0 43 73 68 65 84 120 218 99 16 145 81 251
+   79 9 102 24 53 128 10 6 68 217 105 252 127 113 231 200
+   127 16 13 195 164 240 135 131 1 163 233 96 16 24 0 0
+   146 61 140 16 29 156 95 218 0 0 0 0 73 69 78 68
+   174 66 96 130])
 
 (def seed-text
   "CHAPTER I. The Shelf
@@ -117,6 +131,13 @@ enough that slice and a full native are different amounts of work.
 (defn book-text [book] (v/get book "text"))
 (defn book-epub [book] (v/get book "epub"))
 (defn book-chapters [book] (v/get book "chapters"))
+
+(defn book-image
+  "The book's plate blob, or nil when the record has no image."
+  [book]
+  (when-let [img (v/get book "image")]
+    (when (and (v/dacite-value? img) (= "blob" (v/type img)))
+      img)))
 
 (defn- utf8-bytes
   "UTF-8 bytes of `s`. JVM and babashka return a byte array so blob
@@ -202,9 +223,18 @@ enough that slice and a full native are different amounts of work.
           (v/vector peer)
           heads))
 
+(defn- plate-blob
+  "A blob of `image` in `peer`'s store. A blob value is kept as it is."
+  [peer image]
+  (if (and (v/dacite-value? image) (= "blob" (v/type image)))
+    image
+    (v/blob peer image)))
+
 (defn book-record
-  "Catalog row relative to `peer`. `epub` is a Dacite blob; `text` a host string."
-  [peer {:keys [title author year source license text epub]}]
+  "Catalog row relative to `peer`. `epub` is a Dacite blob; `text` a host
+   string. `image`, when present, is PNG bytes or a blob already in the
+   store."
+  [peer {:keys [title author year source license text epub image]}]
   (let [title (str title)
         rec (v/map peer
                    "title" title
@@ -213,10 +243,11 @@ enough that slice and a full native are different amounts of work.
                    "text" (v/string peer (str text))
                    "source" (str (or source ""))
                    "license" (str (or license "public-domain"))
-                   "chapters" (chapters-value peer (parse-chapters (str text) title)))]
-    (if (nil? year)
+                   "chapters" (chapters-value peer (parse-chapters (str text) title)))
+        rec (if (nil? year) rec (v/assoc rec "year" year))]
+    (if (nil? image)
       rec
-      (v/assoc rec "year" year))))
+      (v/assoc rec "image" (plate-blob peer image)))))
 
 (defn add-epub
   "Conj `epub` (a blob) onto the corpus. No-op if already a member."
@@ -367,14 +398,15 @@ enough that slice and a full native are different amounts of work.
        (page book start n)))))
 
 (defn seed-library
-  "Library containing the in-repo public-domain seed work."
+  "Library containing the in-repo public-domain seed work and its plate."
   [peer]
   (ingest (empty-library peer)
           {:title seed-title
            :author seed-author
            :source seed-source
            :license seed-license
-           :text seed-text}))
+           :text seed-text
+           :image seed-plate}))
 
 (defn load-or-seed!
   "Load library from a root, or CAS-seed the sample work."
