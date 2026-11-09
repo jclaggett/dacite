@@ -11,7 +11,7 @@ core is allowed to call) is [portable-core.md](portable-core.md). This
 document is the **inventory**: every namespace on the Clojure source path,
 labeled `core`, `host`, or `server-only`.
 
-Counted here: **91 namespaces** (7 `core`, 80 `host`, 4 `server-only`) under
+Counted here: **94 namespaces** (7 `core`, 83 `host`, 4 `server-only`) under
 `impl/clojure/src` and `impl/clojure/dev`. `impl/clojure/test` is not
 inventoried; tests may require any class. `impl/clojure/archive` is not on
 the classpath. M5.1 added the browser peer (`dacite.peer.transport.browser`,
@@ -19,7 +19,8 @@ the classpath. M5.1 added the browser peer (`dacite.peer.transport.browser`,
 M5.2 added `dacite.examples.peer-nbb`, the nbb peer the browser reads from.
 M5.3 added `dacite.examples.library-nbb` and `dacite.examples.library-origin`.
 The library page stays on `:cljs-library` (`cljs.build.api`); that bundle
-now includes the browser peer.
+now includes the browser peer. M6.4 added `dacite.examples.browser`,
+`dacite.examples.browser-web`, and `dacite.examples.browser-nbb`.
 
 ## Rules
 
@@ -73,6 +74,9 @@ of this core (M2.1 decision, set up in M5.1). Config:
 
 - `:peer` → `dacite.examples.peer-web` (`npm run peer:build`, output
   `examples/web/peer/js`, served at `/app/peer/`)
+- `:browser` → `dacite.examples.browser-web` (`npm run browser:build`, output
+  `examples/web/browser/js`, served at `/app/browser/`; the intended public
+  path is `/browser`)
 - `:peer-node` → `dacite.peer.browser-test` (`npm run browser:test`)
 
 The three `:cljs-*` aliases stay on `cljs.build.api`. [host-collection-adapters.md](host-collection-adapters.md)
@@ -103,6 +107,7 @@ These files are shared source, and they still branch on the host. They are
 |-----------|-------|------|-----------|
 | `bench-ops` | `host` | `impl/clojure/dev/bench_ops.cljc` | Dev timings. `System/nanoTime` and `js/performance.now`, plus byte arrays. |
 | `dacite.cache` | `host` | `impl/clojure/src/dacite/cache.cljc` | LRU: `LinkedHashMap` on the JVM, a JS `Map` on ClojureScript. |
+| `dacite.examples.browser` | `host` | `impl/clojure/src/dacite/examples/browser.cljc` | Value Browser URI. The host is a name. The fragment is `urn:dacite:<hex>`. No HTTP path. |
 | `dacite.examples.config` | `host` | `impl/clojure/src/dacite/examples/config.cljc` | Config example. `Long/parseLong` and `js/parseInt`, and a JVM watch loop. |
 | `dacite.examples.event-log` | `host` | `impl/clojure/src/dacite/examples/event_log.cljc` | Event-log example. Same integer split, and a `:clj` require of `dacite.store.remote`. |
 | `dacite.examples.explorer` | `host` | `impl/clojure/src/dacite/examples/explorer.cljc` | Explorer domain. `byte-array` and `js/Uint8Array` for the sample blob. |
@@ -169,6 +174,8 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.dev.gen-byte-table` | `host` | `impl/clojure/dev/dacite/dev/gen_byte_table.clj` | JVM SHA-256 regeneration of `dacite.byte-table`. |
 | `dacite.dev.gen-sl2-table` | `host` | `impl/clojure/dev/dacite/dev/gen_sl2_table.clj` | JVM regeneration of `dacite.sl2-table`. |
 | `dacite.dev.inspect` | `host` | `impl/clojure/dev/dacite/dev/inspect.clj` | JVM reflection over `clojure.lang` collection interfaces. |
+| `dacite.examples.browser-nbb` | `host` | `impl/clojure/src/dacite/examples/browser_nbb.cljs` | nbb answerer for the Value Browser. Holds two values and answers the browser over `node-datachannel`. |
+| `dacite.examples.browser-web` | `host` | `impl/clojure/src/dacite/examples/browser_web.cljs` | Value Browser page. DOM, IndexedDB, and the browser peer. Manual introduce, then one `get`. |
 | `dacite.examples.cards` | `host` | `impl/clojure/src/dacite/examples/cards.clj` | JVM cards example (`clojure -M:cards`), LMDB through the store API. |
 | `dacite.examples.explorer-web` | `host` | `impl/clojure/src/dacite/examples/explorer_web.cljs` | Compiled browser explorer. DOM and `dacite.store.browser`. |
 | `dacite.examples.library-nbb` | `host` | `impl/clojure/src/dacite/examples/library_nbb.cljs` | nbb peer for M5.3. Holds the seed library and answers the browser over `node-datachannel`. |
@@ -236,9 +243,10 @@ adding a row.
 `impl/clojure/test/dacite/core_boundary_test.clj` is part of the JVM suite
 (`cognitect.test-runner` picks up every `*_test.clj`). GitHub Actions
 `.github/workflows/test.yml` runs the nbb suites, then `npm run peer:build`,
-`npm run browser:test`, and `npm run peer:e2e` (that step installs Java 21
-and the Clojure CLI, because shadow-cljs starts through `clojure`, then
-Playwright's Chromium). The JVM suite stays local.
+`npm run browser:test`, `npm run peer:e2e`, `npm run browser:build`, and
+`npm run browser:e2e` (that step installs Java 21 and the Clojure CLI,
+because shadow-cljs starts through `clojure`, then Playwright's Chromium).
+The JVM suite stays local.
 
 ```bash
 cd impl/clojure && clojure -M:dev:test -n dacite.core-boundary-test

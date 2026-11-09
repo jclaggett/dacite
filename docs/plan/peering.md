@@ -283,6 +283,18 @@ The Oct 30 grid put origin signaling on Fri Nov 20 to Tue Nov 24. That sequence 
 - One `get` of that hash, under the interest and rate rules already in peer-v1. Entries are verified before they are stored.
 - Acceptance: the shown hash is the fragment; every received entry verifies; a second paste of another hash to the same peer fetches that hash; a hash the peer does not hold fails as peer-v1 already fails it (`unknown-hash`). A headless check, or a written manual script in the style of M5.2.
 - Out of scope: rendering past the hash and the entry count (M6.5); roots (M6.6); a path-form HTTP URI; `/signal`; origin suggest; mDNS; a peer list; TURN; any addition to peer-v1.
+- **Status (Nov 9, built).** The page is `examples/web/browser` (`dacite.examples.browser-web`). The example server mounts `examples/web` at `/app/`, so the local URL is `http://127.0.0.1:8080/app/browser/`. The intended public path is `dacite.io/browser`. dacite.io is not wired here. The script URL is `/app/browser/js/main.js`, the same root-absolute style as the other example pages.
+  - **The field.** `dacite.examples.browser/parse-value-uri` accepts `dacite://<host>#urn:dacite:<hex>` and `dacite://<host>` together with `urn:dacite:<hex>` (whitespace in the one field, or the URN in its own input). `<hex>` is 64 lowercase hex chars, a Dacite digest. `urn:dacite:sha256:…` is rejected. A path, a port, a user, or a query is rejected: the host is a name, not a lookup and not a reachability hint. The parser's `:http-path` is nil. The page does not `fetch` the fragment.
+  - **Introduce, then one `get`.** The room token (`signal` and `room`, prefilled from the query when present) and a pasted answer are separate from the URI. The browser is the offerer and creates `dacite-peer` and `dacite-roots` in-band. `dacite.examples.browser-nbb` is the answerer. The 4096 frame clamp stays on node-datachannel. The page calls the existing client `request!` once per hash. Entries are verified with `dacite.peer.verify` before they are stored in IndexedDB. The page shows the fragment, the hex, the reachable entry count, and `verified` or `unknown-hash`. A second paste of another hash for the same host reuses the open channel. A different host does not borrow it. No new peer-v1 message. No `IStore` change.
+  - **Headless Chromium.** `npm run browser:build`, then `npm run browser:e2e`. The nbb peer holds two values and prints each root, each entry count, and one hash it does not hold. The test pastes `dacite://shelf#urn:dacite:<hex>` for the first, the same host with the other hash, then the absent hash. The shown hash is the fragment. Both counts match the nbb process. Connects stay 1. Gets are 3. The miss is `unknown-hash`. No request URL contains the hex, `urn:dacite`, or `/node/`. The run carries a `JUSTIFICATION` comment: browser startup and ICE. CI runs it after `browser:build`.
+  - **By hand.** On a machine with the browser, on the same computer as the nbb peer:
+    1. `npm run browser:build` from the repo root.
+    2. Terminal A: `npm run webrtc:signal` (listens on `ws://127.0.0.1:8787`).
+    3. Terminal B: `nbb -m dacite.examples.browser-nbb --ws ws://127.0.0.1:8787 --room m64-manual`. It prints `value-a`, `entries-a`, `value-b`, `entries-b`, `absent`, and a `page` URL. The URL has `signal` and `room`. It has no hash.
+    4. Terminal C, from `impl/clojure`: `clojure -M:service --port 8080 --store mem` (or `clojure -M:peer-origin`). Either serves `examples/web`.
+    5. Open the printed `page` URL, or `http://127.0.0.1:8080/app/browser/`. Firefox and Safari need the same host-address setting as M5.2, or ICE may stay on a `.local` name.
+    6. Paste `dacite://<name>#urn:dacite:<value-a>` and click Fetch. Expect status `verified`, that hex, and `entries-a`. Paste the second hash for the same name and Fetch again. Expect that hex, `entries-b`, and the same open channel. Paste `absent`. Expect `unknown-hash`.
+    7. Paste without the room: clear the room token (the printed URL fills it). Click Show offer, pipe that JSON to `nbb -m dacite.examples.browser-nbb --sdp`, paste the printed `answer` JSON into Remote answer, then Fetch. The room and the paste are the two introduce paths. Use one of them.
 
 **M6.5. Value Browser rendering.** The same page, once the hash is in the page's store.
 - A scalar or text renders as itself.
@@ -341,7 +353,7 @@ The Oct 30 grid said Fri Dec 4 prep and a decision on Tue Dec 8. That date is no
 
 ## 6. Timeline at a glance
 
-The grid is the Oct 30 target schedule, kept as history. Phases 0 through 5 landed, and several landed before the week this grid gave them (M5.3 on Nov 8). From the old M6.1 the cells are the origin-signaling sequence, set aside Nov 9. M6.4, M6.5, and M6.6 are the next slices. This grid does not date them.
+The grid is the Oct 30 target schedule, kept as history. Phases 0 through 5 landed, and several landed before the week this grid gave them (M5.3 on Nov 8). From the old M6.1 the cells are the origin-signaling sequence, set aside Nov 9. M6.4 landed Nov 9. M6.5 and M6.6 are the next slices. This grid does not date them.
 
 | Week | Mon | Tue | Wed | Thu | Fri |
 |---|---|---|---|---|---|
@@ -407,6 +419,6 @@ For the next design discussions, roughly in the order they block work.
 
 The Nov 2 list (confirm the plan, M0, the M1.1 agenda) is done. Phases 0 through 5 are built, through M5.3.
 
-1. Next slice is M6.4: the page takes a pasted `dacite://` URI and fetches that hash from the named peer. Manual introduce is enough. No origin signaling.
-2. M6.5 is the rendering stage (scalars and text, collections as a tree of hashes, a raw/hex pane). M6.6 is the root URL, and a peer list only as another root.
+1. M6.4 is built: the page takes a pasted `dacite://` URI and fetches that hash from the named peer. Manual introduce is enough. No origin signaling.
+2. Next slice is M6.5, the rendering stage (scalars and text, collections as a tree of hashes, a raw/hex pane). M6.6 is the root URL, and a peer list only as another root.
 3. PR #47 stays as it is. It is the set-aside M6.1 spec, not the implementation queue.

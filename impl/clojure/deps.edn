@@ -111,6 +111,10 @@
   ;; M5.2 reads a different value from the nbb peer (query root, signal, room).
   ;;   npm run peer:e2e
   ;; The hand check for Safari and Firefox is in docs/plan/peering.md.
+  ;; M6.4 value browser is static under the same examples/web mount:
+  ;;   http://127.0.0.1:8080/app/browser/
+  ;; Intended public path: /browser (dacite.io is not wired here).
+  ;;   npm run browser:build && npm run browser:e2e
   :peer-origin {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
                            "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
                 :main-opts ["-m" "dacite.examples.peer-origin"]}

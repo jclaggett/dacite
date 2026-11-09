@@ -22,7 +22,8 @@
    The browser is the offerer: it creates `dacite-peer` and `dacite-roots`
    in-band (no negotiated id) before the offer, which is what an nbb
    answerer receives on `onDataChannel`. Signaling is the slice-3 room
-   (`signal-over-ws!`): a shared token, not origin discovery. The 4096
+   (`signal-over-ws!`): a shared token, not origin discovery. A pasted
+   answer uses `apply-remote!` on the same signal map (M6.4). The 4096
    frame clamp stays on the nbb peer. `bufferedAmount` is still what a
    responder's 4/1 marks read; this side's channel reports it too."
   (:require [dacite.peer.transport :as t]
@@ -484,12 +485,41 @@
           (when (= "complete" (.-iceGatheringState pc))
             (swap! signal assoc :complete? true)))))
 
+(defn apply-remote!
+  "Apply a pasted signal map to `pc`.
+
+   `other` is `{:description {:type :sdp} :candidates [{:candidate :mid}]}`,
+   the same shape as `@(:signal peer)`. Returns a promise that resolves
+   once the description is set. A candidate the description already
+   carries is ignored. This is the manual paste of an offer or an answer.
+   It does not read a `dacite://` host."
+  [pc other]
+  (let [d (:description other)]
+    (if-not (and (map? d) (string? (:type d)) (string? (:sdp d))
+                 (pos? (count (:sdp d))))
+      (js/Promise.reject (ex-info "a pasted answer needs type and sdp"
+                                  {:reason :bad-signaling}))
+      (-> (.setRemoteDescription pc (clj->js {:type (:type d) :sdp (:sdp d)}))
+          (.then (fn []
+                   (js/Promise.all
+                    (into-array
+                     (for [{:keys [candidate mid]} (:candidates other)
+                           :when (and (string? candidate) (pos? (count candidate)))]
+                       (-> (.addIceCandidate
+                            pc (clj->js {:candidate candidate
+                                         :sdpMid (or mid "")
+                                         :sdpMLineIndex 0}))
+                           (.catch (fn [_] nil))))))))))))
+
 (defn create-peer
   "One end of a WebRTC connection to a peer in another process.
 
-   `role` is `:offerer` or `:answerer`. Returns `{:conn :pc :role :signal}`.
-   With `:ws {:url :room}` also `:signaling`, a promise from `signal-over-ws!`
-   that resolves once the remote description has been applied.
+   `role` is `:offerer` or `:answerer`. Returns
+   `{:conn :pc :role :signal :set-remote!}`. With `:ws {:url :room}` also
+   `:signaling`, a promise from `signal-over-ws!` that resolves once the
+   remote description has been applied. `:set-remote!` is `apply-remote!`
+   for a pasted offer or answer (M6.4). The room token and the paste are
+   manual introduce. Neither one reads a `dacite://` host.
 
    The offerer creates `dacite-peer` and `dacite-roots` in-band before the
    offer. The answerer waits for those channels. `connect-pair` is unchanged
@@ -501,7 +531,11 @@
   (let [pc (peer-connection (ice-config opts))
         built (make-transport pc role {:in-band? true})
         signal (atom {:description nil :candidates [] :complete? false})
-        peer {:conn (:conn built) :pc pc :role role :signal signal}]
+        peer {:conn (:conn built)
+              :pc pc
+              :role role
+              :signal signal
+              :set-remote! (fn [other] (apply-remote! pc other))}]
     (when (= role :offerer)
       ((:prepare! built) reserved-channels))
     (watch-ice! pc signal)

@@ -28,5 +28,6 @@ examples/web/js/out/
 examples/web/explorer/js/out/
 examples/web/library/js/out/
 examples/web/peer/js/
+examples/web/browser/js/
 .shadow-cljs/
 impl/clojure/.shadow-cljs/

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dacite value browser</title>
+  <style>
+    body { font: 16px/1.45 system-ui, sans-serif; margin: 2rem; max-width: 46rem; color: #1c1c1c; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.05rem; margin: 1.4rem 0 0.3rem; }
+    p { margin: 0.4rem 0; }
+    label { display: block; margin-top: 0.7rem; font-size: 0.92rem; }
+    input, textarea { font: 15px/1.4 ui-monospace, monospace; width: 100%; box-sizing: border-box; }
+    textarea { min-height: 6rem; }
+    button { font: 15px system-ui, sans-serif; margin: 0.8rem 0.5rem 0 0; }
+    .hex, code { font-family: ui-monospace, monospace; word-break: break-all; }
+    .muted { color: #555; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Dacite value browser</h1>
+    <p id="lede" class="muted">Paste a peer and a value. The host is a name. The fragment is the content name, <code>urn:dacite:&lt;hex&gt;</code>, and is not sent as an HTTP path.</p>
+    <p class="muted">Local: <code>http://127.0.0.1:8080/app/browser/</code>. Intended path: <code>dacite.io/browser</code>.</p>
+
+    <form id="ask">
+      <label for="uri">Peer and value</label>
+      <input id="uri" name="uri" autocomplete="off" spellcheck="false"
+             placeholder="dacite://shelf#urn:dacite:…"/>
+      <label for="urn">Value URN, when the peer URI has no fragment</label>
+      <input id="urn" name="urn" autocomplete="off" spellcheck="false"
+             placeholder="urn:dacite:…"/>
+
+      <h2>Introduce</h2>
+      <p class="muted">Separate from the URI. A shared room token, or a pasted answer. The host is not a signaling address.</p>
+      <label for="signal">Relay</label>
+      <input id="signal" name="signal" autocomplete="off" spellcheck="false"
+             value="ws://127.0.0.1:8787"/>
+      <label for="room">Room token</label>
+      <input id="room" name="room" autocomplete="off" spellcheck="false"/>
+      <button type="button" id="open">Open channel</button>
+      <button type="submit" id="fetch">Fetch</button>
+
+      <h2>Or paste the answer</h2>
+      <p class="muted">Leave the room blank. Show the offer, give it to the answering peer, then paste the answer here.</p>
+      <button type="button" id="prepare">Show offer</button>
+      <label for="offer">Local offer</label>
+      <textarea id="offer" readonly spellcheck="false"></textarea>
+      <label for="answer">Remote answer</label>
+      <textarea id="answer" spellcheck="false"></textarea>
+    </form>
+
+    <h2>Value</h2>
+    <p>peer <span id="peer" class="hex">—</span></p>
+    <p>fragment <span id="fragment" class="hex">—</span></p>
+    <p>hash <span id="hash" class="hex">—</span></p>
+    <p>entries <span id="entries">—</span></p>
+    <p>verified <span id="verified">—</span></p>
+    <p id="status">loading…</p>
+  </main>
+  <script src="/app/browser/js/main.js"></script>
+</body>
+</html>

@@ -27,6 +27,8 @@
     "peer:build": "cd impl/clojure && node ../../node_modules/shadow-cljs/cli/runner.js compile peer",
     "browser:test": "cd impl/clojure && node ../../node_modules/shadow-cljs/cli/runner.js compile peer-node && node target/peer-node.js",
     "peer:e2e": "node scripts/peer-browser-e2e.mjs",
+    "browser:build": "cd impl/clojure && node ../../node_modules/shadow-cljs/cli/runner.js compile browser",
+    "browser:e2e": "node scripts/browser-e2e.mjs",
     "library:build": "cd impl/clojure && clojure -M:cljs-library",
     "library:e2e": "node scripts/library-peer-e2e.mjs"
   },

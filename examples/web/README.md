@@ -9,6 +9,7 @@ Three UIs share the HTTP content-store + root CAS protocol
 | http://127.0.0.1:8080/app/explorer/ | **Value explorer** — typed tree of the current root |
 | http://127.0.0.1:8080/app/library/ | **Library** — shelf → TOC → page via `v/slice` |
 | http://127.0.0.1:8080/app/peer/ | **Browser peer** — verify the origin root into IndexedDB |
+| http://127.0.0.1:8080/app/browser/ | **Value browser** — paste `dacite://<host>#urn:dacite:<hex>` and fetch that hash. Intended path: `dacite.io/browser` |
 
 ---
 
@@ -199,3 +200,21 @@ To read a value held only by an nbb peer, start the slice-3 relay and
 `nbb -m dacite.examples.peer-nbb`, then open the URL that process prints.
 `npm run peer:e2e` runs the same session in headless Chromium. The Safari
 and Firefox steps are under M5.2 in `docs/plan/peering.md`.
+
+## Value browser (M6.4)
+
+Same static root as the other example pages. The local URL is
+http://127.0.0.1:8080/app/browser/ . The intended public path is
+`dacite.io/browser` (this directory). dacite.io is not wired here.
+
+```bash
+npm run browser:build
+npm run webrtc:signal
+nbb -m dacite.examples.browser-nbb --ws ws://127.0.0.1:8787 --room m64
+# from impl/clojure, any server that mounts examples/web:
+clojure -M:service --port 8080 --store mem
+```
+
+Paste `dacite://<name>#urn:dacite:<hex>` from the nbb output. The relay
+and the room are separate from that URI. `npm run browser:e2e` runs the
+headless check. The hand steps are under M6.4 in `docs/plan/peering.md`.

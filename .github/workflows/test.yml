@@ -73,6 +73,14 @@ jobs:
       - name: Browser to nbb peer
         run: npm run peer:e2e
 
+      # M6.4. The value browser pastes dacite://<host>#urn:dacite:<hex>
+      # and fetches that hash from the nbb peer. Chromium only.
+      - name: Value browser bundle
+        run: npm run browser:build
+
+      - name: Value browser fetch
+        run: npm run browser:e2e
+
       # M5.3. The library bundle stays on cljs.build.api. Chromium reads a
       # chapter and the plate from the nbb peer, and falls back to the origin.
       - name: Library bundle
