@@ -22,9 +22,11 @@ The words MUST, SHOULD and MAY are used as in RFC 2119.
 
 A peer holds immutable, hash-verified Dacite entries and serves them to other
 peers over a WebRTC data channel. Any peer may ask any other. **Peers are
-read-only:** there is no `put`, no root update, no CAS. Those stay with the
-origin server. A peer that asks is the *requester*; the one that answers is the
-*responder*. A connection is symmetric, so each side is both at once.
+read-only:** there is no `put`, no root update, no CAS on this protocol. Root
+updates sit in the roots layer. The Nov 9 plan has no privileged origin in the
+peering model ([the plan](../plan/peering.md)). A peer that asks is the
+*requester*; the one that answers is the *responder*. A connection is
+symmetric, so each side is both at once.
 
 The HTTP analogy is for explanation only. Nothing here is HTTP.
 
@@ -591,8 +593,10 @@ SCTP). The rules a transport keeps:
   the server keeps at most two sockets in that room (one offerer, one answerer),
   and it forwards each `{"type":"signal",...}` frame to the other socket. Knowing
   the room token is the only access check. A third peer is refused (`room-full`).
-  The server drops the room when both sockets close. Origin signaling, discovery,
-  and any authentication beyond the token are M6.
+  The server drops the room when both sockets close. Origin signaling and an
+  origin peer directory were the old M6. That path is set aside (plan Phase 6,
+  Nov 9). Authentication beyond the room token stays outside v1. A client opens
+  a peer it already has a channel to.
 
 Data channels are reliable and ordered (SCTP over DTLS), and `"dacite-peer"`'s version is in `hello`.
 
@@ -1316,26 +1320,33 @@ Plan open questions 1, 3 and 4 are **deferred** for the M1.2 acceptance. Each ge
 reason, a date and a v1 default, so no MUST depends on it. *Decided:* Jonathan approved these deferrals on Nov 4.
 
 - **Question 1, peer lists (does the origin suggest peers by root, or by network
-  locality?). Deferred to M6.1.** Reason: peer discovery happens before a session
-  exists and has no message in peer v1; the protocol here starts at `hello`. The
-  v1 default is locality only (plan M6.1), which needs no per-root knowledge.
+  locality?).** *Nov 4:* deferred, because discovery happens before a session
+  exists and has no message in peer v1; the protocol here starts at `hello`.
+  The note then said the v1 default was locality only, to be decided in M6.1.
+  *Nov 9:* withdrawn from the peering plan. The origin is not a peering-layer
+  peer directory. A peer list is a conventional value at a root. peer v1 still
+  has no peer-list message. The old M6.1 draft (PR #47) is set aside.
 - **Question 3, privacy (does asking a peer for a hash reveal what the client
   reads?). Deferred to before M8.1 (the public demo).** Reason: it is a deployment
   policy (which peers a client dials), not a wire rule, and v1 assumes good actors
   (section 11). v1 states the fact: **a peer learns every hash it is asked for**,
-  and a probing `get` (6.2) is an ordinary request. Clients connect only to peers
-  the origin or an admin names (M6, M7); they do not dial strangers.
+  and a probing `get` (6.2) is an ordinary request. *Nov 4* said clients connect
+  only to peers the origin or an admin names (then M6, M7). *Nov 9:* the client
+  dials a peer the operator named (a pasted URI). Config or mDNS may supply that
+  name later (plan Phase 7). An origin suggest list does not.
 - **Question 4, access control (may a peer serve any hash it holds, or only to
   clients authorized for that root?). Deferred.** Reason: it depends on the
-  authorization model (`docs/authorization.allium`) and on who the origin is (plan
-  open question 7), and both are decided later. The v1 default is the plan's
+  authorization model (`docs/authorization.allium`) and on who publishes a root
+  (plan open question 7, the roots layer). The v1 default is the plan's
   non-goal: a peer serves any hash it holds, and a hash is a 256-bit name nobody
   can guess, so knowing it is the only capability. Nothing here prevents a later,
   stricter rule: a responder may answer `unknown-hash` for a hash it holds.
 
-Not in scope here, and tracked elsewhere: the number of sessions a responder accepts
-(M6.3, "cap concurrent peers"); the aggregate of every session's `send-max` against
-the responder's own uplink.
+Not in scope here, and tracked elsewhere: the number of sessions a responder accepts.
+The old M6.3 ("cap concurrent peers", with origin fallback and locality selection)
+is set aside. A cap is still open; it is not a peering-layer directory. The
+aggregate of every session's `send-max` against the responder's own uplink is open
+too.
 
 ### 12.14 Where this differs from earlier text
 
@@ -1430,7 +1441,7 @@ the lifecycle and the stream cap, and the rest) stay planned.
 | C38 | Existing | Responder keys streams by (session, id); same hash twice = two streams | `same-hash-twice-is-two-independent-streams` (N1 regression; built) | JVM, nbb peer | M4.1 |
 | C39 | Existing | Wrong parity or duplicate id refused (malformed) | `f3-stream-table-parity-and-duplicates` (exists) | JVM | M1.2 (exists) |
 | C40 | Decided | Per-session token bucket on `get`; empty = rate-limited; a flood never ends the session | `get-over-the-bucket-is-rate-limited-and-session-lives` (simulated clock) (exists, slice 2: simulated clock; burst lowered to 10 so nbb stays quick) | JVM, nbb peer | M1.2 s2 (exists) |
-| C42 | Decided | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (flood one session; others unchanged) | JVM, nbb peer | M6.3 |
+| C42 | Decided | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (flood one session; others unchanged) | JVM, nbb peer | when a client holds more than one named peer (old target M6.3, set aside) |
 | C43 | Existing | Session types on stream 0, request types on stream >= 1 | `f3-message-types-and-streams` (exists; fixtures `reject-*-on-stream-*`) | JVM, nbb peer | M1.2 (exists) |
 | C44 | Existing | Literal types outside the v1 profile are rejected | `outside-the-profile` (exists) | JVM, nbb peer | M1.2 (exists) |
 
