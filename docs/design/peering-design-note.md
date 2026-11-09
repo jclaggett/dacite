@@ -2,6 +2,8 @@
 
 Status: draft, Oct 29, 2026. Author: Jonathan Claggett.
 
+**Revision (Nov 9, 2026).** Jonathan and Grok Bot set aside origin-integrated signaling and origin peer suggestion for the peering layer. Peering is a channel to a named peer and a fetch by hash. A peer list is a conventional value published at a root, above peering. The next demo is the Value Browser in [the peering plan](../plan/peering.md) (Phase 6, M6.4–M6.6). The discovery list below is the Oct 29 first stab. Item 1 is not the next slice. Open question 1 is withdrawn from the peering plan.
+
 ## Motivation
 
 Dacite entries are immutable and content-addressed. Any copy of an entry is as good as the original, and a receiver can verify it against its hash. So any client's cache can safely serve other clients, and peers never need to trust each other, invalidate anything, or coordinate.
@@ -36,22 +38,22 @@ memory -> local store (IndexedDB or LMDB) -> peers -> origin server
 - ~~`have?` asks whether the peer holds a set of hashes, answered with a bitmap.~~ Removed from v1: a `get` with the smallest interest is the probe. See [peer-v1.md](../spec/peer-v1.md) section 9 (Q6). Optionally, peers exchange a compact summary of their contents, such as a Bloom filter or recent roots.
 - `get`/reveal requests a root or hash, and the peer streams entries under the same rate and interest rules as the server.
 - Every received entry is verified against its hash before it is stored, and a bad entry ends the session with that peer.
-- Peers serve only reads. Root updates and CAS stay with the origin server.
+- Peers serve only reads on this protocol. Root updates are the roots layer (a mutable reference on a peer). The Nov 9 plan has no privileged origin in the peering model. See [the peering plan](../plan/peering.md).
 
 ## Discovery (first stab)
 
-Discovery finds candidate peers, and signaling connects them. Some options, roughly in order of how soon to build them:
+Discovery finds candidate peers, and signaling connects them. The list below is the Oct 29 order. Nov 9 takes item 1 out of the peering layer. The next demo types a peer URI by hand (`dacite://<host>#urn:dacite:<hex>`, the Dacite digest). Items 2 and 3 remain later ways to learn that URL (plan Phase 7). They are not peering primitives.
 
-1. **Origin as signaling and rendezvous.** The Dacite server a client already talks to also relays WebRTC signaling and suggests peers. It can group clients by network hints such as public IP, subnet, or an admin-assigned site tag. This is the simplest option, works for browsers, and needs no extra infrastructure.
-2. **Configured peers.** Admins list Node peers by address or site, either in client config or through the origin. This is predictable and works well for enterprise and HPC deployments.
-3. **mDNS on the LAN (Node peers only).** Node peers announce a `_dacite._udp` service and find each other with no server at all. Browsers can't browse mDNS, so they still find Node peers through the origin or through config.
-4. **Later: a DHT** (hash-to-holder lookup, like IPFS or BitTorrent) for wide-area peering without an origin. This is out of scope for now.
+1. **Origin as signaling and rendezvous.** The Oct 29 option: the server a client already talks to relays WebRTC signaling and suggests peers, grouped by public IP, subnet, or a site tag. Set aside for peering (Nov 9). The docs-only draft of that channel is PR #47 (`58a3b28`). It is not the next slice.
+2. **Configured peers.** Admins list Node peers by `dacite://` URL in client config. This is predictable and works well for enterprise and HPC deployments. The list is local configuration, not a value the origin serves.
+3. **mDNS on the LAN (Node peers only).** Node peers announce a `_dacite._udp` service and learn each other's URLs with no directory. Browsers can't browse mDNS, so they still get a Node peer URL from a person or from config.
+4. **Later: a DHT** (hash-to-holder lookup, like IPFS or BitTorrent) for wide-area peering. This is out of scope for now.
 
-Selection: prefer Node peers over browser peers, LAN over WAN, and low latency over high. Cap concurrent peers. Fall back to the origin after a short timeout.
+The Oct 29 selection rule (prefer Node peers, LAN over WAN, low latency, cap concurrent peers, fall back to the origin) is not a peering primitive. The Value Browser opens the peer the URI names.
 
 ## Open questions
 
-1. Does the origin hand out peer lists by root, or only by network locality?
+1. Does the origin hand out peer lists by root, or only by network locality? **Withdrawn from the peering plan (Nov 9).** The origin is not a peering-layer peer directory. A peer list is a conventional value at a root. See the plan, section 10.
 2. Privacy: does asking a peer for a hash reveal what the client is reading? Should probing a peer (a `get` with the smallest interest; `have?` was removed from v1) be restricted to known peers or a site?
 3. Access control: should a peer serve any hash it holds, or only to clients authorized for that root?
 4. How do peer rates fit into the client's global rate budget and token buckets?

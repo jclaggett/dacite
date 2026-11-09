@@ -1,12 +1,38 @@
 # Dacite Peering Project Plan (Draft)
 
-Status: draft, Oct 30, 2026. Owner: Jonathan Claggett (design lead). Prepared by Grok Bot.
+Status: draft. First written Oct 30, 2026. Phase 6 revised Nov 9, 2026. Owner: Jonathan Claggett (design lead). Prepared by Grok Bot.
 Baseline: repo `jclaggett/dacite` at HEAD `bc697c2` (571 JVM tests green, nbb `reveal:test` and `idb:test` green).
 Inputs: `peering-design-note.md`, `streaming-design-note.md`, `review-2026-10-29-evening.md`, `reveal-review-checklist-evening.md`, `docs/roadmap.md`.
 
 ## 1. Direction in one paragraph
 
-Narrow the reference implementation to one thing: a **peer**. Every Dacite client (nbb/Node and browser) is both a client and a server of immutable, hash-verified entries, and peers talk over **WebRTC data channels** using the wire-v1 pack format and the rate-based reveal protocol. A portable `.cljc` core (hashing, encoding, reveal policy) is shared by every host. The origin server stays the authority for root updates (CAS) and signaling. The JVM server and its tests remain a **regression baseline** until the nbb peer passes them; then the pure-Clojure JVM server may be retired.
+Narrow the reference implementation to one thing: a **peer**. Every Dacite client (nbb/Node and browser) is both a client and a server of immutable, hash-verified entries, and peers talk over **WebRTC data channels** using the wire-v1 pack format and the rate-based reveal protocol. A portable `.cljc` core (hashing, encoding, reveal policy) is shared by every host. The JVM server and its tests remain a **regression baseline** until the nbb peer passes them; then the pure-Clojure JVM server may be retired.
+
+The paragraph above is the Oct 30 direction with one sentence removed. That sentence said the origin server stays the authority for root updates (CAS) and for signaling. **Revised Nov 9, 2026** (Jonathan, with Grok Bot). The origin is not a peering-layer peer directory, and it does not relay signaling for the next slices. Root updates are the roots layer. Peering follows the layers below. Manual introduce, already built in M3.2 and M5.2, is enough to open a channel to a peer the operator named.
+
+### Layers
+
+Jonathan stated these on Nov 9. The milestones from Phase 6 sit on them.
+
+1. **Stores.** Content-addressable memory with about 1k bounded-size hash-to-data entries.
+2. **Values.** Immutable finger trees, HAMTs, and scalar values, stored by their hashes. Hash fusing is the matrix math under the finger tree and HAMT collections.
+3. **Peers.** Remote stores, with sound network policies to transfer entries efficiently, including policies for revealing large values over time and by interest. At the peering level, everything is just peers. There is no privileged origin in the peering model. Providing a peer list is out of scope for peering.
+4. **Roots.** Mutable references to immutable values.
+5. **Later layers** build on manipulating roots. A peer list belongs here. It is a conventional value, or a document that also holds a user value, published at a root.
+
+Roots already need a way to name and update what a peer publishes. A peer list is another such value. Discovery and publication sit above peering. Peering itself is: talk to a remote store under interest and rate policy, once you already have a channel to a named peer.
+
+### URI model for the Value Browser
+
+The next peering demo is a Value Browser. It works from URIs the operator types.
+
+- A URL names a peer: how you reach a remote store. A URN names a value: `urn:dacite:<hex>`.
+- The access scheme is custom, for example `dacite://dacite.io` for a peer.
+- The form people paste is one URI. The peer is the scheme and host. The value is the fragment: `dacite://dacite.io#urn:dacite:<hex>`. The fragment is a pure content name. It is not sent as an HTTP path. `<hex>` is the Dacite digest. The URN names that digest. The fuse math lives in the spec, not in the URN.
+- A path-form HTTP URI may exist later, as a fallback: ask this HTTP endpoint for that hash when no peer channel is up. `dacite://` plus the fragment is the canonical name for "this value, from this peer".
+- A URL can also name a root. A published user value and a peer list are both mutable references. The browser opens the peer named in the URL, reads that root, and walks hashes as usual. Updating the list or the published value writes a new immutable value into the same slot.
+- The browser implies a rendering stage. The first demo shows scalars and text as they are, collections (HAMT, finger tree) as a navigable tree of hashes you can click through, and a raw/hex pane. Richer media types wait until a root or a convention says how to interpret the bytes.
+- Manual introduce is enough for the first demo. No origin-maintained suggest list, and no peer list in the peering layer.
 
 ## 2. Goals and non-goals
 
@@ -14,18 +40,22 @@ Narrow the reference implementation to one thing: a **peer**. Every Dacite clien
 1. One protocol and one implementation shape: peer = store tiers + reveal engine + transport.
 2. A portable `.cljc` core with identical hashes and identical reveal decisions on JVM, nbb and browser.
 3. A minimal nbb peer (file or LMDB store) and a browser peer (IndexedDB store), both serving reads.
-4. WebRTC peering with signaling through the origin, plus admin-configured peers and mDNS for Node peers.
-5. A demo (open a large value, read it through peers) and a cleaner dacite.io portal for people and AIs.
+4. Peering stays a channel to a peer the operator named, and a fetch by hash, under the interest and rate policy in peer-v1. Manual introduce is enough. (Oct 30 goal 4 was signaling through the origin, plus admin-configured peers and mDNS. That origin path is set aside; config and mDNS remain Phase 7, as ways to learn a peer URL.)
+5. A Value Browser demo from the URI model above, then a root URL. A cleaner dacite.io portal comes after that demo (Phase 8).
 6. A documented, evidence-based decision on retiring the JVM server.
 
 ### Non-goals (for this plan)
-- DHT or wide-area discovery without an origin.
+- Providing a peer list. That is a value at a root, above peering.
+- Origin-integrated signaling for the peering layer: offer/answer/ICE relay through the origin, origin suggest, locality-based peer lists, and `/signal` on the JVM origin. That path was M6.1–M6.3. It is set aside (Nov 9). The docs-only draft is [PR #47](https://github.com/jclaggett/dacite/pull/47) at `58a3b28`. This plan does not merge or close that PR.
+- DHT or other wide-area hash-to-holder lookup.
 - TURN relay support (direct-only until measured otherwise). STUN (a public server) is used for ICE from the first WebRTC slice.
-- Peers serving writes. Root updates and CAS stay with the origin.
+- Writes on the peer protocol. peer-v1 stays read-only: a `get` of immutable entries. Root updates are the roots layer.
 - Access control beyond "serve any hash you hold" (tracked as an open question).
 - QUIC/HTTP3 reveal client. The data-channel transport replaces it as the target; the existing HTTP/3 code stays as baseline, not new work.
 - Python / C / C++ ports (the spec should make them possible, but we don't build them).
 - Choosing final decay parameters or reveal-policy overrides (carried as open items, not blocking).
+- Richer media types in the first Value Browser. Bytes wait for a root or a convention.
+- The path-form HTTP URI. It is a later fallback, not the canonical name.
 
 ## 3. Team and roles
 
@@ -143,7 +173,7 @@ Acceptance: items 1, 3, 4, 7, 9, 10, 11 and 12 land with tests; items 2 and 5 ar
 **M3.1. Peer node with a transport abstraction (slice 1 built, Nov 5).** `dacite.peer` in `.cljc`: store tiers (memory, local, peers, origin), a request handler for reveal (`have?` was removed from v1; see the peer spec, section 9), and an `ITransport` protocol. First transport is an in-process or loopback one, so protocol logic is tested without WebRTC.
 - Acceptance: two peers in one process; B reads a value stored only in A through the peer protocol; entries verified; a corrupted entry ends the session (test).
 
-**WebRTC plan, approved by Jonathan (Nov 5).** M3.1 and M3.2 are cut into three slices, and M3.2 gains a thin WebSocket signaling server (the origin-integrated signaling of M6 stays where it is). The decisions:
+**WebRTC plan, approved by Jonathan (Nov 5).** M3.1 and M3.2 are cut into three slices, and M3.2 gains a thin WebSocket signaling server (origin-integrated signaling was left for the then-future M6). Nov 9 set that path aside; see Phase 6. The decisions:
 
 - **`ITransport` is a connection that opens named channels.** One connection (one `RTCPeerConnection`, one offer/answer) carries several named channels, all negotiated in one handshake (up front, or on demand under the same names). Each channel has `send!`, `on-message!`, `buffered-amount` and `close!` (plus `on-close!` and `max-message-size` in the code: `dacite.peer.transport`, `IChannel` and `ITransport`). Messages are opaque bytes; the transport never parses a frame.
 - **Peering uses `"dacite-peer"` only.** Every peer frame (`hello`, every `get`, every item response, `ack`, `cancel`, `error`) shares this one channel, and streams are told apart by the stream id in the frame envelope. The roots layer (publish and query a public root, a trusted peer suggesting a root the server then pulls with `get`; `docs/design/roots.md`) uses `"dacite-roots"` on the same connection. Peering never sees a roots frame, and roots never sees a peer frame. A connection close closes every channel; one channel's close ends only that layer's session.
@@ -233,66 +263,96 @@ Triage of `reveal-review-checklist-evening.md` (52 items). Items split by where 
 
 **M5.3. Library reader through peers, with measurements.** The library app reads a chapter and an image via the nbb peer, with origin fallback on timeout.
 - Acceptance: a measurements table (round trips, bytes from peer vs origin, time to first render) for origin-only vs peer-assisted, committed to `docs/plan/measurements.md`. This is the first proof point for the NSF pitch story.
-- **Status (Nov 8, built).** The library page stays on `:cljs-library` (`cljs.build.api`). That bundle now includes the browser peer. `dacite.examples.library-nbb` holds `seed-library` and answers on the slice-3 room. `dacite.examples.library-origin` publishes the same catalog (the root hashes matched) and serves `/app/library/`. The page is the offerer. With `signal` and `room` it `GET`s `/root`, then one `get` of that hash. The nodes land in a memory store and the existing reader renders them. `chapter=0` opens chapter 0 of the first book. The seed book now carries `seed-plate`, a 16×16 public-domain PNG (100 bytes) drawn for this catalog, shown as an image on the chapter page. If the peer has not delivered when `peer-timeout` elapses (default 15 s, from the moment the root hash is known), the page loads that same root through the HTTP store. No `IStore` change. No origin discovery, no mDNS, no selection policy (those are Phase 6).
+- **Status (Nov 8, built).** The library page stays on `:cljs-library` (`cljs.build.api`). That bundle now includes the browser peer. `dacite.examples.library-nbb` holds `seed-library` and answers on the slice-3 room. `dacite.examples.library-origin` publishes the same catalog (the root hashes matched) and serves `/app/library/`. The page is the offerer. With `signal` and `room` it `GET`s `/root`, then one `get` of that hash. The nodes land in a memory store and the existing reader renders them. `chapter=0` opens chapter 0 of the first book. The seed book now carries `seed-plate`, a 16×16 public-domain PNG (100 bytes) drawn for this catalog, shown as an image on the chapter page. If the peer has not delivered when `peer-timeout` elapses (default 15 s, from the moment the root hash is known), the page loads that same root through the HTTP store. No `IStore` change. No origin discovery, no mDNS, no selection policy (those were the old Phase 6, set aside Nov 9).
   - **Measured, loopback, two runs.** Origin-only: 3 round trips, 0 bytes from the peer, 11 136 bytes from the origin. Peer-assisted: 2 round trips (1 root GET + 1 `get`), 19 470 bytes from the peer, 74 bytes from the origin (the root EDN). Time to first render was 493 ms then 548 ms origin-only, and 619 ms then 682 ms peer-assisted. The peer sends the whole catalog. The origin pack-fills the chapter and the plate, so total bytes are higher on the peer path and origin bytes drop by 11 062. First render is slower with the peer on this small value. Table, method, and the fallback run: `docs/plan/measurements.md`. `npm run library:e2e`.
   - **tau and hashing.** `tau` stays 10 000 ms. Building the catalog on nbb took 174 ms and 207 ms (hashing included). After the first item frame the streams were empty in about 3 ms, well under `tau`. One `get`, `recv-max` 10 000 000. The C45 stale-`recv-max` gap does not come up with one peer. No protocol change.
   - **Fallback.** `peer-timeout=400` and a room with no answerer. The chapter and the plate still render from the origin. Bytes from the peer 0. Bytes from the origin 11 210 (the root GET plus the origin-only read).
 
-### Phase 6: WebRTC signaling via the origin (Fri Nov 20 to Tue Nov 24)
+### Phase 6: Value Browser. Origin-integrated signaling is set aside
 
-**M6.1. Signaling protocol.** Offer/answer/ICE relay messages, peer announcement, network hints (public IP, subnet, site tag), authentication of the signaling channel. Added to `peer-v1.md`.
-- Acceptance: spec section with sequence diagrams and golden messages; Jonathan decides open question 1 (peer lists by root or by locality).
+The Oct 30 grid put origin signaling on Fri Nov 20 to Tue Nov 24. That sequence is withdrawn. Nothing in it is the next slice, and nothing in it is implemented on `main`.
 
-**M6.2. Origin signaling endpoint.** Implemented where the origin lives today (JVM service) and, if the retirement plan needs it, mirrored in an nbb origin. WebSocket or long-poll.
-- Acceptance: two browsers and one nbb peer find each other through the origin with no manual steps; a peer behind a different site tag is not suggested.
+**M6.1–M6.3. Set aside (Nov 9).** Offer/answer/ICE relay, peer announcement, network hints (public IP, subnet, site tag), authentication of a signaling channel, an origin endpoint (`/signal` on the JVM service, WebSocket or long-poll), and selection by kind, LAN, and latency, with origin fallback. Open question 1 (peer lists by root or by locality) was the M6.1 decision. It is withdrawn from the peering plan; see section 10.
+- **M6.1 exists as a docs-only draft**, not as code: [PR #47](https://github.com/jclaggett/dacite/pull/47), head `58a3b28` (`docs/spec/peer-v1.md` section 14 on that branch). It specifies the origin channel, locality-only `suggest`, and the relay. This plan does not merge it, close it, or build M6.2 and M6.3 on top of it.
+- Superseded for the peering layer. Peering stays "open a channel to a peer I named and fetch by hash."
+- The slice-3 room relay (M3.2) stays what it is: two peers who already share a token. That is manual introduce.
 
-**M6.3. Peer selection and fallback.** Prefer Node over browser peers, LAN over WAN, low latency; cap concurrent peers; fall back to the origin after a short timeout.
-- Acceptance: tests with simulated peers (slow, dead, corrupt, honest): the client always completes with correct data, bad peers are dropped, and the origin is used when no peer answers.
+**M6.4. Paste a peer and fetch its hash.** The page takes a URI the operator types. Manual introduce is enough to open the channel. No new peer-v1 message.
+- The field accepts `dacite://<host>` together with a value URN, and it accepts the one pasteable form `dacite://<host>#urn:dacite:<hex>`. The host is the peer. The fragment is the content name (`urn:dacite:<hex>`, the Dacite digest). The page does not send the fragment as an HTTP path.
+- Opening the channel reuses manual introduce (the slice-3 room, or a paste of the offer, as in M5.2), aimed at the peer the host names. The URI is the name. There is no lookup and no suggest list.
+- One `get` of that hash, under the interest and rate rules already in peer-v1. Entries are verified before they are stored.
+- Acceptance: the shown hash is the fragment; every received entry verifies; a second paste of another hash to the same peer fetches that hash; a hash the peer does not hold fails as peer-v1 already fails it (`unknown-hash`). A headless check, or a written manual script in the style of M5.2.
+- Out of scope: rendering past the hash and the entry count (M6.5); roots (M6.6); a path-form HTTP URI; `/signal`; origin suggest; mDNS; a peer list; TURN; any addition to peer-v1.
 
-### Phase 7: Admin-configured peers and mDNS (Wed Nov 25, Mon Nov 30)
+**M6.5. Value Browser rendering.** The same page, once the hash is in the page's store.
+- A scalar or text renders as itself.
+- A HAMT or a finger tree renders as a tree of child hashes. Choosing a hash fetches it from the same peer (another `get`, same interest and rate policy) and opens it.
+- A raw/hex pane shows the stored bytes of the entry on screen.
+- Acceptance: from one pasted URI, a scalar or a string is readable; a map or a vector can be stepped into, one hash at a time; the raw pane shows the entry the tree is showing. Headless or a written manual script, same bar as M6.4.
+- Out of scope: images, HTML, and any other media type (those wait until a root or a convention says how to interpret the bytes); editing; a root URL (M6.6); a second peer; origin fallback; the path-form HTTP URI.
 
-**M7.1. Configured peers.** Config file and origin-served config listing Node peers by address or site tag.
-- Acceptance: a client with a config entry connects to that peer first and falls back correctly if it is down.
+**M6.6. Open a root URL.** Immediately after the value demo, still a small slice. A URL can name a root on the peer: both a published user value and a peer list are mutable references.
+- The peer is still the scheme and host. The fragment stays a pure content name, so the root is not written as a hash in the fragment. This slice picks the spelling of the root URL and records it next to the value URI above.
+- The page opens that peer, reads the root, and walks hashes with the M6.5 renderer.
+- A peer list, if this slice shows one, is a value published at a root. The page reads it the same way it reads any other root. It does not dial the list. Updating the list or the published value is writing a new immutable value into the same slot.
+- Acceptance: after the publisher moves the root, a reload shows the new hash and renders it. The previous value is still reachable by its own URN. If a peer-list value is the fixture, it renders as a collection of hashes, and the page does not open those peers on its own.
+- Out of scope: the page writing the root; watching for changes; discovery; mDNS; admin config; treating the list as a peering directory.
 
-**M7.2. mDNS for Node peers.** Announce and browse `_dacite._udp`; verify with two Node peers on one LAN segment. Browsers still learn Node peers via origin or config.
-- Acceptance: two nbb peers on the same LAN find each other with no origin; an announcement from another network is ignored. Document firewall and VLAN caveats.
+### Phase 7: Ways to learn a peer URL (admin config and mDNS)
 
-### Phase 8: Demo and portal (Tue Dec 1 to Thu Dec 3)
+The Oct 30 grid dated this Wed Nov 25 and Mon Nov 30, and M7.1 was an origin-served config. Those dates are the old schedule. Config and mDNS stay later ways to learn a peer URL or to publish a root. They are not peering primitives, and they do not put an origin peer list back into the peering layer.
 
-**M8.1. Live demo.** A page on dacite.io that opens a large value (library) and shows, live, where each page came from (origin, Node peer, browser peer, local cache) and what it saved.
-- Acceptance: loads on a clean browser profile, works with the origin only, and shows peer sources when a Node peer is running.
+**M7.1. A configured list of peer URLs.** A local file or setting names peers by `dacite://` URL. The client may open a named URL from that list. The list is configuration on the machine. It is not a value the origin serves, and it is not a peer-v1 message.
+- Acceptance: a client whose config names one peer URL opens that peer and fetches a hash; with that peer down, the fetch fails in a way the test can see, and the client does not ask an origin for a substitute.
+- Out of scope: origin-served config, site tags, selection by latency or by who holds a root, the path-form HTTP fallback.
 
-**M8.2. Portal restructure (with Doc/Spec bot).** dacite.io becomes: overview, live demo, spec index (wire-v1, peer-v1), quick start (run a peer in five commands), the Dacite Book.
-- Acceptance: a new reader can run a Node peer from the quick start without help (Jonathan or a volunteer tries it cold).
+**M7.2. mDNS announces a peer URL.** Node peers announce and browse `_dacite._udp` and learn a `dacite://` URL. A browser still gets a Node peer URL from a person or from the M7.1 config.
+- Acceptance: two nbb peers on the same LAN learn each other's URLs with no directory; an announcement from another network is ignored. Document firewall and VLAN caveats.
+- Out of scope: browsers browsing mDNS, an origin peer list, a peering-layer message for the announcement.
+
+### Phase 8: Later demo and portal
+
+The Oct 30 grid dated this Tue Dec 1 to Thu Dec 3, after origin signaling. The first browse of a value is M6.5. Phase 8 is the later public page and the portal, once the Value Browser exists. Publishing a root on dacite.io is a roots-layer act. dacite.io stays a peer you can name, the same as any other.
+
+**M8.1. Live demo.** A page on dacite.io runs the Value Browser on a large value and shows, live, where each page came from (the named peer, the local cache) and what that saved.
+- Acceptance: loads on a clean browser profile from a pasted `dacite://` URI; renders with that peer; when a second named peer is running, the readout can show that peer as a source.
+- Out of scope: origin suggest, a locality peer list. The path-form HTTP fallback may be wired here if no peer channel is up, and it stays a fallback.
+
+**M8.2. Portal restructure (with Doc/Spec bot).** dacite.io becomes: overview, live demo, spec index (wire-v1, peer-v1), quick start (run a peer in five commands, paste its URI), the Dacite Book.
+- Acceptance: a new reader can run a Node peer from the quick start and paste its URI into the Value Browser without help (Jonathan or a volunteer tries it cold).
 
 **M8.3. AI-facing docs.** `llms.txt` and `llms-full.txt` at the site root, plus spec pages in plain markdown with stable URLs.
-- Acceptance: a fresh AI agent given only `https://dacite.io/llms.txt` answers five scripted questions about peering correctly and can fetch a value through the demo.
+- Acceptance: a fresh AI agent given only `https://dacite.io/llms.txt` answers five scripted questions about peering correctly (including that a peer list is a value at a root) and can fetch a value through the demo.
 
-### Phase 9: JVM retirement decision (Fri Dec 4 prep, Tue Dec 8 decide)
+### Phase 9: JVM retirement decision
+
+The Oct 30 grid said Fri Dec 4 prep and a decision on Tue Dec 8. That date is not carried forward. The criteria stand. Retirement does not add an origin peer directory to peering.
 
 **M9.1. Parity report.** Run the full baseline against the nbb peer. For each of the 571 JVM tests: passes on nbb, ported to the parity suite, covered by another test, or intentionally dropped (with a reason).
 - Acceptance: a table with no unexplained rows; the numbers are in `docs/plan/jvm-retirement.md`.
 
-**M9.2. Decision meeting (design discussion on Tue Dec 8).** Retire when all hold:
+**M9.2. Decision meeting.** Retire when all hold:
 1. nbb peer passes the parity suite and every baseline test that tests protocol behavior.
-2. An nbb origin can do what the JVM service does for readers and root CAS (or the CAS authority is explicitly kept elsewhere).
+2. An nbb peer can do what the JVM service does for readers and for holding a root (or that root is explicitly kept on a named peer). This is the roots layer. It is not a peering-layer directory.
 3. Performance on the library benchmark is within an agreed margin (suggested: no worse than 1.5x JVM reveal time).
-4. Peer-assisted demo and docs no longer reference the JVM server.
+4. The Value Browser demo and the docs no longer require the JVM server.
 5. Jonathan accepts the loss of JVM-only features (LMDB v1 behavior, HTTP/3 server). Anything wanted is moved or filed as a non-goal.
 - Outcomes: retire (archive `impl/clojure` JVM-only code, keep `.cljc` core and test fixtures), retire later with a dated checklist, or keep as a test oracle only.
 
 ## 6. Timeline at a glance
 
+The grid is the Oct 30 target schedule, kept as history. Phases 0 through 5 landed, and several landed before the week this grid gave them (M5.3 on Nov 8). From the old M6.1 the cells are the origin-signaling sequence, set aside Nov 9. M6.4, M6.5, and M6.6 are the next slices. This grid does not date them.
+
 | Week | Mon | Tue | Wed | Thu | Fri |
 |---|---|---|---|---|---|
 | Nov 2 | M0 | M1.1 | M1.1a (right after M1.1 merges), M1.2 | M2.1 (Doc/Spec bot starts) | M2.2 |
 | Nov 9 | M2.3 | M3.1 | M3.2 | M3.3 | M4.1 |
-| Nov 16 | M4.2 | M5.1 | M5.2 | M5.3 | M6.1 |
-| Nov 23 | M6.2 | M6.3 | M7.1 | holiday | buffer |
-| Nov 30 | M7.2 | M8.1 | M8.2 | M8.3 | M9.1 prep |
-| Dec 7 | week plan | **M9.2 decision** | | | |
+| Nov 16 | M4.2 | M5.1 | M5.2 | M5.3 | old M6.1, set aside |
+| Nov 23 | old M6.2, set aside | old M6.3, set aside | old M7.1 target | holiday | buffer |
+| Nov 30 | old M7.2 target | old M8.1 target | old M8.2 target | old M8.3 target | old M9.1 target |
+| Dec 7 | week plan | old M9.2 target | | | |
 
-About 24 working days, a decision on or near Dec 8. Phases 4 and 6 are the likeliest to slip. Buffer days: Nov 26 and 27, plus Fridays.
+The Oct 30 close was about 24 working days and a decision on or near Dec 8. That end date is not carried forward. Buffer days Nov 26 and 27 belonged to that grid.
 
 ## 7. Acceptance tests that apply to every milestone
 
@@ -312,9 +372,9 @@ About 24 working days, a decision on or near Dec 8. Phases 4 and 6 are the likel
 | Browser build tooling for `.cljc` isn't set up (nbb is interpreted, browsers need compiled CLJS) | M5.1 grows to several days | Set up in M5.1: shadow-cljs (`docs/design/core-boundary.md`, `impl/clojure/shadow-cljs.edn`). The `:cljs-web`, `:cljs-explorer`, and `:cljs-library` aliases stay on `cljs.build.api` |
 | WebRTC flow control and message size limits differ across browsers | Stalls or dropped data | Cap message size in the spec (M1.1) and clamp `max-frame` to each channel's negotiated `maxMessageSize` (M3.1); on node-datachannel 0.33.6 clamp further to 4096 (M3.2; raise when upstream is fixed); test `bufferedAmount` handling in M3.2 and M5.2; test Chromium, Firefox, Safari |
 | Reveal protocol is still moving (peer rates, token buckets, `R_max` agreement, decay parameters are open) | Spec churn after implementation | Spec only what's decided; mark the rest "experimental"; keep tuning parameters configurable |
-| Retiring the JVM server removes the only server with root CAS, auth and HTTP/3 | Lose features | Retirement criteria in M9.2; an nbb origin is a prerequisite, not an afterthought; confirm what `docs/authorization.allium` requires |
+| Retiring the JVM server removes today's root CAS, auth and HTTP/3 | Lose features the examples still use | Retirement criteria in M9.2; a named peer can hold the root (the roots layer); confirm what `docs/authorization.allium` requires. Retirement does not add a peer directory |
 | Malicious or buggy peers (bad data, resource exhaustion, probing) | Security, privacy | Verify every entry; drop on first bad entry; per-peer caps; read-only; privacy open question gets an answer before the demo is public |
-| Browser peers are short-lived and quota-limited | Poor hit rate | Treat as opportunistic; prefer Node peers; opt-in default decision (open question 6) |
+| Browser peers are short-lived and quota-limited | Poor hit rate | Treat as opportunistic; the operator names the peer to open; opt-in default decision (open question 5) |
 | Sunk cost: HTTP/3 reveal work (`POST /reveal`) | Wasted effort if the data channel diverges | Reuse the item stream and reveal engine; only the transport changes |
 | Bot-driven development quality (Programmer bot cannot run cloud-agent coding loops under the current Cursor plan) | Slower, more review cycles | Small PRs, strict daily milestone, independent review; reassess after Phase 3 whether to upgrade the plan |
 | Thin schedule around Thanksgiving and other commitments | Slips | Buffer on Nov 26 and 27; slip rule in section 4 |
@@ -323,20 +383,20 @@ About 24 working days, a decision on or near Dec 8. Phases 4 and 6 are the likel
 
 - **Create it Thu Nov 5**, right after M1.2 produces the first `peer-v1.md` draft. Thursday is the docs day.
 - **First assignments (Nov 5 to Nov 19):** clean the peer spec and wire-v1 cross-references, make the conformance list readable, set up the docs structure (`docs/spec`, `docs/design`, `docs/plan`), flag where docs and code disagree (e.g. N15a: the repo's `streaming-design-note.md` still has the old peering section).
-- **Phase 8 (Dec 1 to 3):** owns the portal restructure, the demo page copy, the quick start, and `llms.txt`. It does not own protocol decisions; it asks Jonathan or Grok Bot.
+- **Phase 8** owns the portal restructure, the demo page copy, the quick start, and `llms.txt`, after the Value Browser. The Dec 1–3 dates were the Oct 30 grid. It does not own protocol decisions; it asks Jonathan or Grok Bot.
 - Until it exists, Grok Bot keeps the notes in sync during the morning discussion.
 
 ## 10. Open questions
 
 For the next design discussions, roughly in the order they block work.
 
-1. **Peer lists:** does the origin suggest peers by root or only by network locality? (Decide in M6.1.) *Deferred for M1.2* (spec 12.13): discovery happens before a session exists and has no peer-v1 message; the v1 default is locality only.
+1. **Peer lists by root or by locality. Withdrawn from the peering plan (Nov 9).** The origin is not a peering-layer peer directory, so this is not a peering-layer question. A peer list, if one exists, is a conventional value published at a root (layers above peering; M6.6 may show one as a root and nothing more). *The Nov 4 deferral* (spec 12.13) had pointed the question at M6.1 and taken locality-only as the v1 default. That default is not a peering milestone. The old M6.1 draft (PR #47) answered it as locality only; that draft is set aside.
 2. **Peer rates: answered (Jonathan, Nov 4).** A client has one shared `R_max`, split by interest across all its open requests, whichever peer serves each. Each peer also caps what it sends; a request's rate is `min(interest share, that peer's send max)`, and share a capped peer cannot use goes to the other requests. Rejected: a separate budget per peer (simpler, but several peers together could oversubscribe the client's link, which `R_max` exists to prevent). Token buckets: spec 12.11 (Decided, 20/s burst 40). See spec 12.2.
-3. **Privacy:** does asking a peer for a hash reveal what the client reads? Should a probing `get` be limited to known peers or a site? (Before M8.1 is public.) *Deferred for M1.2* (spec 12.13): a deployment policy, not a wire rule; v1 says plainly that a peer learns every hash it is asked for, and clients dial only origin- or admin-named peers.
+3. **Privacy:** does asking a peer for a hash reveal what the client reads? Should a probing `get` be limited to known peers or a site? (Before M8.1 is public.) *Deferred for M1.2* (spec 12.13): a deployment policy, not a wire rule; v1 says plainly that a peer learns every hash it is asked for. Nov 9: the client dials a peer the operator named (a pasted URI). Later, config or mDNS may supply that name (Phase 7). An origin suggest list does not.
 4. **Access control:** may a peer serve any hash it holds, or only to clients authorized for that root? What does the authorization model (`docs/authorization.allium`) mean for peers? *Deferred for M1.2* (spec 12.13): it depends on the authorization model and on question 7; the v1 default is the non-goal above (serve any hash you hold).
 5. **Browser peers:** serve by default, or opt-in? Quota policy?
 6. **TURN:** direct-only, or an optional relay?
-7. **Origin in the new world:** is the origin an nbb peer with an HTTP/WebSocket front end, with the JVM service as an optional alternate? Who is the CAS authority?
+7. **Who publishes a root. Withdrawn as an origin-in-peering question (Nov 9).** Peering has no privileged origin. A root is a mutable reference in the layer above, and a peer publishes one by writing a new immutable value into that slot. The JVM service remains the regression baseline and still answers `GET /root` for today's examples. Whether an nbb process replaces that service is M9. M9 does not add a peer directory to peering.
 8. **Browser build tooling: answered (M2.1, set up in M5.1).** shadow-cljs compiles the `.cljc` core and the peer for the browser, and the compiled-CLJS test of that build (`impl/clojure/shadow-cljs.edn`, `npm run peer:build`, `npm run browser:test`). The `:cljs-web`, `:cljs-explorer`, and `:cljs-library` aliases stay on `cljs.build.api`.
 9. **Decay parameters, `R_max` agreement and reveal policy overrides:** carried from the streaming note; do we choose defaults now or measure first (M5.3)? *Partly answered (Nov 4, measured Nov 8):* `tau` stays 10 s. On the M5.3 library read the nbb build was about 0.2 s and the answer finished about 3 ms after the first item frame, so this catalog does not exercise decay (`docs/plan/measurements.md`). `R_max` agreement is `recv-max` in each `get` (spec 6.2, C03, C45; Decided Nov 4, the `rate` message was withdrawn). One peer and one `get` sent `recv-max` 10 000 000. The stale-`recv-max` gap did not come up. The `floor` has a minimum and the lifetime a bound (spec 12.3, C09 and C10, Decided).
 10. **Naming and packaging:** an npm package for the Node peer (`npx dacite-peer`)? A container image for admins?
@@ -345,7 +405,8 @@ For the next design discussions, roughly in the order they block work.
 
 ## 11. Immediate next steps
 
-1. Jonathan confirms or edits this plan (including the Mon Nov 2 start).
-2. Programmer bot checks out the repo and does M0.
-3. Grok Bot prepares the M1.1 design discussion agenda (message set, framing, stream ids) for Tue Nov 3, 8:45 ET.
-4. Decide whether Projects Manager mirrors the milestone list.
+The Nov 2 list (confirm the plan, M0, the M1.1 agenda) is done. Phases 0 through 5 are built, through M5.3.
+
+1. Next slice is M6.4: the page takes a pasted `dacite://` URI and fetches that hash from the named peer. Manual introduce is enough. No origin signaling.
+2. M6.5 is the rendering stage (scalars and text, collections as a tree of hashes, a raw/hex pane). M6.6 is the root URL, and a peer list only as another root.
+3. PR #47 stays as it is. It is the set-aside M6.1 spec, not the implementation queue.

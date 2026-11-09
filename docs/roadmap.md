@@ -1,15 +1,22 @@
 # Dacite Roadmap
 
-*Last updated: 2026-11-06*
+*Last updated: 2026-11-09*
 
 ## Current direction
 
-**Peering is the active plan** ([plan/peering.md](plan/peering.md)). M5.1
-compiled the peer for the browser with shadow-cljs. That page's local
-tier is IndexedDB (`dacite.store.idb`). The browser transport is
-`RTCPeerConnection` (`dacite.peer.transport.browser`). The earlier
-`:cljs-web`, `:cljs-explorer`, and `:cljs-library` bundles stay on
-`cljs.build.api`.
+**Peering is the active plan** ([plan/peering.md](plan/peering.md)).
+M5.1 compiled the peer for the browser with shadow-cljs. M5.2 and M5.3
+are built: the browser reads a value held only by the nbb peer, and the
+library reader loads a chapter and a plate from that peer. The next
+peering slices are the Value Browser (M6.4–M6.6): a pasted
+`dacite://<host>#urn:dacite:<hex>`, scalars and text as they
+are, collections as a tree of hashes, a raw/hex pane, then a root URL.
+Origin-integrated signaling (the old M6.1–M6.3, including origin
+suggest) is set aside. PR #47 is that docs-only draft and is not the
+next slice. The page's local tier is IndexedDB (`dacite.store.idb`).
+The browser transport is `RTCPeerConnection`
+(`dacite.peer.transport.browser`). The earlier `:cljs-web`,
+`:cljs-explorer`, and `:cljs-library` bundles stay on `cljs.build.api`.
 
 **Client/server reveal is the work.** The public-domain library is large
 enough to show the transport cost, and that cost is the current problem.
@@ -104,29 +111,38 @@ JVM `s-get` reads it with `ofByteArray`.
 `GET /events` already streams on this server. `POST /nodes/get` stays the
 demoted bulk snapshot.
 
-**LAN peering** follows once that reveal stream exists. A read falls
-through memory, then the local store (IndexedDB or LMDB), then one
-preferred peer, then the origin. The peer serves reads only. Root CAS
-and `GET /events` stay on the origin. One WebRTC data channel carries
-one reveal. Each received entry is checked against its hash before it
-is stored, and a bad entry ends that peer. A miss or a short timeout
-falls through to the origin. The origin the client already uses relays
-signaling and suggests peers by network locality. The peer that gets
-built is a configured Node process on the nbb LMDB store. Node peers
-are preferred, concurrent peers are capped, and the traffic is direct.
-The library reader is the measurement: bytes and time from the peer
-against bytes and time from the origin. The account is
-[design/peering-design-note.md](design/peering-design-note.md).
+**Peering**, through M5.3, is a channel to a peer the operator named
+and a fetch by hash. Manual introduce (the slice-3 room) is enough.
+One WebRTC data channel carries one reveal. Each received entry is
+checked against its hash before it is stored, and a bad entry ends
+that peer. The peer protocol stays read-only. A root is a mutable
+reference in the layer above, published by the peer the URL names.
+There is no privileged origin in the peering model. The library
+reader is the measurement already taken: bytes and time from the
+peer against bytes and time from the origin
+(`plan/measurements.md`). The account is
+[design/peering-design-note.md](design/peering-design-note.md) and
+[plan/peering.md](plan/peering.md) Phase 6.
 
-Later on that same line: a `have?` bitmap once more than one peer is a
-candidate, mDNS for Node peers on a LAN, and a tab that serves after
-the user opts in. A DHT stays off this road. `GET have` stays shelved
-with the other pack query opt-outs.
+Next on that line is the Value Browser. The operator pastes
+`dacite://<host>#urn:dacite:<hex>`. The
+fragment is the content name and is not sent as an HTTP path. The
+page renders scalars and text as they are, a HAMT or finger tree as
+a tree of hashes, and a raw/hex pane. A root URL is the following
+slice. A peer list is a value at a root, the same kind of walk.
 
-Still open on that line: peer lists by root, whether asking a peer
-exposes the read and who may be asked, whether a peer serves every
-hash it holds, how peer bytes sit in the client rate budget, and
-whether a TURN relay is worth it for a cache.
+Later on that same line: mDNS and a configured list of peer URLs, as
+ways to learn a URL, and a tab that serves after the user opts in.
+A path-form HTTP URI may exist still later, as a fallback when no
+peer channel is up. A DHT stays off this road. `GET have` stays
+shelved with the other pack query opt-outs. `have?` on the peer
+wire stays removed from v1.
+
+Still open on that line: whether asking a peer exposes the read and
+who may be asked, whether a peer serves every hash it holds, and
+whether a TURN relay is worth it for a cache. Peer rates are
+answered (one shared `R_max`). Peer lists by root or by locality
+are withdrawn from the peering plan.
 
 The library project waits until the reveal client and the streamed pack
 are done. Come back to it for:
@@ -537,7 +553,7 @@ is the next milestone.
 | IndexedDB store | A web client needs a durable store of its own | **Done** — `dacite.store.idb`. `open` is a rooted store; `idb-store` is the content dictionary a `SmartCacheStore` can put in front of a remote. Ops suspend and `drive` replays them |
 | QUIC reveal client | A focused child collection is its own stream | **Next** — `POST /reveal` streams wire-v1 node items on one connection (the QUIC session on HTTP/3). A second POST while that response is still open is a focused child: the parent stays open, and a hash either stream has offered is not sent on the other. `GET /events` stays up while those two reveals are open. Resetting a stream is not tested. A finished stream acknowledges its pages; a failed stream cancels and releases them. No client ack or release message yet. `remote-store` opts in with `:reveal` and keeps one HTTP/3 connection; the default read is still pack GET. `peak`, `tau`, `floor`, and `r-max` are placeholders. `dacite.reveal` remains the page order, the shares, and the session clock. The pages on that stream are the carrier the LAN peer tier reuses. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
 | Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the reveal client** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
-| LAN peering | A second reader on the LAN should take pages from a neighbor's cache | **After the reveal stream** — memory, then IndexedDB or LMDB, then one preferred peer, then the origin. One WebRTC data channel carries one reveal. The origin relays signaling and suggests peers by locality. The peer built here is a configured Node process on nbb LMDB. Reads only. Root CAS and `GET /events` stay on the origin. Direct traffic, concurrent peers capped. The account is [design/peering-design-note.md](design/peering-design-note.md) |
+| LAN peering | A second reader on the LAN should take pages from a neighbor's cache | **Through M5.3, built** — a channel to a named peer and a fetch by hash. Manual introduce. One WebRTC data channel carries one reveal. Reads only. **Next: the Value Browser** (M6.4–M6.6). Origin signaling and origin suggest are set aside. A peer list is a value at a root. The account is [plan/peering.md](plan/peering.md) and [design/peering-design-note.md](design/peering-design-note.md) |
 
 Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
 
@@ -642,10 +658,14 @@ QUIC reveal client                                 ← current
           that stream are what a peer reuses
 Stream a pack on one HTTP response                 after the reveal client
         → HTTP/1.1 carrier of the byte limit
-LAN peering                                        after the reveal stream
-        → memory, local store, one peer, origin;
+LAN peering                                        through M5.3
+        → a named peer and a fetch by hash;
           one data channel carries one reveal;
-          origin signals; Node peer on LMDB
+          manual introduce is enough
+Value Browser                                      next (M6.4–M6.6)
+        → paste dacite://host#urn:dacite:<hex>;
+          scalars and text, collections as hashes,
+          a raw/hex pane, then a root URL
 Library, resumed                                   after reveal and streamed pack
         → EPUB ingest, extra indexes, upload form
 ```
@@ -665,6 +685,7 @@ Do not invent “app 7” to fill the tree.
 - [boxed-u8-runs.md](design/boxed-u8-runs.md) — `u8` run payload is a copied byte buffer
 - [value-realization-and-computation.md](design/value-realization-and-computation.md)
   — `realize`, partial availability, bounded print
-- [peering-design-note.md](design/peering-design-note.md) — LAN peer tier
-  after the reveal stream: WebRTC data channel, origin signaling, a
-  Node peer on LMDB
+- [peering-design-note.md](design/peering-design-note.md) — LAN peer tier:
+  WebRTC data channel, a named peer, fetch by hash. Origin signaling
+  is set aside. The next demo is the Value Browser in
+  [plan/peering.md](plan/peering.md)

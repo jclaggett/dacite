@@ -1,6 +1,7 @@
 # Dacite Roots (Design Note, Draft)
 
 Status: draft, Nov 5, 2026. Owner: Jonathan Claggett (design lead). Prepared by the Dacite Programmer bot for Jonathan's review.
+**Pointer (Nov 9).** The peering plan no longer treats the origin as a peer directory, and Phase 6 is the Value Browser. A root is a mutable reference a named peer publishes. This note's suggest flow is still the Nov 5 sketch.
 **Spec only: no code, no frozen wire format.** Message shapes below are sketches to think with, not a protocol.
 
 ## Purpose
@@ -97,7 +98,7 @@ suggester (trusted peer)                       server (root authority)
 - Authentication and authorization details: how a suggester proves who it is or whom it acts for; per-root permissions; signed roots; how this meets `authorization.allium`.
 - Any implementation, including the combined client-and-responder node the suggest pull needs.
 - Multiple named roots per server; history, snapshots or merging of suggested roots; conflict policy beyond "decline a stale `base`".
-- Root discovery (finding who publishes a root for what), peer lists, mDNS (peering plan M6 and M7).
+- Root discovery (finding who publishes a root for what). A peer list is a value at a root, above peering (plan Phase 6, M6.6). mDNS and a configured list of peer URLs are plan Phase 7, ways to learn a URL. The old peering-plan M6 origin directory is set aside.
 - Replacing the origin's `GET /root`, `POST /root/cas` and `GET /events`: they stay as they are; this layer is for peers on a WebRTC connection.
 
 ## Open questions
@@ -112,7 +113,7 @@ suggester (trusted peer)                       server (root authority)
 
 ## Where this connects
 
-- `docs/plan/peering.md`: M3.1 and M3.2 (the approved WebRTC plan, named channels, slices), the milestone this layer rides on; phase 6 (signaling and the origin), phase 7.
+- `docs/plan/peering.md`: M3.1 and M3.2 (the approved WebRTC plan, named channels, slices). Phase 6 is the Value Browser. Origin signaling is set aside. Phase 7 is a later way to learn a peer URL.
 - `docs/spec/peer-v1.md`: section 5 (named channels, `maxMessageSize` clamp, close rules), section 6 (`get`), section 12 (verification, read-only rule).
 - `docs/design/peering-design-note.md`: peers serve only reads; root updates and CAS stay with the origin.
 - `docs/design/service.md`: today's root endpoints (`GET /root`, `POST /root/cas`, `GET /events`).
