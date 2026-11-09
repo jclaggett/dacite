@@ -26,9 +26,9 @@ Roots already need a way to name and update what a peer publishes. A peer list i
 
 The next peering demo is a Value Browser. It works from URIs the operator types.
 
-- A URL names a peer: how you reach a remote store. A URN names a value: a content-addressed hash.
+- A URL names a peer: how you reach a remote store. A URN names a value: `urn:dacite:<hex>`.
 - The access scheme is custom, for example `dacite://dacite.io` for a peer.
-- The form people paste is one URI. The peer is the scheme and host. The value is the fragment: `dacite://dacite.io#urn:dacite:sha256:<hash>`. The fragment is a pure content name. It is not sent as an HTTP path.
+- The form people paste is one URI. The peer is the scheme and host. The value is the fragment: `dacite://dacite.io#urn:dacite:<hex>`. The fragment is a pure content name. It is not sent as an HTTP path. `<hex>` is the Dacite digest. The URN names that digest. The fuse math lives in the spec, not in the URN.
 - A path-form HTTP URI may exist later, as a fallback: ask this HTTP endpoint for that hash when no peer channel is up. `dacite://` plus the fragment is the canonical name for "this value, from this peer".
 - A URL can also name a root. A published user value and a peer list are both mutable references. The browser opens the peer named in the URL, reads that root, and walks hashes as usual. Updating the list or the published value writes a new immutable value into the same slot.
 - The browser implies a rendering stage. The first demo shows scalars and text as they are, collections (HAMT, finger tree) as a navigable tree of hashes you can click through, and a raw/hex pane. Richer media types wait until a root or a convention says how to interpret the bytes.
@@ -278,7 +278,7 @@ The Oct 30 grid put origin signaling on Fri Nov 20 to Tue Nov 24. That sequence 
 - The slice-3 room relay (M3.2) stays what it is: two peers who already share a token. That is manual introduce.
 
 **M6.4. Paste a peer and fetch its hash.** The page takes a URI the operator types. Manual introduce is enough to open the channel. No new peer-v1 message.
-- The field accepts `dacite://<host>` together with a value URN, and it accepts the one pasteable form `dacite://<host>#urn:dacite:sha256:<hex>`. The host is the peer. The fragment is the content name. The page does not send the fragment as an HTTP path.
+- The field accepts `dacite://<host>` together with a value URN, and it accepts the one pasteable form `dacite://<host>#urn:dacite:<hex>`. The host is the peer. The fragment is the content name (`urn:dacite:<hex>`, the Dacite digest). The page does not send the fragment as an HTTP path.
 - Opening the channel reuses manual introduce (the slice-3 room, or a paste of the offer, as in M5.2), aimed at the peer the host names. The URI is the name. There is no lookup and no suggest list.
 - One `get` of that hash, under the interest and rate rules already in peer-v1. Entries are verified before they are stored.
 - Acceptance: the shown hash is the fragment; every received entry verifies; a second paste of another hash to the same peer fetches that hash; a hash the peer does not hold fails as peer-v1 already fails it (`unknown-hash`). A headless check, or a written manual script in the style of M5.2.

@@ -9,7 +9,7 @@ M5.1 compiled the peer for the browser with shadow-cljs. M5.2 and M5.3
 are built: the browser reads a value held only by the nbb peer, and the
 library reader loads a chapter and a plate from that peer. The next
 peering slices are the Value Browser (M6.4–M6.6): a pasted
-`dacite://<host>#urn:dacite:sha256:<hash>`, scalars and text as they
+`dacite://<host>#urn:dacite:<hex>`, scalars and text as they
 are, collections as a tree of hashes, a raw/hex pane, then a root URL.
 Origin-integrated signaling (the old M6.1–M6.3, including origin
 suggest) is set aside. PR #47 is that docs-only draft and is not the
@@ -125,7 +125,7 @@ peer against bytes and time from the origin
 [plan/peering.md](plan/peering.md) Phase 6.
 
 Next on that line is the Value Browser. The operator pastes
-`dacite://<host>#urn:dacite:sha256:<hash>`. The
+`dacite://<host>#urn:dacite:<hex>`. The
 fragment is the content name and is not sent as an HTTP path. The
 page renders scalars and text as they are, a HAMT or finger tree as
 a tree of hashes, and a raw/hex pane. A root URL is the following
@@ -663,7 +663,7 @@ LAN peering                                        through M5.3
           one data channel carries one reveal;
           manual introduce is enough
 Value Browser                                      next (M6.4–M6.6)
-        → paste dacite://host#urn:dacite:sha256:<hash>;
+        → paste dacite://host#urn:dacite:<hex>;
           scalars and text, collections as hashes,
           a raw/hex pane, then a root URL
 Library, resumed                                   after reveal and streamed pack

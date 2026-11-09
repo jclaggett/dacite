@@ -42,7 +42,7 @@ memory -> local store (IndexedDB or LMDB) -> peers -> origin server
 
 ## Discovery (first stab)
 
-Discovery finds candidate peers, and signaling connects them. The list below is the Oct 29 order. Nov 9 takes item 1 out of the peering layer. The next demo types a peer URI by hand (`dacite://<host>#urn:dacite:sha256:<hash>`). Items 2 and 3 remain later ways to learn that URL (plan Phase 7). They are not peering primitives.
+Discovery finds candidate peers, and signaling connects them. The list below is the Oct 29 order. Nov 9 takes item 1 out of the peering layer. The next demo types a peer URI by hand (`dacite://<host>#urn:dacite:<hex>`, the Dacite digest). Items 2 and 3 remain later ways to learn that URL (plan Phase 7). They are not peering primitives.
 
 1. **Origin as signaling and rendezvous.** The Oct 29 option: the server a client already talks to relays WebRTC signaling and suggests peers, grouped by public IP, subnet, or a site tag. Set aside for peering (Nov 9). The docs-only draft of that channel is PR #47 (`58a3b28`). It is not the next slice.
 2. **Configured peers.** Admins list Node peers by `dacite://` URL in client config. This is predictable and works well for enterprise and HPC deployments. The list is local configuration, not a value the origin serves.
