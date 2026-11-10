@@ -1398,17 +1398,17 @@ ones marked "(exists, slice 1)": portable checks in
 violations) wrote the ones marked "(exists, slice 2)": portable checks in
 `impl/clojure/test/dacite/peer/flow_checks.cljc`, run on the JVM by `flow_test.clj` and
 on nbb by `npm run peer:test`, against `dacite.peer.rates`, `bucket`, `responder`
-and the changed `client`, on simulated clocks. The rows for the other ids (C05 to C12,
-the lifecycle and the stream cap, and the rest) stay planned.
+and the changed `client`, on simulated clocks. C05 and C07 exist. The rows still
+marked planned (C06, C08, C09, C11, C12, and the rest) stay planned.
 
 | Id | Status | MUST (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
 | C01 | Decided | One shared R_max split by interest; R_max·I/max(peak, ΣI) leaves R_max unused at low interest | `shared-rmax-splits-by-interest-across-peers` (exists, slice 2: `rates/split`, and the client counts a new stream at peak) | JVM, nbb peer | M1.2 s2 (exists) |
 | C02 | Decided | Rate = min(share, peer send-max); unused share redistributed | `capped-peer-share-is-redistributed` (property: sum <= R_max, each <= cap) (exists, slice 2: a hand case and a 300-case property over generated peers) | JVM, nbb peer | M1.2 s2 (exists) |
 | C03 | Decided | Responder paces to min(send-max, latest get recv-max); splits by interest | `responder-paces-to-session-budget` (exists, slice 2: simulated clock; budget, `send-max` cap and a 2:1 split) | JVM, nbb peer | M1.2 s2 (exists) |
-| C05 | Decided | Stream ends (FIN, PARTIAL) when interest < floor | `stream-ends-partial-when-interest-falls-below-floor` (session clock) | JVM, nbb peer | M4.1 |
+| C05 | Decided | Stream ends (FIN, PARTIAL) when interest < floor | `stream-ends-partial-when-interest-falls-below-floor` (exists: simulated clock; FIN+PARTIAL at the clamped lifetime, FIN alone when the reveal finishes first) | JVM, nbb peer | M4.1 (exists) |
 | C06 | Decided | No idle timeout; a stalled stream only decays | `stalled-stream-decays-and-frees-its-share` | JVM | M4.1 |
-| C07 | Decided | `cancel` is optional; sets interest to 0; correct without it | `cancel-stops-and-frees-share-and-is-never-required` | JVM, nbb peer | M4.1 |
+| C07 | Decided | `cancel` is optional; sets interest to 0; correct without it | `cancel-stops-and-frees-share-and-is-never-required` (exists: a received cancel stops that stream and frees its share; a closed id is ignored; a stream still completes with no cancel) | JVM, nbb peer | M4.1 (exists) |
 | C08 | Decided | Renewal is a new get, a new clock at peak | `renewal-is-a-new-stream-at-peak` | JVM | M4.1 |
 | C09 | Decided | Clamp floor >= 10, tau-ms <= 60 000, peak <= 1000 | `get-interest-is-clamped-by-the-responder` | JVM, nbb peer | M3.1 |
 | C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (exists, M4.2: simulated clock; the C09 clamps bound the lifetime) | JVM, nbb peer | M4.2 (exists) |

@@ -1,7 +1,8 @@
 (ns dacite.peer.flow-checks
   "M1.2 slice 2, portable checks (JVM: flow_test.clj, nbb: peer_cljs_test).
-   Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.4 (C16), §12.5 (C17,
-   C18), §12.9 (C34, C35, C36), §12.11 (C40, C41); test map in §13.
+   Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.3 (C05, C07, C10),
+   §12.4 (C16), §12.5 (C17, C18), §12.9 (C34, C35, C36), §12.11 (C40, C41);
+   test map in §13.
 
    Same shape as client_checks.cljc: each check returns a vector of problem strings,
    empty when it holds, and `checks` maps the §13 test name to it. Every clock here
@@ -22,6 +23,7 @@
             [dacite.reveal :as reveal]
             [dacite.rooted.gc :as gc]
             [dacite.store :as store]
+            [dacite.store.chain :as chain]
             [dacite.value :as v]
             [dacite.wire.binary :as bin]))
 
@@ -145,6 +147,16 @@
   (swap! bufs update sid (fn [b] (max 0 (- (or b 0) bytes)))))
 
 (defn- set-buffered! [{:keys [bufs]} sid bytes] (swap! bufs assoc sid bytes))
+
+(defn- item-frames
+  "Decoded item-stream frames written on `sid`, in order."
+  [{:keys [sent]} sid]
+  (into []
+        (keep (fn [[_ _ bs]]
+                (let [fr (frame/decode-frame bs)]
+                  (when (and (= :item-stream (:type fr)) (= sid (:stream fr)))
+                    fr))))
+        @sent))
 
 (defn- item-bytes
   "Bytes of item-stream frames written to each stream between `from` (exclusive)
@@ -945,6 +957,195 @@
           (boolean (some (complement (set first)) more)))
      (bad "the renewal still sends the root" true (boolean (some #(= % root) more))))))
 
+(defn- cancel-bytes
+  [sid value]
+  (msg/encode-message {:type :cancel :stream sid :value value}))
+
+(defn- fed-stream
+  "Reader state after every item frame on `sid`, or `{:error ...}`."
+  [n sid]
+  (try
+    (loop [frames (item-frames n sid) st (frame/reader sid)]
+      (if (empty? frames)
+        st
+        (let [[st' _] (frame/feed st (first frames))]
+          (recur (rest frames) st'))))
+    (catch #?(:clj Throwable :cljs :default) e
+      {:error (ex-message e)})))
+
+(defn- cancel-while-the-read-is-pending
+  "A `get` whose store read has not finished is an open stream. `cancel` then
+   closes it, and settling the read does not start it."
+  []
+  (let [inner (store/mem-store)
+        root (v/hash (v/string inner "held"))
+        q (atom [])
+        st (h/late-store inner q)
+        clock (atom 0)
+        sent (atom [])
+        closed (atom [])
+        r (responder/responder {:store st
+                                :now (fn [] @clock)
+                                :send! (fn [_ bs] (swap! sent conj bs))
+                                :close! (fn [p] (swap! closed conj p))})
+        hello (hello-bytes (hello-with {}))
+        _ (responder/open-session! r "p")
+        _ (responder/on-frame! r "p" hello)
+        step (responder/on-frame! r "p" (get-bytes 1 root 100000))
+        pending? (chain/pending? step)
+        _ (responder/on-frame! r "p" (cancel-bytes 1 {}))
+        _ (h/settle! q)
+        _ (swap! clock + 50)
+        _ (responder/tick! r)
+        kinds (mapv (fn [bs] (:type (frame/decode-frame bs))) @sent)
+        finished (try (chain/result step) :ok
+                      (catch #?(:clj Throwable :cljs :default) _ :err))]
+    (concat
+     (bad "the read was still pending when cancel arrived" true pending?)
+     (bad "settling it finishes the get" :ok finished)
+     (bad "the stream never starts" #{} (responder/open-streams r "p"))
+     (bad "nothing is written but the hello" [:hello] (vec (distinct kinds)))
+     (bad "the session stays open and is not closed" [:open []]
+          [(responder/session-status r "p") @closed]))))
+
+(defn stream-ends-partial-when-interest-falls-below-floor
+  "C05. Clamped interest reaches the floor at `tau · ln(peak / floor)`, the
+   same instant the lifetime already dropped the stream. The tick that reaches
+   it ends the stream: FIN, and PARTIAL when pages remain. A reveal that
+   finishes first is FIN without PARTIAL. A floor above the peak ends on the
+   first tick, with no pages. The other stream of the session stays open."
+  []
+  (let [[st root] (big-value)
+        order (vec (reveal/page-order st root))
+        short {"peak" 1000 "tau-ms" 1000 "floor" 200}
+        long {"peak" 1000 "tau-ms" 60000 "floor" 10}
+        n (rnet {:st st})
+        _ (send-to! n (get-bytes 1 root 80000 short))
+        _ (send-to! n (get-bytes 3 root 80000 long))
+        ;; t = 1600 ms. The floor is tau · ln(1000/200) ≈ 1609 ms.
+        _ (dotimes [_ 16] (step! n 100))
+        open-mid (responder/open-streams (:r n) "p")
+        mid-frames (item-frames n 1)
+        mid-items (read-items n 1)
+        _ (step! n 100)
+        open-end (responder/open-streams (:r n) "p")
+        end-frames (item-frames n 1)
+        end-items (read-items n 1)
+        fed (fed-stream n 1)
+        _ (dotimes [_ 5] (step! n 100))
+        later (item-frames n 1)
+        ;; a floor above the peak pauses before any page
+        paused (let [p (rnet {:st st})]
+                 (send-to! p (get-bytes 1 root 80000
+                                        {"peak" 100 "tau-ms" 1000 "floor" 1000}))
+                 (let [open (responder/open-streams (:r p) "p")]
+                   (step! p 1)
+                   {:open-before open
+                    :frames (item-frames p 1)
+                    :items (read-items p 1)
+                    :open (responder/open-streams (:r p) "p")
+                    :status (responder/session-status (:r p) "p")}))
+        ;; the reveal finishes while interest is still above the floor
+        done (let [small (store/mem-store)
+                   sroot (v/hash (v/vector small (v/i64 small 1) (v/string small "leaf")))
+                   sorder (vec (reveal/page-order small sroot))
+                   p (rnet {:st small})]
+               (send-to! p (get-bytes 1 sroot 10000000))
+               (step! p 200)
+               {:order sorder
+                :items (read-items p 1)
+                :frames (item-frames p 1)
+                :open (responder/open-streams (:r p) "p")})]
+    (concat
+     (bad "both streams are open while interest is still above the floor" #{1 3} open-mid)
+     (bad "a page went out before the floor" true (pos? (count mid-items)))
+     (bad "the reveal was not finished yet" true (< (count mid-items) (count order)))
+     (bad "no frame had ended the stream yet" []
+          (into [] (keep #(when (:fin? %) :fin) mid-frames)))
+     (bad "the pages sent are a prefix of the reveal" (vec (take (count end-items) order))
+          end-items)
+     (bad "the floor sends no further pages" (count mid-items) (count end-items))
+     (bad "the stream has ended" false (contains? open-end 1))
+     (bad "the last frame is FIN and PARTIAL" [true true]
+          (let [fr (peek end-frames)] [(:fin? fr) (:partial? fr)]))
+     (bad "only that last frame ends the stream" []
+          (into [] (keep-indexed (fn [i fr]
+                                   (when (and (:fin? fr) (not= i (dec (count end-frames)))) i))
+                                 end-frames)))
+     (bad "the receiver can read the partial stream" [true true nil]
+          [(:fin? fed) (:partial? fed) (:error fed)])
+     (bad "nothing more is written for it" (count end-frames) (count later))
+     (bad "the other stream stays open, and the session too" [true :open]
+          [(contains? open-end 3)
+           (responder/session-status (:r n) "p")])
+     (bad "a floor above the peak had the stream open" #{1} (:open-before paused))
+     (bad "and the first tick ends it with an empty FIN PARTIAL" [[] [true true] #{} :open]
+          [(:items paused)
+           (let [fr (peek (:frames paused))] [(:fin? fr) (:partial? fr)])
+           (:open paused)
+           (:status paused)])
+     (bad "a reveal that finishes first is every page, FIN, not PARTIAL" [(:order done) [true false] #{}]
+          [(:items done)
+           (let [fr (peek (:frames done))] [(:fin? fr) (:partial? fr)])
+           (:open done)]))))
+
+(defn cancel-stops-and-frees-share-and-is-never-required
+  "C07. `cancel` stops the stream it names and frees its share: the other
+   stream, which was splitting the rate, then writes about twice as much. A
+   `cancel` for a closed stream, or for an id that was never opened, is
+   ignored. A stream that is never cancelled still completes. A `cancel` that
+   arrives while the `get` is still being read does not let that stream start."
+  []
+  (let [[st root] (big-value)
+        steady {"peak" 1000 "tau-ms" 60000 "floor" 10}
+        n (rnet {:st st})
+        _ (send-to! n (get-bytes 1 root 100000 steady))
+        _ (send-to! n (get-bytes 3 root 100000 steady))
+        _ (dotimes [_ 10] (step! n 50))
+        before (item-bytes n 0 500)
+        frames-before (count (item-frames n 1))
+        _ (send-to! n (cancel-bytes 1 {"reason" "navigated away"}))
+        closed-at-once (responder/open-streams (:r n) "p")
+        _ (dotimes [_ 10] (step! n 50))
+        after (item-bytes n 500 1000)
+        _ (send-to! n (cancel-bytes 1 {}))
+        _ (send-to! n (cancel-bytes 99 {}))
+        _ (send-to! n (cancel-bytes 2 {}))
+        quiet (errors-of n)
+        missing (v/hash (v/string (store/mem-store) "not held"))
+        _ (send-to! n (get-bytes 5 missing 100000))
+        ;; no cancel: a small value runs to FIN
+        whole (let [small (store/mem-store)
+                    sroot (v/hash (v/vector small (v/i64 small 1) (v/i64 small 2)))
+                    sorder (vec (reveal/page-order small sroot))
+                    p (rnet {:st small})]
+                (send-to! p (get-bytes 1 sroot 10000000))
+                (step! p 200)
+                {:order sorder
+                 :items (read-items p 1)
+                 :frames (item-frames p 1)
+                 :open (responder/open-streams (:r p) "p")
+                 :status (responder/session-status (:r p) "p")})
+        pending (cancel-while-the-read-is-pending)]
+    (concat
+     (bad "both streams were sending" true
+          (and (pos? (get before 1 0)) (pos? (get before 3 0))))
+     (bad "cancel closes that stream at once" #{3} closed-at-once)
+     (bad "and writes nothing more for it" frames-before (count (item-frames n 1)))
+     (bad "the other stream writes about twice what it wrote while sharing" true
+          (near? (get after 3 0) (* 2 (get before 3 0)) (* 2 frame-bytes)))
+     (bad "a cancel for a closed or unknown stream is ignored" [] quiet)
+     (bad "the session still takes a new get" [["unknown-hash" 5 false]]
+          (mapv (fn [m] [(get-in m [:value "code"]) (:stream m) (get-in m [:value "fatal"])])
+                (errors-of n)))
+     (bad "the session stays open" :open (responder/session-status (:r n) "p"))
+     (bad "with no cancel, the stream still finishes" [(:order whole) [true false] #{} :open]
+          [(:items whole)
+           (let [fr (peek (:frames whole))] [(:fin? fr) (:partial? fr)])
+           (:open whole)
+           (:status whole)])
+     pending)))
+
 (defn stream-state-is-forgotten-by-its-lifetime-bound
   "C10: a stream that has not finished is dropped once `tau · ln(peak / floor)`
    has passed (the clamps make that at most about 276 s). The session lives,
@@ -993,7 +1194,9 @@
    "a-get-of-a-recorded-hash-is-sent-and-verified" a-get-of-a-recorded-hash-is-sent-and-verified
    "ack-is-optional-and-unknown-hashes-are-ignored" ack-is-optional-and-unknown-hashes-are-ignored
    "renewal-is-correct-with-no-record-and-may-reveal-more" renewal-is-correct-with-no-record-and-may-reveal-more
-   "stream-state-is-forgotten-by-its-lifetime-bound" stream-state-is-forgotten-by-its-lifetime-bound))
+   "stream-state-is-forgotten-by-its-lifetime-bound" stream-state-is-forgotten-by-its-lifetime-bound
+   "stream-ends-partial-when-interest-falls-below-floor" stream-ends-partial-when-interest-falls-below-floor
+   "cancel-stops-and-frees-share-and-is-never-required" cancel-stops-and-frees-share-and-is-never-required))
 
 (def max-ms
   "No check may take longer than this (milliseconds)."

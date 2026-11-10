@@ -35,16 +35,19 @@
    of that hash, not by a wire message. `ack` is a hint: known hashes are kept
    the longest, unknown hashes are ignored, and nothing waits for an ack. An
    empty or a wrong record still answers (C19). There is no wire `forget`.
-   `cancel` is still ignored.
 
-   **Stream lifetime (C10).** After the C09 clamps a stream is dropped at
-   `tau · ln(peak / floor)` from its request, at most about 276 s. A renewal is
-   a new `get`.
+   **Cancel (C07, spec 4.2).** A `cancel` stops the stream it names and frees
+   its share: the slot closes and nothing more is written for it. One for a
+   stream that is not open is ignored. A stream still ends when none comes.
+   The optional `error` `cancelled` is not sent.
 
-   Not here: interest decay ending a stream at the floor (C05). The clamps are
-   applied to that lifetime; they do not change the send rate. The stream cap
-   of C11/C12 is M3.1. Items are sent as node items; the literal choice of
-   `dacite.peer.items/encode-value` is JVM-only.
+   **Stream lifetime (C05, C10).** Interest is counted from the `get`. After
+   the C09 clamps the stream ends at `tau · ln(peak / floor)` (at most about
+   276 s), the instant clamped interest reaches the floor. The last frame is
+   FIN, and PARTIAL when pages remain. The state is dropped in that same tick.
+   A renewal is a new `get`. The clamps bound that lifetime; they do not change
+   the send rate. The stream cap of C11/C12 is M3.1. Items are sent as node
+   items; the literal choice of `dacite.peer.items/encode-value` is JVM-only.
 
    **Store reads may be asynchronous (M1.3).** A `get` reads the store through
    `dacite.store.chain/with-reads`, so a store that settles late works as well as
@@ -120,7 +123,9 @@
           rec hks))
 
 (defn- lifetime-ms
-  "C10, after the C09 clamps: at most 60 s · ln(1000/10) ≈ 276 s."
+  "C09 clamps, then C05/C10: interest reaches the floor at
+   `tau · ln(peak / floor)`, at most 60 s · ln(1000/10) ≈ 276 s. A floor above
+   the peak is already past, so the stream ends on the first tick."
   [peak tau floor]
   (let [peak (double (min 1000 (max 1 (or peak 1))))
         tau (double (min 60000 (max 1 (or tau 1))))
@@ -268,6 +273,20 @@
   (swap! (:state r) update-in [:sessions peer]
          (fn [s] (-> s (update :table frame/close-stream sid) (update :streams dissoc sid)))))
 
+(defn- stream-open?
+  "True when `sid` is an open request on `peer`'s session."
+  [r peer sid]
+  (when-let [table (get-in @(:state r) [:sessions peer :table])]
+    (frame/live? table sid)))
+
+(defn- cancel-stream!
+  "C07. Stop `sid` if it is open: free the slot and the share, and write
+   nothing more (spec 4.2). A stream that is not open is ignored, including
+   one that has not started and one that already ended."
+  [r peer sid]
+  (when (stream-open? r peer sid)
+    (close-stream! r peer sid)))
+
 (defn- on-get! [r peer {:keys [stream value] :as m}]
   (let [{:keys [bucket]} (get-in @(:state r) [:sessions peer])
         [bucket' ok? retry-ms] (bucket/take-token bucket ((:now r)))
@@ -308,8 +327,10 @@
                 ;; the store failed: this stream only, and the session lives
                 (fn [_] ::unreadable))
                (fn [frames]
-                 ;; the session may have ended while the store was read
-                 (when (= :open (session-status r peer))
+                 ;; the session may have ended, or the requester may have
+                 ;; cancelled, while the store was read
+                 (when (and (= :open (session-status r peer))
+                            (stream-open? r peer stream))
                    (cond
                      (= ::unreadable frames)
                      (do (close-stream! r peer stream)
@@ -330,7 +351,7 @@
    - `get`: see the namespace doc
    - `error` fatal or on stream 0: the peer ended the session
    - `ack`: refresh the sent-hash record (unknown hashes ignored)
-   - `cancel`: ignored
+   - `cancel`: stop that stream if it is open; ignore one that is not (C07)
    - an unknown type: `error unsupported` on its stream
    - anything else, a second `hello`, or any frame before the `hello`: a protocol
      violation, which ends the session (C16)"
@@ -374,7 +395,8 @@
             (swap! (:state r) update-in [:sessions peer :record]
                    #(record-ack (or % (record-empty)) hks)))
 
-          (= :cancel type) nil
+          (= :cancel type)
+          (cancel-stream! r peer (:stream (msg/decode-message frame-bytes)))
 
           :else (throw (ex-info "a frame this side never accepts" {:reason :unexpected :type type})))))
       (fn [e]
@@ -392,12 +414,47 @@
     (> buffered (* low-frames max-frame))
     (>= buffered (* high-frames max-frame))))
 
-(defn- drop-expired!
-  "C10: a stream's state is gone by its lifetime, even if frames remain."
-  [r peer now]
-  (doseq [[sid st] (get-in @(:state r) [:sessions peer :streams])]
-    (when (and (:deadline st) (>= (double now) (double (:deadline st))))
-      (close-stream! r peer sid))))
+(defn- below-floor?
+  "C05 and C10. Clamped interest reaches the floor at the stream's deadline
+   (`tau · ln(peak / floor)`). The spec says interest \"falls below\" the floor;
+   ending at this instant is the reading the lifetime already used, so the tick
+   that reaches the bound ends the stream and drops its state."
+  [st now]
+  (boolean (and (:deadline st) (>= (double now) (double (:deadline st))))))
+
+(defn- item-boundary?
+  "True when the bytes already sent (frames `[0, next)`) end on an item, so a
+   FIN frame is not `truncated-item`. A frame that finishes an item does; so
+   does the start of the stream. A node item cut across payloads does not,
+   until its last piece."
+  [ends next]
+  (or (zero? next)
+      (seq (get ends (dec next)))
+      (not (some seq (drop next ends)))))
+
+(defn- bytes-to-boundary
+  "Bytes still to send before the stream is back on an item boundary.
+   0 when `next` is already there."
+  [frames ends next]
+  (if (item-boundary? ends next)
+    0
+    (loop [i next total 0]
+      (if (>= i (count frames))
+        total
+        (let [total (+ total (bin/byte-len (nth frames i)))]
+          (if (seq (nth ends i))
+            total
+            (recur (inc i) total)))))))
+
+(defn- fin-frame
+  "One empty item-stream frame that ends `sid`. PARTIAL when the reveal had
+   more to send (C05)."
+  [sid partial? max-frame]
+  (frame/encode-frame {:type :item-stream
+                       :stream sid
+                       :flags (bit-or frame/flag-fin (if partial? frame/flag-partial 0))
+                       :payload nil
+                       :max-frame-bytes max-frame}))
 
 (defn- note-frame-sent! [r peer st idx]
   (when-let [hks (get (:ends st) idx)]
@@ -406,7 +463,6 @@
              #(record-sent (or % (record-empty)) hks)))))
 
 (defn- tick-session! [r peer now]
-  (drop-expired! r peer now)
   (let [{:keys [state buffered]} r
         {:keys [budget last-tick max-frame streams] :as s} (get-in @state [:sessions peer])
         dt (/ (max 0 (- now last-tick)) 1000)
@@ -417,23 +473,49 @@
                               [sid (blocked? (:blocked? st) (buffered peer sid) max-frame)]))
                     streams)
         interest (fn [st] (rates/interest (:peak st) (:tau st) (- now (:t0 st))))
-        ;; C18: a blocked stream takes no share
-        live (remove (fn [[sid _]] (flags sid)) streams)
+        ;; C18: a blocked stream takes no share. C05: neither does one whose
+        ;; interest has reached the floor; this tick ends it.
+        live (remove (fn [[sid st]] (or (flags sid) (below-floor? st now))) streams)
         total (reduce + 0 (map (comp interest val) live))
         rate-of (fn [st] (/ (* session-rate (interest st)) (max rates/peak total)))]
     (swap! state assoc-in [:sessions peer :last-tick] now)
     (doseq [[sid st] (sort-by key streams)]
       (let [blocked (get flags sid)
-            ;; C18: no share while blocked, and at most one frame banked
-            credit (if blocked
-                     (min (:credit st) max-frame)
-                     (+ (:credit st) (* dt (rate-of st))))]
+            below? (below-floor? st now)
+            ;; C18: no share while blocked, and at most one frame banked.
+            ;; A stream at the floor takes no new credit either.
+            credit (cond
+                     blocked (min (:credit st) max-frame)
+                     below? (:credit st)
+                     :else (+ (:credit st) (* dt (rate-of st))))]
         (loop [credit credit next (:next st) blocked blocked]
           (let [frames (:frames st)
+                ends (:ends st)
                 f (get frames next)
-                size (when f (bin/byte-len f))]
+                size (when f (bin/byte-len f))
+                ;; Boundary and span are only needed once interest has reached
+                ;; the floor. Above it, a tick sends the planned frames as before.
+                boundary? (and below? (item-boundary? ends next))
+                span (if (and below? (not boundary?))
+                       (bytes-to-boundary frames ends next)
+                       0)]
             (cond
+              ;; the planned frames are done: the last one already carries FIN
               (nil? f) (close-stream! r peer sid)
+
+              ;; C05: end at an item boundary. PARTIAL, because frames remain.
+              ;; C17: a blocked channel cannot take the frame, so the state
+              ;; still goes (C10) and nothing is written.
+              (and below? boundary? (not blocked))
+              (do ((:send! r) peer (fin-frame sid true max-frame))
+                  (close-stream! r peer sid))
+
+              ;; Still inside an item, or the channel will not take a frame.
+              ;; FIN here would be `truncated-item` or a write past the high
+              ;; mark. Banked credit may finish the item first (the branch
+              ;; below); otherwise the state is dropped, as C10 requires.
+              (and below? (or blocked (< credit span)))
+              (close-stream! r peer sid)
 
               (and (not blocked) (>= credit size))
               (do ((:send! r) peer f)
