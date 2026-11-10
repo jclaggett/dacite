@@ -10,7 +10,7 @@ Narrow the reference implementation to one thing: a **peer**. Every Dacite clien
 
 The paragraph above is the Oct 30 direction with one sentence removed. That sentence said the origin server stays the authority for root updates (CAS) and for signaling. **Revised Nov 9, 2026** (Jonathan, with Grok Bot). The origin is not a peering-layer peer directory, and it does not relay signaling for the next slices. Root updates are the roots layer. Peering follows the layers below. Manual introduce, already built in M3.2 and M5.2, is enough to open a channel to a peer the operator named.
 
-Work through M6.4 was implicitly aimed at nbb and Clojure parity. **Revised Nov 10, 2026** (Jonathan). nbb parity is the stated goal. Demos and apps, including Value Browser rendering (M6.5) and the root URL (M6.6), are parked until that parity. M6.4 (PR #49) and the first parity slice (PR #50, mem-store merge and init keying) are done. The next parity slices are LRU store keying, then file and LMDB. Peering has two phases. Peering phase 1 is interest-based transmission over WebRTC. It is largely complete and closes with a final review, which follows this note. Peering phase 2 is ICE-based discovery for peer lists, and it comes after the roots layer. Peering phase 1 and peering phase 2 name the peering layer. The Phase 0–9 headings in section 5 stay the build schedule.
+Work through M6.4 was implicitly aimed at nbb and Clojure parity. **Revised Nov 10, 2026** (Jonathan). nbb parity is the stated goal. Demos and apps, including Value Browser rendering (M6.5) and the root URL (M6.6), are parked until that parity. M6.4 (PR #49), the first parity slice (PR #50, mem-store merge and init keying), and the LRU store slice are done. The next parity slices are file and LMDB. Peering has two phases. Peering phase 1 is interest-based transmission over WebRTC. It is largely complete and closes with a final review, which follows this note. Peering phase 2 is ICE-based discovery for peer lists, and it comes after the roots layer. Peering phase 1 and peering phase 2 name the peering layer. The Phase 0–9 headings in section 5 stay the build schedule.
 
 ### Layers
 
@@ -43,7 +43,7 @@ The Value Browser is parked until nbb parity (Nov 10). M6.4 is built (PR #49). M
 2. A portable `.cljc` core with identical hashes and identical reveal decisions on JVM, nbb and browser.
 3. A minimal nbb peer (file or LMDB store) and a browser peer (IndexedDB store), both serving reads.
 4. Peering phase 1 stays a channel to a peer the operator named, and a fetch by hash, under the interest and rate policy in peer-v1. Manual introduce is enough. (Oct 30 goal 4 was signaling through the origin, plus admin-configured peers and mDNS. That origin path is set aside; config and mDNS remain Phase 7, as ways to learn a peer URL.) Peering phase 2 is ICE-based discovery for peer lists, after the roots layer.
-5. nbb parity with the Clojure suite. This is the stated goal (Nov 10). The work through M6.4 was implicitly this. The first slice is PR #50 (mem-store merge and init key the way `s-get` reads them). Next is LRU store keying, then file and LMDB. The Value Browser past M6.4, the root URL, and the other demos and apps are parked until that parity. A cleaner dacite.io portal comes after that demo (Phase 8) and is parked with it.
+5. nbb parity with the Clojure suite. This is the stated goal (Nov 10). The work through M6.4 was implicitly this. The first slice is PR #50 (mem-store merge and init key the way `s-get` reads them). The LRU store keys through that same rule. Next is file and LMDB. The Value Browser past M6.4, the root URL, and the other demos and apps are parked until that parity. A cleaner dacite.io portal comes after that demo (Phase 8) and is parked with it.
 6. A documented, evidence-based decision on retiring the JVM server.
 
 ### Non-goals (for this plan)
@@ -344,7 +344,8 @@ The Oct 30 grid said Fri Dec 4 prep and a decision on Tue Dec 8. That date is no
 
 **M9.1. Parity report.** Run the full baseline against the nbb peer. For each of the 571 JVM tests: passes on nbb, ported to the parity suite, covered by another test, or intentionally dropped (with a reason).
 - Acceptance: a table with no unexplained rows; the numbers are in `docs/plan/jvm-retirement.md`.
-- **First slice (Nov 10, PR #50), done.** Eight JVM tests that seed or merge a map on the in-memory store failed on nbb and now pass there (`dacite.store.mem-checks`, `npm run mem:test`). `MemStore` keys its init map the same way as `s-get`. (`s-merge` later left `IStore`; those merge checks went with it.) Next slice: LRU store keying (the existing `lru_test` uses small integers and does not catch a real hash). Then file and LMDB, then the rest of the suite. These slices come before the parity report. M6.5 and M6.6 stay parked.
+- **First slice (Nov 10, PR #50), done.** Eight JVM tests that seed or merge a map on the in-memory store failed on nbb and now pass there (`dacite.store.mem-checks`, `npm run mem:test`). `MemStore` keys its init map the same way as `s-get`. (`s-merge` later left `IStore`; those merge checks went with it.)
+- **LRU slice (Nov 10), done.** `LruStore` keyed its map by the hash vector. The existing `lru_test` uses small integers and passed on nbb. A real hash there is a vector of BigInts, and the ninth entry promotes the array map and throws. It now uses the same key as `MemStore`. Checks: `dacite.store.lru-checks`, `npm run lru:test`, and the same deftests in the JVM suite. Next slice: file and LMDB, then the rest of the suite. These slices come before the parity report. M6.5 and M6.6 stay parked.
 
 **M9.2. Decision meeting.** Retire when all hold:
 1. nbb peer passes the parity suite and every baseline test that tests protocol behavior.
@@ -356,7 +357,7 @@ The Oct 30 grid said Fri Dec 4 prep and a decision on Tue Dec 8. That date is no
 
 ## 6. Timeline at a glance
 
-The grid is the Oct 30 target schedule, kept as history. Phases 0 through 5 landed, and several landed before the week this grid gave them (M5.3 on Nov 8). From the old M6.1 the cells are the origin-signaling sequence, set aside Nov 9. M6.4 landed Nov 9 (PR #49). M6.5 and M6.6 are parked (Nov 10) until nbb parity. The first parity slice landed Nov 10 (PR #50). Next are LRU store keying, then file and LMDB. Peering phase 1 (interest-based transmission over WebRTC) closes with a final review after this note. Peering phase 2 (ICE-based discovery for peer lists) comes after the roots layer. This grid does not date the review, the parity slices, or the parked demos.
+The grid is the Oct 30 target schedule, kept as history. Phases 0 through 5 landed, and several landed before the week this grid gave them (M5.3 on Nov 8). From the old M6.1 the cells are the origin-signaling sequence, set aside Nov 9. M6.4 landed Nov 9 (PR #49). M6.5 and M6.6 are parked (Nov 10) until nbb parity. The first parity slice landed Nov 10 (PR #50). The LRU store slice is done. Next are file and LMDB. Peering phase 1 (interest-based transmission over WebRTC) closes with a final review after this note. Peering phase 2 (ICE-based discovery for peer lists) comes after the roots layer. This grid does not date the review, the parity slices, or the parked demos.
 
 | Week | Mon | Tue | Wed | Thu | Fri |
 |---|---|---|---|---|---|
@@ -423,7 +424,7 @@ For the next design discussions, roughly in the order they block work.
 The Nov 2 list (confirm the plan, M0, the M1.1 agenda) is done. Phases 0 through 5 are built, through M5.3. M6.4 is built (PR #49): the page takes a pasted `dacite://` URI and fetches that hash from the named peer. Manual introduce is enough.
 
 1. Peering phase 1 (interest-based transmission over WebRTC) is largely complete. It closes with a final review, which follows this note.
-2. The stated goal is nbb parity. The first slice is done (PR #50, mem-store merge and init keying). Next is LRU store keying, then file and LMDB.
+2. The stated goal is nbb parity. The first slice is done (PR #50, mem-store merge and init keying). The LRU store slice is done. Next is file and LMDB.
 3. M6.5 (Value Browser rendering), M6.6 (root URL), and the other demos and apps are parked until that parity. Phase 8 stays parked with them.
 4. Peering phase 2 (ICE-based discovery for peer lists) comes after the roots layer.
 5. PR #47 stays as it is. It is the set-aside M6.1 spec. The implementation queue is the parity slices.

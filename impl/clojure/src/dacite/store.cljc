@@ -183,8 +183,9 @@
   "Internal map key for a hash. On the JVM a hash vector is the key. On
    ClojureScript the same vector holds BigInts: a small array map can hold
    one, and a hash map cannot (SCI will not hash a BigInt). `s-get` looks
-   the hash up by this key, so every write uses it too. The JVM key is the
-   vector. The ClojureScript key is the canonical hex."
+   the hash up by this key, so every write uses it too. `LruStore` keys
+   its own map the same way. The JVM key is the vector. The ClojureScript
+   key is the canonical hex."
   [h]
   #?(:clj h :cljs (hash/hash->hex h)))
 

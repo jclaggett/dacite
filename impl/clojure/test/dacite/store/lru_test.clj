@@ -1,39 +1,41 @@
 (ns dacite.store.lru-test
-  (:require [clojure.test :refer [deftest testing is]]
-            [dacite.store.lru :as lru]
-            [dacite.store :as store]))
+  "LRU store tests, on the JVM.
+
+   The bodies are `dacite.store.lru-checks`. nbb runs the same checks
+   (`npm run lru:test`). One deftest each, so a failure names the check."
+  (:require [clojure.test :refer [deftest is]]
+            [dacite.store.lru-checks :as checks]))
+
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [t0 (System/currentTimeMillis)
+        problems (vec ((get checks/checks name)))
+        ms (- (System/currentTimeMillis) t0)]
+    (is (empty? problems) (pr-str problems))
+    (is (< ms checks/max-ms) (str name " took " ms " ms"))))
 
 (deftest lru-eviction-test
-  (testing "evicts least recently used entry at capacity"
-    (let [s (lru/lru-store 2)
-          h1 [1 0 0 0]
-          h2 [2 0 0 0]
-          h3 [3 0 0 0]]
-      (store/await (store/s-put s h1 :a))
-      (store/await (store/s-put s h2 :b))
-      (store/await (store/s-get s h1)) ;; touch h1
-      (store/await (store/s-put s h3 :c))
-      (is (store/await (store/s-has? s h1)))
-      (is (not (store/await (store/s-has? s h2))))
-      (is (store/await (store/s-has? s h3))))))
+  (run-check "lru-eviction-test"))
 
 (deftest lru-read-through-touch-test
-  (testing "get promotes entry"
-    (let [s (lru/lru-store 2)
-          h1 [1 0 0 0]
-          h2 [2 0 0 0]
-          h3 [3 0 0 0]]
-      (store/await (store/s-put s h1 :a))
-      (store/await (store/s-put s h2 :b))
-      (is (= :a (store/await (store/s-get s h1))))
-      (store/await (store/s-put s h3 :c))
-      (is (store/await (store/s-has? s h1)))
-      (is (not (store/await (store/s-has? s h2)))))))
+  (run-check "lru-read-through-touch-test"))
 
 (deftest lru-delete-test
-  (testing "delete removes entry"
-    (let [s (lru/lru-store 10)
-          h [1 0 0 0]]
-      (store/await (store/s-put s h :x))
-      (store/await (store/s-delete s h))
-      (is (not (store/await (store/s-has? s h)))))))
+  (run-check "lru-delete-test"))
+
+(deftest lru-real-hash-roundtrip-test
+  (run-check "lru-real-hash-roundtrip-test"))
+
+(deftest lru-real-hash-eviction-test
+  (run-check "lru-real-hash-eviction-test"))
+
+(deftest lru-real-hash-sweep-test
+  (run-check "lru-real-hash-sweep-test"))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.store.lru-test)))))
+               "every-check-has-a-deftest"))
+      "lru_checks.cljc and this file list the same tests"))

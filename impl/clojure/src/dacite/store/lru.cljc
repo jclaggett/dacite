@@ -1,36 +1,50 @@
 (ns dacite.store.lru
-  "Bounded in-memory content store with LRU eviction."
+  "Bounded in-memory content store with LRU eviction.
+
+   The map and the recency order use the same key as `MemStore`
+   (`dacite.store/mkey`): the hash vector on the JVM, the canonical hex
+   on ClojureScript. On nbb a hash is a vector of BigInts. An array map
+   holds eight of those. The ninth put promotes the map, and SCI will
+   not hash a BigInt."
   (:require [dacite.store :as store]))
 
-(defn- touch-order [order h]
-  (let [order' (vec (remove #(= h %) order))]
-    (conj order' h)))
+(defn- mkey
+  "Internal map key for a hash. Same rule as `dacite.store/mkey`."
+  [h]
+  #?(:clj h :cljs (store/hash->hex h)))
+
+(defn- touch-order [order k]
+  (let [order' (vec (remove #(= k %) order))]
+    (conj order' k)))
 
 (defrecord LruStore [capacity data order]
   store/IStore
   (s-get [_ h]
-    (store/completed
-     (when-let [v (get @data h)]
-       (swap! order touch-order h)
-       v)))
+    (let [k (mkey h)]
+      (store/completed
+       (when-let [v (get @data k)]
+         (swap! order touch-order k)
+         v))))
 
   (s-put [this h value]
-    (let [new-key? (not (contains? @data h))]
+    (let [k (mkey h)
+          new-key? (not (contains? @data k))]
       (when (and new-key? (pos? capacity) (>= (count @data) capacity))
         (when-let [victim (first @order)]
           (swap! data dissoc victim)
           (swap! order #(vec (rest %)))))
-      (swap! data assoc h value)
-      (swap! order touch-order h))
+      (swap! data assoc k value)
+      (swap! order touch-order k))
     (store/completed this))
 
   (s-has? [_ h]
-    (store/completed (contains? @data h)))
+    (store/completed (contains? @data (mkey h))))
 
   (s-delete [this h]
-    (swap! data dissoc h)
-    (swap! order #(vec (remove (fn [k] (= k h)) %)))
-    (store/completed this))
+    (let [k (mkey h)]
+      (swap! data dissoc k)
+      (swap! order #(vec (remove (fn [x] (= x k)) %)))
+      (store/completed this)))
 
   (s-reset [this]
     (reset! data {})
@@ -39,6 +53,8 @@
 
   store/ISweep
   (sweep-unmarked [_ live]
+    ;; `live` is hex. A key is an `mkey`: already hex on ClojureScript,
+    ;; a hash vector on the JVM.
     (let [drop (filterv (fn [k]
                           (not (contains? live (if (string? k) k (store/hash->hex k)))))
                         (keys @data))]
