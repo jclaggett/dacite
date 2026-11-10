@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-ed17e140.js";
+            window.path_to_searchindex_js = "searchindex-7e7d05f4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-0aeace7d.js"></script>
@@ -1481,7 +1481,7 @@ concatenate. This is local convenience, not an HTTP path: a lens over
 <a href="#chapter-4-rooted-stores">Rooted Stores chapter</a>.</p>
 <hr>
 <h2 id="not-part-of-the-app-api"><a class="header" href="#not-part-of-the-app-api">Not part of the app API</a></h2>
-<p><code>IStore</code> (<code>s-get</code>, <code>s-put</code>, <code>s-has?</code>, <code>s-delete</code>, …) is the content dictionary used
+<p><code>IStore</code> (<code>s-get</code>, <code>s-put</code>, <code>s-has?</code>, <code>s-delete</code>, <code>s-reset</code>) is the content dictionary used
 by backends. Application code should not call it.</p>
 <div class="table-wrapper">
 <table>
@@ -1643,7 +1643,6 @@ built.</p>
   (s-put [store hash value] "Store value at hash, return the store")
   (s-has? [store hash] "Check if hash exists")
   (s-delete [store hash] "Remove the entry at hash")
-  (s-merge [store m] "Merge {hash → value} into the store")
   (s-reset [store] "Clear all entries"))
 </code></pre>
 <p>Typical usage at this layer:</p>
@@ -1654,7 +1653,7 @@ built.</p>
 (s-get store h)   ;; =&gt; node, or nil if absent
 (s-has? store h)  ;; =&gt; true
 </code></pre>
-<p>A store is a hash-addressed bank. It is not dumped, and it is not listed. You read a node with <code>s-get</code> of a hash you already have, and you ask <code>s-has?</code> of a hash you already have. Garbage collection marks what a root reaches, with <code>s-get</code> only. The backend that holds the entries then deletes the rest. That sweep does not hand the key list back.</p>
+<p>A store is a hash-addressed bank. It is not dumped, and it is not listed. You read a node with <code>s-get</code> of a hash you already have, and you ask <code>s-has?</code> of a hash you already have. You write one hash with <code>s-put</code>. A bulk <code>{hash → value}</code> merge is not an operation of this protocol. Garbage collection marks what a root reaches, with <code>s-get</code> only. The backend that holds the entries then deletes the rest. That sweep does not hand the key list back.</p>
 <p>Application code rarely calls <code>s-get</code> / <code>s-put</code> directly. Instead it uses the value constructors of Chapter 3, which persist nodes into a store on your behalf. The public value API always takes a store (implicitly via a current-store binding, or explicitly as the first argument) so that persistence stays visible rather than hidden.</p>
 <h2 id="13-content-addressing"><a class="header" href="#13-content-addressing">1.3 Content Addressing</a></h2>
 <p>Because a store is addressed by content hash, it has two useful properties for free:</p>
@@ -1687,13 +1686,13 @@ built.</p>
 </code></pre>
 <ul>
 <li><strong>Read</strong> (<code>s-get</code>): walk layers front to back until a layer has the entry. On a hit in a slower layer, the entry is <strong>read through</strong> — backfilled into the faster layers it was missing from — so repeat reads are fast.</li>
-<li><strong>Write</strong> (<code>s-put</code>, <code>s-merge</code>): write to <strong>all</strong> layers. This keeps the durable back layer authoritative and the fast front layer warm.</li>
+<li><strong>Write</strong> (<code>s-put</code>): write to <strong>all</strong> layers. This keeps the durable back layer authoritative and the fast front layer warm.</li>
 </ul>
 <p>A single write policy (write-to-all) is intentional at this layer; richer per-layer policies are out of scope for the content store.</p>
 <h2 id="15-what-this-layer-provides"><a class="header" href="#15-what-this-layer-provides">1.5 What This Layer Provides</a></h2>
 <ol>
 <li>An immutable, content-addressed dictionary: <code>hash → value</code>.</li>
-<li>A minimal protocol — <code>s-get</code> / <code>s-put</code> / <code>s-has?</code> / <code>s-delete</code> / <code>s-merge</code> / <code>s-reset</code>.</li>
+<li>A minimal protocol — <code>s-get</code> / <code>s-put</code> / <code>s-has?</code> / <code>s-delete</code> / <code>s-reset</code>.</li>
 <li>Content addressing, and with it free deduplication and idempotent writes.</li>
 <li>Composable backends: memory, file, LMDB, and layered caching — all interchangeable.</li>
 </ol>
