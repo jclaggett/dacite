@@ -113,8 +113,9 @@
    `:hello` is the responder's own. `:channel?`: the fake channel holds what is
    written until the check drains it (`set-buffered!`); otherwise nothing is
    ever buffered. `:on-write` (fn [sid buffered-before size]) sees each item
-   frame as it is written."
-  [{:keys [st hello peer-rates channel? on-write hello?]
+   frame as it is written. `:max-frame`, when set, is the peer's `max-frame`
+   (the session uses the smaller of the two hellos)."
+  [{:keys [st hello peer-rates channel? on-write hello? max-frame]
     :or {peer-rates {} hello? true on-write (fn [_ _ _])}}]
   (let [clock (atom 0) sent (atom []) closed (atom []) bufs (atom {})
         r (h/responder
@@ -131,7 +132,10 @@
             :close! (fn [p] (swap! closed conj p))
             :buffered (fn [_ sid] (if channel? (get @bufs sid 0) 0))})]
     (responder/open-session! r "p")
-    (when hello? (h/responder-on-frame! r "p" (hello-bytes (hello-with peer-rates))))
+    (when hello?
+      (h/responder-on-frame! r "p"
+                             (hello-bytes (cond-> (hello-with peer-rates)
+                                            max-frame (assoc-in ["limits" "max-frame"] max-frame)))))
     {:r r :clock clock :sent sent :closed closed :bufs bufs}))
 
 (defn- send-to! [{:keys [r]} bs] (h/responder-on-frame! r "p" bs))
@@ -1089,6 +1093,84 @@
            (let [fr (peek (:frames done))] [(:fin? fr) (:partial? fr)])
            (:open done)]))))
 
+(defn- responder-stream
+  [n sid]
+  (get-in @(:state (:r n)) [:sessions "p" :streams sid]))
+
+(defn- inside-an-item?
+  "The last frame sent did not finish an item, and a later frame does."
+  [st]
+  (let [n (:next st)]
+    (and (some? st)
+         (pos? n)
+         (not (seq (get (:ends st) (dec n))))
+         (some seq (drop n (:ends st))))))
+
+(defn- no-fin [frames]
+  (into [] (keep #(when (:fin? %) :fin) frames)))
+
+(defn floor-drops-with-no-fin-when-the-item-cannot-finish
+  "C05, the case where the closing frame cannot be written. At the floor, a
+   blocked channel cannot take a frame (C17), and a stream inside an item
+   whose banked credit does not cover the rest of that item cannot FIN
+   (`truncated-item`). Either way the state drops and no frame is written.
+   The requester learns of it from its own C10 lifetime, not from this side.
+
+   One 8000-character string. At 8192 it is two frames, so the channel can be
+   blocked after the first. At 4096 a leaf is cut, so credit can run out
+   inside that leaf. The floor is about 9 s out; both stops happen sooner."
+  []
+  (let [leaf (store/mem-store)
+        root (v/hash (v/string leaf (apply str (repeat 8000 "z"))))
+        interest {"peak" 1000 "tau-ms" 3000 "floor" 50}
+        ;; blocked after the first frame, then held there across the floor
+        blocked (rnet {:st leaf :channel? true})
+        _ (send-to! blocked (get-bytes 1 root 15000 interest))
+        _ (loop [i 0]
+            (when (and (< i 40) (not= 1 (count (item-frames blocked 1))))
+              (drain! blocked 1 1000000)
+              (step! blocked 100)
+              (recur (inc i))))
+        blocked-before (item-frames blocked 1)
+        _ (set-buffered! blocked 1 (* 5 frame-bytes))
+        _ (step! blocked 12000)
+        blocked-after (item-frames blocked 1)
+        ;; 4096 cuts a leaf. Stop while the next frame is still the rest of it.
+        short (rnet {:st leaf :max-frame 4096})
+        _ (send-to! short (get-bytes 1 root 5000 interest))
+        mid (loop [i 0]
+              (if (>= i 80)
+                nil
+                (do (step! short 50)
+                    (let [s (responder-stream short 1)]
+                      (cond
+                        (nil? s) :closed
+                        (inside-an-item? s) s
+                        :else (recur (inc i)))))))
+        need (when (map? mid) (bin/byte-len (nth (:frames mid) (:next mid))))
+        short-before (item-frames short 1)
+        _ (step! short 12000)
+        short-after (item-frames short 1)]
+    (concat
+     (bad "the blocked stream had sent a page and not ended" true
+          (and (pos? (count blocked-before)) (empty? (no-fin blocked-before))))
+     (bad "a blocked channel at the floor writes nothing" (count blocked-before)
+          (count blocked-after))
+     (bad "and writes no FIN" [] (no-fin blocked-after))
+     (bad "that stream is gone, the session lives" [false :open]
+          [(contains? (responder/open-streams (:r blocked) "p") 1)
+           (responder/session-status (:r blocked) "p")])
+     (bad "credit ran out inside an item" true
+          (and (map? mid) (some? need) (< (:credit mid) need)))
+     (bad "that stream had sent a page and not ended" true
+          (and (pos? (count short-before)) (empty? (no-fin short-before))))
+     (bad "short credit at the floor writes nothing" (count short-before)
+          (count short-after))
+     (bad "and writes no FIN either" [] (no-fin short-after))
+     (bad "that stream is gone too, the session lives" [false :open]
+          [(contains? (responder/open-streams (:r short) "p") 1)
+           (responder/session-status (:r short) "p")]))))
+
 (defn cancel-stops-and-frees-share-and-is-never-required
   "C07. `cancel` stops the stream it names and frees its share: the other
    stream, which was splitting the rate, then writes about twice as much. A
@@ -1196,6 +1278,7 @@
    "renewal-is-correct-with-no-record-and-may-reveal-more" renewal-is-correct-with-no-record-and-may-reveal-more
    "stream-state-is-forgotten-by-its-lifetime-bound" stream-state-is-forgotten-by-its-lifetime-bound
    "stream-ends-partial-when-interest-falls-below-floor" stream-ends-partial-when-interest-falls-below-floor
+   "floor-drops-with-no-fin-when-the-item-cannot-finish" floor-drops-with-no-fin-when-the-item-cannot-finish
    "cancel-stops-and-frees-share-and-is-never-required" cancel-stops-and-frees-share-and-is-never-required))
 
 (def max-ms

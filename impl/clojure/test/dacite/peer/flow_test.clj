@@ -86,6 +86,9 @@
 (deftest stream-ends-partial-when-interest-falls-below-floor
   (run-check "stream-ends-partial-when-interest-falls-below-floor"))
 
+(deftest floor-drops-with-no-fin-when-the-item-cannot-finish
+  (run-check "floor-drops-with-no-fin-when-the-item-cannot-finish"))
+
 (deftest cancel-stops-and-frees-share-and-is-never-required
   (run-check "cancel-stops-and-frees-share-and-is-never-required"))
 
