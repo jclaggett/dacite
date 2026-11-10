@@ -1,17 +1,12 @@
 (ns dacite.store.lru
   "Bounded in-memory content store with LRU eviction.
 
-   The map and the recency order use the same key as `MemStore`
-   (`dacite.store/mkey`): the hash vector on the JVM, the canonical hex
-   on ClojureScript. On nbb a hash is a vector of BigInts. An array map
+   The map and the recency order use `dacite.store/mkey`, the same key
+   `MemStore` uses: the hash vector on the JVM, the canonical hex on
+   ClojureScript. On nbb a hash is a vector of BigInts. An array map
    holds eight of those. The ninth put promotes the map, and SCI will
    not hash a BigInt."
   (:require [dacite.store :as store]))
-
-(defn- mkey
-  "Internal map key for a hash. Same rule as `dacite.store/mkey`."
-  [h]
-  #?(:clj h :cljs (store/hash->hex h)))
 
 (defn- touch-order [order k]
   (let [order' (vec (remove #(= k %) order))]
@@ -20,14 +15,14 @@
 (defrecord LruStore [capacity data order]
   store/IStore
   (s-get [_ h]
-    (let [k (mkey h)]
+    (let [k (store/mkey h)]
       (store/completed
        (when-let [v (get @data k)]
          (swap! order touch-order k)
          v))))
 
   (s-put [this h value]
-    (let [k (mkey h)
+    (let [k (store/mkey h)
           new-key? (not (contains? @data k))]
       (when (and new-key? (pos? capacity) (>= (count @data) capacity))
         (when-let [victim (first @order)]
@@ -38,10 +33,10 @@
     (store/completed this))
 
   (s-has? [_ h]
-    (store/completed (contains? @data (mkey h))))
+    (store/completed (contains? @data (store/mkey h))))
 
   (s-delete [this h]
-    (let [k (mkey h)]
+    (let [k (store/mkey h)]
       (swap! data dissoc k)
       (swap! order #(vec (remove (fn [x] (= x k)) %)))
       (store/completed this)))
