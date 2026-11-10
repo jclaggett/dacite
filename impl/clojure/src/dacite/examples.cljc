@@ -16,4 +16,5 @@
    | dacite.examples.todo         | Values / Store split             |
    | dacite.examples.explorer     | walk without dumping             |
    | dacite.examples.cards        | durable LMDB game                |
-   | dacite.examples.library      | sets as tables, vectors as indexes |")
+   | dacite.examples.library      | sets as tables, vectors as indexes |
+   | dacite.examples.browser      | pasted dacite:// URI, one get |")

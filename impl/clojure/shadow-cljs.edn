@@ -6,6 +6,13 @@
    :asset-path "/app/peer/js"
    :modules {:main {:init-fn dacite.examples.peer-web/init}}}
 
+  ;; M6.4 value browser. Local URL /app/browser/ ; intended path /browser.
+  :browser
+  {:target :browser
+   :output-dir "../../examples/web/browser/js"
+   :asset-path "/app/browser/js"
+   :modules {:main {:init-fn dacite.examples.browser-web/init}}}
+
   :peer-node
   {:target :node-script
    :output-to "target/peer-node.js"
