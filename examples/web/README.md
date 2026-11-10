@@ -216,5 +216,7 @@ clojure -M:service --port 8080 --store mem
 ```
 
 Paste `dacite://<name>#urn:dacite:<hex>` from the nbb output. The relay
-and the room are separate from that URI. `npm run browser:e2e` runs the
-headless check. The hand steps are under M6.4 in `docs/plan/peering.md`.
+and the room are separate from that URI. The nbb process prints `waiting`
+and stays up until Fetch; that click is when the page joins the room.
+`npm run browser:e2e` runs the headless check. The hand steps are under
+M6.4 in `docs/plan/peering.md`.

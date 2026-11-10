@@ -18,7 +18,8 @@
 
    `--page` is the browser page without a query (default
    http://127.0.0.1:8080/app/browser/). The printed URL carries the
-   relay and the room, not a hash.
+   relay and the room, not a hash. Room mode waits with no signaling
+   clock: the page joins when Fetch is clicked. A relay error still exits.
 
    `--sdp` reads a pasted offer (one JSON signal map on stdin) and
    prints the answer. No room relay in that mode."
@@ -166,15 +167,29 @@
           (catch :default _ nil))))
     (webrtc/wait-signal (:signal peer) {:need-complete? true :timeout-ms 20000})))
 
+(defn- fail-signaling!
+  "A real relay failure. `timeout` is not one of these in room mode:
+   this process does not arm the 20-second clock. The reason is the
+   peer-left / room-full / role-taken / bad-room / closed tag."
+  [e]
+  (let [reason (:reason (ex-data e))
+        msg (or (ex-message e) (.-message e) (str e))
+        tag (if reason (name reason) "error")]
+    (println "signaling-failed" (str tag ": " msg))
+    (js/process.exit 1)))
+
 (defn- run-room! [held-value ws room page]
-  (let [peer (webrtc/create-peer :answerer {:ws {:url ws :room room}})]
+  ;; No `:timeout-ms` clock. The operator pastes a URI and clicks Fetch
+  ;; after this URL is printed, which is longer than the default 20s.
+  (let [peer (webrtc/create-peer :answerer {:ws {:url ws
+                                                 :room room
+                                                 :timeout-ms nil}})]
     (println "page" (page-url page ws room))
+    (println "waiting" "the page joins this room when Fetch is clicked")
     (start-responder (:store held-value) (:conn peer))
     (-> (:signaling peer)
         (.then (fn [_] (println "signaling-up")))
-        (.catch (fn [e]
-                  (js/console.error "signaling-failed" (or (ex-message e) (.-message e) e))
-                  (js/process.exit 1))))))
+        (.catch fail-signaling!))))
 
 (defn- run-sdp! [held-value]
   (let [peer (webrtc/create-peer :answerer {})]

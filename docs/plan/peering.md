@@ -290,10 +290,10 @@ The Oct 30 grid put origin signaling on Fri Nov 20 to Tue Nov 24. That sequence 
   - **By hand.** On a machine with the browser, on the same computer as the nbb peer:
     1. `npm run browser:build` from the repo root.
     2. Terminal A: `npm run webrtc:signal` (listens on `ws://127.0.0.1:8787`).
-    3. Terminal B: `nbb -m dacite.examples.browser-nbb --ws ws://127.0.0.1:8787 --room m64-manual`. It prints `value-a`, `entries-a`, `value-b`, `entries-b`, `absent`, and a `page` URL. The URL has `signal` and `room`. It has no hash.
+    3. Terminal B: `nbb -m dacite.examples.browser-nbb --ws ws://127.0.0.1:8787 --room m64-manual`. It prints `value-a`, `entries-a`, `value-b`, `entries-b`, `absent`, a `page` URL, and `waiting`. The URL has `signal` and `room`. It has no hash. The process stays up until Fetch. It does not use the 20-second signaling clock. A relay failure (`room-full`, `role-taken`, `peer-left`, `bad-room`, or the socket closing) prints `signaling-failed` and exits.
     4. Terminal C, from `impl/clojure`: `clojure -M:service --port 8080 --store mem` (or `clojure -M:peer-origin`). Either serves `examples/web`.
     5. Open the printed `page` URL, or `http://127.0.0.1:8080/app/browser/`. Firefox and Safari need the same host-address setting as M5.2, or ICE may stay on a `.local` name.
-    6. Paste `dacite://<name>#urn:dacite:<value-a>` and click Fetch. Expect status `verified`, that hex, and `entries-a`. Paste the second hash for the same name and Fetch again. Expect that hex, `entries-b`, and the same open channel. Paste `absent`. Expect `unknown-hash`.
+    6. Paste `dacite://<name>#urn:dacite:<value-a>` and click Fetch. Terminal B is still waiting; the page joins the room on that click. Expect status `verified`, that hex, and `entries-a`. Paste the second hash for the same name and Fetch again. Expect that hex, `entries-b`, and the same open channel. Paste `absent`. Expect `unknown-hash`.
     7. Paste without the room: clear the room token (the printed URL fills it). Click Show offer, pipe that JSON to `nbb -m dacite.examples.browser-nbb --sdp`, paste the printed `answer` JSON into Remote answer, then Fetch. The room and the paste are the two introduce paths. Use one of them.
 
 **M6.5. Value Browser rendering.** The same page, once the hash is in the page's store.

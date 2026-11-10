@@ -297,13 +297,27 @@
                (.then (fn [problems] (cleanup!) problems))
                (.catch (fn [e] (cleanup!) (throw e)))))))))
 
+(defn signaling-timeout-nil-waits-and-the-default-stays-twenty-seconds
+  "The M6.4 answerer passes `:timeout-ms` nil and must not inherit the
+   20-second clock. A missing key stays at 20 seconds for the automated pairs."
+  []
+  (vec
+   (concat
+    (bad "default is 20 seconds" 20000 webrtc/default-signaling-timeout)
+    (bad "a missing key arms 20 seconds" 20000 (webrtc/signaling-timeout-ms {}))
+    (bad "nil does not arm a clock" nil (webrtc/signaling-timeout-ms {:timeout-ms nil}))
+    (bad "an explicit bound is kept" 50 (webrtc/signaling-timeout-ms {:timeout-ms 50}))
+    (bad "zero is not a clock" nil (webrtc/signaling-timeout-ms {:timeout-ms 0})))))
+
 (def checks
   (array-map
    "two-peers-over-webrtc-verify-a-value" two-peers-over-webrtc-verify-a-value
    "webrtc-hello-max-frame-is-at-most-4096" webrtc-hello-max-frame-is-at-most-4096
    "channel-close-ends-the-peer-session" channel-close-ends-the-peer-session
    "buffered-amount-back-pressure-over-webrtc" buffered-amount-back-pressure-over-webrtc
-   "two-peers-connect-by-room-token" two-peers-connect-by-room-token))
+   "two-peers-connect-by-room-token" two-peers-connect-by-room-token
+   "signaling-timeout-nil-waits-and-the-default-stays-twenty-seconds"
+   signaling-timeout-nil-waits-and-the-default-stays-twenty-seconds))
 
 (def max-ms 8000)
 

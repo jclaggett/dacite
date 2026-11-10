@@ -337,6 +337,24 @@
     (try (.close ws) (catch :default _)))
   nil)
 
+(def default-signaling-timeout
+  "Milliseconds `signal-over-ws!` waits for the remote description when
+   the caller does not pass `:timeout-ms`. Automated pairs stay on this
+   bound. A hand run that prints a URL and then waits for a person passes
+   nil and is not on this clock."
+  20000)
+
+(defn signaling-timeout-ms
+  "The clock `signal-over-ws!` should arm, or nil for no clock.
+
+   A missing `:timeout-ms` is `default-signaling-timeout`. An explicit nil
+   stays nil (`:or` does not replace a present nil). A non-positive number
+   is also no clock."
+  [opts]
+  (let [{:keys [timeout-ms] :or {timeout-ms default-signaling-timeout}} opts]
+    (when (and (number? timeout-ms) (pos? timeout-ms))
+      timeout-ms)))
+
 (defn signal-over-ws!
   "Relay `peer`'s offer or answer and ICE candidates through the slice-3
    server. `peer` is a `create-peer` result; pass `:ws {:url :room}` to
@@ -346,11 +364,13 @@
    token. `role` defaults to `(:role peer)` and is sent as `?role=`, so the
    server can reject a duplicate. Returns a promise that resolves once the
    remote description has been applied. Later candidates still flow.
-   Rejects on `room-full`, `role-taken`, `bad-room`, a timeout, or the other
-   peer leaving before that description arrives.
+   Rejects on `room-full`, `role-taken`, `bad-room`, `peer-left`, a closed
+   socket, or a timeout. `:timeout-ms` nil does not arm that timeout; the
+   default when the key is omitted is `default-signaling-timeout`.
 
    The JSON frames match `scripts/webrtc-signal-server.mjs`."
-  [peer {:keys [url room role timeout-ms] :or {timeout-ms 20000}}]
+  [peer {:keys [url room role] :as opts}]
+  (let [timeout-ms (signaling-timeout-ms opts)]
   (js/Promise.
    (fn [resolve reject]
      (if-not (and (string? url) (string? room) (pos? (count room)))
@@ -386,11 +406,12 @@
                             (when-let [t @timer] (js/clearTimeout t))
                             (resolve v)))]
          (when-let [ref (:ws-ref peer)] (reset! ref ws))
-         (reset! timer
-                 (js/setTimeout
-                  #(settle-err! (ex-info "signaling timed out"
-                                         {:reason :timeout :room room}))
-                  timeout-ms))
+         (when timeout-ms
+           (reset! timer
+                   (js/setTimeout
+                    #(settle-err! (ex-info "signaling timed out"
+                                           {:reason :timeout :room room}))
+                    timeout-ms)))
          (remove-watch signal ::ws)
          (add-watch signal ::ws
                     (fn [_ _ old new]
@@ -438,7 +459,7 @@
                       (= (:type msg) "signal")
                       (apply-remote-msg! pc remote msg settle-ok!)))
                   (catch :default e
-                    (settle-err! e))))))))))
+                    (settle-err! e)))))))))))
 
 (defn connect-peers
   "Promise of `{:a :b :ch-a :ch-b}`: two ends with `dacite-peer` open on both.

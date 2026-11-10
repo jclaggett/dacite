@@ -156,6 +156,12 @@ async function main() {
     const ea = await waitMatch(nbb.log, /^entries-a (\d+)$/m, 5000, 'entries-a');
     const eb = await waitMatch(nbb.log, /^entries-b (\d+)$/m, 5000, 'entries-b');
     const absentM = await waitMatch(nbb.log, /^absent ([0-9a-f]{64})$/m, 5000, 'absent');
+    await waitMatch(
+      nbb.log,
+      /^waiting the page joins this room when Fetch is clicked$/m,
+      5000,
+      'waiting',
+    );
     const hexA = a[1];
     const hexB = b[1];
     const absent = absentM[1];
