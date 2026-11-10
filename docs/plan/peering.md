@@ -344,7 +344,7 @@ The Oct 30 grid said Fri Dec 4 prep and a decision on Tue Dec 8. That date is no
 
 **M9.1. Parity report.** Run the full baseline against the nbb peer. For each of the 571 JVM tests: passes on nbb, ported to the parity suite, covered by another test, or intentionally dropped (with a reason).
 - Acceptance: a table with no unexplained rows; the numbers are in `docs/plan/jvm-retirement.md`.
-- **First slice (Nov 10, PR #50), done.** Eight JVM tests that seed or merge a map on the in-memory store failed on nbb and now pass there (`dacite.store.mem-checks`, `npm run mem:test`). `MemStore` keys `s-merge` and its init map the same way as `s-get`. Next slice: LRU store keying (the existing `lru_test` uses small integers and does not catch a real hash). Then file and LMDB, then the rest of the suite. These slices come before the parity report. M6.5 and M6.6 stay parked.
+- **First slice (Nov 10, PR #50), done.** Eight JVM tests that seed or merge a map on the in-memory store failed on nbb and now pass there (`dacite.store.mem-checks`, `npm run mem:test`). `MemStore` keys its init map the same way as `s-get`. (`s-merge` later left `IStore`; those merge checks went with it.) Next slice: LRU store keying (the existing `lru_test` uses small integers and does not catch a real hash). Then file and LMDB, then the rest of the suite. These slices come before the parity report. M6.5 and M6.6 stay parked.
 
 **M9.2. Decision meeting.** Retire when all hold:
 1. nbb peer passes the parity suite and every baseline test that tests protocol behavior.

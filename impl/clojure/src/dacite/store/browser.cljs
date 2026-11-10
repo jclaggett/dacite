@@ -355,10 +355,6 @@
             (store/completed this))
         (store/unavailable h {:status status}))))
 
-  (s-merge [this m]
-    (doseq [[h v] m]
-      (store/await (store/s-put this h v)))
-    (store/completed this))
   (s-reset [this]
     (store/await (store/s-reset pack-local))
     (store/completed this))

@@ -32,11 +32,6 @@
     (swap! order #(vec (remove (fn [k] (= k h)) %)))
     (store/completed this))
 
-  (s-merge [this m]
-    (doseq [[h v] m]
-      (store/await (store/s-put this h v)))
-    (store/completed this))
-
   (s-reset [this]
     (reset! data {})
     (reset! order [])

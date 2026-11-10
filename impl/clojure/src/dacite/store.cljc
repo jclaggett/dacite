@@ -7,9 +7,10 @@
               '[dacite.value :as v])
      (def r (v/root (s/mem)))          ; or (s/file path), (s/remote url)
 
-   IStore (s-get, s-put, s-has?, s-delete, s-merge, s-reset) is the
+   IStore (s-get, s-put, s-has?, s-delete, s-reset) is the
    content-dictionary protocol used by backends and the value layer.
-   A store is a hash-addressed bank: it does not list its entries.
+   A store is a hash-addressed bank: it does not list its entries,
+   and a bulk merge is not an operation.
    Apps should not call IStore.
 
    Application constructors: mem, file, lmdb, remote.
@@ -80,8 +81,9 @@
   "Protocol for content-addressed storage.
 
    A store is a hash-addressed bank. The operations are get, put, has, and
-   delete, plus merge and reset. Listing the entries is not part of this
-   protocol. A caller reads a hash it already has.
+   delete, plus reset. A bulk merge of {hash value} pairs is not part of
+   this protocol. Listing the entries is not part of this protocol. A
+   caller reads a hash it already has and writes one hash at a time.
 
    Every method returns a promise: a settled map from `completed` or
    `rejected`, or (on the JVM) a future whose body is the blocking call.
@@ -91,7 +93,6 @@
   (s-put [this h value] "Promise of the store after storing value at hash.")
   (s-has? [this h] "Promise of true when hash exists in this store.")
   (s-delete [this h] "Promise of the store after removing hash.")
-  (s-merge [this m] "Promise of the store after merging hash/value pairs (a map or a sequence).")
   (s-reset [this] "Promise of the store after clearing all entries."))
 
 (defprotocol ISweep
@@ -204,7 +205,6 @@
   (s-put [this h value] (swap! data assoc (mkey h) value) (completed this))
   (s-has? [_ h] (completed (contains? @data (mkey h))))
   (s-delete [this h] (swap! data dissoc (mkey h)) (completed this))
-  (s-merge [this m] (swap! data merge (keyed m)) (completed this))
   (s-reset [this] (reset! data {}) (completed this))
   ISweep
   (sweep-unmarked [_ live]
@@ -261,11 +261,6 @@
       (await (s-delete layer h)))
     (completed this))
 
-  (s-merge [this m]
-    (doseq [layer layers]
-      (await (s-merge layer m)))
-    (completed this))
-
   (s-reset [this]
     (doseq [layer layers]
       (await (s-reset layer)))
@@ -316,11 +311,6 @@
   "Store a value at hash in the current store."
   [h value]
   (await (s-put *store* h value)))
-
-(defn merge-store!
-  "Merge a map of {hash value} pairs into the current store."
-  [m]
-  (await (s-merge *store* m)))
 
 (defmacro bind-store
   "Bind *store* to the given store for the duration of body."

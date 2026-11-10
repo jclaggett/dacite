@@ -16,9 +16,6 @@
     (is (empty? problems) (pr-str problems))
     (is (< ms checks/max-ms) (str name " took " ms " ms"))))
 
-(deftest mem-store-merge-test
-  (run-check "mem-store-merge-test"))
-
 (deftest mem-store-init-test
   (run-check "mem-store-init-test"))
 
@@ -36,9 +33,6 @@
 
 (deftest layered-store-reads-test
   (run-check "layered-store-reads-test"))
-
-(deftest layered-store-merge-test
-  (run-check "layered-store-merge-test"))
 
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))

@@ -201,6 +201,30 @@
                   (shut backend st)
                   (throw e))))))
 
+(defn- batch-when-offered
+  "When `backend` has `:write-batch`, that function stores two nodes.
+   A file store has no batch writer. A promise of nil."
+  [problems backend]
+  (if-let [write (:write-batch backend)]
+    (let [place ((:fresh backend))
+          st ((:open backend) place {})
+          a (i64-node 1)
+          b (i64-node 2)
+          pairs [[(:hash a) (:node a)] [(:hash b) (:node b)]]]
+      (-> (await-store (write st pairs))
+          (.then (fn [_] (await-store (store/s-get st (:hash a)))))
+          (.then (fn [got]
+                   (when-not (same-node? (:node a) got)
+                     (keep! problems "batch did not store the first node"))
+                   (await-store (store/s-get st (:hash b)))))
+          (.then (fn [got]
+                   (when-not (same-node? (:node b) got)
+                     (keep! problems "batch did not store the second node"))))
+          (.catch (fn [e]
+                    (keep! problems (str "batch check threw " (explain e)))))
+          (.finally (fn [] (shut backend st)))))
+    (js/Promise.resolve nil)))
+
 (defn store-problems
   "Problems of get, put, has?, entry count, eviction and reopen on `backend`:
    `:fresh` makes an empty place, `:open` takes the place and opts
@@ -211,6 +235,7 @@
     (-> (roundtrip problems backend)
         (.then (fn [_] (eviction problems backend)))
         (.then (fn [_] (reopen problems backend)))
+        (.then (fn [_] (batch-when-offered problems backend)))
         (.then (fn [_] {:problems @problems}))
         (.catch (fn [e]
                   {:problems (conj @problems (str "store check threw " (explain e)))})))))
@@ -349,16 +374,24 @@
     (shut backend st)
     (serve-reopened problems backend place seeded false)))
 
+(defn- put-each
+  "A promise of nil after `s-put` of every [hash value] pair."
+  [st pairs]
+  (reduce (fn [p [h node]]
+            (-> p (.then (fn [_] (await-store (store/s-put st h node))))))
+          (js/Promise.resolve nil)
+          pairs))
+
 (defn- seed-async [problems backend place st nodes]
   ;; A vector of pairs, not a map: a hash is a vector of BigInts, and SCI cannot
-  ;; use that as a map key. `s-merge` walks the pairs.
+  ;; use that as a map key. Each pair is one `s-put`.
   (let [seeded (library-on (store/mem-store))
-        batch (mapv (fn [[hx node]] [(store/hex->hash hx) node])
+        pairs (mapv (fn [[hx node]] [(store/hex->hash hx) node])
                     (:entries seeded))]
     (reset! nodes (count (:entries seeded)))
     (when (or (not= (:title seeded) lib/seed-title) (empty? (:page seeded)))
       (keep! problems "the library fixture did not seed"))
-    (-> (await-store (store/s-merge st batch))
+    (-> (put-each st pairs)
         (.then (fn [_]
                  (shut backend st)
                  (serve-reopened problems backend place seeded true)))

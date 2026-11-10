@@ -105,6 +105,20 @@
     (.put buf bs)
     (.flip buf)))
 
+(defn write-batch
+  "Write `pairs` in one LMDB write transaction. `pairs` is a map or a
+   sequence of [hash value]. Not an IStore operation. A settled promise of `st`."
+  [st pairs]
+  (let [^Env env (:env st)
+        ^Dbi db (:db st)]
+    (with-open [txn (.txnWrite env)]
+      (doseq [[h v] pairs]
+        (let [^ByteBuffer kb (hash->lmdb-key h)
+              ^ByteBuffer vb (entry->lmdb-val v)]
+          (.put db txn kb vb (make-array PutFlags 0))))
+      (.commit txn))
+    (store/completed st)))
+
 (defrecord LmdbStore [^Env env ^Dbi db]
   java.io.Closeable
   (close [_] (.close env))
@@ -131,15 +145,6 @@
   (s-delete [this h]
     (with-open [txn (.txnWrite env)]
       (.delete db txn (hash->lmdb-key h))
-      (.commit txn))
-    (store/completed this))
-
-  (s-merge [this m]
-    (with-open [txn (.txnWrite env)]
-      (doseq [[h v] m]
-        (let [^ByteBuffer kb (hash->lmdb-key h)
-              ^ByteBuffer vb (entry->lmdb-val v)]
-          (.put db txn kb vb (make-array PutFlags 0))))
       (.commit txn))
     (store/completed this))
 

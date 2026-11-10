@@ -346,7 +346,7 @@ emergencies. Application code that reaches for it has found a hole in
 
 ### Content stores (Chapter 1)
 
-- [x] `IStore` protocol (`s-get`, `s-put`, `s-has?`, `s-delete`, `s-merge`, `s-reset`)
+- [x] `IStore` protocol (`s-get`, `s-put`, `s-has?`, `s-delete`, `s-reset`)
 - [x] Mem, file, LMDB stores
 - [x] Layered store with read-through backfill
 - [x] LMDB `Closeable` for `with-open`

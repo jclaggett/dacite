@@ -123,9 +123,6 @@
   (s-delete [this h]
     (store/await (store/s-delete inner h))
     (store/completed this))
-  (s-merge [this m]
-    (store/await (store/s-merge inner m))
-    (store/completed this))
   (s-reset [this]
     (store/await (store/s-reset inner))
     (store/completed this))

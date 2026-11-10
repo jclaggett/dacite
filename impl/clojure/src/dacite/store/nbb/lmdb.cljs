@@ -53,6 +53,17 @@
                 :encoding "binary"
                 :keyEncoding "binary"})))
 
+(defn write-batch
+  "Write `pairs` in one LMDB transaction. `pairs` is a map or a
+   sequence of [hash value]. Not an IStore operation. A settled promise of `st`."
+  [st pairs]
+  (.transactionSync (:env st)
+                    (fn []
+                      (doseq [[h v] pairs]
+                        (.putSync (:db st) (hash->buf h)
+                                  (js/Buffer.from (bin/encode-store-value v))))))
+  (store/completed st))
+
 (defrecord NbbLmdbStore [env db meta-db]
   store/IStore
   (s-get [_ h]
@@ -69,14 +80,6 @@
 
   (s-delete [this h]
     (.removeSync db (hash->buf h))
-    (store/completed this))
-
-  (s-merge [this m]
-    (.transactionSync env
-                      (fn []
-                        (doseq [[h v] m]
-                          (.putSync db (hash->buf h)
-                                    (js/Buffer.from (bin/encode-store-value v))))))
     (store/completed this))
 
   (s-reset [this]

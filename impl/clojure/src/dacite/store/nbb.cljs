@@ -123,11 +123,6 @@
         (.unlinkSync fs p)))
     (store/completed this))
 
-  (s-merge [this m]
-    (doseq [[h v] m]
-      (store/await (store/s-put this h v)))
-    (store/completed this))
-
   (s-reset [this]
     (doseq [p (walk-edn-files (str base))]
       (.unlinkSync fs p))

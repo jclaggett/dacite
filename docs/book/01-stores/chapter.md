@@ -37,7 +37,6 @@ Every content store implements `IStore`:
   (s-put [store hash value] "Store value at hash, return the store")
   (s-has? [store hash] "Check if hash exists")
   (s-delete [store hash] "Remove the entry at hash")
-  (s-merge [store m] "Merge {hash → value} into the store")
   (s-reset [store] "Clear all entries"))
 ```
 
@@ -52,7 +51,7 @@ Typical usage at this layer:
 (s-has? store h)  ;; => true
 ```
 
-A store is a hash-addressed bank. It is not dumped, and it is not listed. You read a node with `s-get` of a hash you already have, and you ask `s-has?` of a hash you already have. Garbage collection marks what a root reaches, with `s-get` only. The backend that holds the entries then deletes the rest. That sweep does not hand the key list back.
+A store is a hash-addressed bank. It is not dumped, and it is not listed. You read a node with `s-get` of a hash you already have, and you ask `s-has?` of a hash you already have. You write one hash with `s-put`. A bulk `{hash → value}` merge is not an operation of this protocol. Garbage collection marks what a root reaches, with `s-get` only. The backend that holds the entries then deletes the rest. That sweep does not hand the key list back.
 
 Application code rarely calls `s-get` / `s-put` directly. Instead it uses the value constructors of Chapter 3, which persist nodes into a store on your behalf. The public value API always takes a store (implicitly via a current-store binding, or explicitly as the first argument) so that persistence stays visible rather than hidden.
 
@@ -104,14 +103,14 @@ Composes several stores into a stack, fastest first (e.g. memory in front of LMD
 ```
 
 - **Read** (`s-get`): walk layers front to back until a layer has the entry. On a hit in a slower layer, the entry is **read through** — backfilled into the faster layers it was missing from — so repeat reads are fast.
-- **Write** (`s-put`, `s-merge`): write to **all** layers. This keeps the durable back layer authoritative and the fast front layer warm.
+- **Write** (`s-put`): write to **all** layers. This keeps the durable back layer authoritative and the fast front layer warm.
 
 A single write policy (write-to-all) is intentional at this layer; richer per-layer policies are out of scope for the content store.
 
 ## 1.5 What This Layer Provides
 
 1. An immutable, content-addressed dictionary: `hash → value`.
-2. A minimal protocol — `s-get` / `s-put` / `s-has?` / `s-delete` / `s-merge` / `s-reset`.
+2. A minimal protocol — `s-get` / `s-put` / `s-has?` / `s-delete` / `s-reset`.
 3. Content addressing, and with it free deduplication and idempotent writes.
 4. Composable backends: memory, file, LMDB, and layered caching — all interchangeable.
 
