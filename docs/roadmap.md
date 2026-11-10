@@ -1,34 +1,41 @@
 # Dacite Roadmap
 
-*Last updated: 2026-11-09*
+*Last updated: 2026-11-10*
 
 ## Current direction
 
 **Peering is the active plan** ([plan/peering.md](plan/peering.md)).
+nbb parity is the stated goal. Work through M6.4 was implicitly that
+parity. The first slice is done (PR #50): mem-store merge and init key
+the way `s-get` reads them. Next is LRU store keying, then file and
+LMDB. Demos and apps are parked until parity, including Value Browser
+rendering (M6.5) and the root URL (M6.6).
 M5.1 compiled the peer for the browser with shadow-cljs. M5.2 and M5.3
 are built: the browser reads a value held only by the nbb peer, and the
-library reader loads a chapter and a plate from that peer. M6.4 is built:
-the Value Browser pastes `dacite://<host>#urn:dacite:<hex>` and fetches
-that hash from the named peer. The page is `examples/web/browser`, local
-URL `http://127.0.0.1:8080/app/browser/`, intended path `dacite.io/browser`.
-Next are M6.5 and M6.6: scalars and text as they are, collections as a
-tree of hashes, a raw/hex pane, then a root URL.
-Origin-integrated signaling (the old M6.1–M6.3, including origin
-suggest) is set aside. PR #47 is that docs-only draft and is not the
-next slice. The page's local tier is IndexedDB (`dacite.store.idb`).
+library reader loads a chapter and a plate from that peer. M6.4 is built
+(PR #49): the Value Browser pastes `dacite://<host>#urn:dacite:<hex>`
+and fetches that hash from the named peer. The page is
+`examples/web/browser`, local URL `http://127.0.0.1:8080/app/browser/`,
+intended path `dacite.io/browser`.
+Peering has two phases. Peering phase 1 is interest-based transmission
+over WebRTC. It is largely complete and closes with a final review.
+Peering phase 2 is ICE-based discovery for peer lists, after the roots
+layer. Origin-integrated signaling (the old M6.1–M6.3, including origin
+suggest) is set aside. PR #47 is that docs-only draft. The page's local
+tier is IndexedDB (`dacite.store.idb`).
 The browser transport is `RTCPeerConnection`
 (`dacite.peer.transport.browser`). The earlier `:cljs-web`,
 `:cljs-explorer`, and `:cljs-library` bundles stay on `cljs.build.api`.
 
-**Client/server reveal is the work.** The public-domain library is large
-enough to show the transport cost, and that cost is the current problem.
-A remote chapter or image is one `GET /node/{hex}` per ~1–2 KB chunk.
+**Client/server reveal.** The public-domain library is large enough
+to show the transport cost. A remote chapter or image is one
+`GET /node/{hex}` per ~1–2 KB chunk.
 Browser `fetch` is done: `dacite.store.browser` uses `fetch`, and `drive`
 reads `response.body` as the bytes arrive, then runs the value op again
 against that exchange. Store methods return promises. The JVM and
 babashka block inside `await`, so the public value API stays synchronous
 there. ClojureScript walks still replay through `drive`. A page can
-open `dacite.store.idb`. The next milestone is the QUIC reveal client.
+open `dacite.store.idb`. A QUIC reveal client is written up below.
 Pack decode still waits
 for the full `Content-Length` body. The demo server is Jetty.
 Cleartext HTTP/1.1 is still the `base-url`. HTTP/3 listens on UDP at
@@ -61,7 +68,17 @@ runs the value operation again. The account is
 
 Do this next:
 
-1. **QUIC reveal client.** The server speaks HTTP/3. `remote-store` maps
+1. **nbb parity.** The same checks on nbb and on the JVM. PR #50 keyed
+   mem-store merge and init the way `s-get` reads them. Next is LRU
+   store keying, then file and LMDB. Demos and apps stay parked until
+   that parity, including Value Browser rendering (M6.5) and the root
+   URL (M6.6). Peering phase 1 (interest-based transmission over
+   WebRTC) is largely complete and closes with a final review. Peering
+   phase 2 (ICE-based discovery for peer lists) comes after the roots
+   layer. The account is [plan/peering.md](plan/peering.md). The
+   reveal-client writeup below is the earlier carrier on this list.
+
+**QUIC reveal client.** The server speaks HTTP/3. `remote-store` maps
    the reveal rule onto QUIC. One connection stays open. Each focused
    child collection is a stream. Resetting the stream cancels that
    reveal. The root-notice stream stays up beside those reveals. This
@@ -114,8 +131,11 @@ JVM `s-get` reads it with `ofByteArray`.
 demoted bulk snapshot.
 
 **Peering**, through M6.4, is a channel to a peer the operator named
-and a fetch by hash. Manual introduce (the slice-3 room, or a pasted
-answer) is enough. The Value Browser is that paste.
+and a fetch by hash. That is peering phase 1: interest-based
+transmission over WebRTC. It is largely complete and closes with a
+final review. Peering phase 2 is ICE-based discovery for peer lists,
+after the roots layer. Manual introduce (the slice-3 room, or a pasted
+answer) is enough for phase 1. The Value Browser is that paste.
 One WebRTC data channel carries one reveal. Each received entry is
 checked against its hash before it is stored, and a bad entry ends
 that peer. The peer protocol stays read-only. A root is a mutable
@@ -132,10 +152,13 @@ M6.4 is that paste. The operator pastes
 fragment is the content name and is not sent as an HTTP path. The
 page shows the hash, the entry count, and whether every entry
 verified. Manual introduce is the slice-3 room or a pasted answer.
-Next on that line is rendering: scalars and text as they are, a HAMT
-or finger tree as a tree of hashes, and a raw/hex pane. A root URL
-is the following slice. A peer list is a value at a root, the same
-kind of walk.
+Rendering (scalars and text as they are, a HAMT or finger tree as a
+tree of hashes, and a raw/hex pane) and a root URL are M6.5 and M6.6.
+Both are parked until nbb parity. That parity is the stated goal. The
+first slice (PR #50) keys mem-store merge and init the way `s-get`
+reads them. Next is LRU store keying, then file and LMDB. A peer list
+is a value at a root. ICE-based discovery for peer lists is peering
+phase 2, after the roots layer.
 
 Later on that same line: mDNS and a configured list of peer URLs, as
 ways to learn a URL, and a tab that serves after the user opts in.
@@ -148,10 +171,11 @@ Still open on that line: whether asking a peer exposes the read and
 who may be asked, whether a peer serves every hash it holds, and
 whether a TURN relay is worth it for a cache. Peer rates are
 answered (one shared `R_max`). Peer lists by root or by locality
-are withdrawn from the peering plan.
+are withdrawn from peering phase 1. ICE-based discovery for peer
+lists is peering phase 2, after the roots layer.
 
-The library project waits until the reveal client and the streamed pack
-are done. Come back to it for:
+The library project stays parked until nbb parity, with the other apps.
+Come back to it for:
 
 1. **EPUB ingest.** `ingest` takes a title and a UTF-8 string. A zip, a
    spine, and resource blobs are not in this example.
@@ -160,7 +184,7 @@ are done. Come back to it for:
    page.
 
 A seventh demo is out of scope. The library stays the app that pulled
-this communication work, and the app to return to.
+this communication work, and the app to return to after nbb parity.
 
 ## How every client reveals a value
 
@@ -220,9 +244,9 @@ place.
 `:exists`. Write-back flush uses the same Layer 1 literals as GET.
 `pack-under` with budget **0** is a single item. Durable pages are the
 value encoding; pack ships those literals. How a client bounds a large
-value is *How every client reveals a value*. The open work, in order:
-a QUIC reveal client, then a chunked pack GET, then a LAN peer tier.
-The library resumes after the reveal client and the streamed pack.
+value is *How every client reveals a value*. The stated goal is nbb
+parity: LRU store keying, then file and LMDB. The library and the
+other apps stay parked until that parity.
 Store methods return promises. `dacite.store.idb` is the page's
 IndexedDB dictionary.
 Browser `fetch` and the HTTP/3 server are done. ClojureScript value
@@ -557,9 +581,9 @@ is the next milestone.
 | HTTP/3 server | The JDK server is HTTP/1.1 only | **Done** — Jetty. Cleartext HTTP/1.1 stays `base-url`. HTTP/3 is UDP on the same port, `Alt-Svc`, self-signed dev cert. Java 21 `HttpClient` still has no `HTTP_3` |
 | Asynchronous IStore | Every store is the same dictionary, local or remote | **Done** — methods return promises. JVM and babashka block in `await`. A missing required node is `:missing`; a store that cannot answer is `:unavailable`. ClojureScript walks still replay through `drive` |
 | IndexedDB store | A web client needs a durable store of its own | **Done** — `dacite.store.idb`. `open` is a rooted store; `idb-store` is the content dictionary a `SmartCacheStore` can put in front of a remote. Ops suspend and `drive` replays them |
-| QUIC reveal client | A focused child collection is its own stream | **Next** — `POST /reveal` streams wire-v1 node items on one connection (the QUIC session on HTTP/3). A second POST while that response is still open is a focused child: the parent stays open, and a hash either stream has offered is not sent on the other. `GET /events` stays up while those two reveals are open. Resetting a stream is not tested. A finished stream acknowledges its pages; a failed stream cancels and releases them. No client ack or release message yet. `remote-store` opts in with `:reveal` and keeps one HTTP/3 connection; the default read is still pack GET. `peak`, `tau`, `floor`, and `r-max` are placeholders. `dacite.reveal` remains the page order, the shares, and the session clock. The pages on that stream are the carrier the LAN peer tier reuses. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
+| QUIC reveal client | A focused child collection is its own stream | **Earlier carrier on this list.** `POST /reveal` streams wire-v1 node items on one connection (the QUIC session on HTTP/3). A second POST while that response is still open is a focused child: the parent stays open, and a hash either stream has offered is not sent on the other. `GET /events` stays up while those two reveals are open. Resetting a stream is not tested. A finished stream acknowledges its pages; a failed stream cancels and releases them. No client ack or release message yet. `remote-store` opts in with `:reveal` and keeps one HTTP/3 connection; the default read is still pack GET. `peak`, `tau`, `floor`, and `r-max` are placeholders. `dacite.reveal` remains the page order, the shares, and the session clock. The pages on that stream are the carrier the LAN peer tier reuses. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
 | Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the reveal client** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
-| LAN peering | A second reader on the LAN should take pages from a neighbor's cache | **Through M6.4, built** — a channel to a named peer and a fetch by hash. The Value Browser pastes `dacite://<host>#urn:dacite:<hex>`. Manual introduce. One WebRTC data channel carries one reveal. Reads only. **Next: rendering and a root URL** (M6.5–M6.6). Origin signaling and origin suggest are set aside. A peer list is a value at a root. The account is [plan/peering.md](plan/peering.md) and [design/peering-design-note.md](design/peering-design-note.md) |
+| LAN peering | A second reader on the LAN should take pages from a neighbor's cache | **Through M6.4, built** — peering phase 1, interest-based transmission over WebRTC: a channel to a named peer and a fetch by hash. Largely complete; closes with a final review. The Value Browser pastes `dacite://<host>#urn:dacite:<hex>`. Manual introduce. One WebRTC data channel carries one reveal. Reads only. **Parked until nbb parity:** rendering and a root URL (M6.5–M6.6). The stated goal is that parity (PR #50 done; next LRU store keying, then file and LMDB). Peering phase 2 is ICE-based discovery for peer lists, after the roots layer. Origin signaling and origin suggest are set aside. A peer list is a value at a root. The account is [plan/peering.md](plan/peering.md) and [design/peering-design-note.md](design/peering-design-note.md) |
 
 Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
 
@@ -654,7 +678,7 @@ Asynchronous IStore                                ✓ promises
           ClojureScript walks still replay through drive
 IndexedDB store for web clients                    ✓ dacite.store.idb
         → rooted open, or the content store in front of remote
-QUIC reveal client                                 ← current
+QUIC reveal client                                 earlier carrier above
         → POST /reveal streams wire-v1 items on one
           connection. A focused child is a second
           stream while the parent stays open.
@@ -664,16 +688,19 @@ QUIC reveal client                                 ← current
           that stream are what a peer reuses
 Stream a pack on one HTTP response                 after the reveal client
         → HTTP/1.1 carrier of the byte limit
-LAN peering                                        through M5.3
-        → a named peer and a fetch by hash;
-          one data channel carries one reveal;
-          manual introduce is enough
-Value Browser                                      M6.4 built; M6.5–M6.6 next
+LAN peering                                        through M6.4
+        → peering phase 1: interest over WebRTC,
+          largely complete. Phase 2 is ICE discovery
+          for peer lists, after the roots layer
+Value Browser                                      M6.4 built; M6.5–M6.6 parked
         → paste dacite://host#urn:dacite:<hex> and
-          show the hash and the entry count;
-          then scalars and text, collections as hashes,
-          a raw/hex pane, then a root URL
-Library, resumed                                   after reveal and streamed pack
+          show the hash and the entry count.
+          Rendering and the root URL wait for parity
+nbb parity                                         ← current
+        → PR #50 keyed mem-store merge and init.
+          Next: LRU store keying, then file and LMDB.
+          Demos and apps wait until this parity
+Library, resumed                                   parked until nbb parity
         → EPUB ingest, extra indexes, upload form
 ```
 
@@ -695,4 +722,5 @@ Do not invent “app 7” to fill the tree.
 - [peering-design-note.md](design/peering-design-note.md) — LAN peer tier:
   WebRTC data channel, a named peer, fetch by hash. Origin signaling
   is set aside. M6.4 pastes a `dacite://` URI and fetches that hash.
-  Rendering is next, in [plan/peering.md](plan/peering.md)
+  Rendering (M6.5) and the root URL (M6.6) are parked until nbb parity.
+  That parity is the stated goal, in [plan/peering.md](plan/peering.md)
