@@ -33,8 +33,8 @@
 
    The cache keeps a bounded number of nodes that this tab has read.
    A miss is remembered only until the current `drive` finishes, so the
-   next drive sees a put from another tab or worker. `s-merge` writes
-   its batch in one transaction."
+   next drive sees a put from another tab or worker. `write-batch`
+   writes its pairs in one transaction. It is not an `IStore` operation."
   (:require [dacite.rooted :as rooted]
             [dacite.store :as store]
             [dacite.store.bytes :as bytes]
@@ -352,11 +352,36 @@
   (order-touch! @(:cache-order st) k)
   (evict-while! st k))
 
-(defn- keepv
-  "Pairs `f` keeps. Defined out here because the IdbStore field `keep`
-   shadows clojure.core/keep inside the record methods."
-  [f coll]
-  (into [] (keep f) coll))
+(defn write-batch
+  "Write `pairs` in one IndexedDB transaction. `pairs` is a map or a
+   sequence of [hash value]. A pair already cached as that value is not
+   written again. Not an IStore operation. A promise of `st`."
+  [st pairs]
+  (evict-while! st nil)
+  (let [epoch *drive-epoch*
+        pending (into []
+                      (keep (fn [[h v]]
+                              (let [k (store/hash->hex h)
+                                    cached (get @(:cache st) k)]
+                                (when-not (and (hit? cached)
+                                               (= (:node cached) v))
+                                  [k v]))))
+                      pairs)]
+    (if (empty? pending)
+      (store/completed st)
+      (wait
+       (reject-cause
+        (-> (ensure-db st)
+            (.then (fn [db*]
+                     (idb-put-many db*
+                                   (map (fn [[k v]]
+                                          [k (bin/encode-store-value v)])
+                                        pending))))
+            (.then (fn [_]
+                     (doseq [[k v] pending]
+                       (cache-store! st k {:node v :epoch epoch})))))
+        nil)
+       (fn [] st)))))
 
 (defrecord IdbStore [name db opening cache cache-order cache-limit
                      sweep-token sweep-result stats-token stats-result
@@ -462,32 +487,6 @@
                          (cache-store! this k {:miss epoch})
                          (cache-drop! this k)))))
           h)
-         (fn [] this)))))
-
-  (s-merge [this m]
-    (evict-while! this nil)
-    (let [epoch *drive-epoch*
-          pending (keepv (fn [[h v]]
-                           (let [k (store/hash->hex h)
-                                 cached (get @cache k)]
-                             (when-not (and (hit? cached)
-                                            (= (:node cached) v))
-                               [k v])))
-                         m)]
-      (if (empty? pending)
-        (store/completed this)
-        (wait
-         (reject-cause
-          (-> (ensure-db this)
-              (.then (fn [db*]
-                       (idb-put-many db*
-                                     (map (fn [[k v]]
-                                            [k (bin/encode-store-value v)])
-                                          pending))))
-              (.then (fn [_]
-                       (doseq [[k v] pending]
-                         (cache-store! this k {:node v :epoch epoch})))))
-          nil)
          (fn [] this)))))
 
   (s-reset [this]
@@ -689,9 +688,6 @@
   (s-has? [_ h] (store/s-has? content h))
   (s-delete [this h]
     (store/await (store/s-delete content h))
-    (store/completed this))
-  (s-merge [this m]
-    (store/await (store/s-merge content m))
     (store/completed this))
   (s-reset [this]
     (store/await (store/s-reset content))

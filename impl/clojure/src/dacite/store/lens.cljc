@@ -179,9 +179,6 @@
   (s-delete [this h]
     (store/await (store/s-delete base h))
     (store/completed this))
-  (s-merge [this m]
-    (store/await (store/s-merge base m))
-    (store/completed this))
   (s-reset [this]
     (store/await (store/s-reset base))
     (store/completed this))

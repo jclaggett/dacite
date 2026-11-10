@@ -291,7 +291,6 @@
   (s-put [this hash v] (host-later #(do (store/await (store/s-put inner hash v)) this)))
   (s-has? [_ hash] (host-later #(store/await (store/s-has? inner hash))))
   (s-delete [this hash] (host-later #(do (store/await (store/s-delete inner hash)) this)))
-  (s-merge [this m] (host-later #(do (store/await (store/s-merge inner m)) this)))
   (s-reset [this] (host-later #(do (store/await (store/s-reset inner)) this))))
 
 (defn- when-done

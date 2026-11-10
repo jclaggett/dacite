@@ -154,13 +154,6 @@
       (let [s2 (store/layered-store (store/mem-store) file)]
         (is (= {:data "layered"} (store/await (store/s-get s2 [1 2 3 4]))))))))
 
-(deftest file-store-merge-test
-  (testing "merge adds multiple entries to file store"
-    (let [s (sj/file-store (str *temp-dir*))]
-      (store/await (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b}))
-      (is (= :a (store/await (store/s-get s [1 2 3 4]))))
-      (is (= :b (store/await (store/s-get s [5 6 7 8])))))))
-
 (deftest file-store-creates-dir-test
   (testing "file-store creates directory if it doesn't exist"
     (let [path (str *temp-dir* "/nested/subdir")
@@ -225,11 +218,12 @@
         (finally
           (sj/lmdb-close s))))))
 
-(deftest lmdb-store-merge-test
-  (testing "LMDB merge writes multiple entries in single txn"
-    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-merge"))]
+(deftest lmdb-store-batch-test
+  (testing "write-batch stores every pair"
+    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-batch"))
+          pairs [[[1 2 3 4] ["i64" 10]] [[5 6 7 8] ["i64" 20]]]]
       (try
-        (store/await (store/s-merge s {[1 2 3 4] ["i64" 10] [5 6 7 8] ["i64" 20]}))
+        (store/await (sj/write-batch s pairs))
         (is (= ["i64" 10] (store/await (store/s-get s [1 2 3 4]))))
         (is (= ["i64" 20] (store/await (store/s-get s [5 6 7 8]))))
         (finally

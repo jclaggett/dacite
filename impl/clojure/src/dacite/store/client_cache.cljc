@@ -72,11 +72,6 @@
     (store/await (store/s-delete remote h))
     (store/completed this))
 
-  (s-merge [this m]
-    (doseq [[h v] m]
-      (store/await (store/s-put this h v)))
-    (store/completed this))
-
   (s-reset [this]
     (store/await (store/s-reset local))
     (store/completed this))
@@ -114,11 +109,6 @@
     (store/await (store/s-delete local h))
     (store/await (store/s-delete remote h))
     (swap! flushed disj (gc/hash-key h))
-    (store/completed this))
-
-  (s-merge [this m]
-    (doseq [[h v] m]
-      (store/await (store/s-put this h v)))
     (store/completed this))
 
   (s-reset [this]

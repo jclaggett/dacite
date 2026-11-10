@@ -42,6 +42,7 @@
                 (swap! dirs conj d)
                 d))
      :open (fn [place _opts] (lmdb/lmdb-store place))
+     :write-batch lmdb/write-batch
      :close (fn [st] (try (lmdb/lmdb-close st) (catch :default _ nil)))
      :cleanup (fn []
                 (doseq [d @dirs]

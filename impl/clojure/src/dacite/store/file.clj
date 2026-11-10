@@ -96,11 +96,6 @@
         (.delete f)))
     (store/completed this))
 
-  (s-merge [this m]
-    (doseq [[h v] m]
-      (store/await (store/s-put this h v)))
-    (store/completed this))
-
   (s-reset [this]
     (doseq [^File f (file-seq base-dir)
             :when (and (.isFile f) (.endsWith (.getName f) ".edn"))]

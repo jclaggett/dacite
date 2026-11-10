@@ -177,11 +177,6 @@
                    (store/await (store/s-delete pack-local h))
                    this))))
 
-  (s-merge [this m]
-    (doseq [[h v] m]
-      (store/await (store/s-put this h v)))
-    (store/completed this))
-
   (s-reset [this]
     (store/await (store/s-reset pack-local))
     (store/completed this))
@@ -226,9 +221,6 @@
   (s-has? [_ h] (store/s-has? content h))
   (s-delete [this h]
     (store/await (store/s-delete content h))
-    (store/completed this))
-  (s-merge [this m]
-    (store/await (store/s-merge content m))
     (store/completed this))
   (s-reset [this]
     (store/await (store/s-reset content))

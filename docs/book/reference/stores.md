@@ -51,7 +51,7 @@ See [Values — root](values.md#root-value-level) and
 
 ## Not part of the app API
 
-`IStore` (`s-get`, `s-put`, `s-has?`, `s-delete`, …) is the content dictionary used
+`IStore` (`s-get`, `s-put`, `s-has?`, `s-delete`, `s-reset`) is the content dictionary used
 by backends. Application code should not call it.
 
 | Store | Host | Internal ctor |

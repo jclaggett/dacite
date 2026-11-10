@@ -600,16 +600,6 @@
   (s-delete [this h]
     (store/await (store/s-delete inner h))
     (store/completed this))
-  (s-merge [this m]
-    (store/await (store/s-merge inner m))
-    (swap! acc (fn [state]
-                 (reduce (fn [{:keys [order by]} [h value]]
-                           (let [hk (store/hash->hex h)]
-                             {:order (if (contains? by hk) order (conj order hk))
-                              :by (assoc by hk [h value])}))
-                         state
-                         m)))
-    (store/completed this))
   (s-reset [this]
     (store/await (store/s-reset inner))
     (reset! acc {:order [] :by {}})

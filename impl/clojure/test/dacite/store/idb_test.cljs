@@ -135,7 +135,8 @@
         (.finally (fn []
                     (set! (.-transaction proto) orig))))))
 
-(defn- batch-merge
+(defn- batch-is-one-transaction
+  "write-batch stores three nodes in one IndexedDB transaction."
   []
   (counting-transactions
    (fn [n]
@@ -148,16 +149,23 @@
            st (idb/idb-store name {:cache-limit 1})]
        (-> (idb/drive
             (fn []
-              (store/await (store/s-merge st (into {} nodes)))))
+              (eq! (store/await (idb/write-batch st nodes)) st
+                   "a batch fulfils with the store")))
            (.then (fn [_]
-                    (eq! @n 1 "merge uses one transaction")
+                    (eq! @n 1 "a batch uses one transaction")
                     (idb/close st)
                     (let [again (idb/idb-store name)]
                       (-> (idb/drive
                            (fn []
-                             (doseq [[h node] nodes]
-                               (eq! (store/await (store/s-get again h)) node
-                                    "merged node survived reopen"))))
+                             (eq! (store/await (store/s-get again (ffirst nodes)))
+                                  (second (first nodes))
+                                  "the first batched node survived reopen")
+                             (eq! (store/await (store/s-get again (first (second nodes))))
+                                  (second (second nodes))
+                                  "the second batched node survived reopen")
+                             (eq! (store/await (store/s-get again (first (nth nodes 2))))
+                                  (second (nth nodes 2))
+                                  "the third batched node survived reopen")))
                           (.then (fn [_] (idb/close again))))))))))))
 
 (defn- cache-evicts
@@ -390,9 +398,6 @@
                                              (sp (store/s-delete again h))))
                                     (.then (fn [r]
                                              (eq! r again "delete fulfils with the store")
-                                             (sp (store/s-merge again {h node}))))
-                                    (.then (fn [r]
-                                             (eq! r again "merge fulfils with the store")
                                              (sp (store/s-reset again))))
                                     (.then (fn [r]
                                              (eq! r again "reset fulfils with the store")
@@ -535,6 +540,14 @@
                  (eq! got (second a) "get, evict, get again returns the node")
                  (idb/close st))))))
 
+(defn- put-each
+  "A promise of `st` after `s-put` of every pair."
+  [st pairs]
+  (reduce (fn [p [h node]]
+            (-> p (.then (fn [_] (unwrap (store/s-put st h node))))))
+          (js/Promise.resolve st)
+          pairs))
+
 (defn- sweep-does-not-fill-the-read-cache
   "N14a: an internal sweep walks every hash and does not load those nodes
    into the read cache. A node the cache dropped is still read back when
@@ -548,7 +561,7 @@
                     (range 5))
         st (idb/idb-store name {:cache-limit 1})
         live (set (map (comp store/hash->hex first) nodes))]
-    (-> (unwrap (store/s-merge st (into {} nodes)))
+    (-> (put-each st nodes)
         ;; A get evicts down to the limit. The sweep must not fill it again.
         (.then (fn [_] (unwrap (store/s-get st (first (peek nodes))))))
         (.then (fn [_]
@@ -597,7 +610,7 @@
       (.then put-survives-reopen)
       (.then rooted-swap)
       (.then cache-in-front)
-      (.then batch-merge)
+      (.then batch-is-one-transaction)
       (.then cache-evicts)
       (.then another-writer-is-visible)
       (.then new-store-is-tagged-and-reopen-passes)

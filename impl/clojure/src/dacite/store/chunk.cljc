@@ -77,10 +77,6 @@
     (store/await (store/s-delete inner h))
     (store/completed this))
 
-  (s-merge [this m]
-    (store/await (store/s-merge overlay m))
-    (store/completed this))
-
   (s-reset [this]
     (store/await (store/s-reset overlay))
     (store/await (store/s-reset inner))
