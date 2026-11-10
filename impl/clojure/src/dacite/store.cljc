@@ -91,7 +91,7 @@
   (s-put [this h value] "Promise of the store after storing value at hash.")
   (s-has? [this h] "Promise of true when hash exists in this store.")
   (s-delete [this h] "Promise of the store after removing hash.")
-  (s-merge [this m] "Promise of the store after merging {hash value} pairs.")
+  (s-merge [this m] "Promise of the store after merging hash/value pairs (a map or a sequence).")
   (s-reset [this] "Promise of the store after clearing all entries."))
 
 (defprotocol ISweep
@@ -179,11 +179,11 @@
 ;; =============================================================================
 
 (defn ^:private mkey
-  "Internal map key for a hash. On JVM a hash is a vector of longs and is
-   used directly. On ClojureScript a hash is a vector of BigInts, which
-   cannot be a map key (BigInt is a primitive and can't carry the hash uid),
-   so we key by the canonical hex string instead. Cross-host storage is
-   never compared directly (only root hashes are), so this is internal."
+  "Internal map key for a hash. On the JVM a hash vector is the key. On
+   ClojureScript the same vector holds BigInts: a small array map can hold
+   one, and a hash map cannot (SCI will not hash a BigInt). `s-get` looks
+   the hash up by this key, so every write uses it too. The JVM key is the
+   vector. The ClojureScript key is the canonical hex."
   [h]
   #?(:clj h :cljs (hash/hash->hex h)))
 
@@ -192,13 +192,19 @@
   [k]
   (if (string? k) k (hash/hash->hex k)))
 
+(defn- keyed
+  "Hash/value pairs under `mkey`. `entries` is a map or a sequence of pairs.
+   A sequence is what a host passes when a hash vector cannot be a map key."
+  [entries]
+  (reduce (fn [m [h v]] (assoc m (mkey h) v)) {} entries))
+
 (defrecord MemStore [data]
   IStore
   (s-get [_ h] (completed (get @data (mkey h))))
   (s-put [this h value] (swap! data assoc (mkey h) value) (completed this))
   (s-has? [_ h] (completed (contains? @data (mkey h))))
   (s-delete [this h] (swap! data dissoc (mkey h)) (completed this))
-  (s-merge [this m] (swap! data merge m) (completed this))
+  (s-merge [this m] (swap! data merge (keyed m)) (completed this))
   (s-reset [this] (reset! data {}) (completed this))
   ISweep
   (sweep-unmarked [_ live]
@@ -218,9 +224,11 @@
                   :edn-bytes (reduce (fn [n v] (+ n (count (pr-str v)))) 0 (vals m))}))))
 
 (defn mem-store
-  "Create an in-memory content-addressed store."
+  "Create an in-memory content-addressed store.
+   `init` is a map or a sequence of hash/value pairs, stored under the
+   same key `s-get` uses."
   ([] (->MemStore (atom {})))
-  ([init] (->MemStore (atom init))))
+  ([init] (->MemStore (atom (keyed init)))))
 
 ;; =============================================================================
 ;; Layered store
