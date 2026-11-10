@@ -68,12 +68,8 @@
       (is (= :a (store/await (store/s-get s [1 2 3 4]))))
       (is (= 2 (:entries (store/await (store/local-stats s))))))))
 
-(deftest mem-store-merge-test
-  (testing "merge adds multiple entries"
-    (let [s (store/mem-store)]
-      (store/await (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b}))
-      (is (= :a (store/await (store/s-get s [1 2 3 4]))))
-      (is (= :b (store/await (store/s-get s [5 6 7 8])))))))
+;; mem-store merge and init, and the layered cases that seed or merge a map,
+;; are dacite.store.mem-test. nbb runs those same checks (`npm run mem:test`).
 
 (deftest mem-store-reset-test
   (testing "reset clears store"
@@ -82,11 +78,6 @@
       (store/await (store/s-reset s))
       (is (nil? (store/await (store/s-get s [1 2 3 4]))))
       (is (zero? (:entries (store/await (store/local-stats s))))))))
-
-(deftest mem-store-init-test
-  (testing "mem-store can be initialized with data"
-    (let [s (store/mem-store {[1 2 3 4] :a})]
-      (is (= :a (store/await (store/s-get s [1 2 3 4])))))))
 
 ;; =============================================================================
 ;; FileStore
@@ -141,22 +132,6 @@
 ;; LayeredStore
 ;; =============================================================================
 
-(deftest layered-store-read-through-test
-  (testing "reads fall through from fast to slow"
-    (let [fast (store/mem-store)
-          slow (store/mem-store {[1 2 3 4] :from-slow})
-          s (store/layered-store fast slow)]
-      ;; Not in fast, found in slow
-      (is (= :from-slow (store/await (store/s-get s [1 2 3 4])))))))
-
-(deftest layered-store-read-through-backfill-test
-  (testing "slow-layer hit backfills faster layers"
-    (let [fast (store/mem-store)
-          slow (store/mem-store {[1 2 3 4] :from-slow})
-          s (store/layered-store fast slow)]
-      (is (= :from-slow (store/await (store/s-get s [1 2 3 4]))))
-      (is (= :from-slow (store/await (store/s-get fast [1 2 3 4])))))))
-
 (deftest layered-store-write-all-test
   (testing "writes go to all layers"
     (let [fast (store/mem-store)
@@ -165,31 +140,6 @@
       (store/await (store/s-put s [1 2 3 4] :value))
       (is (= :value (store/await (store/s-get fast [1 2 3 4]))))
       (is (= :value (store/await (store/s-get slow [1 2 3 4])))))))
-
-(deftest layered-store-fast-wins-test
-  (testing "fast layer takes precedence"
-    (let [fast (store/mem-store {[1 2 3 4] :fast})
-          slow (store/mem-store {[1 2 3 4] :slow})
-          s (store/layered-store fast slow)]
-      (is (= :fast (store/await (store/s-get s [1 2 3 4])))))))
-
-(deftest layered-store-has?-test
-  (testing "has? checks all layers"
-    (let [fast (store/mem-store)
-          slow (store/mem-store {[1 2 3 4] :v})
-          s (store/layered-store fast slow)]
-      (is (store/await (store/s-has? s [1 2 3 4])))
-      (is (not (store/await (store/s-has? s [9 9 9 9])))))))
-
-(deftest layered-store-reads-test
-  (testing "a get prefers the fast layer and still sees a slow-only hash"
-    (let [fast (store/mem-store {[1 2 3 4] :fast})
-          slow (store/mem-store {[1 2 3 4] :slow [5 6 7 8] :only-slow})
-          s (store/layered-store fast slow)]
-      (is (= :fast (store/await (store/s-get s [1 2 3 4]))))
-      (is (= :only-slow (store/await (store/s-get s [5 6 7 8]))))
-      (is (store/await (store/s-has? s [1 2 3 4])))
-      (is (store/await (store/s-has? s [5 6 7 8]))))))
 
 (deftest layered-store-with-file-test
   (testing "mem + file layered store"
@@ -218,15 +168,6 @@
       (is (.exists (io/file path)))
       (store/await (store/s-put s [1 2 3 4] :v))
       (is (= :v (store/await (store/s-get s [1 2 3 4])))))))
-
-(deftest layered-store-merge-test
-  (testing "merge writes to all layers"
-    (let [fast (store/mem-store)
-          slow (store/mem-store)
-          s (store/layered-store fast slow)]
-      (store/await (store/s-merge s {[1 2 3 4] :a [5 6 7 8] :b}))
-      (is (= :a (store/await (store/s-get fast [1 2 3 4]))))
-      (is (= :b (store/await (store/s-get slow [5 6 7 8])))))))
 
 (deftest layered-store-reset-test
   (testing "reset clears all layers"
