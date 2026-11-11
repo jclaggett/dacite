@@ -12,7 +12,8 @@
             [dacite.value.finger-tree-checks :as finger-tree-checks]
             [dacite.value.hamt-collision-checks :as hamt-collision-checks]
             [dacite.value.path-checks :as path-checks]
-            [dacite.value.unicode-checks :as unicode-checks]))
+            [dacite.value.unicode-checks :as unicode-checks]
+            [dacite.value-checks :as value-checks]))
 
 (def env
   "Host pieces the checks take. Paths are from the repo root."
@@ -21,10 +22,12 @@
                     (.readFileSync (js/require "fs") "fixtures/fuse-sl2/vectors.edn" "utf8")))})
 
 (def suites
-  "[label checks slow-ms?]: the JVM runs these from dacite.value.<label>-test.
+  "[label checks slow-ms?]: the JVM runs these from dacite.value.<label>-test
+   (\"value\" from dacite.value-test).
    `slow-ms` holds nbb ceilings above `check/max-ms`, each with a
    JUSTIFICATION on its check."
-  [["path" path-checks/checks]
+  [["value" value-checks/checks]
+   ["path" path-checks/checks]
    ["api" api-checks/checks]
    ["finger-tree" finger-tree-checks/checks]
    ["collections" collections-checks/checks]
