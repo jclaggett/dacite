@@ -39,7 +39,7 @@ Next up: a Peering or Tests item: more of `literal_limits_test`, the JVM-only `p
 ## Core and data model
 
 - [x] [done] Port `peer/items.clj` to `.cljc`. Node bytes are `dacite.reveal/encode-page` (the JVM `service.reveal/encode-page` delegates, same bytes). `peer/items.cljc`
-- [ ] [not started] `.clj` only: `value/render.clj`, `value/serial.clj` (legacy codec; portable codec is `wire/binary.cljc`), `convert.clj`, `json.clj`
+- [ ] [not started] `.clj` only: `value/render.clj`, `value/serial.clj` (legacy codec; portable codec is `wire/binary.cljc`), `convert.clj`
 - [ ] [in progress] JVM value tests: `core_test` (142), `value/*_test`, `value_test`. Done: `value/root_ref_test` (5), `value/root_ref_checks.cljc` (`rooted:test`); on nbb its `@r`, `swap!`, and `reset!` steps are `v/deref`, `v/swap!`, and `root-ref/ref-reset!`. `value/path_test` (9), `value/api_test` (5), and `value/finger_tree_test` (19): `value/path_checks.cljc`, `value/api_checks.cljc`, and `value/finger_tree_checks.cljc` (`value:test`). `value/collections_test` (22) and `value/unicode_test` (14): `value/collections_checks.cljc` and `value/unicode_checks.cljc` (`value:test`). `value/hamt_collision_test` (21): `value/hamt_collision_checks.cljc` (`value:test`), all shared; the JVM keeps test.check for the 4 properties, nbb runs them from a fixed seed with `value/seeded_gen.cljc` (20 cases each). Sharing it found an nbb bug in `peer/verify.cljc` (a split-51 bitmap compared as a Number). `value_test` (8 deftests; the 9 counted the `deftest` refer): `value_checks.cljc` (`value:test`); JVM only: the one-letter-String line of `scalar-validation` (no char type on JS). `core_test` (142), in part: `core_checks.cljc` (`value:test`) has its scalar construction and size tests (16 deftests), its store context and value identity tests (9: `with-store`, `v/hash`, `wrap-hash`, coercion), and the type line of `str-test`, `blob-test`, `vec-test`, `hash-map-test`, and `dacite-set-test` (their other line is `count` or `dacite.convert`); JVM only: the one-letter-String line of `char-test` (no char type on JS) and the equality line of `neg-test`; the other 112 deftests are native collection interfaces (`count`, `nth`, `get`, `conj`, `assoc`, `seq`, IFn, `equals`, `hashCode`, `toString`, CharSequence, Iterator, MapEntry) or `dacite.convert` (`.clj` only, below). JVM only: `api_test/parity-with-native-jvm-test` (native collection interfaces) and the vector line of `path_test/pr-str-renders-long-strings` (`value/render.clj`); in `collections_test`, 7 whole deftests and the native-interface and bounded-`toString` lines of 8 more (native collection interfaces, `value/render.clj`); in `unicode_test`, `charsequence-indexes-code-points`, `cp-count-and-cp-offset-match-the-jdk`, and `indexing-inside-a-page-is-not-a-hand-written-scan` (CharSequence, the JDK as oracle and timing baseline) and the BMP-char-is-not-a-String line of `a-character-outside-the-bmp-is-one-element` (no char type on JS).
 - [x] [done] `wire/binary_test` (14). `npm run wire:test`. `wire/binary_checks.cljc`, all shared; the fixtures (`fixtures/wire-v1`) are host pieces in `env`. The bad-state check moved there from `peer:test`, which ran 3 of its 5 cases. Sharing it found an nbb bug in `wire/binary.cljc`: an i32 body decoded off by 2^32 - 1. On nbb a decoded u64 entry holds a BigInt where a live one holds a Number (as with the bitmap, #64); the round trip compares u64 data as a host word
 - [x] [done] `hash_test` (26 deftest, 10 defspec). `npm run hash:test`. `hash_checks.cljc`, all shared. The 10 properties keep test.check on the JVM (100 trials each); nbb runs the same 100 cases from a fixed seed with `value/seeded_gen.cljc`. The fuse and kernel vectors moved here from `peer:test`. BigInteger calls are small helpers (BigInt on nbb, with a Miller-Rabin `probable-prime?` to the JVM's error bound); sets of states are keyed by hex on nbb; a hash word is an unsigned BigInt there
@@ -60,8 +60,7 @@ Next up: a Peering or Tests item: more of `literal_limits_test`, the JVM-only `p
 
 ## CLI and runtime
 
-- [ ] [not started] `examples/cards.clj`. nbb scripts already: hello, config, notes, log, sync, todo, library
-- [ ] [not started] `webrtc:signal-test` is not in CI. No JVM `/signal` route
+- [ ] [not started] `webrtc:signal-test` is not in CI. No JVM `/signal` route. In scope: this is peer signaling, not the HTTP API
 - [ ] [not started] JVM tools: `gen_fuse_fixtures`, `gen_peer_fixtures`, `gen_wire_fixtures`, `gen_byte_table`, `gen_sl2_table`, `inspect`, `time_tests`, `bench_cp`, `page_size_bench`, `page_size_degenerate`, `bench/library_storage.clj`, `bench/todo_bw.clj`
 
 ## Hand checks and later
@@ -69,13 +68,20 @@ Next up: a Peering or Tests item: more of `literal_limits_test`, the JVM-only `p
 - [ ] [not started] Safari, Firefox, and Mac hand runs of the browser peer. Steps in `docs/plan/peering.md` M5.2. Chromium `peer:e2e` is in CI
 - [x] [done] PR #47 is closed. Origin signaling spec, head `58a3b28`
 
+## JVM-only, outside peering scope
+
+Neither HTTP nor peering: not parity work, and the code stays.
+
+- [ ] [not started] `json.clj` and `json_test.clj`. `json.clj` is used only by its own test
+- [ ] [not started] `examples/cards.clj`, which uses only store and value. nbb scripts already: hello, config, notes, log, sync, todo, library
+
 ## Legacy HTTP (removed after parity)
 
 Not parity work: these stay unticked, and their code stays until the HTTP removal after parity.
 
 - [ ] [not started] `store/remote.clj` and `store/reveal.clj` (HTTP/3). `remote_test` (3). `store/remote` throws off the JVM. Browser fetch is `store/browser.cljs`
 - [ ] [not started] `origin_test.clj` (3)
-- [ ] [not started] `service_test.clj`, `service/reveal_test.clj`, `service/throttle_test.clj`, `json_test.clj`
+- [ ] [not started] `service_test.clj`, `service/reveal_test.clj`, `service/throttle_test.clj`
 - [ ] [not started] The JVM-only tests in `pack_test` (7) and `rate_limit_test` (1) that start the HTTP service or read through `store/remote` (see Storage)
 - [ ] [not started] JVM server: `service.clj`, `service/main.clj` (`clojure -M:service`), `service/reveal.clj`, `service/throttle.clj`
 - [ ] [not started] JVM origins: `examples/peer_origin.clj`, `examples/library_origin.clj`. The nbb peers `peer_nbb.cljs` and `library_nbb.cljs` peer instead
