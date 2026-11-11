@@ -1076,8 +1076,9 @@ starved, and the cost is only the temporary congestion described above.
     responder's defaults, which are within these.
   - **C10 (Decided).** After the clamps a stream lives at most
     `tau · ln(peak / floor)`: at most 60 s · ln 100 ≈ **276 s**. A responder MUST
-    discard all state for a stream no later than that after its request.
-    (A requester that wants longer renews, C08.)
+  discard all state for a stream on that deadline, not later: a blocked
+  channel does not extend it.
+  (A requester that wants longer renews, C08.)
 - **A per-peer cap on open streams** bounds the total state a peer can make another
   hold, as C10 bounds each stream's lifetime.
   - **C11 (Decided).** A responder MUST enforce the
@@ -1135,7 +1136,10 @@ negotiated `max-frame`, per data channel (and per pipe, in single-pipe mode).
   5 frames are ever queued on a channel, and at most 64 streams × 5 frames
   (about 5 MiB) per session. `cancel`, `error`, `ack` and `hello`
   are one-frame control messages on their own channel and are not held back by a
-  stream channel's buffer.
+  stream channel's buffer. A stream's ending (the rest of the current item, plus
+  FIN) is exempt and is written on the deadline even past the high mark; the
+  overshoot is at most one item plus the FIN frame per stream, and at most
+  `max-streams` streams (C11).
 - **How back-pressure meets `R_max`.** `R_max` and the shares decide *when a stream
   may write*; the buffer only decides whether it *can*. **C18 (Decided; SHOULD).** A stream blocked by C17 SHOULD take no share while blocked:
   its share goes to the other streams of the session, as a capped peer's does (C02).
@@ -1406,12 +1410,12 @@ marked planned (C06, C08, C09, C11, C12, and the rest) stay planned.
 | C01 | Decided | One shared R_max split by interest; R_max·I/max(peak, ΣI) leaves R_max unused at low interest | `shared-rmax-splits-by-interest-across-peers` (exists, slice 2: `rates/split`, and the client counts a new stream at peak) | JVM, nbb peer | M1.2 s2 (exists) |
 | C02 | Decided | Rate = min(share, peer send-max); unused share redistributed | `capped-peer-share-is-redistributed` (property: sum <= R_max, each <= cap) (exists, slice 2: a hand case and a 300-case property over generated peers) | JVM, nbb peer | M1.2 s2 (exists) |
 | C03 | Decided | Responder paces to min(send-max, latest get recv-max); splits by interest | `responder-paces-to-session-budget` (exists, slice 2: simulated clock; budget, `send-max` cap and a 2:1 split) | JVM, nbb peer | M1.2 s2 (exists) |
-| C05 | Decided | Stream ends (FIN, PARTIAL) when interest < floor | `stream-ends-partial-when-interest-falls-below-floor` (exists: simulated clock; FIN+PARTIAL at the clamped lifetime, FIN alone when the reveal finishes first). At the floor the responder always sends FIN+PARTIAL: it finishes the current item even when the channel is blocked or credit runs out, and when blocked it writes once the channel drains (`floor-sends-fin-partial-when-blocked-or-credit-runs-out`). | JVM, nbb peer | M4.1 (exists) |
+| C05 | Decided | Stream ends (FIN, PARTIAL) when interest < floor | `stream-ends-partial-when-interest-falls-below-floor` (exists: simulated clock; FIN+PARTIAL at the clamped lifetime, FIN alone when the reveal finishes first). At the floor the responder always sends FIN+PARTIAL, finishing the current item even when credit runs out; a blocked channel gets that end immediately, past the high mark (`floor-sends-fin-partial-when-blocked-or-credit-runs-out`). | JVM, nbb peer | M4.1 (exists) |
 | C06 | Decided | No idle timeout; a stalled stream only decays | `stalled-stream-decays-and-frees-its-share` | JVM | M4.1 |
 | C07 | Decided | `cancel` is optional; sets interest to 0; correct without it | `cancel-stops-and-frees-share-and-is-never-required` (exists: a received cancel stops that stream and frees its share; a closed id is ignored; a stream still completes with no cancel) | JVM, nbb peer | M4.1 (exists) |
 | C08 | Decided | Renewal is a new get, a new clock at peak | `renewal-is-a-new-stream-at-peak` | JVM | M4.1 |
 | C09 | Decided | Clamp floor >= 10, tau-ms <= 60 000, peak <= 1000 | `get-interest-is-clamped-by-the-responder` | JVM, nbb peer | M3.1 |
-| C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (exists, M4.2: simulated clock; the C09 clamps bound the lifetime) | JVM, nbb peer | M4.2 (exists) |
+| C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (exists, M4.2: simulated clock; the C09 clamps bound the lifetime). State is gone on the deadline tick itself, with no extension while the channel is blocked. | JVM, nbb peer | M4.2 (exists) |
 | C11 | Decided | Enforce advertised max-streams; slot frees at once | `too-many-streams-is-refused-and-a-closed-slot-frees` (parity half: `f3-stream-table-parity-and-duplicates`, exists) | JVM, nbb peer | M3.1 |
 | C12 | Decided | max-streams capped at 64 (read larger as 64) | `max-streams-above-64-is-read-as-64` | JVM, nbb peer | M3.1 |
 | C13 | Decided | Any verification failure (not only a bad hash) ends the whole session (fatal bad-entry) | `bad-entry-ends-the-session` (exists, slice 1: every way of lying, JVM and nbb; item level: `tampering-is-refused`, exists) | JVM, nbb peer (exist); browser | M1.2 s1; browser M5.1 |

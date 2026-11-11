@@ -1114,10 +1114,10 @@
     [(:fin? fr) (:partial? fr)]))
 
 (defn floor-sends-fin-partial-when-blocked-or-credit-runs-out
-  "C05. The floor always ends with FIN+PARTIAL. A channel at the high mark
-   writes that frame once it drains, and does not write while it is blocked.
-   A leaf cut across frames is finished even when banked credit does not
-   cover the rest, and that end is FIN+PARTIAL too.
+  "C05 and C10. The deadline tick writes FIN+PARTIAL and drops the stream,
+   even when the channel is over the high mark: nothing waits for a drain.
+   A leaf cut across frames is finished on that same tick when banked credit
+   does not cover the rest, and that end is FIN+PARTIAL too.
 
    One 8000-character string. At 8192 it is two frames, so the channel can
    be blocked after the first. At 4096 a leaf is cut. The floor is about
@@ -1127,7 +1127,7 @@
         root (v/hash (v/string leaf (apply str (repeat 8000 "z"))))
         order (vec (reveal/page-order leaf root))
         interest {"peak" 1000 "tau-ms" 3000 "floor" 50}
-        ;; blocked after the first frame, held there across the floor
+        ;; blocked after the first frame, still blocked on the deadline tick
         blocked (rnet {:st leaf :channel? true})
         _ (send-to! blocked (get-bytes 1 root 15000 interest))
         _ (loop [i 0]
@@ -1139,10 +1139,6 @@
         pages-before (read-items blocked 1)
         _ (set-buffered! blocked 1 (* 5 frame-bytes))
         _ (step! blocked 12000)
-        held (item-frames blocked 1)
-        held-open? (contains? (responder/open-streams (:r blocked) "p") 1)
-        _ (set-buffered! blocked 1 0)
-        _ (step! blocked 100)
         blocked-after (item-frames blocked 1)
         ;; 4096 cuts a leaf. Stop while credit cannot cover the rest of it.
         short (rnet {:st leaf :max-frame 4096})
@@ -1166,14 +1162,13 @@
     (concat
      (bad "the blocked stream had sent a page and not ended" true
           (and (pos? (count blocked-before)) (empty? (no-fin blocked-before))))
-     (bad "at the high mark the floor writes nothing yet" (count blocked-before) (count held))
-     (bad "and the stream waits for the drain" true held-open?)
-     (bad "once the channel drains, one FIN PARTIAL frame arrives" true
+     (bad "the deadline tick writes FIN PARTIAL with no drain" true
           (and (= (count blocked-after) (inc (count blocked-before)))
                (= [true true] (fin-partial? blocked-after))
-               (empty? (no-fin (pop blocked-after)))))
+               (empty? (no-fin (pop blocked-after)))
+               (>= (get @(:bufs blocked) 1 0) (* 4 frame-bytes))))
      (bad "that frame adds no page" pages-before (read-items blocked 1))
-     (bad "the blocked stream is then gone, the session lives" [false :open]
+     (bad "the stream state is gone on that tick, the session lives" [false :open]
           [(contains? (responder/open-streams (:r blocked) "p") 1)
            (responder/session-status (:r blocked) "p")])
      (bad "credit ran out inside an item" true

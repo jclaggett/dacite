@@ -45,9 +45,9 @@
    the C09 clamps the stream ends at `tau · ln(peak / floor)` (at most about
    276 s), the instant clamped interest reaches the floor. The last frame is
    always FIN, and PARTIAL when pages remain. An item already started is
-   finished first, without waiting for credit and without the high mark
-   holding the rest of it back. If the channel is blocked, those frames wait
-   until it drains. A renewal is a new `get`. The clamps bound that lifetime;
+   finished on that tick, without waiting for credit and even when the
+   channel is over the high mark, and the state is gone before the tick
+   returns. A renewal is a new `get`. The clamps bound that lifetime;
    they do not change the send rate. The stream cap of C11/C12 is M3.1. Items are sent as node
    items; the literal choice of `dacite.peer.items/encode-value` is JVM-only.
 
@@ -420,7 +420,7 @@
   "C05 and C10. Clamped interest reaches the floor at the stream's deadline
    (`tau · ln(peak / floor)`). The spec says interest \"falls below\" the floor;
    this is the same instant the lifetime already used. Reaching it ends the
-   stream with FIN and PARTIAL. The state stays until that frame is written."
+   stream with FIN and PARTIAL, and the state is gone on that tick."
   [st now]
   (boolean (and (:deadline st) (>= (double now) (double (:deadline st))))))
 
@@ -450,17 +450,10 @@
       (swap! (:state r) update-in [:sessions peer :record]
              #(record-sent (or % (record-empty)) hks)))))
 
-(defn- hold-for-drain!
-  "The floor has been reached and the channel is at the high mark. Keep the
-   stream until it drains, then the next tick writes the end (C17, C05)."
-  [r peer sid next credit]
-  (swap! (:state r) update-in [:sessions peer :streams sid]
-         assoc :credit credit :next next :blocked? true))
-
 (defn- finish-item-then-end!
-  "Below the floor, and the channel can take a frame. Send the rest of the
-   in-progress item with no credit check and no high-mark stop, then
-   FIN+PARTIAL when planned frames remain."
+  "Below the floor. Send the rest of the in-progress item with no credit
+   check and even when the channel is over the high mark, then FIN+PARTIAL
+   when planned frames remain. The state is dropped before this returns."
   [r peer sid st max-frame next]
   (let [frames (:frames st)
         ends (:ends st)]
@@ -515,18 +508,14 @@
               ;; the planned frames are done: the last one already carries FIN
               (nil? f) (close-stream! r peer sid)
 
-              ;; C05: the channel is full. Keep the stream and write the end
-              ;; on the tick it has drained.
-              (and below? blocked)
-              (hold-for-drain! r peer sid next credit)
-
               ;; C05: at an item boundary, PARTIAL, because frames remain.
+              ;; Written on this tick even when the channel is over the high mark.
               (and below? boundary?)
               (do ((:send! r) peer (fin-frame sid true max-frame))
                   (close-stream! r peer sid))
 
-              ;; C05: finish the in-progress item without credit or the high
-              ;; mark, then FIN+PARTIAL if anything remains.
+              ;; C05: finish the in-progress item, then FIN+PARTIAL if anything
+              ;; remains. Same exemption from credit and the high mark.
               below?
               (finish-item-then-end! r peer sid st max-frame next)
 
