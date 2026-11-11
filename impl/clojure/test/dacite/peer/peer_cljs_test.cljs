@@ -80,34 +80,6 @@
       (string-vectors/problems vs)
       ["string vectors missing"])))
 
-(defn- bad-state-problems
-  "A measure state outside SL(2, F_p) is refused with ex-info :bad-state on nbb
-   as on the JVM (wire/binary_test.clj)."
-  []
-  (let [st (store/mem-store)
-        m (v/vector st (v/string st "aaa") (v/string st "bbb"))
-        root (store/await (store/s-get st (v/hash m)))
-        h (:root (second root))
-        entry (store/await (store/s-get st h))
-        bs (js/Uint8Array.from (js/Array.from (bin/encode-item {:enc :node :hash h :entry entry})))
-        state (vec (hash/state->bytes (:elements-fuse (:measure (second entry)))))
-        off (first (filter #(= state (mapv (fn [i] (aget bs (+ % i))) (range 128)))
-                           (range (- (.-length bs) 127))))
-        outcome (fn [a] (try (bin/decode-item-stream a) :decoded
-                             (catch :default e [(:reason (ex-data e)) (ex-message e)])))
-        flipped (fn [at] (let [a (js/Uint8Array.from bs)] (aset a at (bit-xor 1 (aget a at))) a))
-        zeroed (let [a (js/Uint8Array.from bs)] (dotimes [i 128] (aset a (+ off i) 0)) a)]
-    (concat
-     (when-not off ["bad-state: the state is not inside the item"])
-     (when-not (= :decoded (outcome bs)) ["bad-state: the untouched item does not decode"])
-     (mapcat (fn [[label a]]
-               (let [[reason msg] (outcome a)]
-                 (when-not (and (= :bad-state reason) (re-find #"bad fuse state" (str msg)))
-                   [(str "bad-state: " label " gave " (pr-str [reason msg]))])))
-             {"a flipped bit in cell a" (flipped off)
-              "a flipped bit in cell d" (flipped (+ off 127))
-              "the all-zero state" zeroed}))))
-
 (defn- bitmap-u32-unsigned-problems
   "Issue #30: a hamt/bitmap whose bitmap has bit 31 set (chunk 31 in use) must
    decode as an unsigned u32 on nbb. Before the fix, `get-u32` used signed
@@ -163,7 +135,7 @@
                 ["negotiate does not pick the highest common version"]))
         client (-> (client-checks/run-all) (into (flow-checks/run-all)) (into (async-checks/run-all)) (into (transport-checks/run-all)))
         client-problems (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) client)
-        all (into (into (into (vec problems) framing) host) (concat client-problems (bitmap-u32-unsigned-problems) (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (bad-state-problems) (cache-checks/problems)))]
+        all (into (into (into (vec problems) framing) host) (concat client-problems (bitmap-u32-unsigned-problems) (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (cache-checks/problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
              (count all) "problems")
     (println "client checks:" (count client) "tests,"

@@ -70,6 +70,11 @@ jobs:
       - name: Value layer suite
         run: npm run value:test
 
+      # wire/binary_test: the wire-v1 codec against fixtures/wire-v1 and
+      # live public values.
+      - name: Wire codec suite
+        run: npm run wire:test
+
       # shadow-cljs.edn uses :deps, so peer:build and browser:test start
       # the compiler with the `clojure` executable. The suites above do not.
       - uses: actions/setup-java@v5
