@@ -75,6 +75,10 @@ jobs:
       - name: Wire codec suite
         run: npm run wire:test
 
+      # hash_test: the SL(2, F_p) fuse, refs, and the kernel boundary.
+      - name: Hash suite
+        run: npm run hash:test
+
       # shadow-cljs.edn uses :deps, so peer:build and browser:test start
       # the compiler with the `clojure` executable. The suites above do not.
       - uses: actions/setup-java@v5

@@ -21,6 +21,7 @@
     "rooted:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.rooted-cljs-test",
     "value:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.value-cljs-test",
     "wire:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.wire.binary-cljs-test",
+    "hash:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.hash-cljs-test",
     "mem:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.mem-cljs-test",
     "lru:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.lru-cljs-test",
     "lmdb:bench": "nbb -m dacite.examples.lmdb-bench",

@@ -1,109 +1,27 @@
 (ns dacite.hash-test
-  "Generative tests for Dacite hashing invariants."
+  "Dacite hashing invariants.
+
+   The portable tests are checks in `dacite.hash-checks`, shared with nbb
+   (`npm run hash:test`); each runs here as a deftest under its old name.
+   The properties were defspecs; their checks run test.check here."
   (:require [clojure.edn]
             [clojure.test :refer [deftest is testing]]
-            [clojure.test.check.generators :as gen]
-            [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :refer [defspec]]
             [dacite.hash :as hash]
+            [dacite.hash-checks :as checks]
             [dacite.host :as host]
             [dacite.kernel-vectors :as kernel-vectors]
             [dacite.store :as store]
+            [dacite.store.check :as check]
             [dacite.value :as v]
             [dacite.value.types :as types]
             [dacite.value.scalar]))
 
-;; =============================================================================
-;; Generators for scalar types
-;; =============================================================================
-
-(def gen-null
-  "Generator for null values."
-  (gen/return nil))
-
-(def gen-bool
-  "Generator for boolean values."
-  gen/boolean)
-
-(def gen-i8
-  "Generator for signed 8-bit integers."
-  (gen/fmap byte (gen/choose -128 127)))
-
-(def gen-i16
-  "Generator for signed 16-bit integers."
-  (gen/fmap short (gen/choose -32768 32767)))
-
-(def gen-i32
-  "Generator for signed 32-bit integers."
-  gen/small-integer)
-
-(def gen-i64
-  "Generator for signed 64-bit integers."
-  gen/large-integer)
-
-(def gen-u8
-  "Generator for unsigned 8-bit integers (stored as int)."
-  (gen/choose 0 255))
-
-(def gen-u16
-  "Generator for unsigned 16-bit integers (stored as int)."
-  (gen/choose 0 65535))
-
-(def gen-u32
-  "Generator for unsigned 32-bit integers (stored as long)."
-  (gen/choose 0 4294967295))
-
-(def gen-u64
-  "Generator for unsigned 64-bit integers (stored as BigInteger)."
-  (gen/fmap bigint (gen/large-integer* {:min 0})))
-
-(def gen-f32
-  "Generator for 32-bit floats (within float range)."
-  (gen/fmap float (gen/double* {:min (- Float/MAX_VALUE)
-                                :max Float/MAX_VALUE
-                                :infinite? false
-                                :NaN? false})))
-
-(def gen-f64
-  "Generator for 64-bit floats."
-  gen/double)
-
-(def gen-char
-  "Generator for UTF-8 characters."
-  gen/char)
-
-;; Composite generator for any scalar value with its type tag
-(def gen-tagged-scalar
-  "Generator for [type-name value] pairs."
-  (gen/one-of
-   [(gen/tuple (gen/return "null") gen-null)
-    (gen/tuple (gen/return "bool") gen-bool)
-    (gen/tuple (gen/return "i8") gen-i8)
-    (gen/tuple (gen/return "i16") gen-i16)
-    (gen/tuple (gen/return "i32") gen-i32)
-    (gen/tuple (gen/return "i64") gen-i64)
-    (gen/tuple (gen/return "u8") gen-u8)
-    (gen/tuple (gen/return "u16") gen-u16)
-    (gen/tuple (gen/return "u32") gen-u32)
-    (gen/tuple (gen/return "f32") gen-f32)
-    (gen/tuple (gen/return "f64") gen-f64)
-    (gen/tuple (gen/return "char") gen-char)]))
-
-;; =============================================================================
-;; Generators of fuse states and refs
-;; =============================================================================
-
-(def gen-bytes
-  "1 to 8 random bytes."
-  (gen/vector (gen/choose 0 255) 1 8))
-
-(def gen-state
-  "A fuse state: the fused generators of some random bytes."
-  (gen/fmap hash/fuse-bytes gen-bytes))
-
-(def gen-ref
-  "A ref (32-byte digest): the digest of a random state."
-  (gen/fmap hash/state->ref gen-state))
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (defn- pow-by-squaring
   "a^n (n a nonnegative biginteger) by repeated squaring."
@@ -122,58 +40,35 @@
 ;; Group laws (SL(2, F_p))
 ;; =============================================================================
 
-(defspec fuse-determinism 100
-  (prop/for-all [a gen-state b gen-state]
-                (= (hash/fuse a b) (hash/fuse a b))))
+(deftest fuse-determinism
+  (run-check "fuse-determinism"))
 
-(defspec fuse-stays-in-the-group 100
-  (prop/for-all [a gen-state b gen-state]
-                (hash/state-valid? (hash/fuse a b))))
+(deftest fuse-stays-in-the-group
+  (run-check "fuse-stays-in-the-group"))
 
-(defspec fuse-associative 100
-  (prop/for-all [a gen-state b gen-state c gen-state]
-                (= (hash/fuse a (hash/fuse b c))
-                   (hash/fuse (hash/fuse a b) c))))
+(deftest fuse-associative
+  (run-check "fuse-associative"))
 
-(defspec fuse-identity 100
-  (prop/for-all [a gen-state]
-                (and (= a (hash/fuse a hash/identity-state))
-                     (= a (hash/fuse hash/identity-state a)))))
+(deftest fuse-identity
+  (run-check "fuse-identity"))
 
-(defspec fuse-non-commutative 100
-  (prop/for-all [a gen-state b gen-state]
-                (or (= a b)
-                    (not= (hash/fuse a b) (hash/fuse b a)))))
+(deftest fuse-non-commutative
+  (run-check "fuse-non-commutative"))
 
-(defspec fuse-inverse-both-sides 100
-  (prop/for-all [a gen-state]
-                (and (= hash/identity-state (hash/fuse (hash/fuse-inverse a) a))
-                     (= hash/identity-state (hash/fuse a (hash/fuse-inverse a))))))
+(deftest fuse-inverse-both-sides
+  (run-check "fuse-inverse-both-sides"))
 
-(defspec unfuse-recovers 100
-  (prop/for-all [a gen-state b gen-state]
-                (let [fused (hash/fuse a b)]
-                  (and (= a (hash/unfuse fused b))
-                       (= b (hash/fuse (hash/fuse-inverse a) fused))))))
+(deftest unfuse-recovers
+  (run-check "unfuse-recovers"))
 
-(defspec fuse-bytes-composes-over-concatenation 100
-  (prop/for-all [x gen-bytes y gen-bytes]
-                (= (hash/fuse-bytes (into x y))
-                   (hash/fuse (hash/fuse-bytes x) (hash/fuse-bytes y)))))
+(deftest fuse-bytes-composes-over-concatenation
+  (run-check "fuse-bytes-composes-over-concatenation"))
 
-(defspec typed-value-hash-determinism 100
-  (prop/for-all [[type-kw value] gen-tagged-scalar]
-                (= (types/typed-value-hash [type-kw value])
-                   (types/typed-value-hash [type-kw value]))))
+(deftest typed-value-hash-determinism
+  (run-check "typed-value-hash-determinism"))
 
-(defspec different-types-different-hashes 100
-  (prop/for-all [type1 (gen/elements ["i32" "i64" "u32" "f32" "f64"])
-                 type2 (gen/elements ["i32" "i64" "u32" "f32" "f64"])
-                 value gen/small-integer]
-    ;; Same numeric value with different types should hash differently
-                (or (= type1 type2)
-                    (not= (types/typed-value-hash [type1 value])
-                          (types/typed-value-hash [type2 value])))))
+(deftest different-types-different-hashes
+  (run-check "different-types-different-hashes"))
 
 ;; =============================================================================
 ;; The prime and the generator table
@@ -605,3 +500,11 @@
   (testing "round-trip preserves data"
     (let [original [12345 -67890 111111 -222222]]
       (is (= original (hash/bytes->longs (hash/longs->bytes original)))))))
+
+;; Until all of hash_test is shared, this guard checks that every shared
+;; check runs here, not that the two lists are the same.
+(deftest every-check-has-a-deftest
+  (is (every? (set (map #(-> % meta :name str)
+                        (filter #(-> % meta :test) (vals (ns-interns 'dacite.hash-test)))))
+              (keys checks/checks))
+      "every check in hash_checks.cljc has a deftest here"))
