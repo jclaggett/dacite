@@ -64,8 +64,8 @@ jobs:
       - name: Rooted store, GC, and root ref suite
         run: npm run rooted:test
 
-      # value/path_test, api_test, finger_tree_test, collections_test, and
-      # unicode_test.
+      # value/path_test, api_test, finger_tree_test, collections_test,
+      # unicode_test, and hamt_collision_test.
       - name: Value layer suite
         run: npm run value:test
 

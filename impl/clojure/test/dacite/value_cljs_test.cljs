@@ -10,6 +10,7 @@
             [dacite.value.api-checks :as api-checks]
             [dacite.value.collections-checks :as collections-checks]
             [dacite.value.finger-tree-checks :as finger-tree-checks]
+            [dacite.value.hamt-collision-checks :as hamt-collision-checks]
             [dacite.value.path-checks :as path-checks]
             [dacite.value.unicode-checks :as unicode-checks]))
 
@@ -27,7 +28,8 @@
    ["api" api-checks/checks]
    ["finger-tree" finger-tree-checks/checks]
    ["collections" collections-checks/checks]
-   ["unicode" unicode-checks/checks unicode-checks/slow-ms]])
+   ["unicode" unicode-checks/checks unicode-checks/slow-ms]
+   ["hamt-collision" hamt-collision-checks/checks hamt-collision-checks/slow-ms]])
 
 (defn- run [label checks slow-ms]
   (let [rows (mapv #(check/run-one checks env % (get slow-ms % check/max-ms))
