@@ -66,6 +66,13 @@
         (catch #?(:clj Throwable :cljs :default) e
           (if re (boolean (re-find re (str (ex-message e)))) true)))))
 
+(defn throws-info?
+  "True when `(f)` throws an ExceptionInfo (`ex-info`). Any other throw
+   propagates, so the check reports it."
+  [f]
+  (try (f) false
+       (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) _ true)))
+
 (def max-ms
   "No check may take longer than this (milliseconds)."
   3000)

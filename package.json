@@ -19,6 +19,7 @@
     "storage:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.storage-cljs-test",
     "store-units:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.store-units-cljs-test",
     "rooted:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.rooted-cljs-test",
+    "value:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.value-cljs-test",
     "mem:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.mem-cljs-test",
     "lru:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.store.lru-cljs-test",
     "lmdb:bench": "nbb -m dacite.examples.lmdb-bench",
