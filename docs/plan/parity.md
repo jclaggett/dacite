@@ -1,10 +1,12 @@
-# nbb and browser parity
+# nbb reference parity
 
-Retire the JVM runtime. Keep `clojure -M:dev:test` green until nbb passes the same checks.
-Gap from that suite to nbb (Node) and the browser, read from this tree.
+nbb is the reference implementation; the JVM remains as a performance target and must pass the shared checks.
+The JVM is on the same tier as possible future C++/WASM implementations. The gap is JVM-only checks and code that still need a portable or nbb version.
 Each line is tagged [done], [in progress], or [not started].
 
 How to update: tick the item and add the PR number when it merges.
+
+Next up: after the C09, C11, C12, and C32 tests PR, port `peer/items.clj` to `.cljc`, then the storage test ports.
 
 ## Done
 
@@ -21,7 +23,7 @@ How to update: tick the item and add the PR number when it merges.
 
 ## Storage
 
-- [ ] [not started] JVM `store_test.clj` (26) and `format_test.clj` (6). No shared `.cljc` checks. Next file and LMDB slice (`docs/plan/peering.md`)
+- [ ] [not started] JVM `store_test.clj` (26) and `format_test.clj` (6). No shared `.cljc` checks. File and LMDB slice in `docs/plan/peering.md`
 - [ ] [not started] nbb `store/file` and `store/lmdb` (chunked, plus a root cell) still need a shared check. JVM sources: `store/file.clj`, `store/jvm.clj`. Browser `store/file` and `store/lmdb` throw
 - [ ] [not started] `pack_test` (50), `chunk_test` (9), `lens_test` (13), `rate_limit_test` (7). Sources `pack`, `chunk`, `lens`, `rate_limit` are `.cljc`
 - [ ] [not started] `store/remote.clj` and `store/reveal.clj` (HTTP/3). `remote_test` (3). `store/remote` throws off the JVM. Browser fetch is `store/browser.cljs`
@@ -65,4 +67,4 @@ How to update: tick the item and add the PR number when it merges.
 
 - [ ] [not started] Safari, Firefox, and Mac hand runs of the browser peer. Steps in `docs/plan/peering.md` M5.2. Chromium `peer:e2e` is in CI
 - [ ] [not started] M5.2 Brave/Safari hand check: origin returned 500. The page continues only on 404 (`examples/peer_web.cljs` `origin-absent!`). The CI stub sends 404 (`scripts/peer-browser-e2e.mjs`)
-- [ ] [not started] PR #47 stays set aside. Origin signaling spec, head `58a3b28`
+- [x] [done] PR #47 is closed. Origin signaling spec, head `58a3b28`
