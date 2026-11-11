@@ -70,28 +70,16 @@ jobs:
       # M5.2. Chromium only. Safari and Firefox are a one-time hand check;
       # the steps are in docs/plan/peering.md under M5.2.
       #
-      # Hosted runners list azure.archive.ubuntu.com first in
-      # /etc/apt/apt-mirrors.txt (priority:1, then archive.ubuntu.com,
-      # then security.ubuntu.com). When that name does not resolve, apt
-      # reports "Temporary failure resolving 'azure.archive.ubuntu.com'"
-      # for every fetch and Playwright exits 100. Drop Azure only in that
-      # case; leave the list alone when it resolves.
-      - name: Drop Azure apt mirror if it does not resolve
-        run: |
-          if getent hosts azure.archive.ubuntu.com; then
-            echo "azure.archive.ubuntu.com resolves; leaving apt mirrors unchanged"
-          else
-            echo "azure.archive.ubuntu.com did not resolve; dropping it from apt mirrors"
-            printf 'http://archive.ubuntu.com/ubuntu/\tpriority:1\nhttps://security.ubuntu.com/ubuntu/\tpriority:2\n' \
-              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
-            sudo apt-get update
-          fi
-
+      # ubuntu-24.04 already ships Google Chrome and its system libraries.
+      # Download Playwright's Chromium only. `--with-deps` would apt-get
+      # those libraries again, and apt is badly degraded when the Azure
+      # mirror does not resolve.
       - name: Install Playwright Chromium
+        timeout-minutes: 10
         run: |
           attempt=1
           while [ "$attempt" -le 3 ]; do
-            if npx playwright install --with-deps chromium; then
+            if npx playwright install chromium; then
               exit 0
             fi
             if [ "$attempt" -eq 3 ]; then
