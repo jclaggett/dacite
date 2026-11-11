@@ -48,7 +48,12 @@
    finished on that tick, without waiting for credit and even when the
    channel is over the high mark, and the state is gone before the tick
    returns. A renewal is a new `get`. The clamps bound that lifetime;
-   they do not change the send rate. The stream cap of C11/C12 is M3.1. Items are sent as node
+   they do not change the send rate.
+
+   **Stream cap (C11, C12).** The table enforces this side's advertised
+   `max-streams`, and a value above 64 is read as 64. A `get` past the cap
+   is `error overloaded` and does not start. FIN, `cancel`, and the floor
+   each free the slot at once; the id stays used. Items are sent as node
    items; the literal choice of `dacite.peer.items/encode-value` is JVM-only.
 
    **Store reads may be asynchronous (M1.3).** A `get` reads the store through
@@ -374,7 +379,9 @@
                    assoc :peer-hello value
                    :budget (get-in value ["rates" "recv-max"])
                    :max-frame (get-in (msg/negotiate mine value) [:ok :max-frame])
-                   :table (frame/stream-table :answerer (get-in mine ["limits" "max-streams"]))
+                   :table (frame/stream-table
+                           :answerer
+                           (frame/cap-max-streams (get-in mine ["limits" "max-streams"])))
                    :last-tick ((:now r))))
 
           (= :error type)
