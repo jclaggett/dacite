@@ -1379,11 +1379,21 @@
 (defn- errors-on [n sid]
   (filterv #(= sid (:stream %)) (errors-of n)))
 
+(defn- get-frames
+  "Get frames for stream ids `ids`. The value is encoded once; each frame only
+   changes the id in the envelope."
+  [root recv-max ids interest]
+  (let [payload (:payload (frame/decode-frame (get-bytes (first ids) root recv-max interest)))]
+    (mapv (fn [sid]
+            (frame/encode-frame {:type :get :stream sid :flags frame/flag-fin
+                                 :payload payload}))
+          ids)))
+
 (defn- ask-range!
   "Open `k` gets of `root` on the odd ids 1, 3, ... ."
   [n root k recv-max]
-  (doseq [i (range k)]
-    (send-to! n (get-bytes (inc (* 2 i)) root recv-max))))
+  (doseq [bs (get-frames root recv-max (map #(inc (* 2 %)) (range k)) nil)]
+    (send-to! n bs)))
 
 (defn too-many-streams-is-refused-and-a-closed-slot-frees
   "C11. The responder enforces the `max-streams` it advertises. At 64, the
@@ -1399,8 +1409,8 @@
         [before at] (life-bracket (spec-life 1000 1000 200))
         n (rnet {:st st :channel? true :hello (hello-capping 64)})
         _ (send-to! n (get-bytes 1 tiny 1 short))
-        _ (doseq [i (range 1 64)]
-            (send-to! n (get-bytes (inc (* 2 i)) tiny 1)))
+        _ (doseq [bs (get-frames tiny 1 (map #(inc (* 2 %)) (range 1 64)) nil)]
+            (send-to! n bs))
         open-64 (responder/open-streams (:r n) "p")
         _ (send-to! n (get-bytes 129 tiny 1))
         refused (error-rows n)
