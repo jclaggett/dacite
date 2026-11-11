@@ -151,8 +151,9 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.examples.hello` | `host` | `impl/clojure/src/dacite/examples/hello.cljc` | Hello example, domain only. Requires `dacite.store` and `dacite.value`. |
 | `dacite.examples.parity` | `host` | `impl/clojure/src/dacite/examples/parity.cljc` | Cross-host hash example. Requires `dacite.store` and `dacite.value`. |
 | `dacite.examples.todo` | `host` | `impl/clojure/src/dacite/examples/todo.cljc` | Todo domain. Requires `dacite.store` and `dacite.value`. |
+| `dacite.peer.items` | `host` | `impl/clojure/src/dacite/peer/items.cljc` | Item streams: the literal rule and `encode-value`. No host marker. Node bytes are `dacite.reveal/encode-page`. Requires frame, verify, the store, pack, and the wire codec. |
 | `dacite.peer.origin` | `host` | `impl/clojure/src/dacite/peer/origin.cljc` | Verify origin pack chunks into a store. No host marker. Requires `dacite.peer.verify`, the store, and the wire codec. |
-| `dacite.reveal` | `host` | `impl/clojure/src/dacite/reveal.cljc` | Store adapter for `dacite.reveal.engine`. Builds the node source from `dacite.store`, `dacite.value.types`, `dacite.value.hamt`, and `dacite.wire.binary`. No host marker of its own. |
+| `dacite.reveal` | `host` | `impl/clojure/src/dacite/reveal.cljc` | Store adapter for `dacite.reveal.engine`. Builds the node source from `dacite.store`, `dacite.value.types`, `dacite.value.hamt`, and `dacite.wire.binary`. `encode-page` is the node item a reveal writes. No host marker of its own. |
 | `dacite.rooted.gc` | `host` | `impl/clojure/src/dacite/rooted/gc.cljc` | Mark-and-sweep in portable Clojure. Requires `dacite.store` and `dacite.value.types`. |
 | `dacite.store.bytes` | `host` | `impl/clojure/src/dacite/store/bytes.cljc` | Byte sizes of one stored value, for a backend's own stats. Requires `dacite.wire.binary`. |
 | `dacite.store.chunk` | `host` | `impl/clojure/src/dacite/store/chunk.cljc` | Chunked overlay. Requires `dacite.store`, `dacite.store.pack`, and `dacite.rooted.gc`. |
@@ -188,7 +189,6 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.examples.todo-ui` | `host` | `impl/clojure/src/dacite/examples/todo_ui.cljs` | nbb todo CLI. `promesa` and Node. |
 | `dacite.examples.todo-web` | `host` | `impl/clojure/src/dacite/examples/todo_web.cljs` | Compiled browser todo UI. DOM and `dacite.store.browser`. |
 | `dacite.json` | `host` | `impl/clojure/src/dacite/json.clj` | JVM JSON via Cheshire, over `dacite.convert`. |
-| `dacite.peer.items` | `host` | `impl/clojure/src/dacite/peer/items.clj` | JVM-only peer item writer. Calls `dacite.service.reveal/encode-page`. |
 | `dacite.peer.transport.browser` | `host` | `impl/clojure/src/dacite/peer/transport/browser.cljs` | Browser WebRTC adapter over `RTCPeerConnection`. |
 | `dacite.peer.transport.webrtc` | `host` | `impl/clojure/src/dacite/peer/transport/webrtc.cljs` | nbb WebRTC adapter over `node-datachannel`. |
 | `dacite.store.browser` | `host` | `impl/clojure/src/dacite/store/browser.cljs` | Browser remote store. `fetch` and `Uint8Array`. |
@@ -219,10 +219,9 @@ The HTTP service process. Names are `dacite.service` and `dacite.service.*`.
 ### Edges the lint allows
 
 The lint is one way: `core` may not require `host` or `server-only`. A
-`host` namespace may require a `server-only` one. Three do, and this
+`host` namespace may require a `server-only` one. Two do, and this
 milestone leaves them where they are:
 
-- `dacite.peer.items` requires `dacite.service.reveal` (`encode-page`).
 - `dacite.store.reveal` requires `dacite.service.reveal` (`accept-ready!`).
 - `dacite.bench.todo-bw` requires `dacite.service`.
 

@@ -7,7 +7,7 @@
 [the plan](../plan/peering.md) (M1.1, M1.2).
 **Code:** `dacite.peer.frame` (envelope, packing), `dacite.peer.msg` (messages),
 both portable `.cljc`; `dacite.peer.items` (item streams: the literal rule and
-verification, JVM `.clj` for now). **Fixtures:** [`fixtures/peer-v1/`](../../fixtures/peer-v1/).
+verification, portable `.cljc`). **Fixtures:** [`fixtures/peer-v1/`](../../fixtures/peer-v1/).
 
 **M1.2 (sections 12 and 13):** the numbered rules (C01 to C45, C04 withdrawn: 41 MUSTs and 3 SHOULDs) with a planned
 test for each, rate sharing with the client's `R_max`, token buckets, flow control

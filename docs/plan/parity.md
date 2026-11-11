@@ -8,7 +8,7 @@ How to update: tick the item and add the PR number when it merges.
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: port `peer/items.clj` to `.cljc`, then the storage test ports.
+Next up: the storage test ports.
 
 ## Done
 
@@ -37,7 +37,7 @@ Next up: port `peer/items.clj` to `.cljc`, then the storage test ports.
 
 ## Core and data model
 
-- [ ] [not started] Port `peer/items.clj` to `.cljc`. It calls `service.reveal/encode-page`. No `.cljc` or `.cljs` twin
+- [x] [done] Port `peer/items.clj` to `.cljc`. Node bytes are `dacite.reveal/encode-page` (the JVM `service.reveal/encode-page` delegates, same bytes). `peer/items.cljc`
 - [ ] [not started] `.clj` only: `value/render.clj`, `value/serial.clj` (legacy codec; portable codec is `wire/binary.cljc`), `convert.clj`, `json.clj`
 - [ ] [not started] JVM value tests: `core_test` (142), `value/*_test`, `value_test`. `wire/binary_test` past the bad-state check inside `peer:test`
 - [ ] [not started] `hash_test` past fuse and kernel vectors. `unicode_test` past `string_vectors.cljc`. Those vectors run in `peer:test`
@@ -46,7 +46,8 @@ Next up: port `peer/items.clj` to `.cljc`, then the storage test ports.
 ## Peering
 
 - [ ] [not started] Still no test: C06, C08, C24, C25, C42 (`peer-v1.md` section 13)
-- [ ] [not started] `peer_items_test.clj` (20) and `literal_limits_test.clj` (34). Both require `peer.items`
+- [x] [done] `peer_items_test` (20). `npm run items:test`. `peer/items_checks.cljc`
+- [ ] [in progress] `literal_limits_test.clj` (1 of 34). `node-items-over-a-payload-are-reported-by-default-and-throw-on-request` is in `peer/items_checks.cljc`. The other 33 need test.check, `store.bound`, `peer.msg`, finger-tree paging, `with-redefs`, or JVM clocks and threads
 - [ ] [not started] 21 deftest and 2 defspec in `peer_v1_test.clj` stay on the JVM. Fixtures and framing run in `peer:test`
 - [ ] [not started] `origin_test.clj` (3)
 - [ ] [not started] Peering phase 2: ICE discovery for peer lists, after the roots layer (`docs/plan/peering.md`)

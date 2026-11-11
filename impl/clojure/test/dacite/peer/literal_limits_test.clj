@@ -211,21 +211,8 @@
 ;; The node-item cap and the smallest frame
 ;; ---------------------------------------------------------------------------
 
-(deftest node-items-over-a-payload-are-reported-by-default-and-throw-on-request
-  (let [st (store/mem-store)
-        h (v/hash (v/string st (apply str (repeat 3000 \x))))]
-    (testing "a normal frame: no node item is over the cap"
-      (is (empty? (:oversized (items/encode-value st h)))))
-    (testing "a tiny frame: the node items are over it; reported, still sent"
-      (let [r (items/encode-value st h {:max-frame-bytes 120})]
-        (is (seq (:oversized r)))
-        (is (= (count (:items r)) (count (:hashes r))))
-        (is (every? #(> (:len %) (frame/max-literal-item 120)) (:oversized r)))))
-    (testing "with the option it throws"
-      (is (= :node-too-large
-             (try (items/encode-value st h {:max-frame-bytes 120 :strict-node-cap? true})
-                  :no-throw
-                  (catch clojure.lang.ExceptionInfo e (:reason (ex-data e)))))))))
+;; `node-items-over-a-payload-are-reported-by-default-and-throw-on-request`
+;; needs only `peer.items`. It runs from `items_checks.cljc`.
 
 (deftest hello-limits-max-frame-accepts-the-webrtc-clamp
   ;; 8192 (`min-max-frame`) still holds a node item in one frame. The codec

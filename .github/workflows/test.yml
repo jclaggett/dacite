@@ -30,12 +30,13 @@ jobs:
       # parity:test is the nbb half of bin/parity.sh. The JVM half and
       # the digest compare need Clojure, so they stay local, like
       # core-boundary-test.
-      - name: Reveal, parity, IndexedDB, peer, WebRTC, mem-store, and LRU suites
+      - name: Reveal, parity, IndexedDB, peer, items, WebRTC, mem-store, and LRU suites
         run: |
           npm run reveal:test
           npm run parity:test
           npm run idb:test
           npm run peer:test
+          npm run items:test
           npm run webrtc:test
           npm run mem:test
           npm run lru:test
