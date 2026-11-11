@@ -193,6 +193,14 @@
 
 (defn- big-value [] @big)
 
+(def ^:private mid
+  "A store with a value of 50 entries, about 48 KB, and its root: more than
+   any one stream of the pacing checks writes (C03, C18). A `get` reads its
+   whole value, and on nbb that is most of a pacing check's time. Built once."
+  (delay (let [st (store/mem-store)] [st (v/hash (cc/map-of st 50))])))
+
+(defn- mid-value [] @mid)
+
 (def ^:private frame-bytes 8192)
 
 ;; =============================================================================
@@ -513,36 +521,40 @@
 (defn responder-paces-to-session-budget
   "C03: the responder writes at `min(send-max, budget)`, where the budget is the
    `recv-max` of the latest `get` (the `hello`'s before any), split among the
-   streams by interest. On a simulated clock, over one second each time, with a
-   `send-max` of 60000: a `get` with a 100000 budget writes about 60000 bytes
-   (within one frame; the `send-max` is the smaller); a later `get` with 20000
-   lowers the session to that; and, on another session, two streams at interest
-   1000 and 500 on a 90000 budget share it two to one."
+   streams by interest. On a simulated clock, over one second each time, with
+   4096-byte frames and a `send-max` of 30000: a `get` with a 50000 budget
+   writes about 30000 bytes (within one frame; the `send-max` is the smaller); a
+   later `get` with 10000 lowers the session to that; and, on another session,
+   two streams at interest 1000 and 500 on a 45000 budget share it two to one.
+   (Half the bytes and frame size of the first version, the same precision
+   in frames, on a 48 KB value: a `get` costs time on nbb.)"
   []
-  (let [[st root] (big-value)
+  (let [[st root] (mid-value)
+        fb 4096
         slow {"peak" 1000 "tau-ms" 100000000 "floor" 50}
         pace (fn [n from]
                (dotimes [_ 20] (step! n 50))
                (item-bytes n from (+ from 1000)))
         total #(reduce + 0 (vals %))
-        n1 (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "send-max"] 60000)})
-        _ (send-to! n1 (get-bytes 1 root 100000 slow))
+        n1 (rnet {:st st :max-frame fb
+                  :hello (assoc-in responder/default-hello ["rates" "send-max"] 30000)})
+        _ (send-to! n1 (get-bytes 1 root 50000 slow))
         capped (pace n1 0)
-        _ (send-to! n1 (get-bytes 3 root 20000 slow))
+        _ (send-to! n1 (get-bytes 3 root 10000 slow))
         lowered (pace n1 1000)
-        n2 (rnet {:st st})
-        _ (send-to! n2 (get-bytes 1 root 90000 slow))
-        _ (send-to! n2 (get-bytes 3 root 90000 (assoc slow "peak" 500)))
+        n2 (rnet {:st st :max-frame fb})
+        _ (send-to! n2 (get-bytes 1 root 45000 slow))
+        _ (send-to! n2 (get-bytes 3 root 45000 (assoc slow "peak" 500)))
         split (pace n2 0)]
     (concat
-     (bad "budget 100000, send-max 60000: within one frame of 60000 and not over" true
-          (<= (- 60000 frame-bytes) (total capped) 60000))
-     (bad "after a get with recv-max 20000, about 20000 (two frames of slack)" true
-          (<= 3000 (total lowered) (+ 20000 (* 2 frame-bytes))))
-     (bad "two streams: the 1000 one gets about two thirds of 90000" true
-          (near? (get split 1 0) 60000 (+ 1 frame-bytes)))
+     (bad "budget 50000, send-max 30000: within one frame of 30000 and not over" true
+          (<= (- 30000 fb) (total capped) 30000))
+     (bad "after a get with recv-max 10000, about 10000 (two frames of slack)" true
+          (<= 1500 (total lowered) (+ 10000 (* 2 fb))))
+     (bad "two streams: the 1000 one gets about two thirds of 45000" true
+          (near? (get split 1 0) 30000 (+ 1 fb)))
      (bad "the 500 one gets about a third" true
-          (near? (get split 3 0) 30000 (+ 1 frame-bytes))))))
+          (near? (get split 3 0) 15000 (+ 1 fb))))))
 
 (defn channel-never-buffers-over-high-mark-and-resumes-at-low
   "C17, on a fake channel that the peer drains at 20000 bytes a second while the
@@ -577,29 +589,33 @@
      (bad "the stream is over" #{} (responder/open-streams (:r n) "p")))))
 
 (defn blocked-stream-takes-no-share-and-banks-one-frame
-  "C18. Two streams at the same interest and 100000 a second. (1) One is blocked
-   (its channel holds 5 frames) for the whole second: it writes nothing, and the
-   other writes at the whole rate, not half. (2) A stream blocked for 2 s, then
-   freed as a second stream starts: it banked at most one frame (it writes no more
-   than 2 frames in the first tick) and it kept decaying (tau 2 s): over the next
-   second it gets about 27% of the rate, not the half it would at the same interest."
+  "C18. Two streams at the same interest and 40000 a second, in 4096-byte
+   frames. (1) One is blocked (its channel holds 5 frames) for the whole second:
+   it writes nothing, and the other writes at the whole rate, not half. (2) A
+   stream blocked for 2 s, then freed as a second stream starts: it banked at
+   most one frame (it writes no more than 2 frames in the first tick) and it
+   kept decaying (tau 2 s): over the next second it gets about 27% of the rate,
+   not the half it would at the same interest. (Two fifths of the bytes and
+   half the frame size of the first version, on a 48 KB value: a `get` costs
+   time on nbb.)"
   []
-  (let [[st root] (big-value)
+  (let [[st root] (mid-value)
+        fb 4096
         slow {"peak" 1000 "tau-ms" 100000000 "floor" 50}
-        n1 (rnet {:st st :channel? true})
-        _ (send-to! n1 (get-bytes 1 root 100000 slow))
-        _ (send-to! n1 (get-bytes 3 root 100000 slow))
-        _ (set-buffered! n1 1 (* 5 frame-bytes))
+        n1 (rnet {:st st :channel? true :max-frame fb})
+        _ (send-to! n1 (get-bytes 1 root 40000 slow))
+        _ (send-to! n1 (get-bytes 3 root 40000 slow))
+        _ (set-buffered! n1 1 (* 5 fb))
         _ (dotimes [_ 20] (set-buffered! n1 3 0) (step! n1 50))
         phase1 (item-bytes n1 0 1000)
         ;; (2)
         decay {"peak" 1000 "tau-ms" 2000 "floor" 50}
-        n2 (rnet {:st st :channel? true})
-        _ (send-to! n2 (get-bytes 1 root 100000 decay))
-        _ (set-buffered! n2 1 (* 5 frame-bytes))
+        n2 (rnet {:st st :channel? true :max-frame fb})
+        _ (send-to! n2 (get-bytes 1 root 40000 decay))
+        _ (set-buffered! n2 1 (* 5 fb))
         _ (dotimes [_ 20] (step! n2 100))          ; 2 s blocked
         blocked-bytes (get (item-bytes n2 0 2000) 1 0)
-        _ (send-to! n2 (get-bytes 3 root 100000 decay))
+        _ (send-to! n2 (get-bytes 3 root 40000 decay))
         _ (set-buffered! n2 1 0)
         _ (step! n2 10)
         first-tick (get (item-bytes n2 2000 2010) 1 0)
@@ -609,12 +625,12 @@
     (concat
      (bad "blocked stream writes nothing" 0 (get phase1 1 0))
      (bad "the other writes at the whole rate" true
-          (<= (- 100000 frame-bytes) (get phase1 3 0) 100000))
+          (<= (- 40000 fb) (get phase1 3 0) 40000))
      (bad "blocked for 2 s, nothing written" 0 blocked-bytes)
      (bad "freed: at most two frames in the first tick (one banked)" true
-          (<= first-tick (* 2 frame-bytes)))
+          (<= first-tick (* 2 fb)))
      (bad "it has decayed meanwhile: about 27% of the next second, not 50%" true
-          (< 8000 a 40000))
+          (< 3200 a 16000))
      (bad "the new stream gets the rest" true (> b (* 1.5 a))))))
 
 (defn get-over-the-bucket-is-rate-limited-and-session-lives
