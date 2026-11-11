@@ -179,13 +179,18 @@
       (when-not (held? rst h) ["the receiver did not store the literal"])))))
 
 (defn the-shorter-form-wins-and-is-never-worse
+  ;; One value per form: a short string and a vector of lines are one literal
+  ;; each, a map over a literal is nodes with its shared string as literals,
+  ;; and a long repeated string is one literal. Six keys and 1000 letters keep
+  ;; those forms (forty keys and 3000 letters did too) at under a second on
+  ;; nbb; the larger inputs took 3.3 s on a CI runner.
   []
   (let [st (store/mem-store)
         shared (v/string st (str/join (repeat 300 "xyz-")))
         values [(v/string st "hello")
-                (lines st 20)
-                (apply v/map st (mapcat (fn [i] [(str "key" i) shared]) (range 40)))
-                (v/string st (str/join (repeat 3000 "a")))]]
+                (lines st 10)
+                (apply v/map st (mapcat (fn [i] [(str "key" i) shared]) (range 6)))
+                (v/string st (str/join (repeat 1000 "a")))]]
     (vec
      (mapcat
       (fn [val]
