@@ -52,13 +52,10 @@
 
 (defn- seeded-bytes
   "A function of no arguments returning bytes 0..255 from `seed`:
-   java.util.Random on the JVM, as before; the `dacite.value.seeded-gen`
-   LCG on nbb."
+   java.util.Random on the JVM, as before; `dacite.value.seeded-gen` on nbb."
   [seed]
   #?(:clj (let [rnd (java.util.Random. (long seed))] #(.nextInt rnd 256))
-     :cljs (let [g (gen/choose 0 0x7fffffff) rng (volatile! seed)]
-             ;; the top 8 of the 31 bits: an LCG's low bits have short periods
-             #(bit-shift-right (g rng) 23))))
+     :cljs (let [g (gen/choose 0 255) rng (volatile! seed)] #(g rng))))
 
 (defn- u64-word
   "A long as a hash word: itself on the JVM, an unsigned BigInt on nbb."

@@ -5,9 +5,15 @@
    from a fixed seed, so a run is the same every time. There is no
    shrinking: a failure reports the case as drawn.
 
-   The number generators are smaller than test.check's: a draw is 31 bits,
-   so `large-integer` is within 2^31 (nbb numbers are exact there), and
-   `double` is a thousandth of an int up to a million."
+   The number generators are smaller than test.check's: a draw is 31 bits
+   (two for a `choose` over a range wider than 2^31), so `large-integer` is
+   within 2^31 (nbb numbers are exact there), and `double` is a thousandth of
+   an int up to a million.
+
+   Every draw from a range (`choose`, `elements`, `one-of`, `frequency`,
+   `boolean`, a sign) goes through `below`, which takes the high bits of a
+   draw, never `mod`: an LCG's low bits have short periods (bit k repeats
+   every 2^(k+1) draws)."
   (:refer-clojure :exclude [boolean char double vector]))
 
 (defn- next-int!
@@ -17,10 +23,23 @@
                 #?(:clj (bit-and (+ (unchecked-int (* (long x) 1103515245)) 12345) 0x7fffffff)
                    :cljs (bit-and (+ (js/Math.imul x 1103515245) 12345) 0x7fffffff)))))
 
+(defn- below
+  "An int in 0..n-1 from the high bits: floor(x / 2^31 * n) for the next draw
+   x, or, when n is over 2^31 (`u32`), x the next two draws as 62 bits, over
+   2^62. The same double arithmetic on both hosts, so they agree."
+  [rng n]
+  ;; `double` here is this namespace's generator: (* 1.0 x) is the cast
+  (let [x (* 1.0 (next-int! rng))
+        f (if (<= n 2147483648)
+            (/ x 2147483648.0)
+            (/ (+ (* x 2147483648.0) (next-int! rng)) 4611686018427387904.0))
+        i (Math/floor (* f n))]
+    #?(:clj (min (long i) (dec (long n))) :cljs (min i (dec n)))))
+
 (defn choose
   "An int in lo..hi, inclusive."
   [lo hi]
-  (fn [rng] (+ lo (mod (next-int! rng) (inc (- hi lo))))))
+  (fn [rng] (+ lo (below rng (inc (- hi lo))))))
 
 (defn return
   [x]
@@ -29,7 +48,7 @@
 (defn elements
   [coll]
   (let [v (vec coll)]
-    (fn [rng] (nth v (mod (next-int! rng) (count v))))))
+    (fn [rng] (nth v (below rng (count v))))))
 
 (defn tuple
   [& gs]
@@ -59,7 +78,7 @@
   [pairs]
   (let [total (reduce + (map first pairs))]
     (fn [rng]
-      (loop [r (mod (next-int! rng) total) [[w g] & more] pairs]
+      (loop [r (below rng total) [[w g] & more] pairs]
         (if (< r w) (g rng) (recur (- r w) more))))))
 
 (defn bind
@@ -73,10 +92,10 @@
 (defn one-of
   [gs]
   (let [v (vec gs)]
-    (fn [rng] ((nth v (mod (next-int! rng) (count v))) rng))))
+    (fn [rng] ((nth v (below rng (count v))) rng))))
 
 (def boolean
-  (fn [rng] (even? (next-int! rng))))
+  (fn [rng] (zero? (below rng 2))))
 
 (def small-integer
   "-200..200, as test.check at its largest size."
@@ -84,7 +103,7 @@
 
 (def large-integer
   "Within 2^31 either side of 0."
-  (fn [rng] (let [m (next-int! rng)] (if (even? (next-int! rng)) m (- m)))))
+  (fn [rng] (let [m (next-int! rng)] (if (zero? (below rng 2)) m (- m)))))
 
 (defn large-integer*
   "At least :min (and within 2^31)."
