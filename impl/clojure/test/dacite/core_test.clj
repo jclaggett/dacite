@@ -1,75 +1,59 @@
 (ns dacite.core-test
-  "JVM collection-interface and convert tests for Dacite values."
+  "JVM collection-interface and convert tests for Dacite values.
+
+   The portable tests are checks in `dacite.core-checks`, shared with nbb;
+   each runs here as a deftest under its old name (`run-check`), with any
+   JVM-only assertions after it."
   (:require [clojure.test :refer [deftest testing is use-fixtures]]
             [dacite.convert :as convert]
-            [dacite.hash :as hash]
+            [dacite.core-checks :as checks]
             [dacite.store :as store]
-            [dacite.value :as v]
-            [dacite.value.types :as types]))
+            [dacite.store.check :as check]
+            [dacite.value :as v]))
 
 ;; Each test runs against a fresh in-memory store.
 (use-fixtures :each (fn [f]
                       (binding [store/*store* (store/mem-store)]
                         (f))))
 
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
+
 (defn- ctx [] store/*store*)
-
-(defn- value-type [x]
-  (v/type x))
-
-(defn- value-size [x]
-  (types/dacite-size (store/await (store/s-get (v/dacite-store x) (v/hash x)))))
 
 ;; =============================================================================
 ;; Scalars
 ;; =============================================================================
 
 (deftest null-test
-  (testing "Null construction"
-    (let [v (v/null (ctx))]
-      (is (= "null" (value-type v)))
-      (is (nil? (v/realize v))))))
+  (run-check "null-test"))
 
 (deftest bool-test
-  (testing "Boolean construction"
-    (is (= true (v/realize (v/bool (ctx) true))))
-    (is (= false (v/realize (v/bool (ctx) false))))))
+  (run-check "bool-test"))
 
 (deftest integer-test
-  (testing "Integer constructors"
-    (is (= 42 (v/realize (v/i64 (ctx) 42))))
-    (is (= (byte 1) (v/realize (v/i8 (ctx) 1))))
-    (is (= (short 1) (v/realize (v/i16 (ctx) 1))))
-    (is (= (int 1) (v/realize (v/i32 (ctx) 1))))))
+  (run-check "integer-test"))
 
 (deftest unsigned-test
-  (testing "Unsigned integer constructors"
-    (is (= 255 (v/realize (v/u8 (ctx) 255))))
-    (is (= 65535 (v/realize (v/u16 (ctx) 65535))))
-    (is (= 4294967295 (v/realize (v/u32 (ctx) 4294967295))))
-    (is (= 0 (v/realize (v/u64 (ctx) 0))))))
+  (run-check "unsigned-test"))
 
 (deftest unsigned-bounds-test
-  (testing "Unsigned integers reject out-of-bounds"
-    (is (thrown? AssertionError (v/u8 (ctx) 256)))
-    (is (thrown? AssertionError (v/u8 (ctx) -1)))
-    (is (thrown? AssertionError (v/u16 (ctx) 65536)))))
+  (run-check "unsigned-bounds-test"))
 
 (deftest u256-test
-  (testing "u256 for hash-as-data"
-    (let [data (byte-array (map unchecked-byte (hash/longs->bytes [1 2 3 4])))
-          v (v/u256 (ctx) data)]
-      (is (= "u256" (value-type v)))
-      (is (= 32 (alength ^bytes (v/realize v)))))))
+  (run-check "u256-test"))
 
 (deftest float-test
-  (testing "Float constructors"
-    (is (= "f32" (value-type (v/f32 (ctx) 1.5))))
-    (is (= "f64" (value-type (v/f64 (ctx) 3.14))))))
+  (run-check "float-test"))
 
 (deftest char-test
+  (run-check "char-test")
+  ;; JVM only: a BMP character is a char, not a String (JS has no char).
   (testing "Character constructor"
-    (is (= \a (v/realize (v/char (ctx) \a))))
     (is (thrown? AssertionError (v/char (ctx) "a")))))
 
 (deftest scalar-equality-test
@@ -79,40 +63,19 @@
     (is (not= (v/i64 (ctx) 42) (v/i64 (ctx) 43)))))
 
 (deftest scalar-type-test
-  (testing "scalar-type returns type name"
-    (is (= "i64" (value-type (v/i64 (ctx) 42))))
-    (is (= "null" (value-type (v/null (ctx)))))))
+  (run-check "scalar-type-test"))
 
 (deftest size-bytes-scalar-test
-  (testing "Scalar size-bytes"
-    (is (= 8 (value-size (v/i64 (ctx) 42))))
-    (is (= 1 (value-size (v/bool (ctx) true))))
-    (is (= 0 (value-size (v/null (ctx)))))
-    (is (= 4 (value-size (v/f32 (ctx) 1.0)))))
-  (testing "String size-bytes (UTF-8)"
-    (is (= 5 (value-size (v/string (ctx) "hello"))))
-    (is (= 0 (value-size (v/string (ctx) ""))))))
+  (run-check "size-bytes-scalar-test"))
 
 (deftest size-bytes-vector-test
-  (testing "Vector size-bytes is sum of element sizes"
-    (let [v (apply v/vector (ctx) [1 2 3])] ;; 3 x i64 = 24
-      (is (= 24 (value-size v)))))
-  (testing "Empty vector is 0 bytes"
-    (is (= 0 (value-size (v/vector (ctx)))))))
+  (run-check "size-bytes-vector-test"))
 
 (deftest size-bytes-map-test
-  (testing "Map size-bytes includes keys and values"
-    (let [m (v/map (ctx) "a" 1)] ;; "a" = 1 byte, i64 = 8 bytes
-      (is (= 9 (value-size m)))))
-  (testing "Empty map is 0 bytes"
-    (is (= 0 (value-size (v/map (ctx)))))))
+  (run-check "size-bytes-map-test"))
 
 (deftest size-bytes-nested-test
-  (testing "Nested structure accumulates sizes"
-    (let [v (apply v/vector (ctx) [1 2])       ;; 16 bytes
-          m (v/map (ctx) "k" v)] ;; "k"=1 + vec=16 = 17
-      (is (= 16 (value-size v)))
-      (is (= 17 (value-size m))))))
+  (run-check "size-bytes-nested-test"))
 
 (deftest scalar-hash-eq-test
   (testing "Same values have same hasheq"
@@ -123,9 +86,10 @@
 ;; =============================================================================
 
 (deftest str-test
+  (run-check "str-test")
+  ;; JVM only: dacite.convert.
   (testing "String construction"
     (let [s (v/string (ctx) "hello")]
-      (is (= "string" (value-type s)))
       (is (= "hello" (convert/dac->clj s))))))
 
 (deftest str-count-test
@@ -155,9 +119,10 @@
 ;; =============================================================================
 
 (deftest blob-test
+  (run-check "blob-test")
+  ;; JVM only: count.
   (testing "Blob construction"
     (let [b (v/blob (ctx) (byte-array [1 2 3]))]
-      (is (= "blob" (value-type b)))
       (is (= 3 (count b))))))
 
 (deftest blob-content-test
@@ -186,9 +151,7 @@
     (is (not= (v/blob (ctx) (byte-array [1 2])) (v/blob (ctx) (byte-array [3 4]))))))
 
 (deftest blob-size-bytes-test
-  (testing "Size equals byte count"
-    (is (= 5 (value-size (v/blob (ctx) (byte-array [0 0 0 0 0])))))
-    (is (= 0 (value-size (v/blob (ctx) (byte-array 0)))))))
+  (run-check "blob-size-bytes-test"))
 
 (deftest blob-toString-test
   (testing "toString is a non-empty string"
@@ -199,9 +162,10 @@
 ;; =============================================================================
 
 (deftest vec-test
+  (run-check "vec-test")
+  ;; JVM only: count.
   (testing "Vector construction"
     (let [v (apply v/vector (ctx) [1 2 3])]
-      (is (= "vector" (value-type v)))
       (is (= 3 (count v))))))
 
 (deftest vec-nth-test
@@ -307,9 +271,10 @@
 ;; =============================================================================
 
 (deftest hash-map-test
+  (run-check "hash-map-test")
+  ;; JVM only: count.
   (testing "Map construction"
     (let [m (v/map (ctx) "name" "Alice" "age" 30)]
-      (is (= "map" (value-type m)))
       (is (= 2 (count m))))))
 
 (deftest hash-map-get-test
@@ -400,9 +365,10 @@
 ;; =============================================================================
 
 (deftest dacite-set-test
+  (run-check "dacite-set-test")
+  ;; JVM only: count.
   (testing "Set construction"
     (let [s (v/set (ctx) 1 2 3)]
-      (is (= "set" (value-type s)))
       (is (= 3 (count s))))))
 
 (deftest dacite-set-empty-test
@@ -485,9 +451,7 @@
       (is (not (.hasNext it))))))
 
 (deftest dacite-set-size-bytes-test
-  (testing "Set size-bytes reflects element sizes (self-map: key+value)"
-    (let [s (v/set (ctx) 1 2 3)] ;; 3 x i64, self-map counts k+v = 48
-      (is (= 48 (value-size s))))))
+  (run-check "dacite-set-size-bytes-test"))
 
 (deftest dacite-set-with-strings-test
   (testing "Set with string elements"
@@ -496,10 +460,8 @@
       (is (= #{"a" "b" "c"} (convert/dac->clj s))))))
 
 (deftest neg-test
-  (testing "Neg sentinel construction"
-    (let [n (v/negative (ctx))]
-      (is (= "negative" (value-type n)))
-      (is (= :dacite/negative (v/realize n)))))
+  (run-check "neg-test")
+  ;; JVM only: Dacite values' equals.
   (testing "Neg is deterministic"
     (is (= (v/negative (ctx)) (v/negative (ctx))))))
 
@@ -902,3 +864,11 @@
                           :done))]
       (is (identical? s st))
       (is (= :done result)))))
+
+;; Most of core_test is JVM-only, so this guard checks that every shared
+;; check runs here, not that the two lists are the same.
+(deftest every-check-has-a-deftest
+  (is (every? (set (map #(-> % meta :name str)
+                        (filter #(-> % meta :test) (vals (ns-interns 'dacite.core-test)))))
+              (keys checks/checks))
+      "every check in core_checks.cljc has a deftest here"))

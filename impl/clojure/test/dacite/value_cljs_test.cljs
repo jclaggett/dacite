@@ -6,6 +6,7 @@
    Each entry of `suites` is a shared check namespace and the JVM test
    namespace that runs the same checks."
   (:require [cljs.reader :as reader]
+            [dacite.core-checks :as core-checks]
             [dacite.store.check :as check]
             [dacite.value.api-checks :as api-checks]
             [dacite.value.collections-checks :as collections-checks]
@@ -23,7 +24,7 @@
 
 (def suites
   "[label checks slow-ms?]: the JVM runs these from dacite.value.<label>-test
-   (\"value\" from dacite.value-test).
+   (\"value\" from dacite.value-test, \"core\" from dacite.core-test).
    `slow-ms` holds nbb ceilings above `check/max-ms`, each with a
    JUSTIFICATION on its check."
   [["value" value-checks/checks]
@@ -32,7 +33,8 @@
    ["finger-tree" finger-tree-checks/checks]
    ["collections" collections-checks/checks]
    ["unicode" unicode-checks/checks unicode-checks/slow-ms]
-   ["hamt-collision" hamt-collision-checks/checks hamt-collision-checks/slow-ms]])
+   ["hamt-collision" hamt-collision-checks/checks hamt-collision-checks/slow-ms]
+   ["core" core-checks/checks]])
 
 (defn- run [label checks slow-ms]
   (let [rows (mapv #(check/run-one checks env % (get slow-ms % check/max-ms))
