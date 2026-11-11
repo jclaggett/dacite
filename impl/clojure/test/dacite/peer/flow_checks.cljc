@@ -404,8 +404,7 @@
    each end the session; an `unknown-hash` answer does not."
   []
   (let [violation (fn [what setup]
-                    (let [[n _ _] (served-node [])
-                          n (cnet {:peers [["a" {}]] :hello? (not= what "before hello")})]
+                    (let [n (cnet {:peers [["a" {}]] :hello? (not= what "before hello")})]
                       (setup n)
                       [what n]))
         item-frame (stray-frame 1)
@@ -423,13 +422,14 @@
                               (fatal-errors n)))
                    (bad (str "client, " what ": closed") ["a"] @(:closed n))))
                 client-cases)
-        ;; a request error ends the stream only
-        [n _ root] (served-node [["a" {}] ["b" {}]])
+        ;; a request error ends the stream only (no peer serves `root`: small)
+        n (cnet {:peers [["a" {}] ["b" {}]]})
+        root (v/hash (v/string (store/mem-store) "asked of a, then b"))
         _ (h/request! (:client n) root)
         _ (h/on-frame! (:client n) "a" (cc/error-frame 1 "unknown-hash" false))
         ;; responder side
         st (store/mem-store)
-        rroot (v/hash (cc/map-of st 30))
+        rroot (v/hash (cc/map-of st 5))         ; small: a `get` reads it all
         resp-violation (fn [what f]
                          (let [rn (rnet {:st st :hello? (not= what "get before hello")})]
                            (f rn)
@@ -635,18 +635,19 @@
 
 (defn get-over-the-bucket-is-rate-limited-and-session-lives
   "C40: the responder's bucket per session. Its hello says req-rate 20 and a
-   burst of 5 (the default burst of 40 only makes the check slower). Of 7 `get`s
-   at one moment (for a hash it does not hold: each costs a token, answered or
-   refused) 5 are answered `unknown-hash` and 2 `rate-limited` with a
+   burst of 2 (the default burst of 40 only makes the check slower: each `get`
+   costs time on nbb). Of 4 `get`s at one moment (for a hash it does not hold:
+   each costs a token, answered or refused) 2 are answered `unknown-hash` and
+   2 `rate-limited` with a
    `retry-ms`; the session lives; after 50 ms one token is back; a long time
    later the bucket holds its burst, not more."
   []
   (let [st (store/mem-store)
         missing (v/hash (v/string (store/mem-store) "not here"))
-        n (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "req-burst"] 5)})
+        n (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "req-burst"] 2)})
         ask! (fn [sid] (send-to! n (get-bytes sid missing 1000)))
         codes #(frequencies (map (fn [m] (get-in m [:value "code"])) (errors-of n)))
-        _ (doseq [i (range 7)] (ask! (inc (* 2 i))))
+        _ (doseq [i (range 4)] (ask! (inc (* 2 i))))
         c1 (codes)
         limited (filterv #(= "rate-limited" (get-in % [:value "code"])) (errors-of n))
         retry (get-in (first limited) [:value "retry-ms"])
@@ -655,14 +656,14 @@
         _ (ask! 93)                              ; not another
         after-50 (codes)
         _ (step! n 60000)
-        _ (doseq [i (range 7)] (ask! (+ 101 (* 2 i))))
+        _ (doseq [i (range 4)] (ask! (+ 101 (* 2 i))))
         after-long (codes)]
     (concat
-     (bad "7 gets at once: 5 unknown-hash, 2 rate-limited" {"unknown-hash" 5 "rate-limited" 2} c1)
+     (bad "4 gets at once: 2 unknown-hash, 2 rate-limited" {"unknown-hash" 2 "rate-limited" 2} c1)
      (bad "rate-limited names a retry-ms of about 50" true (and retry (<= 1 retry 100)))
-     (bad "the limited gets are on their own streams" [11 13] (mapv :stream limited))
-     (bad "50 ms later one more is answered, one limited" {"unknown-hash" 6 "rate-limited" 3} after-50)
-     (bad "a minute later the burst, 5 more, is there and no more" {"unknown-hash" 11 "rate-limited" 5} after-long)
+     (bad "the limited gets are on their own streams" [5 7] (mapv :stream limited))
+     (bad "50 ms later one more is answered, one limited" {"unknown-hash" 3 "rate-limited" 3} after-50)
+     (bad "a minute later the burst, 2 more, is there and no more" {"unknown-hash" 5 "rate-limited" 5} after-long)
      (bad "the session is open, never closed" [:open []]
           [(responder/session-status (:r n) "p") @(:closed n)]))))
 
@@ -1226,13 +1227,17 @@
    stream, which was splitting the rate, then writes about twice as much. A
    `cancel` for a closed stream, or for an id that was never opened, is
    ignored. A stream that is never cancelled still completes. A `cancel` that
-   arrives while the `get` is still being read does not let that stream start."
+   arrives while the `get` is still being read does not let that stream start.
+   (A 50000 budget, 4096-byte frames and a 48 KB value: half the bytes and
+   frame size of the first version, the same slack in frames; a `get` costs
+   time on nbb.)"
   []
-  (let [[st root] (big-value)
+  (let [[st root] (mid-value)
+        fb 4096
         steady {"peak" 1000 "tau-ms" 60000 "floor" 10}
-        n (rnet {:st st})
-        _ (send-to! n (get-bytes 1 root 100000 steady))
-        _ (send-to! n (get-bytes 3 root 100000 steady))
+        n (rnet {:st st :max-frame fb})
+        _ (send-to! n (get-bytes 1 root 50000 steady))
+        _ (send-to! n (get-bytes 3 root 50000 steady))
         _ (dotimes [_ 10] (step! n 50))
         before (item-bytes n 0 500)
         frames-before (count (item-frames n 1))
@@ -1265,7 +1270,7 @@
      (bad "cancel closes that stream at once" #{3} closed-at-once)
      (bad "and writes nothing more for it" frames-before (count (item-frames n 1)))
      (bad "the other stream writes about twice what it wrote while sharing" true
-          (near? (get after 3 0) (* 2 (get before 3 0)) (* 2 frame-bytes)))
+          (near? (get after 3 0) (* 2 (get before 3 0)) (* 2 fb)))
      (bad "a cancel for a closed or unknown stream is ignored" [] quiet)
      (bad "the session still takes a new get" [["unknown-hash" 5 false]]
           (mapv (fn [m] [(get-in m [:value "code"]) (:stream m) (get-in m [:value "fatal"])])
@@ -1427,8 +1432,9 @@
     (send-to! n bs)))
 
 (defn too-many-streams-is-refused-and-a-closed-slot-frees
-  "C11. The responder enforces the `max-streams` it advertises. At 64, the
-   65th `get` is `error overloaded` on that stream, the stream does not
+  "C11. The responder enforces the `max-streams` it advertises. At 16 (the
+   check advertises 16, not the most, 64: each `get` costs time on nbb), the
+   17th `get` is `error overloaded` on that stream, the stream does not
    start, and the session stays open. Cancel frees a slot at once and the
    id is not reused. The floor does the same. FIN does too: one stream
    completes while the others are over the high mark, and a get that was
@@ -1438,11 +1444,11 @@
         tiny (v/hash (v/i64 st 7))
         short {"peak" 1000 "tau-ms" 1000 "floor" 200}
         [before at] (life-bracket (spec-life 1000 1000 200))
-        n (rnet {:st st :channel? true :hello (hello-capping 64)})
+        n (rnet {:st st :channel? true :hello (hello-capping 16)})
         _ (send-to! n (get-bytes 1 tiny 1 short))
-        _ (doseq [bs (get-frames tiny 1 (map #(inc (* 2 %)) (range 1 64)) nil)]
+        _ (doseq [bs (get-frames tiny 1 (map #(inc (* 2 %)) (range 1 16)) nil)]
             (send-to! n bs))
-        open-64 (responder/open-streams (:r n) "p")
+        open-16 (responder/open-streams (:r n) "p")
         _ (send-to! n (get-bytes 129 tiny 1))
         refused (error-rows n)
         _ (send-to! n (cancel-bytes 3 {}))
@@ -1468,12 +1474,12 @@
         _ (send-to! n (get-bytes 5 tiny 1))
         _ (send-to! n (get-bytes 1 tiny 1))]
     (concat
-     (bad "64 gets are open" 64 (count open-64))
-     (bad "the 65th is overloaded, on its stream, and the session lives"
+     (bad "16 gets are open" 16 (count open-16))
+     (bad "the 17th is overloaded, on its stream, and the session lives"
           [[["overloaded" 129 false]] :open []]
           [refused (responder/session-status (:r n) "p") @(:closed n)])
-     (bad "that get did not start" false (contains? open-64 129))
-     (bad "cancel frees the slot at once" 63 (count after-cancel))
+     (bad "that get did not start" false (contains? open-16 129))
+     (bad "cancel frees the slot at once" 15 (count after-cancel))
      (bad "the cancelled id is no longer open" false (contains? after-cancel 3))
      (bad "the refused id starts once a slot is free" true (contains? after-reuse 129))
      (bad "a closed id is not reused" [["malformed" 3 false]]
