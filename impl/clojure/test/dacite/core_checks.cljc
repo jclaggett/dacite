@@ -1,6 +1,6 @@
 (ns dacite.core-checks
   "The portable part of `dacite.core-test`, on the JVM and on nbb:
-   scalar construction and sizes.
+   scalar construction and sizes, and the store context and value identity.
 
    core_test is mostly the JVM collection interfaces of Dacite values
    (count, nth, get, conj, assoc, seq, IFn, equals, hashCode, toString,
@@ -17,7 +17,7 @@
    `is` and `testing` are `dacite.store.check`."
   (:require [dacite.hash :as hash]
             [dacite.store :as store]
-            [dacite.store.check :refer [is testing]]
+            [dacite.store.check :refer [is testing throws? throws-info?]]
             [dacite.value :as v]
             [dacite.value.types :as types]))
 
@@ -221,6 +221,92 @@
    "hash-map-test" hash-map-test
    "dacite-set-test" dacite-set-test})
 
+;; =============================================================================
+;; The store context and value identity
+;; =============================================================================
+
+(defn with-store-isolation-test
+  [_]
+  (testing "with-store creates isolated context"
+    (let [global (v/hash (v/i64 (ctx) 42))
+          [iso-store _result] (store/with-store [_s {}]
+                                (apply v/vector (ctx) [1 2 3]))]
+      (is (not (store/await (store/s-has? iso-store global)))))))
+
+(defn with-store-returns-store-and-result-test
+  [_]
+  (testing "Returns [store last-value]"
+    (let [[st result] (store/with-store [_s {}]
+                        (let [v (v/i64 (ctx) 99)]
+                          (is (= 99 (v/realize v)))
+                          v))]
+      (is (satisfies? store/IStore st))
+      (is (store/await (store/s-has? st (v/hash result))))
+      (is (= "i64" (v/type result))))))
+
+(defn with-store-istore-test
+  [_]
+  (testing "with-store accepts IStore directly"
+    (let [s (store/mem-store)
+          [st result] (store/with-store [bound s]
+                        (let [v (v/i64 (ctx) 99)]
+                          (is (identical? s bound))
+                          (is (= 99 (v/realize v)))
+                          :done))]
+      (is (identical? s st))
+      (is (= :done result)))))
+
+(defn dacite-hash-test
+  [_]
+  (testing "dacite-hash returns the raw hash"
+    (let [v (v/i64 (ctx) 42)
+          h (v/hash v)]
+      (is (some? h))
+      (is (= h (v/hash v)))))
+  (testing "Same value same hash"
+    (is (= (v/hash (v/i64 (ctx) 42)) (v/hash (v/i64 (ctx) 42)))))
+  (testing "Different value different hash"
+    (is (not= (v/hash (v/i64 (ctx) 42)) (v/hash (v/i64 (ctx) 43))))))
+
+(defn vector-hash-test
+  [_]
+  (testing "Vector exposes a stable content hash"
+    (let [v (apply v/vector (ctx) [1 2])]
+      (is (some? (v/hash v))))))
+
+(defn map-hash-test
+  [_]
+  (testing "Map exposes a stable content hash"
+    (is (some? (v/hash (v/map (ctx) "a" 1))))))
+
+(defn wrap-hash-blob-test
+  [_]
+  (testing "wrap-hash returns a Dacite blob for blob entries"
+    (let [b (v/blob (ctx) (host-bytes [1 2 3]))
+          h (v/hash b)
+          wrapped (v/wrap-hash (ctx) h)]
+      (is (= "blob" (v/type wrapped))))))
+
+(defn hash-non-dacite-test
+  [_]
+  (testing "v/hash throws on a non-Dacite value"
+    (is (throws? #(v/hash 42)))))
+
+(defn coerce-unsupported-test
+  [_]
+  (testing "Auto-coercion rejects unsupported types"
+    (is (throws-info? #(apply v/vector (ctx) [:keyword])))))
+
+(def identity-checks
+  {"with-store-isolation-test" with-store-isolation-test
+   "with-store-returns-store-and-result-test" with-store-returns-store-and-result-test
+   "with-store-istore-test" with-store-istore-test
+   "dacite-hash-test" dacite-hash-test
+   "vector-hash-test" vector-hash-test
+   "map-hash-test" map-hash-test
+   "wrap-hash-blob-test" wrap-hash-blob-test
+   "hash-non-dacite-test" hash-non-dacite-test
+   "coerce-unsupported-test" coerce-unsupported-test})
 
 (defn- in-fresh-store
   "`f` with `store/*store*` bound to a fresh mem store, as core_test's
@@ -233,4 +319,4 @@
 (def checks
   (into {}
         (map (fn [[k f]] [k (in-fresh-store f)]))
-        scalar-checks))
+        (merge scalar-checks identity-checks)))

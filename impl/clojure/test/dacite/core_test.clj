@@ -492,21 +492,10 @@
 ;; =============================================================================
 
 (deftest with-store-isolation-test
-  (testing "with-store creates isolated context"
-    (let [global (v/hash (v/i64 (ctx) 42))
-          [iso-store _result] (store/with-store [_s {}]
-                                (apply v/vector (ctx) [1 2 3]))]
-      (is (not (store/await (store/s-has? iso-store global)))))))
+  (run-check "with-store-isolation-test"))
 
 (deftest with-store-returns-store-and-result-test
-  (testing "Returns [store last-value]"
-    (let [[st result] (store/with-store [_s {}]
-                        (let [v (v/i64 (ctx) 99)]
-                          (is (= 99 (v/realize v)))
-                          v))]
-      (is (satisfies? store/IStore st))
-      (is (store/await (store/s-has? st (v/hash result))))
-      (is (= "i64" (v/type result))))))
+  (run-check "with-store-returns-store-and-result-test"))
 
 ;; =============================================================================
 ;; dac->clj
@@ -655,15 +644,7 @@
 ;; =============================================================================
 
 (deftest dacite-hash-test
-  (testing "dacite-hash returns the raw hash"
-    (let [v (v/i64 (ctx) 42)
-          h (v/hash v)]
-      (is (some? h))
-      (is (= h (v/hash v)))))
-  (testing "Same value same hash"
-    (is (= (v/hash (v/i64 (ctx) 42)) (v/hash (v/i64 (ctx) 42)))))
-  (testing "Different value different hash"
-    (is (not= (v/hash (v/i64 (ctx) 42)) (v/hash (v/i64 (ctx) 43))))))
+  (run-check "dacite-hash-test"))
 
 ;; =============================================================================
 ;; Uncovered edge cases
@@ -700,9 +681,7 @@
     (is (integer? (hash (v/blob (ctx) (byte-array [1 2])))))))
 
 (deftest vector-hash-test
-  (testing "Vector exposes a stable content hash"
-    (let [v (apply v/vector (ctx) [1 2])]
-      (is (some? (v/hash v))))))
+  (run-check "vector-hash-test"))
 
 (deftest vector-hasheq-test
   (testing "Vector hasheq works"
@@ -766,8 +745,7 @@
     (is (not (.equals (apply v/vector (ctx) [1]) (v/i64 (ctx) 1))))))
 
 (deftest map-hash-test
-  (testing "Map exposes a stable content hash"
-    (is (some? (v/hash (v/map (ctx) "a" 1))))))
+  (run-check "map-hash-test"))
 
 (deftest map-hasheq-test
   (testing "Map hasheq works"
@@ -828,19 +806,13 @@
     (is (not (.equals (v/map (ctx) "a" 1) (v/i64 (ctx) 1))))))
 
 (deftest wrap-hash-blob-test
-  (testing "wrap-hash returns a Dacite blob for blob entries"
-    (let [b (v/blob (ctx) (byte-array [1 2 3]))
-          h (v/hash b)
-          wrapped (v/wrap-hash (ctx) h)]
-      (is (= "blob" (v/type wrapped))))))
+  (run-check "wrap-hash-blob-test"))
 
 (deftest hash-non-dacite-test
-  (testing "v/hash throws on a non-Dacite value"
-    (is (thrown? Exception (v/hash 42)))))
+  (run-check "hash-non-dacite-test"))
 
 (deftest coerce-unsupported-test
-  (testing "Auto-coercion rejects unsupported types"
-    (is (thrown? clojure.lang.ExceptionInfo (apply v/vector (ctx) [:keyword])))))
+  (run-check "coerce-unsupported-test"))
 
 (deftest vector-nth-not-found-in-range-test
   (testing "nth with not-found returns value when in range"
@@ -855,15 +827,7 @@
     (is (.equals (v/map (ctx) "a" 1) (v/map (ctx) "a" 1)))))
 
 (deftest with-store-istore-test
-  (testing "with-store accepts IStore directly"
-    (let [s (store/mem-store)
-          [st result] (store/with-store [bound s]
-                        (let [v (v/i64 (ctx) 99)]
-                          (is (identical? s bound))
-                          (is (= 99 (v/realize v)))
-                          :done))]
-      (is (identical? s st))
-      (is (= :done result)))))
+  (run-check "with-store-istore-test"))
 
 ;; Most of core_test is JVM-only, so this guard checks that every shared
 ;; check runs here, not that the two lists are the same.
