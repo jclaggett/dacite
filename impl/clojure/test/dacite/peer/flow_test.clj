@@ -113,6 +113,9 @@
 (deftest renewal-is-a-new-stream-at-peak
   (run-check "renewal-is-a-new-stream-at-peak"))
 
+(deftest sessions-share-no-state-except-rmax
+  (run-check "sessions-share-no-state-except-rmax"))
+
 (deftest reveal-walks-each-subtree-depth-first
   (run-check "reveal-walks-each-subtree-depth-first"))
 

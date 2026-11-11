@@ -1406,7 +1406,7 @@ violations) wrote the ones marked "(exists, slice 2)": portable checks in
 `impl/clojure/test/dacite/peer/flow_checks.cljc`, run on the JVM by `flow_test.clj` and
 on nbb by `npm run peer:test`, against `dacite.peer.rates`, `bucket`, `responder`
 and the changed `client`, on simulated clocks. C05, C07, C09, C11, C12 and C32
-exist. C24 and C25 (`reveal-walks-each-subtree-depth-first`, `reveal-order-is-fixed-and-receiver-accepts-any`), then C06 and C08 (`stalled-stream-decays-and-frees-its-share`, `renewal-is-a-new-stream-at-peak`), were added later to `flow_checks.cljc`. The rows still marked planned stay planned.
+exist. C24 and C25 (`reveal-walks-each-subtree-depth-first`, `reveal-order-is-fixed-and-receiver-accepts-any`), then C06 and C08 (`stalled-stream-decays-and-frees-its-share`, `renewal-is-a-new-stream-at-peak`), then C42 (`sessions-share-no-state-except-rmax`), were added later to `flow_checks.cljc`. The rows still marked planned stay planned.
 
 | Id | Status | MUST (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
@@ -1448,7 +1448,7 @@ exist. C24 and C25 (`reveal-walks-each-subtree-depth-first`, `reveal-order-is-fi
 | C38 | Existing | Responder keys streams by (session, id); same hash twice = two streams | `same-hash-twice-is-two-independent-streams` (N1 regression; built) | JVM, nbb peer | M4.1 |
 | C39 | Existing | Wrong parity or duplicate id refused (malformed) | `f3-stream-table-parity-and-duplicates` (exists) | JVM | M1.2 (exists) |
 | C40 | Decided | Per-session token bucket on `get`; empty = rate-limited; a flood never ends the session | `get-over-the-bucket-is-rate-limited-and-session-lives` (simulated clock) (exists, slice 2: simulated clock; burst lowered to 10 so nbb stays quick) | JVM, nbb peer | M1.2 s2 (exists) |
-| C42 | Decided | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (flood one session; others unchanged) | JVM, nbb peer | when a client holds more than one named peer (old target M6.3, set aside) |
+| C42 | Decided | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (exists: simulated clock; one responder, two sessions: one session's acked record, low budget and flood past its bucket leave the other's bucket whole, its get sends every page, its stream paced at its own budget, and it goes on when the first session ends; one client, two peers: each peer's bucket is its own, and only the split of `R_max` counts the other peer's streams) | JVM, nbb peer | parity (exists) |
 | C43 | Existing | Session types on stream 0, request types on stream >= 1 | `f3-message-types-and-streams` (exists; fixtures `reject-*-on-stream-*`) | JVM, nbb peer | M1.2 (exists) |
 | C44 | Existing | Literal types outside the v1 profile are rejected | `outside-the-profile` (exists) | JVM, nbb peer | M1.2 (exists) |
 

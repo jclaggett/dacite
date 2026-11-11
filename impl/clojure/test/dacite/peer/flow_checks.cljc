@@ -2,7 +2,7 @@
   "M1.2 slice 2, portable checks (JVM: flow_test.clj, nbb: peer_cljs_test).
    Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.3 (C05, C06, C07,
    C08, C09, C10, C11, C12), §12.4 (C16), §12.5 (C17, C18), §12.7 (C24, C25), §12.8 (C32),
-   §12.9 (C34, C35, C36), §12.11 (C40, C41); test map in §13.
+   §12.9 (C34, C35, C36), §12.11 (C40, C41, C42); test map in §13.
 
    Same shape as client_checks.cljc: each check returns a vector of problem strings,
    empty when it holds, and `checks` maps the §13 test name to it. Every clock here
@@ -1814,6 +1814,122 @@
      (bad "no error was sent" [] (mapv :stream (errors-of n))))))
 
 ;; =============================================================================
+;; C42: no state is shared between sessions
+;; =============================================================================
+
+(defn sessions-share-no-state-except-rmax
+  "C42: a bucket, budget, record or clock belongs to one session; only the
+   client's own `R_max` is shared. (1) One responder, peers p and q, with a
+   bucket of 6 a session (a smaller burst than the default 40: each get and
+   each error is a message to encode, about 10 ms on nbb). p is served a
+   small value and acks it (its record), asks the 48 KB value at `recv-max`
+   2000 (its budget), and floods 8 gets for hashes not held, past its bucket
+   (rate-limited). q then gets its whole bucket: 2 gets and 4 more, none
+   rate-limited. q's get of the small value sends every page,
+   not only the root p's record would leave. Over the next second q's stream
+   of the 48 KB value writes at its own 40000 a second while p's writes at
+   about 2000. p then breaks the protocol and its session ends; q's session
+   and stream go on, and its stream finishes. (2) One client, peers a and b,
+   each with a bucket of 2. Five requests with only a open: a takes 2, 3
+   wait. b opens and takes its own 2, as many as a bucket of 2 holds, and its
+   first `get` asks a third of `R_max`: the one thing shared is the split of
+   `R_max` by interest (C01), a's two streams at peak against b's one."
+  []
+  (let [[st root] (mid-value)
+        small (v/hash (v/vector st (v/i64 st 1) (v/i64 st 2) (v/i64 st 3)))
+        small-order (mapv store/hash->hex (reveal/page-order st small))
+        burst 6
+        missing (distinct-hashes 12)
+        clock (atom 0) sent (atom [])
+        r (h/responder {:store st :now (fn [] @clock)
+                        :hello (assoc-in responder/default-hello ["rates" "req-burst"] burst)
+                        :send! (fn [p bs] (swap! sent conj [@clock p bs]))})
+        to! (fn [p bs] (h/responder-on-frame! r p bs))
+        step! (fn [ms] (swap! clock + ms) (responder/tick! r))
+        long-life {"peak" 1000 "tau-ms" 60000 "floor" 10}
+        frames-of (fn [p sid]
+                    (into [] (keep (fn [[_ p' bs]]
+                                     (let [fr (frame/decode-frame bs)]
+                                       (when (and (= p p') (= :item-stream (:type fr)) (= sid (:stream fr)))
+                                         fr))))
+                          @sent))
+        hashes-of (fn [p sid]
+                    (loop [frs (frames-of p sid) rd (frame/reader sid) out []]
+                      (if (empty? frs)
+                        out
+                        (let [[rd' items] (frame/feed rd (first frs))]
+                          (recur (rest frs) rd'
+                                 (into out (mapcat (fn [bs] (map (comp store/hash->hex :hash)
+                                                                 (bin/decode-item-stream bs)))
+                                                   items)))))))
+        bytes-of (fn [p sid from to]
+                   (reduce (fn [n [t p' bs]]
+                             (let [fr (frame/decode-frame bs)]
+                               (if (and (= p p') (> t from) (<= t to)
+                                        (= :item-stream (:type fr)) (= sid (:stream fr)))
+                                 (+ n (bin/byte-len bs))
+                                 n)))
+                           0 @sent))
+        codes-of (fn [p]
+                   (frequencies
+                    (keep (fn [[_ p' bs]]
+                            (when (and (= p p') (= :error (kind bs)))
+                              (get-in (msg/decode-message bs) [:value "code"])))
+                          @sent)))
+        _ (doseq [p ["p" "q"]]
+            (responder/open-session! r p)
+            (to! p (hello-bytes (hello-with {}))))
+        ;; p: its record, its budget, its bucket
+        _ (to! "p" (get-bytes 1 small 10000000))
+        _ (step! 100)
+        _ (to! "p" (msg/encode-message
+                    {:type :ack :stream 0
+                     :value {"hashes" (mapv #(msg/hash-ref %) (hashes-of "p" 1))}}))
+        _ (to! "p" (get-bytes 3 root 2000 long-life))
+        _ (doseq [[i h] (map-indexed vector (take 8 missing))]
+            (to! "p" (get-bytes (+ 5 (* 2 i)) h 2000)))
+        p-codes (codes-of "p")
+        ;; q: the same requests, its own state
+        _ (to! "q" (get-bytes 1 small 10000000))
+        _ (to! "q" (get-bytes 3 root 40000 long-life))
+        _ (doseq [[i h] (map-indexed vector (take (- burst 2) (drop 8 missing)))]
+            (to! "q" (get-bytes (+ 5 (* 2 i)) h 40000)))
+        q-codes (codes-of "q")
+        t1 @clock
+        _ (dotimes [_ 10] (step! 100))
+        p-rate (bytes-of "p" 3 t1 (+ t1 1000))
+        q-rate (bytes-of "q" 3 t1 (+ t1 1000))
+        q-small (hashes-of "q" 1)
+        _ (to! "p" (garbage))
+        after-p [(responder/session-status r "p") (responder/session-status r "q")
+                 (contains? (responder/open-streams r "q") 3)]
+        _ (dotimes [_ 20] (step! 100))
+        q-last (peek (frames-of "q" 3))
+        ;; (2) the client
+        r-max 1000000
+        hs (distinct-hashes 5)
+        small-bucket {"req-rate" 1 "req-burst" 2}
+        n (cnet {:r-max r-max :peers [["a" small-bucket]]})
+        _ (doseq [h hs] (h/request! (:client n) h))
+        waiting (count (client/unserved (:client n)))
+        _ (client/open-session! (:client n) "b")
+        _ (h/on-frame! (:client n) "b" (hello-bytes (hello-with small-bucket)))
+        gets (gets-sent n)
+        b-first (some (fn [[_ p m]] (when (= "b" p) (get-in m [:value "recv-max"]))) gets)]
+    (concat
+     (bad "p: its flood of 8 is partly rate-limited" true (pos? (get p-codes "rate-limited" 0)))
+     (bad "q: none of its 6 gets is rate-limited, 4 are unknown-hash" {"unknown-hash" (- burst 2)} q-codes)
+     (bad "q: its get of the small value sends every page, not p's record" small-order q-small)
+     (bad "q's stream writes at its own budget, 40000 a second" true (<= 30000 q-rate 40000))
+     (bad "p's stream at its budget, about 2000 a second" true (< p-rate (+ 2000 frame-bytes)))
+     (bad "p's session ends; q's session and stream go on" [:ended :open true] after-p)
+     (bad "q's stream finishes" [true false] [(boolean (:fin? q-last)) (boolean (:partial? q-last))])
+     (bad "client: with only a open, a takes its 2 and 3 wait" 3 waiting)
+     (bad "b opens and takes its own 2" {"a" 2 "b" 2} (frequencies (map second gets)))
+     (bad "b's first get asks a third of R_max (the shared split)" true
+          (and b-first (near? b-first (/ r-max 3) 2))))))
+
+;; =============================================================================
 ;; C24, C25: the reveal order
 ;; =============================================================================
 
@@ -1964,6 +2080,7 @@
    "item-over-max-item-is-refused-before-buffering" item-over-max-item-is-refused-before-buffering
    "stalled-stream-decays-and-frees-its-share" stalled-stream-decays-and-frees-its-share
    "renewal-is-a-new-stream-at-peak" renewal-is-a-new-stream-at-peak
+   "sessions-share-no-state-except-rmax" sessions-share-no-state-except-rmax
    "reveal-walks-each-subtree-depth-first" reveal-walks-each-subtree-depth-first
    "reveal-order-is-fixed-and-receiver-accepts-any" reveal-order-is-fixed-and-receiver-accepts-any))
 
