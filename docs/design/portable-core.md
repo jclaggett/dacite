@@ -248,7 +248,7 @@ committed root with `dacite.value.api/get-value`.
 > **Note on map keys:** on the JVM a hash is a vector of `long`s and is used
 > directly as the `MemStore` map key. On ClojureScript a hash is a vector of
 > `BigInt`s, which cannot be a map key (BigInt is a primitive), so `MemStore`
-> keys internally by the canonical hex string. Store contents are never
+> and `LruStore` key internally by the canonical hex string. Store contents are never
 > compared across hosts (only root hashes are), so this internal difference is
 > invisible.
 

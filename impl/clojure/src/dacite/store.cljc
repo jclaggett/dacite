@@ -16,7 +16,7 @@
    Application constructors: mem, file, lmdb, remote.
    A lens `(s/lens rs path)` is local convenience at a nested path
    (`path` is a Dacite vector, or a host seq).
-   Internals: mem-store, rooted-store, hash→hex, sync-reachable!."
+   Internals: mem-store, rooted-store, hash→hex, mkey, sync-reachable!."
   (:refer-clojure :exclude [await])
   (:require [dacite.hash :as hash]))
 
@@ -179,12 +179,13 @@
 ;; In-memory store
 ;; =============================================================================
 
-(defn ^:private mkey
+(defn mkey
   "Internal map key for a hash. On the JVM a hash vector is the key. On
    ClojureScript the same vector holds BigInts: a small array map can hold
    one, and a hash map cannot (SCI will not hash a BigInt). `s-get` looks
-   the hash up by this key, so every write uses it too. The JVM key is the
-   vector. The ClojureScript key is the canonical hex."
+   the hash up by this key, so every write uses it too. `MemStore` and
+   `LruStore` both call this. The JVM key is the vector. The ClojureScript
+   key is the canonical hex."
   [h]
   #?(:clj h :cljs (hash/hash->hex h)))
 
