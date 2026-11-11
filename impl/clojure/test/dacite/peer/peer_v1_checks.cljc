@@ -4,10 +4,18 @@
    `dacite.peer.peer-v1-test`, one deftest each under its old name; nbb runs
    them from `dacite.peer.peer-cljs-test` (`npm run peer:test`).
 
+   The two properties (defspecs before) use test.check on the JVM and run
+   fewer cases from a fixed seed on nbb (`dacite.value.seeded-gen`, no
+   shrinking, smaller strings and depth; see `nbb-cases`).
+
    `is`, `testing` and `throws-info?` are `dacite.store.check`. `env` has
    `:case-dirs` (the fixture case directory names), `:read-spec` (the text
    of docs/spec/peer-v1.md) and `:read-text` (a file's text by path)."
-  (:require [clojure.string :as str]
+  (:require #?(:clj [clojure.test.check :as tc])
+            #?(:clj [clojure.test.check.generators :as gen]
+               :cljs [dacite.value.seeded-gen :as gen])
+            #?(:clj [clojure.test.check.properties :as prop])
+            [clojure.string :as str]
             [dacite.host :as host]
             [dacite.peer.conformance :as conf]
             [dacite.peer.examples :as ex]
@@ -35,6 +43,14 @@
 
 (defn- now-ms []
   #?(:clj (/ (System/nanoTime) 1.0e6) :cljs (.now js/performance)))
+
+(defn- property
+  "The property `f` holds for `n` draws from `gens`: test.check on the JVM,
+   a fixed seed on nbb. One assertion, as a defspec reports one."
+  [n gens f]
+  (let [r #?(:clj (tc/quick-check n (prop/for-all* gens f))
+             :cljs (gen/quick-check n (apply gen/tuple gens) #(apply f %) 21))]
+    (is (:pass? r) (str "seed " (:seed r) " failed on " (pr-str (:shrunk r))))))
 
 (defn- thrown-reason
   [f]
@@ -98,6 +114,63 @@
     (is (not= (bin/bytes->hex a) (bin/bytes->hex b)))
     (is (= (:value (msg/decode-message a)) (:value (msg/decode-message b))))
     (is (not= (:stream (msg/decode-message a)) (:stream (msg/decode-message b))))))
+
+;; ---------------------------------------------------------------------------
+;; Property: any profile value round-trips and re-encodes to the same bytes.
+;; ---------------------------------------------------------------------------
+
+(def ^:private gen-hex
+  (gen/fmap #(apply str %) (gen/vector (gen/elements "0123456789abcdef") 64)))
+
+(def ^:private gen-leaf
+  (gen/one-of [(gen/return nil)
+               gen/boolean
+               (gen/fmap long gen/small-integer)
+               gen/string-alphanumeric
+               (gen/fmap msg/hash-ref gen-hex)]))
+
+;; Blobs appear only as map values (no v1 message holds one now). A vector with a
+;; blob and another element does not realize in the core today:
+;; (msg/encode-value [(byte-array 1) nil]) throws "cannot intern page-body
+;; lit item". Reported in the M1.1 PR; not worked around here.
+(def ^:private gen-blob
+  (gen/fmap host-bytes (gen/vector gen/byte 0 20)))
+
+(def ^:private gen-value
+  (gen/recursive-gen
+   (fn [inner]
+     (gen/one-of [(gen/vector inner 0 4)
+                  (gen/fmap set (gen/vector (gen/one-of [gen/string-alphanumeric
+                                                         (gen/fmap long gen/small-integer)])
+                                            0 4))
+                  (gen/map gen/string-alphanumeric inner {:max-elements 4})]))
+   gen-leaf))
+
+(def nbb-cases
+  "Case counts on nbb, where `msg/encode-value` of these small values takes
+   about 10 ms each, so the JVM's 150 and 50 cases would take about 2.5 s
+   and 1 s there. The JVM keeps its counts."
+  {:any-profile 60 :blob-fields 25})
+
+(defn blob-fields-round-trip
+  [_env]
+  (property #?(:clj 50 :cljs (:blob-fields nbb-cases))
+            [(gen/map gen/string-alphanumeric gen-blob {:max-elements 3})
+             gen/small-integer]
+            (fn [m n]
+              (let [x (assoc m "n" (long n))
+                    bs (msg/encode-value x)]
+                (and (msg/equal-values? x (msg/decode-value bs))
+                     (= (bin/bytes->hex bs) (bin/bytes->hex (msg/encode-value (msg/decode-value bs)))))))))
+
+(defn any-profile-value-round-trips
+  [_env]
+  (property #?(:clj 150 :cljs (:any-profile nbb-cases)) [gen-value]
+            (fn [x]
+              (let [bs (msg/encode-value x)
+                    back (msg/decode-value bs)]
+                (and (msg/equal-values? x back)
+                     (= (bin/bytes->hex bs) (bin/bytes->hex (msg/encode-value back))))))))
 
 (defn outside-the-profile
   [env]
@@ -432,6 +505,8 @@
    "frame-sizes" frame-sizes
    "stream-ids-span-u32" stream-ids-span-u32
    "stream-id-is-not-the-hash" stream-id-is-not-the-hash
+   "blob-fields-round-trip" blob-fields-round-trip
+   "any-profile-value-round-trips" any-profile-value-round-trips
    "outside-the-profile" outside-the-profile
    "f1-unknown-error-code-is-read-as-internal" f1-unknown-error-code-is-read-as-internal
    "f2-item-encodings-in-item-streams" f2-item-encodings-in-item-streams

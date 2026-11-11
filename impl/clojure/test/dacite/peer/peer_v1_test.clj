@@ -6,16 +6,11 @@
 
    The tests are checks in `dacite.peer.peer-v1-checks`, shared with nbb
    (`npm run peer:test`); each runs here as a deftest under its old name.
-   The two properties are JVM only (test.check)."
+   The two properties were defspecs; their checks run test.check here."
   (:require [clojure.test :refer [deftest is]]
-            [clojure.test.check.clojure-test :refer [defspec]]
-            [clojure.test.check.generators :as gen]
-            [clojure.test.check.properties :as prop]
             [dacite.peer.conformance :as conf]
-            [dacite.peer.msg :as msg]
             [dacite.peer.peer-v1-checks :as checks]
-            [dacite.store.check :as check]
-            [dacite.wire.binary :as bin]))
+            [dacite.store.check :as check]))
 
 (def ^:private env
   "Host pieces the checks take (see dacite.peer.peer-v1-checks)."
@@ -53,51 +48,11 @@
 (deftest stream-id-is-not-the-hash
   (run-check "stream-id-is-not-the-hash"))
 
-;; ---------------------------------------------------------------------------
-;; Property: any profile value round-trips and re-encodes to the same bytes.
-;; ---------------------------------------------------------------------------
+(deftest blob-fields-round-trip
+  (run-check "blob-fields-round-trip"))
 
-(def gen-hex
-  (gen/fmap #(apply str %) (gen/vector (gen/elements "0123456789abcdef") 64)))
-
-(def gen-leaf
-  (gen/one-of [(gen/return nil)
-               gen/boolean
-               (gen/fmap long gen/small-integer)
-               gen/string-alphanumeric
-               (gen/fmap msg/hash-ref gen-hex)]))
-
-;; Blobs appear only as map values (no v1 message holds one now). A vector with a
-;; blob and another element does not realize in the core today:
-;; (msg/encode-value [(byte-array 1) nil]) throws "cannot intern page-body
-;; lit item". Reported in the M1.1 PR; not worked around here.
-(def gen-blob
-  (gen/fmap #(byte-array (map unchecked-byte %)) (gen/vector gen/byte 0 20)))
-
-(def gen-value
-  (gen/recursive-gen
-   (fn [inner]
-     (gen/one-of [(gen/vector inner 0 4)
-                  (gen/fmap set (gen/vector (gen/one-of [gen/string-alphanumeric
-                                                         (gen/fmap long gen/small-integer)])
-                                            0 4))
-                  (gen/map gen/string-alphanumeric inner {:max-elements 4})]))
-   gen-leaf))
-
-(defspec blob-fields-round-trip 50
-  (prop/for-all [m (gen/map gen/string-alphanumeric gen-blob {:max-elements 3})
-                 n gen/small-integer]
-    (let [x (assoc m "n" (long n))
-          bs (msg/encode-value x)]
-      (and (msg/equal-values? x (msg/decode-value bs))
-           (= (bin/bytes->hex bs) (bin/bytes->hex (msg/encode-value (msg/decode-value bs))))))))
-
-(defspec any-profile-value-round-trips 150
-  (prop/for-all [x gen-value]
-    (let [bs (msg/encode-value x)
-          back (msg/decode-value bs)]
-      (and (msg/equal-values? x back)
-           (= (bin/bytes->hex bs) (bin/bytes->hex (msg/encode-value back)))))))
+(deftest any-profile-value-round-trips
+  (run-check "any-profile-value-round-trips"))
 
 (deftest outside-the-profile
   (run-check "outside-the-profile"))

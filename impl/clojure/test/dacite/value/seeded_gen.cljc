@@ -1,6 +1,6 @@
 (ns dacite.value.seeded-gen
-  "A small seeded stand-in for the parts of test.check the shared HAMT
-   and hash checks use, for nbb, where test.check is not available. A generator is a
+  "A small seeded stand-in for the parts of test.check the shared HAMT,
+   hash, and peer-v1 checks use, for nbb, where test.check is not available. A generator is a
    function of a random source; `quick-check` runs a fixed number of cases
    from a fixed seed, so a run is the same every time. There is no
    shrinking: a failure reports the case as drawn.
@@ -14,7 +14,7 @@
    `boolean`, a sign) goes through `below`, which takes the high bits of a
    draw, never `mod`: an LCG's low bits have short periods (bit k repeats
    every 2^(k+1) draws)."
-  (:refer-clojure :exclude [boolean char double vector]))
+  (:refer-clojure :exclude [boolean byte char double map vector]))
 
 (defn- next-int!
   "Next 31-bit value of the LCG in `rng` (a volatile)."
@@ -76,7 +76,7 @@
 (defn frequency
   "[[weight g] ...]: `g` with chance weight / total."
   [pairs]
-  (let [total (reduce + (map first pairs))]
+  (let [total (reduce + (clojure.core/map first pairs))]
     (fn [rng]
       (loop [r (below rng total) [[w g] & more] pairs]
         (if (< r w) (g rng) (recur (- r w) more))))))
@@ -121,6 +121,33 @@
 (def char
   "A character 0..255, as test.check's `char`."
   (fmap #?(:clj clojure.core/char :cljs #(.fromCharCode js/String %)) (choose 0 255)))
+
+(def byte
+  "A signed byte, -128..127."
+  (choose -128 127))
+
+(def string-alphanumeric
+  "0 to 20 characters from a-z, A-Z, and 0-9."
+  (let [cs "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"]
+    (fmap #(apply str %) (vector (elements cs) 0 20))))
+
+(defn map
+  "A map of draws of `kg` to draws of `vg`, at most :max-elements keys
+   (fewer when a key repeats)."
+  [kg vg {:keys [max-elements] :or {max-elements 10}}]
+  (fn [rng]
+    (into {} (repeatedly ((choose 0 max-elements) rng) #(clojure.core/vector (kg rng) (vg rng))))))
+
+(defn recursive-gen
+  "`(container-fn inner)` nested at most 3 deep over `scalar-g`: at each
+   level a scalar one time in three, and always at the deepest."
+  [container-fn scalar-g]
+  (letfn [(at [depth]
+            (if (= depth 3)
+              scalar-g
+              (frequency [[1 scalar-g]
+                          [2 (fn [rng] ((container-fn (at (inc depth))) rng))]])))]
+    (at 0)))
 
 (defn quick-check
   "Run `(prop x)` on `n` draws of `g` from `seed`. {:pass? :seed} and, on a
