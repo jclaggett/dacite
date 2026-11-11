@@ -1178,7 +1178,7 @@ cannot hide it.
 ### 12.7 Reveal order: deterministic in v1
 
 *Decided* (Jonathan, Nov 4): v1 reveals in a fixed order. The stochastic shuffle is
-**Deferred** until peering works in a demo (below). Revised Nov 11: the walk is
+**Deferred** until peering works in a demo (below). Revised Nov 10: the walk is
 depth-first (C24). Breadth-first by level is dropped.
 
 - **C24 (Decided).** A sender walks the asked value **depth-first**, the same
