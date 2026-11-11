@@ -1,181 +1,67 @@
 (ns dacite.store.chunk-test
-  "Pack-literal durable layout — default for s/file and s/lmdb."
+  "Pack-literal durable layout (the default for s/file and s/lmdb) on the JVM.
+
+   The bodies are `dacite.store.chunk-checks`, with the JVM file and LMDB
+   stores. nbb runs the same checks on its own (`npm run store-units:test`).
+   One deftest each, so the JVM suite still names the test it ran before."
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is]]
-            [dacite.examples.library :as lib]
-            [dacite.rooted.gc :as gc]
-            [dacite.store :as store]
-            [dacite.store.chunk :as chunk]
-            [dacite.store.file :as file]
-            [dacite.store.jvm :as jvm]
-            [dacite.store.pack :as pack]
-            [dacite.value :as v]))
+            [dacite.store-test :as store-test]
+            [dacite.store.check :as check]
+            [dacite.store.chunk-checks :as checks]
+            [dacite.store.jvm :as jvm]))
 
-(defn- edn-files [^java.io.File dir]
-  (->> (file-seq dir)
+(defn- edn-file-sizes
+  "The byte size of each .edn file under `dir`."
+  [dir]
+  (->> (file-seq (io/file dir))
        (filter #(.isFile ^java.io.File %))
-       (filter #(.endsWith (.getName ^java.io.File %) ".edn"))))
+       (filter #(.endsWith (.getName ^java.io.File %) ".edn"))
+       (mapv #(.length ^java.io.File %))))
 
-(defn- dir-bytes [^java.io.File dir]
-  (reduce + 0 (map #(.length ^java.io.File %) (edn-files dir))))
+(def env
+  "The JVM stores and file calls the checks use."
+  (assoc store-test/env
+         :edn-file-sizes edn-file-sizes
+         :lmdb-entries (fn [st] (:entries (jvm/lmdb-db-stat st)))))
+
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks env name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest seed-catalog-flushes-to-pack-items
-  (let [cs (chunk/chunked (store/mem-store))
-        catalog (lib/seed-library cs)
-        h (v/hash catalog)
-        debris (:entries (chunk/overlay-stats cs))
-        live (chunk/live-count cs h)
-        packed (pack/encode-reachable (chunk/overlay cs) h #{} (chunk/budget cs))
-        flushed (chunk/flush! cs h)
-        inner (chunk/inner-stats cs)]
-    (println "chunk layout (seed catalog)"
-             {:overlay-debris debris
-              :live-exploded live
-              :chunked-entries (:entries inner)
-              :chunked-edn-bytes (:edn-bytes inner)
-              :flush flushed})
-    (is (= (count (:items packed)) (:items flushed) (:entries inner)))
-    (is (= 33 (:entries inner))
-        "encode-reachable at the durable 1024 for the seed catalog, plate included")
-    (is (< (:entries inner) live))
-    (is (< live debris))))
+  (run-check "seed-catalog-flushes-to-pack-items"))
 
 (deftest seed-catalog-round-trip-hash-and-page
-  (let [cs (chunk/chunked (store/mem-store))
-        catalog (lib/seed-library cs)
-        h (v/hash catalog)
-        page0 (lib/chapter-page (v/nth (lib/title-index catalog) 0) 0 0 80)]
-    (chunk/flush! cs h)
-    (let [cs2 (chunk/chunked (chunk/inner cs))
-          loaded (v/get-value cs2 h)
-          book (v/nth (lib/title-index loaded) 0)]
-      (is (= h (v/hash loaded)))
-      (is (true? (lib/library-root? loaded)))
-      (is (= lib/seed-title (lib/book-title book)))
-      (is (= page0 (lib/chapter-page book 0 0 80))))))
+  (run-check "seed-catalog-round-trip-hash-and-page"))
 
 (deftest title-native-does-not-hydrate-the-book-body
-  (let [cs (chunk/chunked (store/mem-store))
-        catalog (lib/seed-library cs)
-        h (v/hash catalog)]
-    (chunk/flush! cs h)
-    (let [cs2 (chunk/chunked (chunk/inner cs))
-          loaded (v/get-value cs2 h)
-          book (v/nth (lib/title-index loaded) 0)
-          title (lib/book-title book)
-          overlay-n (:entries (chunk/overlay-stats cs2))]
-      (is (= lib/seed-title title))
-      (is (< overlay-n (v/count (lib/book-text book)))
-          "title read must not explode the 1716-char string"))))
+  (run-check "title-native-does-not-hydrate-the-book-body"))
 
 (deftest absorbed-leaf-is-not-an-inner-key
-  (let [cs (chunk/chunked (store/mem-store))
-        catalog (lib/seed-library cs)
-        h (v/hash catalog)
-        ch-h (v/hash (v/nth (lib/book-text (v/nth (lib/title-index catalog) 0)) 0))]
-    (chunk/flush! cs h)
-    (is (false? (store/await (store/s-has? (chunk/inner cs) ch-h)))
-        "a character leaf is covered by an ft/digit literal")
-    (let [cs2 (chunk/chunked (chunk/inner cs))
-          loaded (v/get-value cs2 h)
-          book (v/nth (lib/title-index loaded) 0)
-          page (lib/chapter-page book 0 0 40)]
-      (is (seq page))
-      (is (true? (store/await (store/s-has? (chunk/overlay cs2) ch-h)))))))
+  (run-check "absorbed-leaf-is-not-an-inner-key"))
 
 (deftest chunked-edn-smaller-than-live-exploded
-  (let [plain (store/mem-store)
-        catalog (lib/seed-library plain)
-        h (v/hash catalog)
-        live-hexes (gc/mark-reachable plain h)
-        live-bytes (reduce (fn [n hk]
-                             (+ n (count (pr-str (store/await (store/s-get plain (gc/->hash hk)))))))
-                           0
-                           live-hexes)
-        cs (chunk/chunked (store/mem-store))
-        c2 (lib/seed-library cs)
-        _ (chunk/flush! cs (v/hash c2))
-        inner (chunk/inner-stats cs)]
-    (println "edn bytes live-exploded" live-bytes
-             "chunked" (:edn-bytes inner)
-             "ratio" (format "%.2f" (double (/ live-bytes (max 1 (:edn-bytes inner))))))
-    (is (< (:edn-bytes inner) live-bytes))
-    (is (< (:entries inner) (count live-hexes)))))
+  (run-check "chunked-edn-smaller-than-live-exploded"))
 
 (deftest chunked-file-smaller-than-exploded-file
-  (let [dir-e (io/file (str "target/dacite-chunk-exploded-" (System/nanoTime)))
-        dir-c (io/file (str "target/dacite-chunk-inner-" (System/nanoTime)))]
-    (try
-      (.mkdirs dir-e)
-      (.mkdirs dir-c)
-      (let [exploded (file/file-store (.getPath dir-e))
-            catalog (lib/seed-library exploded)
-            e-files (count (edn-files dir-e))
-            e-bytes (dir-bytes dir-e)
-            cs (chunk/chunked (file/file-store (.getPath dir-c)))
-            catalog2 (lib/seed-library cs)
-            _ (chunk/flush! cs (v/hash catalog2))
-            c-files (count (edn-files dir-c))
-            c-bytes (dir-bytes dir-c)]
-        (println "file store seed catalog"
-                 {:exploded-files e-files :exploded-bytes e-bytes
-                  :chunked-files c-files :chunked-bytes c-bytes})
-        (is (= 33 c-files))
-        (is (< c-files e-files))
-        (is (< c-bytes e-bytes)))
-      (finally
-        (doseq [d [dir-e dir-c]
-                f (reverse (file-seq d))]
-          (.delete ^java.io.File f))))))
+  (run-check "chunked-file-smaller-than-exploded-file"))
 
 (deftest app-file-store-flushes-pack-items-on-cas
-  (let [dir (io/file (str "target/dacite-chunk-app-file-" (System/nanoTime)))]
-    (try
-      (let [r (v/root (store/file (.getPath dir)))]
-        (lib/load-or-seed! r)
-        (is (= 33 (count (edn-files dir)))
-            "s/file persists pack items, not construction debris")
-        (let [r2 (v/root (store/file (.getPath dir)))
-              loaded (v/deref r2)
-              book (v/nth (lib/title-index loaded) 0)]
-          (is (true? (lib/library-root? loaded)))
-          (is (= lib/seed-title (lib/book-title book)))
-          (is (seq (lib/chapter-page book 0 0 40)))))
-      (finally
-        (doseq [f (reverse (file-seq dir))]
-          (.delete ^java.io.File f))))))
+  (run-check "app-file-store-flushes-pack-items-on-cas"))
 
 (deftest app-lmdb-store-flushes-pack-items-on-cas
-  ;; LMDB mmaps data.mdb. Keep the env off a 9p checkout, which returns EINVAL.
-  (let [dir (io/file (System/getProperty "java.io.tmpdir")
-                     (str "dacite-chunk-app-lmdb-" (System/nanoTime)))
-        path (.getPath dir)]
-    (.mkdirs dir)
-    (try
-      (let [rs (store/lmdb path)
-            inner (chunk/inner (:content rs))]
-        (try
-          (lib/load-or-seed! (v/root rs))
-          (is (= 33 (:entries (jvm/lmdb-db-stat inner))))
-          (finally
-            (store/lmdb-close inner))))
-      (let [rs2 (store/lmdb path)
-            inner2 (chunk/inner (:content rs2))]
-        (try
-          (let [loaded (v/deref (v/root rs2))
-                book (v/nth (lib/title-index loaded) 0)]
-            (is (true? (lib/library-root? loaded)))
-            (is (= lib/seed-title (lib/book-title book)))
-            (is (seq (lib/chapter-page book 0 0 40))))
-          (finally
-            (store/lmdb-close inner2))))
-      (finally
-        (doseq [f (reverse (file-seq dir))]
-          (.delete ^java.io.File f))))))
+  (run-check "app-lmdb-store-flushes-pack-items-on-cas"))
 
 (deftest durable-stores-have-their-own-budget
-  (is (= 1024 chunk/durable-budget))
-  (is (= 4096 pack/default-budget) "HTTP and peers keep the leaf page size")
-  (is (= chunk/durable-budget (chunk/budget (chunk/chunked (store/mem-store)))))
-  (is (= 77 (chunk/budget (chunk/chunked (store/mem-store) {:budget 77})))
-      "an explicit budget still wins"))
+  (run-check "durable-stores-have-their-own-budget"))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.store.chunk-test)))))
+               "every-check-has-a-deftest"))
+      "chunk_checks.cljc and this file list the same tests"))

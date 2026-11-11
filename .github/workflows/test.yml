@@ -54,6 +54,11 @@ jobs:
       - name: Storage suite (file and LMDB)
         run: npm run storage:test
 
+      # pack_test, chunk_test, lens_test, and rate_limit_test. The chunk
+      # checks open LMDB too, so this also runs after the format-v1 build.
+      - name: Pack, chunk, lens, and rate-limit suite
+        run: npm run store-units:test
+
       # shadow-cljs.edn uses :deps, so peer:build and browser:test start
       # the compiler with the `clojure` executable. The suites above do not.
       - uses: actions/setup-java@v5

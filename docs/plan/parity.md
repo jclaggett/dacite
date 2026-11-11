@@ -8,7 +8,7 @@ How to update: tick the item and add the PR number when it merges.
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: the rest of the storage ports (`pack`, `chunk`, `lens`, `rate_limit`).
+Next up: the Core and data model ports, starting with `rooted_test` (15) and `rooted/gc_test` (5).
 
 ## Done
 
@@ -18,7 +18,7 @@ Next up: the rest of the storage ports (`pack`, `chunk`, `lens`, `rate_limit`).
 - [x] [done] File, LMDB, and IDB durable contract on nbb. `npm run store:test`. #35. `store/nbb.cljs`, `store/nbb/lmdb.cljs`
 - [x] [done] Reveal subset, 19 cases. `npm run reveal:test`. #38 #39. `reveal_cljs_test.cljs`
 - [x] [done] Peer fixtures, client, flow, async, mem transport, cache. `npm run peer:test`. #19 #22 #23 #25 #28
-- [x] [done] C05 and C07, and a mid-item or blocked end at the deadline. #55. `floor-sends-fin-partial-when-blocked-or-credit-runs-out` in `peer/flow_checks.cljc` (`peer:test`)
+- [x] [done] C05 and C07, and a mid-item or blocked end at the deadline. #55. `floor-sends-fin-partial-when-blocked-or-credit-runs-out` in `peer/flow_checks.cljc` (`peer:test`). `stream-ends-partial-when-interest-falls-below-floor` uses a 210-item value at a lower `recv-max` (about 0.7 s on nbb, was about 1.8 s on a late store)
 - [x] [done] C09 `get-interest-is-clamped-by-the-responder`. #58. `peer/flow_checks.cljc` (`peer:test`)
 - [x] [done] C11 `too-many-streams-is-refused-and-a-closed-slot-frees`. #58. `peer/flow_checks.cljc` (`peer:test`)
 - [x] [done] C12 `max-streams-above-64-is-read-as-64`. #58. `peer/flow_checks.cljc` (`peer:test`)
@@ -31,8 +31,8 @@ Next up: the rest of the storage ports (`pack`, `chunk`, `lens`, `rate_limit`).
 ## Storage
 
 - [x] [done] JVM `store_test.clj` (26) and `format_test.clj` (6). `npm run storage:test`, 32 checks on the nbb file and LMDB stores. `store_checks.cljc`, `store/format_checks.cljc`. The JVM part of the old `await-future-and-unavailable-test` stays JVM only as `await-future-test` (a JVM future is a JVM host promise); its rejected-promise half is the shared `await-rejected-is-unavailable-test`
-- [ ] [in progress] nbb `store/file` and `store/lmdb` (chunked, plus a root cell) still need a shared check. Done: get, put, has?, reset, persistence, sharding, `write-batch`, wire-v1 node bytes, format tag, and the LMDB root cell (`storage:test`). Not yet: the chunked overlay and `rooted/file-root-cell`. JVM sources: `store/file.clj`, `store/jvm.clj`. Browser `store/file` and `store/lmdb` throw
-- [ ] [not started] `pack_test` (50), `chunk_test` (9), `lens_test` (13), `rate_limit_test` (7). Sources `pack`, `chunk`, `lens`, `rate_limit` are `.cljc`
+- [x] [done] nbb `store/file` and `store/lmdb` (chunked, plus a root cell). Get, put, has?, reset, persistence, sharding, `write-batch`, wire-v1 node bytes, format tag, and the LMDB root cell are `storage:test`. The chunked overlay, and `store/file` and `store/lmdb` reopened from their root cells, are `chunk_checks.cljc` (`store-units:test`). On nbb `chunk/put-reachable!` built a set of BigInt hash vectors and threw; `:keep` is now a vector. JVM sources: `store/file.clj`, `store/jvm.clj`. Browser `store/file` and `store/lmdb` throw
+- [x] [done] `pack_test` (50), `chunk_test` (9), `lens_test` (13), `rate_limit_test` (7). `npm run store-units:test`, 70 checks: `store/pack_checks.cljc` (43), `store/chunk_checks.cljc` (9), `store/lens_checks.cljc` (12), `store/rate_limit_checks.cljc` (6), with `is` from `store/check.cljc`. Nine stay JVM only. Seven in `pack_test` and one in `rate_limit_test` start the HTTP service or read through `store/remote` (see the next line). `concurrent-disjoint-cas` in `lens_test` races two threads
 - [ ] [not started] `store/remote.clj` and `store/reveal.clj` (HTTP/3). `remote_test` (3). `store/remote` throws off the JVM. Browser fetch is `store/browser.cljs`
 
 ## Core and data model
