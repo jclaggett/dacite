@@ -8,7 +8,6 @@
    name. The rest stay here: test.check properties, `with-redefs` counts,
    timings, threads, and the pinned leaf-budget hashes."
   (:require [clojure.test :refer [deftest is testing]]
-            [dacite.host :as host]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
@@ -227,29 +226,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest append-item-matches-its-definition
-  ;; The fast append rewrites only the last group; it must give what
-  ;; expand + conj + rle-lits gives, for any run of elements.
-  (let [slow @#'lit/append-slow
-        gen-el (gen/one-of
-                [(gen/fmap (fn [c] {:type "char" :body c}) (gen/elements [\a \b \u03bb]))
-                 (gen/fmap (fn [n] {:type "u8" :body n}) (gen/elements [0 1 255]))
-                 (gen/fmap (fn [n] {:type "i64" :body n}) (gen/elements [1 2]))
-                 (gen/fmap (fn [x] {:type "string" :body x}) (gen/elements ["x" "yy"]))
-                 (gen/return {:type "null" :body nil})
-                 (gen/fmap (fn [h] {:type "ref" :body h}) (gen/elements [[1 2 3 4] [5 6 7 8]]))])
-        norm (fn [body]
-               (mapv (fn [it]
-                       (if (and (map? it) (= "run" (:type it)) (lit/u8-bytes? (:values (:body it))))
-                         (update-in it [:body :values] vec)
-                         it))
-                     body))
-        r (tc/quick-check
-           200
-           (prop/for-all [els (gen/vector gen-el 0 40)]
-             (let [fast (reduce lit/append-item [] els)
-                   ref (reduce slow [] els)]
-               (= (norm fast) (norm ref)))))]
-    (is (:pass? r) (pr-str (:shrunk r)))))
+  (run-check "append-item-matches-its-definition"))
 
 (def ^:private gen-text
   (gen/fmap (fn [[ch n]] (apply str (repeat n ch)))
@@ -420,45 +397,10 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest utf8-len-is-the-length-of-the-utf8-bytes
-  (let [host-len #(count (host/utf8-bytes %))
-        hi "\uD83D" lo "\uDE00"]
-    (doseq [s ["" "a" "abc" "\u00e9" "\u03bb\u03bb" "\u20ac" "x\u20acy" (str hi lo) (str "a" hi lo "b")]]
-      (is (= (host-len s) (lit/utf8-len s)) (pr-str s)))
-    (testing "a lone surrogate has no UTF-8 form: it throws, as the encoder does (#16)"
-      (doseq [s [hi lo (str hi "a") (str "a" lo) (str lo hi) (str hi hi lo) (str "z" hi) (str lo lo)]]
-        (is (= :lone-surrogate (:reason (ex-data (try (lit/utf8-len s) (catch Exception e e)))))
-            (pr-str s))))
-    (testing "a character (it is called with one)"
-      (is (= 2 (lit/utf8-len \u03bb)))
-      (is (= 1 (lit/utf8-len \a))))
-    (let [gen-cp (gen/one-of [(gen/choose 0 0x7f) (gen/choose 0x80 0x7ff) (gen/choose 0x800 0xd7ff)
-                              (gen/choose 0xe000 0xffff) (gen/choose 0x10000 0x10ffff)])
-          r (tc/quick-check
-             500
-             (prop/for-all [cps (gen/vector gen-cp 0 40)]
-               (let [s (apply str (map #(String. (Character/toChars (int %))) cps))]
-                 (= (host-len s) (lit/utf8-len s)))))]
-      (is (:pass? r) (pr-str (:shrunk r))))))
+  (run-check "utf8-len-is-the-length-of-the-utf8-bytes"))
 
 (deftest payload-after-append-is-the-payload-of-the-appended-body
-  (let [gen-el (gen/one-of
-                [(gen/fmap (fn [c] {:type "char" :body c}) (gen/elements [\a \b \u03bb]))
-                 (gen/fmap (fn [n] {:type "u8" :body n}) (gen/elements [0 1 255]))
-                 (gen/fmap (fn [n] {:type "i64" :body n}) (gen/elements [1 2]))
-                 (gen/fmap (fn [x] {:type "string" :body x}) (gen/elements ["x" "yy"]))
-                 (gen/return {:type "null" :body nil})
-                 (gen/fmap (fn [h] {:type "ref" :body h}) (gen/elements [[1 2 3 4] [5 6 7 8]]))])
-        r (tc/quick-check
-           300
-           (prop/for-all [els (gen/vector gen-el 0 60)]
-             (loop [body [] pb 0 els els]
-               (if-let [el (first els)]
-                 (let [b' (lit/append-item body el)
-                       pb' (lit/payload-after-append body pb b')]
-                   (and (= pb' (lit/payload-bytes b'))
-                        (recur b' pb' (rest els))))
-                 true))))]
-    (is (:pass? r) (pr-str (:shrunk r)))))
+  (run-check "payload-after-append-is-the-payload-of-the-appended-body"))
 
 (deftest a-page-is-not-recounted-for-every-element
   (let [real lit/payload-bytes

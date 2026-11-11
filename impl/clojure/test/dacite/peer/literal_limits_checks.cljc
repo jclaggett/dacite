@@ -22,7 +22,10 @@
             [dacite.value :as v]
             [dacite.value.finger-tree :as ft]
             [dacite.value.lit :as lit]
-            #?(:cljs [dacite.value.seeded-gen :as gen])
+            #?(:clj [clojure.test.check :as tc])
+            #?(:clj [clojure.test.check.generators :as gen]
+               :cljs [dacite.value.seeded-gen :as gen])
+            #?(:clj [clojure.test.check.properties :as prop])
             [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
 
@@ -285,6 +288,92 @@
                                (take 64 (ft/ft-seq st2 root)))))
           "the first 64 characters are in the first chunk"))))
 
+;; ---------------------------------------------------------------------------
+;; Properties: test.check on the JVM, a fixed seed on nbb
+;; ---------------------------------------------------------------------------
+
+(defn- property
+  "Run the property `f` on `n` draws from `gens`: test.check on the JVM
+   (`for-all*`, shrinking), a fixed seed on nbb (`dacite.value.seeded-gen`,
+   no shrinking). Returns the result map, :pass? :seed and, on a failure,
+   :shrunk; the caller asserts :pass?, as the tests did before. nbb runs
+   the JVM's counts: each property here takes under 0.4 s there."
+  [n gens f]
+  #?(:clj (tc/quick-check n (prop/for-all* gens f))
+     :cljs (gen/quick-check n (apply gen/tuple gens) #(apply f %) 21)))
+
+(defn append-item-matches-its-definition
+  ;; The fast append rewrites only the last group; it must give what
+  ;; expand + conj + rle-lits gives, for any run of elements.
+  [env]
+  (let [slow @#'lit/append-slow
+        gen-el (gen/one-of
+                [(gen/fmap (fn [c] {:type "char" :body c}) (gen/elements [\a \b \u03bb]))
+                 (gen/fmap (fn [n] {:type "u8" :body n}) (gen/elements [0 1 255]))
+                 (gen/fmap (fn [n] {:type "i64" :body n}) (gen/elements [1 2]))
+                 (gen/fmap (fn [x] {:type "string" :body x}) (gen/elements ["x" "yy"]))
+                 (gen/return {:type "null" :body nil})
+                 (gen/fmap (fn [h] {:type "ref" :body h}) (gen/elements [[1 2 3 4] [5 6 7 8]]))])
+        norm (fn [body]
+               (mapv (fn [it]
+                       (if (and (map? it) (= "run" (:type it)) (lit/u8-bytes? (:values (:body it))))
+                         (update-in it [:body :values] vec)
+                         it))
+                     body))
+        r (property 200
+                    [(gen/vector gen-el 0 40)]
+                    (fn [els]
+                      (let [fast (reduce lit/append-item [] els)
+                            ref (reduce slow [] els)]
+                        (= (norm fast) (norm ref)))))]
+    (is (:pass? r) (pr-str (:shrunk r)))))
+
+(defn utf8-len-is-the-length-of-the-utf8-bytes
+  [env]
+  (let [host-len #(count (host/utf8-bytes %))
+        hi "\uD83D" lo "\uDE00"]
+    (doseq [s ["" "a" "abc" "\u00e9" "\u03bb\u03bb" "\u20ac" "x\u20acy" (str hi lo) (str "a" hi lo "b")]]
+      (is (= (host-len s) (lit/utf8-len s)) (pr-str s)))
+    (testing "a lone surrogate has no UTF-8 form: it throws, as the encoder does (#16)"
+      (doseq [s [hi lo (str hi "a") (str "a" lo) (str lo hi) (str hi hi lo) (str "z" hi) (str lo lo)]]
+        (is (= :lone-surrogate (:reason (ex-data (try (lit/utf8-len s)
+                                                      (catch #?(:clj Exception :cljs :default) e e)))))
+            (pr-str s))))
+    (testing "a character (it is called with one)"
+      (is (= 2 (lit/utf8-len \u03bb)))
+      (is (= 1 (lit/utf8-len \a))))
+    (let [gen-cp (gen/one-of [(gen/choose 0 0x7f) (gen/choose 0x80 0x7ff) (gen/choose 0x800 0xd7ff)
+                              (gen/choose 0xe000 0xffff) (gen/choose 0x10000 0x10ffff)])
+          cp-str #?(:clj #(String. (Character/toChars (int %)))
+                    :cljs #(.fromCodePoint js/String %))
+          r (property 500
+                      [(gen/vector gen-cp 0 40)]
+                      (fn [cps]
+                        (let [s (apply str (map cp-str cps))]
+                          (= (host-len s) (lit/utf8-len s)))))]
+      (is (:pass? r) (pr-str (:shrunk r))))))
+
+(defn payload-after-append-is-the-payload-of-the-appended-body
+  [env]
+  (let [gen-el (gen/one-of
+                [(gen/fmap (fn [c] {:type "char" :body c}) (gen/elements [\a \b \u03bb]))
+                 (gen/fmap (fn [n] {:type "u8" :body n}) (gen/elements [0 1 255]))
+                 (gen/fmap (fn [n] {:type "i64" :body n}) (gen/elements [1 2]))
+                 (gen/fmap (fn [x] {:type "string" :body x}) (gen/elements ["x" "yy"]))
+                 (gen/return {:type "null" :body nil})
+                 (gen/fmap (fn [h] {:type "ref" :body h}) (gen/elements [[1 2 3 4] [5 6 7 8]]))])
+        r (property 300
+                    [(gen/vector gen-el 0 60)]
+                    (fn [els]
+                      (loop [body [] pb 0 els els]
+                        (if-let [el (first els)]
+                          (let [b' (lit/append-item body el)
+                                pb' (lit/payload-after-append body pb b')]
+                            (and (= pb' (lit/payload-bytes b'))
+                                 (recur b' pb' (rest els))))
+                          true))))]
+    (is (:pass? r) (pr-str (:shrunk r)))))
+
 (def checks
   {"string-and-blob-payload-counts-their-length-plus-framing" string-and-blob-payload-counts-their-length-plus-framing
    "runs-of-strings-and-blobs-chunk-within-the-budget" runs-of-strings-and-blobs-chunk-within-the-budget
@@ -299,4 +388,7 @@
    "utf8-len-adds-over-runs-cut-at-code-points" utf8-len-adds-over-runs-cut-at-code-points
    "the-literal-cache-is-per-hash-per-cap" the-literal-cache-is-per-hash-per-cap
    "the-default-chunk-budget-is-at-least-a-leaf-page" the-default-chunk-budget-is-at-least-a-leaf-page
-   "the-first-get-of-a-long-string-carries-its-first-characters" the-first-get-of-a-long-string-carries-its-first-characters})
+   "the-first-get-of-a-long-string-carries-its-first-characters" the-first-get-of-a-long-string-carries-its-first-characters
+   "append-item-matches-its-definition" append-item-matches-its-definition
+   "utf8-len-is-the-length-of-the-utf8-bytes" utf8-len-is-the-length-of-the-utf8-bytes
+   "payload-after-append-is-the-payload-of-the-appended-body" payload-after-append-is-the-payload-of-the-appended-body})
