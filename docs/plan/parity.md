@@ -8,7 +8,7 @@ How to update: tick the item and add the PR number when it merges.
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: the storage test ports.
+Next up: the rest of the storage ports (`pack`, `chunk`, `lens`, `rate_limit`).
 
 ## Done
 
@@ -30,8 +30,8 @@ Next up: the storage test ports.
 
 ## Storage
 
-- [ ] [not started] JVM `store_test.clj` (26) and `format_test.clj` (6). No shared `.cljc` checks. File and LMDB slice in `docs/plan/peering.md`
-- [ ] [not started] nbb `store/file` and `store/lmdb` (chunked, plus a root cell) still need a shared check. JVM sources: `store/file.clj`, `store/jvm.clj`. Browser `store/file` and `store/lmdb` throw
+- [x] [done] JVM `store_test.clj` (26) and `format_test.clj` (6). `npm run storage:test`, 32 checks on the nbb file and LMDB stores. `store_checks.cljc`, `store/format_checks.cljc`. The JVM part of the old `await-future-and-unavailable-test` stays JVM only as `await-future-test` (a JVM future is a JVM host promise); its rejected-promise half is the shared `await-rejected-is-unavailable-test`
+- [ ] [in progress] nbb `store/file` and `store/lmdb` (chunked, plus a root cell) still need a shared check. Done: get, put, has?, reset, persistence, sharding, `write-batch`, wire-v1 node bytes, format tag, and the LMDB root cell (`storage:test`). Not yet: the chunked overlay and `rooted/file-root-cell`. JVM sources: `store/file.clj`, `store/jvm.clj`. Browser `store/file` and `store/lmdb` throw
 - [ ] [not started] `pack_test` (50), `chunk_test` (9), `lens_test` (13), `rate_limit_test` (7). Sources `pack`, `chunk`, `lens`, `rate_limit` are `.cljc`
 - [ ] [not started] `store/remote.clj` and `store/reveal.clj` (HTTP/3). `remote_test` (3). `store/remote` throws off the JVM. Browser fetch is `store/browser.cljs`
 
