@@ -10,7 +10,7 @@ Scope: parity only has to demonstrate peering parity. The model is that every co
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: a Peering or Tests item: more of `literal_limits_test`, the JVM-only `peer_v1_test` deftests, or a test for one of C06, C08, C24, C25, C42. What is left of `core_test` is JVM only unless `convert.clj` is ported (its `dacite.convert` tests would come with it). `value/serial_test` (27) tests the legacy `.clj` codec and goes with `value/serial.clj` (see below). Legacy HTTP items are not next.
+Next up: a Peering or Tests item: more of `literal_limits_test`, the 2 `peer_v1_test` defspecs, or a test for one of C06, C08, C24, C25, C42. What is left of `core_test` is JVM only unless `convert.clj` is ported (its `dacite.convert` tests would come with it). `value/serial_test` (27) tests the legacy `.clj` codec and goes with `value/serial.clj` (see below). Legacy HTTP items are not next.
 
 ## Done
 
@@ -50,7 +50,7 @@ Next up: a Peering or Tests item: more of `literal_limits_test`, the JVM-only `p
 - [ ] [not started] Still no test: C06, C08, C24, C25, C42 (`peer-v1.md` section 13)
 - [x] [done] `peer_items_test` (20). `npm run items:test`. `peer/items_checks.cljc`
 - [ ] [in progress] `literal_limits_test.clj` (1 of 34). `node-items-over-a-payload-are-reported-by-default-and-throw-on-request` is in `peer/items_checks.cljc`. The other 33 need test.check, `store.bound`, `peer.msg`, finger-tree paging, `with-redefs`, or JVM clocks and threads
-- [ ] [not started] 21 deftest and 2 defspec in `peer_v1_test.clj` stay on the JVM. Fixtures and framing run in `peer:test`
+- [ ] [in progress] `peer_v1_test.clj` (23 deftest, 2 defspec). The 23 deftests are `peer/peer_v1_checks.cljc` (`peer:test`), all shared; the fixture case directories, the spec text, and file reads are host pieces. JVM only: the ratio, char, date, and float values of `outside-the-profile` and the `Long/MAX_VALUE` and `Long/MIN_VALUE` lines of `s5-integers-are-within-2-to-the-53` (not nbb values). Still JVM only: the 2 defspecs (`blob-fields-round-trip`, `any-profile-value-round-trips`), which need test.check
 - [ ] [not started] Peering phase 2: ICE discovery for peer lists, after the roots layer (`docs/plan/peering.md`)
 
 ## Tests
