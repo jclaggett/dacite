@@ -8,7 +8,7 @@ How to update: tick the item and add the PR number when it merges.
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: the Core and data model ports, starting with `rooted_test` (15) and `rooted/gc_test` (5).
+Next up: the rest of the JVM value tests, starting with `value/path_test` (9) and `value/api_test` (5).
 
 ## Done
 
@@ -39,9 +39,9 @@ Next up: the Core and data model ports, starting with `rooted_test` (15) and `ro
 
 - [x] [done] Port `peer/items.clj` to `.cljc`. Node bytes are `dacite.reveal/encode-page` (the JVM `service.reveal/encode-page` delegates, same bytes). `peer/items.cljc`
 - [ ] [not started] `.clj` only: `value/render.clj`, `value/serial.clj` (legacy codec; portable codec is `wire/binary.cljc`), `convert.clj`, `json.clj`
-- [ ] [not started] JVM value tests: `core_test` (142), `value/*_test`, `value_test`. `wire/binary_test` past the bad-state check inside `peer:test`
+- [ ] [in progress] JVM value tests: `core_test` (142), `value/*_test`, `value_test`. Done: `value/root_ref_test` (5), `value/root_ref_checks.cljc` (`rooted:test`); on nbb its `@r`, `swap!`, and `reset!` steps are `v/deref`, `v/swap!`, and `root-ref/ref-reset!`. `wire/binary_test` past the bad-state check inside `peer:test`
 - [ ] [not started] `hash_test` past fuse and kernel vectors. `unicode_test` past `string_vectors.cljc`. Those vectors run in `peer:test`
-- [ ] [not started] `rooted_test` (15) and `rooted/gc_test` (5). `rooted.cljc` loads on nbb. Publish, query, and suggest on `dacite-roots` is spec only (#29)
+- [x] [done] `rooted_test` (15) and `rooted/gc_test` (5). `npm run rooted:test`. `rooted_checks.cljc`, `rooted/gc_checks.cljc`. The JVM checks use the atom conveniences of a rooted store (`@s`, `reset!`, `swap!`, `compare-and-set!`, `add-watch`, `set-validator!`); nbb runs the same steps with the function API (`root`, `set-root!`, `update-root!`, `cas-root!`, `add-root-watch`, `set-root-validator!`). Publish, query, and suggest on `dacite-roots` is spec only (#29)
 
 ## Peering
 

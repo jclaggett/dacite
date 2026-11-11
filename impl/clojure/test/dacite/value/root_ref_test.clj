@@ -1,64 +1,39 @@
 (ns dacite.value.root-ref-test
+  "Root ref tests on the JVM.
+
+   The bodies are `dacite.value.root-ref-checks`. On the JVM they include
+   the atom ops on a root ref (`@r`, `swap!`, `reset!`). nbb runs the same
+   checks with the function API (`npm run rooted:test`). One deftest each,
+   so the JVM suite still names the test it ran before."
   (:require [clojure.test :refer [deftest is]]
-            [dacite.store :as store]
-            [dacite.value :as v]))
+            [dacite.store.check :as check]
+            [dacite.value.root-ref-checks :as checks]))
+
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest via-uses-peer-store
-  (let [st (store/mem-store)
-        peer (v/i64 st 1)
-        vec (v/vector peer 10 20)
-        nested (v/map vec "a" 1 "b" (v/i64 vec 2))]
-    (is (= st (v/dacite-store vec)))
-    (is (= st (v/dacite-store nested)))
-    (is (= 2 (v/count vec)))
-    (is (= 2 (v/count nested)))
-    (is (= (v/hash (v/vector st 10 20))
-           (v/hash vec)))))
+  (run-check "via-uses-peer-store"))
 
 (deftest via-accepts-istore
-  (let [st (store/mem-store)
-        v (v/vector st 1 2 3)]
-    (is (= st (v/dacite-store v)))
-    (is (= 3 (v/count v)))))
+  (run-check "via-accepts-istore"))
 
 (deftest root-ref-reset-swap-deref
-  (let [rs (store/rooted-store (store/mem-store))
-        r  (v/root rs)]
-    (is (nil? (v/deref r)))
-    (is (nil? @r))
-    (v/cas! r nil (v/vector r))
-    (is (zero? (v/count (v/deref r))))
-    (v/swap! r v/conj (v/i64 r 42))
-    (is (= 1 (v/count @r)))
-    (is (= 42 (v/realize (v/nth @r 0))))
-    ;; JVM atom ops
-    (swap! r v/conj 7)
-    (is (= 2 (v/count @r)))
-    (reset! r (v/map r "k" "v"))
-    (is (= "map" (v/type @r)))
-    (is (= "v" (apply str (v/realize (v/get @r "k")))))))
+  (run-check "root-ref-reset-swap-deref"))
 
 (deftest root-ref-cas-and-watch
-  (let [rs (store/rooted-store (store/mem-store))
-        r  (v/root rs)
-        seen (atom [])]
-    (v/add-watch r :w (fn [_k _ref old new]
-                        (swap! seen conj [(some-> old v/type)
-                                          (some-> new v/type)])))
-    (let [empty (v/vector r)
-          one   (v/conj empty 1)]
-      (is (true? (v/cas! r nil empty)))
-      (is (false? (v/cas! r nil one))) ; expected still nil, root moved
-      (is (true? (v/cas! r empty one))))
-    (is (= [[nil "vector"] ["vector" "vector"]] @seen))
-    (v/remove-watch r :w)
-    (v/cas! r (v/deref r) nil)
-    (is (= 2 (count @seen))))) ; no third notification after remove
+  (run-check "root-ref-cas-and-watch"))
 
 (deftest root-ref-is-store-carrier
-  (let [rs (store/rooted-store (store/mem-store))
-        r  (v/root rs)
-        v  (v/vector r 1 2)]
-    (is (v/root? r))
-    (is (= (v/store-of r) rs))
-    (is (= rs (v/dacite-store v)))))
+  (run-check "root-ref-is-store-carrier"))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.value.root-ref-test)))))
+               "every-check-has-a-deftest"))
+      "value/root_ref_checks.cljc and this file list the same tests"))
