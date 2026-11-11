@@ -12,7 +12,7 @@
    Two harnesses: `cnet` (a client, peers that say `hello` and then do what the check
    writes) and `rnet` (a responder, one peer, a fake channel whose buffer the check
    fills and drains)."
-  (:require             [dacite.host :as host]
+  (:require [dacite.host :as host]
             [dacite.peer.client :as client]
             [dacite.peer.client-checks :as cc]
             [dacite.peer.frame :as frame]
