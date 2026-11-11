@@ -92,6 +92,21 @@
 (deftest cancel-stops-and-frees-share-and-is-never-required
   (run-check "cancel-stops-and-frees-share-and-is-never-required"))
 
+(deftest blocked-mid-item-ends-on-the-deadline-tick
+  (run-check "blocked-mid-item-ends-on-the-deadline-tick"))
+
+(deftest get-interest-is-clamped-by-the-responder
+  (run-check "get-interest-is-clamped-by-the-responder"))
+
+(deftest too-many-streams-is-refused-and-a-closed-slot-frees
+  (run-check "too-many-streams-is-refused-and-a-closed-slot-frees"))
+
+(deftest max-streams-above-64-is-read-as-64
+  (run-check "max-streams-above-64-is-read-as-64"))
+
+(deftest item-over-max-item-is-refused-before-buffering
+  (run-check "item-over-max-item-is-refused-before-buffering"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

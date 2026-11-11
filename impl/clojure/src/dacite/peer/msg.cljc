@@ -394,7 +394,8 @@
    - `max-frame` and `max-item` are the smaller of the two (frames and items
      in both directions must fit the weaker side)
    - `max-streams` is per direction: `:may-open` is what the other side
-     accepts from me, `:will-accept` is what I accept from it
+     accepts from me, `:will-accept` is what I accept from it. Either value
+     above 64 is read as 64 (C12)
    - capabilities are the intersection
    - `:frame-literal-cap` is the largest literal item either side may send:
      `max-frame - 6`"
@@ -413,8 +414,8 @@
                                               (set (get theirs "caps")))
               :max-frame max-frame
               :max-item (min (get lim-m "max-item") (get lim-t "max-item"))
-              :may-open (get lim-t "max-streams")
-              :will-accept (get lim-m "max-streams")
+              :may-open (frame/cap-max-streams (get lim-t "max-streams"))
+              :will-accept (frame/cap-max-streams (get lim-m "max-streams"))
               :frame-literal-cap (frame/max-literal-item max-frame)}}))))
 
 (defn clamp-hello

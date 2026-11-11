@@ -6,7 +6,7 @@ Each line is tagged [done], [in progress], or [not started].
 
 How to update: tick the item and add the PR number when it merges.
 
-Next up: after the C09, C11, C12, and C32 tests PR, port `peer/items.clj` to `.cljc`, then the storage test ports.
+Next up: port `peer/items.clj` to `.cljc`, then the storage test ports.
 
 ## Done
 
@@ -17,6 +17,11 @@ Next up: after the C09, C11, C12, and C32 tests PR, port `peer/items.clj` to `.c
 - [x] [done] Reveal subset, 19 cases. `npm run reveal:test`. #38 #39. `reveal_cljs_test.cljs`
 - [x] [done] Peer fixtures, client, flow, async, mem transport, cache. `npm run peer:test`. #19 #22 #23 #25 #28
 - [x] [done] C05 and C07, and a mid-item or blocked end at the deadline. #55. `floor-sends-fin-partial-when-blocked-or-credit-runs-out` in `peer/flow_checks.cljc` (`peer:test`)
+- [x] [done] C09 `get-interest-is-clamped-by-the-responder`. #58. `peer/flow_checks.cljc` (`peer:test`)
+- [x] [done] C11 `too-many-streams-is-refused-and-a-closed-slot-frees`. #58. `peer/flow_checks.cljc` (`peer:test`)
+- [x] [done] C12 `max-streams-above-64-is-read-as-64`. #58. `peer/flow_checks.cljc` (`peer:test`)
+- [x] [done] C32 `item-over-max-item-is-refused-before-buffering`. #58. `peer/flow_checks.cljc` (`peer:test`)
+- [x] [done] Mid-item block at the deadline, and the max-streams cap. #58. `blocked-mid-item-ends-on-the-deadline-tick`. `frame/cap-max-streams` reads an advertised value above 64 as 64
 - [x] [done] nbb WebRTC. `npm run webrtc:test`. #32. Room relay `webrtc:signal` #34
 - [x] [done] Browser peer on Chromium. `browser:test` and `peer:e2e` #42 #45. `browser:e2e` #49. `library:e2e` #46
 - [x] [done] CI runs the scripts above. `.github/workflows/test.yml` (#36 and later)
@@ -38,10 +43,6 @@ Next up: after the C09, C11, C12, and C32 tests PR, port `peer/items.clj` to `.c
 
 ## Peering
 
-- [ ] [in progress] C09 `get-interest-is-clamped-by-the-responder`. Not in the tree. `docs/spec/peer-v1.md`
-- [ ] [in progress] C11 `too-many-streams-is-refused-and-a-closed-slot-frees`. JVM half only: `f3-stream-table-parity-and-duplicates`
-- [ ] [in progress] C12 `max-streams-above-64-is-read-as-64`. Not in the tree
-- [ ] [in progress] C32 `item-over-max-item-is-refused-before-buffering`. Reject fixtures already run in `peer:test`
 - [ ] [not started] Still no test: C06, C08, C24, C25, C42 (`peer-v1.md` section 13)
 - [ ] [not started] `peer_items_test.clj` (20) and `literal_limits_test.clj` (34). Both require `peer.items`
 - [ ] [not started] 21 deftest and 2 defspec in `peer_v1_test.clj` stay on the JVM. Fixtures and framing run in `peer:test`

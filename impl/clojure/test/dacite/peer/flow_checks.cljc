@@ -1,8 +1,8 @@
 (ns dacite.peer.flow-checks
   "M1.2 slice 2, portable checks (JVM: flow_test.clj, nbb: peer_cljs_test).
-   Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.3 (C05, C07, C10),
-   §12.4 (C16), §12.5 (C17, C18), §12.9 (C34, C35, C36), §12.11 (C40, C41);
-   test map in §13.
+   Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.3 (C05, C07, C09,
+   C10, C11, C12), §12.4 (C16), §12.5 (C17, C18), §12.8 (C32), §12.9 (C34, C35,
+   C36), §12.11 (C40, C41); test map in §13.
 
    Same shape as client_checks.cljc: each check returns a vector of problem strings,
    empty when it holds, and `checks` maps the §13 test name to it. Every clock here
@@ -12,7 +12,8 @@
    Two harnesses: `cnet` (a client, peers that say `hello` and then do what the check
    writes) and `rnet` (a responder, one peer, a fake channel whose buffer the check
    fills and drains)."
-  (:require [dacite.peer.client :as client]
+  (:require [dacite.host :as host]
+            [dacite.peer.client :as client]
             [dacite.peer.client-checks :as cc]
             [dacite.peer.frame :as frame]
             [dacite.peer.harness :as h]
@@ -1269,6 +1270,393 @@
           (boolean (or (contains? (responder/open-streams (:r n) "p") 3)
                        (seq (read-items n 3))))))))
 
+(defn- spec-life
+  "C09 clamps, then the lifetime `tau · ln(peak / floor)`."
+  [peak tau floor]
+  (let [peak (double (min 1000 peak))
+        tau (double (min 60000 tau))
+        floor (double (max 10 floor))]
+    (* tau (host/log (/ peak floor)))))
+
+(defn- life-bracket
+  "Whole milliseconds `[before at]` around `life`. `before` is strictly
+   earlier. `at` is the first millisecond at or after it."
+  [life]
+  (let [life (double life)
+        floored (host/floor life)
+        at (if (< (double floored) life) (inc floored) floored)]
+    [(max 0 (dec at)) at]))
+
+(defn- jump!
+  "Advance `n` so its clock reads `ms`, and let the responder write."
+  [n ms]
+  (step! n (- ms @(:clock n))))
+
+(defn get-interest-is-clamped-by-the-responder
+  "C09. The responder clamps a `get`'s interest before it uses it: `floor` to
+   at least 10, `tau-ms` to at most 60 000, `peak` to at most 1000. A floor
+   of 0 or 1, and a peak of 5000, end at the same instant as floor 10 and
+   peak 1000. `tau-ms` 120 000 ends at the same instant as 60 000. A request
+   inside the bounds ends at its own lifetime, and an absent interest uses
+   the defaults, which sit inside the clamps. One session, simulated clock;
+   the longest jump is about 276 s."
+  []
+  (let [st (store/mem-store)
+        root (v/hash (v/string st (apply str (repeat 800 "c"))))
+        defaults rates/default-interest
+        floor-life (spec-life 1000 1000 10)
+        own-life (spec-life 500 3000 50)
+        default-life (spec-life (get defaults "peak")
+                                (get defaults "tau-ms")
+                                (get defaults "floor"))
+        tau-life (spec-life 1000 60000 10)
+        [floor-before floor-at] (life-bracket floor-life)
+        [own-before own-at] (life-bracket own-life)
+        [def-before def-at] (life-bracket default-life)
+        [tau-before tau-at] (life-bracket tau-life)
+        clamped #{1 3 5 7 9}
+        n (rnet {:st st})
+        _ (send-to! n (get-bytes 1 root 1 {"peak" 1000 "tau-ms" 1000 "floor" 0}))
+        _ (send-to! n (get-bytes 3 root 1 {"peak" 1000 "tau-ms" 1000 "floor" 1}))
+        _ (send-to! n (get-bytes 5 root 1 {"peak" 1000 "tau-ms" 1000 "floor" 10}))
+        _ (send-to! n (get-bytes 7 root 1 {"peak" 5000 "tau-ms" 1000 "floor" 10}))
+        _ (send-to! n (get-bytes 9 root 1 {"peak" 1000 "tau-ms" 1000 "floor" 10}))
+        _ (send-to! n (get-bytes 11 root 1 {"peak" 500 "tau-ms" 3000 "floor" 50}))
+        _ (send-to! n (get-bytes 13 root 1 nil))
+        _ (send-to! n (get-bytes 15 root 1 {"peak" 1000 "tau-ms" 60000 "floor" 10}))
+        _ (send-to! n (get-bytes 17 root 1 {"peak" 1000 "tau-ms" 120000 "floor" 10}))
+        _ (jump! n floor-before)
+        early (responder/open-streams (:r n) "p")
+        _ (jump! n floor-at)
+        after-floor (responder/open-streams (:r n) "p")
+        _ (jump! n own-before)
+        own-open (contains? (responder/open-streams (:r n) "p") 11)
+        _ (jump! n own-at)
+        after-own (responder/open-streams (:r n) "p")
+        _ (jump! n def-before)
+        def-open (contains? (responder/open-streams (:r n) "p") 13)
+        _ (jump! n def-at)
+        after-default (responder/open-streams (:r n) "p")
+        _ (jump! n tau-before)
+        tau-open (responder/open-streams (:r n) "p")
+        _ (jump! n tau-at)]
+    (concat
+     (bad "the defaults sit inside the clamps" true
+          (and (<= 1 (get defaults "peak") 1000)
+               (<= 1 (get defaults "tau-ms") 60000)
+               (<= 10 (get defaults "floor") (get defaults "peak"))))
+     (bad "every stream is open just before the first clamp" #{1 3 5 7 9 11 13 15 17} early)
+     (bad "floor 0, floor 1, floor 10, peak 5000 and peak 1000 end together" #{}
+          (set (filter after-floor clamped)))
+     (bad "that tick is FIN and PARTIAL" [true true] (fin-partial? (item-frames n 1)))
+     (bad "a request inside the bounds is still open after that clamp" true own-open)
+     (bad "and it ends at its own lifetime, later streams stay" [false true]
+          [(contains? after-own 11) (contains? after-own 13)])
+     (bad "an absent interest is still open at that earlier lifetime" true def-open)
+     (bad "the absent interest has ended, the capped tau has not" [false true]
+          [(contains? after-default 13) (contains? after-default 15)])
+     (bad "tau 60 000 and tau 120 000 are both open before the cap" #{15 17} tau-open)
+     (bad "both are gone at 60 s times ln(100)" #{}
+          (responder/open-streams (:r n) "p"))
+     (bad "the session stays open" :open (responder/session-status (:r n) "p")))))
+
+
+(defn- hello-capping
+  "This side's hello advertising `max-streams`, with a bucket large enough
+   that the cap, not the token bucket, is what refuses a `get`."
+  [max-streams]
+  (-> responder/default-hello
+      (assoc-in ["limits" "max-streams"] max-streams)
+      (assoc-in ["rates" "req-burst"] 100)
+      (assoc-in ["rates" "req-rate"] 1000)))
+
+(defn- error-rows
+  "[[code stream fatal] ...] of every error the responder has sent."
+  [n]
+  (mapv (fn [m] [(get-in m [:value "code"]) (:stream m) (get-in m [:value "fatal"])])
+        (errors-of n)))
+
+(defn- errors-on [n sid]
+  (filterv #(= sid (:stream %)) (errors-of n)))
+
+(defn- get-frames
+  "Get frames for stream ids `ids`. The value is encoded once; each frame only
+   changes the id in the envelope."
+  [root recv-max ids interest]
+  (let [payload (:payload (frame/decode-frame (get-bytes (first ids) root recv-max interest)))]
+    (mapv (fn [sid]
+            (frame/encode-frame {:type :get :stream sid :flags frame/flag-fin
+                                 :payload payload}))
+          ids)))
+
+(defn- ask-range!
+  "Open `k` gets of `root` on the odd ids 1, 3, ... ."
+  [n root k recv-max]
+  (doseq [bs (get-frames root recv-max (map #(inc (* 2 %)) (range k)) nil)]
+    (send-to! n bs)))
+
+(defn too-many-streams-is-refused-and-a-closed-slot-frees
+  "C11. The responder enforces the `max-streams` it advertises. At 64, the
+   65th `get` is `error overloaded` on that stream, the stream does not
+   start, and the session stays open. Cancel frees a slot at once and the
+   id is not reused. The floor does the same. FIN does too: one stream
+   completes while the others are over the high mark, and a get that was
+   refused is then accepted."
+  []
+  (let [st (store/mem-store)
+        tiny (v/hash (v/i64 st 7))
+        short {"peak" 1000 "tau-ms" 1000 "floor" 200}
+        [before at] (life-bracket (spec-life 1000 1000 200))
+        n (rnet {:st st :channel? true :hello (hello-capping 64)})
+        _ (send-to! n (get-bytes 1 tiny 1 short))
+        _ (doseq [bs (get-frames tiny 1 (map #(inc (* 2 %)) (range 1 64)) nil)]
+            (send-to! n bs))
+        open-64 (responder/open-streams (:r n) "p")
+        _ (send-to! n (get-bytes 129 tiny 1))
+        refused (error-rows n)
+        _ (send-to! n (cancel-bytes 3 {}))
+        after-cancel (responder/open-streams (:r n) "p")
+        _ (send-to! n (get-bytes 129 tiny 1))
+        _ (send-to! n (get-bytes 3 tiny 1))
+        after-reuse (responder/open-streams (:r n) "p")
+        _ (jump! n before)
+        mid (responder/open-streams (:r n) "p")
+        _ (send-to! n (get-bytes 131 tiny 1))
+        _ (jump! n at)
+        floor-frames (item-frames n 1)
+        after-floor (responder/open-streams (:r n) "p")
+        _ (send-to! n (get-bytes 131 tiny 1000000))
+        _ (send-to! n (get-bytes 133 tiny 1))
+        held (responder/open-streams (:r n) "p")
+        _ (doseq [sid held]
+            (when-not (= sid 5) (set-buffered! n sid (* 5 frame-bytes))))
+        _ (step! n 100)
+        fin-frames (item-frames n 5)
+        after-fin (responder/open-streams (:r n) "p")
+        _ (send-to! n (get-bytes 133 tiny 1))
+        _ (send-to! n (get-bytes 5 tiny 1))
+        _ (send-to! n (get-bytes 1 tiny 1))]
+    (concat
+     (bad "64 gets are open" 64 (count open-64))
+     (bad "the 65th is overloaded, on its stream, and the session lives"
+          [[["overloaded" 129 false]] :open []]
+          [refused (responder/session-status (:r n) "p") @(:closed n)])
+     (bad "that get did not start" false (contains? open-64 129))
+     (bad "cancel frees the slot at once" 63 (count after-cancel))
+     (bad "the cancelled id is no longer open" false (contains? after-cancel 3))
+     (bad "the refused id starts once a slot is free" true (contains? after-reuse 129))
+     (bad "a closed id is not reused" [["malformed" 3 false]]
+          (mapv (fn [m] [(get-in m [:value "code"]) (:stream m) (get-in m [:value "fatal"])])
+                (errors-on n 3)))
+     (bad "stream 1 is still open just before its floor" true (contains? mid 1))
+     (bad "a further get is still overloaded then" [["overloaded" 131 false]]
+          (mapv (fn [m] [(get-in m [:value "code"]) (:stream m) (get-in m [:value "fatal"])])
+                (errors-on n 131)))
+     (bad "the floor ends that stream with FIN PARTIAL" [true true] (fin-partial? floor-frames))
+     (bad "the floor frees the slot" false (contains? after-floor 1))
+     (bad "the other streams stay open" true (contains? after-floor 5))
+     (bad "at the cap again, the next get is overloaded" [true [["overloaded" 133 false]]]
+          [(contains? held 131)
+           (mapv (fn [m] [(get-in m [:value "code"]) (:stream m) (get-in m [:value "fatal"])])
+                 (errors-on n 133))])
+     (bad "FIN completes the one stream that could write" [true false] (fin-partial? fin-frames))
+     (bad "that stream is gone and another stays" [false true]
+          [(contains? after-fin 5) (contains? after-fin 129)])
+     (bad "a refused id starts once FIN has freed the slots" true
+          (contains? (responder/open-streams (:r n) "p") 133))
+     (bad "a finished id is not reused" [["malformed" 5 false]]
+          (mapv (fn [m] [(get-in m [:value "code"]) (:stream m) (get-in m [:value "fatal"])])
+                (errors-on n 5)))
+     (bad "the stream the floor ended is not reused either" [["malformed" 1 false]]
+          (mapv (fn [m] [(get-in m [:value "code"]) (:stream m) (get-in m [:value "fatal"])])
+                (errors-on n 1)))
+     (bad "the session stays open" :open (responder/session-status (:r n) "p")))))
+
+
+(defn- negotiated-caps [mine theirs]
+  (let [ok (:ok (msg/negotiate mine theirs))]
+    [(:may-open ok) (:will-accept ok)]))
+
+(defn- hello-streams [n]
+  (assoc-in responder/default-hello ["limits" "max-streams"] n))
+
+(defn max-streams-above-64-is-read-as-64
+  "C12. A receiver reads an advertised `max-streams` above 64 as 64, in
+   negotiation and when the responder enforces its own hello. A smaller
+   advertisement is left as it is: 32 and 8 stay put, and a responder that
+   advertises 2 refuses the third get."
+  []
+  (let [st (store/mem-store)
+        root (v/hash (v/i64 st 3))
+        wide (rnet {:st st :hello (hello-capping 128)})
+        _ (ask-range! wide root 64 1000)
+        _ (send-to! wide (get-bytes 129 root 1000))
+        two (rnet {:st st :hello (hello-capping 2)})
+        _ (ask-range! two root 2 1000)
+        _ (send-to! two (get-bytes 5 root 1000))]
+    (concat
+     (bad "128 in either hello is read as 64" [64 64]
+          (negotiated-caps (hello-streams 128) (hello-streams 128)))
+     (bad "64 stays 64" [64 64]
+          (negotiated-caps (hello-streams 64) (hello-streams 64)))
+     (bad "the other side's 32 is 32, and this side's 128 is 64" [32 64]
+          (negotiated-caps (hello-streams 128) (hello-streams 32)))
+     (bad "8 is left at 8" [8 8]
+          (negotiated-caps (hello-streams 8) (hello-streams 8)))
+     (bad "a responder that advertises 128 accepts 64" 64
+          (count (responder/open-streams (:r wide) "p")))
+     (bad "and refuses the 65th" [["overloaded" 129 false]] (error-rows wide))
+     (bad "the refused stream did not start, and the session lives" [:open false]
+          [(responder/session-status (:r wide) "p")
+           (contains? (responder/open-streams (:r wide) "p") 129)])
+     (bad "a responder that advertises 2 accepts 2 and refuses the third"
+          [2 [["overloaded" 5 false]]]
+          [(count (responder/open-streams (:r two) "p")) (error-rows two)]))))
+
+(defn- u32-hex
+  [n]
+  (let [digits "0123456789abcdef"]
+    (apply str (map (fn [shift]
+                      (nth digits (bit-and 15 (unsigned-bit-shift-right n shift))))
+                    [28 24 20 16 12 8 4 0]))))
+
+(defn- claimed-item
+  "A node item whose header claims `payload-len` bytes of payload and which
+   carries only `extra` of them. The rest of the claim is not in the bytes."
+  [payload-len extra]
+  (let [st (store/mem-store)
+        h (v/hash (v/i64 st 1))
+        real (bin/encode-item {:enc :node :hash h
+                               :entry (store/await (store/s-get st h))})
+        hex (bin/bytes->hex real)]
+    (bin/hex->bytes (str (subs hex 0 66)
+                         (u32-hex payload-len)
+                         (apply str (repeat (* 2 extra) "0"))))))
+
+(defn- item-frame [sid payload]
+  (frame/decode-frame
+   (frame/encode-frame {:type :item-stream :stream sid :payload payload})))
+
+(defn- feed-outcome
+  [st fr]
+  (try (let [[st' items] (frame/feed st fr)]
+         [:ok (:buffered st') (:need st') (count items)])
+       (catch #?(:clj Throwable :cljs :default) e
+         [:err (:reason (ex-data e))])))
+
+(defn item-over-max-item-is-refused-before-buffering
+  "C32. An item header that claims more than the reader's `max-item` is
+   `item-too-large` as soon as the header can be read. The claimed payload
+   is not kept: the feed throws instead of returning a reader waiting on
+   that length. A claim of exactly `max-item` is accepted, and the reader
+   holds only the bytes that have arrived."
+  []
+  (let [max-item 1000
+        over (claimed-item (- (inc max-item) frame/item-header-bytes) 200)
+        at (claimed-item (- max-item frame/item-header-bytes) 0)
+        split (claimed-item 5000 80)
+        n (bin/byte-len split)
+        [prefix _] (frame/feed (frame/reader 1 max-item)
+                               (item-frame 1 (frame/slice split 0 20)))]
+    (concat
+     (bad "one byte over max-item is refused from the header" [:err :item-too-large]
+          (feed-outcome (frame/reader 1 max-item) (item-frame 1 over)))
+     (bad "exactly max-item keeps the header and waits for the payload" [:ok 37 max-item 0]
+          (feed-outcome (frame/reader 1 max-item) (item-frame 1 at)))
+     (bad "a short prefix is only the bytes in hand" [20 nil]
+          [(:buffered prefix) (:need prefix)])
+     (bad "finishing an oversized header refuses before the payload is kept"
+          [:err :item-too-large]
+          (feed-outcome prefix (item-frame 1 (frame/slice split 20 n)))))))
+
+(defn- frames-to-finish
+  "From a stream paused inside an item: how many planned frames finish it,
+   and whether a planned frame remains after that."
+  [st]
+  (let [ends (:ends st)
+        next (:next st)
+        n (count (:frames st))
+        finish (loop [i next]
+                 (cond
+                   (>= i n) nil
+                   (seq (get ends i)) i
+                   :else (recur (inc i))))]
+    (when finish
+      {:frames (inc (- finish next))
+       :more? (< (inc finish) n)})))
+
+(defn blocked-mid-item-ends-on-the-deadline-tick
+  "C05. The channel sits over the high mark partway through a node item
+   that spans frames. A tick before the floor writes nothing. The deadline
+   tick writes the rest of that item and an empty FIN+PARTIAL frame, and
+   the stream state is gone when the tick returns. The tail frame may also
+   hold the next whole item that fits in the leftover room.
+
+   `floor-sends-fin-partial-when-blocked-or-credit-runs-out` does not cover
+   this. Its blocked channel stops after a frame that finished an item, so
+   the deadline adds only the empty frame. The cut leaf in that check is
+   credit running out, with the channel empty."
+  []
+  (let [leaf (store/mem-store)
+        root (v/hash (v/string leaf (apply str (repeat 8000 "z"))))
+        order (vec (reveal/page-order leaf root))
+        mf 4096
+        interest {"peak" 1000 "tau-ms" 3000 "floor" 50}
+        n (rnet {:st leaf :channel? true :max-frame mf})
+        _ (send-to! n (get-bytes 1 root 5000 interest))
+        mid (loop [i 0]
+              (let [s (responder-stream n 1)]
+                (cond
+                  (inside-an-item? s) s
+                  (or (nil? s) (>= i 40)) nil
+                  :else (do (set-buffered! n 1 0)
+                            (step! n 50)
+                            (recur (inc i))))))
+        high (* responder/high-frames mf)
+        _ (set-buffered! n 1 (* 5 mf))
+        held (item-frames n 1)
+        pages-held (read-items n 1)
+        _ (step! n 50)
+        still (item-frames n 1)
+        life (* 3000.0 (host/log (/ 1000.0 50.0)))
+        [_ at] (life-bracket life)
+        _ (step! n (- at @(:clock n)))
+        after (item-frames n 1)
+        added (subvec after (count held))
+        plan (frames-to-finish mid)
+        pages (read-items n 1)
+        fed (fed-stream n 1)]
+    (concat
+     (bad "the channel blocked inside a node item" true
+          (and (some? mid) (some? plan) (:more? plan)
+               (pos? (count held)) (empty? (no-fin held))))
+     (bad "a tick before the floor writes nothing while the channel is high" (count held)
+          (count still))
+     (bad "the buffer is still over the high mark" true
+          (>= (get @(:bufs n) 1 0) high))
+     (bad "the deadline writes the rest of the item, then an empty FIN PARTIAL" true
+          (and plan (seq added)
+               (= (count added) (inc (:frames plan)))
+               (every? (fn [fr]
+                         (and (not (:fin? fr)) (pos? (bin/byte-len (:payload fr)))))
+                       (pop added))
+               (= [true true 0]
+                  (let [fr (peek added)]
+                    [(:fin? fr) (:partial? fr) (bin/byte-len (:payload fr))]))))
+     (bad "only the last of those frames ends the stream" []
+          (if (seq added) (no-fin (pop added)) [:none]))
+     (bad "that tick finishes the cut item and leaves the reveal unfinished" true
+          (and (= pages (vec (take (count pages) order)))
+               (> (count pages) (count pages-held))
+               (< (count pages) (count order))))
+     (bad "the receiver can read the partial stream" [true true nil]
+          [(:fin? fed) (:partial? fed) (:error fed)])
+     (bad "the stream state is gone on that tick, and the session lives" [false :open]
+          [(contains? (responder/open-streams (:r n) "p") 1)
+           (responder/session-status (:r n) "p")])
+     (bad "the channel was not drained to make room" true
+          (>= (get @(:bufs n) 1 0) high)))))
+
 (def checks
   "Test name (spec §13) -> check. Run order is this order."
   (array-map
@@ -1297,7 +1685,12 @@
    "stream-state-is-forgotten-by-its-lifetime-bound" stream-state-is-forgotten-by-its-lifetime-bound
    "stream-ends-partial-when-interest-falls-below-floor" stream-ends-partial-when-interest-falls-below-floor
    "floor-sends-fin-partial-when-blocked-or-credit-runs-out" floor-sends-fin-partial-when-blocked-or-credit-runs-out
-   "cancel-stops-and-frees-share-and-is-never-required" cancel-stops-and-frees-share-and-is-never-required))
+   "blocked-mid-item-ends-on-the-deadline-tick" blocked-mid-item-ends-on-the-deadline-tick
+   "cancel-stops-and-frees-share-and-is-never-required" cancel-stops-and-frees-share-and-is-never-required
+   "get-interest-is-clamped-by-the-responder" get-interest-is-clamped-by-the-responder
+   "too-many-streams-is-refused-and-a-closed-slot-frees" too-many-streams-is-refused-and-a-closed-slot-frees
+   "max-streams-above-64-is-read-as-64" max-streams-above-64-is-read-as-64
+   "item-over-max-item-is-refused-before-buffering" item-over-max-item-is-refused-before-buffering))
 
 (def max-ms
   "No check may take longer than this (milliseconds)."

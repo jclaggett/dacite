@@ -422,6 +422,16 @@
 ;; Stream ids of one connection
 ;; =============================================================================
 
+(def max-streams-limit
+  "C12. A receiver reads an advertised `max-streams` above this as this, so
+   one session holds at most this many streams."
+  64)
+
+(defn cap-max-streams
+  "C12. `n` as a receiver reads it: at most `max-streams-limit`."
+  [n]
+  (min max-streams-limit n))
+
 (defn stream-table
   "Stream-id state for one side of a connection. `role` is `:offerer`
    (the peer that sent the WebRTC offer: it opens odd ids) or `:answerer`
