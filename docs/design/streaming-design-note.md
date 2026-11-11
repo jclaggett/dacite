@@ -94,7 +94,7 @@ This section is the Oct 27 sketch. The design that the code follows is
 `dacite-peer` data channel, `get` / `item-stream` / `ack`, and a
 sent-hash record that is only an optimization. The options below are the
 history of that decision, not a second protocol. Origin-integrated
-signaling is set aside; the next demo is the Value Browser (plan Phase 6).
+signaling is set aside. nbb parity is the goal, and demos are parked.
 
 Because Dacite entries are immutable and content-addressed, any peer's cache is a safe source: a receiver verifies each entry against its hash, so peers never need to be trusted. This leverages a core Dacite design choice (immutable, highly cacheable data).
 

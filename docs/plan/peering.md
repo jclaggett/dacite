@@ -172,7 +172,7 @@ Acceptance: items 1, 3, 4, 7, 9, 10, 11 and 12 land with tests; items 2 and 5 ar
 
 ### Phase 3: Minimal nbb peer (Tue Nov 10 to Thu Nov 12)
 
-**M3.1. Peer node with a transport abstraction (slice 1 built, Nov 5).** `dacite.peer` in `.cljc`: store tiers (memory, local, peers, origin), a request handler for reveal (`have?` was removed from v1; see the peer spec, section 9), and an `ITransport` protocol. First transport is an in-process or loopback one, so protocol logic is tested without WebRTC.
+**M3.1. Peer node with a transport abstraction (slice 1 built, Nov 5).** `dacite.peer` in `.cljc`: store tiers (memory, local, peers), a request handler for reveal (`have?` was removed from v1; see the peer spec, section 9), and an `ITransport` protocol. First transport is an in-process or loopback one, so protocol logic is tested without WebRTC.
 - Acceptance: two peers in one process; B reads a value stored only in A through the peer protocol; entries verified; a corrupted entry ends the session (test).
 
 **WebRTC plan, approved by Jonathan (Nov 5).** M3.1 and M3.2 are cut into three slices, and M3.2 gains a thin WebSocket signaling server (origin-integrated signaling was left for the then-future M6). Nov 9 set that path aside; see Phase 6. The decisions:

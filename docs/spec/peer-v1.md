@@ -1258,7 +1258,7 @@ rules:
 - **C34 (Decided).** The message set is closed and has no write.
   A peer MUST NOT change its store because of any message except by storing items
   that passed C27 and answer a `get` it sent. There is no `put`, no root update and
-  no CAS (those stay with the origin).
+  no CAS (root updates sit in the roots layer).
 - **C35 (Decided).** A requester MUST store an item only from an
   `item-stream` on a stream it opened with a `get` and that is still open. Frames
   for a closed id are ignored; for an id it never opened, C16 applies.
