@@ -18,15 +18,23 @@
   "The `testing` labels around the current form, outermost first."
   [])
 
+(defn show
+  "`pr-str` of `x`, or a note when `x` cannot be printed."
+  [x]
+  (try (pr-str x)
+       (catch #?(:clj Throwable :cljs :default) _
+         (str "<unprintable " (type x) ">"))))
+
 (defn record!
-  "Record a problem when `ok` is false. Returns `ok`."
+  "Record a problem when `ok` is false. Returns `ok`. `values` is nil or a
+   function of no arguments for the detail, called only on a problem."
   ([ok form msg] (record! ok form msg nil))
   ([ok form msg values]
    (when-not ok
      (let [p (str (when (seq *context*) (str (apply str (interpose " " *context*)) ": "))
                   (when msg (str msg ": "))
                   (pr-str form)
-                  (when values (str " " values)))]
+                  (when values (str " " (values))))]
        (if *problems*
          (swap! *problems* conj p)
          (throw (ex-info (str "check failed outside run-one: " p) {})))))
@@ -41,7 +49,7 @@
      `(let [e# ~(second form)
             a# ~(nth form 2)]
         (record! (= e# a#) '~form ~msg
-                 (str "expected " (pr-str e#) ", got " (pr-str a#))))
+                 (fn [] (str "expected " (show e#) ", got " (show a#)))))
      `(record! (boolean ~form) '~form ~msg))))
 
 (defmacro testing
