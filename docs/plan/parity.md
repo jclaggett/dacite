@@ -6,9 +6,11 @@ Each line is tagged [done], [in progress], or [not started].
 
 How to update: tick the item and add the PR number when it merges.
 
+Scope: parity only has to demonstrate peering parity. The model is that every communication is between peers; future work layers on top of that. The HTTP client/server API is legacy, because the peering protocol will be the only way to transmit data. Its items are under "Legacy HTTP (removed after parity)" and are not parity work; removing the HTTP code is a separate process after parity is achieved.
+
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM service's `handle-request`, so sharing it needs that fetch as a host piece; or more of `literal_limits_test`. What is left of `core_test` is JVM only unless `convert.clj` is ported (its `dacite.convert` tests would come with it). `value/serial_test` (27) tests the legacy `.clj` codec and goes with `value/serial.clj` (see below).
+Next up: a Peering or Tests item: more of `literal_limits_test`, the JVM-only `peer_v1_test` deftests, or a test for one of C06, C08, C24, C25, C42. What is left of `core_test` is JVM only unless `convert.clj` is ported (its `dacite.convert` tests would come with it). `value/serial_test` (27) tests the legacy `.clj` codec and goes with `value/serial.clj` (see below). Legacy HTTP items are not next.
 
 ## Done
 
@@ -32,8 +34,7 @@ Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM
 
 - [x] [done] JVM `store_test.clj` (26) and `format_test.clj` (6). `npm run storage:test`, 32 checks on the nbb file and LMDB stores. `store_checks.cljc`, `store/format_checks.cljc`. The JVM part of the old `await-future-and-unavailable-test` stays JVM only as `await-future-test` (a JVM future is a JVM host promise); its rejected-promise half is the shared `await-rejected-is-unavailable-test`
 - [x] [done] nbb `store/file` and `store/lmdb` (chunked, plus a root cell). Get, put, has?, reset, persistence, sharding, `write-batch`, wire-v1 node bytes, format tag, and the LMDB root cell are `storage:test`. The chunked overlay, and `store/file` and `store/lmdb` reopened from their root cells, are `chunk_checks.cljc` (`store-units:test`). On nbb `chunk/put-reachable!` built a set of BigInt hash vectors and threw; `:keep` is now a vector. JVM sources: `store/file.clj`, `store/jvm.clj`. Browser `store/file` and `store/lmdb` throw
-- [x] [done] `pack_test` (50), `chunk_test` (9), `lens_test` (13), `rate_limit_test` (7). `npm run store-units:test`, 70 checks: `store/pack_checks.cljc` (43), `store/chunk_checks.cljc` (9), `store/lens_checks.cljc` (12), `store/rate_limit_checks.cljc` (6), with `is` from `store/check.cljc`. Nine stay JVM only. Seven in `pack_test` and one in `rate_limit_test` start the HTTP service or read through `store/remote` (see the next line). `concurrent-disjoint-cas` in `lens_test` races two threads
-- [ ] [not started] `store/remote.clj` and `store/reveal.clj` (HTTP/3). `remote_test` (3). `store/remote` throws off the JVM. Browser fetch is `store/browser.cljs`
+- [x] [done] `pack_test` (50), `chunk_test` (9), `lens_test` (13), `rate_limit_test` (7). `npm run store-units:test`, 70 checks: `store/pack_checks.cljc` (43), `store/chunk_checks.cljc` (9), `store/lens_checks.cljc` (12), `store/rate_limit_checks.cljc` (6), with `is` from `store/check.cljc`. Nine stay JVM only. Seven in `pack_test` and one in `rate_limit_test` start the HTTP service or read through `store/remote` (see Legacy HTTP). `concurrent-disjoint-cas` in `lens_test` races two threads
 
 ## Core and data model
 
@@ -50,26 +51,34 @@ Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM
 - [x] [done] `peer_items_test` (20). `npm run items:test`. `peer/items_checks.cljc`
 - [ ] [in progress] `literal_limits_test.clj` (1 of 34). `node-items-over-a-payload-are-reported-by-default-and-throw-on-request` is in `peer/items_checks.cljc`. The other 33 need test.check, `store.bound`, `peer.msg`, finger-tree paging, `with-redefs`, or JVM clocks and threads
 - [ ] [not started] 21 deftest and 2 defspec in `peer_v1_test.clj` stay on the JVM. Fixtures and framing run in `peer:test`
-- [ ] [not started] `origin_test.clj` (3)
 - [ ] [not started] Peering phase 2: ICE discovery for peer lists, after the roots layer (`docs/plan/peering.md`)
 
 ## Tests
 
 - [x] [done] 17 `reveal_test.clj` deftest were absent from `reveal:test` (stall, re-ask, cancel, clock, encode-once, bounds). All 17 are `reveal_checks.cljc` (`reveal:test`), shared; the page encoder is a host piece (`dacite.service.reveal` on the JVM). Their nbb copies `floor-at-a-power-of-two` and `page-is-later-than-the-constant-rate` are gone. Sharing them found an nbb bug: a reveal of more than 8 pages threw, because the session keyed its sets and maps by raw hash (a set cannot hash a BigInt); they are now keyed by `host/hash-key`
 - [ ] [not started] Example `*_test.clj`, `core_boundary_test.clj`, `dev/inspect_test.clj`, `bench/*_test.clj`
-- [ ] [not started] `service_test.clj`, `service/reveal_test.clj`, `service/throttle_test.clj`, `json_test.clj`
 
 ## CLI and runtime
 
-- [ ] [not started] JVM server: `service.clj`, `service/main.clj` (`clojure -M:service`), `service/reveal.clj`, `service/throttle.clj`
-- [ ] [not started] JVM origins: `examples/peer_origin.clj`, `examples/library_origin.clj`. nbb peers: `peer_nbb.cljs`, `library_nbb.cljs`
 - [ ] [not started] `examples/cards.clj`. nbb scripts already: hello, config, notes, log, sync, todo, library
 - [ ] [not started] `webrtc:signal-test` is not in CI. No JVM `/signal` route
 - [ ] [not started] JVM tools: `gen_fuse_fixtures`, `gen_peer_fixtures`, `gen_wire_fixtures`, `gen_byte_table`, `gen_sl2_table`, `inspect`, `time_tests`, `bench_cp`, `page_size_bench`, `page_size_degenerate`, `bench/library_storage.clj`, `bench/todo_bw.clj`
-- [ ] [not started] Archived JVM client and server: `impl/clojure/archive`
 
 ## Hand checks and later
 
 - [ ] [not started] Safari, Firefox, and Mac hand runs of the browser peer. Steps in `docs/plan/peering.md` M5.2. Chromium `peer:e2e` is in CI
-- [ ] [not started] M5.2 Brave/Safari hand check: origin returned 500. The page continues only on 404 (`examples/peer_web.cljs` `origin-absent!`). The CI stub sends 404 (`scripts/peer-browser-e2e.mjs`)
 - [x] [done] PR #47 is closed. Origin signaling spec, head `58a3b28`
+
+## Legacy HTTP (removed after parity)
+
+Not parity work: these stay unticked, and their code stays until the HTTP removal after parity.
+
+- [ ] [not started] `store/remote.clj` and `store/reveal.clj` (HTTP/3). `remote_test` (3). `store/remote` throws off the JVM. Browser fetch is `store/browser.cljs`
+- [ ] [not started] `origin_test.clj` (3)
+- [ ] [not started] `service_test.clj`, `service/reveal_test.clj`, `service/throttle_test.clj`, `json_test.clj`
+- [ ] [not started] The JVM-only tests in `pack_test` (7) and `rate_limit_test` (1) that start the HTTP service or read through `store/remote` (see Storage)
+- [ ] [not started] JVM server: `service.clj`, `service/main.clj` (`clojure -M:service`), `service/reveal.clj`, `service/throttle.clj`
+- [ ] [not started] JVM origins: `examples/peer_origin.clj`, `examples/library_origin.clj`. The nbb peers `peer_nbb.cljs` and `library_nbb.cljs` peer instead
+- [ ] [not started] Archived JVM client and server: `impl/clojure/archive`
+- [ ] [not started] The browser peer's HTTP origin fallback (`examples/peer_web.cljs` `origin-absent!`), and the M5.2 Brave/Safari hand check: origin returned 500. The page continues only on 404. The CI stub sends 404 (`scripts/peer-browser-e2e.mjs`)
+- [ ] [not started] #65: `service/reveal_test` `http3-reveal-shares-one-connection` flakes (HTTP/3); rerun when it fails
