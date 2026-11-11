@@ -6,6 +6,8 @@ Each line is tagged [done], [in progress], or [not started].
 
 How to update: tick the item and add the PR number when it merges.
 
+Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
+
 Next up: port `peer/items.clj` to `.cljc`, then the storage test ports.
 
 ## Done
