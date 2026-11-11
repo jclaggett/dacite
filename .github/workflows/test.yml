@@ -49,6 +49,11 @@ jobs:
       - name: Durable store suite
         run: npm run store:test
 
+      # store_test and format_test on the nbb file and LMDB stores. Needs the
+      # format-v1 LMDB build above, and exits 2 when the addon did not load.
+      - name: Storage suite (file and LMDB)
+        run: npm run storage:test
+
       # shadow-cljs.edn uses :deps, so peer:build and browser:test start
       # the compiler with the `clojure` executable. The suites above do not.
       - uses: actions/setup-java@v5
