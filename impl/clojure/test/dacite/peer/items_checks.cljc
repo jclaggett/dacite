@@ -52,6 +52,12 @@
   [st n]
   (apply v/vector st (map #(v/string st (str "line " % ": the quick brown fox")) (range n))))
 
+(def ^:private page-lines
+  "A vector of this many lines has a finger-tree page as its root, not a
+   bare leaf. Two lines already do. Sixteen stays under 3 s on nbb. Three
+   hundred is the same shape, and a check that built it twice crossed 3 s."
+  16)
+
 (defn- join-chunks
   "Join `n` one-character pieces without one `apply` of `n` arguments."
   [n ch]
@@ -312,7 +318,7 @@
 (defn a-header-is-accepted-first-and-checked-when-its-root-arrives
   []
   (let [st (store/mem-store)
-        h (v/hash (lines st 300))
+        h (v/hash (lines st page-lines))
         [header root & more] (node-items st (reveal/page-order st h))
         rx (items/receiver)
         arrived (items/accept-item! rx header)
@@ -351,14 +357,14 @@
               [(str label " " k ": still unchecked")]))))
        [[:count 1000000] [:size-bytes 77]]))
     [["a bare-leaf root" #(v/vector % (v/string % "only"))]
-     ["a page root" #(lines % 300)]])))
+     ["a page root" #(lines % page-lines)]])))
 
 (defn a-header-whose-hash-does-not-fit-its-root-is-refused
   []
   (let [st (store/mem-store)
-        h (v/hash (lines st 300))
+        h (v/hash (lines st page-lines))
         [header root] (node-items st (reveal/page-order st h))
-        other (v/hash (lines st 301))
+        other (v/hash (lines st (inc page-lines)))
         [oheader] (node-items st (reveal/page-order st other))
         forged (assoc-in oheader [:entry 1 :root] (get-in header [:entry 1 :root]))
         rx (items/receiver)]
@@ -371,7 +377,7 @@
 (defn only-the-failing-headers-waiting-on-a-root-are-removed
   []
   (let [st (store/mem-store)
-        h (v/hash (lines st 300))
+        h (v/hash (lines st page-lines))
         [header root] (node-items st (reveal/page-order st h))
         fake1 [1 2 3 4]
         fake2 [9 8 7 6]
@@ -414,7 +420,7 @@
 (defn a-stream-that-ends-early-leaves-no-unchecked-header
   []
   (let [st (store/mem-store)
-        h (v/hash (lines st 300))
+        h (v/hash (lines st page-lines))
         [header] (node-items st (reveal/page-order st h))
         rx (items/receiver)]
     (items/accept-item! rx header)
@@ -433,7 +439,7 @@
 (defn pages-verify-in-any-order
   []
   (let [st (store/mem-store)
-        h (v/hash (lines st 300))
+        h (v/hash (lines st page-lines))
         {:keys [pages]} (reveal-nodes st h)
         rx (items/receiver)]
     (doseq [it (reverse (node-items st pages))]
@@ -483,7 +489,7 @@
 (defn a-missing-entry-is-a-protocol-reason
   []
   (let [st (store/mem-store)
-        h (v/hash (lines st 300))
+        h (v/hash (lines st page-lines))
         [header] (node-items st (reveal/page-order st h))]
     (bad "header first: a missing root is pending" #{:pending}
          (items/verify-item! (store/mem-store) header))))
@@ -491,7 +497,7 @@
 (defn tampering-is-refused
   []
   (let [st (store/mem-store)
-        h (v/hash (lines st 300))
+        h (v/hash (lines st page-lines))
         {:keys [pages]} (reveal-nodes st h)
         digit (first (filter #(= "ft/digit" (first (:entry %))) (node-items st pages)))
         rst (store/mem-store)
@@ -517,7 +523,7 @@
 (defn the-reveal-service-and-the-peer-layer-accept-the-same-bytes
   []
   (let [st (store/mem-store)
-        h (v/hash (lines st 100))
+        h (v/hash (lines st page-lines))
         pages (node-items st (reveal/page-order st h))
         rx (items/finish! (items/accept-items! nil pages))]
     (vec
