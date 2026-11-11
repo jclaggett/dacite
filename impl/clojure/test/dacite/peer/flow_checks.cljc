@@ -47,7 +47,10 @@
       (update "rates" merge rates)
       (assoc-in ["limits" "max-frame"] 8192)))
 
-(defn- hello-bytes [h] (msg/encode-message {:type :hello :stream 0 :value h}))
+(def ^:private hello-bytes
+  "A `hello` frame (bytes) for hello `h`. Encoded once per hello: every
+   responder harness sends one, and the encode is about 40 ms on nbb."
+  (memoize (fn [h] (msg/encode-message {:type :hello :stream 0 :value h}))))
 
 (defn- get-bytes
   "A `get` frame (bytes) for `root` on stream `sid`."
@@ -1013,6 +1016,16 @@
      (bad "the session stays open and is not closed" [:open []]
           [(responder/session-status r "p") @closed]))))
 
+(def ^:private floor-value
+  "A store with a value of about 210 items and its root, for the C05 floor
+   check. Built once: a responder only reads it. At a `recv-max` of 30000 a
+   stream has sent about 27 of its pages at the floor and the other stream
+   about 170, so neither reveal is finished. The 630-item `big` value at
+   80000 has the same shape, but each `get` of it costs about 300 ms on nbb."
+  (delay (let [st (store/mem-store)] [st (v/hash (cc/map-of st 40))])))
+
+(def ^:private floor-recv-max 30000)
+
 (defn stream-ends-partial-when-interest-falls-below-floor
   "C05. Clamped interest reaches the floor at `tau · ln(peak / floor)`, the
    same instant the lifetime already dropped the stream. The tick that reaches
@@ -1020,13 +1033,13 @@
    finishes first is FIN without PARTIAL. A floor above the peak ends on the
    first tick, with no pages. The other stream of the session stays open."
   []
-  (let [[st root] (big-value)
+  (let [[st root] @floor-value
         order (vec (reveal/page-order st root))
         short {"peak" 1000 "tau-ms" 1000 "floor" 200}
         long {"peak" 1000 "tau-ms" 60000 "floor" 10}
         n (rnet {:st st})
-        _ (send-to! n (get-bytes 1 root 80000 short))
-        _ (send-to! n (get-bytes 3 root 80000 long))
+        _ (send-to! n (get-bytes 1 root floor-recv-max short))
+        _ (send-to! n (get-bytes 3 root floor-recv-max long))
         ;; t = 1600 ms. The floor is tau · ln(1000/200) ≈ 1609 ms.
         _ (dotimes [_ 16] (step! n 100))
         open-mid (responder/open-streams (:r n) "p")
@@ -1040,8 +1053,12 @@
         _ (dotimes [_ 5] (step! n 100))
         later (item-frames n 1)
         ;; a floor above the peak pauses before any page
-        paused (let [p (rnet {:st st})]
-                 (send-to! p (get-bytes 1 root 80000
+        ;; small: a vector of two, three pages. It is enough for a stream
+        ;; that ends before its first page, and for a reveal that finishes.
+        small (store/mem-store)
+        sroot (v/hash (v/vector small (v/i64 small 1) (v/string small "leaf")))
+        paused (let [p (rnet {:st small})]
+                 (send-to! p (get-bytes 1 sroot floor-recv-max
                                         {"peak" 100 "tau-ms" 1000 "floor" 1000}))
                  (let [open (responder/open-streams (:r p) "p")]
                    (step! p 1)
@@ -1051,9 +1068,7 @@
                     :open (responder/open-streams (:r p) "p")
                     :status (responder/session-status (:r p) "p")}))
         ;; the reveal finishes while interest is still above the floor
-        done (let [small (store/mem-store)
-                   sroot (v/hash (v/vector small (v/i64 small 1) (v/string small "leaf")))
-                   sorder (vec (reveal/page-order small sroot))
+        done (let [sorder (vec (reveal/page-order small sroot))
                    p (rnet {:st small})]
                (send-to! p (get-bytes 1 sroot 10000000))
                (step! p 200)
