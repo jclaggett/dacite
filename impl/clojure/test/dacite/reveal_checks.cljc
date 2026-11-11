@@ -240,6 +240,22 @@
     (is (not= (:id b) (:id reopened)))
     (is (= [hb] (hashes-of (:pages rest-pages))))))
 
+(defn a-hash-already-sent-is-not-sent-again
+  [env]
+  (let [s (store/mem-store)
+        a (v/vector s (v/i64 s 1))
+        b (v/vector s (v/i64 s 2))
+        outer (v/vector s a b)
+        sent (reveal/open-reveal (reveal/session) s (v/hash a) 0 fast)
+        done (reveal/take-pages (:session sent) s 1 fast)
+        held (reveal/ack-pages (:session done) (hashes-of (:pages done)))
+        more (reveal/open-reveal held s (v/hash outer) 1 fast)
+        pages (reveal/take-pages (:session more) s 2 fast)]
+    (is (in? (hashes-of (:pages done)) (v/hash a)))
+    (is (not (in? (hashes-of (:pages pages)) (v/hash a))))
+    (is (in? (hashes-of (:pages pages)) (v/hash outer)))
+    (is (in? (hashes-of (:pages pages)) (v/hash b)))))
+
 (defn a-newer-reveal-gets-the-next-page
   [env]
   (let [s (store/mem-store)
@@ -388,6 +404,7 @@
    "a-re-ask-at-the-stall-banks-the-unspent-integral" a-re-ask-at-the-stall-banks-the-unspent-integral
    "a-child-focus-sends-nothing-once-the-parent-offered-its-pages" a-child-focus-sends-nothing-once-the-parent-offered-its-pages
    "cancel-drops-the-rest-of-that-reveal" cancel-drops-the-rest-of-that-reveal
+   "a-hash-already-sent-is-not-sent-again" a-hash-already-sent-is-not-sent-again
    "a-newer-reveal-gets-the-next-page" a-newer-reveal-gets-the-next-page
    "the-session-clock-moves-forward" the-session-clock-moves-forward
    "a-multi-page-reveal-resumes-after-the-pages-already-offered" a-multi-page-reveal-resumes-after-the-pages-already-offered

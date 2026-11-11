@@ -8,7 +8,7 @@ How to update: tick the item and add the PR number when it merges.
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM service's `handle-request`, so sharing it needs that fetch as a host piece; the last `reveal_test` deftest, after the reveal session keys its sets by `host/hash-key`; or more of `literal_limits_test`. What is left of `core_test` is JVM only unless `convert.clj` is ported (its `dacite.convert` tests would come with it). `value/serial_test` (27) tests the legacy `.clj` codec and goes with `value/serial.clj` (see below).
+Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM service's `handle-request`, so sharing it needs that fetch as a host piece; or more of `literal_limits_test`. What is left of `core_test` is JVM only unless `convert.clj` is ported (its `dacite.convert` tests would come with it). `value/serial_test` (27) tests the legacy `.clj` codec and goes with `value/serial.clj` (see below).
 
 ## Done
 
@@ -55,7 +55,7 @@ Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM
 
 ## Tests
 
-- [ ] [in progress] 17 `reveal_test.clj` deftest were absent from `reveal:test` (stall, re-ask, cancel, clock, encode-once, bounds). 16 are `reveal_checks.cljc` (`reveal:test`), all shared; the page encoder is a host piece (`dacite.service.reveal` on the JVM). Their nbb copies `floor-at-a-power-of-two` and `page-is-later-than-the-constant-rate` are gone. JVM only for now: `a-hash-already-sent-is-not-sent-again`, because on nbb a reveal of a value of more than 8 pages throws: the session's walk (`pull-page`'s `:seen`, and `:sent`, `:offered`, `:owner`) keeps raw hashes in sets and maps, where `page-order` uses `host/hash-key`. The fix is a production change, not made yet
+- [x] [done] 17 `reveal_test.clj` deftest were absent from `reveal:test` (stall, re-ask, cancel, clock, encode-once, bounds). All 17 are `reveal_checks.cljc` (`reveal:test`), shared; the page encoder is a host piece (`dacite.service.reveal` on the JVM). Their nbb copies `floor-at-a-power-of-two` and `page-is-later-than-the-constant-rate` are gone. Sharing them found an nbb bug: a reveal of more than 8 pages threw, because the session keyed its sets and maps by raw hash (a set cannot hash a BigInt); they are now keyed by `host/hash-key`
 - [ ] [not started] Example `*_test.clj`, `core_boundary_test.clj`, `dev/inspect_test.clj`, `bench/*_test.clj`
 - [ ] [not started] `service_test.clj`, `service/reveal_test.clj`, `service/throttle_test.clj`, `json_test.clj`
 

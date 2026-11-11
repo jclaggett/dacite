@@ -32,12 +32,6 @@
 (defn- idx [order h]
   (.indexOf ^clojure.lang.PersistentVector (vec order) h))
 
-(def ^:private fast
-  {:peak 1.0 :tau 1.0e6 :floor 0.0 :r-max 1.0e12})
-
-(defn- hashes-of [pages]
-  (mapv :hash pages))
-
 (deftest scalar-is-one-node
   (let [s (store/mem-store)
         n (v/i64 s 42)
@@ -206,22 +200,8 @@
 (deftest cancel-drops-the-rest-of-that-reveal
   (run-check "cancel-drops-the-rest-of-that-reveal"))
 
-;; JVM only for now: on nbb the outer vector's reveal (9 pages) throws, the
-;; session's walk keeps raw hashes in a set (see parity.md).
 (deftest a-hash-already-sent-is-not-sent-again
-  (let [s (store/mem-store)
-        a (v/vector s (v/i64 s 1))
-        b (v/vector s (v/i64 s 2))
-        outer (v/vector s a b)
-        sent (reveal/open-reveal (reveal/session) s (v/hash a) 0 fast)
-        done (reveal/take-pages (:session sent) s 1 fast)
-        held (reveal/ack-pages (:session done) (hashes-of (:pages done)))
-        more (reveal/open-reveal held s (v/hash outer) 1 fast)
-        pages (reveal/take-pages (:session more) s 2 fast)]
-    (is (some #{(v/hash a)} (hashes-of (:pages done))))
-    (is (not (some #{(v/hash a)} (hashes-of (:pages pages)))))
-    (is (some #{(v/hash outer)} (hashes-of (:pages pages))))
-    (is (some #{(v/hash b)} (hashes-of (:pages pages))))))
+  (run-check "a-hash-already-sent-is-not-sent-again"))
 
 (deftest a-newer-reveal-gets-the-next-page
   (run-check "a-newer-reveal-gets-the-next-page"))
