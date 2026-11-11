@@ -9,17 +9,21 @@
             [dacite.hash :as hash]
             [dacite.hash-checks :as checks]
             [dacite.host :as host]
-            [dacite.kernel-vectors :as kernel-vectors]
-            [dacite.store :as store]
             [dacite.store.check :as check]
-            [dacite.value :as v]
-            [dacite.value.types :as types]
             [dacite.value.scalar]))
+
+(defn fixture-vectors []
+  (clojure.edn/read-string (slurp "../../fixtures/fuse-sl2/vectors.edn")))
+
+(def ^:private env
+  "Host pieces the checks take (see dacite.hash-checks). Paths are from
+   impl/clojure."
+  {:read-vectors fixture-vectors})
 
 (defn- run-check
   "Run the check called `name`: no problems, and quick."
   [name]
-  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+  (let [{:keys [ms problems]} (check/run-one checks/checks env name)]
     (is (empty? problems) (pr-str problems))
     (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
@@ -163,55 +167,16 @@
 (defn- fs [^String s] (hash/fuse-str s))
 
 (deftest issue-14-named-collisions-are-gone
-  (testing "abba and baab (the shortest collision of the old fuse)"
-    (is (not= (fs "abba") (fs "baab")))
-    (is (not= (hash/state->ref (fs "abba")) (hash/state->ref (fs "baab")))))
-  (testing "1221 and 2112"
-    (is (not= (fs "1221") (fs "2112"))))
-  (testing "x ab y ba z and x ba y ab z"
-    (doseq [[x y z] [["" "" ""] ["x" "y" "z"] ["xx" "" "zz"] ["q" "rst" "u"]]]
-      (is (not= (fs (str x "ab" y "ba" z)) (fs (str x "ba" y "ab" z)))
-          (pr-str [x y z]))))
-  (testing "other word pairs of the family x u y v z = x v y u z"
-    (doseq [[a b] [["ab" "ba"] ["ab" "ac"] ["xy" "yx"] ["abc" "cba"]]
-            [x y z] [["" "m" ""] ["k" "" "j"]]]
-      (is (not= (fs (str x a y b z)) (fs (str x b y a z)))))))
+  (run-check "issue-14-named-collisions-are-gone"))
 
 (deftest issue-14-through-values
-  (let [st (store/mem-store)
-        h (fn [x] (v/hash x))]
-    (testing "[1 256] vs [256 1] (i64 elements whose words 1-3 are equal)"
-      (is (not= (h (v/vector st 1 256)) (h (v/vector st 256 1)))))
-    (testing "strings abba/baab and 1221/2112"
-      (is (not= (h (v/string st "abba")) (h (v/string st "baab"))))
-      (is (not= (h (v/string st "1221")) (h (v/string st "2112")))))
-    (testing "[\"ab\" \"ba\"] vs [\"ba\" \"ab\"]"
-      (is (not= (h (v/vector st "ab" "ba")) (h (v/vector st "ba" "ab")))))
-    (testing "[1 2 2 1] vs [2 1 1 2], nested [[1 2] [2 1]] vs [[2 1] [1 2]]"
-      (is (not= (h (v/vector st 1 2 2 1)) (h (v/vector st 2 1 1 2))))
-      (is (not= (h (v/vector st (v/vector st 1 2) (v/vector st 2 1)))
-                (h (v/vector st (v/vector st 2 1) (v/vector st 1 2))))))
-    (testing "[\"ab\" 7 \"ba\"] vs [\"ba\" 7 \"ab\"]"
-      (is (not= (h (v/vector st "ab" 7 "ba")) (h (v/vector st "ba" 7 "ab")))))
-    (testing "maps with swapped anagram values"
-      (is (not= (h (v/map st "k1" "ab" "k2" "ba")) (h (v/map st "k1" "ba" "k2" "ab")))))
-    (testing "x [1 256] y [256 1] z over many contexts"
-      (is (not= (h (v/vector st 9 1 256 8 256 1 7))
-                (h (v/vector st 9 256 1 8 1 256 7)))))))
+  (run-check "issue-14-through-values"))
 
 (deftest every-short-word-has-its-own-state
-  (testing "all 3,905 strings of length 0..5 over abcde, and 5,460 over abcd up to length 6"
-    (doseq [[alphabet maxlen] [["abcde" 5] ["abcd" 6]]]
-      (let [words (loop [acc [""] frontier [""] n 0]
-                    (if (= n maxlen)
-                      acc
-                      (let [next (for [w frontier c alphabet] (str w c))]
-                        (recur (into acc next) next (inc n)))))
-            states (map fs words)]
-        (is (= (count words) (count (set states))) alphabet)))))
+  (run-check "every-short-word-has-its-own-state"))
 
 (deftest digits-0000-to-9999-are-all-distinct
-  (is (= 10000 (count (set (for [i (range 10000)] (fs (format "%04d" i))))))))
+  (run-check "digits-0000-to-9999-are-all-distinct"))
 
 ;; =============================================================================
 ;; Repeated values: A^n returns to the identity only at a multiple of A's order
@@ -290,216 +255,61 @@
 ;; =============================================================================
 
 (deftest a-ref-is-a-32-byte-digest-of-a-state
-  (let [s (fs "hello")
-        r (hash/state->ref s)]
-    (is (= 4 (count r)))
-    (is (= 32 (count (hash/longs->bytes r))))
-    (is (= r (hash/state->ref s)) "deterministic")
-    (is (not= r (hash/state->ref (fs "hellp"))))
-    (is (= (hash/fuse-bytes (hash/longs->bytes r)) (hash/ref->state r))
-        "ref->state is fuse_bytes of the ref's bytes")
-    (is (hash/state-valid? (hash/ref->state r)))))
+  (run-check "a-ref-is-a-32-byte-digest-of-a-state"))
 
 (deftest digest-of-identity-and-of-the-hand-computed-fold
-  (let [s (fs "hello")
-        mask (.subtract (.shiftLeft java.math.BigInteger/ONE 256) java.math.BigInteger/ONE)
-        rotl (fn [^java.math.BigInteger n r]
-               (.and (.or (.shiftLeft n r) (.shiftRight n (- 256 r))) mask))
-        d (reduce (fn [^java.math.BigInteger acc i] (.xor acc (rotl (nth s i) (* 64 i))))
-                  java.math.BigInteger/ZERO (range 4))
-        words (mapv #(.longValue (.shiftRight d %)) [192 128 64 0])]
-    (is (= words (hash/state->ref s)))
-    (is (= [1 0 0 1] (hash/state->ref hash/identity-state))
-        "the identity: a = 1, d = 1 rotated left by 192 bits: 1 xor 2^192, words [1 0 0 1]")
-    (testing "cells are not interchangeable: a transposed state has another digest"
-      (let [[a b c d] s]
-        (is (not= (hash/state->ref s) (hash/state->ref [a c b d])))
-        (is (not= (hash/state->ref s) (hash/state->ref [d b c a])))))))
+  (run-check "digest-of-identity-and-of-the-hand-computed-fold"))
 
 (deftest digest-bits-are-uniform
-  (let [rnd (java.util.Random. 5)
-        n 3000
-        refs (repeatedly n #(hash/state->ref (hash/fuse-bytes (vec (repeatedly 6 (fn [] (.nextInt rnd 256)))))))
-        bits (fn [r] (let [bs (hash/longs->bytes r)]
-                       (for [i (range 256)] (bit-and 1 (bit-shift-right (nth bs (quot i 8)) (- 7 (mod i 8)))))))
-        counts (reduce (fn [acc r] (mapv + acc (bits r))) (vec (repeat 256 0)) refs)]
-    (testing "every one of the 256 digest bits is set 44%..56% of the time over 3,000 states"
-      (is (every? #(< (* 0.44 n) % (* 0.56 n)) counts) (pr-str (map-indexed vector counts))))))
+  (run-check "digest-bits-are-uniform"))
 
 ;; =============================================================================
 ;; State bytes and hex
 ;; =============================================================================
 
 (deftest state-bytes-and-hex-round-trip
-  (doseq [s (concat [hash/identity-state] (map fs ["a" "hello" "abba"]))]
-    (let [bs (hash/state->bytes s)]
-      (is (= 128 (count bs)))
-      (is (every? #(<= 0 % 255) bs))
-      (is (= s (hash/bytes->state bs)))
-      (is (= s (hash/hex->state (hash/state->hex s))))
-      (is (= 256 (count (hash/state->hex s))))))
-  (is (= (concat (repeat 31 0) [1] (repeat 64 0) (repeat 31 0) [1])
-         (hash/state->bytes hash/identity-state))))
+  (run-check "state-bytes-and-hex-round-trip"))
 
 (deftest invalid-states-are-refused
-  (let [s (fs "hello")]
-    (is (hash/state-valid? s))
-    (testing "a cell at or above p"
-      (is (not (hash/state-valid? (assoc s 0 (host/sl2-p)))))
-      (is (not (hash/state-valid? (assoc s 1 (.add ^java.math.BigInteger (host/sl2-p) (biginteger 5)))))))
-    (testing "determinant not 1"
-      (is (not (hash/state-valid? (assoc s 3 (.mod (.add ^java.math.BigInteger (nth s 3) java.math.BigInteger/ONE) ^java.math.BigInteger (host/sl2-p))))))
-      (is (not (hash/state-valid? [(biginteger 0) (biginteger 0) (biginteger 0) (biginteger 0)]))))
-    (testing "wrong shape"
-      (is (not (hash/state-valid? [1 2 3])))
-      (is (not (hash/state-valid? nil))))))
+  (run-check "invalid-states-are-refused"))
 
 ;; =============================================================================
 ;; Cross-platform fixtures (nbb reads the same file)
 ;; =============================================================================
 
-(defn fixture-vectors []
-  (clojure.edn/read-string (slurp "../../fixtures/fuse-sl2/vectors.edn")))
-
 (deftest the-kernel-boundary-agrees-with-the-known-answers
-  ;; exactly the functions a WASM or native implementation would replace
-  (let [vs (:kernel (fixture-vectors))]
-    (is (= #{:state-mul :bytes->state :ref->state :state->ref :state-valid? :refused} (set (keys vs))))
-    (is (every? seq (vals vs)))
-    (is (= [] (kernel-vectors/problems hash/kernel vs)))
-    (testing "the checker does fail on a wrong kernel"
-      (is (seq (kernel-vectors/problems (assoc hash/kernel :state-mul (fn [a _] a)) vs)))
-      (is (seq (kernel-vectors/problems (assoc hash/kernel :state-valid? (constantly true)) vs)))
-      (is (seq (kernel-vectors/problems (assoc hash/kernel :state->ref (fn [s] (subs s 0 64))) vs))))
-    (testing "a refused input throws bad-state"
-      (is (= :bad-state (try ((:state-mul hash/kernel) (apply str (repeat 256 "0")) (apply str (repeat 256 "0")))
-                             (catch clojure.lang.ExceptionInfo e (:reason (ex-data e)))))))))
+  (run-check "the-kernel-boundary-agrees-with-the-known-answers"))
 
 (deftest fixture-vectors-match
-  (let [{:keys [p fuse-str ref->state scalars table-sample]} (fixture-vectors)]
-    (is (= (str (host/sl2-p)) p) "the vectors are for this prime")
-    (testing "fuse-str: state hex and ref hex"
-      (doseq [{:keys [input state ref]} fuse-str]
-        (is (= state (hash/state->hex (hash/fuse-str input))) input)
-        (is (= ref (hash/hash->hex (hash/state->ref (hash/fuse-str input)))) input)))
-    (testing "ref->state of fixed refs"
-      (doseq [{:keys [ref state]} ref->state]
-        (is (= state (hash/state->hex (hash/ref->state (hash/hex->hash ref)))) ref)))
-    (testing "scalar value hashes"
-      (doseq [{:keys [type value ref]} scalars]
-        (is (= ref (hash/hash->hex (types/typed-value-hash [type (if (= "char" type) (host/char-at value 0) value)])))
-            (pr-str [type value]))))
-    (testing "a sample of the generator table"
-      (doseq [[i hex] table-sample]
-        (is (= hex (hash/state->hex (nth hash/byte->state i))))))))
+  (run-check "fixture-vectors-match"))
 
-(defn- ->bytes
-  "Bridge portable encode-value bytes (vector of ints 0..255, or a host
-   byte array for u256) to a Java byte array for JVM assertions."
-  [bs]
-  (byte-array (map unchecked-byte bs)))
 
 (deftest test-encode-value
-  (testing "null encodes to 0 bytes"
-    (is (= [] (vec (types/encode-value ["null" nil])))))
-  (testing "bool encodes to 1 byte"
-    (is (= [1] (vec (types/encode-value ["bool" true]))))
-    (is (= [0] (vec (types/encode-value ["bool" false])))))
-  (testing "i64 encodes to 8 big-endian bytes"
-    (let [result (types/encode-value ["i64" 42])]
-      (is (= 8 (count result)))
-      (is (= 42 (.getLong (java.nio.ByteBuffer/wrap (->bytes result)))))))
-  (testing "f64 encodes to 8 IEEE 754 bytes"
-    (let [result (types/encode-value ["f64" 3.14])]
-      (is (= 8 (count result)))
-      (is (= 3.14 (.getDouble (java.nio.ByteBuffer/wrap (->bytes result)))))))
-  (testing "char encodes to UTF-8"
-    (let [result (types/encode-value ["char" \a])]
-      (is (= "a" (String. (->bytes result) "UTF-8")))))
-  (testing "u8 encodes to 1 byte"
-    (is (= [42] (vec (types/encode-value ["u8" 42])))))
-  (testing "default falls back to pr-str for unknown types"
-    (let [result (types/encode-value ["custom" {:x 1}])]
-      (is (every? #(<= 0 % 255) result))
-      (is (= "{:x 1}" (String. (->bytes result) "UTF-8"))))))
+  (run-check "test-encode-value"))
 
 (deftest test-typed-value-hash-string-type
-  (testing "typed-value-hash handles string type name"
-    (let [h1 (types/typed-value-hash ["my.custom/type" 42])
-          h2 (types/typed-value-hash ["my.custom/type" 42])]
-      (is (= h1 h2))
-      (is (vector? h1))
-      (is (= 4 (count h1)))))
-  (testing "same type name and data produce same hash"
-    (let [h1 (types/typed-value-hash ["i64" 42])
-          h2 (types/typed-value-hash ["i64" 42])]
-      (is (= h1 h2)))))
+  (run-check "test-typed-value-hash-string-type"))
 
 (deftest test-typed-value-hash-domain-separator
-  (testing "different type/data boundaries produce different hashes"
-    ;; Without a domain separator, type="i64" data="2" and type="i6" data="42"
-    ;; would collide because fuse(fuse-str(a), fuse-str(b)) = fuse-str(a++b)
-    (let [h1 (types/typed-value-hash ["ab" "cd"])
-          h2 (types/typed-value-hash ["abc" "d"])]
-      (is (not= h1 h2) "domain separator prevents boundary collision"))))
+  (run-check "test-typed-value-hash-domain-separator"))
 
 (deftest test-fuse-seq
-  (testing "fuse-seq of empty sequence is identity"
-    (is (= hash/identity-state (hash/fuse-seq []))))
-  (testing "fuse-seq of single state returns that state"
-    (let [h (hash/fuse-str "hello")]
-      (is (= h (hash/fuse-seq [h])))))
-  (testing "fuse-seq is equivalent to chained fuse"
-    (let [a (hash/fuse-str "a") b (hash/fuse-str "b") c (hash/fuse-str "c")]
-      (is (= (hash/fuse (hash/fuse a b) c) (hash/fuse-seq [a b c]))))))
+  (run-check "test-fuse-seq"))
 
 (deftest test-byte-state-table
-  (testing "byte->state has 256 entries, each a vector of 4 cells"
-    (is (= 256 (count hash/byte->state)))
-    (is (every? #(and (vector? %) (= 4 (count %))) hash/byte->state))))
+  (run-check "test-byte-state-table"))
 
 (deftest test-fuse-bytes
-  (testing "fuse-bytes of empty array is identity"
-    (is (= hash/identity-state (hash/fuse-bytes (byte-array 0)))))
-  (testing "fuse-bytes of single byte matches byte->state"
-    (is (= (nth hash/byte->state 65) (hash/fuse-bytes [65]))))
-  (testing "signed host bytes are masked"
-    (is (= (hash/fuse-bytes [255 128]) (hash/fuse-bytes (byte-array [-1 -128])))))
-  (testing "fuse-str equals fuse-bytes of UTF-8"
-    (is (= (hash/fuse-str "héllo") (hash/fuse-bytes (.getBytes "héllo" "UTF-8")))))
-  (testing "fuse(fuse-str(a), fuse-str(b)) = fuse-str(a ++ b)"
-    (is (= (hash/fuse (hash/fuse-str "hello") (hash/fuse-str "world")) (hash/fuse-str "helloworld")))))
+  (run-check "test-fuse-bytes"))
 
 (deftest test-node-hash
-  (testing "node-hash with the identity elements-fuse is a ref"
-    (let [h (types/node-hash "ft/empty" hash/identity-state)]
-      (is (vector? h))
-      (is (= 4 (count h)))))
-  (testing "different node types produce different hashes"
-    (let [ef (hash/fuse-str "some-content")]
-      (is (not= (types/node-hash "ft/deep" ef) (types/node-hash "ft/digit" ef)))))
-  (testing "same type + same elements-fuse = same hash"
-    (let [ef (hash/fuse-str "content")]
-      (is (= (types/node-hash "ft/deep" ef) (types/node-hash "ft/deep" ef))))))
+  (run-check "test-node-hash"))
 
 (deftest test-hex-conversion
-  (testing "round-trip a ref through hex"
-    (let [h (hash/state->ref (hash/fuse-str "test"))]
-      (is (= h (hash/hex->hash (hash/hash->hex h)))))))
+  (run-check "test-hex-conversion"))
 
 (deftest test-bytes-longs-conversion
-  (testing "bytes->longs converts 32 bytes to 4 longs"
-    (let [longs (hash/bytes->longs (byte-array 32))]
-      (is (vector? longs))
-      (is (= 4 (count longs)))))
-  (testing "longs->bytes converts 4 longs to 32 portable bytes"
-    (let [bytes (hash/longs->bytes [1 2 3 4])]
-      (is (vector? bytes))
-      (is (= 32 (count bytes)))
-      (is (every? #(<= 0 % 255) bytes))))
-  (testing "round-trip preserves data"
-    (let [original [12345 -67890 111111 -222222]]
-      (is (= original (hash/bytes->longs (hash/longs->bytes original)))))))
+  (run-check "test-bytes-longs-conversion"))
 
 ;; Until all of hash_test is shared, this guard checks that every shared
 ;; check runs here, not that the two lists are the same.

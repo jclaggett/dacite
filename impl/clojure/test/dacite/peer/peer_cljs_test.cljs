@@ -13,9 +13,7 @@
    in-memory `ITransport`."
   (:require [cljs.reader :as reader]
             [dacite.cache-checks :as cache-checks]
-            [dacite.hash :as hash]
             [dacite.host :as host]
-            [dacite.kernel-vectors :as kernel-vectors]
             [dacite.peer.async-checks :as async-checks]
             [dacite.peer.client-checks :as client-checks]
             [dacite.peer.conformance :as conf]
@@ -29,45 +27,7 @@
             [dacite.string-vectors :as string-vectors]
             [dacite.value :as v]
             [dacite.wire.binary :as bin]
-            [dacite.value.scalar]
-            [dacite.value.types :as types]))
-
-(defn- fuse-vector-problems
-  "The SL(2, F_p) fuse on this host against fixtures/fuse-sl2/vectors.edn, the
-   known answers the JVM test (hash_test) also checks: nbb and the JVM must
-   agree to the byte."
-  []
-  (let [fs (js/require "fs")
-        vs (reader/read-string (.readFileSync fs "fixtures/fuse-sl2/vectors.edn" "utf8"))
-        bad (fn [what expected actual]
-              (when-not (= expected actual) [(str "fuse-sl2 " what ": " (pr-str actual) " <> " (pr-str expected))]))]
-    (concat
-     (when-not (= (str (host/sl2-p)) (:p vs)) ["fuse-sl2 p"])
-     (mapcat (fn [{:keys [input state ref]}]
-               (let [st (hash/fuse-str input)]
-                 (concat (bad (str "state of " (pr-str input)) state (hash/state->hex st))
-                         (bad (str "ref of " (pr-str input)) ref (hash/hash->hex (hash/state->ref st))))))
-             (:fuse-str vs))
-     (mapcat (fn [{:keys [ref state]}]
-               (bad (str "ref->state " ref) state (hash/state->hex (hash/ref->state (hash/hex->hash ref)))))
-             (:ref->state vs))
-     (mapcat (fn [{:keys [type value ref]}]
-               (let [v (if (= type "char") (host/char-at value 0) value)]
-                 (bad (str "scalar " type " " (pr-str value)) ref
-                      (hash/hash->hex (types/typed-value-hash [type v])))))
-             (:scalars vs))
-     (mapcat (fn [[i hex]] (bad (str "table " i) hex (hash/state->hex (nth hash/byte->state i))))
-             (:table-sample vs)))))
-
-(defn- kernel-problems
-  "The kernel boundary (`hash/kernel`) against its known answers, the same
-   checker the JVM test and a WASM wrapper use."
-  []
-  (let [fs (js/require "fs")
-        vs (reader/read-string (.readFileSync fs "fixtures/fuse-sl2/vectors.edn" "utf8"))]
-    (if (seq (:kernel vs))
-      (kernel-vectors/problems hash/kernel (:kernel vs))
-      ["kernel vectors missing"])))
+            [dacite.value.scalar]))
 
 (defn- string-problems
   "Text on this host against the string vectors (fixtures/fuse-sl2/vectors.edn):
@@ -135,7 +95,7 @@
                 ["negotiate does not pick the highest common version"]))
         client (-> (client-checks/run-all) (into (flow-checks/run-all)) (into (async-checks/run-all)) (into (transport-checks/run-all)))
         client-problems (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) client)
-        all (into (into (into (vec problems) framing) host) (concat client-problems (bitmap-u32-unsigned-problems) (fuse-vector-problems) (kernel-problems) (string-problems) (string-vectors/behavior-problems) (cache-checks/problems)))]
+        all (into (into (into (vec problems) framing) host) (concat client-problems (bitmap-u32-unsigned-problems) (string-problems) (string-vectors/behavior-problems) (cache-checks/problems)))]
     (println "peer-v1 fixtures:" cases "cases," encoded "examples encoded,"
              (count all) "problems")
     (println "client checks:" (count client) "tests,"

@@ -5,12 +5,17 @@
 
    The checks are `dacite.hash-checks`; the JVM runs the same checks from
    dacite.hash-test."
-  (:require [dacite.hash-checks :as checks]
+  (:require [cljs.reader :as reader]
+            [dacite.hash-checks :as checks]
             [dacite.store.check :as check]))
+
+(def ^:private fs (js/require "fs"))
+
+(defn- read-edn [path] (reader/read-string (.readFileSync fs path "utf8")))
 
 (def env
   "Host pieces the checks take (see dacite.hash-checks)."
-  {})
+  {:read-vectors #(read-edn "fixtures/fuse-sl2/vectors.edn")})
 
 (defn -main
   [& _]
