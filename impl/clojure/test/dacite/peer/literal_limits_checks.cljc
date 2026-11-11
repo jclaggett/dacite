@@ -1,8 +1,9 @@
 (ns dacite.peer.literal-limits-checks
   "Page and literal size limits on the JVM and on nbb: payload sizing of
-   strings and blobs, the literal cap and its cache, the hello frame
-   limits, the smallest frame, the size model, the node bound
-   (store.bound) and the first get of a long string. Spec:
+   strings and blobs, small blobs in a vector (Fixes #8), the literal cap
+   and its cache, the hello frame limits, the smallest frame, the size
+   model, the node bound (store.bound) and the first get of a long string.
+   Spec:
    docs/spec/peer-v1.md 3.2. The JVM runs them from
    `dacite.peer.literal-limits-test`, one deftest each under its old name;
    nbb runs them from `dacite.peer.items-cljs-test` (`npm run items:test`).
@@ -12,6 +13,7 @@
   (:require [dacite.host :as host]
             [dacite.peer.examples :as ex]
             [dacite.peer.frame :as frame]
+            [dacite.peer.items :as items]
             [dacite.peer.msg :as msg]
             [dacite.store :as store]
             [dacite.store.bound :as bound]
@@ -53,6 +55,14 @@
             (apply str (repeatedly n #(char (+ 97 (.nextInt r 26))))))
      :cljs (let [g (gen/choose 0 25) r (volatile! seed)]
              (apply str (repeatedly n #(.fromCharCode js/String (+ 97 (g r))))))))
+
+(defn literal-round-trips?
+  "The literal of `h` rebuilds `h` in a fresh store."
+  [st h]
+  (let [form (pack/literal-of st h)
+        st2 (store/mem-store)
+        got (pack/materialize-literal! st2 (:type form) (:body form))]
+    (= (vec h) (vec got))))
 
 (defn- reason-of [f]
   (try (f) :no-throw
@@ -99,6 +109,27 @@
   (let [big (apply str (repeat 5000 \x))
         chunks (lit/chunk-run "string" [big "a"] 1000)]
     (is (= 2 (count chunks)) "a value over the budget has a chunk to itself")))
+
+(defn a-small-blob-in-a-vector-has-a-literal-that-round-trips
+  ;; Fixes #8. Split from `a-blob-in-a-vector-has-a-literal-that-round-trips`,
+  ;; which keeps its long run of blobs on the JVM. The last case puts raw
+  ;; host bytes (a `byte[]`, a `Uint8Array`) in `v/vector` as a blob.
+  [env]
+  (let [st (store/mem-store)
+        b1 (v/blob st (host-bytes [1 2 3]))
+        b2 (v/blob st (bytes-of 9))]
+    (doseq [[label vec-of] {"[blob nil]" (v/vector st b1 (v/null st))
+                            "[nil blob]" (v/vector st (v/null st) b1)
+                            "[blob blob]" (v/vector st b1 b2)
+                            "[blob 1]" (v/vector st b1 (v/i64 st 1))
+                            "[1 blob]" (v/vector st (v/i64 st 1) b2)
+                            "[blob \"s\" blob]" (v/vector st b1 (v/string st "s") b1)}]
+      (testing label
+        (is (literal-round-trips? st (v/hash vec-of)))))
+    (testing "the peer message codec encodes it (the original report)"
+      (let [st (store/mem-store)
+            h (v/hash (v/vector st (zero-bytes 1) nil))]
+        (is (some? (items/literal-bytes st h frame/max-payload)))))))
 
 (defn max-literal-caps-the-item-and-defaults-to-one-payload
   [env]
@@ -257,6 +288,7 @@
 (def checks
   {"string-and-blob-payload-counts-their-length-plus-framing" string-and-blob-payload-counts-their-length-plus-framing
    "runs-of-strings-and-blobs-chunk-within-the-budget" runs-of-strings-and-blobs-chunk-within-the-budget
+   "a-small-blob-in-a-vector-has-a-literal-that-round-trips" a-small-blob-in-a-vector-has-a-literal-that-round-trips
    "max-literal-caps-the-item-and-defaults-to-one-payload" max-literal-caps-the-item-and-defaults-to-one-payload
    "hello-limits-max-frame-accepts-the-webrtc-clamp" hello-limits-max-frame-accepts-the-webrtc-clamp
    "the-smallest-frame-holds-the-largest-node-item" the-smallest-frame-holds-the-largest-node-item

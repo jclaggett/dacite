@@ -16,7 +16,7 @@
             [dacite.peer.items :as items]
             [dacite.peer.msg :as msg]
             [dacite.peer.literal-limits-checks :as checks
-             :refer [bytes-of text]]
+             :refer [bytes-of literal-round-trips? text]]
             [dacite.reveal :as reveal]
             [dacite.service.reveal :as sr]
             [dacite.store :as store]
@@ -70,36 +70,20 @@
 ;; Fixes #8: a blob inside a literal page body
 ;; ---------------------------------------------------------------------------
 
-(defn- literal-round-trips?
-  [st h]
-  (let [form (pack/literal-of st h)
-        st2 (store/mem-store)
-        got (pack/materialize-literal! st2 (:type form) (:body form))]
-    (= (vec h) (vec got))))
+(deftest a-small-blob-in-a-vector-has-a-literal-that-round-trips
+  (run-check "a-small-blob-in-a-vector-has-a-literal-that-round-trips"))
 
 (deftest a-blob-in-a-vector-has-a-literal-that-round-trips
-  (let [st (store/mem-store)
-        b1 (v/blob st (byte-array [1 2 3]))
-        b2 (v/blob st (bytes-of 9))]
-    (doseq [[label vec-of] {"[blob nil]" (v/vector st b1 (v/null st))
-                            "[nil blob]" (v/vector st (v/null st) b1)
-                            "[blob blob]" (v/vector st b1 b2)
-                            "[blob 1]" (v/vector st b1 (v/i64 st 1))
-                            "[1 blob]" (v/vector st (v/i64 st 1) b2)
-                            "[blob \"s\" blob]" (v/vector st b1 (v/string st "s") b1)}]
-      (testing label
-        (is (literal-round-trips? st (v/hash vec-of)))))
-    (testing "the peer message codec encodes it (the original report)"
-      (let [st (store/mem-store)
-            h (v/hash (v/vector st (byte-array 1) nil))]
-        (is (some? (items/literal-bytes st h frame/max-payload)))))
-    (testing "a long run of blobs reveals and verifies"
-      (let [st (store/mem-store)
-            h (v/hash (apply v/vector st (map #(v/blob st (bytes-of (+ 1 (mod % 40)))) (range 700))))
-            {:keys [items]} (items/encode-value st h)
-            rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
-                                                        (frame/concat-bytes items))))]
-        (is (some? (store/await (store/s-get (:store rx) h))))))))
+  ;; The small blobs are `a-small-blob-in-a-vector-has-a-literal-that-round-trips`,
+  ;; shared with nbb. This long run stays here: building the 700-blob
+  ;; vector takes seconds on nbb (#63).
+  (testing "a long run of blobs reveals and verifies"
+    (let [st (store/mem-store)
+          h (v/hash (apply v/vector st (map #(v/blob st (bytes-of (+ 1 (mod % 40)))) (range 700))))
+          {:keys [items]} (items/encode-value st h)
+          rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
+                                                      (frame/concat-bytes items))))]
+      (is (some? (store/await (store/s-get (:store rx) h)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; ft-nth reads inside the page
