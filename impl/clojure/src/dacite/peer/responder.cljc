@@ -44,9 +44,11 @@
    **Stream lifetime (C05, C10).** Interest is counted from the `get`. After
    the C09 clamps the stream ends at `tau · ln(peak / floor)` (at most about
    276 s), the instant clamped interest reaches the floor. The last frame is
-   FIN, and PARTIAL when pages remain. The state is dropped in that same tick.
-   A renewal is a new `get`. The clamps bound that lifetime; they do not change
-   the send rate. The stream cap of C11/C12 is M3.1. Items are sent as node
+   always FIN, and PARTIAL when pages remain. An item already started is
+   finished first, without waiting for credit and without the high mark
+   holding the rest of it back. If the channel is blocked, those frames wait
+   until it drains. A renewal is a new `get`. The clamps bound that lifetime;
+   they do not change the send rate. The stream cap of C11/C12 is M3.1. Items are sent as node
    items; the literal choice of `dacite.peer.items/encode-value` is JVM-only.
 
    **Store reads may be asynchronous (M1.3).** A `get` reads the store through
@@ -417,8 +419,8 @@
 (defn- below-floor?
   "C05 and C10. Clamped interest reaches the floor at the stream's deadline
    (`tau · ln(peak / floor)`). The spec says interest \"falls below\" the floor;
-   ending at this instant is the reading the lifetime already used, so the tick
-   that reaches the bound ends the stream and drops its state."
+   this is the same instant the lifetime already used. Reaching it ends the
+   stream with FIN and PARTIAL. The state stays until that frame is written."
   [st now]
   (boolean (and (:deadline st) (>= (double now) (double (:deadline st))))))
 
@@ -431,20 +433,6 @@
   (or (zero? next)
       (seq (get ends (dec next)))
       (not (some seq (drop next ends)))))
-
-(defn- bytes-to-boundary
-  "Bytes still to send before the stream is back on an item boundary.
-   0 when `next` is already there."
-  [frames ends next]
-  (if (item-boundary? ends next)
-    0
-    (loop [i next total 0]
-      (if (>= i (count frames))
-        total
-        (let [total (+ total (bin/byte-len (nth frames i)))]
-          (if (seq (nth ends i))
-            total
-            (recur (inc i) total)))))))
 
 (defn- fin-frame
   "One empty item-stream frame that ends `sid`. PARTIAL when the reveal had
@@ -462,6 +450,35 @@
       (swap! (:state r) update-in [:sessions peer :record]
              #(record-sent (or % (record-empty)) hks)))))
 
+(defn- hold-for-drain!
+  "The floor has been reached and the channel is at the high mark. Keep the
+   stream until it drains, then the next tick writes the end (C17, C05)."
+  [r peer sid next credit]
+  (swap! (:state r) update-in [:sessions peer :streams sid]
+         assoc :credit credit :next next :blocked? true))
+
+(defn- finish-item-then-end!
+  "Below the floor, and the channel can take a frame. Send the rest of the
+   in-progress item with no credit check and no high-mark stop, then
+   FIN+PARTIAL when planned frames remain."
+  [r peer sid st max-frame next]
+  (let [frames (:frames st)
+        ends (:ends st)]
+    (loop [idx next]
+      (let [f (get frames idx)]
+        (if (nil? f)
+          (close-stream! r peer sid)
+          (do
+            ((:send! r) peer f)
+            (note-frame-sent! r peer st idx)
+            (let [idx (inc idx)]
+              (if-not (item-boundary? ends idx)
+                (recur idx)
+                (if (nil? (get frames idx))
+                  (close-stream! r peer sid)
+                  (do ((:send! r) peer (fin-frame sid true max-frame))
+                      (close-stream! r peer sid)))))))))))
+
 (defn- tick-session! [r peer now]
   (let [{:keys [state buffered]} r
         {:keys [budget last-tick max-frame streams] :as s} (get-in @state [:sessions peer])
@@ -473,8 +490,8 @@
                               [sid (blocked? (:blocked? st) (buffered peer sid) max-frame)]))
                     streams)
         interest (fn [st] (rates/interest (:peak st) (:tau st) (- now (:t0 st))))
-        ;; C18: a blocked stream takes no share. C05: neither does one whose
-        ;; interest has reached the floor; this tick ends it.
+        ;; C18: a blocked stream takes no share. C05: neither does one that
+        ;; has reached the floor; it is ending, not pacing.
         live (remove (fn [[sid st]] (or (flags sid) (below-floor? st now))) streams)
         total (reduce + 0 (map (comp interest val) live))
         rate-of (fn [st] (/ (* session-rate (interest st)) (max rates/peak total)))]
@@ -493,29 +510,25 @@
                 ends (:ends st)
                 f (get frames next)
                 size (when f (bin/byte-len f))
-                ;; Boundary and span are only needed once interest has reached
-                ;; the floor. Above it, a tick sends the planned frames as before.
-                boundary? (and below? (item-boundary? ends next))
-                span (if (and below? (not boundary?))
-                       (bytes-to-boundary frames ends next)
-                       0)]
+                boundary? (and below? (item-boundary? ends next))]
             (cond
               ;; the planned frames are done: the last one already carries FIN
               (nil? f) (close-stream! r peer sid)
 
-              ;; C05: end at an item boundary. PARTIAL, because frames remain.
-              ;; C17: a blocked channel cannot take the frame, so the state
-              ;; still goes (C10) and nothing is written.
-              (and below? boundary? (not blocked))
+              ;; C05: the channel is full. Keep the stream and write the end
+              ;; on the tick it has drained.
+              (and below? blocked)
+              (hold-for-drain! r peer sid next credit)
+
+              ;; C05: at an item boundary, PARTIAL, because frames remain.
+              (and below? boundary?)
               (do ((:send! r) peer (fin-frame sid true max-frame))
                   (close-stream! r peer sid))
 
-              ;; Still inside an item, or the channel will not take a frame.
-              ;; FIN here would be `truncated-item` or a write past the high
-              ;; mark. Banked credit may finish the item first (the branch
-              ;; below); otherwise the state is dropped, as C10 requires.
-              (and below? (or blocked (< credit span)))
-              (close-stream! r peer sid)
+              ;; C05: finish the in-progress item without credit or the high
+              ;; mark, then FIN+PARTIAL if anything remains.
+              below?
+              (finish-item-then-end! r peer sid st max-frame next)
 
               (and (not blocked) (>= credit size))
               (do ((:send! r) peer f)
