@@ -81,8 +81,11 @@
 
 (defn run-one
   "Run the check `(get checks name)` on `env`: {:name :ms :problems}. A
-   check that throws is a problem, and one over `max-ms` is a problem."
-  [checks env name]
+   check that throws is a problem, and one over `limit` ms (default
+   `max-ms`) is a problem. A limit above `max-ms` needs a JUSTIFICATION
+   comment on the check."
+  ([checks env name] (run-one checks env name max-ms))
+  ([checks env name limit]
   (let [f (get checks name)
         t0 (now-ms)
         problems (binding [*problems* (atom [])
@@ -95,4 +98,4 @@
         ms (- (now-ms) t0)]
     {:name name :ms ms
      :problems (cond-> problems
-                 (> ms max-ms) (conj (str "took " ms " ms, over " max-ms)))}))
+                 (> ms limit) (conj (str "took " ms " ms, over " limit)))})))
