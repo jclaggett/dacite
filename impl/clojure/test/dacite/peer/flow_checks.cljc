@@ -1,7 +1,7 @@
 (ns dacite.peer.flow-checks
   "M1.2 slice 2, portable checks (JVM: flow_test.clj, nbb: peer_cljs_test).
-   Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.3 (C05, C07, C09,
-   C10, C11, C12), §12.4 (C16), §12.5 (C17, C18), §12.7 (C24, C25), §12.8 (C32),
+   Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.3 (C05, C06, C07,
+   C08, C09, C10, C11, C12), §12.4 (C16), §12.5 (C17, C18), §12.7 (C24, C25), §12.8 (C32),
    §12.9 (C34, C35, C36), §12.11 (C40, C41); test map in §13.
 
    Same shape as client_checks.cljc: each check returns a vector of problem strings,
@@ -1696,6 +1696,124 @@
           (>= (get @(:bufs n) 1 0) high)))))
 
 ;; =============================================================================
+;; C06, C08: no idle timeout; renewal is a new stream
+;; =============================================================================
+
+(defn stalled-stream-decays-and-frees-its-share
+  "C06: there is no idle timeout. (1) Responder: stream 1's channel stays full
+   (its peer reads nothing) for 40 simulated seconds, far past any idle
+   timeout. It is not ended, no error is sent, and stream 3 of the same
+   session is not held: it finishes meanwhile. Read again, stream 1 writes
+   again (at about half its peak interest). Only decay ends it: it is open
+   just before `tau · ln(peak / floor)` (about 276 s, the longest the clamps
+   allow) and ends on that instant with FIN and PARTIAL. (2)
+   Client: gets that peers a and b never answer stay open a minute on, with
+   no error and no cancel, while their decayed interest returns their share
+   of `R_max`: the second get took half of it at once, and a new get a
+   minute on takes nearly all of it."
+  []
+  (let [[st root] (mid-value)
+        stall {"peak" 1000 "tau-ms" 60000 "floor" 10}
+        [before at] (life-bracket (spec-life 1000 60000 10))
+        n (rnet {:st st :channel? true})
+        _ (send-to! n (get-bytes 1 root 40000 stall))
+        _ (set-buffered! n 1 (* 5 frame-bytes))
+        _ (send-to! n (get-bytes 3 root 40000 {"peak" 1000 "tau-ms" 60000 "floor" 10}))
+        _ (dotimes [_ 40] (set-buffered! n 3 0) (step! n 1000))
+        open-stalled (responder/open-streams (:r n) "p")
+        stalled-frames (count (item-frames n 1))
+        last3 (peek (item-frames n 3))
+        _ (set-buffered! n 1 0)
+        _ (step! n 500)
+        resumed (count (item-frames n 1))
+        _ (jump! n before)
+        open-before (contains? (responder/open-streams (:r n) "p") 1)
+        _ (jump! n at)
+        last1 (peek (item-frames n 1))
+        ;; (2)
+        r-max 1000000
+        hs (distinct-hashes 3)
+        c (cnet {:r-max r-max :peers [["a" {}] ["b" {}]]})
+        ask! (fn [h] (h/request! (:client c) h)
+               (get-in (last (gets-sent c)) [2 :value "recv-max"]))
+        _ (ask! (nth hs 0))
+        second-rm (ask! (nth hs 1))
+        _ (advance! c 60000)
+        kept [(client/outstanding (:client c) "a") (client/outstanding (:client c) "b")]
+        statuses [(client/session-status (:client c) "a") (client/session-status (:client c) "b")]
+        late-rm (ask! (nth hs 2))
+        kinds (set (map (fn [[_ _ m]] (:type m)) @(:log c)))]
+    (concat
+     (bad "40 s stalled, the stream is still open" true
+          (contains? open-stalled 1))
+     (bad "the stalled stream wrote nothing" 0 stalled-frames)
+     (bad "the other stream was not held: it finished" [true false false]
+          [(boolean (:fin? last3)) (boolean (:partial? last3))
+           (contains? open-stalled 3)])
+     (bad "no error was sent" [] (mapv :stream (errors-of n)))
+     (bad "read again, the stalled stream writes" true (pos? resumed))
+     (bad "just before its lifetime it is still open" true open-before)
+     (bad "on that instant decay ends it, FIN and PARTIAL" [false true true]
+          [(contains? (responder/open-streams (:r n) "p") 1)
+           (boolean (:fin? last1)) (boolean (:partial? last1))])
+     (bad "the session stays open" :open (responder/session-status (:r n) "p"))
+     (bad "client: the second get took half of R_max at once" (/ r-max 2) second-rm)
+     (bad "a minute on, the unanswered gets are still open" [[(nth hs 0)] [(nth hs 1)]] kept)
+     (bad "and both sessions too" [:open :open] statuses)
+     (bad "the client sent no error and no cancel" #{:get} (disj kinds :hello))
+     (bad "their share came back: a new get takes nearly all of R_max" true
+          (> late-rm (* 0.99 r-max))))))
+
+(defn renewal-is-a-new-stream-at-peak
+  "C08: renewal is a new get with a new stream id, and the responder treats it
+   as independent of the stream it renews: a new clock at peak. Stream 1 asks
+   with tau 10 s (it lives about 46 s) and its channel stays full; 30 s on a
+   get on stream 3 renews the same hash. Both are open. Read again, the
+   renewal, at peak, takes nearly all of the session's rate over the next
+   second, and stream 1, decayed to about 5% of the peak, not a frame. With
+   both channels full again, stream 1 ends at its own deadline and stream 3
+   lives on to 30 s plus its own lifetime."
+  []
+  (let [[st root] (mid-value)
+        fb 4096
+        interest {"peak" 1000 "tau-ms" 10000 "floor" 10}
+        life (spec-life 1000 10000 10)
+        n (rnet {:st st :channel? true :max-frame fb})
+        _ (send-to! n (get-bytes 1 root 40000 interest))
+        _ (set-buffered! n 1 (* 5 fb))
+        _ (dotimes [_ 30] (step! n 1000))
+        _ (send-to! n (get-bytes 3 root 40000 interest))
+        both (responder/open-streams (:r n) "p")
+        _ (set-buffered! n 1 0)
+        _ (step! n 10)                  ; stream 1's one banked frame (C18)
+        t1 @(:clock n)
+        _ (dotimes [_ 10] (set-buffered! n 1 0) (set-buffered! n 3 0) (step! n 100))
+        window (item-bytes n t1 (+ t1 1000))
+        _ (set-buffered! n 1 (* 5 fb))
+        _ (set-buffered! n 3 (* 5 fb))
+        [before1 at1] (life-bracket life)
+        _ (jump! n before1)
+        open-before1 (responder/open-streams (:r n) "p")
+        _ (jump! n at1)
+        open-at1 (responder/open-streams (:r n) "p")
+        [before3 at3] (life-bracket (+ 30000 life))
+        _ (jump! n before3)
+        open-before3 (responder/open-streams (:r n) "p")
+        _ (jump! n at3)
+        last3 (peek (item-frames n 3))]
+    (concat
+     (bad "the renewal is a new stream; the renewed one stays open" #{1 3} both)
+     (bad "at peak the renewal takes nearly all of 40000 a second" true
+          (>= (get window 3 0) 30000))
+     (bad "the decayed stream 1 takes not a frame of it" true (< (get window 1 0) fb))
+     (bad "just before stream 1's deadline both are open" #{1 3} open-before1)
+     (bad "stream 1 ends on its own deadline; the renewal does not" #{3} open-at1)
+     (bad "the renewal is open until 30 s plus its own lifetime" #{3} open-before3)
+     (bad "then it ends too, FIN and PARTIAL" [#{} true true]
+          [(responder/open-streams (:r n) "p") (boolean (:fin? last3)) (boolean (:partial? last3))])
+     (bad "no error was sent" [] (mapv :stream (errors-of n))))))
+
+;; =============================================================================
 ;; C24, C25: the reveal order
 ;; =============================================================================
 
@@ -1844,6 +1962,8 @@
    "too-many-streams-is-refused-and-a-closed-slot-frees" too-many-streams-is-refused-and-a-closed-slot-frees
    "max-streams-above-64-is-read-as-64" max-streams-above-64-is-read-as-64
    "item-over-max-item-is-refused-before-buffering" item-over-max-item-is-refused-before-buffering
+   "stalled-stream-decays-and-frees-its-share" stalled-stream-decays-and-frees-its-share
+   "renewal-is-a-new-stream-at-peak" renewal-is-a-new-stream-at-peak
    "reveal-walks-each-subtree-depth-first" reveal-walks-each-subtree-depth-first
    "reveal-order-is-fixed-and-receiver-accepts-any" reveal-order-is-fixed-and-receiver-accepts-any))
 

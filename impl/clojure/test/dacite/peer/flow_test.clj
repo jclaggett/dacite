@@ -107,6 +107,12 @@
 (deftest item-over-max-item-is-refused-before-buffering
   (run-check "item-over-max-item-is-refused-before-buffering"))
 
+(deftest stalled-stream-decays-and-frees-its-share
+  (run-check "stalled-stream-decays-and-frees-its-share"))
+
+(deftest renewal-is-a-new-stream-at-peak
+  (run-check "renewal-is-a-new-stream-at-peak"))
+
 (deftest reveal-walks-each-subtree-depth-first
   (run-check "reveal-walks-each-subtree-depth-first"))
 
