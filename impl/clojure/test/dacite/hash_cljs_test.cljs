@@ -15,7 +15,8 @@
 
 (def env
   "Host pieces the checks take (see dacite.hash-checks)."
-  {:read-vectors #(read-edn "fixtures/fuse-sl2/vectors.edn")})
+  {:read-vectors #(read-edn "fixtures/fuse-sl2/vectors.edn")
+   :read-small-prime-collision #(read-edn "fixtures/fuse-sl2/small-prime-collision.edn")})
 
 (defn -main
   [& _]

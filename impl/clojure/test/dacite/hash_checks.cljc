@@ -99,6 +99,84 @@
   [a]
   #?(:clj (.longValue (biginteger a)) :cljs (js/BigInt.asUintN 64 a)))
 
+(defn- parse-hex-byte [h] #?(:clj (Integer/parseInt h 16) :cljs (js/parseInt h 16)))
+
+(defn- b* [a b] #?(:clj (.multiply (biginteger a) (biginteger b)) :cljs (* a b)))
+(defn- bdiv [a b] #?(:clj (.divide (biginteger a) (biginteger b)) :cljs (/ a b)))
+(defn- bneg [a] #?(:clj (.negate (biginteger a)) :cljs (- a)))
+(defn- b>= [a b] #?(:clj (>= (.compareTo (biginteger a) (biginteger b)) 0) :cljs (>= a b)))
+(defn- bzero? [a] #?(:clj (zero? (.signum (biginteger a))) :cljs (= a (js/BigInt 0))))
+
+(defn- bit-length
+  [a]
+  #?(:clj (.bitLength (biginteger a))
+     :cljs (if (= a (js/BigInt 0)) 0 (count (.toString (if (< a (js/BigInt 0)) (- (- a) (js/BigInt 1)) a) 2)))))
+
+(defn- set-bits
+  "Set bits of a nonnegative `a`."
+  [a]
+  #?(:clj (.bitCount (biginteger a))
+     :cljs (count (filter #{"1"} (.toString a 2)))))
+
+(defn- test-bit? [a i] #?(:clj (.testBit (biginteger a) (int i)) :cljs (= (js/BigInt 1) (bit-and (bit-shift-right a (js/BigInt i)) (js/BigInt 1)))))
+
+(defn- ->hex [a] #?(:clj (.toString (biginteger a) 16) :cljs (.toString a 16)))
+
+(defn- mod-pow
+  [b e m]
+  #?(:clj (.modPow (biginteger b) (biginteger e) (biginteger m))
+     :cljs (loop [r (js/BigInt 1) b (mod b m) e e]
+             (if (= e (js/BigInt 0))
+               r
+               (recur (if (= (js/BigInt 1) (bit-and e (js/BigInt 1))) (mod (* r b) m) r)
+                      (mod (* b b) m)
+                      (bit-shift-right e (js/BigInt 1)))))))
+
+(defn- mod-inverse
+  [a m]
+  #?(:clj (.modInverse (biginteger a) (biginteger m))
+     :cljs (loop [r0 m r1 (mod a m) t0 (js/BigInt 0) t1 (js/BigInt 1)]
+             (if (= r1 (js/BigInt 0))
+               (mod t0 m)
+               (let [q (/ r0 r1)]
+                 (recur r1 (- r0 (* q r1)) t1 (- t0 (* q t1))))))))
+
+(defn- probable-prime?
+  "BigInteger.isProbablePrime on the JVM. On nbb, Miller-Rabin to the first
+   `certainty` / 2 prime bases: error at most 4^-(certainty / 2) =
+   2^-certainty, the JVM's bound."
+  [n certainty]
+  #?(:clj (.isProbablePrime (biginteger n) (int certainty))
+     :cljs (let [zero (js/BigInt 0) one (js/BigInt 1) n-1 (- n one)
+                 [d s] (loop [d n-1 s 0]
+                         (if (= zero (bit-and d one)) (recur (bit-shift-right d one) (inc s)) [d s]))
+                 bases (map js/BigInt (take (max 1 (quot certainty 2))
+                                            (filter (fn [k] (every? #(pos? (mod k %)) (range 2 k)))
+                                                    (iterate inc 2))))
+                 witness? (fn [a]
+                            (let [x (mod-pow a d n)]
+                              (and (not= x one) (not= x n-1)
+                                   (loop [x x i 1]
+                                     (cond (= i s) true
+                                           :else (let [x (mod (* x x) n)]
+                                                   (if (= x n-1) false (recur x (inc i)))))))))]
+             (and (> n one)
+                  (every? (fn [a] (if (>= a n) true (and (not= zero (mod n a)) (not (witness? a)))))
+                          bases)))))
+
+(defn- pow-by-squaring
+  "a^n (n a nonnegative bignum) by repeated squaring."
+  [a n]
+  (loop [r hash/identity-state b a i 0]
+    (if (>= i (bit-length n))
+      r
+      (recur (if (test-bit? n i) (hash/fuse r b) r) (hash/fuse b b) (inc i)))))
+
+(defn- pow-by-fusing
+  "a^n by n fuses (n small)."
+  [a n]
+  (reduce (fn [r _] (hash/fuse r a)) hash/identity-state (range n)))
+
 ;; =============================================================================
 ;; Generators for scalar types
 ;; =============================================================================
@@ -583,8 +661,179 @@
    "test-hex-conversion" test-hex-conversion
    "test-bytes-longs-conversion" test-bytes-longs-conversion})
 
+;; =============================================================================
+;; The prime and the generator table
+;; =============================================================================
+
+(def ^:private p (big (host/sl2-p)))
+(def ^:private q1 (big "12584965754885075420060417285770960830067539916786805238668377903311008971511"))
+(def ^:private q2 (big "18877448632327613130090625928656441245101309875180207858002566854966513457267"))
+
+(defn the-prime-and-its-factorizations
+  [_]
+  (testing "p is the documented 256-bit prime, of no special form"
+    (is (= (big "75509794529310452520362503714625764980405239500720831432010267419866053829067") p))
+    (is (= 256 (bit-length p)))
+    (is (= "a6f107770d78545e22069b32e798d267aa12b38be8c28a84036bd6b4e0ed61cb" (->hex p)))
+    (is (probable-prime? p 100))
+    (is (> (set-bits (b+ p (big 1))) 1) "p + 1 is not a power of two")
+    (is (> (set-bits (b- (shl (big 1) 256) p)) 20)
+        "2^256 - p is not small: p is not pseudo-Mersenne (no cheap special reduction)"))
+  (testing "p - 1 = 2 * 3 * q1, with q1 a 253-bit prime"
+    (is (= (b- p (big 1)) (b* (big 6) q1)))
+    (is (= 253 (bit-length q1)))
+    (is (probable-prime? q1 100)))
+  (testing "p + 1 = 2^2 * q2, with q2 a 254-bit prime"
+    (is (= (b+ p (big 1)) (b* (big 4) q2)))
+    (is (= 254 (bit-length q2)))
+    (is (probable-prime? q2 100))))
+
+(def ^:private I hash/identity-state)
+
+(defn- large-order?
+  "Exact order test from the factorizations: order divides p-1 (split) or p+1
+   (non-split); it is a multiple of q1 or q2 when g^6 or g^4 is not 1."
+  [g]
+  (let [t (bmod (b+ (nth g 0) (nth g 3)) p)
+        disc (bmod (b- (b* t t) (big 4)) p)]
+    (cond
+      (bzero? disc) false
+      (= (big 1) (mod-pow disc (shr (b- p (big 1)) 1) p))
+      (not= I (pow-by-squaring g (big 6)))
+      :else (not= I (pow-by-squaring g (big 4))))))
+
+(defn the-byte-generator-table
+  [_]
+  (let [gens hash/byte->state]
+    (testing "256 distinct, canonical, determinant-1 matrices"
+      (is (= 256 (count gens)))
+      (is (= 256 (count (distinct-states gens))))
+      (is (every? hash/state-valid? gens)))
+    (testing "every generator has order >= 2^252 (a multiple of q1 or q2)"
+      (is (every? large-order? gens)))
+    (testing "no two generators commute (no abelian shortcuts), all 32,640 pairs"
+      (is (every? (fn [[i j]]
+                    (not= (hash/fuse (nth gens i) (nth gens j))
+                          (hash/fuse (nth gens j) (nth gens i))))
+                  (for [i (range 256) j (range (inc i) 256)] [i j]))))))
+
+(defn montgomery-reference-agrees-with-the-kernel
+  [_]
+  ;; The portable kernel reduces with the host's modulo. A port without
+  ;; bignums reduces with Montgomery (REDC) or Barrett; this is the reference
+  ;; for those constants (docs/design/fuse-sl2.md). R = 2^264, not 2^256: p is
+  ;; above 2^255, and a sum of two products is below 2 p^2, so with R = 2^256
+  ;; REDC could need two subtractions; R = 2^264 > 2^8 * 2p keeps it to one.
+  (let [r-bits 264
+        R (shl (big 1) r-bits)
+        mask (b- R (big 1))
+        p' (bmod (bneg (mod-inverse p R)) R)           ; -p^-1 mod R
+        redc (fn [t]
+               (let [m (band (b* (band t mask) p') mask)
+                     u (shr (b+ t (b* m p)) r-bits)]
+                 (if (b>= u p) (b- u p) u)))
+        to-mont (fn [x] (bmod (shl x r-bits) p))
+        from-mont redc
+        mont-mat (fn [[a b c d] [e f g h]]
+                   (let [ad (fn [x y z w] (redc (b+ (b* x z) (b* y w))))]
+                     [(ad a b e g) (ad a b f h) (ad c d e g) (ad c d f h)]))]
+    (testing "constants"
+      (is (= (bmod (b* p p') R) (b- R (big 1))) "p * p' = -1 mod R")
+      (is (= "a6f107770d78545e22069b32e798d267aa12b38be8c28a84036bd6b4e0ed61cb" (->hex p))))
+    (testing "Montgomery products equal the kernel's on 200 random pairs"
+      (let [next-byte (seeded-bytes 14)
+            gen (fn [] (hash/fuse-bytes (vec (repeatedly 6 next-byte))))]
+        (dotimes [_ 200]
+          (let [a (gen) b (gen)
+                mc (mapv (fn [x] (from-mont (to-mont x))) a)
+                prod (mont-mat (mapv to-mont a) (mapv to-mont b))]
+            (is (= a mc))
+            (is (= (hash/fuse a b) (mapv from-mont prod)))))))))
+
+;; =============================================================================
+;; Repeated values: A^n returns to the identity only at a multiple of A's order
+;; =============================================================================
+
+(defn long-runs-of-one-element
+  [_]
+  (doseq [a [(fs "a") (fs "dacite") (hash/ref->state (hash/state->ref (fs "x")))
+             (nth hash/byte->state 0)]]
+    (testing "A^(2^k) is never the identity for k up to 40, and all differ"
+      (let [powers (take 41 (iterate #(hash/fuse % %) a))]    ; A^(2^0) .. A^(2^40)
+        (is (not-any? #(= I %) powers))
+        (is (= 41 (count (distinct-states powers))))))
+    (testing "A^(2^40) by squaring is not the identity, not any shorter run"
+      (let [big' (pow-by-squaring a (shl (big 1) 40))]
+        (is (not= I big'))
+        (is (hash/state-valid? big'))
+        (is (= (hash/fuse big' big') (pow-by-squaring a (shl (big 1) 41))) "A^(2^40) squared is A^(2^41)")
+        (is (not-any? #(= big' %) (map #(pow-by-fusing a %) (range 1 200))))))
+    (testing "the first 300 powers of A are distinct and none is the identity but A^0"
+      (let [ps (take 300 (iterate #(hash/fuse % a) a))]
+        (is (= 300 (count (distinct-states ps))))
+        (is (not-any? #(= I %) ps))
+        (is (= (pow-by-squaring a (big 299)) (nth ps 298)))))
+    (testing "A^(order) is the identity: the order divides p-1, p+1 or p"
+      (let [ord-candidates [(b* (big 6) q1) (b* (big 4) q2)
+                            (b* (big 2) p) p]]
+        (is (some #(= I (pow-by-squaring a %)) ord-candidates))))))
+
+(defn a-run-wraps-only-after-the-order
+  [_]
+  (let [a (fs "a")
+        t (bmod (b+ (nth a 0) (nth a 3)) p)
+        disc (bmod (b- (b* t t) (big 4)) p)
+        split? (= (big 1) (mod-pow disc (shr (b- p (big 1)) 1) p))
+        n (if split? (b* (big 6) q1) (b* (big 4) q2))]
+    (testing "A^n = identity at n = p-1 (split) or p+1 (non-split), >= 2^252"
+      (is (>= (bit-length n) 253))
+      (is (= I (pow-by-squaring a n)))
+      (is (= a (pow-by-squaring a (b+ n (big 1))))))
+    (testing "and not at n/q for each prime factor q (the order is the full n up to the small factors)"
+      (is (not= I (pow-by-squaring a (bdiv n (if split? q1 q2))))))))
+
+;; =============================================================================
+;; Why the prime is 256 bits: a collision in ~sqrt(p) at a small prime
+;; =============================================================================
+
+(defn small-prime-collision
+  [{:keys [read-small-prime-collision]}]
+  ;; The same hash (a product of 256 random generators of SL(2, F_p) along a
+  ;; byte string) over a 36-bit prime has two different byte strings with one
+  ;; product, found by the Borel-subgroup attack (about 1.8e7 multiplications,
+  ;; 92 * sqrt(p); fixtures/fuse-sl2/attack/). The search is Python and took
+  ;; 15 s; this replays the result in milliseconds. At the shipped 256-bit p
+  ;; the same attack is about 2^134 multiplications.
+  (let [{:keys [p generators s1 s2]} (read-small-prime-collision)
+        p (big p)
+        generators (mapv #(mapv big %) generators)
+        hex->bytes (fn [h] (mapv #(parse-hex-byte (subs h (* 2 %) (+ 2 (* 2 %))))
+                                 (range (quot (count h) 2))))
+        mul (fn [[a b c d] [e f g h]]
+              [(bmod (b+ (b* a e) (b* b g)) p) (bmod (b+ (b* a f) (b* b h)) p)
+               (bmod (b+ (b* c e) (b* d g)) p) (bmod (b+ (b* c f) (b* d h)) p)])
+        prod (fn [bs] (reduce (fn [m i] (mul m (nth generators i))) (mapv big [1 0 0 1]) bs))
+        b1 (hex->bytes s1)
+        b2 (hex->bytes s2)]
+    (is (= 36 (bit-length p)) "a 36-bit prime")
+    (is (probable-prime? p 50))
+    (is (= 256 (count generators)))
+    (is (every? (fn [[a b c d]] (= (big 1) (bmod (b- (b* a d) (b* b c)) p))) generators) "all in SL(2, F_p)")
+    (is (not= b1 b2) "two different byte strings")
+    (is (= (prod b1) (prod b2)) "with the same product")
+    (is (not= (mapv big [1 0 0 1]) (prod b1)))
+    (is (< 300 (count b1) 500))))
+
+(def number-theory-checks
+  {"the-prime-and-its-factorizations" the-prime-and-its-factorizations
+   "the-byte-generator-table" the-byte-generator-table
+   "montgomery-reference-agrees-with-the-kernel" montgomery-reference-agrees-with-the-kernel
+   "long-runs-of-one-element" long-runs-of-one-element
+   "a-run-wraps-only-after-the-order" a-run-wraps-only-after-the-order
+   "small-prime-collision" small-prime-collision})
+
 (def checks
-  (merge group-law-checks state-and-ref-checks))
+  (merge group-law-checks state-and-ref-checks number-theory-checks))
 
 (def slow-ms
   "nbb ceilings above `check/max-ms`, each with a JUSTIFICATION on its check."
