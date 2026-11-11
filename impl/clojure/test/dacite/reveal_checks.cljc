@@ -6,10 +6,12 @@
    reveal:test`).
 
    `is` is `dacite.store.check`. Sets of hashes the checks build are keyed
-   by hex (SCI cannot hash a BigInt word, see `in?`). `env` has
-   `:encode-page`, the writer's page encoder: `dacite.service.reveal` on
-   the JVM, `dacite.reveal` on nbb."
-  (:require [dacite.reveal :as reveal]
+   by hex (SCI cannot hash a BigInt word, see `in?`); the session's own
+   sets and maps are keyed by `host/hash-key`. `env` has `:encode-page`,
+   the writer's page encoder: `dacite.service.reveal` on the JVM,
+   `dacite.reveal` on nbb."
+  (:require [dacite.host :as host]
+            [dacite.reveal :as reveal]
             [dacite.store :as store]
             [dacite.store.check :refer [is]]
             [dacite.value :as v]
@@ -68,8 +70,8 @@
     (is (= [h] (hashes-of (:pages due))))
     (is (= n (:bytes (first (:pages due)))))
     (is (< (Math/abs (- at (:at (first (:pages due))))) 1.0e-4))
-    (is (contains? (get-in due [:session :offered]) h))
-    (is (not (contains? (get-in due [:session :sent]) h)))
+    (is (contains? (get-in due [:session :offered]) (host/hash-key h)))
+    (is (not (contains? (get-in due [:session :sent]) (host/hash-key h))))
     (let [again (reveal/open-reveal (:session due) s h at params)
           later (reveal/take-pages (:session again) s 20 params)]
       (is (empty? (:pages later))))))
@@ -191,7 +193,7 @@
         (is (= (hex-set order) (hex-set got)))
         (if (>= n 8)
           (is false "a re-ask at the stall did not finish the value")
-          (let [offered (vec (keys (:offered session)))
+          (let [offered (mapv :hash (vals (:offered session)))
                 acked (reveal/ack-pages session offered)
                 again (reveal/open-reveal acked s h t params)
                 [session2 t2 emitted] (walk (:session again) t)
@@ -318,7 +320,7 @@
         quiet (reveal/take-pages held s 2 fast)
         evicted (reveal/forget-pages held s [h])
         again (reveal/take-pages evicted s 3 fast)]
-    (is (contains? (:sent held) h))
+    (is (contains? (:sent held) (host/hash-key h)))
     (is (empty? (:pages quiet)))
     (is (= [h] (hashes-of (:pages again))))))
 

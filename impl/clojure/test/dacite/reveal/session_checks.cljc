@@ -234,8 +234,8 @@
     {:decision {:id "unknown-ack"
                 :unknown-ack-ignored (= session unknown-ack)
                 :unknown-forget-ignored (= session unknown-forget)
-                :held (and (contains? (:sent mixed) h)
-                           (not (contains? (:offered mixed) h)))
+                :held (and (contains? (:sent mixed) (host/hash-key h))
+                           (not (contains? (:offered mixed) (host/hash-key h))))
                 :second-ack-ignored (= mixed second)
                 :quiet-pages (whole (count (:pages quiet)))}
      :problems (cond-> []
@@ -245,13 +245,13 @@
                  (not= session unknown-forget)
                  (conj "forget of an unknown hash changed the session")
 
-                 (not (contains? (:sent mixed) h))
+                 (not (contains? (:sent mixed) (host/hash-key h)))
                  (conj "a known offer in a mixed ack was not held")
 
-                 (contains? (:offered mixed) h)
+                 (contains? (:offered mixed) (host/hash-key h))
                  (conj "a held hash is still offered")
 
-                 (contains? (:sent mixed) other)
+                 (contains? (:sent mixed) (host/hash-key other))
                  (conj "an unknown hash was recorded as held")
 
                  (not= mixed second)

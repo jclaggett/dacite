@@ -608,7 +608,7 @@
         (if (>= n 8)
           (reveal {:id "reask-stall" :root (hex h) :order (order-of st h) :bursts bursts}
                   (conj problems "a re-ask at the stall did not finish the value"))
-          (let [offered (vec (keys (:offered session)))
+          (let [offered (mapv :hash (vals (:offered session)))
                 acked (reveal/ack-pages session offered)
                 again (reveal/open-reveal acked st h t params)
                 [session2 t2 emitted] (walk (:session again) t)

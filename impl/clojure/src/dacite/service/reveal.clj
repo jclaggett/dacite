@@ -132,11 +132,12 @@
     (boolean (and reveal (:done? reveal)))))
 
 (defn- offered-hashes
-  "Hashes this reveal still has in the session offer set."
+  "Hashes this reveal still has in the session offer set. The set is keyed
+   by the engine's hash key; each entry keeps the hash as `:hash`."
   [session id]
   (into []
-        (keep (fn [[h meta]]
-                (when (= id (:id meta)) h)))
+        (keep (fn [[_ meta]]
+                (when (= id (:id meta)) (:hash meta))))
         (:offered session)))
 
 (declare fail-unlocked!)
