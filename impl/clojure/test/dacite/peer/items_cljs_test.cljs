@@ -5,12 +5,18 @@
 
    The same checks as `dacite.peer.peer-items-test` on the JVM. The reveal
    service half of `the-reveal-service-and-the-peer-layer-accept-the-same-bytes`
-   stays on the JVM: `dacite.service.reveal` is the HTTP service."
-  (:require [dacite.peer.items-checks :as checks]))
+   stays on the JVM: `dacite.service.reveal` is the HTTP service.
+
+   It also runs the shared checks in `dacite.peer.literal-limits-checks`
+   (`dacite.peer.literal-limits-test` on the JVM)."
+  (:require [dacite.peer.items-checks :as checks]
+            [dacite.peer.literal-limits-checks :as limits]
+            [dacite.store.check :as check]))
 
 (defn -main
   [& _]
-  (let [rows (checks/run-all)
+  (let [rows (concat (checks/run-all)
+                     (map #(check/run-one limits/checks {} %) (keys limits/checks)))
         bad (mapcat (fn [{:keys [name problems]}]
                       (map #(str name ": " %) problems))
                     rows)
