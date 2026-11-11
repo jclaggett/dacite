@@ -152,7 +152,11 @@
     (put-u8 buf b)))
 
 (defn- signed-from-be
-  "Interpret wire bytes as two's-complement big-endian signed integer."
+  "Interpret wire bytes as two's-complement big-endian signed integer.
+
+   On ClojureScript, `bit-shift-left` is a 32-bit signed op: `(bit-shift-left
+   1 32)` is 1 and `(bit-shift-left 1 31)` is negative, so a 4-byte (i32)
+   body decoded off by 2^32 - 1. 2^bits is `Math.pow` there."
   [bs]
   (let [bs (as-wire-bytes bs)
         n (byte-len bs)
@@ -161,9 +165,10 @@
                 acc
                 (recur (inc i) (+ (* acc 256) (bget bs i)))))
         bits (* 8 n)
-        sign (bit-shift-left 1 (dec bits))]
+        sign #?(:clj (bit-shift-left 1 (dec bits)) :cljs (js/Math.pow 2 (dec bits)))
+        full #?(:clj (bit-shift-left 1 bits) :cljs (js/Math.pow 2 bits))]
     (if (>= mag sign)
-      (- mag (bit-shift-left 1 bits))
+      (- mag full)
       mag)))
 
 (defn- unsigned-from-be
