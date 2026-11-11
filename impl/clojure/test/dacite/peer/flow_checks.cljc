@@ -1,8 +1,8 @@
 (ns dacite.peer.flow-checks
   "M1.2 slice 2, portable checks (JVM: flow_test.clj, nbb: peer_cljs_test).
    Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.3 (C05, C07, C09,
-   C10, C11, C12), §12.4 (C16), §12.5 (C17, C18), §12.8 (C32), §12.9 (C34, C35,
-   C36), §12.11 (C40, C41); test map in §13.
+   C10, C11, C12), §12.4 (C16), §12.5 (C17, C18), §12.7 (C24, C25), §12.8 (C32),
+   §12.9 (C34, C35, C36), §12.11 (C40, C41); test map in §13.
 
    Same shape as client_checks.cljc: each check returns a vector of problem strings,
    empty when it holds, and `checks` maps the §13 test name to it. Every clock here
@@ -26,6 +26,7 @@
             [dacite.store :as store]
             [dacite.store.chain :as chain]
             [dacite.value :as v]
+            [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
 
 (def ^:private bad cc/bad)
@@ -1694,6 +1695,121 @@
      (bad "the channel was not drained to make room" true
           (>= (get @(:bufs n) 1 0) high)))))
 
+;; =============================================================================
+;; C24, C25: the reveal order
+;; =============================================================================
+
+(defn- order-value
+  "A store and a vector whose elements are each more than one node: a long
+   string (its own pages), a vector of three strings, that long string again,
+   and a map. Built the same way each call. {:st :root :elems}"
+  []
+  (let [st (store/mem-store)
+        s1 (v/string st (apply str (repeat 9000 "a")))
+        v2 (apply v/vector st (map #(v/string st (str "e" % (apply str (repeat 300 "z")))) (range 3)))
+        m3 (v/map st "k" (v/string st (apply str (repeat 500 "m"))) "j" (v/i64 st 4))
+        elems [s1 v2 s1 m3]]
+    {:st st :root (v/hash (apply v/vector st elems)) :elems (mapv v/hash elems)}))
+
+(defn- served-items
+  "The decoded items a responder over `st` sends on one get of `root`, in
+   order, once the stream has ended."
+  [st root]
+  (let [n (rnet {:st st})]
+    (send-to! n (get-bytes 1 root 10000000))
+    (loop [i 0]
+      (step! n 200)
+      (when (and (seq (responder/open-streams (:r n) "p")) (< i 50))
+        (recur (inc i))))
+    (loop [frames (item-frames n 1) rd (frame/reader 1) out []]
+      (if (empty? frames)
+        out
+        (let [[rd' items] (frame/feed rd (first frames))]
+          (recur (rest frames) rd' (into out (mapcat bin/decode-item-stream items))))))))
+
+(defn- served-order
+  "Hex hashes of `served-items`."
+  [st root]
+  (mapv (comp store/hash->hex :hash) (served-items st root)))
+
+(defn- own-pages
+  "The structural pages of the collection `h` (finger-tree or HAMT nodes),
+   each page and then its structural children in stored order. Elements
+   are not entered. An independent statement of the C24 walk, from
+   `types/child-hashes`."
+  [st h]
+  (letfn [(entry [x] (store/await (store/s-get st x)))
+          (walk [x] (if (re-find #"^(ft|hamt)/" (str (first (entry x))))
+                      (cons x (mapcat walk (types/child-hashes (entry x))))
+                      []))]
+    (vec (mapcat walk (types/child-hashes (entry h))))))
+
+(defn reveal-walks-each-subtree-depth-first
+  "C24: a responder sends the asked value depth-first. The asked node comes
+   first, then the collection's own structural pages, then each element's
+   subtree, whole, in element order. A hash already sent is not sent again,
+   so the repeated string adds nothing. Each element asked alone starts the
+   same way, and the whole order is `dacite.reveal/page-order`."
+  []
+  (let [{:keys [st root elems]} (order-value)
+        hex #(mapv store/hash->hex %)
+        sent (served-order st root)
+        own (hex (own-pages st root))
+        subtrees (mapv #(served-order st %) elems)
+        expected (vec (distinct (concat [(store/hash->hex root)] own (apply concat subtrees))))]
+    (concat
+     (bad "the asked node is first" (store/hash->hex root) (first sent))
+     (bad "the vector has its own pages" true (< 1 (count own)))
+     (bad "then the vector's own pages, each before its children"
+          own (subvec sent 1 (min (count sent) (inc (count own)))))
+     (bad "then each element's subtree, whole, in element order, no hash twice"
+          expected sent)
+     (bad "the repeated element is sent once" (count (distinct sent)) (count sent))
+     (vec (mapcat (fn [e sub]
+                    (let [eown (hex (own-pages st e))]
+                      (bad "an element asked alone: it, then its own pages"
+                           (vec (cons (store/hash->hex e) eown))
+                           (subvec sub 0 (min (count sub) (inc (count eown)))))))
+                  (distinct elems) (distinct subtrees)))
+     (bad "the order is the engine's page-order" (hex (reveal/page-order st root)) sent))))
+
+(defn- permute
+  "`xs` in an order fixed by `seed` (the same on both hosts)."
+  [xs seed]
+  (let [keys (vec (take (count xs) (rest (iterate lcg seed))))]
+    (mapv second (sort-by first (map vector keys xs)))))
+
+(defn reveal-order-is-fixed-and-receiver-accepts-any
+  "C25: the order is fixed, with no shuffling: the same get on the same store
+   sends the same order, and so does the same value built in another store.
+   A receiver does not rely on it: the items of the nested value verify and
+   store all of it forward, reversed and in three fixed shuffles."
+  []
+  (let [{:keys [st root]} (order-value)
+        items (served-items st root)
+        order (mapv (comp store/hash->hex :hash) items)
+        other (order-value)
+        hex-set #(set (map (comp store/hash->hex :hash) %))]
+    (concat
+     (bad "the same get on the same store, the same order" order (served-order st root))
+     (bad "the same value in another store, the same order" order
+          (served-order (:st other) (:root other)))
+     (bad "the stream sends every page" (count (reveal/page-order st root)) (count items))
+     (vec (mapcat (fn [[label items']]
+                    (let [rx (verify/receiver (store/mem-store))
+                          outcome (try (verify/finish! (verify/accept-items! rx items')) :ok
+                                       (catch #?(:clj Throwable :cljs :default) e
+                                         (or (:reason (ex-data e)) (ex-message e))))]
+                      (concat
+                       (bad (str label ": accepted") :ok outcome)
+                       (bad (str label ": all stored") (hex-set items)
+                            (hex-set (filter #(store/await (store/s-get (:store rx) (:hash %))) items))))))
+                  [["forward" items]
+                   ["reversed" (vec (reverse items))]
+                   ["shuffle 1" (permute items 1)]
+                   ["shuffle 2" (permute items 2)]
+                   ["shuffle 3" (permute items 3)]])))))
+
 (def checks
   "Test name (spec §13) -> check. Run order is this order."
   (array-map
@@ -1727,7 +1843,9 @@
    "get-interest-is-clamped-by-the-responder" get-interest-is-clamped-by-the-responder
    "too-many-streams-is-refused-and-a-closed-slot-frees" too-many-streams-is-refused-and-a-closed-slot-frees
    "max-streams-above-64-is-read-as-64" max-streams-above-64-is-read-as-64
-   "item-over-max-item-is-refused-before-buffering" item-over-max-item-is-refused-before-buffering))
+   "item-over-max-item-is-refused-before-buffering" item-over-max-item-is-refused-before-buffering
+   "reveal-walks-each-subtree-depth-first" reveal-walks-each-subtree-depth-first
+   "reveal-order-is-fixed-and-receiver-accepts-any" reveal-order-is-fixed-and-receiver-accepts-any))
 
 (def max-ms
   "No check may take longer than this (milliseconds)."

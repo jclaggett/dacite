@@ -1406,7 +1406,7 @@ violations) wrote the ones marked "(exists, slice 2)": portable checks in
 `impl/clojure/test/dacite/peer/flow_checks.cljc`, run on the JVM by `flow_test.clj` and
 on nbb by `npm run peer:test`, against `dacite.peer.rates`, `bucket`, `responder`
 and the changed `client`, on simulated clocks. C05, C07, C09, C11, C12 and C32
-exist. The rows still marked planned (C06, C08, and the rest) stay planned.
+exist. C24 and C25 (`reveal-walks-each-subtree-depth-first`, `reveal-order-is-fixed-and-receiver-accepts-any`) were added later to `flow_checks.cljc`. The rows still marked planned (C06, C08, and the rest) stay planned.
 
 | Id | Status | MUST (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
@@ -1431,8 +1431,8 @@ exist. The rows still marked planned (C06, C08, and the rest) stay planned.
 | C21 | Decided | Record capped at 16 384 (oldest out); no wire message removes one hash | `record-is-capped-oldest-first` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
 | C22 | Decided | Client verifies everything; may re-request a missing hash | `a-get-of-a-recorded-hash-is-sent-and-verified` (exists, M4.2: a `get` of a recorded hash, C20) | JVM, nbb peer | M4.2 (exists) |
 | C23 | Decided | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-of-an-unknown-hash-is-ignored` (N10, engine, M4.1). `ack-is-optional-and-unknown-hashes-are-ignored` (wire, M4.2) | JVM, nbb peer | M4.1 engine; M4.2 wire (exists) |
-| C24 | Decided | Reveal walks each subtree depth-first, asked node first | `reveal-walks-each-subtree-depth-first` | JVM, nbb peer | M2.2 |
-| C25 | Decided | Fixed order, no shuffle; receiver never relies on it | `reveal-order-is-fixed-and-receiver-accepts-any` | JVM, nbb peer | M2.2 |
+| C24 | Decided | Reveal walks each subtree depth-first, asked node first | `reveal-walks-each-subtree-depth-first` (exists: a responder serves a vector of a long string, a vector of strings, the string again and a map; the asked node, then its own pages as `types/child-hashes` gives them, then each element's subtree in element order, the repeat sent once; each element asked alone starts the same way; it is `page-order`) | JVM, nbb peer | M2.2 (exists) |
+| C25 | Decided | Fixed order, no shuffle; receiver never relies on it | `reveal-order-is-fixed-and-receiver-accepts-any` (exists: the same get twice, and the same value in another store, give the same order; the served items verify and store all of the value forward, reversed and in three fixed shuffles) | JVM, nbb peer | M2.2 (exists) |
 | C26 | Decided | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
 | C27 | Decided | Verify every item from its own bytes before it is stored | `every-item-stream-fixture-verifies` and `tampering-is-refused` (exist); `nothing-unverified-reaches-the-store` (exists, slice 1) | JVM, nbb peer; browser after M5.1 | M1.2 s1 (exists) |
 | C28 | Decided | Literal rebuilt in a scratch store; a `ref` inside is bad-item | `a-run-of-refs-is-a-ref` (exists); `literal-hash-mismatch-is-refused` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |
