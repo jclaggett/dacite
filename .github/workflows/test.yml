@@ -15,7 +15,7 @@ concurrency:
 jobs:
   nbb:
     name: nbb
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +50,7 @@ jobs:
 
       # shadow-cljs.edn uses :deps, so peer:build and browser:test start
       # the compiler with the `clojure` executable. The suites above do not.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -69,8 +69,39 @@ jobs:
 
       # M5.2. Chromium only. Safari and Firefox are a one-time hand check;
       # the steps are in docs/plan/peering.md under M5.2.
+      #
+      # Hosted runners list azure.archive.ubuntu.com first in
+      # /etc/apt/apt-mirrors.txt (priority:1, then archive.ubuntu.com,
+      # then security.ubuntu.com). When that name does not resolve, apt
+      # reports "Temporary failure resolving 'azure.archive.ubuntu.com'"
+      # for every fetch and Playwright exits 100. Drop Azure only in that
+      # case; leave the list alone when it resolves.
+      - name: Drop Azure apt mirror if it does not resolve
+        run: |
+          if getent hosts azure.archive.ubuntu.com; then
+            echo "azure.archive.ubuntu.com resolves; leaving apt mirrors unchanged"
+          else
+            echo "azure.archive.ubuntu.com did not resolve; dropping it from apt mirrors"
+            printf 'http://archive.ubuntu.com/ubuntu/\tpriority:1\nhttps://security.ubuntu.com/ubuntu/\tpriority:2\n' \
+              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+            sudo apt-get update
+          fi
+
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          attempt=1
+          while [ "$attempt" -le 3 ]; do
+            if npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Playwright install failed after 3 attempts"
+              exit 1
+            fi
+            echo "Playwright install failed (attempt ${attempt}/3); retrying in 10s"
+            sleep 10
+            attempt=$((attempt + 1))
+          done
 
       - name: Browser to nbb peer
         run: npm run peer:e2e
