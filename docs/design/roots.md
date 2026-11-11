@@ -65,11 +65,11 @@ Notes on the sketch:
 ## The suggest flow
 
 ```
-suggester (trusted peer)                       server (root authority)
+suggester (trusted peer)                       peer (publishes the root)
   |-- dacite-roots: root-suggest {R, base} --->|
   |                                            |  trust: allowed? rate ok? size/quota budget ok?
   |<-- root-suggest-result {pulling} ----------|  (base is NOT checked yet)
-  |<== dacite-peer: get R  (the server is the client here) ==|
+  |<== dacite-peer: get R  (that peer is the client here) ==|
   |=== item-stream: R's entries ==============>|  every entry verified before store (C27 to C33);
   |                                            |  a bad entry ends the peer session (C13)
   |                                            |  closure check: R is fully stored and verified
