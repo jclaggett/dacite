@@ -83,6 +83,15 @@
 (deftest stream-state-is-forgotten-by-its-lifetime-bound
   (run-check "stream-state-is-forgotten-by-its-lifetime-bound"))
 
+(deftest stream-ends-partial-when-interest-falls-below-floor
+  (run-check "stream-ends-partial-when-interest-falls-below-floor"))
+
+(deftest floor-sends-fin-partial-when-blocked-or-credit-runs-out
+  (run-check "floor-sends-fin-partial-when-blocked-or-credit-runs-out"))
+
+(deftest cancel-stops-and-frees-share-and-is-never-required
+  (run-check "cancel-stops-and-frees-share-and-is-never-required"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)
