@@ -4,14 +4,17 @@
      npm run reveal:test
 
    The cases are the pure functions in `reveal_test.clj` (page order,
-   omit-sent, interest, shares, next-reveal), the three session-clock
-   cases that depend on `next-up` and the exponential integral, and the
+   omit-sent, interest, shares, next-reveal), a lone decay at tau 1, and the
    M4.1 session checks (duplicate request, pause, over-budget page,
-   focused child, unknown ack)."
+   focused child, unknown ack). The session clock, stall, re-ask, cancel,
+   sent-once, and bound checks are `dacite.reveal-checks`, shared with the
+   JVM."
   (:require [clojure.string :as str]
             [dacite.reveal :as reveal]
+            [dacite.reveal-checks :as reveal-checks]
             [dacite.reveal.session-checks :as session-checks]
             [dacite.store :as store]
+            [dacite.store.check :as check]
             [dacite.value :as v]
             [dacite.value.finger-tree :as ft]
             [dacite.value.hamt :as hamt]
@@ -229,39 +232,6 @@
     (near! (:only sh) (* 100.0 (js/Math.exp -1.0))
            "a lone reveal decays from the ceiling")))
 
-(defn- floor-at-a-power-of-two
-  []
-  (let [s (store/mem-store)
-        ha (v/hash (v/i64 s 1))
-        hb (v/hash (v/i64 s 2))
-        params {:peak 1.0 :tau 1.0 :floor (js/Math.exp -1.0) :r-max 1.0}
-        a (reveal/open-reveal (reveal/session) s ha 0 params)
-        b (reveal/open-reveal (:session a) s hb 0.5 params)
-        at-one (reveal/take-pages (:session b) s 1.0 params)
-        credit (fn [sess id]
-                 (:credit (first (filter #(= id (:id %))
-                                         (:reveals sess)))))
-        c1 (credit (:session at-one) (:id b))
-        later (reveal/take-pages (:session at-one) s 2.0 params)
-        c2 (credit (:session later) (:id b))]
-    (when-not (> c2 (+ c1 1.0e-6))
-      (fail! "the floor at t = 1 must not stop the other reveal"
-             {:before c1 :after c2}))))
-
-(defn- page-is-later-than-the-constant-rate
-  []
-  (let [s (store/mem-store)
-        h (v/hash (v/i64 s 42))
-        n (double (reveal/page-bytes s h))
-        params {:peak 1.0 :tau 100.0 :floor 0.0 :r-max n}
-        opened (reveal/open-reveal (reveal/session) s h 0 params)
-        short (reveal/take-pages (:session opened) s 1.0 params)
-        at (* -100.0 (js/Math.log (- 1.0 (/ 1.0 100.0))))
-        due (reveal/take-pages (:session short) s at params)]
-    (eq! (count (:pages short)) 0 "constant-rate time is still short")
-    (eq! (count (:pages due)) 1 "the integral reaches the page")
-    (eq! (:hash (first (:pages due))) h "the page is the scalar")))
-
 (defn- session-case
   [f]
   (let [problems (:problems (f))]
@@ -282,17 +252,27 @@
    shares-follow-age-floor-and-cancel
    next-page-goes-to-the-largest-share
    lone-decay
-   floor-at-a-power-of-two
-   page-is-later-than-the-constant-rate
    #(session-case session-checks/duplicate-request)
    #(session-case session-checks/paused-reveal-ends)
    #(session-case session-checks/page-larger-than-budget)
    #(session-case session-checks/focused-child-receives-offered-pages)
    #(session-case session-checks/ack-ignores-unknown)])
 
+(def ^:private env
+  "Host pieces the shared checks take (see dacite.reveal-checks)."
+  {:encode-page reveal/encode-page})
+
 (defn -main
   [& _]
   (doseq [c cases]
     (c))
+  (let [rows (mapv #(check/run-one reveal-checks/checks env %)
+                   (sort (keys reveal-checks/checks)))
+        bad (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) rows)
+        slowest (apply max-key :ms rows)]
+    (println (str "reveal checks: " (count rows) " tests, " (count bad) " problems, slowest "
+                  (:ms slowest) " ms (" (:name slowest) ")"))
+    (doseq [p bad] (println "  FAIL" p))
+    (when (seq bad) (js/process.exit 1)))
   (println "reveal cljs tests passed")
   (println (str (count cases) " cases")))

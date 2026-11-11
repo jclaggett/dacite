@@ -8,7 +8,7 @@ How to update: tick the item and add the PR number when it merges.
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM service's `handle-request`, so sharing it needs that fetch as a host piece; the 17 `reveal_test` deftests absent from `reveal:test`; or more of `literal_limits_test`. What is left of `core_test` is JVM only unless `convert.clj` is ported (its `dacite.convert` tests would come with it). `value/serial_test` (27) tests the legacy `.clj` codec and goes with `value/serial.clj` (see below).
+Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM service's `handle-request`, so sharing it needs that fetch as a host piece; the last `reveal_test` deftest, after the reveal session keys its sets by `host/hash-key`; or more of `literal_limits_test`. What is left of `core_test` is JVM only unless `convert.clj` is ported (its `dacite.convert` tests would come with it). `value/serial_test` (27) tests the legacy `.clj` codec and goes with `value/serial.clj` (see below).
 
 ## Done
 
@@ -16,7 +16,7 @@ Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM
 - [x] [done] LRU store on nbb. `npm run lru:test`. #53. `store/lru_checks.cljc`
 - [x] [done] IndexedDB, including a rooted swap. `npm run idb:test`. `store/idb_test.cljs`
 - [x] [done] File, LMDB, and IDB durable contract on nbb. `npm run store:test`. #35. `store/nbb.cljs`, `store/nbb/lmdb.cljs`
-- [x] [done] Reveal subset, 19 cases. `npm run reveal:test`. #38 #39. `reveal_cljs_test.cljs`
+- [x] [done] Reveal subset, 18 cases. `npm run reveal:test`. #38 #39. `reveal_cljs_test.cljs`
 - [x] [done] Peer fixtures, client, flow, async, mem transport, cache. `npm run peer:test`. #19 #22 #23 #25 #28
 - [x] [done] C05 and C07, and a mid-item or blocked end at the deadline. #55. `floor-sends-fin-partial-when-blocked-or-credit-runs-out` in `peer/flow_checks.cljc` (`peer:test`). `stream-ends-partial-when-interest-falls-below-floor` uses a 210-item value at a lower `recv-max` (about 0.7 s on nbb, was about 1.8 s on a late store)
 - [x] [done] C09 `get-interest-is-clamped-by-the-responder`. #58. `peer/flow_checks.cljc` (`peer:test`)
@@ -55,7 +55,7 @@ Next up: a Peering or Tests item. `peer/origin_test` (3) fetches through the JVM
 
 ## Tests
 
-- [ ] [not started] 17 `reveal_test.clj` deftest are absent from `reveal:test` (stall, re-ask, cancel, clock, encode-once, bounds)
+- [ ] [in progress] 17 `reveal_test.clj` deftest were absent from `reveal:test` (stall, re-ask, cancel, clock, encode-once, bounds). 16 are `reveal_checks.cljc` (`reveal:test`), all shared; the page encoder is a host piece (`dacite.service.reveal` on the JVM). Their nbb copies `floor-at-a-power-of-two` and `page-is-later-than-the-constant-rate` are gone. JVM only for now: `a-hash-already-sent-is-not-sent-again`, because on nbb a reveal of a value of more than 8 pages throws: the session's walk (`pull-page`'s `:seen`, and `:sent`, `:offered`, `:owner`) keeps raw hashes in sets and maps, where `page-order` uses `host/hash-key`. The fix is a production change, not made yet
 - [ ] [not started] Example `*_test.clj`, `core_boundary_test.clj`, `dev/inspect_test.clj`, `bench/*_test.clj`
 - [ ] [not started] `service_test.clj`, `service/reveal_test.clj`, `service/throttle_test.clj`, `json_test.clj`
 
