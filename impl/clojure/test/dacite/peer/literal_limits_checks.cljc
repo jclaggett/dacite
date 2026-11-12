@@ -18,6 +18,7 @@
             [dacite.peer.items :as items]
             [dacite.peer.msg :as msg]
             [dacite.rooted.gc :as gc]
+            [dacite.reveal :as reveal]
             [dacite.store :as store]
             [dacite.store.bound :as bound]
             [dacite.store.check :refer [is testing]]
@@ -394,8 +395,32 @@
    :inner-map  the large map shape of
                `an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item`
                (JVM [150 40]: on nbb its 350 inner nodes take about 6 s to
-               rebuild; at [30 40] it is still a HAMT of several levels)"
-  {:inner-map [30 40]})
+               rebuild; at [30 40] it is still a HAMT of several levels)
+   :leaf-strings  the vector of short strings in
+               `the-leaf-page-budget-is-4-kib-and-bounds-every-page` (JVM 3000,
+               about 6.8 s on nbb; 500 still makes several full pages)
+   :blob-run   the long run in `a-blob-in-a-vector-has-a-literal-that-round-trips`
+               (JVM 700, about 6 s on nbb; 100 still spans three pages)
+   :nth-ints   [count indices probe] for the i64 vector in
+               `nth-reads-inside-the-page-without-interning-its-elements`
+               (JVM [3000 [0 1 511 512 513 1500 2999] 2000]; 900 still
+               crosses the page edge at 512)
+   :nth-strings  [count indices] for its vector of strings (JVM [800 [0 17 400 799]])
+   :appends    the `v/conj` count in `a-page-is-not-recounted-for-every-element`
+               (JVM 3000, about 7 s on nbb; 600 recounted every element would
+               still be 6 times the limit of 100)
+   :one-byte-run  elements per case in
+               `alternating-one-byte-kinds-stay-in-a-minimum-frame` (JVM 3000,
+               about 1.8 s a case on nbb). At 1000 the min-frame stream
+               is node items and literals, as on the JVM; at 800 or fewer the
+               whole value is one literal, which nbb takes longer to build"
+  {:inner-map [30 40]
+   :leaf-strings 500
+   :blob-run 100
+   :nth-ints [900 [0 1 511 512 513 899] 700]
+   :nth-strings [150 [0 17 149]]
+   :appends 600
+   :one-byte-run 1000})
 
 (def one-byte-kinds
   "Kinds that are one byte (or two) of body: the ones whose page size was
@@ -582,6 +607,109 @@
         (is (not (some #{big-key} @built))
             "neither the string, nor (through the vector) a form of it")))))
 
+(defn the-leaf-page-budget-is-4-kib-and-bounds-every-page
+  [env]
+  (is (= 4096 lit/page-budget))
+  (testing "a string of 20 000 characters: every node item near the budget"
+    (let [st (store/mem-store)
+          h (v/hash (v/string st (apply str (repeat 20000 \a))))
+          order (reveal/page-order st h)
+          sizes (map #(bin/byte-len (reveal/encode-page st {:hash %})) order)]
+      (is (< 3 (count order)))
+      (is (<= (apply max sizes) frame/max-node-item-bytes))
+      (is (< 4096 (apply max sizes)) "and a full page is about 4 KiB, not 1")))
+  (testing "a vector of 3000 short strings"
+    (let [st (store/mem-store)
+          h (v/hash (apply v/vector st (map #(v/string st (str "s" %))
+                                            (range #?(:clj 3000 :cljs (:leaf-strings nbb-cases))))))
+          sizes (map #(bin/byte-len (reveal/encode-page st {:hash %})) (reveal/page-order st h))]
+      (is (<= (apply max sizes) frame/max-node-item-bytes)))))
+
+;; JUSTIFICATION for the time (rule: a check over about 1.5 s needs one): about
+;; 1.7 s on nbb even at 100 blobs (`nbb-cases`): building the vector and
+;; verifying the stream, at the nbb cost of #63. Its nbb ceiling is in `slow-ms`.
+(defn a-blob-in-a-vector-has-a-literal-that-round-trips
+  ;; The small blobs are `a-small-blob-in-a-vector-has-a-literal-that-round-trips`.
+  ;; This is the long run: 700 blobs on the JVM, fewer on nbb (`nbb-cases`).
+  [env]
+  (testing "a long run of blobs reveals and verifies"
+    (let [st (store/mem-store)
+          h (v/hash (apply v/vector st (map #(v/blob st (bytes-of (+ 1 (mod % 40)))) (range #?(:clj 700 :cljs (:blob-run nbb-cases))))))
+          {:keys [items]} (items/encode-value st h)
+          rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
+                                                      (frame/concat-bytes items))))]
+      (is (some? (store/await (store/s-get (:store rx) h)))))))
+
+(defn nth-reads-inside-the-page-without-interning-its-elements
+  [env]
+  (let [[n-ints int-at int-probe] #?(:clj [3000 [0 1 511 512 513 1500 2999] 2000]
+                                     :cljs (:nth-ints nbb-cases))
+        [n-strs strs-at] #?(:clj [800 [0 17 400 799]] :cljs (:nth-strings nbb-cases))
+        st (store/mem-store)
+        text (apply str (map #(char (+ 97 (mod % 26))) (range 9000)))
+        s (v/string st text)
+        vec-of (apply v/vector st (map #(v/i64 st %) (range n-ints)))
+        blob (v/blob st (bytes-of 9000))
+        strs (apply v/vector st (map #(v/string st (str "item " %)) (range n-strs)))]
+    (testing "same elements as the sequence, at the page edges and between"
+      (doseq [i [0 1 4095 4096 4097 8999]]
+        (is (= (nth text i) (v/realize (v/nth s i))) (str "string " i)))
+      (doseq [i int-at]
+        (is (= i (v/realize (v/nth vec-of i))) (str "vector " i)))
+      (doseq [i [0 4095 4096 8999]]
+        (is (= (bit-and 0xff (aget ^bytes (bytes-of 9000) i))
+               (bit-and 0xff (v/realize (v/nth blob i))))
+            (str "blob " i)))
+      (doseq [i strs-at]
+        (is (= (str "item " i) (apply str (v/realize (v/nth strs i)))) (str "strings " i))))
+    (testing "no element of the page is interned to answer"
+      (let [interned (atom 0)
+            real lit/intern-lit-item!]
+        (with-redefs [lit/intern-lit-item! (fn [& args] (swap! interned inc) (apply real args))]
+          (v/realize (v/nth s 5000))
+          (v/realize (v/nth vec-of int-probe))
+          (is (<= @interned 2) "one element a call, not the page"))))))
+
+(defn a-page-is-not-recounted-for-every-element
+  [env]
+  (let [real lit/payload-bytes
+        calls (atom 0)
+        st (store/mem-store)]
+    (with-redefs [lit/payload-bytes (fn [b] (swap! calls inc) (real b))]
+      (let [n #?(:clj 3000 :cljs (:appends nbb-cases))
+            h (v/hash (reduce (fn [c i] (v/conj c (v/char st (char (+ 97 (mod i 26))))))
+                              (v/vector st) (range n)))]
+        (is (some? h))
+        (is (< @calls 100) (str @calls " recounts for " n " appends"))))))
+
+;; JUSTIFICATION for the time (rule: a check over about 1.5 s needs one): about
+;; 4.5 s on nbb: six cases, each a 1000-element vector (about 0.5 s to build,
+;; #63) and a min-frame stream. Fewer elements make the stream one literal,
+;; which is slower and no longer the JVM's shape (`nbb-cases`). Its nbb
+;; ceiling is in `slow-ms`.
+(defn alternating-one-byte-kinds-stay-in-a-minimum-frame
+  ;; The review's cases: 6 000 elements of two kinds, one at a time. A node
+  ;; item was 8 261 bytes for u8/char, over the minimum frame's cap of 8 149.
+  ;; The JVM builds 3000 of each; nbb fewer (`nbb-cases`).
+  [env]
+  (doseq [[label kinds len] [["u8/char" [:u8 :char] 1] ["char/bool" [:char :bool] 1]
+                             ["u8/greek" [:u8 :greek] 1] ["bool/greek" [:bool :greek] 1]
+                             ["char/null" [:char :null] 1] ["u8/bool x2" [:u8 :bool] 2]]]
+    (let [st (store/mem-store)
+          h (build st [:one-byte [kinds len #?(:clj 3000 :cljs (:one-byte-run nbb-cases))]])
+          sizes (map #(bin/byte-len (reveal/encode-page st {:hash %})) (reveal/page-order st h))]
+      (is (<= (apply max sizes) frame/max-node-item-bytes) label)
+      (is (empty? (:oversized (items/encode-value
+                               st h {:max-frame-bytes frame/min-max-frame})))
+          label))))
+
+(def slow-ms
+  "nbb ceilings above `check/max-ms`, each with a JUSTIFICATION on its check.
+   The JVM runs every check under `check/max-ms`."
+  #?(:clj {}
+     :cljs {"a-blob-in-a-vector-has-a-literal-that-round-trips" 3500
+            "alternating-one-byte-kinds-stay-in-a-minimum-frame" 9000}))
+
 (def checks
   {"string-and-blob-payload-counts-their-length-plus-framing" string-and-blob-payload-counts-their-length-plus-framing
    "runs-of-strings-and-blobs-chunk-within-the-budget" runs-of-strings-and-blobs-chunk-within-the-budget
@@ -605,4 +733,9 @@
    "a-64-kb-blob-encodes-in-seconds-not-minutes" a-64-kb-blob-encodes-in-seconds-not-minutes
    "an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item" an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item
    "a-node-whose-stored-size-is-over-the-cap-is-not-walked-for-a-bound" a-node-whose-stored-size-is-over-the-cap-is-not-walked-for-a-bound
-   "a-string-over-the-cap-is-not-built-to-learn-it" a-string-over-the-cap-is-not-built-to-learn-it})
+   "a-string-over-the-cap-is-not-built-to-learn-it" a-string-over-the-cap-is-not-built-to-learn-it
+   "the-leaf-page-budget-is-4-kib-and-bounds-every-page" the-leaf-page-budget-is-4-kib-and-bounds-every-page
+   "a-blob-in-a-vector-has-a-literal-that-round-trips" a-blob-in-a-vector-has-a-literal-that-round-trips
+   "nth-reads-inside-the-page-without-interning-its-elements" nth-reads-inside-the-page-without-interning-its-elements
+   "a-page-is-not-recounted-for-every-element" a-page-is-not-recounted-for-every-element
+   "alternating-one-byte-kinds-stay-in-a-minimum-frame" alternating-one-byte-kinds-stay-in-a-minimum-frame})

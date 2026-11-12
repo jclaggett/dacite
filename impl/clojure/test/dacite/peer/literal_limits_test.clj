@@ -5,8 +5,17 @@
 
    Most tests are checks in `dacite.peer.literal-limits-checks`, shared with
    nbb (`npm run items:test`); each runs here as a deftest under its old
-   name. The rest stay here: test.check properties, `with-redefs` counts,
-   timings, threads, and the pinned leaf-budget hashes."
+   name. Six stay here, too slow for nbb or JVM-bound:
+   `a-control-value-over-one-payload-fails-at-encode-value` (`msg/encode-value`
+   of 9 to 16 KB, its sizes fixed by the frame sizes: about 6 s on nbb, #63),
+   `value-hashes-do-not-depend-on-the-leaf-budget` (pinned hashes of values of
+   up to 40 000 elements, two passes),
+   `property-pages-and-literals-stay-in-their-caps-and-round-trip` and
+   `the-bound-is-never-below-the-literal-and-a-bound-that-fits-makes-one`
+   (test.check over shapes of up to 3000 elements),
+   `the-bound-fits-means-the-stream-never-needed-a-second-try` (eight shapes at
+   two frame sizes: about 9 s on nbb even at a quarter of the sizes) and
+   `concurrent-page-builds-keep-the-incremental-page-size` (JVM threads)."
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
@@ -15,10 +24,8 @@
             [dacite.peer.items :as items]
             [dacite.peer.msg :as msg]
             [dacite.peer.literal-limits-checks :as checks
-             :refer [build bytes-of literal-round-trips? one-byte-kinds
-                     reachable-hashes text]]
-            [dacite.reveal :as reveal]
-            [dacite.service.reveal :as sr]
+             :refer [build literal-round-trips? one-byte-kinds reachable-hashes
+                     text]]
             [dacite.store :as store]
             [dacite.store.check :as check]
             [dacite.store.bound :as bound]
@@ -50,20 +57,7 @@
   (run-check "runs-of-strings-and-blobs-chunk-within-the-budget"))
 
 (deftest the-leaf-page-budget-is-4-kib-and-bounds-every-page
-  (is (= 4096 lit/page-budget))
-  (testing "a string of 20 000 characters: every node item near the budget"
-    (let [st (store/mem-store)
-          h (v/hash (v/string st (apply str (repeat 20000 \a))))
-          order (reveal/page-order st h)
-          sizes (map #(bin/byte-len (sr/encode-page st {:hash %})) order)]
-      (is (< 3 (count order)))
-      (is (<= (apply max sizes) frame/max-node-item-bytes))
-      (is (< 4096 (apply max sizes)) "and a full page is about 4 KiB, not 1")))
-  (testing "a vector of 3000 short strings"
-    (let [st (store/mem-store)
-          h (v/hash (apply v/vector st (map #(v/string st (str "s" %)) (range 3000))))
-          sizes (map #(bin/byte-len (sr/encode-page st {:hash %})) (reveal/page-order st h))]
-      (is (<= (apply max sizes) frame/max-node-item-bytes)))))
+  (run-check "the-leaf-page-budget-is-4-kib-and-bounds-every-page"))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixes #8: a blob inside a literal page body
@@ -73,45 +67,14 @@
   (run-check "a-small-blob-in-a-vector-has-a-literal-that-round-trips"))
 
 (deftest a-blob-in-a-vector-has-a-literal-that-round-trips
-  ;; The small blobs are `a-small-blob-in-a-vector-has-a-literal-that-round-trips`,
-  ;; shared with nbb. This long run stays here: building the 700-blob
-  ;; vector takes seconds on nbb (#63).
-  (testing "a long run of blobs reveals and verifies"
-    (let [st (store/mem-store)
-          h (v/hash (apply v/vector st (map #(v/blob st (bytes-of (+ 1 (mod % 40)))) (range 700))))
-          {:keys [items]} (items/encode-value st h)
-          rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
-                                                      (frame/concat-bytes items))))]
-      (is (some? (store/await (store/s-get (:store rx) h)))))))
+  (run-check "a-blob-in-a-vector-has-a-literal-that-round-trips"))
 
 ;; ---------------------------------------------------------------------------
 ;; ft-nth reads inside the page
 ;; ---------------------------------------------------------------------------
 
 (deftest nth-reads-inside-the-page-without-interning-its-elements
-  (let [st (store/mem-store)
-        text (apply str (map #(char (+ 97 (mod % 26))) (range 9000)))
-        s (v/string st text)
-        vec-of (apply v/vector st (map #(v/i64 st %) (range 3000)))
-        blob (v/blob st (bytes-of 9000))
-        strs (apply v/vector st (map #(v/string st (str "item " %)) (range 800)))]
-    (testing "same elements as the sequence, at the page edges and between"
-      (doseq [i [0 1 4095 4096 4097 8999]]
-        (is (= (nth text i) (v/realize (v/nth s i))) (str "string " i)))
-      (doseq [i [0 1 511 512 513 1500 2999]]
-        (is (= i (v/realize (v/nth vec-of i))) (str "vector " i)))
-      (doseq [i [0 4095 4096 8999]]
-        (is (= (aget ^bytes (bytes-of 9000) i) (unchecked-byte (v/realize (v/nth blob i))))
-            (str "blob " i)))
-      (doseq [i [0 17 400 799]]
-        (is (= (str "item " i) (apply str (v/realize (v/nth strs i)))) (str "strings " i))))
-    (testing "no element of the page is interned to answer"
-      (let [interned (atom 0)
-            real lit/intern-lit-item!]
-        (with-redefs [lit/intern-lit-item! (fn [& args] (swap! interned inc) (apply real args))]
-          (v/realize (v/nth s 5000))
-          (v/realize (v/nth vec-of 2000))
-          (is (<= @interned 2) "one element a call, not the page"))))))
+  (run-check "nth-reads-inside-the-page-without-interning-its-elements"))
 
 ;; ---------------------------------------------------------------------------
 ;; The literal cap and the literal cache
@@ -284,18 +247,7 @@
   (run-check "the-size-model-is-never-below-the-wire-size"))
 
 (deftest alternating-one-byte-kinds-stay-in-a-minimum-frame
-  ;; The review's cases: 6 000 elements of two kinds, one at a time. A node
-  ;; item was 8 261 bytes for u8/char, over the minimum frame's cap of 8 149.
-  (doseq [[label kinds len] [["u8/char" [:u8 :char] 1] ["char/bool" [:char :bool] 1]
-                             ["u8/greek" [:u8 :greek] 1] ["bool/greek" [:bool :greek] 1]
-                             ["char/null" [:char :null] 1] ["u8/bool x2" [:u8 :bool] 2]]]
-    (let [st (store/mem-store)
-          h (build st [:one-byte [kinds len 3000]])
-          sizes (map #(bin/byte-len (sr/encode-page st {:hash %})) (reveal/page-order st h))]
-      (is (<= (apply max sizes) frame/max-node-item-bytes) label)
-      (is (empty? (:oversized (items/encode-value
-                               st h {:max-frame-bytes frame/min-max-frame})))
-          label))))
+  (run-check "alternating-one-byte-kinds-stay-in-a-minimum-frame"))
 
 (deftest the-node-item-bound-has-room-over-the-page-budget
   (run-check "the-node-item-bound-has-room-over-the-page-budget"))
@@ -321,14 +273,7 @@
   (run-check "payload-after-append-is-the-payload-of-the-appended-body"))
 
 (deftest a-page-is-not-recounted-for-every-element
-  (let [real lit/payload-bytes
-        calls (atom 0)
-        st (store/mem-store)]
-    (with-redefs [lit/payload-bytes (fn [b] (swap! calls inc) (real b))]
-      (let [h (v/hash (reduce (fn [c i] (v/conj c (v/char st (char (+ 97 (mod i 26))))))
-                              (v/vector st) (range 3000)))]
-        (is (some? h))
-        (is (< @calls 100) (str @calls " recounts for 3000 appends"))))))
+  (run-check "a-page-is-not-recounted-for-every-element"))
 
 (deftest concurrent-page-builds-keep-the-incremental-page-size
      ;; The memo of the last page's size is per thread. The four builds run

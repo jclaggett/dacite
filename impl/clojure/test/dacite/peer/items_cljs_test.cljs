@@ -16,7 +16,8 @@
 (defn -main
   [& _]
   (let [rows (concat (checks/run-all)
-                     (map #(check/run-one limits/checks {} %) (keys limits/checks)))
+                     (map #(check/run-one limits/checks {} % (get limits/slow-ms % check/max-ms))
+                          (keys limits/checks)))
         bad (mapcat (fn [{:keys [name problems]}]
                       (map #(str name ": " %) problems))
                     rows)
