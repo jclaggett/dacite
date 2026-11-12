@@ -86,6 +86,26 @@
   (doseq [p problems]
     (println (str "  FAIL " p))))
 
+;; JUSTIFICATION for the time (rule: a check over about 1.5 s needs one): a
+;; peer check seeds the library fixture into the durable store (about 0.45 s
+;; on nbb for file and LMDB), closes and reopens it, then a client fetches and
+;; verifies its 87 nodes over the in-memory transport from that store (about
+;; 0.9 to 1.1 s). The fetch is the check: every item is a framed message and
+;; a verify, about 10 ms each on nbb. Disk I/O is a small part: IndexedDB
+;; (fake-indexeddb, in memory) runs the same fetch in about 0.85 s. On CI the
+;; file peer took 2406 ms and the LMDB peer 1897 ms (#61).
+(def ^:private peer-ceiling-ms
+  "nbb ceilings for the peer checks, about 2x CI. The store checks and the
+   IndexedDB peer stay under 3000 ms."
+  {"file" 5000 "lmdb" 4000})
+
+(defn- over-ceiling
+  "A problem when the `kind` check of `label` took `ms` over its ceiling."
+  [label kind ms]
+  (let [limit (if (= kind "peer") (get peer-ceiling-ms label 3000) 3000)]
+    (when (> ms limit)
+      [(str label " " kind " took " ms " ms, over " limit)])))
+
 (defn- run-one [label backend]
   (let [t0 (now)]
     (-> (checks/store-problems backend)
@@ -95,9 +115,14 @@
                        t1 (now)]
                    (-> (checks/peer-problems backend)
                        (.then (fn [{:keys [problems nodes]}]
-                                (report label "store" store-ms store-problems nil)
-                                (report label "peer" (- (now) t1) problems nodes)
-                                {:problems (into (vec store-problems) problems)}))))))
+                                (let [peer-ms (- (now) t1)
+                                      store-problems (into (vec store-problems)
+                                                           (over-ceiling label "store" store-ms))
+                                      problems (into (vec problems)
+                                                     (over-ceiling label "peer" peer-ms))]
+                                  (report label "store" store-ms store-problems nil)
+                                  (report label "peer" peer-ms problems nodes)
+                                  {:problems (into store-problems problems)})))))))
         (.catch (fn [e]
                   (report label "threw" (- (now) t0) [(str e)] nil)
                   {:problems [(str label " " e)]}))

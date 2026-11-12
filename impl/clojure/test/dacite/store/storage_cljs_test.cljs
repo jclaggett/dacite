@@ -125,6 +125,15 @@
        "  (println \"lens\" (some? (s/lens (s/mem) [\"k\"])))\n"
        "  (println \"cold ok\"))\n"))
 
+;; JUSTIFICATION for the time (rule: a check over about 1.5 s needs one): each
+;; cold start is a child nbb process, so most of its time is harness: node and
+;; nbb starting and loading dacite.store, dacite.value and the store
+;; namespaces from source (about 0.9 s here, 1758 and 1759 ms on CI, #61). The
+;; work it checks, opening and reopening two stores, is a few tens of ms.
+(def ^:private cold-ceiling-ms
+  "nbb ceiling for one cold start, about 2x CI."
+  3500)
+
 (defn- cold-start-problems
   "Run each of `cold-entries` in a fresh nbb process. A `require` inside a
    function is async on nbb, so a store namespace that `dacite.store` only
@@ -145,14 +154,18 @@
                 res (.spawnSync cp (.-execPath js/process)
                                 #js ["node_modules/nbb/cli.js" "-cp" "impl/clojure/src" f]
                                 #js {:encoding "utf8"})
+                ms (- (.now js/Date) t0)
                 out (str (.-stdout res) (.-stderr res))
                 want (cond-> ["file reopens true" "sync copies true" "lens true" "cold ok"]
                        (not skip-lmdb?) (conj "lmdb reopens true"))
                 missing (remove #(.includes out %) want)]
-            (println (str "cold start (" label "): " (- (.now js/Date) t0) " ms"))
-            (when (or (not= 0 (.-status res)) (seq missing))
-              [(str label ": exit " (.-status res) ", missing " (pr-str (vec missing))
-                    "\n" out)])))
+            (println (str "cold start (" label "): " ms " ms"))
+            (cond-> []
+              (or (not= 0 (.-status res)) (seq missing))
+              (conj (str label ": exit " (.-status res) ", missing " (pr-str (vec missing))
+                         "\n" out))
+              (> ms cold-ceiling-ms)
+              (conj (str label ": took " ms " ms, over " cold-ceiling-ms)))))
         cold-entries))
       (finally ((:rm-rf env) dir)))))
 
