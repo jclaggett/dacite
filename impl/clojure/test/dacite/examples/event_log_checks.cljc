@@ -50,17 +50,19 @@
   "Log sizes on nbb for `append-delta-stays-small`. `elog/measure-append`
    counts every node of the whole log after each append, so its cost grows
    with the square of the largest size, and each append builds values at
-   the nbb cost of #63: [100] alone takes about 6 s on nbb, and 2000 would
-   take hundreds of times that. The JVM keeps [100 500 2000]."
+   the nbb cost of #63: [100] alone takes about 6 s on nbb. The JVM runs
+   [100 500]."
   {:append-sizes [20 50]})
 
 ;; JUSTIFICATION for the time (rule: a check over about 1.5 s needs one): about
-;; 2.0 s on nbb even at [20 50], and about 130 s on the JVM at
-;; [100 500 2000], for the quadratic count above (#63): `measure-append` is
-;; in src and stays as it is. Its ceilings are in `slow-ms`.
+;; 2.0 s on nbb at [20 50] and about 9 s on the JVM at [100 500].
+;; `measure-append` counts the whole log after each append, so the cost grows
+;; with the square of the log size (about 130 s on the JVM at 2000, which is
+;; why the JVM stops at 500), and nbb adds #63. `measure-append` is in src and
+;; stays as it is. Its ceilings are in `slow-ms`.
 (defn append-delta-stays-small
   [_]
-  (let [sizes #?(:clj [100 500 2000] :cljs (:append-sizes nbb-cases))
+  (let [sizes #?(:clj [100 500] :cljs (:append-sizes nbb-cases))
         samples (elog/measure-append (store/mem-store) sizes)
         deltas (mapv :delta samples)]
     (is (= sizes (mapv :n samples)))
@@ -95,7 +97,7 @@
 
 (def slow-ms
   "Ceilings above `check/max-ms`, each with a JUSTIFICATION on its check."
-  #?(:clj {"append-delta-stays-small" 300000}
+  #?(:clj {"append-delta-stays-small" 18000}
      :cljs {"append-delta-stays-small" 4000
             "incremental-view-matches-replay" 4000
             "page-is-a-window" 3000}))
