@@ -1820,11 +1820,11 @@
 (defn sessions-share-no-state-except-rmax
   "C42: a bucket, budget, record or clock belongs to one session; only the
    client's own `R_max` is shared. (1) One responder, peers p and q, with a
-   bucket of 6 a session (a smaller burst than the default 40: each get and
-   each error is a message to encode, about 10 ms on nbb). p is served a
+   bucket of 4 a session (a smaller burst than the default 40: each get and
+   each error is a message to encode, 20 to 40 ms on nbb). p is served a
    small value and acks it (its record), asks the 48 KB value at `recv-max`
-   2000 (its budget), and floods 8 gets for hashes not held, past its bucket
-   (rate-limited). q then gets its whole bucket: 2 gets and 4 more, none
+   2000 (its budget), and floods 4 gets for hashes not held, past its bucket
+   (rate-limited). q then gets its whole bucket: 2 gets and 2 more, none
    rate-limited. q's get of the small value sends every page,
    not only the root p's record would leave. Over the next second q's stream
    of the 48 KB value writes at its own 40000 a second while p's writes at
@@ -1838,8 +1838,9 @@
   (let [[st root] (mid-value)
         small (v/hash (v/vector st (v/i64 st 1) (v/i64 st 2) (v/i64 st 3)))
         small-order (mapv store/hash->hex (reveal/page-order st small))
-        burst 6
-        missing (distinct-hashes 12)
+        burst 4
+        flood 4
+        missing (distinct-hashes (+ flood (- burst 2)))
         clock (atom 0) sent (atom [])
         r (h/responder {:store st :now (fn [] @clock)
                         :hello (assoc-in responder/default-hello ["rates" "req-burst"] burst)
@@ -1886,13 +1887,13 @@
                     {:type :ack :stream 0
                      :value {"hashes" (mapv #(msg/hash-ref %) (hashes-of "p" 1))}}))
         _ (to! "p" (get-bytes 3 root 2000 long-life))
-        _ (doseq [[i h] (map-indexed vector (take 8 missing))]
+        _ (doseq [[i h] (map-indexed vector (take flood missing))]
             (to! "p" (get-bytes (+ 5 (* 2 i)) h 2000)))
         p-codes (codes-of "p")
         ;; q: the same requests, its own state
         _ (to! "q" (get-bytes 1 small 10000000))
         _ (to! "q" (get-bytes 3 root 40000 long-life))
-        _ (doseq [[i h] (map-indexed vector (take (- burst 2) (drop 8 missing)))]
+        _ (doseq [[i h] (map-indexed vector (take (- burst 2) (drop flood missing)))]
             (to! "q" (get-bytes (+ 5 (* 2 i)) h 40000)))
         q-codes (codes-of "q")
         t1 @clock
@@ -1917,8 +1918,8 @@
         gets (gets-sent n)
         b-first (some (fn [[_ p m]] (when (= "b" p) (get-in m [:value "recv-max"]))) gets)]
     (concat
-     (bad "p: its flood of 8 is partly rate-limited" true (pos? (get p-codes "rate-limited" 0)))
-     (bad "q: none of its 6 gets is rate-limited, 4 are unknown-hash" {"unknown-hash" (- burst 2)} q-codes)
+     (bad "p: its flood of 4 is partly rate-limited" true (pos? (get p-codes "rate-limited" 0)))
+     (bad "q: none of its 4 gets is rate-limited, 2 are unknown-hash" {"unknown-hash" (- burst 2)} q-codes)
      (bad "q: its get of the small value sends every page, not p's record" small-order q-small)
      (bad "q's stream writes at its own budget, 40000 a second" true (<= 30000 q-rate 40000))
      (bad "p's stream at its budget, about 2000 a second" true (< p-rate (+ 2000 frame-bytes)))
