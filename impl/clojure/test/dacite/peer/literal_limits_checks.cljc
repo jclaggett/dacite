@@ -685,8 +685,8 @@
 ;; JUSTIFICATION for the time (rule: a check over about 1.5 s needs one): about
 ;; 4.5 s on nbb: six cases, each a 1000-element vector (about 0.5 s to build,
 ;; #63) and a min-frame stream. Fewer elements make the stream one literal,
-;; which is slower and no longer the JVM's shape (`nbb-cases`). Its nbb
-;; ceiling is in `slow-ms`.
+;; which is slower and no longer the JVM's shape (`nbb-cases`). CI took
+;; 6.2 s, so its nbb ceiling in `slow-ms` is 12 s (about 2x CI).
 (defn alternating-one-byte-kinds-stay-in-a-minimum-frame
   ;; The review's cases: 6 000 elements of two kinds, one at a time. A node
   ;; item was 8 261 bytes for u8/char, over the minimum frame's cap of 8 149.
@@ -708,7 +708,7 @@
    The JVM runs every check under `check/max-ms`."
   #?(:clj {}
      :cljs {"a-blob-in-a-vector-has-a-literal-that-round-trips" 3500
-            "alternating-one-byte-kinds-stay-in-a-minimum-frame" 9000}))
+            "alternating-one-byte-kinds-stay-in-a-minimum-frame" 12000}))
 
 (def checks
   {"string-and-blob-payload-counts-their-length-plus-framing" string-and-blob-payload-counts-their-length-plus-framing
