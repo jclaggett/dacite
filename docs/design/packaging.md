@@ -58,6 +58,11 @@ Commands: `dacite service install`, `dacite service uninstall`, `dacite service 
 - `lmdb`: already an optional dependency with prebuilds. Without it, fall back to a file or memory store and say so at startup.
 - CI should install the package on each target OS from a packed tarball (`npm pack`) to catch missing prebuilds.
 
+**WASM instead of native prebuilds?** One `.wasm` file runs on every OS and arch, in Node and in the browser, so it could replace per-platform prebuilds where it fits.
+- **Fuse: good fit.** The kernel already sits behind five hex-in, hex-out functions with known-answer vectors (`dacite.hash/kernel`, see [the fuse note](fuse-sl2.md)). A Rust or Zig WASM kernel can drop in for nbb and the browser alike, and must pass the same vectors. Measure the per-call JS-to-WASM cost first; batch whole frames if it eats the gain.
+- **Storage engine: maybe.** LMDB depends on memory-mapped files, which WASM can't do portably. Options: a WASM engine over plain file I/O in Node (for example SQLite's WASM build), with IndexedDB staying the browser store. This would remove the `lmdb` prebuild, at some speed cost. Benchmark against `npm run lmdb:bench` before choosing.
+- **WebRTC: no.** Node has no built-in WebRTC, and WASM can't open UDP sockets. That leaves `node-datachannel` prebuilds or pure-JS `werift`. Lean: wire `werift` as the fallback so a missing prebuild never blocks `npx dacite`.
+
 **Browser bundle build.** shadow-cljs already builds the browser peer (`npm run peer:build`). The library page still uses `cljs.build.api`. Lean: shadow-cljs for every app bundle, and ship the compiled JS in the npm package so users never need Java. The JVM build stays a dev-time tool.
 
 **Pages from elsewhere (https) talking to localhost.** If an https site tries to load code or open a socket to `http://localhost`, it runs into mixed-content rules and Chrome's private/local network access checks (a permission prompt in recent Chrome). Safari is stricter. Behavior varies by browser and keeps changing. Lean: avoid the problem. The local peer serves the whole page, so the page and its peer share one localhost origin. An https-hosted app that wants the local peer is out of scope for v1.
