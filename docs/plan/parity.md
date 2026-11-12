@@ -10,7 +10,7 @@ Scope: parity only has to demonstrate peering parity. The model is that every co
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: the Safari, Firefox, and Mac hand runs of the browser peer (they need Jonathan). Legacy HTTP and post-parity items are not next.
+Next up: the Safari and Firefox hand runs of the browser peer (M6.4 steps; they need Jonathan). Mac + Brave passed Nov 11. Legacy HTTP and post-parity items are not next.
 
 ## Done
 
@@ -64,7 +64,10 @@ Next up: the Safari, Firefox, and Mac hand runs of the browser peer (they need J
 
 ## Hand checks and later
 
-- [ ] [not started] Safari, Firefox, and Mac hand runs of the browser peer. Steps in `docs/plan/peering.md` M5.2. Chromium `peer:e2e` is in CI
+- [ ] [in progress] Hand runs of the browser peer: the M6.4 Value Browser (paste a peer and fetch its hash) over peering only, no HTTP origin. Use the steps in `docs/plan/peering.md` M6.4, not M5.2, which depends on the legacy origin. Chromium `peer:e2e` is in CI
+  - [x] [done] Mac + Brave (Nov 11, 2026, Jonathan): passed. `parity` branch, `browser-nbb` over the room relay, a static server for `examples/web`, Brave launched with `--disable-features=WebRtcHideLocalIpsWithMdns`
+  - [ ] [not started] Safari (after Jonathan's trip)
+  - [ ] [not started] Firefox (after Jonathan's trip)
 - [x] [done] PR #47 is closed. Origin signaling spec, head `58a3b28`
 
 ## Post-parity (out of scope)
