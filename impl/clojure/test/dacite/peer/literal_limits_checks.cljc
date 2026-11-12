@@ -2,7 +2,9 @@
   "Page and literal size limits on the JVM and on nbb: payload sizing of
    strings and blobs, small blobs in a vector (Fixes #8), the literal cap
    and its cache, the hello frame limits, the smallest frame, the size
-   model, the node bound (store.bound) and the first get of a long string.
+   model, the node bound (store.bound), the first get of a long string,
+   the literal cache counts, the bound walk, inner-node fallbacks and the
+   encode times of a long run of u8s and of a 64 KB blob.
    Spec:
    docs/spec/peer-v1.md 3.2. The JVM runs them from
    `dacite.peer.literal-limits-test`, one deftest each under its old name;
@@ -15,6 +17,7 @@
             [dacite.peer.frame :as frame]
             [dacite.peer.items :as items]
             [dacite.peer.msg :as msg]
+            [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.store.bound :as bound]
             [dacite.store.check :refer [is testing]]
@@ -374,6 +377,211 @@
                           true))))]
     (is (:pass? r) (pr-str (:shrunk r)))))
 
+;; ---------------------------------------------------------------------------
+;; The shape builder, the literal cache, the bound walk, encode times
+;; ---------------------------------------------------------------------------
+
+(defn- now-ms
+  "A clock in ms on this host."
+  []
+  #?(:clj (/ (System/nanoTime) 1e6) :cljs (.now js/Date)))
+
+(def nbb-cases
+  "Smaller sizes on nbb, where each element of a vector or map takes about
+   2.5 ms to build and a map literal about 13 ms to rebuild (#63). The JVM
+   keeps the sizes it had.
+
+   :inner-map  the large map shape of
+               `an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item`
+               (JVM [150 40]: on nbb its 350 inner nodes take about 6 s to
+               rebuild; at [30 40] it is still a HAMT of several levels)"
+  {:inner-map [30 40]})
+
+(def one-byte-kinds
+  "Kinds that are one byte (or two) of body: the ones whose page size was
+   under-counted (M1.1a review S1)."
+  [:u8 :char :bool :null :greek :neg])
+
+(defn one-byte-el
+  "Element `i` of the one-byte kind `kind`."
+  [st kind i]
+  (case kind
+    :u8 (v/u8 st (mod i 256))
+    :char (v/char st (char (+ 97 (mod i 26))))
+    :greek (v/char st (char (+ 0x3b1 (mod i 20))))
+    :bool (v/bool st (even? (quot i 2)))
+    :null (v/null st)
+    :neg (v/i64 st (- (inc i)))))
+
+(defn build
+  "Build the shape [kind x] in `st` and return its hash. The checks here
+   name their shapes; the JVM properties draw them."
+  [st [kind x]]
+  (case kind
+    :string (v/hash (v/string st x))
+    :blob (v/hash (v/blob st (bytes-of x)))
+    :strings (v/hash (apply v/vector st (map #(v/string st (apply str (repeat % \s))) x)))
+    :ints (v/hash (apply v/vector st (map #(v/i64 st %) (range x))))
+    :blobs (v/hash (apply v/vector st (map #(v/blob st (bytes-of %)) x)))
+    :map (let [[n sz] x]
+           (v/hash (apply v/map st (mapcat (fn [i] [(str "k" i) (v/string st (apply str (repeat sz \v)))])
+                                           (range n)))))
+    :mixed (v/hash (apply v/vector st
+                          (map (fn [i] (case (mod i 4)
+                                         0 (v/null st)
+                                         1 (v/blob st (bytes-of (mod i 50)))
+                                         2 (v/string st (str "e" i))
+                                         3 (v/i64 st i)))
+                               (range x))))
+    :one-byte (let [[kinds len n] x]
+                (v/hash (apply v/vector st
+                               (map (fn [i] (one-byte-el st (nth kinds (mod (quot i len) (count kinds))) i))
+                                    (range n)))))
+    :nested (v/hash (apply v/vector st
+                           (map (fn [i] (apply v/vector st (map #(v/i64 st %) (range (mod i 9)))))
+                                (range x))))
+    :astral (v/hash (v/string st (apply str (map #(if (even? %) "\uD83D\uDE00" "x") (range x)))))))
+
+(defn reachable-hashes
+  "Every node under `h` (a node once), breadth first."
+  [st h]
+  (loop [q [h] seen #{} out []]
+    (if (empty? q)
+      out
+      (let [x (peek q) q (pop q) k (gc/hash-key x)]
+        (if (contains? seen k)
+          (recur q seen out)
+          (let [e (store/await (store/s-get st x))]
+            (recur (into q (or (types/child-hashes e) [])) (conj seen k) (conj out x))))))))
+
+(defn a-literal-is-built-once-per-hash-per-cache
+  [env]
+  (let [st (store/mem-store)
+        shared (v/string st "the quick brown fox")
+        h (v/hash (apply v/map st (mapcat (fn [i] [(str "k" i) shared]) (range 30))))
+        calls (atom 0)
+        real pack/literal-of]
+    (with-redefs [pack/literal-of (fn [& args] (swap! calls inc) (apply real args))]
+      (let [shared-h (v/hash shared)
+            entry (store/await (store/s-get st shared-h))
+            cache (atom {})]
+        (dotimes [_ 10]
+          (pack/encode-item st shared-h entry {:max-literal 16378 :cache cache}))
+        (is (= 1 @calls) "ten asks, one build")
+        (reset! calls 0)
+        (dotimes [_ 3]
+          (pack/encode-item st shared-h entry {:max-literal 16378}))
+        (is (= 3 @calls) "no cache, no saving")))
+    (testing "encode-value of a value holding it 30 times builds it once"
+      (let [shared-key (vec (v/hash shared))
+            for-shared (atom 0)]
+        (with-redefs [pack/literal-of (fn [s' h' & more]
+                                        (when (= shared-key (vec h')) (swap! for-shared inc))
+                                        (apply real s' h' more))]
+          (items/encode-value st h)
+          (is (= 1 @for-shared) "the shared string is built once"))))))
+
+(defn pack-u8-values-is-linear
+  ;; It indexed a lazy seq with `nth` (O(n) each): 100 000 bytes took 110 s.
+  [env]
+  (let [lits (map (fn [i] {:type "u8" :body (mod i 256)}) (range 100000))
+        t0 (now-ms)
+        packed (@#'lit/pack-u8-values lits)
+        ms (- (now-ms) t0)]
+    (is (= 100000 (alength ^bytes packed)))
+    (is (= [0 1 255 0] (mapv #(bit-and 0xff %) [(aget ^bytes packed 0) (aget ^bytes packed 1)
+                                                 (aget ^bytes packed 255) (aget ^bytes packed 256)])))
+    (is (< ms 1000) (str "took " ms " ms"))))
+
+(defn a-64-kb-blob-encodes-in-seconds-not-minutes
+  ;; 35 s before the fix, about 1 s after: the test rule (a few seconds) holds
+  ;; on a loaded machine only because the work is linear now.
+  [env]
+  (let [st (store/mem-store)
+        h (v/hash (v/blob st (bytes-of 64000)))
+        t0 (now-ms)
+        {:keys [items oversized]} (items/encode-value st h)
+        ms (- (now-ms) t0)
+        rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
+                                                    (frame/concat-bytes items))))]
+    (is (< ms 4000) (str "encode took " ms " ms"))
+    (is (empty? oversized))
+    (is (some? (store/await (store/s-get (:store rx) h))) "the receiver verified and holds it")))
+
+(defn an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item
+  ;; The bound lets a literal through on size. An inner HAMT or finger-tree
+  ;; node may still have a literal that does not rebuild its own hash (it is
+  ;; not the value its entries make). Then the sender sends the node item, as
+  ;; before, and the stream still verifies. This is true of finger-tree nodes.
+  ;; Every HAMT node is canonical for its keys (issue #12), so a HAMT node's
+  ;; literal always rebuilds its hash: the map shapes have no such node.
+  [env]
+  (let [cap (frame/max-literal-item)
+        inner-type? #(re-find #"^(hamt|ft)/" (str (first %)))
+        round-trips? (fn [st x] (try (literal-round-trips? st x) (catch #?(:clj Throwable :cljs :default) _ false)))
+        fallbacks (fn [shape]
+                    (let [st (store/mem-store)
+                          h (build st shape)
+                          cache (atom {})]
+                      {:st st :root h
+                       :nodes (vec (for [x (reachable-hashes st h)
+                                         :let [e (store/await (store/s-get st x))]
+                                         :when (and (inner-type? e)
+                                                    (not= (vec x) (vec h))
+                                                    (some-> (bound/literal-item-bound st x cache)
+                                                            (<= cap))
+                                                    (not (round-trips? st x)))]
+                                     x))}))]
+    (doseq [shape [[:map [13 0]] [:nested 2] [:map #?(:clj [150 40] :cljs (:inner-map nbb-cases))]]
+            :let [{:keys [st root nodes]} (fallbacks shape)]]
+      (testing (pr-str shape)
+        (if (= :map (first shape))
+          (is (empty? nodes) "a HAMT node's literal always rebuilds its hash")
+          (is (seq nodes) "the shape has an inner node whose literal does not round-trip"))
+        (doseq [x nodes
+                :let [item (pack/encode-item st x (store/await (store/s-get st x))
+                                             {:max-literal cap :cache (atom {})})]]
+          (is (= :node (:encoding item)) "the node item, not the literal"))
+        (let [{:keys [items]} (items/encode-value st root)
+              rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
+                                                          (frame/concat-bytes items))))]
+          (is (some? (store/await (store/s-get (:store rx) root))) "and the receiver verifies the value"))))))
+
+(defn a-node-whose-stored-size-is-over-the-cap-is-not-walked-for-a-bound
+  [env]
+  (let [st (store/mem-store)
+        big (v/hash (v/string st (text 6000 7)))
+        small (v/hash (v/string st (text 600 7)))
+        entry #(store/await (store/s-get st %))
+        walked (atom 0)
+        real pack/literal-bound]
+    (with-redefs [pack/literal-bound (fn [& args] (swap! walked inc) (apply real args))]
+      (is (= :node (:encoding (pack/encode-item st big (entry big) {:max-literal 4000 :cache (atom {})}))))
+      (is (zero? @walked) "the stored size-bytes is over the cap: no walk")
+      (is (= :literal (:encoding (pack/encode-item st small (entry small) {:max-literal 4000 :cache (atom {})}))))
+      (is (= 1 @walked) "under the cap the bound is walked")
+      (testing "no cap: the size cue and the budget decide, no bound"
+        (reset! walked 0)
+        (pack/encode-item st small (entry small) {:budget 4096})
+        (is (zero? @walked))))))
+
+(defn a-string-over-the-cap-is-not-built-to-learn-it
+  [env]
+  (let [st (store/mem-store)
+        big (v/string st (text 30000 3))
+        small (v/string st "a")
+        vec-of (v/vector st big small)
+        big-key (vec (v/hash big))
+        built (atom [])
+        real pack/literal-of]
+    (with-redefs [pack/literal-of (fn [s' h' & more]
+                                    (swap! built conj (vec h'))
+                                    (apply real s' h' more))]
+      (let [r (items/encode-value st (v/hash vec-of))]
+        (is (seq (:items r)))
+        (is (not (some #{big-key} @built))
+            "neither the string, nor (through the vector) a form of it")))))
+
 (def checks
   {"string-and-blob-payload-counts-their-length-plus-framing" string-and-blob-payload-counts-their-length-plus-framing
    "runs-of-strings-and-blobs-chunk-within-the-budget" runs-of-strings-and-blobs-chunk-within-the-budget
@@ -391,4 +599,10 @@
    "the-first-get-of-a-long-string-carries-its-first-characters" the-first-get-of-a-long-string-carries-its-first-characters
    "append-item-matches-its-definition" append-item-matches-its-definition
    "utf8-len-is-the-length-of-the-utf8-bytes" utf8-len-is-the-length-of-the-utf8-bytes
-   "payload-after-append-is-the-payload-of-the-appended-body" payload-after-append-is-the-payload-of-the-appended-body})
+   "payload-after-append-is-the-payload-of-the-appended-body" payload-after-append-is-the-payload-of-the-appended-body
+   "a-literal-is-built-once-per-hash-per-cache" a-literal-is-built-once-per-hash-per-cache
+   "pack-u8-values-is-linear" pack-u8-values-is-linear
+   "a-64-kb-blob-encodes-in-seconds-not-minutes" a-64-kb-blob-encodes-in-seconds-not-minutes
+   "an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item" an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item
+   "a-node-whose-stored-size-is-over-the-cap-is-not-walked-for-a-bound" a-node-whose-stored-size-is-over-the-cap-is-not-walked-for-a-bound
+   "a-string-over-the-cap-is-not-built-to-learn-it" a-string-over-the-cap-is-not-built-to-learn-it})
