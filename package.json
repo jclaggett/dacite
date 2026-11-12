@@ -29,6 +29,7 @@
     "reveal:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.reveal-cljs-test",
     "peer:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.peer-cljs-test",
     "items:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.items-cljs-test",
+    "examples:smoke": "npm run -s todo:batch && npm run -s config && npm run -s notes && npm run -s log && npm run -s sync && nbb -m dacite.examples.library",
     "examples:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.examples.examples-cljs-test",
     "webrtc:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.webrtc-cljs-test",
     "webrtc:transfer": "node scripts/webrtc-transfer.mjs",

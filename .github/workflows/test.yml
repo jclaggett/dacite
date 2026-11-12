@@ -88,6 +88,12 @@ jobs:
       - name: Example suite
         run: npm run examples:test
 
+      # The example demo scripts end to end on nbb (todo:batch, config,
+      # notes, log, sync, library) with their file stores under target/.
+      # Each exits nonzero on a failure; about 7 s in all.
+      - name: Example demo scripts
+        run: npm run examples:smoke
+
       # shadow-cljs.edn uses :deps, so peer:build and browser:test start
       # the compiler with the `clojure` executable. The suites above do not.
       - uses: actions/setup-java@v5
