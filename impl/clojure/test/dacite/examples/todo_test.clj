@@ -1,34 +1,29 @@
 (ns dacite.examples.todo-test
-  "Todo domain stays on the public value API; store is s/mem."
+  "The todo domain on the JVM.
+
+   The bodies are `dacite.examples.todo-checks`; nbb runs the same checks
+   (`npm run examples:test`). One deftest each, so the JVM suite still
+   names the test it ran before."
   (:require [clojure.test :refer [deftest is]]
-            [dacite.examples.todo :as todo]
-            [dacite.store :as store]
-            [dacite.value :as v]))
+            [dacite.store.check :as check]
+            [dacite.examples.todo-checks :as checks]))
+
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest seed-and-toggle
-  (let [r (v/root (store/mem))
-        [todos seeded?] (todo/load-or-seed! r)]
-    (is (true? seeded?))
-    (is (= 5 (v/count todos)))
-    (is (= "write portable host layer" (todo/title-str (v/nth todos 0))))
-    (is (true? (todo/done? (v/nth todos 0))))
-    (let [todos' (v/swap! r todo/add-todo "milk")]
-      (is (= 6 (v/count todos')))
-      (is (= "milk" (todo/title-str (v/nth todos' 5))))
-      (is (false? (todo/done? (v/nth todos' 5))))
-      (is (= (v/hash todos') (v/hash (v/deref r)))))
-    (let [todos' (v/swap! r todo/toggle-at 5)]
-      (is (true? (todo/done? (v/nth todos' 5)))))))
+  (run-check "seed-and-toggle"))
 
 (deftest file-reopen-same-hash
-  (let [dir (str "target/dacite-todo-test-" (System/nanoTime))]
-    (try
-      (let [r1 (v/root (todo/open-store dir))]
-        (todo/load-or-seed! r1)
-        (v/swap! r1 todo/add-todo "persist me")
-        (let [h1 (v/hash (v/deref r1))
-              r2 (v/root (todo/open-store dir))]
-          (is (= h1 (v/hash (v/deref r2))))
-          (is (= "persist me" (todo/title-str (v/nth (v/deref r2) 5))))))
-      (finally
-        (todo/reset-store-dir! dir)))))
+  (run-check "file-reopen-same-hash"))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.examples.todo-test)))))
+               "every-check-has-a-deftest"))
+      "examples/todo_checks.cljc and this file list the same tests"))

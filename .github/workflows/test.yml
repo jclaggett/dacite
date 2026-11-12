@@ -83,6 +83,11 @@ jobs:
       - name: Hash suite
         run: npm run hash:test
 
+      # The portable example tests (browser_uri, hello, todo, config, notes)
+      # on mem and nbb file stores.
+      - name: Example suite
+        run: npm run examples:test
+
       # shadow-cljs.edn uses :deps, so peer:build and browser:test start
       # the compiler with the `clojure` executable. The suites above do not.
       - uses: actions/setup-java@v5

@@ -10,7 +10,7 @@ Scope: parity only has to demonstrate peering parity. The model is that every co
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: a Peering or Tests item: more of `literal_limits_test`, or the example `*_test.clj` and `core_boundary_test.clj`. Legacy HTTP and post-parity items are not next.
+Next up: a Peering or Tests item: more of `literal_limits_test`, or the rest of the example `*_test.clj` (library and sync, then event log and explorer). Legacy HTTP and post-parity items are not next.
 
 ## Done
 
@@ -56,7 +56,7 @@ Next up: a Peering or Tests item: more of `literal_limits_test`, or the example 
 ## Tests
 
 - [x] [done] 17 `reveal_test.clj` deftest were absent from `reveal:test` (stall, re-ask, cancel, clock, encode-once, bounds). All 17 are `reveal_checks.cljc` (`reveal:test`), shared; the page encoder is a host piece (`dacite.service.reveal` on the JVM). Their nbb copies `floor-at-a-power-of-two` and `page-is-later-than-the-constant-rate` are gone. Sharing them found an nbb bug: a reveal of more than 8 pages threw, because the session keyed its sets and maps by raw hash (a set cannot hash a BigInt); they are now keyed by `host/hash-key`
-- [ ] [not started] Example `*_test.clj`, `core_boundary_test.clj`
+- [ ] [in progress] Example `*_test.clj`. `npm run examples:test`: `examples/browser_uri_checks.cljc` (4), `hello_checks.cljc` (1), `todo_checks.cljc` (2), `config_checks.cljc` (3) and `notes_checks.cljc` (5), all shared, on mem and nbb file stores. Covered elsewhere: `hello_test/parity-hash-is-stable` (`parity:test` checks `canonical-hex` against the golden hash, case `canonical`). JVM only: `config_test/two-remote-clients-same-hash` (the HTTP service and `store/remote`, legacy HTTP); `cards_test` (5) goes with `examples/cards.clj` (JVM-only, below). Not started: `library_test`, `sync_test`, `event_log_test`, `explorer_test`
 
 ## CLI and runtime
 
@@ -73,7 +73,7 @@ Not parity work: every future Dacite app should be buildable with nbb alone, and
 
 - [ ] [not started] Peering phase 2: ICE discovery for peer lists, after the roots layer (`docs/plan/peering.md`)
 - [ ] [not started] `.clj` only: `value/render.clj`, `value/serial.clj` (legacy codec; portable codec is `wire/binary.cljc`), `convert.clj`. With them, their remaining JVM value tests: the native-interface and `dacite.convert` deftests of `core_test`, and `value/serial_test` (27), which tests the legacy `.clj` codec
-- [ ] [not started] JVM tools: `gen_fuse_fixtures`, `gen_peer_fixtures`, `gen_wire_fixtures`, `gen_byte_table`, `gen_sl2_table`, `inspect`, `time_tests`, `bench_cp`, `page_size_bench`, `page_size_degenerate`, `bench/library_storage.clj`, `bench/todo_bw.clj`. With them, `dev/inspect_test.clj` and `bench/*_test.clj`
+- [ ] [not started] JVM tools: `gen_fuse_fixtures`, `gen_peer_fixtures`, `gen_wire_fixtures`, `gen_byte_table`, `gen_sl2_table`, `inspect`, `time_tests`, `bench_cp`, `page_size_bench`, `page_size_degenerate`, `bench/library_storage.clj`, `bench/todo_bw.clj`. With them, `dev/inspect_test.clj`, `bench/*_test.clj` and `core_boundary_test.clj` (10, a lint of the source tree against `docs/design/core-boundary.md`)
 - [ ] [not started] Production change, its own PR: when a client `get` reaches `tau · ln(peak / floor)` without finishing, the client drops the stream and sends the `get` again (C08, C10). Not part of parity
 
 ## JVM-only, outside peering scope

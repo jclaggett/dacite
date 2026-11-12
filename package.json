@@ -29,6 +29,7 @@
     "reveal:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.reveal-cljs-test",
     "peer:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.peer-cljs-test",
     "items:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.items-cljs-test",
+    "examples:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.examples.examples-cljs-test",
     "webrtc:test": "nbb -cp impl/clojure/src:impl/clojure/test -m dacite.peer.webrtc-cljs-test",
     "webrtc:transfer": "node scripts/webrtc-transfer.mjs",
     "webrtc:signal": "node scripts/webrtc-signal-server.mjs",
