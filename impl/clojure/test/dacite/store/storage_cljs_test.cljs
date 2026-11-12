@@ -8,6 +8,10 @@
    (`dacite.store.nbb.lmdb`). The JVM runs the same checks from
    `dacite.store-test` and `dacite.store.format-test`.
 
+   It also opens the stores in a fresh nbb process (`cold-start-problems`):
+   the runner loads every namespace up front, which hid that `store/file`
+   threw on a cold start.
+
    The LMDB checks need the `lmdb` addon. When it does not load, this
    reports a skip and exits 2, as `store:test` does."
   (:require [dacite.host :as host]
@@ -88,10 +92,77 @@
     (doseq [p bad] (println "  FAIL" p))
     (count bad)))
 
+;; =============================================================================
+;; Cold start: the stores open in a fresh nbb process
+;; =============================================================================
+
+(def ^:private cold-entries
+  "[label requires]: the ns requires of a fresh nbb process, in order. The
+   first is an app's usual order; the second loads `dacite.rooted.gc` before
+   `dacite.store`, as `dacite.examples.notes` does."
+  [["store first" "[dacite.store :as s] [dacite.value :as v]"]
+   ["gc first" "[dacite.rooted.gc] [dacite.store :as s] [dacite.value :as v]"]])
+
+(defn- cold-source
+  "A script that opens `store/file` (and `store/lmdb` unless `skip-lmdb?`),
+   commits a root, reopens it, then runs `sync-reachable!` and `lens`. It
+   prints \"cold ok\" at the end."
+  [requires skip-lmdb?]
+  (str "(ns cold (:require " requires "))\n"
+       "(def os (js/require \"os\")) (def fs (js/require \"fs\")) (def path (js/require \"path\"))\n"
+       "(defn tmp [] (.mkdtempSync fs (.join path (.tmpdir os) \"dacite-cold-\")))\n"
+       "(defn reopens? [open]\n"
+       "  (let [d (tmp) r (v/root (open d))]\n"
+       "    (v/cas! r nil (v/vector r 1 2 3))\n"
+       "    (let [h (v/hash (v/deref r)) ok (= h (v/hash (v/deref (v/root (open d)))))]\n"
+       "      (.rmSync fs d #js {:recursive true :force true}) ok)))\n"
+       "(do\n"
+       "  (println \"file reopens\" (reopens? s/file))\n"
+       (if skip-lmdb? "" "  (println \"lmdb reopens\" (reopens? s/lmdb))\n")
+       "  (let [src (s/mem) r (v/root src)]\n"
+       "    (v/cas! r nil (v/vector r \"a\" \"b\"))\n"
+       "    (println \"sync copies\" (pos? (:copied (s/sync-reachable! src (s/mem-store) (s/root src))))))\n"
+       "  (println \"lens\" (some? (s/lens (s/mem) [\"k\"])))\n"
+       "  (println \"cold ok\"))\n"))
+
+(defn- cold-start-problems
+  "Run each of `cold-entries` in a fresh nbb process. A `require` inside a
+   function is async on nbb, so a store namespace that `dacite.store` only
+   resolves at call time must already be loaded; a runner that loads
+   everything up front cannot see that, a fresh process can."
+  [skip-lmdb?]
+  (let [cp (js/require "child_process")
+        ;; under the repo, so `js/require` finds node_modules (lmdb)
+        _ (.mkdirSync fs "target" #js {:recursive true})
+        dir (.mkdtempSync fs (.join path "target" "dacite-cold-src-"))]
+    (try
+      (vec
+       (mapcat
+        (fn [[label requires]]
+          (let [f (.join path dir "cold.cljs")
+                _ (.writeFileSync fs f (cold-source requires skip-lmdb?) "utf8")
+                t0 (.now js/Date)
+                res (.spawnSync cp (.-execPath js/process)
+                                #js ["node_modules/nbb/cli.js" "-cp" "impl/clojure/src" f]
+                                #js {:encoding "utf8"})
+                out (str (.-stdout res) (.-stderr res))
+                want (cond-> ["file reopens true" "sync copies true" "lens true" "cold ok"]
+                       (not skip-lmdb?) (conj "lmdb reopens true"))
+                missing (remove #(.includes out %) want)]
+            (println (str "cold start (" label "): " (- (.now js/Date) t0) " ms"))
+            (when (or (not= 0 (.-status res)) (seq missing))
+              [(str label ": exit " (.-status res) ", missing " (pr-str (vec missing))
+                    "\n" out)])))
+        cold-entries))
+      (finally ((:rm-rf env) dir)))))
+
 (defn -main
   [& _]
   (let [gap (lmdb-gap)
-        bad (+ (run "store checks" store-checks/run-one store-checks/checks gap)
+        cold (cold-start-problems gap)
+        _ (doseq [p cold] (println "  FAIL cold start" p))
+        bad (+ (count cold)
+               (run "store checks" store-checks/run-one store-checks/checks gap)
                (run "format checks" format-checks/run-one format-checks/checks gap))]
     (when gap
       (println "storage lmdb SKIP: the native addon did not load.")

@@ -23,6 +23,16 @@
             [dacite.value.scalar :as scalar]
             [dacite.value.collections :as coll]
             [dacite.value.root-ref :as root-ref]
+            ;; nbb: the namespaces `dacite.store` resolves at call time for
+            ;; `store/file`, `store/lmdb` and `sync-reachable!`. Each requires
+            ;; dacite.store, so dacite.store cannot load them, and a `require`
+            ;; inside a function is async on nbb: it has not loaded when the
+            ;; next form runs. They need nothing dacite.rooted (loaded through
+            ;; root-ref) does not.
+            #?@(:org.babashka/nbb [[dacite.store.chunk]
+                                   [dacite.store.sync]
+                                   [dacite.store.nbb]
+                                   [dacite.store.nbb.lmdb]])
             #?@(:clj [[dacite.value.render :as render]])))
 
 ;; =============================================================================
@@ -437,3 +447,7 @@
 (def add-watch  root-ref/ref-add-watch)
 (def remove-watch root-ref/ref-remove-watch)
 
+;; nbb: `store/lens` resolves dacite.store.lens, which requires this namespace,
+;; so it loads here, after every var above exists.
+#?(:org.babashka/nbb
+   (require 'dacite.store.lens))

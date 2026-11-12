@@ -81,7 +81,7 @@ Not parity work: every future Dacite app should be buildable with nbb alone, and
 Neither HTTP nor peering: not parity work, and the code stays.
 
 - [ ] [not started] `json.clj` and `json_test.clj`. `json.clj` is used only by its own test
-- [ ] [not started] `examples/cards.clj`, which uses only store and value. nbb scripts already: hello, config, notes, log, sync, todo, library
+- [ ] [not started] `examples/cards.clj`, which uses only store and value. The other examples run on nbb: `npm run` hello, config, notes, log, sync and todo:batch (`npm run todo` is the interactive one), and `nbb -m dacite.examples.library`. Until `store/file` and `sync-reachable!` loaded their namespaces up front on nbb, config, notes, log, sync and todo:batch threw on start; `storage:test` now opens the stores in a fresh nbb process
 
 ## Legacy HTTP (removed after parity)
 
