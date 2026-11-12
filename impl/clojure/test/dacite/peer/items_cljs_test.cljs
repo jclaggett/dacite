@@ -20,9 +20,9 @@
         bad (mapcat (fn [{:keys [name problems]}]
                       (map #(str name ": " %) problems))
                     rows)
-        slowest (apply max 0 (map :ms rows))]
+        slowest (check/slowest rows)]
     (println "peer item checks:" (count rows) "tests,"
-             (count bad) "problems, slowest" slowest "ms")
+             (count bad) "problems, slowest" slowest)
     (doseq [p bad] (println "  FAIL" p))
     (when (seq bad)
       (js/process.exit 1))

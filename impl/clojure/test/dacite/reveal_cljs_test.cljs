@@ -269,9 +269,9 @@
   (let [rows (mapv #(check/run-one reveal-checks/checks env %)
                    (sort (keys reveal-checks/checks)))
         bad (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) rows)
-        slowest (apply max-key :ms rows)]
+        slowest (check/slowest rows)]
     (println (str "reveal checks: " (count rows) " tests, " (count bad) " problems, slowest "
-                  (:ms slowest) " ms (" (:name slowest) ")"))
+                  slowest))
     (doseq [p bad] (println "  FAIL" p))
     (when (seq bad) (js/process.exit 1)))
   (println "reveal cljs tests passed")

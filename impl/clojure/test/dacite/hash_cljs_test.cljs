@@ -23,9 +23,9 @@
   (let [rows (mapv #(check/run-one checks/checks env % (get checks/slow-ms % check/max-ms))
                    (sort (keys checks/checks)))
         bad (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) rows)
-        slowest (take 3 (sort-by (comp - :ms) rows))]
+        slowest (check/slowest rows)]
     (println (str "hash checks: " (count rows) " tests, " (count bad) " problems, slowest "
-                  (apply str (interpose ", " (map #(str (:ms %) " ms (" (:name %) ")") slowest)))))
+                  slowest))
     (doseq [p bad] (println "  FAIL" p))
     (if (seq bad)
       (js/process.exit 1)

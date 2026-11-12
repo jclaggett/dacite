@@ -79,6 +79,17 @@
 
 (defn- now-ms [] #?(:clj (System/currentTimeMillis) :cljs (.now js/Date)))
 
+(defn slowest
+  "The `n` (default 3) slowest of `rows` ({:name :ms}) as one string, slowest
+   first: \"1884 ms (a), 1210 ms (b), 980 ms (c)\". The runners print it, so a
+   log names the checks that take the time."
+  ([rows] (slowest rows 3))
+  ([rows n]
+   (let [top (take n (sort-by (comp - :ms) rows))]
+     (if (seq top)
+       (apply str (interpose ", " (map #(str (:ms %) " ms (" (:name %) ")") top)))
+       "-"))))
+
 (defn run-one
   "Run the check `(get checks name)` on `env`: {:name :ms :problems}. A
    check that throws is a problem, and one over `limit` ms (default

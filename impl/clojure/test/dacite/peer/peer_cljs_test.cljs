@@ -96,10 +96,10 @@
         client-problems (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) client)
         all (into (vec problems) (concat client-problems (bitmap-u32-unsigned-problems) (string-problems) (string-vectors/behavior-problems) (cache-checks/problems)))]
     (println "peer-v1 checks:" (count v1) "tests, slowest"
-             (apply max (map :ms v1)) "ms;" (count all) "problems in all")
+             (str (check/slowest v1) ";") (count all) "problems in all")
     (println "client checks:" (count client) "tests,"
              (count client-problems) "problems, slowest"
-             (apply max (map :ms client)) "ms")
+             (check/slowest client))
     ;; the one check that waits: a store whose promises are real js/Promises
     (async-checks/host-promise-check
      (fn [host]

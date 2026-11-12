@@ -46,9 +46,9 @@
   [& _]
   (let [rows (mapv #(check/run-one checks/checks env %) (sort (keys checks/checks)))
         bad (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) rows)
-        slowest (apply max-key :ms {:ms 0 :name "-"} rows)]
+        slowest (check/slowest rows)]
     (println (str "wire checks: " (count rows) " tests, " (count bad)
-                  " problems, slowest " (:ms slowest) " ms (" (:name slowest) ")"))
+                  " problems, slowest " slowest))
     (doseq [p bad] (println "  FAIL" p))
     (if (seq bad)
       (js/process.exit 1)

@@ -12,6 +12,7 @@
    reports a skip and exits 2, as `store:test` does."
   (:require [dacite.host :as host]
             [dacite.store-checks :as store-checks]
+            [dacite.store.check :as check]
             [dacite.store.format-checks :as format-checks]
             [dacite.store.nbb :as nbb-file]
             [dacite.store.nbb.lmdb :as lmdb]))
@@ -81,9 +82,9 @@
         bad (mapcat (fn [{:keys [name problems]}]
                       (map #(str name ": " %) problems))
                     rows)
-        slowest (apply max-key :ms {:ms 0 :name "-"} rows)]
+        slowest (check/slowest rows)]
     (println (str label ": " (count rows) " tests, " (count bad)
-                  " problems, slowest " (:ms slowest) " ms (" (:name slowest) ")"))
+                  " problems, slowest " slowest))
     (doseq [p bad] (println "  FAIL" p))
     (count bad)))
 
