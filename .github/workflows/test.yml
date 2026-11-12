@@ -89,8 +89,9 @@ jobs:
         run: npm run examples:test
 
       # The example demo scripts end to end on nbb (todo:batch, config,
-      # notes, log, sync, library) with their file stores under target/.
-      # Each exits nonzero on a failure; about 7 s in all.
+      # notes, log, sync, library), each on a fresh store in a temp directory
+      # (scripts/examples-smoke.sh); the log seeds 150 events, not 2000.
+      # Each exits nonzero on a failure; about 10 s in all.
       - name: Example demo scripts
         run: npm run examples:smoke
 
