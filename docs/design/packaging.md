@@ -69,6 +69,9 @@ Commands: `dacite service install`, `dacite service uninstall`, `dacite service 
 
 **Security basics.** Loopback bind by default. Any local process could reach the peer, which is fine for public content-addressed data and not fine for anything private. The room token, or a per-launch secret in the URL, is the minimum. Decide before the service is always-on.
 
+- **WebSockets skip CORS.** Any website the user visits can open `ws://localhost:<port>/signal`. The peer must reject a `/signal` upgrade whose `Origin` is not its own (`http://localhost:<port>` or `http://127.0.0.1:<port>`).
+- **DNS rebinding.** Check the `Host` header on every request, both static and `/signal`, and accept only `localhost:<port>` and `127.0.0.1:<port>`.
+
 ## Not in this note
 
 ICE discovery, TURN, peer lists, roots, and removing the HTTP data API. Those have their own plans.
