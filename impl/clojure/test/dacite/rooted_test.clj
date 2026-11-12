@@ -1,191 +1,71 @@
 (ns dacite.rooted-test
-  "Tests for rooted stores and root cells."
-  (:require [clojure.test :refer [deftest testing is use-fixtures]]
-            [dacite.rooted :as rs]
-            [dacite.store :as store]
-            [dacite.store.jvm :as sj]
-            [dacite.store.file :as sf]
-            [clojure.java.io :as io]))
+  "Rooted store and root cell tests on the JVM.
 
-;; =============================================================================
-;; Fixtures
-;; =============================================================================
+   The bodies are `dacite.rooted-checks`, with the JVM file and LMDB stores.
+   On the JVM they use the atom conveniences of a rooted store (`@s`,
+   `reset!`, `swap!`, `compare-and-set!`, `add-watch`, `set-validator!`).
+   nbb runs the same checks with the function API (`npm run rooted:test`).
+   One deftest each, so the JVM suite still names the test it ran before."
+  (:require [clojure.test :refer [deftest is]]
+            [dacite.rooted-checks :as checks]
+            [dacite.store-test :as store-test]
+            [dacite.store.check :as check]))
 
-(def ^:dynamic *temp-dir* nil)
-
-(defn temp-dir-fixture [f]
-  (let [dir (io/file (System/getProperty "java.io.tmpdir")
-                     (str "dacite-rooted-test-" (System/currentTimeMillis)))]
-    (.mkdirs dir)
-    (binding [*temp-dir* dir]
-      (try
-        (f)
-        (finally
-          (doseq [file (reverse (file-seq dir))]
-            (.delete file)))))))
-
-(use-fixtures :each temp-dir-fixture)
-
-;; =============================================================================
-;; Root cell
-;; =============================================================================
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks store-test/env name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest mem-root-cell-test
-  (testing "mem root cell roundtrip"
-    (let [cell (rs/mem-root-cell [1 2 3 4])]
-      (is (= [1 2 3 4] (rs/rc-get cell)))
-      (rs/rc-put! cell [5 6 7 8])
-      (is (= [5 6 7 8] (rs/rc-get cell))))))
+  (run-check "mem-root-cell-test"))
 
 (deftest lmdb-root-cell-test
-  (testing "lmdb root cell persists across instances"
-    (let [path (str *temp-dir* "/lmdb-root-cell")
-          lmdb (sj/lmdb-store path)
-          cell (sj/lmdb-root-cell lmdb)]
-      (try
-        (rs/rc-put! cell [1 2 3 4])
-        (is (= [1 2 3 4] (rs/rc-get (sj/lmdb-root-cell lmdb))))
-        (finally
-          (sj/lmdb-close lmdb))))))
-
-;; =============================================================================
-;; Rooted store — core ref operations
-;; =============================================================================
+  (run-check "lmdb-root-cell-test"))
 
 (deftest rooted-store-seed-test
-  (testing "constructor seeds root from cell"
-    (let [s (rs/rooted-store (store/mem-store) (rs/mem-root-cell [1 2 3 4]))]
-      (is (= [1 2 3 4] @s)))))
+  (run-check "rooted-store-seed-test"))
 
 (deftest rooted-store-reset-test
-  (testing "reset! installs a new root"
-    (let [s (rs/rooted-store (store/mem-store))]
-      (reset! s [1 2 3 4])
-      (is (= [1 2 3 4] @s)))))
+  (run-check "rooted-store-reset-test"))
 
 (deftest rooted-store-swap-test
-  (testing "swap! transforms the root"
-    (let [s (rs/rooted-store (store/mem-store))]
-      (reset! s [1 0 0 0])
-      (swap! s (fn [h] (vec (map inc h))))
-      (is (= [2 1 1 1] @s)))))
+  (run-check "rooted-store-swap-test"))
 
 (deftest rooted-store-cas-success-test
-  (testing "compare-and-set! succeeds when expected matches"
-    (let [s (rs/rooted-store (store/mem-store))
-          r (do (reset! s [1 2 3 4]) @s)]
-      (is (true? (compare-and-set! s r [5 6 7 8])))
-      (is (= [5 6 7 8] @s)))))
+  (run-check "rooted-store-cas-success-test"))
 
 (deftest rooted-store-cas-conflict-test
-  (testing "compare-and-set! fails when root moved"
-    (let [s (rs/rooted-store (store/mem-store))]
-      (reset! s [1 2 3 4])
-      (is (false? (compare-and-set! s [9 9 9 9] [5 6 7 8])))
-      (is (= [1 2 3 4] @s)))))
-
-;; =============================================================================
-;; Watches and validators
-;; =============================================================================
+  (run-check "rooted-store-cas-conflict-test"))
 
 (deftest rooted-store-watch-test
-  (testing "watch fires with the rooted store as ref"
-    (let [s (rs/rooted-store (store/mem-store))
-          seen (atom nil)]
-      (add-watch s :test (fn [k r o n] (reset! seen {:k k :r r :o o :n n})))
-      (reset! s [1 2 3 4])
-      (is (= :test (:k @seen)))
-      (is (identical? s (:r @seen)))
-      (is (nil? (:o @seen)))
-      (is (= [1 2 3 4] (:n @seen)))
-      (remove-watch s :test)
-      (reset! seen nil)
-      (reset! s [5 6 7 8])
-      (is (nil? @seen)))))
+  (run-check "rooted-store-watch-test"))
 
 (deftest rooted-store-validator-test
-  (testing "validator rejects invalid roots"
-    (let [s (rs/rooted-store (store/mem-store))]
-      (set-validator! s vector?)
-      (reset! s [1 2 3 4])
-      (is (thrown? IllegalStateException (reset! s "not-a-hash"))))))
-
-;; =============================================================================
-;; Durability
-;; =============================================================================
+  (run-check "rooted-store-validator-test"))
 
 (deftest rooted-store-durability-test
-  (testing "root survives reopen via lmdb root cell"
-    (let [path (str *temp-dir* "/lmdb-durable")
-          lmdb (sj/lmdb-store path)
-          cell (sj/lmdb-root-cell lmdb)]
-      (try
-        (let [s1 (rs/rooted-store (store/mem-store) cell)]
-          (reset! s1 [1 2 3 4]))
-        (let [s2 (rs/rooted-store (store/mem-store) cell)]
-          (is (= [1 2 3 4] @s2)))
-        (finally
-          (sj/lmdb-close lmdb))))))
+  (run-check "rooted-store-durability-test"))
 
 (deftest file-root-cell-durability-test
-  (testing "file root cell persists hex across instances"
-    (let [path (str *temp-dir* "/file-root")
-          cell1 (rs/file-root-cell path)]
-      (rs/rc-put! cell1 [1 2 3 4])
-      (is (= [1 2 3 4] (rs/rc-get (rs/file-root-cell path))))
-      (let [s1 (rs/rooted-store (sf/file-store path) (rs/file-root-cell path))]
-        (rs/set-root! s1 [5 6 7 8])
-        (is (= [5 6 7 8] (rs/root s1)))
-        (is (= [5 6 7 8]
-               (rs/root (rs/rooted-store (sf/file-store path)
-                                         (rs/file-root-cell path)))))))))
+  (run-check "file-root-cell-durability-test"))
 
 (deftest portable-root-api-test
-  (testing "root / cas-root! / set-root! / update-root!"
-    (let [s (rs/rooted-store (store/mem-store))]
-      (is (nil? (rs/root s)))
-      (is (= [1 2 3 4] (rs/set-root! s [1 2 3 4])))
-      (is (true? (rs/cas-root! s [1 2 3 4] [5 6 7 8])))
-      (is (= [5 6 7 8] (rs/root s)))
-      (is (false? (rs/cas-root! s [0 0 0 0] [9 9 9 9])))
-      (is (= [6 7 8 9] (rs/update-root! s (fn [h] (mapv inc h))))))))
-
-;; =============================================================================
-;; IStore delegation
-;; =============================================================================
+  (run-check "portable-root-api-test"))
 
 (deftest rooted-store-delegates-content-test
-  (testing "content ops delegate to inner store"
-    (let [content (store/mem-store)
-          s (rs/rooted-store content)]
-      (store/await (store/s-put s [1 2 3 4] :value))
-      (is (= :value (store/await (store/s-get content [1 2 3 4]))))
-      (is (= :value (store/await (store/s-get s [1 2 3 4])))))))
-
-;; =============================================================================
-;; push-ref
-;; =============================================================================
+  (run-check "rooted-store-delegates-content-test"))
 
 (deftest push-ref-success-test
-  (testing "push-ref moves target root to source root"
-    (let [source (rs/rooted-store (store/mem-store))
-          target (rs/rooted-store (store/mem-store))
-          r1 [1 2 3 4]
-          r2 [5 6 7 8]]
-      (reset! source r2)
-      (reset! target r1)
-      (is (true? (rs/push-ref source target)))
-      (is (= r2 @target)))))
+  (run-check "push-ref-success-test"))
 
 (deftest push-ref-cas-conflict-test
-  (testing "push-ref returns false when target root no longer matches"
-    (let [source (rs/rooted-store (store/mem-store))
-          target (rs/rooted-store (store/mem-store))
-          r1 [1 2 3 4]
-          r2 [5 6 7 8]
-          r3 [9 9 9 9]]
-      (reset! source r2)
-      (reset! target r1)
-      (reset! target r3)
-      (is (false? (compare-and-set! target r1 r2)))
-      (is (= r3 @target)))))
+  (run-check "push-ref-cas-conflict-test"))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.rooted-test)))))
+               "every-check-has-a-deftest"))
+      "rooted_checks.cljc and this file list the same tests"))

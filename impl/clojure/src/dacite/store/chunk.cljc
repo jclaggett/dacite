@@ -116,7 +116,9 @@
   (let [b (budget cs)
         {:keys [items covered]} (pack/encode-reachable cs root-h #{} b)
         in (inner cs)
-        keep (into #{} (map #(store/hex->hash (:hash %)) items))]
+        ;; A vector, not a set: on nbb a hash vector holds BigInts, and a
+        ;; set cannot hash one. `retain-inner!` keys it by hex.
+        keep (mapv #(store/hex->hash (:hash %)) items)]
     (doseq [item items]
       (store/await (store/s-put in (store/hex->hash (:hash item)) item)))
     {:items items
@@ -125,7 +127,8 @@
      :budget b}))
 
 (defn retain-inner!
-  "Delete inner entries whose hash is not in `keep` (hash vectors).
+  "Delete inner entries whose hash is not in `keep` (a collection of hash
+   vectors or hex keys).
 
    The inner backend sweeps itself. The keep set is not turned into a
    listing of what inner held."

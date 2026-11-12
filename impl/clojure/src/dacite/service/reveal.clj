@@ -23,8 +23,7 @@
    ends."
   (:require [dacite.peer.verify :as verify]
             [dacite.reveal :as reveal]
-            [dacite.store :as store]
-            [dacite.wire.binary :as bin])
+            [dacite.store :as store])
   (:import [java.io OutputStream]))
 
 (def content-type
@@ -51,12 +50,11 @@
   "Wire-v1 item for one page the session has offered.
 
    The session measured this page by encoding it once and kept those
-   bytes on `:wire`. Writing them again would encode the page twice (N11)."
-  ^bytes [store {:keys [hash wire]}]
-  (or wire
-      (bin/encode-item {:enc :node
-                        :hash hash
-                        :entry (store/require-node store hash)})))
+   bytes on `:wire`. Writing them again would encode the page twice (N11).
+   The bytes are `dacite.reveal/encode-page`. This wrapper keeps the JVM
+   byte-array return hint."
+  ^bytes [store page]
+  (reveal/encode-page store page))
 
 (def expected-hash
   "Content hash of a stored node, or nil when a child it needs is absent.
@@ -134,11 +132,12 @@
     (boolean (and reveal (:done? reveal)))))
 
 (defn- offered-hashes
-  "Hashes this reveal still has in the session offer set."
+  "Hashes this reveal still has in the session offer set. The set is keyed
+   by the engine's hash key; each entry keeps the hash as `:hash`."
   [session id]
   (into []
-        (keep (fn [[h meta]]
-                (when (= id (:id meta)) h)))
+        (keep (fn [[_ meta]]
+                (when (= id (:id meta)) (:hash meta))))
         (:offered session)))
 
 (declare fail-unlocked!)

@@ -1,7 +1,18 @@
 (ns dacite.examples.event-log-test
-  "Event log: append stays cheap; page/replay do not seq the whole log."
+  "Event log on the JVM.
+
+   The bodies are `dacite.examples.event-log-checks`; nbb runs the same checks
+   (`npm run examples:test`). One deftest each, so the JVM suite still
+   names the test it ran before.
+
+   Four stay JVM only: `two-writers-keep-every-append` (two JVM threads on
+   one root; nbb has one thread, so the writers cannot interleave) and
+   `remote-page-cheaper-than-full-seq`, `two-remote-writers-keep-every-append`
+   and `sse-watch-sees-new-root` (the HTTP service, `store/remote` and SSE,
+   legacy HTTP)."
   (:require [clojure.test :refer [deftest is]]
-            [clojure.java.io :as io]
+            [dacite.store.check :as check]
+            [dacite.examples.event-log-checks :as checks]
             [dacite.examples.event-log :as elog]
             [dacite.service :as svc]
             [dacite.store :as store]
@@ -9,55 +20,29 @@
             [dacite.store.stats :as stats]
             [dacite.value :as v]))
 
+(defn- run-check
+  "Run the check called `name`: no problems, and within its ceiling
+   (`checks/slow-ms`, else `check/max-ms`)."
+  [name]
+  (let [limit (get checks/slow-ms name check/max-ms)
+        {:keys [ms problems]} (check/run-one checks/checks {} name limit)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms limit) (str name " took " ms " ms"))))
+
 (deftest incremental-view-matches-replay
-  (let [led (elog/build (elog/open-mem) 80)
-        wiped (v/assoc led "view" (elog/empty-view led))
-        replayed (elog/replay wiped)]
-    (is (= 80 (elog/log-count led)))
-    (is (= (v/hash (elog/view-of led))
-           (v/hash (elog/view-of replayed))))))
+  (run-check "incremental-view-matches-replay"))
 
 (deftest prefix-slice-matches-fresh-build
-  (let [st (store/mem-store)
-        full (elog/build st 50)
-        pre (elog/prefix full 20)
-        fresh (elog/log-of (elog/build st 20))]
-    (is (= 20 (v/count pre)))
-    (is (= (v/hash fresh) (v/hash pre))
-        "first 20 events have the same hash whether sliced or built")))
+  (run-check "prefix-slice-matches-fresh-build"))
 
 (deftest page-is-a-window
-  (let [led (elog/build (elog/open-mem) 100)
-        p (elog/page led 2 20)]
-    (is (= 20 (v/count p)))
-    (is (= (v/hash (v/nth (elog/log-of led) 40))
-           (v/hash (v/nth p 0))))
-    (is (= (v/hash (v/nth (elog/log-of led) 59))
-           (v/hash (v/nth p 19))))))
+  (run-check "page-is-a-window"))
 
 (deftest append-delta-stays-small
-  (let [samples (elog/measure-append (store/mem-store) [100 500 2000])
-        deltas (mapv :delta samples)]
-    (is (= [100 500 2000] (mapv :n samples)))
-    (is (every? pos? deltas))
-    (is (every? #(< % 120) deltas)
-        "one append must not rewrite the log")
-    (is (< (apply max deltas) (* 4 (apply min deltas)))
-        "append cost must not grow linearly with log length")))
+  (run-check "append-delta-stays-small"))
 
 (deftest file-reopen
-  (let [dir (io/file (str "target/dacite-log-test-" (System/nanoTime)))]
-    (try
-      (let [r1 (v/root (elog/open-file (.getPath dir)))]
-        (elog/load-or-seed! r1 30)
-        (v/swap! r1 elog/append (elog/event r1 "credit" 4 "tip"))
-        (let [h1 (v/hash (v/deref r1))
-              r2 (v/root (elog/open-file (.getPath dir)))
-              loaded (v/deref r2)]
-          (is (= h1 (v/hash loaded)))
-          (is (= 31 (elog/log-count loaded)))))
-      (finally
-        (elog/reset-store-dir! (.getPath dir))))))
+  (run-check "file-reopen"))
 
 (deftest remote-page-cheaper-than-full-seq
   (let [rooted (svc/make-demo-rooted)
@@ -165,3 +150,14 @@
             ((:stop! w)))))
       (finally
         (stop!)))))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.examples.event-log-test)))))
+               "every-check-has-a-deftest"
+               "remote-page-cheaper-than-full-seq"
+               "two-writers-keep-every-append"
+               "two-remote-writers-keep-every-append"
+               "sse-watch-sees-new-root"))
+      "examples/event_log_checks.cljc and this file list the same tests"))

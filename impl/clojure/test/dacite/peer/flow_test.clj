@@ -107,6 +107,21 @@
 (deftest item-over-max-item-is-refused-before-buffering
   (run-check "item-over-max-item-is-refused-before-buffering"))
 
+(deftest stalled-stream-decays-and-frees-its-share
+  (run-check "stalled-stream-decays-and-frees-its-share"))
+
+(deftest renewal-is-a-new-stream-at-peak
+  (run-check "renewal-is-a-new-stream-at-peak"))
+
+(deftest sessions-share-no-state-except-rmax
+  (run-check "sessions-share-no-state-except-rmax"))
+
+(deftest reveal-walks-each-subtree-depth-first
+  (run-check "reveal-walks-each-subtree-depth-first"))
+
+(deftest reveal-order-is-fixed-and-receiver-accepts-any
+  (run-check "reveal-order-is-fixed-and-receiver-accepts-any"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

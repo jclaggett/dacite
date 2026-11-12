@@ -31,12 +31,24 @@
 
    The walk, the clock, and ack/release are `dacite.reveal.engine`.
    This namespace reads the store for them: a node entry, HAMT order,
-   and the wire-item size."
+   and the wire-item size. `encode-page` is that item's bytes."
   (:require [dacite.reveal.engine :as engine]
             [dacite.store :as store]
             [dacite.value.hamt :as hamt]
             [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
+
+(defn encode-page
+  "Wire-v1 node item for one page.
+
+   `page` is `{:hash h}`, or a page map that already carries `:wire`:
+   the bytes from the one encode that measured the page (N11). Those
+   bytes are returned as they are. Otherwise the node is read and encoded."
+  [store {:keys [hash wire]}]
+  (or wire
+      (bin/encode-item {:enc :node
+                        :hash hash
+                        :entry (store/require-node store hash)})))
 
 (defn- nodes
   "Node source over `store` for `dacite.reveal.engine`.
@@ -49,8 +61,7 @@
         item (fn [h]
                (let [k (store/hash->hex h)]
                  (or (get @wire k)
-                     (let [bs (bin/encode-item {:enc :node :hash h
-                                                :entry (store/require-node store h)})]
+                     (let [bs (encode-page store {:hash h})]
                        (swap! wire assoc k bs)
                        bs))))]
     {:node-entry

@@ -336,7 +336,9 @@
 ;; Rooted store (hash-level) — deferred re-export from dacite.rooted
 ;; =============================================================================
 ;; dacite.rooted requires dacite.store, so we cannot :require it in the ns form.
-;; Resolve vars on first use (JVM/CLJ). nbb requires at call time (SCI). The
+;; Resolve vars on first use (JVM/CLJ). nbb resolves at call time (SCI), and
+;; `dacite.value` loads the namespaces up front (a `require` inside a function
+;; is async on nbb). The
 ;; JVM ClojureScript compiler forbids non-top-level `require`, so the browser
 ;; branch stubs these; use dacite.store.browser instead.
 
@@ -424,7 +426,6 @@
    :org.babashka/nbb
    (do
      (defn- rooted-var [sym]
-       (require 'dacite.rooted)
        (resolve (symbol "dacite.rooted" (name sym))))
 
      (defn mem-root-cell [& args]
@@ -473,13 +474,11 @@
      (defn sync-reachable!
        "Copy nodes reachable from root-h in src into dest."
        [src dest root-h]
-       (require 'dacite.store.sync)
        ((resolve 'dacite.store.sync/sync-reachable!) src dest root-h))
 
      (defn lens
        "Lens over a rooted store at `path`."
        [rs path]
-       (require 'dacite.store.lens)
        ((resolve 'dacite.store.lens/lens) rs path)))
 
    :cljs
@@ -565,7 +564,6 @@
 
 #?(:org.babashka/nbb
    (defn- nbb-rooted [sym]
-     (require 'dacite.rooted)
      (resolve (symbol "dacite.rooted" (name sym)))))
 
 #?(:org.babashka/nbb
@@ -590,8 +588,6 @@
      "File-backed rooted store. Pack-literal inner; flush on root commit.
       opts: {:reset true} wipes content and root."
      [path & [{:keys [reset]}]]
-     (require 'dacite.store.nbb)
-     (require 'dacite.store.chunk)
      (let [inner ((resolve 'dacite.store.nbb/file-store) path)
            content ((resolve 'dacite.store.chunk/chunked) inner)
            cell ((nbb-rooted 'file-root-cell) path)]
@@ -621,8 +617,6 @@
      "LMDB rooted store. Pack-literal inner; flush on root commit.
       opts: {:reset true} wipes content and root."
      [path & [{:keys [reset]}]]
-     (require 'dacite.store.nbb.lmdb)
-     (require 'dacite.store.chunk)
      (let [inner ((resolve 'dacite.store.nbb.lmdb/lmdb-store) path)
            content ((resolve 'dacite.store.chunk/chunked) inner)
            cell ((resolve 'dacite.store.nbb.lmdb/lmdb-root-cell) inner)]

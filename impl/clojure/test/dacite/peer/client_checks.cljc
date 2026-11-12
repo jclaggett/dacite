@@ -233,10 +233,12 @@
 (defn bad-entry-ends-the-session
   "C13: a failed check ends the whole session: one fatal `bad-entry` on
    stream 0, the connection closed, and nothing that failed is stored. Each way
-   of lying in `failure-kinds`."
+   of lying in `failure-kinds`. (A 10-line vector has the same five items,
+   header, root and leaf pages, as the 40 of the first version, in less time
+   on nbb.)"
   []
   (let [src (store/mem-store)
-        root (v/hash (vector-value src 40))
+        root (v/hash (vector-value src 10))
         items (items-of src root)]
     (vec (mapcat
           (fn [kind]

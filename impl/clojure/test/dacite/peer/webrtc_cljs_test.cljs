@@ -1,6 +1,7 @@
 (ns dacite.peer.webrtc-cljs-test
   "M3.2 WebRTC checks. Run: npm run webrtc:test"
-  (:require [dacite.peer.transport-webrtc-checks :as checks]))
+  (:require [dacite.peer.transport-webrtc-checks :as checks]
+            [dacite.store.check :as check]))
 
 (defn -main [& _]
   (-> (checks/run-all)
@@ -9,9 +10,9 @@
          (let [problems (mapcat (fn [{:keys [name problems]}]
                                   (map #(str name ": " %) problems))
                                 results)
-               slowest (apply max 0 (map :ms results))]
+               slowest (check/slowest results)]
            (println "webrtc checks:" (count results) "tests,"
-                    (count problems) "problems, slowest" slowest "ms")
+                    (count problems) "problems, slowest" slowest)
            (doseq [p problems] (println "  FAIL" p))
            (doseq [{:keys [name ms problems]} results]
              (when (seq problems) nil)

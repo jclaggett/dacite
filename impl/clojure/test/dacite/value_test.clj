@@ -1,105 +1,53 @@
 (ns dacite.value-test
-  "Tests for scalars, accessors, and store-awareness in the value layer."
-  (:require [clojure.test :refer [deftest is testing]]
-            [dacite.hash :as hash]
-            [dacite.store :as store]
-            [dacite.value :as v2]))
+  "Scalars, accessors, and store-awareness in the value layer, on the JVM.
 
-;; =============================================================================
-;; Scalar construction & accessors
-;; =============================================================================
+   The bodies are `dacite.value-checks`. nbb runs the same checks
+   (`npm run value:test`). One deftest each, so the JVM suite still names
+   the test it ran before. `scalar-validation` keeps one assertion:
+   `v2/char` of a one-letter String fails, since a BMP character is a char.
+   A JS host has no separate char type."
+  (:require [clojure.test :refer [deftest is]]
+            [dacite.store :as store]
+            [dacite.store.check :as check]
+            [dacite.value :as v2]
+            [dacite.value-checks :as checks]))
+
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest scalar-types-and-realize
-  (let [s (store/mem-store)]
-    (is (= "null" (v2/type (v2/null s))))
-    (is (nil? (v2/realize (v2/null s))))
-    (is (= "bool" (v2/type (v2/bool s true))))
-    (is (= true (v2/realize (v2/bool s true))))
-    (is (= (byte 42) (v2/realize (v2/i8 s 42))))
-    (is (= (short 1000) (v2/realize (v2/i16 s 1000))))
-    (is (= (int 123456) (v2/realize (v2/i32 s 123456))))
-    (is (= 9999999999 (v2/realize (v2/i64 s 9999999999))))
-    (is (= 255 (v2/realize (v2/u8 s 255))))
-    (is (= 65535 (v2/realize (v2/u16 s 65535))))
-    (is (= 4294967295 (v2/realize (v2/u32 s 4294967295))))
-    (is (= 18446744073709551615 (v2/realize (v2/u64 s 18446744073709551615))))
-    (is (float? (v2/realize (v2/f32 s 3.14))))
-    (is (double? (v2/realize (v2/f64 s 3.14159))))
-    (is (= \a (v2/realize (v2/char s \a))))
-    (is (= "negative" (v2/type (v2/negative s))))
-    (is (= :dacite/negative (v2/realize (v2/negative s))))
-    (is (not= (v2/realize (v2/negative s))
-              (v2/realize (v2/null s))))))
+  (run-check "scalar-types-and-realize"))
 
 (deftest values-are-not-derefable
-  (let [s (store/mem-store)]
-    (is (not (instance? clojure.lang.IDeref (v2/i64 s 1))))
-    (is (not (instance? clojure.lang.IDeref (v2/vector s 1 2))))))
+  (run-check "values-are-not-derefable"))
 
 (deftest scalar-validation
-  (let [s (store/mem-store)]
-    (is (thrown? AssertionError (v2/u8 s 256)))
-    (is (thrown? AssertionError (v2/u8 s -1)))
-    (is (thrown? AssertionError (v2/u16 s 65536)))
-    (is (thrown? AssertionError (v2/u32 s 4294967296)))
-    (is (thrown? AssertionError (v2/u64 s -1)))
-    (is (thrown? AssertionError (v2/char s "a")))
-    (is (thrown? AssertionError (v2/u256 s (byte-array 31))))))
-
-;; =============================================================================
-;; Content addressing
-;; =============================================================================
+  (run-check "scalar-validation")
+  ;; JVM only: a BMP character is a char, not a String.
+  (is (thrown? AssertionError (v2/char (store/mem-store) "a"))))
 
 (deftest content-addressing
-  (let [s (store/mem-store)]
-    (testing "same value, same hash"
-      (is (= (v2/hash (v2/i64 s 42))
-             (v2/hash (v2/i64 s 42)))))
-    (testing "different value, different hash"
-      (is (not= (v2/hash (v2/i64 s 42))
-                (v2/hash (v2/i64 s 43)))))
-    (testing "type tag distinguishes equal data"
-      ;; i64 0 and a different int width carry distinct type hashes
-      (is (not= (v2/hash (v2/i32 s 0))
-                (v2/hash (v2/i64 s 0)))))))
-
-;; =============================================================================
-;; Store awareness (§3.1)
-;; =============================================================================
+  (run-check "content-addressing"))
 
 (deftest values-know-their-store
-  (let [s (store/mem-store)
-        v (v2/i64 s 42)]
-    (is (identical? s (v2/dacite-store v)))
-    (testing "the value persists in its own store"
-      (is (some? (store/await (store/s-get s (v2/hash v))))))))
+  (run-check "values-know-their-store"))
 
 (deftest get-value-round-trips
-  (let [s (store/mem-store)
-        v (v2/i64 s 42)
-        back (v2/get-value-with-store s (v2/hash v))]
-    (is (= "i64" (v2/type back)))
-    (is (= 42 (v2/realize back)))
-    (testing "missing hash returns nil"
-      (is (nil? (v2/get-value-with-store s [0 0 0 0]))))))
-
-;; =============================================================================
-;; Cross-type equality (§3.3)
-;; =============================================================================
+  (run-check "get-value-round-trips"))
 
 (deftest cross-type-content-hash
-  (let [s (store/mem-store)
-        str-v (v2/string s "abc")
-        chars (mapv #(v2/char s %) "abc")
-        vec-v (apply v2/vector s chars)]
-    (testing "different types => different value hashes"
-      (is (not= (v2/hash str-v) (v2/hash vec-v))))
-    (testing "same leaves => same content hash"
-      (is (= (v2/content-hash str-v) (v2/content-hash vec-v))))))
+  (run-check "cross-type-content-hash"))
 
 (deftest content-hash-strips-type
-  (let [s (store/mem-store)]
-    ;; An empty string's data hash is the group identity.
-    (is (= (hash/state->ref hash/identity-state) (v2/content-hash (v2/string s ""))))))
+  (run-check "content-hash-strips-type"))
 
-
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.value-test)))))
+               "every-check-has-a-deftest"))
+      "value_checks.cljc and this file list the same tests"))

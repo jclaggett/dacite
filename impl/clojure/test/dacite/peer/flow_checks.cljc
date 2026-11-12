@@ -1,8 +1,8 @@
 (ns dacite.peer.flow-checks
   "M1.2 slice 2, portable checks (JVM: flow_test.clj, nbb: peer_cljs_test).
-   Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.3 (C05, C07, C09,
-   C10, C11, C12), §12.4 (C16), §12.5 (C17, C18), §12.8 (C32), §12.9 (C34, C35,
-   C36), §12.11 (C40, C41); test map in §13.
+   Spec: docs/spec/peer-v1.md §12.2 (C01, C02, C03, C45), §12.3 (C05, C06, C07,
+   C08, C09, C10, C11, C12), §12.4 (C16), §12.5 (C17, C18), §12.7 (C24, C25), §12.8 (C32),
+   §12.9 (C34, C35, C36), §12.11 (C40, C41, C42); test map in §13.
 
    Same shape as client_checks.cljc: each check returns a vector of problem strings,
    empty when it holds, and `checks` maps the §13 test name to it. Every clock here
@@ -26,6 +26,7 @@
             [dacite.store :as store]
             [dacite.store.chain :as chain]
             [dacite.value :as v]
+            [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
 
 (def ^:private bad cc/bad)
@@ -47,7 +48,10 @@
       (update "rates" merge rates)
       (assoc-in ["limits" "max-frame"] 8192)))
 
-(defn- hello-bytes [h] (msg/encode-message {:type :hello :stream 0 :value h}))
+(def ^:private hello-bytes
+  "A `hello` frame (bytes) for hello `h`. Encoded once per hello: every
+   responder harness sends one, and the encode is about 40 ms on nbb."
+  (memoize (fn [h] (msg/encode-message {:type :hello :stream 0 :value h}))))
 
 (defn- get-bytes
   "A `get` frame (bytes) for `root` on stream `sid`."
@@ -189,6 +193,14 @@
   (delay (let [st (store/mem-store)] [st (v/hash (cc/map-of st 120))])))
 
 (defn- big-value [] @big)
+
+(def ^:private mid
+  "A store with a value of 50 entries, about 48 KB, and its root: more than
+   any one stream of the pacing checks writes (C03, C18). A `get` reads its
+   whole value, and on nbb that is most of a pacing check's time. Built once."
+  (delay (let [st (store/mem-store)] [st (v/hash (cc/map-of st 50))])))
+
+(defn- mid-value [] @mid)
 
 (def ^:private frame-bytes 8192)
 
@@ -393,8 +405,7 @@
    each end the session; an `unknown-hash` answer does not."
   []
   (let [violation (fn [what setup]
-                    (let [[n _ _] (served-node [])
-                          n (cnet {:peers [["a" {}]] :hello? (not= what "before hello")})]
+                    (let [n (cnet {:peers [["a" {}]] :hello? (not= what "before hello")})]
                       (setup n)
                       [what n]))
         item-frame (stray-frame 1)
@@ -412,13 +423,14 @@
                               (fatal-errors n)))
                    (bad (str "client, " what ": closed") ["a"] @(:closed n))))
                 client-cases)
-        ;; a request error ends the stream only
-        [n _ root] (served-node [["a" {}] ["b" {}]])
+        ;; a request error ends the stream only (no peer serves `root`: small)
+        n (cnet {:peers [["a" {}] ["b" {}]]})
+        root (v/hash (v/string (store/mem-store) "asked of a, then b"))
         _ (h/request! (:client n) root)
         _ (h/on-frame! (:client n) "a" (cc/error-frame 1 "unknown-hash" false))
         ;; responder side
         st (store/mem-store)
-        rroot (v/hash (cc/map-of st 30))
+        rroot (v/hash (cc/map-of st 5))         ; small: a `get` reads it all
         resp-violation (fn [what f]
                          (let [rn (rnet {:st st :hello? (not= what "get before hello")})]
                            (f rn)
@@ -510,36 +522,40 @@
 (defn responder-paces-to-session-budget
   "C03: the responder writes at `min(send-max, budget)`, where the budget is the
    `recv-max` of the latest `get` (the `hello`'s before any), split among the
-   streams by interest. On a simulated clock, over one second each time, with a
-   `send-max` of 60000: a `get` with a 100000 budget writes about 60000 bytes
-   (within one frame; the `send-max` is the smaller); a later `get` with 20000
-   lowers the session to that; and, on another session, two streams at interest
-   1000 and 500 on a 90000 budget share it two to one."
+   streams by interest. On a simulated clock, over one second each time, with
+   4096-byte frames and a `send-max` of 30000: a `get` with a 50000 budget
+   writes about 30000 bytes (within one frame; the `send-max` is the smaller); a
+   later `get` with 10000 lowers the session to that; and, on another session,
+   two streams at interest 1000 and 500 on a 45000 budget share it two to one.
+   (Half the bytes and frame size of the first version, the same precision
+   in frames, on a 48 KB value: a `get` costs time on nbb.)"
   []
-  (let [[st root] (big-value)
+  (let [[st root] (mid-value)
+        fb 4096
         slow {"peak" 1000 "tau-ms" 100000000 "floor" 50}
         pace (fn [n from]
                (dotimes [_ 20] (step! n 50))
                (item-bytes n from (+ from 1000)))
         total #(reduce + 0 (vals %))
-        n1 (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "send-max"] 60000)})
-        _ (send-to! n1 (get-bytes 1 root 100000 slow))
+        n1 (rnet {:st st :max-frame fb
+                  :hello (assoc-in responder/default-hello ["rates" "send-max"] 30000)})
+        _ (send-to! n1 (get-bytes 1 root 50000 slow))
         capped (pace n1 0)
-        _ (send-to! n1 (get-bytes 3 root 20000 slow))
+        _ (send-to! n1 (get-bytes 3 root 10000 slow))
         lowered (pace n1 1000)
-        n2 (rnet {:st st})
-        _ (send-to! n2 (get-bytes 1 root 90000 slow))
-        _ (send-to! n2 (get-bytes 3 root 90000 (assoc slow "peak" 500)))
+        n2 (rnet {:st st :max-frame fb})
+        _ (send-to! n2 (get-bytes 1 root 45000 slow))
+        _ (send-to! n2 (get-bytes 3 root 45000 (assoc slow "peak" 500)))
         split (pace n2 0)]
     (concat
-     (bad "budget 100000, send-max 60000: within one frame of 60000 and not over" true
-          (<= (- 60000 frame-bytes) (total capped) 60000))
-     (bad "after a get with recv-max 20000, about 20000 (two frames of slack)" true
-          (<= 3000 (total lowered) (+ 20000 (* 2 frame-bytes))))
-     (bad "two streams: the 1000 one gets about two thirds of 90000" true
-          (near? (get split 1 0) 60000 (+ 1 frame-bytes)))
+     (bad "budget 50000, send-max 30000: within one frame of 30000 and not over" true
+          (<= (- 30000 fb) (total capped) 30000))
+     (bad "after a get with recv-max 10000, about 10000 (two frames of slack)" true
+          (<= 1500 (total lowered) (+ 10000 (* 2 fb))))
+     (bad "two streams: the 1000 one gets about two thirds of 45000" true
+          (near? (get split 1 0) 30000 (+ 1 fb)))
      (bad "the 500 one gets about a third" true
-          (near? (get split 3 0) 30000 (+ 1 frame-bytes))))))
+          (near? (get split 3 0) 15000 (+ 1 fb))))))
 
 (defn channel-never-buffers-over-high-mark-and-resumes-at-low
   "C17, on a fake channel that the peer drains at 20000 bytes a second while the
@@ -574,29 +590,33 @@
      (bad "the stream is over" #{} (responder/open-streams (:r n) "p")))))
 
 (defn blocked-stream-takes-no-share-and-banks-one-frame
-  "C18. Two streams at the same interest and 100000 a second. (1) One is blocked
-   (its channel holds 5 frames) for the whole second: it writes nothing, and the
-   other writes at the whole rate, not half. (2) A stream blocked for 2 s, then
-   freed as a second stream starts: it banked at most one frame (it writes no more
-   than 2 frames in the first tick) and it kept decaying (tau 2 s): over the next
-   second it gets about 27% of the rate, not the half it would at the same interest."
+  "C18. Two streams at the same interest and 40000 a second, in 4096-byte
+   frames. (1) One is blocked (its channel holds 5 frames) for the whole second:
+   it writes nothing, and the other writes at the whole rate, not half. (2) A
+   stream blocked for 2 s, then freed as a second stream starts: it banked at
+   most one frame (it writes no more than 2 frames in the first tick) and it
+   kept decaying (tau 2 s): over the next second it gets about 27% of the rate,
+   not the half it would at the same interest. (Two fifths of the bytes and
+   half the frame size of the first version, on a 48 KB value: a `get` costs
+   time on nbb.)"
   []
-  (let [[st root] (big-value)
+  (let [[st root] (mid-value)
+        fb 4096
         slow {"peak" 1000 "tau-ms" 100000000 "floor" 50}
-        n1 (rnet {:st st :channel? true})
-        _ (send-to! n1 (get-bytes 1 root 100000 slow))
-        _ (send-to! n1 (get-bytes 3 root 100000 slow))
-        _ (set-buffered! n1 1 (* 5 frame-bytes))
+        n1 (rnet {:st st :channel? true :max-frame fb})
+        _ (send-to! n1 (get-bytes 1 root 40000 slow))
+        _ (send-to! n1 (get-bytes 3 root 40000 slow))
+        _ (set-buffered! n1 1 (* 5 fb))
         _ (dotimes [_ 20] (set-buffered! n1 3 0) (step! n1 50))
         phase1 (item-bytes n1 0 1000)
         ;; (2)
         decay {"peak" 1000 "tau-ms" 2000 "floor" 50}
-        n2 (rnet {:st st :channel? true})
-        _ (send-to! n2 (get-bytes 1 root 100000 decay))
-        _ (set-buffered! n2 1 (* 5 frame-bytes))
+        n2 (rnet {:st st :channel? true :max-frame fb})
+        _ (send-to! n2 (get-bytes 1 root 40000 decay))
+        _ (set-buffered! n2 1 (* 5 fb))
         _ (dotimes [_ 20] (step! n2 100))          ; 2 s blocked
         blocked-bytes (get (item-bytes n2 0 2000) 1 0)
-        _ (send-to! n2 (get-bytes 3 root 100000 decay))
+        _ (send-to! n2 (get-bytes 3 root 40000 decay))
         _ (set-buffered! n2 1 0)
         _ (step! n2 10)
         first-tick (get (item-bytes n2 2000 2010) 1 0)
@@ -606,28 +626,29 @@
     (concat
      (bad "blocked stream writes nothing" 0 (get phase1 1 0))
      (bad "the other writes at the whole rate" true
-          (<= (- 100000 frame-bytes) (get phase1 3 0) 100000))
+          (<= (- 40000 fb) (get phase1 3 0) 40000))
      (bad "blocked for 2 s, nothing written" 0 blocked-bytes)
      (bad "freed: at most two frames in the first tick (one banked)" true
-          (<= first-tick (* 2 frame-bytes)))
+          (<= first-tick (* 2 fb)))
      (bad "it has decayed meanwhile: about 27% of the next second, not 50%" true
-          (< 8000 a 40000))
+          (< 3200 a 16000))
      (bad "the new stream gets the rest" true (> b (* 1.5 a))))))
 
 (defn get-over-the-bucket-is-rate-limited-and-session-lives
   "C40: the responder's bucket per session. Its hello says req-rate 20 and a
-   burst of 5 (the default burst of 40 only makes the check slower). Of 7 `get`s
-   at one moment (for a hash it does not hold: each costs a token, answered or
-   refused) 5 are answered `unknown-hash` and 2 `rate-limited` with a
+   burst of 2 (the default burst of 40 only makes the check slower: each `get`
+   costs time on nbb). Of 4 `get`s at one moment (for a hash it does not hold:
+   each costs a token, answered or refused) 2 are answered `unknown-hash` and
+   2 `rate-limited` with a
    `retry-ms`; the session lives; after 50 ms one token is back; a long time
    later the bucket holds its burst, not more."
   []
   (let [st (store/mem-store)
         missing (v/hash (v/string (store/mem-store) "not here"))
-        n (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "req-burst"] 5)})
+        n (rnet {:st st :hello (assoc-in responder/default-hello ["rates" "req-burst"] 2)})
         ask! (fn [sid] (send-to! n (get-bytes sid missing 1000)))
         codes #(frequencies (map (fn [m] (get-in m [:value "code"])) (errors-of n)))
-        _ (doseq [i (range 7)] (ask! (inc (* 2 i))))
+        _ (doseq [i (range 4)] (ask! (inc (* 2 i))))
         c1 (codes)
         limited (filterv #(= "rate-limited" (get-in % [:value "code"])) (errors-of n))
         retry (get-in (first limited) [:value "retry-ms"])
@@ -636,14 +657,14 @@
         _ (ask! 93)                              ; not another
         after-50 (codes)
         _ (step! n 60000)
-        _ (doseq [i (range 7)] (ask! (+ 101 (* 2 i))))
+        _ (doseq [i (range 4)] (ask! (+ 101 (* 2 i))))
         after-long (codes)]
     (concat
-     (bad "7 gets at once: 5 unknown-hash, 2 rate-limited" {"unknown-hash" 5 "rate-limited" 2} c1)
+     (bad "4 gets at once: 2 unknown-hash, 2 rate-limited" {"unknown-hash" 2 "rate-limited" 2} c1)
      (bad "rate-limited names a retry-ms of about 50" true (and retry (<= 1 retry 100)))
-     (bad "the limited gets are on their own streams" [11 13] (mapv :stream limited))
-     (bad "50 ms later one more is answered, one limited" {"unknown-hash" 6 "rate-limited" 3} after-50)
-     (bad "a minute later the burst, 5 more, is there and no more" {"unknown-hash" 11 "rate-limited" 5} after-long)
+     (bad "the limited gets are on their own streams" [5 7] (mapv :stream limited))
+     (bad "50 ms later one more is answered, one limited" {"unknown-hash" 3 "rate-limited" 3} after-50)
+     (bad "a minute later the burst, 2 more, is there and no more" {"unknown-hash" 5 "rate-limited" 5} after-long)
      (bad "the session is open, never closed" [:open []]
           [(responder/session-status (:r n) "p") @(:closed n)]))))
 
@@ -1013,6 +1034,16 @@
      (bad "the session stays open and is not closed" [:open []]
           [(responder/session-status r "p") @closed]))))
 
+(def ^:private floor-value
+  "A store with a value of about 210 items and its root, for the C05 floor
+   check. Built once: a responder only reads it. At a `recv-max` of 30000 a
+   stream has sent about 27 of its pages at the floor and the other stream
+   about 170, so neither reveal is finished. The 630-item `big` value at
+   80000 has the same shape, but each `get` of it costs about 300 ms on nbb."
+  (delay (let [st (store/mem-store)] [st (v/hash (cc/map-of st 40))])))
+
+(def ^:private floor-recv-max 30000)
+
 (defn stream-ends-partial-when-interest-falls-below-floor
   "C05. Clamped interest reaches the floor at `tau · ln(peak / floor)`, the
    same instant the lifetime already dropped the stream. The tick that reaches
@@ -1020,13 +1051,13 @@
    finishes first is FIN without PARTIAL. A floor above the peak ends on the
    first tick, with no pages. The other stream of the session stays open."
   []
-  (let [[st root] (big-value)
+  (let [[st root] @floor-value
         order (vec (reveal/page-order st root))
         short {"peak" 1000 "tau-ms" 1000 "floor" 200}
         long {"peak" 1000 "tau-ms" 60000 "floor" 10}
         n (rnet {:st st})
-        _ (send-to! n (get-bytes 1 root 80000 short))
-        _ (send-to! n (get-bytes 3 root 80000 long))
+        _ (send-to! n (get-bytes 1 root floor-recv-max short))
+        _ (send-to! n (get-bytes 3 root floor-recv-max long))
         ;; t = 1600 ms. The floor is tau · ln(1000/200) ≈ 1609 ms.
         _ (dotimes [_ 16] (step! n 100))
         open-mid (responder/open-streams (:r n) "p")
@@ -1040,8 +1071,12 @@
         _ (dotimes [_ 5] (step! n 100))
         later (item-frames n 1)
         ;; a floor above the peak pauses before any page
-        paused (let [p (rnet {:st st})]
-                 (send-to! p (get-bytes 1 root 80000
+        ;; small: a vector of two, three pages. It is enough for a stream
+        ;; that ends before its first page, and for a reveal that finishes.
+        small (store/mem-store)
+        sroot (v/hash (v/vector small (v/i64 small 1) (v/string small "leaf")))
+        paused (let [p (rnet {:st small})]
+                 (send-to! p (get-bytes 1 sroot floor-recv-max
                                         {"peak" 100 "tau-ms" 1000 "floor" 1000}))
                  (let [open (responder/open-streams (:r p) "p")]
                    (step! p 1)
@@ -1051,9 +1086,7 @@
                     :open (responder/open-streams (:r p) "p")
                     :status (responder/session-status (:r p) "p")}))
         ;; the reveal finishes while interest is still above the floor
-        done (let [small (store/mem-store)
-                   sroot (v/hash (v/vector small (v/i64 small 1) (v/string small "leaf")))
-                   sorder (vec (reveal/page-order small sroot))
+        done (let [sorder (vec (reveal/page-order small sroot))
                    p (rnet {:st small})]
                (send-to! p (get-bytes 1 sroot 10000000))
                (step! p 200)
@@ -1195,13 +1228,17 @@
    stream, which was splitting the rate, then writes about twice as much. A
    `cancel` for a closed stream, or for an id that was never opened, is
    ignored. A stream that is never cancelled still completes. A `cancel` that
-   arrives while the `get` is still being read does not let that stream start."
+   arrives while the `get` is still being read does not let that stream start.
+   (A 50000 budget, 4096-byte frames and a 48 KB value: half the bytes and
+   frame size of the first version, the same slack in frames; a `get` costs
+   time on nbb.)"
   []
-  (let [[st root] (big-value)
+  (let [[st root] (mid-value)
+        fb 4096
         steady {"peak" 1000 "tau-ms" 60000 "floor" 10}
-        n (rnet {:st st})
-        _ (send-to! n (get-bytes 1 root 100000 steady))
-        _ (send-to! n (get-bytes 3 root 100000 steady))
+        n (rnet {:st st :max-frame fb})
+        _ (send-to! n (get-bytes 1 root 50000 steady))
+        _ (send-to! n (get-bytes 3 root 50000 steady))
         _ (dotimes [_ 10] (step! n 50))
         before (item-bytes n 0 500)
         frames-before (count (item-frames n 1))
@@ -1234,7 +1271,7 @@
      (bad "cancel closes that stream at once" #{3} closed-at-once)
      (bad "and writes nothing more for it" frames-before (count (item-frames n 1)))
      (bad "the other stream writes about twice what it wrote while sharing" true
-          (near? (get after 3 0) (* 2 (get before 3 0)) (* 2 frame-bytes)))
+          (near? (get after 3 0) (* 2 (get before 3 0)) (* 2 fb)))
      (bad "a cancel for a closed or unknown stream is ignored" [] quiet)
      (bad "the session still takes a new get" [["unknown-hash" 5 false]]
           (mapv (fn [m] [(get-in m [:value "code"]) (:stream m) (get-in m [:value "fatal"])])
@@ -1396,8 +1433,9 @@
     (send-to! n bs)))
 
 (defn too-many-streams-is-refused-and-a-closed-slot-frees
-  "C11. The responder enforces the `max-streams` it advertises. At 64, the
-   65th `get` is `error overloaded` on that stream, the stream does not
+  "C11. The responder enforces the `max-streams` it advertises. At 16 (the
+   check advertises 16, not the most, 64: each `get` costs time on nbb), the
+   17th `get` is `error overloaded` on that stream, the stream does not
    start, and the session stays open. Cancel frees a slot at once and the
    id is not reused. The floor does the same. FIN does too: one stream
    completes while the others are over the high mark, and a get that was
@@ -1407,11 +1445,11 @@
         tiny (v/hash (v/i64 st 7))
         short {"peak" 1000 "tau-ms" 1000 "floor" 200}
         [before at] (life-bracket (spec-life 1000 1000 200))
-        n (rnet {:st st :channel? true :hello (hello-capping 64)})
+        n (rnet {:st st :channel? true :hello (hello-capping 16)})
         _ (send-to! n (get-bytes 1 tiny 1 short))
-        _ (doseq [bs (get-frames tiny 1 (map #(inc (* 2 %)) (range 1 64)) nil)]
+        _ (doseq [bs (get-frames tiny 1 (map #(inc (* 2 %)) (range 1 16)) nil)]
             (send-to! n bs))
-        open-64 (responder/open-streams (:r n) "p")
+        open-16 (responder/open-streams (:r n) "p")
         _ (send-to! n (get-bytes 129 tiny 1))
         refused (error-rows n)
         _ (send-to! n (cancel-bytes 3 {}))
@@ -1437,12 +1475,12 @@
         _ (send-to! n (get-bytes 5 tiny 1))
         _ (send-to! n (get-bytes 1 tiny 1))]
     (concat
-     (bad "64 gets are open" 64 (count open-64))
-     (bad "the 65th is overloaded, on its stream, and the session lives"
+     (bad "16 gets are open" 16 (count open-16))
+     (bad "the 17th is overloaded, on its stream, and the session lives"
           [[["overloaded" 129 false]] :open []]
           [refused (responder/session-status (:r n) "p") @(:closed n)])
-     (bad "that get did not start" false (contains? open-64 129))
-     (bad "cancel frees the slot at once" 63 (count after-cancel))
+     (bad "that get did not start" false (contains? open-16 129))
+     (bad "cancel frees the slot at once" 15 (count after-cancel))
      (bad "the cancelled id is no longer open" false (contains? after-cancel 3))
      (bad "the refused id starts once a slot is free" true (contains? after-reuse 129))
      (bad "a closed id is not reused" [["malformed" 3 false]]
@@ -1657,6 +1695,356 @@
      (bad "the channel was not drained to make room" true
           (>= (get @(:bufs n) 1 0) high)))))
 
+;; =============================================================================
+;; C06, C08: no idle timeout; renewal is a new stream
+;; =============================================================================
+
+(defn stalled-stream-decays-and-frees-its-share
+  "C06: there is no idle timeout. (1) Responder: stream 1's channel stays full
+   (its peer reads nothing) for 40 simulated seconds, far past any idle
+   timeout. It is not ended, no error is sent, and stream 3 of the same
+   session is not held: it finishes meanwhile. Read again, stream 1 writes
+   again (at about half its peak interest). Only decay ends it: it is open
+   just before `tau · ln(peak / floor)` (about 276 s, the longest the clamps
+   allow) and ends on that instant with FIN and PARTIAL. (2)
+   Client: gets that peers a and b never answer stay open a minute on, with
+   no error and no cancel, while their decayed interest returns their share
+   of `R_max`: the second get took half of it at once, and a new get a
+   minute on takes nearly all of it."
+  []
+  (let [[st root] (mid-value)
+        stall {"peak" 1000 "tau-ms" 60000 "floor" 10}
+        [before at] (life-bracket (spec-life 1000 60000 10))
+        n (rnet {:st st :channel? true})
+        _ (send-to! n (get-bytes 1 root 40000 stall))
+        _ (set-buffered! n 1 (* 5 frame-bytes))
+        _ (send-to! n (get-bytes 3 root 40000 {"peak" 1000 "tau-ms" 60000 "floor" 10}))
+        _ (dotimes [_ 40] (set-buffered! n 3 0) (step! n 1000))
+        open-stalled (responder/open-streams (:r n) "p")
+        stalled-frames (count (item-frames n 1))
+        last3 (peek (item-frames n 3))
+        _ (set-buffered! n 1 0)
+        _ (step! n 500)
+        resumed (count (item-frames n 1))
+        _ (jump! n before)
+        open-before (contains? (responder/open-streams (:r n) "p") 1)
+        _ (jump! n at)
+        last1 (peek (item-frames n 1))
+        ;; (2)
+        r-max 1000000
+        hs (distinct-hashes 3)
+        c (cnet {:r-max r-max :peers [["a" {}] ["b" {}]]})
+        ask! (fn [h] (h/request! (:client c) h)
+               (get-in (last (gets-sent c)) [2 :value "recv-max"]))
+        _ (ask! (nth hs 0))
+        second-rm (ask! (nth hs 1))
+        _ (advance! c 60000)
+        kept [(client/outstanding (:client c) "a") (client/outstanding (:client c) "b")]
+        statuses [(client/session-status (:client c) "a") (client/session-status (:client c) "b")]
+        late-rm (ask! (nth hs 2))
+        kinds (set (map (fn [[_ _ m]] (:type m)) @(:log c)))]
+    (concat
+     (bad "40 s stalled, the stream is still open" true
+          (contains? open-stalled 1))
+     (bad "the stalled stream wrote nothing" 0 stalled-frames)
+     (bad "the other stream was not held: it finished" [true false false]
+          [(boolean (:fin? last3)) (boolean (:partial? last3))
+           (contains? open-stalled 3)])
+     (bad "no error was sent" [] (mapv :stream (errors-of n)))
+     (bad "read again, the stalled stream writes" true (pos? resumed))
+     (bad "just before its lifetime it is still open" true open-before)
+     (bad "on that instant decay ends it, FIN and PARTIAL" [false true true]
+          [(contains? (responder/open-streams (:r n) "p") 1)
+           (boolean (:fin? last1)) (boolean (:partial? last1))])
+     (bad "the session stays open" :open (responder/session-status (:r n) "p"))
+     (bad "client: the second get took half of R_max at once" (/ r-max 2) second-rm)
+     (bad "a minute on, the unanswered gets are still open" [[(nth hs 0)] [(nth hs 1)]] kept)
+     (bad "and both sessions too" [:open :open] statuses)
+     (bad "the client sent no error and no cancel" #{:get} (disj kinds :hello))
+     (bad "their share came back: a new get takes nearly all of R_max" true
+          (> late-rm (* 0.99 r-max))))))
+
+(defn renewal-is-a-new-stream-at-peak
+  "C08: renewal is a new get with a new stream id, and the responder treats it
+   as independent of the stream it renews: a new clock at peak. Stream 1 asks
+   with tau 10 s (it lives about 46 s) and its channel stays full; 30 s on a
+   get on stream 3 renews the same hash. Both are open. Read again, the
+   renewal, at peak, takes nearly all of the session's rate over the next
+   second, and stream 1, decayed to about 5% of the peak, not a frame. With
+   both channels full again, stream 1 ends at its own deadline and stream 3
+   lives on to 30 s plus its own lifetime."
+  []
+  (let [[st root] (mid-value)
+        fb 4096
+        interest {"peak" 1000 "tau-ms" 10000 "floor" 10}
+        life (spec-life 1000 10000 10)
+        n (rnet {:st st :channel? true :max-frame fb})
+        _ (send-to! n (get-bytes 1 root 40000 interest))
+        _ (set-buffered! n 1 (* 5 fb))
+        _ (dotimes [_ 30] (step! n 1000))
+        _ (send-to! n (get-bytes 3 root 40000 interest))
+        both (responder/open-streams (:r n) "p")
+        _ (set-buffered! n 1 0)
+        _ (step! n 10)                  ; stream 1's one banked frame (C18)
+        t1 @(:clock n)
+        _ (dotimes [_ 10] (set-buffered! n 1 0) (set-buffered! n 3 0) (step! n 100))
+        window (item-bytes n t1 (+ t1 1000))
+        _ (set-buffered! n 1 (* 5 fb))
+        _ (set-buffered! n 3 (* 5 fb))
+        [before1 at1] (life-bracket life)
+        _ (jump! n before1)
+        open-before1 (responder/open-streams (:r n) "p")
+        _ (jump! n at1)
+        open-at1 (responder/open-streams (:r n) "p")
+        [before3 at3] (life-bracket (+ 30000 life))
+        _ (jump! n before3)
+        open-before3 (responder/open-streams (:r n) "p")
+        _ (jump! n at3)
+        last3 (peek (item-frames n 3))]
+    (concat
+     (bad "the renewal is a new stream; the renewed one stays open" #{1 3} both)
+     (bad "at peak the renewal takes nearly all of 40000 a second" true
+          (>= (get window 3 0) 30000))
+     (bad "the decayed stream 1 takes not a frame of it" true (< (get window 1 0) fb))
+     (bad "just before stream 1's deadline both are open" #{1 3} open-before1)
+     (bad "stream 1 ends on its own deadline; the renewal does not" #{3} open-at1)
+     (bad "the renewal is open until 30 s plus its own lifetime" #{3} open-before3)
+     (bad "then it ends too, FIN and PARTIAL" [#{} true true]
+          [(responder/open-streams (:r n) "p") (boolean (:fin? last3)) (boolean (:partial? last3))])
+     (bad "no error was sent" [] (mapv :stream (errors-of n))))))
+
+;; =============================================================================
+;; C42: no state is shared between sessions
+;; =============================================================================
+
+(defn sessions-share-no-state-except-rmax
+  "C42: a bucket, budget, record or clock belongs to one session; only the
+   client's own `R_max` is shared. (1) One responder, peers p and q, with a
+   bucket of 4 a session (a smaller burst than the default 40: each get and
+   each error is a message to encode, 20 to 40 ms on nbb). p is served a
+   small value and acks it (its record), asks the 48 KB value at `recv-max`
+   2000 (its budget), and floods 4 gets for hashes not held, past its bucket
+   (rate-limited). q then gets its whole bucket: 2 gets and 2 more, none
+   rate-limited. q's get of the small value sends every page,
+   not only the root p's record would leave. Over the next second q's stream
+   of the 48 KB value writes at its own 40000 a second while p's writes at
+   about 2000. p then breaks the protocol and its session ends; q's session
+   and stream go on, and its stream finishes. (2) One client, peers a and b,
+   each with a bucket of 2. Five requests with only a open: a takes 2, 3
+   wait. b opens and takes its own 2, as many as a bucket of 2 holds, and its
+   first `get` asks a third of `R_max`: the one thing shared is the split of
+   `R_max` by interest (C01), a's two streams at peak against b's one."
+  []
+  (let [[st root] (mid-value)
+        small (v/hash (v/vector st (v/i64 st 1) (v/i64 st 2) (v/i64 st 3)))
+        small-order (mapv store/hash->hex (reveal/page-order st small))
+        burst 4
+        flood 4
+        missing (distinct-hashes (+ flood (- burst 2)))
+        clock (atom 0) sent (atom [])
+        r (h/responder {:store st :now (fn [] @clock)
+                        :hello (assoc-in responder/default-hello ["rates" "req-burst"] burst)
+                        :send! (fn [p bs] (swap! sent conj [@clock p bs]))})
+        to! (fn [p bs] (h/responder-on-frame! r p bs))
+        step! (fn [ms] (swap! clock + ms) (responder/tick! r))
+        long-life {"peak" 1000 "tau-ms" 60000 "floor" 10}
+        frames-of (fn [p sid]
+                    (into [] (keep (fn [[_ p' bs]]
+                                     (let [fr (frame/decode-frame bs)]
+                                       (when (and (= p p') (= :item-stream (:type fr)) (= sid (:stream fr)))
+                                         fr))))
+                          @sent))
+        hashes-of (fn [p sid]
+                    (loop [frs (frames-of p sid) rd (frame/reader sid) out []]
+                      (if (empty? frs)
+                        out
+                        (let [[rd' items] (frame/feed rd (first frs))]
+                          (recur (rest frs) rd'
+                                 (into out (mapcat (fn [bs] (map (comp store/hash->hex :hash)
+                                                                 (bin/decode-item-stream bs)))
+                                                   items)))))))
+        bytes-of (fn [p sid from to]
+                   (reduce (fn [n [t p' bs]]
+                             (let [fr (frame/decode-frame bs)]
+                               (if (and (= p p') (> t from) (<= t to)
+                                        (= :item-stream (:type fr)) (= sid (:stream fr)))
+                                 (+ n (bin/byte-len bs))
+                                 n)))
+                           0 @sent))
+        codes-of (fn [p]
+                   (frequencies
+                    (keep (fn [[_ p' bs]]
+                            (when (and (= p p') (= :error (kind bs)))
+                              (get-in (msg/decode-message bs) [:value "code"])))
+                          @sent)))
+        _ (doseq [p ["p" "q"]]
+            (responder/open-session! r p)
+            (to! p (hello-bytes (hello-with {}))))
+        ;; p: its record, its budget, its bucket
+        _ (to! "p" (get-bytes 1 small 10000000))
+        _ (step! 100)
+        _ (to! "p" (msg/encode-message
+                    {:type :ack :stream 0
+                     :value {"hashes" (mapv #(msg/hash-ref %) (hashes-of "p" 1))}}))
+        _ (to! "p" (get-bytes 3 root 2000 long-life))
+        _ (doseq [[i h] (map-indexed vector (take flood missing))]
+            (to! "p" (get-bytes (+ 5 (* 2 i)) h 2000)))
+        p-codes (codes-of "p")
+        ;; q: the same requests, its own state
+        _ (to! "q" (get-bytes 1 small 10000000))
+        _ (to! "q" (get-bytes 3 root 40000 long-life))
+        _ (doseq [[i h] (map-indexed vector (take (- burst 2) (drop flood missing)))]
+            (to! "q" (get-bytes (+ 5 (* 2 i)) h 40000)))
+        q-codes (codes-of "q")
+        t1 @clock
+        _ (dotimes [_ 10] (step! 100))
+        p-rate (bytes-of "p" 3 t1 (+ t1 1000))
+        q-rate (bytes-of "q" 3 t1 (+ t1 1000))
+        q-small (hashes-of "q" 1)
+        _ (to! "p" (garbage))
+        after-p [(responder/session-status r "p") (responder/session-status r "q")
+                 (contains? (responder/open-streams r "q") 3)]
+        _ (dotimes [_ 20] (step! 100))
+        q-last (peek (frames-of "q" 3))
+        ;; (2) the client
+        r-max 1000000
+        hs (distinct-hashes 5)
+        small-bucket {"req-rate" 1 "req-burst" 2}
+        n (cnet {:r-max r-max :peers [["a" small-bucket]]})
+        _ (doseq [h hs] (h/request! (:client n) h))
+        waiting (count (client/unserved (:client n)))
+        _ (client/open-session! (:client n) "b")
+        _ (h/on-frame! (:client n) "b" (hello-bytes (hello-with small-bucket)))
+        gets (gets-sent n)
+        b-first (some (fn [[_ p m]] (when (= "b" p) (get-in m [:value "recv-max"]))) gets)]
+    (concat
+     (bad "p: its flood of 4 is partly rate-limited" true (pos? (get p-codes "rate-limited" 0)))
+     (bad "q: none of its 4 gets is rate-limited, 2 are unknown-hash" {"unknown-hash" (- burst 2)} q-codes)
+     (bad "q: its get of the small value sends every page, not p's record" small-order q-small)
+     (bad "q's stream writes at its own budget, 40000 a second" true (<= 30000 q-rate 40000))
+     (bad "p's stream at its budget, about 2000 a second" true (< p-rate (+ 2000 frame-bytes)))
+     (bad "p's session ends; q's session and stream go on" [:ended :open true] after-p)
+     (bad "q's stream finishes" [true false] [(boolean (:fin? q-last)) (boolean (:partial? q-last))])
+     (bad "client: with only a open, a takes its 2 and 3 wait" 3 waiting)
+     (bad "b opens and takes its own 2" {"a" 2 "b" 2} (frequencies (map second gets)))
+     (bad "b's first get asks a third of R_max (the shared split)" true
+          (and b-first (near? b-first (/ r-max 3) 2))))))
+
+;; =============================================================================
+;; C24, C25: the reveal order
+;; =============================================================================
+
+(defn- order-value
+  "A store and a vector whose elements are each more than one node: a long
+   string (its own pages), a vector of three strings, that long string again,
+   and a map. Built the same way each call. {:st :root :elems}"
+  []
+  (let [st (store/mem-store)
+        s1 (v/string st (apply str (repeat 9000 "a")))
+        v2 (apply v/vector st (map #(v/string st (str "e" % (apply str (repeat 300 "z")))) (range 3)))
+        m3 (v/map st "k" (v/string st (apply str (repeat 500 "m"))) "j" (v/i64 st 4))
+        elems [s1 v2 s1 m3]]
+    {:st st :root (v/hash (apply v/vector st elems)) :elems (mapv v/hash elems)}))
+
+(defn- served-items
+  "The decoded items a responder over `st` sends on one get of `root`, in
+   order, once the stream has ended."
+  [st root]
+  (let [n (rnet {:st st})]
+    (send-to! n (get-bytes 1 root 10000000))
+    (loop [i 0]
+      (step! n 200)
+      (when (and (seq (responder/open-streams (:r n) "p")) (< i 50))
+        (recur (inc i))))
+    (loop [frames (item-frames n 1) rd (frame/reader 1) out []]
+      (if (empty? frames)
+        out
+        (let [[rd' items] (frame/feed rd (first frames))]
+          (recur (rest frames) rd' (into out (mapcat bin/decode-item-stream items))))))))
+
+(defn- served-order
+  "Hex hashes of `served-items`."
+  [st root]
+  (mapv (comp store/hash->hex :hash) (served-items st root)))
+
+(defn- own-pages
+  "The structural pages of the collection `h` (finger-tree or HAMT nodes),
+   each page and then its structural children in stored order. Elements
+   are not entered. An independent statement of the C24 walk, from
+   `types/child-hashes`."
+  [st h]
+  (letfn [(entry [x] (store/await (store/s-get st x)))
+          (walk [x] (if (re-find #"^(ft|hamt)/" (str (first (entry x))))
+                      (cons x (mapcat walk (types/child-hashes (entry x))))
+                      []))]
+    (vec (mapcat walk (types/child-hashes (entry h))))))
+
+(defn reveal-walks-each-subtree-depth-first
+  "C24: a responder sends the asked value depth-first. The asked node comes
+   first, then the collection's own structural pages, then each element's
+   subtree, whole, in element order. A hash already sent is not sent again,
+   so the repeated string adds nothing. Each element asked alone starts the
+   same way, and the whole order is `dacite.reveal/page-order`."
+  []
+  (let [{:keys [st root elems]} (order-value)
+        hex #(mapv store/hash->hex %)
+        sent (served-order st root)
+        own (hex (own-pages st root))
+        subtrees (mapv #(served-order st %) elems)
+        expected (vec (distinct (concat [(store/hash->hex root)] own (apply concat subtrees))))]
+    (concat
+     (bad "the asked node is first" (store/hash->hex root) (first sent))
+     (bad "the vector has its own pages" true (< 1 (count own)))
+     (bad "then the vector's own pages, each before its children"
+          own (subvec sent 1 (min (count sent) (inc (count own)))))
+     (bad "then each element's subtree, whole, in element order, no hash twice"
+          expected sent)
+     (bad "the repeated element is sent once" (count (distinct sent)) (count sent))
+     (vec (mapcat (fn [e sub]
+                    (let [eown (hex (own-pages st e))]
+                      (bad "an element asked alone: it, then its own pages"
+                           (vec (cons (store/hash->hex e) eown))
+                           (subvec sub 0 (min (count sub) (inc (count eown)))))))
+                  (distinct elems) (distinct subtrees)))
+     (bad "the order is the engine's page-order" (hex (reveal/page-order st root)) sent))))
+
+(defn- permute
+  "`xs` in an order fixed by `seed` (the same on both hosts)."
+  [xs seed]
+  (let [keys (vec (take (count xs) (rest (iterate lcg seed))))]
+    (mapv second (sort-by first (map vector keys xs)))))
+
+(defn reveal-order-is-fixed-and-receiver-accepts-any
+  "C25: the order is fixed, with no shuffling: the same get on the same store
+   sends the same order, and so does the same value built in another store.
+   A receiver does not rely on it: the items of the nested value verify and
+   store all of it forward, reversed and in three fixed shuffles."
+  []
+  (let [{:keys [st root]} (order-value)
+        items (served-items st root)
+        order (mapv (comp store/hash->hex :hash) items)
+        other (order-value)
+        hex-set #(set (map (comp store/hash->hex :hash) %))]
+    (concat
+     (bad "the same get on the same store, the same order" order (served-order st root))
+     (bad "the same value in another store, the same order" order
+          (served-order (:st other) (:root other)))
+     (bad "the stream sends every page" (count (reveal/page-order st root)) (count items))
+     (vec (mapcat (fn [[label items']]
+                    (let [rx (verify/receiver (store/mem-store))
+                          outcome (try (verify/finish! (verify/accept-items! rx items')) :ok
+                                       (catch #?(:clj Throwable :cljs :default) e
+                                         (or (:reason (ex-data e)) (ex-message e))))]
+                      (concat
+                       (bad (str label ": accepted") :ok outcome)
+                       (bad (str label ": all stored") (hex-set items)
+                            (hex-set (filter #(store/await (store/s-get (:store rx) (:hash %))) items))))))
+                  [["forward" items]
+                   ["reversed" (vec (reverse items))]
+                   ["shuffle 1" (permute items 1)]
+                   ["shuffle 2" (permute items 2)]
+                   ["shuffle 3" (permute items 3)]])))))
+
 (def checks
   "Test name (spec §13) -> check. Run order is this order."
   (array-map
@@ -1690,7 +2078,12 @@
    "get-interest-is-clamped-by-the-responder" get-interest-is-clamped-by-the-responder
    "too-many-streams-is-refused-and-a-closed-slot-frees" too-many-streams-is-refused-and-a-closed-slot-frees
    "max-streams-above-64-is-read-as-64" max-streams-above-64-is-read-as-64
-   "item-over-max-item-is-refused-before-buffering" item-over-max-item-is-refused-before-buffering))
+   "item-over-max-item-is-refused-before-buffering" item-over-max-item-is-refused-before-buffering
+   "stalled-stream-decays-and-frees-its-share" stalled-stream-decays-and-frees-its-share
+   "renewal-is-a-new-stream-at-peak" renewal-is-a-new-stream-at-peak
+   "sessions-share-no-state-except-rmax" sessions-share-no-state-except-rmax
+   "reveal-walks-each-subtree-depth-first" reveal-walks-each-subtree-depth-first
+   "reveal-order-is-fixed-and-receiver-accepts-any" reveal-order-is-fixed-and-receiver-accepts-any))
 
 (def max-ms
   "No check may take longer than this (milliseconds)."

@@ -1,8 +1,17 @@
 (ns dacite.examples.library-test
-  "Library: sets are tables, title index is a vector, a page is slice."
+  "Library on the JVM.
+
+   The bodies are `dacite.examples.library-checks`; nbb runs the same checks
+   (`npm run examples:test`). One deftest each, so the JVM suite still
+   names the test it ran before.
+
+   `origin-publishes-the-seed-library` and `static-library-index` stay JVM
+   only: they use the JVM origin (`dacite.examples.library-origin`) and the
+   HTTP service (legacy HTTP)."
   (:require [clojure.test :refer [deftest is]]
+            [dacite.store.check :as check]
+            [dacite.examples.library-checks :as checks]
             [clojure.java.io :as io]
-            [clojure.string :as str]
             [dacite.examples.library :as lib]
             [dacite.examples.library-origin :as origin]
             [dacite.service :as svc]
@@ -10,127 +19,58 @@
             [dacite.value :as v]
             [dacite.wire :as wire]))
 
-(def mini-a
-  {:title "Apple Tales"
-   :author "A. Author"
-   :source "test"
-   :license "public-domain"
-   :text "CHAPTER I. Core\n\nHello from apple.\n\nCHAPTER II. Slice\n\nA page of apple text.\n"})
-
-(def mini-z
-  {:title "Zebra Notes"
-   :author "Z. Author"
-   :source "test"
-   :license "public-domain"
-   :text "CHAPTER I. Stripes\n\nHello from zebra.\n"})
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest contents-list-is-not-chapters
-  (let [toc (apply str (map #(str "CHAPTER " % ". Title.\n") (range 1 6)))
-        pad (apply str (repeat 250 \x))
-        body (str toc "\n" pad "\n"
-                  "CHAPTER 1. Loomings.\n\n" pad "\n"
-                  "CHAPTER 2. The Carpet-Bag.\n\n" pad "\n")
-        heads (lib/parse-chapters body "Front")]
-    (is (= ["Front" "CHAPTER 1. Loomings." "CHAPTER 2. The Carpet-Bag."]
-           (mapv :title heads)))))
+  (run-check "contents-list-is-not-chapters"))
 
 (deftest library-root-predicate
-  (let [st (store/mem)
-        catalog (lib/empty-library st)]
-    (is (true? (lib/library-root? catalog)))
-    (is (false? (lib/library-root? (v/vector st 1 2))))
-    (is (false? (lib/library-root? nil)))))
+  (run-check "library-root-predicate"))
 
 (deftest pages-in-chapter-covers-text
-  (let [st (store/mem)
-        catalog (lib/ingest (lib/empty-library st) mini-a)
-        book (lib/book-of catalog "Apple Tales")
-        n (lib/pages-in-chapter book 0 8)]
-    (is (pos? n))
-    (is (seq (lib/chapter-page book 0 0 8)))
-    (is (string? (lib/chapter-title book 0)))))
+  (run-check "pages-in-chapter-covers-text"))
 
 (deftest empty-shape
-  (let [st (store/mem)
-        empty (lib/empty-library st)]
-    (is (= "map" (v/type empty)))
-    (is (= "set" (v/type (lib/epubs-of empty))))
-    (is (= "set" (v/type (lib/books-of empty))))
-    (is (zero? (v/count (lib/epubs-of empty))))
-    (is (zero? (v/count (lib/title-index empty))))))
+  (run-check "empty-shape"))
 
 (deftest ingest-shares-epub-blob
-  (let [st (store/mem)
-        catalog (lib/ingest (lib/empty-library st) mini-a)
-        book (v/nth (lib/title-index catalog) 0)]
-    (is (= 1 (v/count (lib/epubs-of catalog))))
-    (is (= 1 (v/count (lib/books-of catalog))))
-    (is (= 1 (v/count (lib/title-index catalog))))
-    (is (= "Apple Tales" (lib/book-title book)))
-    (is (= (v/hash (lib/book-epub book))
-           (v/hash (first (v/seq (lib/epubs-of catalog)))))
-        "record.epub is the set member")
-    (is (v/set-member? (lib/epubs-of catalog) (lib/book-epub book)))
-    (is (v/set-member? (lib/books-of catalog) book)
-        "index row is the books-set member")))
+  (run-check "ingest-shares-epub-blob"))
 
 (deftest duplicate-ingest-is-identity
-  (let [st (store/mem)
-        a (lib/ingest (lib/empty-library st) mini-a)
-        b (lib/ingest a mini-a)]
-    (is (= (v/hash a) (v/hash b)))
-    (is (= 1 (v/count (lib/epubs-of b))))
-    (is (= 1 (v/count (lib/books-of b))))))
+  (run-check "duplicate-ingest-is-identity"))
 
 (deftest title-index-is-sorted
-  (let [st (store/mem)
-        catalog (-> (lib/empty-library st)
-                    (lib/ingest mini-z)
-                    (lib/ingest mini-a))
-        idx (lib/title-index catalog)]
-    (is (= 2 (v/count idx)))
-    (is (= "Apple Tales" (lib/book-title (v/nth idx 0))))
-    (is (= "Zebra Notes" (lib/book-title (v/nth idx 1))))
-    (is (= "Apple Tales" (lib/book-title (lib/book-of catalog "Apple Tales"))))))
+  (run-check "title-index-is-sorted"))
 
 (deftest page-is-slice-of-text
-  (let [st (store/mem)
-        catalog (lib/ingest (lib/empty-library st) mini-a)
-        book (lib/book-of catalog "Apple Tales")
-        text (lib/book-text book)
-        n 12
-        sliced (v/slice text 0 n)
-        shown (lib/page book 0 n)]
-    (is (= "string" (v/type sliced)))
-    (is (= shown (v/native sliced)))
-    (is (= (v/hash (v/string book shown)) (v/hash sliced)))
-    (is (= 2 (v/count (lib/book-chapters book))))
-    (is (zero? (lib/chapter-start book 0)))
-    (is (pos? (lib/chapter-start book 1)))
-    (is (seq (lib/chapter-page book 1 0 40)))))
+  (run-check "page-is-slice-of-text"))
 
 (deftest add-epub-without-catalog
-  (let [st (store/mem)
-        full (lib/ingest (lib/empty-library st) mini-a)
-        blob (lib/book-epub (v/nth (lib/title-index full) 0))
-        only (lib/add-epub (lib/empty-library st) blob)]
-    (is (= 1 (v/count (lib/epubs-of only))))
-    (is (zero? (v/count (lib/books-of only))))
-    (is (= (v/hash only) (v/hash (lib/add-epub only blob))))))
+  (run-check "add-epub-without-catalog"))
 
 (deftest seed-plate-is-a-png-the-reader-can-show
-  (let [st (store/mem)
-        catalog (lib/seed-library st)
-        book (v/nth (lib/title-index catalog) 0)
-        img (lib/book-image book)
-        bs (wire/bytes->vec (v/as-bytes img))
-        plain (lib/ingest (lib/empty-library st) mini-a)]
-    (is (= [137 80 78 71 13 10 26 10] (subvec lib/seed-plate 0 8)))
-    (is (= (vec lib/seed-plate) bs))
-    (is (= "blob" (v/type img)))
-    (is (nil? (lib/book-image (lib/book-of plain "Apple Tales"))))
-    (is (str/includes? (lib/chapter-page book 0 0 400) "CHAPTER I. The Shelf"))
-    (is (str/includes? (lib/chapter-page book 0 0 80) "The catalog is a set of books"))))
+  (run-check "seed-plate-is-a-png-the-reader-can-show"))
+
+(deftest seed-has-three-chapters
+  (run-check "seed-has-three-chapters"))
+
+(deftest file-reopen
+  (run-check "file-reopen"))
+
+(defn- http-no-follow
+  [url]
+  (let [conn ^java.net.HttpURLConnection (.openConnection (java.net.URL. url))]
+    (.setInstanceFollowRedirects conn false)
+    (.setRequestMethod conn "GET")
+    (let [code (.getResponseCode conn)
+          loc (.getHeaderField conn "Location")]
+      (.disconnect conn)
+      {:status code :location loc})))
 
 (deftest origin-publishes-the-seed-library
   (let [st (store/mem)
@@ -142,43 +82,6 @@
            (store/hash->hex root)
            (:root (wire/read-edn (:body resp)))))
     (is (> entries 1))))
-
-(deftest seed-has-three-chapters
-  (let [r (v/root (lib/open-mem))
-        [catalog seeded?] (lib/load-or-seed! r)
-        book (v/nth (lib/title-index catalog) 0)
-        m (lib/measure catalog)]
-    (is (true? seeded?))
-    (is (= lib/seed-title (lib/book-title book)))
-    (is (= 3 (v/count (lib/book-chapters book))))
-    (is (< (:page-chars m) (:text-chars m)))
-    (is (true? (:same-epub-noop? m)))
-    (is (pos? (count (lib/chapter-page book 0 0 80))))))
-
-(deftest file-reopen
-  (let [dir (io/file (str "target/dacite-library-test-" (System/nanoTime)))]
-    (try
-      (let [r1 (v/root (lib/open-file (.getPath dir)))]
-        (lib/load-or-seed! r1)
-        (v/swap! r1 lib/ingest mini-z)
-        (let [h1 (v/hash (v/deref r1))
-              r2 (v/root (lib/open-file (.getPath dir)))
-              loaded (v/deref r2)]
-          (is (= h1 (v/hash loaded)))
-          (is (= 2 (v/count (lib/title-index loaded))))
-          (is (some? (lib/book-of loaded "Zebra Notes")))))
-      (finally
-        (lib/reset-store-dir! (.getPath dir))))))
-
-(defn- http-no-follow
-  [url]
-  (let [conn ^java.net.HttpURLConnection (.openConnection (java.net.URL. url))]
-    (.setInstanceFollowRedirects conn false)
-    (.setRequestMethod conn "GET")
-    (let [code (.getResponseCode conn)
-          loc (.getHeaderField conn "Location")]
-      (.disconnect conn)
-      {:status code :location loc})))
 
 (deftest static-library-index
   (let [rooted (svc/make-demo-rooted)
@@ -197,3 +100,12 @@
         (is (re-find #"/app/library/$" (:location noslash))))
       (finally
         (stop!)))))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.examples.library-test)))))
+               "every-check-has-a-deftest"
+               "origin-publishes-the-seed-library"
+               "static-library-index"))
+      "examples/library_checks.cljc and this file list the same tests"))

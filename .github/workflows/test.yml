@@ -29,14 +29,19 @@ jobs:
 
       # parity:test is the nbb half of bin/parity.sh. The JVM half and
       # the digest compare need Clojure, so they stay local, like
-      # core-boundary-test.
-      - name: Reveal, parity, IndexedDB, peer, WebRTC, mem-store, and LRU suites
+      # core-boundary-test. webrtc:signal-test is plain Node (no nbb): the
+      # room relay on an ephemeral 127.0.0.1 port, then node-datachannel
+      # transfers over loopback, the last one 5 MB between two processes
+      # (about 1 s).
+      - name: Reveal, parity, IndexedDB, peer, items, WebRTC, signaling, mem-store, and LRU suites
         run: |
           npm run reveal:test
           npm run parity:test
           npm run idb:test
           npm run peer:test
+          npm run items:test
           npm run webrtc:test
+          npm run webrtc:signal-test
           npm run mem:test
           npm run lru:test
 
@@ -47,6 +52,48 @@ jobs:
 
       - name: Durable store suite
         run: npm run store:test
+
+      # store_test and format_test on the nbb file and LMDB stores. Needs the
+      # format-v1 LMDB build above, and exits 2 when the addon did not load.
+      - name: Storage suite (file and LMDB)
+        run: npm run storage:test
+
+      # pack_test, chunk_test, lens_test, and rate_limit_test. The chunk
+      # checks open LMDB too, so this also runs after the format-v1 build.
+      - name: Pack, chunk, lens, and rate-limit suite
+        run: npm run store-units:test
+
+      # rooted_test, rooted/gc_test, and value/root_ref_test. The root cell
+      # checks open LMDB too, so this also runs after the format-v1 build.
+      - name: Rooted store, GC, and root ref suite
+        run: npm run rooted:test
+
+      # value_test, value/path_test, api_test, finger_tree_test,
+      # collections_test, unicode_test, and hamt_collision_test, and the
+      # portable part of core_test.
+      - name: Value layer suite
+        run: npm run value:test
+
+      # wire/binary_test: the wire-v1 codec against fixtures/wire-v1 and
+      # live public values.
+      - name: Wire codec suite
+        run: npm run wire:test
+
+      # hash_test: the SL(2, F_p) fuse, refs, and the kernel boundary.
+      - name: Hash suite
+        run: npm run hash:test
+
+      # The portable example tests (browser_uri, hello, todo, config, notes)
+      # on mem and nbb file stores.
+      - name: Example suite
+        run: npm run examples:test
+
+      # The example demo scripts end to end on nbb (todo:batch, config,
+      # notes, log, sync, library), each on a fresh store in a temp directory
+      # (scripts/examples-smoke.sh); the log seeds 150 events, not 2000.
+      # Each exits nonzero on a failure; about 10 s in all.
+      - name: Example demo scripts
+        run: npm run examples:smoke
 
       # shadow-cljs.edn uses :deps, so peer:build and browser:test start
       # the compiler with the `clojure` executable. The suites above do not.

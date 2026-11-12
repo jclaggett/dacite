@@ -196,9 +196,10 @@
 
 (defn coerce-kind
   "Classify a plain host value into a Dacite coercion kind keyword. The
-   host-specific predicates (Boolean, char, float/double, byte arrays) are
-   only meaningful on the JVM; ClojureScript maps its numeric tower onto
-   i64/f64."
+   host-specific predicates (Boolean, char, float/double) are only
+   meaningful on the JVM; ClojureScript maps its numeric tower onto
+   i64/f64. Host bytes are a blob on both hosts: a JVM `byte[]`, a CLJS
+   `Uint8Array`."
   [x]
   (cond
     (nil? x)        :null
@@ -217,6 +218,7 @@
         :cljs
         [(boolean? x)          :bool
          (number? x)           :f64
+         (instance? js/Uint8Array x) :blob
          (sequential? x)       :sequential])
     :else :unsupported))
 

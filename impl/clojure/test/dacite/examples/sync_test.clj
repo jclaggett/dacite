@@ -1,6 +1,15 @@
 (ns dacite.examples.sync-test
-  "Directory sync: list without bodies; one-file fetch < siblings; second copy is cheap."
+  "Directory sync on the JVM.
+
+   The bodies are `dacite.examples.sync-checks`; nbb runs the same checks
+   (`npm run examples:test`). One deftest each, so the JVM suite still
+   names the test it ran before.
+
+   `remote-one-blob-cheaper-than-all-blobs` stays JVM only: it starts the
+   HTTP service and reads through `store/remote` (legacy HTTP)."
   (:require [clojure.test :refer [deftest is]]
+            [dacite.store.check :as check]
+            [dacite.examples.sync-checks :as checks]
             [clojure.java.io :as io]
             [dacite.examples.sync :as fs]
             [dacite.service :as svc]
@@ -9,55 +18,43 @@
             [dacite.store.stats :as stats]
             [dacite.value :as v]))
 
-(def sample-root-hex
-  "f0d28f419e2e147d26054c5b442e85b309f0985c9a1c5125e1439d1187a725ae")
+(def ^:private env
+  "Host file calls for `ingest-export-roundtrip`."
+  {:mkdirs (fn [p] (.mkdirs (io/file p)))
+   :spit (fn [p s] (spit (io/file p) s))
+   :slurp (fn [p] (slurp (io/file p)))
+   :rm-rf (fn [p] (let [d (io/file p)]
+                    (when (.exists d)
+                      (doseq [f (reverse (file-seq d))]
+                        (.delete ^java.io.File f)))))})
+
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks env name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest sample-tree-shares-identical-blobs
-  (let [r (v/root (fs/open-mem))
-        [t _] (fs/load-or-seed! r)
-        m (fs/measure-sharing t)]
-    (is (= sample-root-hex (store/hash->hex (v/hash t))))
-    (is (= #{"readme.txt" "copy.txt" "data.bin" "sub"} (set (:names m))))
-    (is (true? (:shared-blob? m)))
-    (is (= 13 (:readme-bytes m)))
-    (is (= 256 (:data-bytes m)))
-    (is (fs/dir? (fs/lookup t ["sub"])))
-    (is (pos? (fs/entry-size (fs/lookup t ["sub" "note.txt"]))))))
+  (run-check "sample-tree-shares-identical-blobs"))
 
 (deftest ls-does-not-need-as-bytes
-  (let [r (v/root (fs/open-mem))
-        [t _] (fs/load-or-seed! r)
-        rows (fs/list-entries t)]
-    (is (some #(= "readme.txt" (:name %)) rows))
-    (is (every? #(or (= "dir" (:kind %)) (pos? (:size %))) rows))))
+  (run-check "ls-does-not-need-as-bytes"))
 
 (deftest cat-round-trip
-  (let [r (v/root (fs/open-mem))
-        [t _] (fs/load-or-seed! r)
-        bs (fs/cat-file t ["readme.txt"])]
-    (is (= "hello dacite\n" (String. ^bytes bs "UTF-8")))))
+  (run-check "cat-round-trip"))
 
 (deftest second-local-sync-copies-nothing
-  (let [src (fs/open-mem)
-        dest (store/mem-store)]
-    (fs/load-or-seed! (v/root src))
-    (let [h (store/root src)
-          first (store/sync-reachable! src dest h)
-          second (store/sync-reachable! src dest h)]
-      (is (pos? (:copied first)))
-      (is (zero? (:copied second)))
-      (is (pos? (:skipped second)))
-      (is (= :nodes (:via first))))))
+  (run-check "second-local-sync-copies-nothing"))
 
 (deftest missing-blob-is-catchable
-  (let [empty (store/mem-store)
-        ghost (v/blob empty (byte-array [1]))]
-    (store/await (store/s-delete empty (v/hash ghost)))
-    (try
-      (v/as-bytes ghost)
-      (is false "expected missing-blob throw")
-      (catch clojure.lang.ExceptionInfo e
-        (is (true? (:dacite/missing (ex-data e))))))))
+  (run-check "missing-blob-is-catchable"))
+
+(deftest file-reopen-keeps-tree
+  (run-check "file-reopen-keeps-tree"))
+
+(deftest ingest-export-roundtrip
+  (run-check "ingest-export-roundtrip"))
 
 (deftest remote-one-blob-cheaper-than-all-blobs
   (let [rooted (svc/make-demo-rooted)
@@ -87,39 +84,10 @@
       (finally
         (stop!)))))
 
-(deftest file-reopen-keeps-tree
-  (let [dir (io/file (str "target/dacite-sync-test-" (System/nanoTime)))]
-    (try
-      (let [r1 (v/root (fs/open-file (.getPath dir)))]
-        (fs/load-or-seed! r1)
-        (let [h1 (v/hash (v/deref r1))
-              r2 (v/root (fs/open-file (.getPath dir)))
-              loaded (v/deref r2)]
-          (is (= h1 (v/hash loaded)))
-          (is (= "hello dacite\n"
-                 (String. ^bytes (fs/cat-file loaded ["readme.txt"]) "UTF-8")))))
-      (finally
-        (fs/reset-store-dir! (.getPath dir))))))
-
-(deftest ingest-export-roundtrip
-  (let [src (io/file (str "target/dacite-sync-src-" (System/nanoTime)))
-        dest (io/file (str "target/dacite-sync-out-" (System/nanoTime)))]
-    (try
-      (.mkdirs (io/file src "d"))
-      (spit (io/file src "a.txt") "aaa")
-      (spit (io/file src "b.txt") "aaa")
-      (spit (io/file src "d/c.txt") "ccc")
-      (let [r (v/root (fs/open-mem))
-            t (fs/ingest-tree r (.getPath src))]
-        (is (= #{"a.txt" "b.txt" "d"} (set (map :name (fs/list-entries t)))))
-        (is (= (fs/blob-hash (fs/lookup t ["a.txt"]))
-               (fs/blob-hash (fs/lookup t ["b.txt"])))
-            "identical host files share a blob")
-        (fs/emit-tree t (.getPath dest))
-        (is (= "aaa" (slurp (io/file dest "a.txt"))))
-        (is (= "ccc" (slurp (io/file dest "d/c.txt")))))
-      (finally
-        (doseq [d [dest src]]
-          (when (.exists d)
-            (doseq [f (reverse (file-seq d))]
-              (.delete f))))))))
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.examples.sync-test)))))
+               "every-check-has-a-deftest"
+               "remote-one-blob-cheaper-than-all-blobs"))
+      "examples/sync_checks.cljc and this file list the same tests"))
