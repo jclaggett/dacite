@@ -62,7 +62,7 @@ Next up: a Peering or Tests item: more of `literal_limits_test`. What is left of
 
 ## CLI and runtime
 
-- [ ] [not started] `webrtc:signal-test` is not in CI. No JVM `/signal` route. In scope: this is peer signaling, not the HTTP API
+- [x] [done] `webrtc:signal-test` runs in CI, in the nbb job's first suite step after `webrtc:test` (`.github/workflows/test.yml`). It needs only `ws` and `node-datachannel` (already installed for `webrtc:test`), an ephemeral port on 127.0.0.1 and no browser; about 1 s. No JVM `/signal` route. In scope: this is peer signaling, not the HTTP API
 - [ ] [not started] JVM tools: `gen_fuse_fixtures`, `gen_peer_fixtures`, `gen_wire_fixtures`, `gen_byte_table`, `gen_sl2_table`, `inspect`, `time_tests`, `bench_cp`, `page_size_bench`, `page_size_degenerate`, `bench/library_storage.clj`, `bench/todo_bw.clj`
 
 ## Hand checks and later

@@ -29,8 +29,11 @@ jobs:
 
       # parity:test is the nbb half of bin/parity.sh. The JVM half and
       # the digest compare need Clojure, so they stay local, like
-      # core-boundary-test.
-      - name: Reveal, parity, IndexedDB, peer, items, WebRTC, mem-store, and LRU suites
+      # core-boundary-test. webrtc:signal-test is plain Node (no nbb): the
+      # room relay on an ephemeral 127.0.0.1 port, then node-datachannel
+      # transfers over loopback, the last one 5 MB between two processes
+      # (about 1 s).
+      - name: Reveal, parity, IndexedDB, peer, items, WebRTC, signaling, mem-store, and LRU suites
         run: |
           npm run reveal:test
           npm run parity:test
@@ -38,6 +41,7 @@ jobs:
           npm run peer:test
           npm run items:test
           npm run webrtc:test
+          npm run webrtc:signal-test
           npm run mem:test
           npm run lru:test
 
