@@ -10,7 +10,7 @@ Scope: parity only has to demonstrate peering parity. The model is that every co
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Next up: a Peering or Tests item: more of `literal_limits_test`, or the rest of the example `*_test.clj` (library and sync, then event log and explorer). Legacy HTTP and post-parity items are not next.
+Next up: a Peering or Tests item: more of `literal_limits_test`, or `event_log_test` and `explorer_test` (the last of the example `*_test.clj`). Legacy HTTP and post-parity items are not next.
 
 ## Done
 
@@ -56,7 +56,7 @@ Next up: a Peering or Tests item: more of `literal_limits_test`, or the rest of 
 ## Tests
 
 - [x] [done] 17 `reveal_test.clj` deftest were absent from `reveal:test` (stall, re-ask, cancel, clock, encode-once, bounds). All 17 are `reveal_checks.cljc` (`reveal:test`), shared; the page encoder is a host piece (`dacite.service.reveal` on the JVM). Their nbb copies `floor-at-a-power-of-two` and `page-is-later-than-the-constant-rate` are gone. Sharing them found an nbb bug: a reveal of more than 8 pages threw, because the session keyed its sets and maps by raw hash (a set cannot hash a BigInt); they are now keyed by `host/hash-key`
-- [ ] [in progress] Example `*_test.clj`. `npm run examples:test`: `examples/browser_uri_checks.cljc` (4), `hello_checks.cljc` (1), `todo_checks.cljc` (2), `config_checks.cljc` (3) and `notes_checks.cljc` (5), all shared, on mem and nbb file stores. Covered elsewhere: `hello_test/parity-hash-is-stable` (`parity:test` checks `canonical-hex` against the golden hash, case `canonical`). JVM only: `config_test/two-remote-clients-same-hash` (the HTTP service and `store/remote`, legacy HTTP); `cards_test` (5) goes with `examples/cards.clj` (JVM-only, below). Not started: `library_test`, `sync_test`, `event_log_test`, `explorer_test`
+- [ ] [in progress] Example `*_test.clj`. `npm run examples:test`: `examples/browser_uri_checks.cljc` (4), `hello_checks.cljc` (1), `todo_checks.cljc` (2), `config_checks.cljc` (3), `notes_checks.cljc` (5), `library_checks.cljc` (12) and `sync_checks.cljc` (7), all shared, on mem and nbb file stores. Covered elsewhere: `hello_test/parity-hash-is-stable` (`parity:test` checks `canonical-hex` against the golden hash, case `canonical`). JVM only: `config_test/two-remote-clients-same-hash` (the HTTP service and `store/remote`, legacy HTTP); `library_test/origin-publishes-the-seed-library` (the JVM origin `examples/library_origin.clj` and the service) and `library_test/static-library-index` (the HTTP service serving `examples/web`); `sync_test/remote-one-blob-cheaper-than-all-blobs` (the HTTP service and `store/remote`); `cards_test` (5) goes with `examples/cards.clj` (JVM-only, below). `sync_checks/ingest-export-roundtrip` takes its host file calls in `env`. Not started: `event_log_test`, `explorer_test`
 
 ## CLI and runtime
 

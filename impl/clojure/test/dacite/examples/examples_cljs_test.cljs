@@ -8,7 +8,9 @@
   (:require [dacite.examples.browser-uri-checks :as browser-uri-checks]
             [dacite.examples.config-checks :as config-checks]
             [dacite.examples.hello-checks :as hello-checks]
+            [dacite.examples.library-checks :as library-checks]
             [dacite.examples.notes-checks :as notes-checks]
+            [dacite.examples.sync-checks :as sync-checks]
             [dacite.examples.todo-checks :as todo-checks]
             [dacite.store.check :as check]))
 
@@ -18,12 +20,23 @@
    ["hello" hello-checks/checks]
    ["todo" todo-checks/checks]
    ["config" config-checks/checks]
-   ["notes" notes-checks/checks]])
+   ["notes" notes-checks/checks]
+   ["library" library-checks/checks]
+   ["sync" sync-checks/checks]])
+
+(def ^:private fs (js/require "fs"))
+
+(def env
+  "Host file calls (`sync-checks/ingest-export-roundtrip`)."
+  {:mkdirs (fn [p] (.mkdirSync fs p #js {:recursive true}))
+   :spit (fn [p s] (.writeFileSync fs p s "utf8"))
+   :slurp (fn [p] (.readFileSync fs p "utf8"))
+   :rm-rf (fn [p] (.rmSync fs p #js {:recursive true :force true}))})
 
 (defn -main
   [& _]
   (let [rows (vec (mapcat (fn [[label checks]]
-                            (map #(update (check/run-one checks {} %) :name
+                            (map #(update (check/run-one checks env %) :name
                                           (fn [n] (str label "/" n)))
                                  (sort (keys checks))))
                           suites))
