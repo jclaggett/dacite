@@ -11,7 +11,7 @@ core is allowed to call) is [portable-core.md](portable-core.md). This
 document is the **inventory**: every namespace on the Clojure source path,
 labeled `core`, `host`, or `server-only`.
 
-Counted here: **91 namespaces** (7 `core`, 80 `host`, 4 `server-only`) under
+Counted here: **92 namespaces** (7 `core`, 81 `host`, 4 `server-only`) under
 `impl/clojure/src` and `impl/clojure/dev`. `impl/clojure/test` is not
 inventoried; tests may require any class. `impl/clojure/archive` is not on
 the classpath. M5.1 added the browser peer (`dacite.peer.transport.browser`,
@@ -189,6 +189,7 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.json` | `host` | `impl/clojure/src/dacite/json.clj` | JVM JSON via Cheshire, over `dacite.convert`. |
 | `dacite.peer.transport.browser` | `host` | `impl/clojure/src/dacite/peer/transport/browser.cljs` | Browser WebRTC adapter over `RTCPeerConnection`. |
 | `dacite.peer.transport.webrtc` | `host` | `impl/clojure/src/dacite/peer/transport/webrtc.cljs` | nbb WebRTC adapter over `node-datachannel`. |
+| `dacite.reveal.pages` | `host` | `impl/clojure/src/dacite/reveal/pages.clj` | JVM reveal pages: `encode-page` (byte-array hint over `dacite.reveal/encode-page`) and `accept-items!`. Moved from `dacite.service.reveal`. |
 | `dacite.store.browser` | `host` | `impl/clojure/src/dacite/store/browser.cljs` | Browser remote store. `fetch` and `Uint8Array`. |
 | `dacite.store.file` | `host` | `impl/clojure/src/dacite/store/file.clj` | Filesystem store for the JVM and babashka (`java.io`). |
 | `dacite.store.idb` | `host` | `impl/clojure/src/dacite/store/idb.cljs` | IndexedDB content store. |

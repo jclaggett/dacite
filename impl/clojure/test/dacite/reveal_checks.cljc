@@ -8,7 +8,7 @@
    `is` is `dacite.store.check`. Sets of hashes the checks build are keyed
    by hex (SCI cannot hash a BigInt word, see `in?`); the session's own
    sets and maps are keyed by `host/hash-key`. `env` has `:encode-page`,
-   the writer's page encoder: `dacite.service.reveal` on the JVM,
+   the writer's page encoder: `dacite.reveal.pages` on the JVM,
    `dacite.reveal` on nbb."
   (:require [dacite.host :as host]
             [dacite.reveal :as reveal]
