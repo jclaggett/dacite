@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-7e7d05f4.js";
+            window.path_to_searchindex_js = "searchindex-5db38ef9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-0aeace7d.js"></script>
+        <script src="toc-5e6c97cc.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -278,17 +278,17 @@ in the core. Two clients appending to a log interleave with compare-and-set;
 lost updates show up as retries, not silent clobbering.</p>
 <p>Seed an empty root with <code>cas!</code> from <code>nil</code>. There is no unconditional reset.</p>
 <h2 id="stores-are-wiring"><a class="header" href="#stores-are-wiring">Stores are wiring</a></h2>
-<p>Mem, file, LMDB, and HTTP all speak the same store protocol. Domain functions
+<p>Mem, file, LMDB, and IndexedDB all speak the same store protocol. Domain functions
 take and return values. They do not open files or build URLs.</p>
 <p>A typical app splits in two, as <a href="https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/todo.cljc">todo.cljc</a> does:</p>
 <ul>
 <li><strong>Values</strong> — <code>add-todo</code>, <code>toggle-at</code>, seed data, <code>v/root</code> + <code>swap!</code>. Only
 <code>dacite.value</code>.</li>
-<li><strong>Store</strong> — path, <code>--url</code>, write-back policy, reset. No todo shape.</li>
+<li><strong>Store</strong> — path, backend, reset. No todo shape.</li>
 </ul>
-<p>Point the same domain at a file store or at <code>clojure -M:service</code>. The HTTP
-client packs neighborhoods on GET and flushes packed literals on commit.
-That is transport. The domain does not import it.</p>
+<p>Point the same domain at a file store or an LMDB store. Moving values
+between processes is the peer layer’s job (packed pages over a
+transport). That is transport. The domain does not import it.</p>
 <h2 id="not-git-not-rest-not-an-atom"><a class="header" href="#not-git-not-rest-not-an-atom">Not git, not REST, not an atom</a></h2>
 <div class="table-wrapper">
 <table>
@@ -389,21 +389,18 @@ npm run todo           # interactive todo UI
 </code></pre>
 <p>If that fails on your tools.deps version, use clone + <code>:local/root</code> above — that
 is the reliable alpha path.</p>
-<p>From inside <code>impl/clojure</code> you can also run the test suite and service:</p>
+<p>From inside <code>impl/clojure</code> you can also run the test suite:</p>
 <pre><code class="language-bash">cd impl/clojure
 clojure -M:dev:test
-clojure -M:service --port 8080 --store mem   # API + browser todo static UI
 </code></pre>
-<h2 id="browser-todo-demo"><a class="header" href="#browser-todo-demo">Browser todo demo</a></h2>
-<pre><code class="language-bash">cd impl/clojure
-clojure -M:cljs-web                    # once / after source changes
-clojure -M:service --port 8080 --store mem
-# open http://127.0.0.1:8080/app/
-clojure -M:cljs-explorer
-# open http://127.0.0.1:8080/app/explorer/
+<h2 id="browser-demos"><a class="header" href="#browser-demos">Browser demos</a></h2>
+<p>The browser pages are plain static files under <code>examples/web</code>. From the
+repo root:</p>
+<pre><code class="language-bash">npm run web:serve            # serves examples/web at http://127.0.0.1:8080/app/
 </code></pre>
-<p>Details: <a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.
-Pack GET/POST use <strong>wire-v1 binary</strong> by default.</p>
+<p>The library reader (<code>/app/library/</code>) runs over peering. The todo and
+explorer pages needed the JVM HTTP service, which was removed.
+Details: <a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
 <li><a href="#the-dacite-way">The Dacite way</a> — how to think about data</li>
@@ -577,22 +574,21 @@ value structure — that is part of the Dacite porting contract.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="persist-and-update-a-document"><a class="header" href="#persist-and-update-a-document">Persist and update a document</a></h1>
 <p>You have a nested config map. You want to change one field, persist it, and
-run the <strong>same domain</strong> against a file or against HTTP. Dacite’s move:
+run the <strong>same domain</strong> against a file or an LMDB store. Dacite’s move:
 <code>get-in</code> / <code>assoc-in</code> / <code>native</code> on values, a <code>v/root</code> for the snapshot,
 store wiring in a separate section.</p>
 <p>This example is the first claim-proving app in the
-<a href="../roadmap.html">roadmap</a>: the server publishes a root hash; clients
+<a href="../roadmap.html">roadmap</a>: a store publishes a root hash; readers
 pull only what they need.</p>
 <p>You will:</p>
 <ol>
 <li>Seed and edit config on disk.</li>
-<li>Point the same commands at <code>clojure -M:service</code>.</li>
 <li>Watch a second process pick up a new root.</li>
 </ol>
 <h2 id="prerequisites-2"><a class="header" href="#prerequisites-2">Prerequisites</a></h2>
 <ul>
 <li>A clone of this repo (see <a href="#install">Install</a>)</li>
-<li>JDK 17+ and the Clojure CLI for the service and <code>--url</code> client</li>
+<li>JDK 17+ and the Clojure CLI</li>
 <li>Optional: Node.js 18+ (<code>npm run config</code>) or babashka (<code>bb config</code>) for the file store</li>
 </ul>
 <h2 id="the-shape"><a class="header" href="#the-shape">The shape</a></h2>
@@ -601,7 +597,7 @@ pull only what they need.</p>
 </code></pre>
 <p>Domain code lives in <code>dacite.examples.config</code> and uses only <code>dacite.value</code>
 — <code>get-in</code> / <code>assoc-in</code> / <code>native</code> / <code>v/root</code>. It never calls
-<code>dacite.convert</code>. Store wiring (file path vs HTTP URL) is a separate section of
+<code>dacite.convert</code>. Store wiring (file or LMDB) is a separate section of
 the same namespace.</p>
 <h2 id="local-file"><a class="header" href="#local-file">Local file</a></h2>
 <p>From the repo root:</p>
@@ -627,49 +623,34 @@ clojure -M:config -- get features.0
 </code></pre>
 <p><code>--path DIR</code> selects the store directory (content shards + a <code>ROOT</code> file).
 A second invocation without <code>--reset</code> reopens the same root.</p>
-<h2 id="same-commands-against-the-service"><a class="header" href="#same-commands-against-the-service">Same commands against the service</a></h2>
-<p>Terminal 1 — start the HTTP content store:</p>
-<pre><code class="language-bash">cd impl/clojure
-clojure -M:service --port 8080 --store mem
-</code></pre>
-<p>Terminal 2 — the same CLI, <code>--url</code> instead of <code>--path</code>:</p>
-<pre><code class="language-bash">cd impl/clojure
-clojure -M:config -- --url http://127.0.0.1:8080 show
-clojure -M:config -- --url http://127.0.0.1:8080 set timeout 90
-</code></pre>
-<p><code>s/remote</code> implements the same root protocol as a local rooted store, so
-<code>v/root</code>, <code>v/swap!</code>, and <code>v/cas!</code> work unchanged. The app seeds with
-compare-and-set from <code>nil</code>.</p>
 <h2 id="a-second-process-sees-the-new-root"><a class="header" href="#a-second-process-sees-the-new-root">A second process sees the new root</a></h2>
-<p>Terminal 3:</p>
+<p>Terminal 1:</p>
 <pre><code class="language-bash">cd impl/clojure
-clojure -M:config -- --url http://127.0.0.1:8080 watch
+clojure -M:config -- watch
 </code></pre>
-<p>Back in terminal 2:</p>
-<pre><code class="language-bash">clojure -M:config -- --url http://127.0.0.1:8080 set theme solarized
+<p>Terminal 2:</p>
+<pre><code class="language-bash">cd impl/clojure
+clojure -M:config -- set theme solarized
 </code></pre>
-<p><code>watch</code> polls <code>GET /root</code> twice a second and reprints when the hash
-moves. (Push watches come later, when a two-client live app needs them.)</p>
+<p><code>watch</code> polls the store’s root twice a second and reprints when the hash
+moves.</p>
 <p>The two clients share one content-addressed tree. After an edit they
 print the <strong>same root hash</strong>. That is the claim this app is here to
 prove.</p>
-<h2 id="open-local-vs-open-remote"><a class="header" href="#open-local-vs-open-remote">Open local vs open remote</a></h2>
+<h2 id="open-the-store-from-a-repl"><a class="header" href="#open-the-store-from-a-repl">Open the store from a REPL</a></h2>
 <pre><code class="language-clojure">(require '[dacite.store :as store]
          '[dacite.value :as v]
          '[dacite.examples.config :as cfg])
 
-;; local
+;; local file store
 (def r (v/root (cfg/open-file "target/dacite-config")))
-
-;; remote (JVM)
-(def r (v/root (store/remote-rooted-store "http://127.0.0.1:8080")))
 
 (cfg/load-or-seed! r)
 (v/swap! r cfg/set-path ["timeout"] 60)
 (cfg/timeout (v/deref r))
 ;; =&gt; 60
 </code></pre>
-<p>One domain namespace. Two store wirings.</p>
+<p>One domain namespace. The store wiring is separate.</p>
 <h2 id="what-this-pulled-from-the-library"><a class="header" href="#what-this-pulled-from-the-library">What this pulled from the library</a></h2>
 <div class="table-wrapper">
 <table>
@@ -681,7 +662,6 @@ prove.</p>
 <tr><td>Cap how much string is realized</td><td>optional limit or <code>v/*string-char-limit*</code></td></tr>
 <tr><td>Print a long string without dumping it</td><td><code>v/pr-str</code> → <code>"prefix…" (n chars)</code></td></tr>
 <tr><td>Nested <code>features.0</code></td><td><code>v/get-in</code>, <code>v/assoc-in</code>, <code>v/update</code></td></tr>
-<tr><td>Same <code>v/root</code> on HTTP</td><td><code>s/remote</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -745,8 +725,7 @@ clojure -M:notes -- restore 1
 <p>Version <strong>0</strong> is current, <strong>1</strong> is the previous snapshot, and so on.
 <code>diff</code> compares field hashes — a title-only edit reports <code>title</code> and
 <code>edited-at</code>, not <code>body</code>.</p>
-<p><code>--path DIR</code> selects the store directory. The same <code>--url</code> recipe as
-<a href="#persist-and-update-a-document">Persist and update a document</a> works if the HTTP service is running.</p>
+<p><code>--path DIR</code> selects the store directory.</p>
 <h2 id="sharing-bench"><a class="header" href="#sharing-bench">Sharing bench</a></h2>
 <pre><code class="language-bash">clojure -M:notes -- bench
 </code></pre>
@@ -829,8 +808,6 @@ clojure -M:log -- replay 100
 </code></pre>
 <p><code>page</code> prints a window and its content hash. <code>replay 100</code> replaces the
 view with a fold of the first 100 events.</p>
-<p>The same <code>--url</code> recipe as <a href="#persist-and-update-a-document">Persist and update a document</a> works against
-<code>clojure -M:service</code>.</p>
 <h2 id="append-bench"><a class="header" href="#append-bench">Append bench</a></h2>
 <pre><code class="language-bash">clojure -M:log -- bench
 </code></pre>
@@ -861,71 +838,8 @@ alone (hash fusion is shape-independent).</p>
 <p><code>dac-&gt;clj</code> is not on this path. Missing-node errors stay on the shelf
 until a remote page actually needs a catchable “not local” signal.</p>
 <h2 id="next-4"><a class="header" href="#next-4">Next</a></h2>
-<p><a href="#two-writers-one-cas">Two writers, one CAS</a> — <code>swap!</code> retries; SSE watches
-the root.</p>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="two-writers-one-cas"><a class="header" href="#two-writers-one-cas">Two writers, one CAS</a></h1>
-<p>Two processes must append without silent clobbering. Dacite’s move:
-<strong>compare-and-set is the whole distributed update.</strong> <code>swap!</code> retries
-on conflict; SSE (<code>GET /events</code>) tells a third process the root moved.
-There is no lock and no CRDT in the core.</p>
-<p>Two writers append to the <a href="#large-sequences-stay-cheap">event log</a> on one HTTP root.
-This is the fourth claim-proving app in the
-<a href="../roadmap.html">roadmap</a>.</p>
-<p>You will:</p>
-<ol>
-<li>Start <code>clojure -M:service</code>.</li>
-<li>Append from two terminals without lost events.</li>
-<li>Watch the root change without polling <code>GET /root</code> yourself.</li>
-</ol>
-<h2 id="prerequisites-5"><a class="header" href="#prerequisites-5">Prerequisites</a></h2>
-<ul>
-<li>JDK 17+ and the Clojure CLI</li>
-<li>The event-log app from the previous tutorial</li>
-</ul>
-<h2 id="terminal-1--the-service"><a class="header" href="#terminal-1--the-service">Terminal 1 — the service</a></h2>
-<pre><code class="language-bash">cd impl/clojure
-clojure -M:service --port 8080 --store mem
-</code></pre>
-<h2 id="terminal-2-and-3--two-writers"><a class="header" href="#terminal-2-and-3--two-writers">Terminal 2 and 3 — two writers</a></h2>
-<pre><code class="language-bash">cd impl/clojure
-clojure -M:log -- --url http://127.0.0.1:8080 --n 0 append credit 1 from-a
-</code></pre>
-<pre><code class="language-bash">cd impl/clojure
-clojure -M:log -- --url http://127.0.0.1:8080 append debit 1 from-b
-</code></pre>
-<p>Each <code>append</code> uses <code>v/swap-info!</code>: read the current ledger, conj,
-CAS the new root. If the other writer landed first, CAS fails, the fn
-runs again on the new ledger, and both events stay in the log. When a
-retry happened the CLI prints <code>cas retried N time(s)</code>.</p>
-<p>To force collisions:</p>
-<pre><code class="language-bash">clojure -M:log -- --url http://127.0.0.1:8080 contend 10
-</code></pre>
-<p>Two remote clients each append 10 events. The final size is start+20.
-<code>cas-retries</code> is how many times a writer rebuilt on a newer root.</p>
-<h2 id="terminal-4--watch"><a class="header" href="#terminal-4--watch">Terminal 4 — watch</a></h2>
-<pre><code class="language-bash">clojure -M:log -- --url http://127.0.0.1:8080 watch
-</code></pre>
-<p>This is <code>GET /events</code> (SSE), not a sleep-and-poll loop. The first
-frame is the current root; later frames fire after a successful CAS.
-Append in another terminal and this one reprints.</p>
-<h2 id="what-this-pulled-2"><a class="header" href="#what-this-pulled-2">What this pulled</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Why</th><th>Utility</th></tr>
-</thead>
-<tbody>
-<tr><td>Notice a remote root without polling</td><td><code>GET /events</code> + <code>dacite.store.remote/watch-root</code></td></tr>
-<tr><td>Apply a domain fn under contention</td><td><code>v/swap!</code> (already the rebase loop)</td></tr>
-<tr><td>Show that a collision was recovered</td><td><code>v/swap-info!</code> → <code>:retries</code></td></tr>
-</tbody>
-</table>
-</div>
-<p>The browser demos use <code>fetch</code> inside <code>drive</code>. Two JVM remotes plus an
-SSE watch prove this claim.</p>
-<h2 id="next-5"><a class="header" href="#next-5">Next</a></h2>
-<p><a href="#sync-a-tree-of-blobs">Sync a tree of blobs</a> — list metadata; fetch one file.</p>
+<p><a href="#sync-a-tree-of-blobs">Sync a tree of blobs</a> — list and fetch without pulling every
+body.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="sync-a-tree-of-blobs"><a class="header" href="#sync-a-tree-of-blobs">Sync a tree of blobs</a></h1>
 <p>You have a folder of files. Listing it must not load every body; fetching
@@ -939,9 +853,8 @@ missing nodes.</p>
 <li>Seed a sample tree (two files share a blob).</li>
 <li><code>ls</code> names and sizes without reading file bytes.</li>
 <li><code>cat</code> one file.</li>
-<li>Push the tree to <code>clojure -M:service</code> and pull it elsewhere.</li>
 </ol>
-<h2 id="prerequisites-6"><a class="header" href="#prerequisites-6">Prerequisites</a></h2>
+<h2 id="prerequisites-5"><a class="header" href="#prerequisites-5">Prerequisites</a></h2>
 <ul>
 <li>JDK 17+ and the Clojure CLI, or Node.js / babashka for the file store</li>
 </ul>
@@ -964,20 +877,6 @@ clojure -M:sync -- bench
 <p>Or <code>npm run sync -- --reset seed</code> / <code>bb sync --reset seed</code>.</p>
 <p><code>put /path/to/dir</code> ingests a real host folder. <code>export DIR</code> writes the
 tree back to disk.</p>
-<h2 id="push-and-pull"><a class="header" href="#push-and-pull">Push and pull</a></h2>
-<pre><code class="language-bash"># terminal 1
-clojure -M:service --port 8080 --store mem
-
-# terminal 2 — publish the local tree
-clojure -M:sync -- --url http://127.0.0.1:8080 push
-
-# terminal 3 — another store
-clojure -M:sync -- --path /tmp/dacite-sync-b --url http://127.0.0.1:8080 pull
-clojure -M:sync -- --path /tmp/dacite-sync-b ls
-</code></pre>
-<p><code>store/sync-reachable!</code> copies the subgraph (packed flush to a remote,
-per-node copy otherwise). Then the dest root is CAS’d to the same hash.
-A second pull copies nothing already present.</p>
 <h2 id="what-the-bench-shows"><a class="header" href="#what-the-bench-shows">What the bench shows</a></h2>
 <pre><code class="language-text">sync bench
   names:        data.bin, readme.txt, sub, copy.txt
@@ -988,10 +887,8 @@ A second pull copies nothing already present.</p>
 </code></pre>
 <p>The sample root hash is the same on JVM, babashka, and nbb:</p>
 <p><code>fe0532ab564af43a7fb7c94541eaf63d63fa70d24e1290e6899747a571f4f196</code></p>
-<p>A remote test measures store-protocol bytes: <strong>GET of one blob</strong>
-transfers less than GET of that blob plus its siblings. A second local
-<code>sync-reachable!</code> copies 0 nodes.</p>
-<h2 id="what-this-pulled-3"><a class="header" href="#what-this-pulled-3">What this pulled</a></h2>
+<p>A second local <code>sync-reachable!</code> copies 0 nodes.</p>
+<h2 id="what-this-pulled-2"><a class="header" href="#what-this-pulled-2">What this pulled</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1007,11 +904,19 @@ transfers less than GET of that blob plus its siblings. A second local
 <p>Opaque-byte store entries stayed on the shelf — EDN file nodes are
 enough to prove the fetch claim. A later port can store raw bytes
 without changing the app.</p>
-<h2 id="next-6"><a class="header" href="#next-6">Next</a></h2>
+<h2 id="next-5"><a class="header" href="#next-5">Next</a></h2>
 <p><a href="#browse-without-dumping">Browse without dumping</a> — walk the root as typed values.
-<a href="#a-browser-app">A browser app</a> — todo and explorer on HTTP.</p>
+<a href="#a-browser-app">A browser app</a> — todo and explorer in the
+browser (their HTTP service was removed; see that page).</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="browse-without-dumping"><a class="header" href="#browse-without-dumping">Browse without dumping</a></h1>
+<blockquote>
+<p><strong>No working mode right now.</strong> This page ran against the JVM HTTP
+service (<code>dacite.service</code>), which the HTTP removal (slice 2) deleted.
+The page stays as a record until the demo is deleted or ported to
+peering. The library reader (<code>/app/library/</code>) runs over peering; see
+<a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.</p>
+</blockquote>
 <p>You want to see the current root as <strong>typed values</strong>, expand a collection,
 and not download the whole tree. Dacite’s move: walk with <code>v/type</code>,
 <code>count</code>, <code>nth</code>, paged <code>seq</code>; never <code>dac-&gt;clj</code>. HTTP <code>GET /node</code> returns a
@@ -1020,13 +925,13 @@ packed neighborhood; the UI then walks values locally.</p>
 <a href="../roadmap.html">roadmap</a>.</p>
 <p>You will:</p>
 <ol>
-<li>Open <code>/app/explorer/</code> against <code>clojure -M:service</code>.</li>
+<li>Open <code>/app/explorer/</code> against the (removed) HTTP service.</li>
 <li>See every public Dacite type as <strong>type + value</strong> (not a JSON/EDN dump).</li>
 <li>Expand vectors, maps, and sets; page long collections 32 at a time.</li>
 <li>Measure that the first page of a 128-element vector costs less than
 <code>seq</code> of the whole vector.</li>
 </ol>
-<h2 id="prerequisites-7"><a class="header" href="#prerequisites-7">Prerequisites</a></h2>
+<h2 id="prerequisites-6"><a class="header" href="#prerequisites-6">Prerequisites</a></h2>
 <ul>
 <li>JDK 17+ and the Clojure CLI</li>
 <li>A clone of this repo (see <a href="#install">Install</a>)</li>
@@ -1059,9 +964,9 @@ does not.</p>
 <h2 id="run"><a class="header" href="#run">Run</a></h2>
 <pre><code class="language-bash">cd impl/clojure
 clojure -M:cljs-explorer          # once / after cljs changes
-clojure -M:service --port 8080 --store mem
-# open http://127.0.0.1:8080/app/explorer/   (trailing slash)
 </code></pre>
+<p>The page then needed the HTTP service at <code>/app/explorer/</code>; that server
+is gone (see the note at the top).</p>
 <p>Todo stays at <a href="http://127.0.0.1:8080/app/">http://127.0.0.1:8080/app/</a>.</p>
 <p><strong>Reload</strong> re-fetches <code>GET /root</code>. It does not watch <code>GET /events</code>.</p>
 <h2 id="what-to-look-at"><a class="header" href="#what-to-look-at">What to look at</a></h2>
@@ -1076,21 +981,16 @@ next 32</strong>.</li>
 CAS) — the same meter as the todo demo.</li>
 </ul>
 <h2 id="existing-data"><a class="header" href="#existing-data">Existing data</a></h2>
-<p>Point the service at a store you already seeded:</p>
-<pre><code class="language-bash">cd impl/clojure
-clojure -M:log -- --reset show          # 2000 events in target/dacite-log
-clojure -M:service --port 8080 --store file:target/dacite-log
-# open /app/explorer/ — the ledger, not the gallery
-</code></pre>
-<p>The explorer must not overwrite that root.</p>
+<p>Pointed at a store you already seeded (the event log’s
+<code>target/dacite-log</code>, say), the explorer showed the ledger, not the
+gallery. It must not overwrite that root.</p>
 <h2 id="measure"><a class="header" href="#measure">Measure</a></h2>
 <pre><code class="language-bash">cd impl/clojure
 clojure -M:dev:test -n dacite.examples.explorer-test
 </code></pre>
-<p><code>remote-expand-page-cheaper-than-full-seq</code> seeds the gallery over HTTP,
-then compares a cold client’s first <code>child-page</code> of <code>"page-me"</code> with
-<code>seq</code> of all 128. Page bytes and requests stay strictly below the full
-walk.</p>
+<p>The HTTP measurement (<code>remote-expand-page-cheaper-than-full-seq</code>) was
+removed with the service. The remaining tests check the explorer’s
+domain walk on a local store.</p>
 <h2 id="related"><a class="header" href="#related">Related</a></h2>
 <ul>
 <li><a href="#a-browser-app">A browser app</a> — todo + explorer on one service</li>
@@ -1099,6 +999,13 @@ walk.</p>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="a-browser-app"><a class="header" href="#a-browser-app">A browser app</a></h1>
+<blockquote>
+<p><strong>No working mode right now.</strong> This page ran against the JVM HTTP
+service (<code>dacite.service</code>), which the HTTP removal (slice 2) deleted.
+The page stays as a record until the demo is deleted or ported to
+peering. The library reader (<code>/app/library/</code>) runs over peering; see
+<a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.</p>
+</blockquote>
 <p>The Values / Store split still holds in the tab. Domain code is
 <code>dacite.value</code>. The store is HTTP plus a write-back cache. The UI is DOM
 (todo) or a typed tree (explorer). Neither app dumps the root to JSON.</p>
@@ -1106,8 +1013,8 @@ walk.</p>
 <pre><code class="language-bash">cd impl/clojure
 clojure -M:cljs-web                  # todo bundle (first time / after cljs)
 clojure -M:cljs-explorer             # explorer bundle
-clojure -M:service --port 8080 --store mem
 </code></pre>
+<p>The bundles then needed the HTTP service at these URLs:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1121,8 +1028,6 @@ clojure -M:service --port 8080 --store mem
 </div>
 <p>Use a trailing slash. Hard-refresh after rebuilding JS (<code>main.js?v=…</code>
 cache-busts when we bump it).</p>
-<p>Durable service: <code>--store file</code> or <code>--store lmdb</code>. Details:
-<a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.</p>
 <h2 id="what-the-browser-is-doing"><a class="header" href="#what-the-browser-is-doing">What the browser is doing</a></h2>
 <ol>
 <li><code>GET /root</code> — current hash, or none.</li>
@@ -1140,7 +1045,7 @@ service already has (todo, notes, the type gallery).</p>
 <p><code>fetch</code> reads <code>response.body</code> as bytes arrive. <code>IStore</code> stays synchronous:
 a miss suspends, and <code>dacite.store.browser/drive</code> reruns the value op once
 that body is cached. The tab is not blocked on the request.</p>
-<h2 id="next-7"><a class="header" href="#next-7">Next</a></h2>
+<h2 id="next-6"><a class="header" href="#next-6">Next</a></h2>
 <ul>
 <li><a href="#browse-without-dumping">Browse without dumping</a> — paging and pack GET.</li>
 <li><a href="#anatomy-of-a-dacite-app">Anatomy of a Dacite app</a> — the same recipe as the CLI.</li>
@@ -1239,31 +1144,8 @@ over a stale copy.</p>
 (or a host seq). The document cell is unchanged. This is client
 convenience, not an HTTP path. See
 <a href="#48-lenses">Rooted stores — lenses</a>.</p>
-<p>See <a href="#two-writers-one-cas">Two writers, one CAS</a>.</p>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="same-domain-local-or-http"><a class="header" href="#same-domain-local-or-http">Same domain, local or HTTP</a></h1>
-<p>Point one namespace at a file store <strong>or</strong> at the HTTP service. Domain
-functions do not change.</p>
-<pre><code class="language-clojure">(require '[dacite.store :as s])
-
-(s/file "target/dacite-config")
-(s/remote "http://127.0.0.1:8080")   ; JVM; write-back by default
-</code></pre>
-<p>Config, notes, event log, and sync all take <code>--url</code>. Example:</p>
-<pre><code class="language-bash">cd impl/clojure
-clojure -M:service --port 8080 --store mem     # terminal 1
-clojure -M:config -- --url http://127.0.0.1:8080 --reset show
-clojure -M:config -- --url http://127.0.0.1:8080 set timeout 60
-</code></pre>
-<p>A second process <code>show</code>s the same root hash. Clients pull nodes they
-lack; they do not download a serialized view of the whole map.</p>
-<p>Write-back: <code>s-put</code> is local until commit. Flush is <code>POST /nodes</code> (Layer
-1 literals, same as pack GET), then <code>POST /root/cas</code>. The domain still
-requires only <code>dacite.value</code> + <code>dacite.store</code>.</p>
-<p>nbb and babashka use the file store (<code>npm run config</code>, <code>bb config</code>).
-HTTP clients in those examples are the JVM <code>--url</code> path today.</p>
-<p>See <a href="#persist-and-update-a-document">Persist and update a document</a> and
-<a href="#anatomy-of-a-dacite-app">Anatomy</a>.</p>
+<p>See <a href="#large-sequences-stay-cheap">Large sequences stay cheap</a>, whose
+<code>two-writers-keep-every-append</code> test runs two writers on one root.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="what-not-to-do"><a class="header" href="#what-not-to-do">What not to do</a></h1>
 <p>These habits fight the <a href="#the-dacite-way">Dacite way</a>.</p>
@@ -1445,8 +1327,7 @@ host (see <code>bin/hash-parity.sh</code>).</li>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="stores-api-reference-02-alpha"><a class="header" href="#stores-api-reference-02-alpha">Stores API reference (0.2 alpha)</a></h1>
 <p>Practical API for content stores and client composition in the reference
-implementation. App wiring: <a href="#anatomy-of-a-dacite-app">Anatomy</a> and
-<a href="#same-domain-local-or-http">Same domain, local or HTTP</a>. Internals:
+implementation. App wiring: <a href="#anatomy-of-a-dacite-app">Anatomy</a>. Internals:
 <a href="#chapter-1-content-stores">Content Stores</a>,
 <a href="#chapter-4-rooted-stores">Rooted Stores</a>.</p>
 <h2 id="application-stores-always-rooted"><a class="header" href="#application-stores-always-rooted">Application stores (always rooted)</a></h2>
@@ -1524,7 +1405,7 @@ pack / chunk transport   (IChunkTransport + pack/flush-from!)
     ↓
 optional rate-limit      (dacite.store.rate-limit)
     ↓
-remote HTTP store        (dacite.store.remote | dacite.store.browser)
+remote HTTP store        (dacite.store.browser)
 </code></pre>
 <div class="table-wrapper">
 <table>
@@ -1534,10 +1415,9 @@ remote HTTP store        (dacite.store.remote | dacite.store.browser)
 <tbody>
 <tr><td><code>dacite.store.client-cache</code></td><td>Local mem + flush reachable on CAS / explicit flush</td></tr>
 <tr><td><code>dacite.store.pack</code></td><td>Soft budget packing, <code>flush-from!</code>, <code>apply-chunk!</code>, literals</td></tr>
-<tr><td><code>dacite.store.rate-limit</code></td><td>Throttle <strong>send</strong> path (outermost <code>IChunkTransport</code> wins). Server inbound admit is <code>dacite.service.throttle</code> (429), not this wrapper.</td></tr>
+<tr><td><code>dacite.store.rate-limit</code></td><td>Throttle <strong>send</strong> path (outermost <code>IChunkTransport</code> wins).</td></tr>
 <tr><td><code>dacite.store.stats</code></td><td>Bandwidth accounting for store-protocol bodies</td></tr>
-<tr><td><code>dacite.store.remote</code></td><td>JVM HTTP client (<code>:binary true</code> default for packs); <code>watch-root</code> is GET /events</td></tr>
-<tr><td><code>dacite.store.browser</code></td><td>Browser <code>fetch</code> client (<code>:binary true</code> default). <code>drive</code> keeps <code>IStore</code> synchronous</td></tr>
+<tr><td><code>dacite.store.browser</code></td><td>Browser <code>fetch</code> client (<code>:binary true</code> default). <code>drive</code> keeps <code>IStore</code> synchronous. Its JVM server was removed (HTTP removal slice 2); only the todo and explorer pages use it</td></tr>
 </tbody>
 </table>
 </div>
@@ -1563,13 +1443,12 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
 <li>Spec: <a href="../spec/wire-v1.html">wire-v1</a> (repo) / book <a href="#appendix-serialization">Serialization appendix</a></li>
 <li>Codec: <code>dacite.wire.binary</code> (portable <code>.cljc</code> — JVM + CLJS/nbb)</li>
 <li>EDN helpers: <code>dacite.wire</code> (<code>read-edn</code> / <code>write-edn</code>)</li>
-<li>Opt out: <code>{:binary false}</code> on remote/browser store constructors</li>
+<li>Opt out: <code>{:binary false}</code> on the browser store constructor</li>
 </ul>
-<p>Service dual-stack: <code>dacite.service</code> honors <code>Content-Type</code> / <code>Accept</code>.</p>
 <hr>
 <h2 id="alpha-quality-notes"><a class="header" href="#alpha-quality-notes">Alpha quality notes</a></h2>
 <ul>
-<li>HTTP service and remotes are <strong>experimental</strong> but usable for demos and tests</li>
+<li>The JVM HTTP service and JVM remote store were removed (HTTP removal slice 2); peering replaces them</li>
 <li>Browser remote uses <strong><code>fetch</code></strong> inside <code>drive</code> — not production networking</li>
 <li>APIs may change before 1.0; see <a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">CHANGELOG</a></li>
 </ul>
@@ -1577,42 +1456,9 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
 <h2 id="related-2"><a class="header" href="#related-2">Related</a></h2>
 <ul>
 <li><a href="#values-api-reference-02-alpha">Values API</a></li>
-<li><a href="#http-service">HTTP service</a></li>
 <li><a href="#anatomy-of-a-dacite-app">Anatomy of a Dacite app</a></li>
 <li><a href="#install">Install</a></li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="http-service"><a class="header" href="#http-service">HTTP service</a></h1>
-<p>Production endpoints for a dedicated content store plus one root. Full
-design: <a href="../design/service.html">service.md</a>.</p>
-<p>The demo server: <code>clojure -M:service --port 8080 --store mem</code> (or
-<code>file</code> / <code>lmdb</code>).</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Method</th><th>Path</th><th>Role</th></tr>
-</thead>
-<tbody>
-<tr><td>GET</td><td><code>/node/{64-hex}</code></td><td>Pack-filled chunk (literals under the hash)</td></tr>
-<tr><td>PUT</td><td><code>/node/{64-hex}</code></td><td>Single-node put (EDN) → novelty</td></tr>
-<tr><td>HEAD / DELETE</td><td><code>/node/{64-hex}</code></td><td>Existence / optional delete</td></tr>
-<tr><td>POST</td><td><code>/nodes</code></td><td>Apply one pack chunk (write)</td></tr>
-<tr><td>POST</td><td><code>/nodes/get</code></td><td>Bulk pack (admin/sync; demoted)</td></tr>
-<tr><td>GET</td><td><code>/root</code></td><td><code>{:root hex-or-nil}</code></td></tr>
-<tr><td>POST</td><td><code>/root/cas</code></td><td><code>{:expected hex-or-nil :new hex}</code> → 200 / 409</td></tr>
-<tr><td>GET</td><td><code>/events</code></td><td>SSE <code>event: root</code> on CAS</td></tr>
-</tbody>
-</table>
-</div>
-<p>Pack GET/POST prefer <code>application/vnd.dacite.chunk.v1</code> (wire-v1). Root
-CAS and novelty stay EDN.</p>
-<p>Write-back clients: <code>GET /node</code> on miss, <code>POST /nodes</code> on flush, then
-<code>POST /root/cas</code>. They do not PUT every node.</p>
-<p>No query opt-outs on GET (<code>?raw=</code>, <code>?nodes=</code>, <code>?near=</code> are gone).</p>
-<p>Throttle: empty bucket is 429 (<code>Retry-After</code>); oversized body is 413.
-<code>remote-store</code> retries 429/503. See <a href="../design/service.html">service.md</a>
-inbound throttle.</p>
-<p>Static demos: <code>/app/</code> (todo), <code>/app/explorer/</code> (trailing slash).</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="chapter-1-content-stores"><a class="header" href="#chapter-1-content-stores">Chapter 1: Content Stores</a></h1>
 <p>Writing an application? Start at <a href="#the-dacite-way">The Dacite way</a>

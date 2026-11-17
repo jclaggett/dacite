@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e7d05f4.js";
+            window.path_to_searchindex_js = "../searchindex-5db38ef9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0aeace7d.js"></script>
+        <script src="../toc-5e6c97cc.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,6 +181,13 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="a-browser-app"><a class="header" href="#a-browser-app">A browser app</a></h1>
+<blockquote>
+<p><strong>No working mode right now.</strong> This page ran against the JVM HTTP
+service (<code>dacite.service</code>), which the HTTP removal (slice 2) deleted.
+The page stays as a record until the demo is deleted or ported to
+peering. The library reader (<code>/app/library/</code>) runs over peering; see
+<a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.</p>
+</blockquote>
 <p>The Values / Store split still holds in the tab. Domain code is
 <code>dacite.value</code>. The store is HTTP plus a write-back cache. The UI is DOM
 (todo) or a typed tree (explorer). Neither app dumps the root to JSON.</p>
@@ -188,8 +195,8 @@
 <pre><code class="language-bash">cd impl/clojure
 clojure -M:cljs-web                  # todo bundle (first time / after cljs)
 clojure -M:cljs-explorer             # explorer bundle
-clojure -M:service --port 8080 --store mem
 </code></pre>
+<p>The bundles then needed the HTTP service at these URLs:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -203,8 +210,6 @@ clojure -M:service --port 8080 --store mem
 </div>
 <p>Use a trailing slash. Hard-refresh after rebuilding JS (<code>main.js?v=…</code>
 cache-busts when we bump it).</p>
-<p>Durable service: <code>--store file</code> or <code>--store lmdb</code>. Details:
-<a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.</p>
 <h2 id="what-the-browser-is-doing"><a class="header" href="#what-the-browser-is-doing">What the browser is doing</a></h2>
 <ol>
 <li><code>GET /root</code> — current hash, or none.</li>

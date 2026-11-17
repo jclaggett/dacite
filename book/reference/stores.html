@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e7d05f4.js";
+            window.path_to_searchindex_js = "../searchindex-5db38ef9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0aeace7d.js"></script>
+        <script src="../toc-5e6c97cc.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -182,8 +182,7 @@
                     <main>
                         <h1 id="stores-api-reference-02-alpha"><a class="header" href="#stores-api-reference-02-alpha">Stores API reference (0.2 alpha)</a></h1>
 <p>Practical API for content stores and client composition in the reference
-implementation. App wiring: <a href="../building/anatomy.html">Anatomy</a> and
-<a href="../guide/local-or-http.html">Same domain, local or HTTP</a>. Internals:
+implementation. App wiring: <a href="../building/anatomy.html">Anatomy</a>. Internals:
 <a href="../01-stores/chapter.html">Content Stores</a>,
 <a href="../04-rooted-stores/chapter.html">Rooted Stores</a>.</p>
 <h2 id="application-stores-always-rooted"><a class="header" href="#application-stores-always-rooted">Application stores (always rooted)</a></h2>
@@ -261,7 +260,7 @@ pack / chunk transport   (IChunkTransport + pack/flush-from!)
     ↓
 optional rate-limit      (dacite.store.rate-limit)
     ↓
-remote HTTP store        (dacite.store.remote | dacite.store.browser)
+remote HTTP store        (dacite.store.browser)
 </code></pre>
 <div class="table-wrapper">
 <table>
@@ -271,10 +270,9 @@ remote HTTP store        (dacite.store.remote | dacite.store.browser)
 <tbody>
 <tr><td><code>dacite.store.client-cache</code></td><td>Local mem + flush reachable on CAS / explicit flush</td></tr>
 <tr><td><code>dacite.store.pack</code></td><td>Soft budget packing, <code>flush-from!</code>, <code>apply-chunk!</code>, literals</td></tr>
-<tr><td><code>dacite.store.rate-limit</code></td><td>Throttle <strong>send</strong> path (outermost <code>IChunkTransport</code> wins). Server inbound admit is <code>dacite.service.throttle</code> (429), not this wrapper.</td></tr>
+<tr><td><code>dacite.store.rate-limit</code></td><td>Throttle <strong>send</strong> path (outermost <code>IChunkTransport</code> wins).</td></tr>
 <tr><td><code>dacite.store.stats</code></td><td>Bandwidth accounting for store-protocol bodies</td></tr>
-<tr><td><code>dacite.store.remote</code></td><td>JVM HTTP client (<code>:binary true</code> default for packs); <code>watch-root</code> is GET /events</td></tr>
-<tr><td><code>dacite.store.browser</code></td><td>Browser <code>fetch</code> client (<code>:binary true</code> default). <code>drive</code> keeps <code>IStore</code> synchronous</td></tr>
+<tr><td><code>dacite.store.browser</code></td><td>Browser <code>fetch</code> client (<code>:binary true</code> default). <code>drive</code> keeps <code>IStore</code> synchronous. Its JVM server was removed (HTTP removal slice 2); only the todo and explorer pages use it</td></tr>
 </tbody>
 </table>
 </div>
@@ -300,13 +298,12 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
 <li>Spec: <a href="../../spec/wire-v1.html">wire-v1</a> (repo) / book <a href="../appendices/serialization.html">Serialization appendix</a></li>
 <li>Codec: <code>dacite.wire.binary</code> (portable <code>.cljc</code> — JVM + CLJS/nbb)</li>
 <li>EDN helpers: <code>dacite.wire</code> (<code>read-edn</code> / <code>write-edn</code>)</li>
-<li>Opt out: <code>{:binary false}</code> on remote/browser store constructors</li>
+<li>Opt out: <code>{:binary false}</code> on the browser store constructor</li>
 </ul>
-<p>Service dual-stack: <code>dacite.service</code> honors <code>Content-Type</code> / <code>Accept</code>.</p>
 <hr>
 <h2 id="alpha-quality-notes"><a class="header" href="#alpha-quality-notes">Alpha quality notes</a></h2>
 <ul>
-<li>HTTP service and remotes are <strong>experimental</strong> but usable for demos and tests</li>
+<li>The JVM HTTP service and JVM remote store were removed (HTTP removal slice 2); peering replaces them</li>
 <li>Browser remote uses <strong><code>fetch</code></strong> inside <code>drive</code> — not production networking</li>
 <li>APIs may change before 1.0; see <a href="https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md">CHANGELOG</a></li>
 </ul>
@@ -314,7 +311,6 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
 <h2 id="related"><a class="header" href="#related">Related</a></h2>
 <ul>
 <li><a href="values.html">Values API</a></li>
-<li><a href="http.html">HTTP service</a></li>
 <li><a href="../building/anatomy.html">Anatomy of a Dacite app</a></li>
 <li><a href="../getting-started/install.html">Install</a></li>
 </ul>
@@ -327,7 +323,7 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../reference/http.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../01-stores/chapter.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -341,7 +337,7 @@ chunks (default soft budget <strong>1024</strong> bytes).</p>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../reference/http.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../01-stores/chapter.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

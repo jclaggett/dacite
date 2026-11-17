@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e7d05f4.js";
+            window.path_to_searchindex_js = "../searchindex-5db38ef9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0aeace7d.js"></script>
+        <script src="../toc-5e6c97cc.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -252,21 +252,18 @@ npm run todo           # interactive todo UI
 </code></pre>
 <p>If that fails on your tools.deps version, use clone + <code>:local/root</code> above — that
 is the reliable alpha path.</p>
-<p>From inside <code>impl/clojure</code> you can also run the test suite and service:</p>
+<p>From inside <code>impl/clojure</code> you can also run the test suite:</p>
 <pre><code class="language-bash">cd impl/clojure
 clojure -M:dev:test
-clojure -M:service --port 8080 --store mem   # API + browser todo static UI
 </code></pre>
-<h2 id="browser-todo-demo"><a class="header" href="#browser-todo-demo">Browser todo demo</a></h2>
-<pre><code class="language-bash">cd impl/clojure
-clojure -M:cljs-web                    # once / after source changes
-clojure -M:service --port 8080 --store mem
-# open http://127.0.0.1:8080/app/
-clojure -M:cljs-explorer
-# open http://127.0.0.1:8080/app/explorer/
+<h2 id="browser-demos"><a class="header" href="#browser-demos">Browser demos</a></h2>
+<p>The browser pages are plain static files under <code>examples/web</code>. From the
+repo root:</p>
+<pre><code class="language-bash">npm run web:serve            # serves examples/web at http://127.0.0.1:8080/app/
 </code></pre>
-<p>Details: <a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.
-Pack GET/POST use <strong>wire-v1 binary</strong> by default.</p>
+<p>The library reader (<code>/app/library/</code>) runs over peering. The todo and
+explorer pages needed the JVM HTTP service, which was removed.
+Details: <a href="https://github.com/jclaggett/dacite/blob/main/examples/web/README.md">examples/web/README.md</a>.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
 <li><a href="../the-dacite-way.html">The Dacite way</a> — how to think about data</li>

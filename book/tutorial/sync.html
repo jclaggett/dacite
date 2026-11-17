@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e7d05f4.js";
+            window.path_to_searchindex_js = "../searchindex-5db38ef9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0aeace7d.js"></script>
+        <script src="../toc-5e6c97cc.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -192,7 +192,6 @@ missing nodes.</p>
 <li>Seed a sample tree (two files share a blob).</li>
 <li><code>ls</code> names and sizes without reading file bytes.</li>
 <li><code>cat</code> one file.</li>
-<li>Push the tree to <code>clojure -M:service</code> and pull it elsewhere.</li>
 </ol>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
@@ -217,20 +216,6 @@ clojure -M:sync -- bench
 <p>Or <code>npm run sync -- --reset seed</code> / <code>bb sync --reset seed</code>.</p>
 <p><code>put /path/to/dir</code> ingests a real host folder. <code>export DIR</code> writes the
 tree back to disk.</p>
-<h2 id="push-and-pull"><a class="header" href="#push-and-pull">Push and pull</a></h2>
-<pre><code class="language-bash"># terminal 1
-clojure -M:service --port 8080 --store mem
-
-# terminal 2 — publish the local tree
-clojure -M:sync -- --url http://127.0.0.1:8080 push
-
-# terminal 3 — another store
-clojure -M:sync -- --path /tmp/dacite-sync-b --url http://127.0.0.1:8080 pull
-clojure -M:sync -- --path /tmp/dacite-sync-b ls
-</code></pre>
-<p><code>store/sync-reachable!</code> copies the subgraph (packed flush to a remote,
-per-node copy otherwise). Then the dest root is CAS’d to the same hash.
-A second pull copies nothing already present.</p>
 <h2 id="what-the-bench-shows"><a class="header" href="#what-the-bench-shows">What the bench shows</a></h2>
 <pre><code class="language-text">sync bench
   names:        data.bin, readme.txt, sub, copy.txt
@@ -241,9 +226,7 @@ A second pull copies nothing already present.</p>
 </code></pre>
 <p>The sample root hash is the same on JVM, babashka, and nbb:</p>
 <p><code>fe0532ab564af43a7fb7c94541eaf63d63fa70d24e1290e6899747a571f4f196</code></p>
-<p>A remote test measures store-protocol bytes: <strong>GET of one blob</strong>
-transfers less than GET of that blob plus its siblings. A second local
-<code>sync-reachable!</code> copies 0 nodes.</p>
+<p>A second local <code>sync-reachable!</code> copies 0 nodes.</p>
 <h2 id="what-this-pulled"><a class="header" href="#what-this-pulled">What this pulled</a></h2>
 <div class="table-wrapper">
 <table>
@@ -262,13 +245,14 @@ enough to prove the fetch claim. A later port can store raw bytes
 without changing the app.</p>
 <h2 id="next"><a class="header" href="#next">Next</a></h2>
 <p><a href="explorer.html">Browse without dumping</a> — walk the root as typed values.
-<a href="../building/browser-app.html">A browser app</a> — todo and explorer on HTTP.</p>
+<a href="../building/browser-app.html">A browser app</a> — todo and explorer in the
+browser (their HTTP service was removed; see that page).</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../tutorial/two-client.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../tutorial/event-log.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -282,7 +266,7 @@ without changing the app.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../tutorial/two-client.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../tutorial/event-log.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
