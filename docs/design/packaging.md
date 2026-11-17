@@ -72,6 +72,13 @@ Commands: `dacite service install`, `dacite service uninstall`, `dacite service 
 - **WebSockets skip CORS.** Any website the user visits can open `ws://localhost:<port>/signal`. The peer must reject a `/signal` upgrade whose `Origin` is not its own (`http://localhost:<port>` or `http://127.0.0.1:<port>`).
 - **DNS rebinding.** Check the `Host` header on every request, both static and `/signal`, and accept only `localhost:<port>` and `127.0.0.1:<port>`.
 
+## Follow-ups
+
+Hand runs moved here from parity (Jonathan, Nov 17, 2026). Run them against the packaged peer (`npx dacite`, page served by the peer), on the same computer. Steps and browser settings: `docs/plan/peering.md` M6.4 and the M5.2 Safari/Firefox notes (host-address setting so ICE does not stay on a `.local` name). Mac + Brave already passed on the `parity` branch (Nov 11).
+
+- [ ] Safari: the M6.4 Value Browser (paste a peer, fetch its hash) over peering only.
+- [ ] Firefox: the same run.
+
 ## Not in this note
 
 ICE discovery, TURN, peer lists, roots, and removing the HTTP data API. Those have their own plans.
