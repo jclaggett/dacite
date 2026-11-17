@@ -485,7 +485,7 @@ error type.
 
 Shipped: `GET /events` (SSE), `store.remote/watch-root`,
 `v/swap-info!`, event-log `watch` / `contend`, tutorial
-[two-client.md](book/tutorial/two-client.md). Two remotes can interleave
+two-client.md (removed with the HTTP code in #69). Two remotes can interleave
 appends without lost events; a third process reprints on SSE. The rebase
 loop was already `ref-swap!`; `:retries` is the conflict UX.
 
