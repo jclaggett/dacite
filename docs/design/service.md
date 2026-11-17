@@ -401,7 +401,7 @@ to `IStore` / `compare-and-set!`. Not started:
 - One `RootedStore` per provisioned user (LMDB path per user)
 - Token middleware to select that store
 
-Archive reference: [impl/clojure/archive/server.clj](../../impl/clojure/archive/server.clj) (node GET only; lacks CAS root, DELETE, auth).
+Archive reference: `impl/clojure/archive/server.clj` (node GET only; lacks CAS root, DELETE, auth), removed in the HTTP removal slice 3.
 
 ## Open questions
 
