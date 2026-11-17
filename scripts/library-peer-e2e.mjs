@@ -1,53 +1,82 @@
 #!/usr/bin/env node
 /**
- * JUSTIFICATION: two headless Chromium navigations of the library reader,
- * plus a third that waits out a short peer timeout, a JVM origin, and a
- * WebRTC handshake with the nbb peer. Browser startup, the origin
- * process, and ICE are outside the 3 second bound. The value is the
- * seed catalog and its plate.
+ * JUSTIFICATION: one headless Chromium navigation of the library reader
+ * and a WebRTC handshake with the nbb peer. Browser startup and ICE are
+ * outside the 3 second bound. The value is the seed catalog and its plate.
  *
  * M5.3: the library page reads chapter 0 and the plate from the nbb
- * peer. A room with no answerer falls back to the origin. Origin-only
- * is loaded twice; store-protocol round trips and body bytes must match.
- * Wall-clock times are recorded and are not required to match.
+ * peer, by the root hash in the query. The static server below serves
+ * only the page. Wall-clock times are recorded.
  *
  * Requires `npm run library:build` first (examples/web/library/js/main.js).
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
+import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { startServer } from './webrtc-signal-server.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const bundle = path.join(root, 'examples', 'web', 'library', 'js', 'main.js');
+const webRoot = path.join(root, 'examples', 'web');
+const bundle = path.join(webRoot, 'library', 'js', 'main.js');
 const PLATE_BYTES = 100;
 const PLATE_PX = 16;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function startOrigin() {
-  const child = spawn(
-    'clojure',
-    ['-M:library-origin', '--port', '0'],
-    { cwd: path.join(root, 'impl', 'clojure'), stdio: ['ignore', 'pipe', 'pipe'] },
-  );
-  const log = { out: '', err: '' };
-  child.stdout.on('data', (d) => {
-    log.out += d.toString();
-    process.stdout.write(d);
-  });
-  child.stderr.on('data', (d) => {
-    log.err += d.toString();
-    process.stderr.write(d);
-  });
-  return { child, log };
+function contentType(file) {
+  if (file.endsWith('.html')) return 'text/html; charset=utf-8';
+  if (file.endsWith('.js')) return 'text/javascript; charset=utf-8';
+  if (file.endsWith('.css')) return 'text/css; charset=utf-8';
+  return 'application/octet-stream';
 }
 
-function startNbb(wsUrl, room) {
+function startStatic() {
+  const server = http.createServer((req, res) => {
+    const u = new URL(req.url || '/', 'http://127.0.0.1');
+    if (!u.pathname.startsWith('/app/')) {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('not found');
+      return;
+    }
+    let rel = decodeURIComponent(u.pathname.slice('/app/'.length));
+    if (rel.endsWith('/')) rel += 'index.html';
+    const file = path.normalize(path.join(webRoot, rel));
+    if (file !== webRoot && !file.startsWith(webRoot + path.sep)) {
+      res.writeHead(403, { 'content-type': 'text/plain' });
+      res.end('forbidden');
+      return;
+    }
+    fs.readFile(file, (err, buf) => {
+      if (err) {
+        res.writeHead(404, { 'content-type': 'text/plain' });
+        res.end('not found');
+        return;
+      }
+      res.writeHead(200, {
+        'content-type': contentType(file),
+        'cache-control': 'no-store',
+      });
+      res.end(buf);
+    });
+  });
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address();
+      resolve({
+        port: addr.port,
+        close: () => new Promise((res, rej) => server.close((e) => (e ? rej(e) : res()))),
+      });
+    });
+  });
+}
+
+function startNbb(wsUrl, room, page) {
   const child = spawn(
     path.join(root, 'node_modules', '.bin', 'nbb'),
-    ['-m', 'dacite.examples.library-nbb', '--ws', wsUrl, '--room', room],
+    ['-m', 'dacite.examples.library-nbb', '--ws', wsUrl, '--room', room, '--page', page],
     { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   const log = { out: '', err: '' };
@@ -133,51 +162,29 @@ async function openRead(browser, url) {
   return out;
 }
 
-function sameRead(a, b) {
-  const problems = [];
-  const eq = (name) => {
-    if (a[name] !== b[name]) problems.push(name + ': ' + a[name] + ' !== ' + b[name]);
-  };
-  eq('round-trips');
-  eq('origin-requests');
-  eq('gets');
-  eq('frames');
-  eq('bytes-peer');
-  eq('bytes-origin');
-  eq('image-bytes');
-  eq('root');
-  eq('chapter');
-  eq('naturalWidth');
-  return problems;
-}
-
 async function main() {
   if (!fs.existsSync(bundle)) {
     throw new Error('missing ' + bundle + ' — run npm run library:build');
   }
   const { chromium } = await import('playwright');
   const signal = await startServer({ port: 0, host: '127.0.0.1' });
-  const origin = startOrigin();
+  const site = await startStatic();
   const room = 'm53-' + Math.random().toString(16).slice(2);
-  const nbb = startNbb(signal.url, room);
+  const nbb = startNbb(signal.url, room, `http://127.0.0.1:${site.port}/app/library/`);
   let browser;
   try {
-    const originRoot = await waitMatch(origin.log, /^root ([0-9a-f]{64})$/m, 180000, 'origin root');
-    const originEntries = await waitMatch(origin.log, /^entries (\d+)$/m, 5000, 'origin entries');
-    const originUrl = await waitMatch(origin.log, /^origin (http:\/\/127\.0\.0\.1:\d+)$/m, 5000, 'origin url');
-    await waitMatch(origin.log, /^ready$/m, 5000, 'origin ready');
     const nbbRoot = await waitMatch(nbb.log, /^root ([0-9a-f]{64})$/m, 60000, 'nbb root');
     const nbbEntries = await waitMatch(nbb.log, /^entries (\d+)$/m, 5000, 'nbb entries');
     const buildUs = await waitMatch(nbb.log, /^build-us (\d+)$/m, 5000, 'build-us');
     const tau = await waitMatch(nbb.log, /^tau-ms (\d+)$/m, 5000, 'tau-ms');
+    const pageUrl = await waitMatch(nbb.log, /^page (\S+)$/m, 5000, 'page url');
 
     const problems = [];
     const eq = (name, actual, expected) => {
       if (actual !== expected) problems.push(name + ': ' + actual + ' !== ' + expected);
     };
-    eq('root', nbbRoot[1], originRoot[1]);
-    eq('entries', nbbEntries[1], originEntries[1]);
     eq('tau-ms', tau[1], '10000');
+    if (!(Number(nbbEntries[1]) > 1)) problems.push('entries: ' + nbbEntries[1]);
     if (problems.length) throw new Error(problems.join('\n'));
 
     browser = await chromium.launch({
@@ -189,62 +196,34 @@ async function main() {
       ],
     });
 
-    const base = originUrl[1] + '/app/library/?chapter=0';
-    const originA = await openRead(browser, base);
-    const originB = await openRead(browser, base);
-    const peer = await openRead(
-      browser,
-      base + '&signal=' + encodeURIComponent(signal.url) + '&room=' + room,
-    );
+    const peer = await openRead(browser, pageUrl[1]);
     await waitMatch(nbb.log, /^served$/m, 5000, 'served');
     await waitMatch(nbb.log, /^recv-max (\d+)$/m, 5000, 'recv-max');
     await waitMatch(nbb.log, /^serve-us (\d+)$/m, 5000, 'serve-us');
     const recvMax = Number(nbb.log.out.match(/^recv-max (\d+)$/m)[1]);
     const serveUs = Number(nbb.log.out.match(/^serve-us (\d+)$/m)[1]);
-    const fallback = await openRead(
-      browser,
-      base + '&signal=' + encodeURIComponent(signal.url) +
-        '&room=m53-miss-' + Math.random().toString(16).slice(2) +
-        '&peer-timeout=400',
-    );
 
-    const check = (row, mode) => {
-      eq(mode + ' mode', row.mode, mode);
-      eq(mode + ' image-bytes', row['image-bytes'], PLATE_BYTES);
-      eq(mode + ' width', row.naturalWidth, PLATE_PX);
-      eq(mode + ' height', row.naturalHeight, PLATE_PX);
-      eq(mode + ' root', row.root, originRoot[1]);
-      if (!row.chapter.includes('CHAPTER I. The Shelf')) {
-        problems.push(mode + ' chapter missing the heading: ' + row.chapter.slice(0, 80));
-      }
-      if (!row.chapter.includes('The catalog is a set of books')) {
-        problems.push(mode + ' chapter missing the opening sentence');
-      }
-      if (!(row['ttf-ms'] > 0)) problems.push(mode + ' ttf-ms: ' + row['ttf-ms']);
-      if (!(row['read-ms'] >= 0)) problems.push(mode + ' read-ms: ' + row['read-ms']);
-      if (row['ttf-ms'] < row['read-ms']) {
-        problems.push(mode + ' ttf before read: ' + row['ttf-ms'] + ' < ' + row['read-ms']);
-      }
-    };
-    problems.push(...sameRead(originA, originB).map((p) => 'origin rerun ' + p));
-    check(originA, 'origin');
-    check(peer, 'peer');
-    check(fallback, 'origin-fallback');
-    eq('origin bytes-peer', originA['bytes-peer'], 0);
-    eq('origin gets', originA.gets, 0);
-    eq('origin frames', originA.frames, 0);
-    if (!(originA['bytes-origin'] > 0)) problems.push('origin bytes-origin: ' + originA['bytes-origin']);
-    if (!(originA['round-trips'] >= 1)) problems.push('origin round-trips: ' + originA['round-trips']);
-    eq('peer gets', peer.gets, 1);
-    if (!(peer['bytes-peer'] > peer['bytes-origin'])) {
-      problems.push('peer bytes: peer ' + peer['bytes-peer'] + ' origin ' + peer['bytes-origin']);
+    eq('mode', peer.mode, 'peer');
+    eq('image-bytes', peer['image-bytes'], PLATE_BYTES);
+    eq('width', peer.naturalWidth, PLATE_PX);
+    eq('height', peer.naturalHeight, PLATE_PX);
+    eq('root', peer.root, nbbRoot[1]);
+    if (!peer.chapter.includes('CHAPTER I. The Shelf')) {
+      problems.push('chapter missing the heading: ' + peer.chapter.slice(0, 80));
     }
-    if (!(peer['bytes-origin'] > 0)) problems.push('peer still names the root from the origin');
-    if (!(peer.frames >= 1)) problems.push('peer frames: ' + peer.frames);
-    if (!(fallback['bytes-origin'] > peer['bytes-origin'])) {
-      problems.push('fallback should read the catalog from the origin, bytes ' + fallback['bytes-origin']);
+    if (!peer.chapter.includes('The catalog is a set of books')) {
+      problems.push('chapter missing the opening sentence');
     }
-    eq('tau', Number(tau[1]), 10000);
+    if (!(peer['ttf-ms'] > 0)) problems.push('ttf-ms: ' + peer['ttf-ms']);
+    if (!(peer['read-ms'] >= 0)) problems.push('read-ms: ' + peer['read-ms']);
+    if (peer['ttf-ms'] < peer['read-ms']) {
+      problems.push('ttf before read: ' + peer['ttf-ms'] + ' < ' + peer['read-ms']);
+    }
+    eq('gets', peer.gets, 1);
+    eq('origin-requests', peer['origin-requests'], 0);
+    eq('bytes-origin', peer['bytes-origin'], 0);
+    if (!(peer['bytes-peer'] > 0)) problems.push('bytes-peer: ' + peer['bytes-peer']);
+    if (!(peer.frames >= 1)) problems.push('frames: ' + peer.frames);
     if (!(Number(buildUs[1]) > 0)) problems.push('build-us: ' + buildUs[1]);
     if (!(recvMax > 0)) problems.push('recv-max: ' + recvMax);
     if (!(serveUs >= 0)) problems.push('serve-us: ' + serveUs);
@@ -253,39 +232,14 @@ async function main() {
     const measured = {
       catalog: 'seed library, chapter 0, 16x16 plate',
       'plate-bytes': PLATE_BYTES,
-      entries: Number(originEntries[1]),
-      origin: {
-        'round-trips': originA['round-trips'],
-        'bytes-peer': originA['bytes-peer'],
-        'bytes-origin': originA['bytes-origin'],
-        'ttf-ms': originA['ttf-ms'],
-        'read-ms': originA['read-ms'],
-        'origin-requests': originA['origin-requests'],
-      },
-      'origin-rerun': {
-        'round-trips': originB['round-trips'],
-        'bytes-origin': originB['bytes-origin'],
-        'ttf-ms': originB['ttf-ms'],
-        'read-ms': originB['read-ms'],
-      },
+      entries: Number(nbbEntries[1]),
       peer: {
         'round-trips': peer['round-trips'],
         'bytes-peer': peer['bytes-peer'],
-        'bytes-origin': peer['bytes-origin'],
         'ttf-ms': peer['ttf-ms'],
         'read-ms': peer['read-ms'],
         gets: peer.gets,
         frames: peer.frames,
-        'origin-requests': peer['origin-requests'],
-      },
-      fallback: {
-        'round-trips': fallback['round-trips'],
-        'bytes-peer': fallback['bytes-peer'],
-        'bytes-origin': fallback['bytes-origin'],
-        'ttf-ms': fallback['ttf-ms'],
-        'read-ms': fallback['read-ms'],
-        gets: fallback.gets,
-        frames: fallback.frames,
       },
       'build-us': Number(buildUs[1]),
       'serve-us': serveUs,
@@ -296,8 +250,8 @@ async function main() {
   } finally {
     if (browser) await browser.close().catch(() => {});
     if (nbb.child.exitCode == null) nbb.child.kill('SIGTERM');
-    if (origin.child.exitCode == null) origin.child.kill('SIGTERM');
     await signal.close().catch(() => {});
+    await site.close().catch(() => {});
   }
 }
 

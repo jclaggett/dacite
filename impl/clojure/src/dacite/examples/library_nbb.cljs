@@ -7,13 +7,12 @@
 
    This process is the WebRTC answerer. The library page is the offerer
    and creates `dacite-peer` in-band. The room token is the manual step.
-   There is no origin discovery and no mDNS.
+   There is no peer discovery and no mDNS.
 
-   The catalog is `dacite.examples.library/seed-library`, the same value
-   the JVM origin publishes, so a reader that times out can load that
-   root from the origin. Prints the root, the reachable entry count, how
-   long building the catalog took (hashing included), and the default
-   interest `tau`. While it serves, it prints the `recv-max` of the one
+   The catalog is `dacite.examples.library/seed-library`. Prints the
+   root, the reachable entry count, how long building the catalog took
+   (hashing included), the default interest `tau`, and the page URL
+   that reads that root from this peer. While it serves, it prints the `recv-max` of the one
    `get` and how long the answer took.
 
    `--page` is the library page without a query (default
@@ -41,9 +40,10 @@
   (let [h (js/process.hrtime)]
     (+ (* (aget h 0) 1000000) (quot (aget h 1) 1000))))
 
-(defn- page-url [base ws room]
+(defn- page-url [base root-hex ws room]
   (str (str/replace base #"/+$" "")
        "/?chapter=0"
+       "&root=" root-hex
        "&signal=" (js/encodeURIComponent ws)
        "&room=" room))
 
@@ -87,7 +87,7 @@
       (println "entries" entries)
       (println "build-us" build-us)
       (println "tau-ms" (get rates/default-interest "tau-ms"))
-      (println "page" (page-url page ws room))
+      (println "page" (page-url page root-hex ws room))
       (link/serve! links r peer-id (:conn peer))
       (-> (:signaling peer)
           (.then (fn [_] (println "signaling-up")))

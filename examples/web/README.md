@@ -8,7 +8,7 @@ Three UIs share the HTTP content-store + root CAS protocol
 | http://127.0.0.1:8080/app/ | Todo — write Dacite values, CAS the root |
 | http://127.0.0.1:8080/app/explorer/ | **Value explorer** — typed tree of the current root |
 | http://127.0.0.1:8080/app/library/ | **Library** — shelf → TOC → page via `v/slice` |
-| http://127.0.0.1:8080/app/peer/ | **Browser peer** — verify the origin root into IndexedDB |
+| http://127.0.0.1:8080/app/peer/ | **Browser peer** — read a value from an nbb peer into IndexedDB |
 | http://127.0.0.1:8080/app/browser/ | **Value browser** — paste `dacite://<host>#urn:dacite:<hex>` and fetch that hash. Intended path: `dacite.io/browser` |
 
 ---
@@ -54,10 +54,10 @@ cd impl/clojure && clojure -M:cljs-library
 # open http://127.0.0.1:8080/app/library/
 ```
 
-Peer-assisted chapter and plate (M5.3): `npm run library:build`, then
-`clojure -M:library-origin` and
-`nbb -m dacite.examples.library-nbb`. The page takes `chapter`, `signal`,
-and `room`. Measurements: `docs/plan/measurements.md`.
+Chapter and plate from the nbb peer (M5.3): `npm run library:build`, then
+`nbb -m dacite.examples.library-nbb` and open the URL it prints. The page
+takes `chapter`, `root`, `signal`, and `room`, and reads that root from the
+peer only. Measurements: `docs/plan/measurements.md`.
 
 After pulling server/client pack changes, recompile the UI (`clojure -M:cljs-web`)
 and **hard-refresh** the browser (cached `main.js` will break load/add if the
@@ -187,17 +187,12 @@ shadow-cljs compiles the peer namespaces, IndexedDB, and the browser
 npm install
 npm run peer:build          # examples/web/peer/js
 npm run browser:test        # compiled transport + IndexedDB checks
-
-# origin with the canonical value, and the static page
-cd impl/clojure && clojure -M:peer-origin
 ```
 
-Open http://127.0.0.1:8080/app/peer/ . The page reads `GET /root`, verifies
-each pack item into IndexedDB, and shows the root hash and the entry count.
-Those two numbers are also printed by `peer-origin`.
-
-To read a value held only by an nbb peer, start the slice-3 relay and
+To read a value held by an nbb peer, start the slice-3 relay and
 `nbb -m dacite.examples.peer-nbb`, then open the URL that process prints.
+The page verifies each item into IndexedDB and shows the root hash and the
+entry count.
 `npm run peer:e2e` runs the same session in headless Chromium. The Safari
 and Firefox steps are under M5.2 in `docs/plan/peering.md`.
 

@@ -1,23 +1,15 @@
 (ns dacite.examples.peer-web
-  "Browser peer page (M5.1 and M5.2).
+  "Browser peer page (M5.2).
 
    Compile from the repo root:
 
      npm run peer:build
 
-   Origin only (M5.1), from impl/clojure:
-
-     clojure -M:peer-origin
-
-   Open http://127.0.0.1:8080/app/peer/ . The page reads the origin's
-   root, verifies every pack item into IndexedDB, and shows the root
-   hash and the entry count.
-
-   nbb peer (M5.2): the query names a root the origin does not hold,
-   plus the slice-3 relay. This page is the WebRTC offerer. It refuses
-   to continue unless `GET /node/{root}` is 404, then asks the nbb peer
-   for that root. The client verifies every item before storing it, and
-   the page walks every reachable entry with `verify/checked?`.
+   The query names a root the nbb peer holds, plus the slice-3 relay.
+   This page is the WebRTC offerer. It asks the nbb peer for that root
+   and does not read from an HTTP origin. The client verifies every item
+   into IndexedDB before storing it, and the page walks every reachable
+   entry with `verify/checked?`.
 
      http://127.0.0.1:8080/app/peer/?root=HEX&signal=ws://127.0.0.1:8787&room=TOKEN
 
@@ -29,7 +21,6 @@
             [dacite.peer.frame :as frame]
             [dacite.peer.link :as link]
             [dacite.peer.msg :as msg]
-            [dacite.peer.origin :as origin]
             [dacite.peer.rates :as rates]
             [dacite.peer.responder :as responder]
             [dacite.peer.transport :as t]
@@ -40,9 +31,7 @@
             [dacite.store :as store]
             [dacite.store.chain :as chain]
             [dacite.store.idb :as idb]
-            [dacite.value.types :as types]
-            [dacite.wire :as wire]
-            [dacite.wire.binary :as bin]))
+            [dacite.value.types :as types]))
 
 (def db-name
   "IndexedDB database for the verified local tier."
@@ -78,42 +67,6 @@
         msg (or (ex-message e) (.-message e) (str e))]
     (if reason (str msg " (" (name reason) ")") msg)))
 
-(defn- trim-base [base]
-  (str/replace (or base "") #"/$" ""))
-
-(defn fetch-root-hex
-  "Hex root from `GET /root`, or nil when the origin has none."
-  [base]
-  (let [url (str (trim-base base) "/root")]
-    (-> (js/fetch url #js {:method "GET" :cache "no-store"})
-        (.then (fn [resp]
-                 (if (= 200 (.-status resp))
-                   (.text resp)
-                   (throw (ex-info (str "origin " (.-status resp) " " url)
-                                   {:reason :origin :status (.-status resp) :url url})))))
-        (.then (fn [text] (:root (wire/read-edn text)))))))
-
-(defn node-chunk
-  "Wire-v1 bytes of `GET /node/{hex}`, or nil on 404.
-
-   The same request the JVM test makes through `dacite.service/handle-request`
-   with `Accept: application/vnd.dacite.chunk.v1`."
-  [base h]
-  (let [url (str (trim-base base) "/node/" (store/hash->hex h))]
-    (-> (js/fetch url #js {:method "GET"
-                           :headers #js {"Accept" bin/content-type-chunk-v1}
-                           :cache "no-store"})
-        (.then (fn [resp]
-                 (cond
-                   (= 200 (.-status resp)) (.arrayBuffer resp)
-                   (= 404 (.-status resp)) nil
-                   :else (throw (ex-info (str "origin " (.-status resp) " " url)
-                                         {:reason :origin
-                                          :status (.-status resp)
-                                          :url url})))))
-        (.then (fn [buf]
-                 (when buf (js/Uint8Array. buf)))))))
-
 (defn- show-build! []
   (set-text! "build"
              (str (:transport peer-build)
@@ -124,11 +77,6 @@
   (when-let [el (by-id id)]
     (.setAttribute el k (str v))))
 
-(defn- verify-root! [st base hex]
-  (let [root (store/hex->hash hex)]
-    (chain/native
-     (origin/verify-from-origin! st root #(node-chunk base %)))))
-
 (defn- query-param
   "A non-empty query value, or nil. `URLSearchParams.get` returns
    JavaScript null when the key is absent, and null is truthy here."
@@ -138,38 +86,13 @@
       (str/trim v))))
 
 (defn peer-query
-  "The M5.2 parameters, or nil when this load is the origin page."
+  "The M5.2 parameters, or nil when the query does not name all three."
   []
   (let [root (query-param "root")
         signal (query-param "signal")
         room (query-param "room")]
     (when (and root signal room)
       {:root root :signal signal :room room})))
-
-(defn- origin-absent!
-  "A promise of 404 when the origin does not hold `hex`. A 200 is an
-   error: that value must be read from the nbb peer, not from here."
-  [base hex]
-  (let [url (str (trim-base base) "/node/" hex)]
-    (-> (js/fetch url #js {:method "GET"
-                           :headers #js {"Accept" bin/content-type-chunk-v1}
-                           :cache "no-store"})
-        (.then (fn [resp]
-                 (-> (.text resp)
-                     (.then (fn [_]
-                              (let [status (.-status resp)]
-                                (cond
-                                  (= 404 status) status
-                                  (= 200 status)
-                                  (throw (ex-info "the origin holds this value"
-                                                  {:reason :origin-holds
-                                                   :status status
-                                                   :url url}))
-                                  :else
-                                  (throw (ex-info (str "origin " status " " url)
-                                                  {:reason :origin
-                                                   :status status
-                                                   :url url}))))))))))))
 
 (defn- check-reachable!
   "A step of how many nodes are reachable from `root`. Each one must
@@ -230,12 +153,11 @@
       (swap! max-b max (t/buffered-amount ch)))
     @max-b))
 
-(defn- read-from-peer! [st base {:keys [root signal room]}]
+(defn- read-from-peer! [st {:keys [root signal room]}]
   (set-text! "lede"
-             (str "Reads a value held only by the nbb peer. "
-                  "The origin does not have it. "
+             (str "Reads a value held by the nbb peer. "
                   "Every entry is verified into IndexedDB."))
-  (set-text! "status" "checking the origin…")
+  (set-text! "status" "signaling…")
   (let [root-hash (store/hex->hash root)
         links (link/links)
         c (client/client (merge {:store st :now #(.now js/Date)}
@@ -244,15 +166,10 @@
         stop! #(js/clearInterval timer)
         peer (rtc/create-peer :offerer {:ice-servers []
                                         :ws {:url signal :room room}})]
-    (-> (js/Promise.all
-         #js [(origin-absent! base root)
-              (:signaling peer)])
-        (.then (fn [ready]
-                 (let [status (aget ready 0)]
-                   (set-text! "origin" (str status))
-                   (set-attr! "origin" "data-status" status)
-                   (set-text! "status" "connecting…")
-                   nil)))
+    (-> (:signaling peer)
+        (.then (fn [_]
+                 (set-text! "status" "connecting…")
+                 nil))
         (.then (fn [_]
                  (js/Promise.all
                   #js [(js/Promise.resolve
@@ -295,35 +212,19 @@
                   (set-text! "status" (str "failed: " (err-text e)))))
         (.then (fn [_] (stop!))))))
 
-(defn- read-from-origin! [st base]
-  (-> (fetch-root-hex base)
-      (.then (fn [hex]
-               (if (seq hex)
-                 (verify-root! st base hex)
-                 (js/Promise.resolve :empty))))
-      (.then (fn [result]
-               (if (= result :empty)
-                 (set-text! "status" "origin has no root")
-                 (do (set-text! "root" (store/hash->hex (:root result)))
-                     (set-text! "entries" (:entries result))
-                     (set-text! "verified" (:entries result))
-                     (set-text! "origin" "held by origin")
-                     (set-text! "status" "verified")))))))
-
 (defn start!
   "Reset IndexedDB. With `root`, `signal`, and `room` in the query, read
-   that root from the nbb peer. Otherwise verify the origin's root."
+   that root from the nbb peer."
   []
   (show-build!)
   (set-text! "status" "loading…")
   (let [st (idb/idb-store db-name)
-        base (or (.-DACITE_API_BASE js/window) "")
         q (peer-query)]
     (-> (store/s-reset st)
         (.then (fn [_]
                  (if q
-                   (read-from-peer! st base q)
-                   (read-from-origin! st base))))
+                   (read-from-peer! st q)
+                   (set-text! "status" "needs root, signal, and room in the query"))))
         (.catch (fn [e]
                   (set-text! "status" (str "failed: " (err-text e))))))))
 

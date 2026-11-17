@@ -11,10 +11,10 @@
             [dacite.peer.frame :as frame]
             [dacite.peer.link :as link]
             [dacite.peer.msg :as msg]
-            [dacite.peer.origin :as origin]
             [dacite.peer.responder :as responder]
             [dacite.peer.transport :as t]
             [dacite.peer.transport.browser :as rtc]
+            [dacite.peer.verify :as verify]
             [dacite.reveal :as reveal]
             [dacite.rooted.gc :as gc]
             [dacite.store :as store]
@@ -22,6 +22,7 @@
             [dacite.store.idb :as idb]
             [dacite.store.pack :as pack]
             [dacite.value :as v]
+            [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
 
 (defn- fail! [msg data]
@@ -284,13 +285,28 @@
 ;; IndexedDB acceptance
 ;; =============================================================================
 
-(defn- pack-fetch [src]
-  (fn [h]
-    (when-let [chunk (pack/pack-under src h)]
-      (bin/encode-pack-edn chunk))))
+(defn- pack-items
+  "The decoded items of the wire-v1 pack chunk under `root` in `src`."
+  [src root]
+  (:items (bin/decode-chunk (bin/encode-pack-edn (pack/pack-under src root)))))
 
-(defn- snap-entries [st root]
-  (chain/native (origin/count-reachable st root)))
+(defn- snap-entries
+  "A promise of how many nodes in `st` are reachable from `root`."
+  [st root]
+  (letfn [(step [queue live]
+            (if-let [h (first queue)]
+              (let [hk (gc/hash-key h)]
+                (if (contains? live hk)
+                  (step (rest queue) live)
+                  (chain/then
+                   (store/s-get st h)
+                   (fn [node]
+                     (if (nil? node)
+                       (step (rest queue) live)
+                       (step (into (rest queue) (or (types/child-hashes node) []))
+                             (conj live hk)))))))
+              (count live)))]
+    (chain/native (step (list root) #{}))))
 
 (defn verifies-a-value-into-indexeddb []
   (let [src (store/mem-store)
@@ -300,11 +316,12 @@
         st (idb/idb-store name)]
     (-> (store/s-reset st)
         (.then (fn [_]
-                 (chain/native (origin/verify-from-origin! st root (pack-fetch src)))))
-        (.then (fn [result]
-                 (eq! (:root result) root "the result names the root")
-                 (eq! (:entries result) live "the entry count is the reachable nodes")
-                 (eq! (store/hash->hex (:root result)) (store/hash->hex root) "root hex round-trips")
+                 (chain/native
+                  (chain/then (verify/accept-items! (verify/receiver st) (pack-items src root))
+                              verify/finish!))))
+        (.then (fn [_] (snap-entries st root)))
+        (.then (fn [n]
+                 (eq! n live "the entry count is the reachable nodes")
                  (idb/close st)
                  (let [again (idb/idb-store name)]
                    (-> (snap-entries again root)

@@ -1,5 +1,7 @@
 # M5.3 measurements
 
+**Historical (Nov 17).** The HTTP removal slice 1 removed the origin path these numbers compare against: the JVM origin (`dacite.examples.library-origin`, `clojure -M:library-origin`), the page's `GET /root` in peer mode, and the fallback. The page now takes the root in the query and reads it from the nbb peer only. `npm run library:e2e` now serves the page statically and checks the peer read alone. On the box on Nov 17 that read was 1 round trip (the `get`), 19 470 bytes from the peer, 0 from the origin, 7 frames, first render 632 ms. The tables below are the Nov 8 measurements and are kept as they were.
+
 The library reader (`/app/library/`) loads chapter 0 of the seed catalog and the plate on that page. Two ways: origin only, and the same read from the nbb peer with the origin naming the root. Numbers below are from `npm run library:e2e` on this Linux box, 8 Nov 2026. Round trips and byte counts were the same on both runs. Times were not. Nothing here is a guess filled in after the fact.
 
 ## What was read
@@ -63,7 +65,7 @@ The script prints a `measure` JSON object. The same page by hand:
 npm run library:build
 npm run webrtc:signal
 nbb -m dacite.examples.library-nbb --ws ws://127.0.0.1:8787 --room m53
-cd impl/clojure && clojure -M:library-origin
+cd impl/clojure && clojure -M:service --port 8080 --store mem
 ```
 
-Open the printed page URL (it carries `chapter=0`, `signal`, and `room`). The readout under the bandwidth line is the same counters. Drop `signal` and `room` for origin-only.
+The last line only serves `examples/web` for the page. Open the printed page URL (it carries `chapter=0`, `root`, `signal`, and `room`). The readout under the bandwidth line is the same counters. The origin-only and fallback runs above needed `clojure -M:library-origin`, which was removed in the HTTP removal slice 1.

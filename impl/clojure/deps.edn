@@ -101,34 +101,15 @@
   ;; shadow-cljs (M5.1). The npm package launches this alias.
   ;;   npm run peer:build
   ;;   npm run browser:test
-  :shadow {:extra-paths ["test"]
-           :extra-deps {thheller/shadow-cljs {:mvn/version "2.28.23"}}}
-
-  ;; Browser peer page: seed the canonical value and serve examples/web.
-  ;; Build the script first, from the repo root: npm run peer:build
-  ;;   cd impl/clojure && clojure -M:peer-origin
-  ;;   open http://127.0.0.1:8080/app/peer/
-  ;; M5.2 reads a different value from the nbb peer (query root, signal, room).
+  ;; M5.2: the browser peer page reads a value from the nbb peer
+  ;; (query root, signal, room).
   ;;   npm run peer:e2e
   ;; The hand check for Safari and Firefox is in docs/plan/peering.md.
-  ;; M6.4 value browser is static under the same examples/web mount:
-  ;;   http://127.0.0.1:8080/app/browser/
+  ;; M6.4 value browser, static under the examples/web mount at /app/browser/.
   ;; Intended public path: /browser (dacite.io is not wired here).
   ;;   npm run browser:build && npm run browser:e2e
-  :peer-origin {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
-                           "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
-                :main-opts ["-m" "dacite.examples.peer-origin"]}
-
-  ;; Library reader origin: seed the catalog and serve examples/web.
-  ;; Compile the page first, from the repo root: npm run library:build
-  ;;   cd impl/clojure && clojure -M:library-origin
-  ;;   open http://127.0.0.1:8080/app/library/?chapter=0
-  ;; Peer-assisted read (M5.3) adds signal and room. The nbb peer is
-  ;;   nbb -m dacite.examples.library-nbb --ws ws://127.0.0.1:8787 --room TOKEN
-  ;; npm run library:e2e measures origin-only against that peer.
-  :library-origin {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
-                              "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
-                   :main-opts ["-m" "dacite.examples.library-origin"]}
+  :shadow {:extra-paths ["test"]
+           :extra-deps {thheller/shadow-cljs {:mvn/version "2.28.23"}}}
 
   ;; Compile browser bundle (portable core + todo-web)
   ;;   cd impl/clojure && clojure -M:cljs-web

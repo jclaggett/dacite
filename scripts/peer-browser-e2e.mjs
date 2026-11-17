@@ -4,8 +4,8 @@
  * with the nbb peer. Browser startup and ICE are outside the 3 second
  * bound. The value itself is a small vector, map, and set.
  *
- * M5.2: the browser reads a value held only by the nbb peer.
- * The origin answers GET /node/{root} with 404. Every reachable entry
+ * M5.2: the browser reads a value held by the nbb peer. The static
+ * server below serves only the page. Every reachable entry
  * is verified in the page. Chromium is launched with mDNS candidate
  * hiding disabled so both sides see a literal host address.
  *
@@ -39,11 +39,6 @@ function contentType(file) {
 function startStatic() {
   const server = http.createServer((req, res) => {
     const u = new URL(req.url || '/', 'http://127.0.0.1');
-    if (u.pathname === '/root' || u.pathname.startsWith('/node/')) {
-      res.writeHead(404, { 'content-type': 'text/plain', 'cache-control': 'no-store' });
-      res.end('not held');
-      return;
-    }
     if (!u.pathname.startsWith('/app/')) {
       res.writeHead(404, { 'content-type': 'text/plain' });
       res.end('not found');
@@ -177,8 +172,6 @@ async function main() {
     const shownRoot = (await page.locator('#root').innerText()).trim();
     const shownEntries = (await page.locator('#entries').innerText()).trim();
     const shownVerified = (await page.locator('#verified').innerText()).trim();
-    const origin = (await page.locator('#origin').innerText()).trim();
-    const originStatus = await page.locator('#origin').getAttribute('data-status');
     const flowGot = await page.locator('#flow').getAttribute('data-got');
     const flowMax = await page.locator('#flow').getAttribute('data-max');
     const frame = await page.locator('#status').getAttribute('data-frame');
@@ -198,8 +191,6 @@ async function main() {
     eq('root', shownRoot, rootHex);
     eq('entries', shownEntries, String(entries));
     eq('verified', shownVerified, String(entries));
-    eq('origin', origin, '404');
-    eq('origin-status', originStatus, '404');
     eq('flow-got', flowGot, String(PROBE_FRAMES));
     eq('negotiated-max-frame', frame, String(FRAME));
     // The burst is synchronous. Chromium's bufferedAmount stays at

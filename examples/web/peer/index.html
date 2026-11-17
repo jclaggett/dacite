@@ -15,18 +15,14 @@
 <body>
   <main>
     <h1>Dacite browser peer</h1>
-    <p id="lede" class="muted">Verifies the origin's root into IndexedDB and shows its hash and entry count.</p>
+    <p id="lede" class="muted">Reads a value from the nbb peer, verifies it into IndexedDB, and shows its hash and entry count.</p>
     <p id="status">loading…</p>
     <p>root <span id="root" class="hex">—</span></p>
     <p>entries <span id="entries">—</span></p>
     <p>verified <span id="verified">—</span></p>
-    <p id="origin" class="muted"></p>
     <p id="flow" class="muted"></p>
     <p id="build" class="muted"></p>
   </main>
-  <script>
-    window.DACITE_API_BASE = window.DACITE_API_BASE || "";
-  </script>
   <script src="/app/peer/js/main.js"></script>
 </body>
 </html>
