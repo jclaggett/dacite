@@ -1,54 +1,38 @@
 (ns dacite.rooted.gc-test
-  (:require [clojure.test :refer [deftest testing is]]
-            [dacite.rooted.gc :as gc]
-            [dacite.rooted :as rs]
-            [dacite.store :as store]
-            [dacite.value :as v]))
+  "Root-reachability GC tests on the JVM.
+
+   The bodies are `dacite.rooted.gc-checks`. nbb runs the same checks
+   (`npm run rooted:test`). One deftest each, so the JVM suite still names
+   the test it ran before."
+  (:require [clojure.test :refer [deftest is]]
+            [dacite.rooted.gc-checks :as checks]
+            [dacite.store.check :as check]))
+
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest mark-reachable-scalar-test
-  (testing "scalar root marks only itself"
-    (let [s (store/mem-store)
-          val (v/i64 s 42)
-          h (v/hash val)]
-      (is (= #{(gc/hash-key h)} (gc/mark-reachable s h))))))
+  (run-check "mark-reachable-scalar-test"))
 
 (deftest collect-garbage-scalar-test
-  (testing "removes detached scalar nodes"
-    (let [s (store/mem-store)
-          live-v (v/i64 s 42)
-          live-h (v/hash live-v)
-          dead-v (v/i64 s 99)
-          dead-h (v/hash dead-v)]
-      (is (= {:removed 1 :kept 1} (gc/collect-garbage! s live-h)))
-      (is (store/await (store/s-has? s live-h)))
-      (is (not (store/await (store/s-has? s dead-h)))))))
+  (run-check "collect-garbage-scalar-test"))
 
 (deftest collect-garbage-collection-test
-  (testing "removes detached collection tree"
-    (let [s (store/mem-store)
-          v1 (v/vector s 1 2)
-          h1 (v/hash v1)
-          dead (v/vector s 3 4)
-          dead-h (v/hash dead)
-          result (gc/collect-garbage! s h1)]
-      (is (pos? (:removed result)))
-      (is (= (:kept result) (count (gc/mark-reachable s h1))))
-      (is (store/await (store/s-has? s h1)))
-      (is (not (store/await (store/s-has? s dead-h)))))))
+  (run-check "collect-garbage-collection-test"))
 
 (deftest collect-garbage-rooted-store-test
-  (testing "collect-garbage! on rooted store uses content + current root"
-    (let [s (rs/rooted-store (store/mem-store))
-          dead (v/i64 s 0)
-          _ (v/hash dead)
-          live (v/i64 s 1)
-          live-h (v/hash live)]
-      (reset! s live-h)
-      (is (= {:removed 1 :kept 1} (rs/collect-garbage! s)))
-      (is (store/await (store/s-has? s live-h))))))
+  (run-check "collect-garbage-rooted-store-test"))
 
 (deftest collect-garbage-nil-root-test
-  (testing "nil root removes everything"
-    (let [s (store/mem-store)]
-      (v/i64 s 42)
-      (is (= {:removed 1 :kept 0} (gc/collect-garbage! s nil))))))
+  (run-check "collect-garbage-nil-root-test"))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.rooted.gc-test)))))
+               "every-check-has-a-deftest"))
+      "rooted/gc_checks.cljc and this file list the same tests"))

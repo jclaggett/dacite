@@ -147,9 +147,12 @@
                                  (= (count (:children data))
                                     (host/popcount (:bitmap data)))
                                  ;; chunk 51 is one bit, read as 0 or 16: only
-                                 ;; those two bits are chunk values there
+                                 ;; those two bits are chunk values there. As
+                                 ;; host words: on ClojureScript a bitmap the
+                                 ;; library builds is a BigInt, and a decoded
+                                 ;; one a Number.
                                  (or (not= hamt/LAST-CHUNK (:split data))
-                                     (= (:bitmap data) 0x10001)))
+                                     (= (host/word (:bitmap data)) (host/word 0x10001))))
                     (bad! :bad-entry "hamt/bitmap needs a split, two or more children, one per bit (bits 0 and 16 at split 51)"
                           {:hash hash}))
                   (conj checks :bitmap-shape)))

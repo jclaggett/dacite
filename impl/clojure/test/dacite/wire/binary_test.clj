@@ -1,410 +1,75 @@
 (ns dacite.wire.binary-test
-  "Drive the shipped wire-v1 codec against goldens and live public values."
-  (:require [clojure.test :refer [deftest is testing]]
+  "Drive the shipped wire-v1 codec against goldens and live public values.
+
+   The checks are `dacite.wire.binary-checks`, shared with nbb
+   (`npm run wire:test`); each runs here as a deftest under its old name."
+  (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [cheshire.core :as json]
-            [dacite.hash :as hash]
-            [dacite.value :as v]
-            [dacite.host :as host]
+            [dacite.store.check :as check]
             [dacite.wire.binary :as bin]
-            [dacite.store :as store]
-            [dacite.value.scalar :as scalar]
-            [dacite.value.collections :as coll]
-            [dacite.value.types :as types]
-            [dacite.store.pack :as pack]
-            [dacite.value.finger-tree :as ft]
-            [dacite.value.hamt :as hamt]))
+            [dacite.wire.binary-checks :as checks]))
 
-;; ---------------------------------------------------------------------------
-;; Public type inventory (must stay aligned with value constructors + wire tables)
-;; ---------------------------------------------------------------------------
+(def ^:private env
+  "Host pieces the checks take (see dacite.wire.binary-checks)."
+  {:fixture-ids bin/list-fixture-ids
+   :load-fixture bin/load-fixture
+   :manifest #(json/parse-string
+               (slurp (io/file (bin/fixture-root) "manifest.json"))
+               true)})
 
-(def public-scalars
-  ["null" "bool" "char"
-   "i8" "i16" "i32" "i64"
-   "u8" "u16" "u32" "u64" "u256"
-   "f32" "f64"
-   "negative"])
-
-(def public-collections
-  ["string" "blob" "vector" "map" "set"])
-
-(def public-value-types
-  (into public-scalars public-collections))
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks env name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest run-repeat-have-wire-ids
-  (is (= 0x50 (get bin/name->type-id "run")))
-  (is (= 0x51 (get bin/name->type-id "repeat"))))
+  (run-check "run-repeat-have-wire-ids"))
 
 (deftest u8-run-lit-keeps-raw-bytes
-  (let [raw (byte-array (map unchecked-byte [0 1 127 128 255]))
-        form {:type "run" :body {:of "u8" :values raw}}
-        bs (bin/encode-lit-bytes form)
-        back (bin/decode-lit-bytes bs)
-        vals (get-in back [:body :values])
-        from-vec (bin/encode-lit-bytes
-                  {:type "run" :body {:of "u8" :values [0 1 127 128 255]}})]
-    (is (= "u8" (get-in back [:body :of])))
-    (is (bytes? vals))
-    (is (= [0 1 127 128 255]
-           (mapv #(Byte/toUnsignedInt (aget ^bytes vals %)) (range 5))))
-    (is (= (bin/bytes->hex bs) (bin/bytes->hex from-vec)))
-    (is (= (bin/bytes->hex bs) (bin/bytes->hex (bin/encode-lit-bytes back))))))
+  (run-check "u8-run-lit-keeps-raw-bytes"))
 
 (deftest run-repeat-lit-bytes-round-trip
-  (doseq [form [{:type "run" :body {:of "char" :values "hello"}}
-                {:type "run" :body {:of "i64" :values [1 2 3]}}
-                {:type "run" :body {:of "string" :values ["a" "bb"]}}
-                {:type "run" :body {:of "char" :values "é"}}
-                {:type "repeat" :body {:of "char" :n 4 :value \x}}
-                {:type "repeat" :body {:of "bool" :n 8 :value false}}]]
-    (let [bs (bin/encode-lit-bytes form)
-          back (bin/decode-lit-bytes bs)]
-      (is (= form back) (str "logical " (pr-str form)))
-      (is (= (bin/bytes->hex bs)
-             (bin/bytes->hex (bin/encode-lit-bytes back)))
-          (str "canonical " (pr-str form))))))
+  (run-check "run-repeat-lit-bytes-round-trip"))
 
 (deftest public-types-have-wire-ids
-  (doseq [t public-value-types]
-    (is (contains? bin/name->type-id t)
-        (str "missing wire type_id for public type " t)))
-  (doseq [t public-scalars]
-    (is (contains? bin/public-scalar-types t)))
-  (doseq [t public-value-types]
-    (is (contains? bin/public-value-types t))))
-
-;; ---------------------------------------------------------------------------
-;; Fixtures
-;; ---------------------------------------------------------------------------
+  (run-check "public-types-have-wire-ids"))
 
 (deftest all-fixtures-decode-and-reencode
-  (doseq [id (bin/list-fixture-ids)]
-    (let [fx (bin/load-fixture id)
-          dec (bin/decode-chunk (:message-bytes fx))
-          re (bin/encode-chunk
-              {:budget (:budget dec)
-               :items (mapv (fn [it]
-                              (if (= :literal (:enc it))
-                                {:enc :literal
-                                 :hash (:hash it)
-                                 :literal (:literal it)}
-                                {:enc :node
-                                 :hash (:hash it)
-                                 :entry (:entry it)}))
-                            (:items dec))})]
-      (is (= (:message-hex fx) (bin/bytes->hex re))
-          (str "canonical re-encode " id))
-      (let [st (store/mem-store)]
-        (bin/apply-chunk-message! st dec)
-        (when (:hash-hex fx)
-          (is (store/await (store/s-has? st (store/hex->hash (:hash-hex fx))))
-              (str "hash present " id)))))))
+  (run-check "all-fixtures-decode-and-reencode"))
 
 (deftest fixture-manifest-covers-public-types
-  (let [manifest (json/parse-string
-                  (slurp (io/file (bin/fixture-root) "manifest.json"))
-                  true)
-        ids (set (map :id (:cases manifest)))
-        case-dirs (set (bin/list-fixture-ids))]
-    (is (= ids case-dirs) "manifest ids match case directories")
-    (doseq [t public-value-types]
-      (let [has-lit (some #(re-find (re-pattern (str "chunk-literal-.*"
-                                                     (java.util.regex.Pattern/quote t)))
-                                    %)
-                          ids)
-            ;; naming is suffix-based; check explicit required cases
-            ]
-        (is (or has-lit
-                (some #(.contains ^String % (str "literal-" t)) ids)
-                (some #(and (.startsWith ^String % "chunk-literal-")
-                            (.contains ^String % t))
-                      ids)
-                ;; collections/scalars have dedicated cases checked below
-                true))))
-    ;; Explicit node + literal presence for every public scalar
-    (doseq [[t substr] [["null" "null"]
-                        ["bool" "bool"]
-                        ["char" "char"]
-                        ["i8" "i8"]
-                        ["i16" "i16"]
-                        ["i32" "i32"]
-                        ["i64" "i64"]
-                        ["u8" "u8"]
-                        ["u16" "u16"]
-                        ["u32" "u32"]
-                        ["u64" "u64"]
-                        ["u256" "u256"]
-                        ["f32" "f32"]
-                        ["f64" "f64"]
-                        ["negative" "negative"]]]
-      (is (some #(and (.startsWith ^String % "chunk-literal-")
-                      (.contains ^String % substr))
-                ids)
-          (str "literal fixture for " t))
-      (is (some #(and (.startsWith ^String % "chunk-node-")
-                      (.contains ^String % substr))
-                ids)
-          (str "node fixture for " t)))
-    ;; Collections
-    (doseq [t ["string" "blob" "vector" "map" "set"]]
-      (is (some #(and (.startsWith ^String % "chunk-literal-")
-                      (.contains ^String % t))
-                ids)
-          (str "literal fixture for " t))
-      (is (some #(and (.startsWith ^String % "chunk-node-")
-                      (.contains ^String % t))
-                ids)
-          (str "node fixture for " t)))
-    ;; FT / HAMT pack forms
-    (doseq [t ["ft-empty" "ft-digit" "ft-deep" "hamt-empty" "hamt-entry" "hamt-bitmap"]]
-      (is (some #(.contains ^String % t) ids)
-          (str "fixture coverage for " t)))))
-
-;; ---------------------------------------------------------------------------
-;; Live values: node + literal for every public type
-;; ---------------------------------------------------------------------------
-
-(defn- round-trip-literal!
-  [st v lit-form]
-  (let [h (types/dacite-hash v)
-        msg {:budget 1024
-             :items [{:enc :literal :hash h :literal lit-form}]}
-        bs (bin/encode-chunk msg)
-        dec (bin/decode-chunk bs)
-        st2 (store/mem-store)
-        _ (bin/apply-chunk-message! st2 dec)]
-    (is (= (bin/bytes->hex bs) (bin/bytes->hex (bin/encode-chunk dec)))
-        (str "literal re-encode " (types/dacite-type v)))
-    (is (store/await (store/s-has? st2 h))
-        (str "literal apply " (types/dacite-type v)))
-    (is (= h (pack/materialize-literal!
-              (store/mem-store)
-              (:type lit-form)
-              (:body lit-form)))
-        (str "literal materialize hash " (types/dacite-type v)))))
-
-(defn- entry-canon
-  "Compare store entries structurally (u256 byte arrays by content)."
-  [[t data]]
-  [t (if (= "u256" t)
-       (mapv #(bit-and 0xff %) (if (bytes? data) data data))
-       data)])
-
-(defn- round-trip-node!
-  [st v]
-  (let [h (types/dacite-hash v)
-        entry (store/await (store/s-get st h))
-        msg {:budget 0
-             :items [{:enc :node :hash h :entry entry}]}
-        bs (bin/encode-chunk msg)
-        dec (bin/decode-chunk bs)
-        st2 (store/mem-store)
-        _ (bin/apply-chunk-message! st2 dec)]
-    (is (= (bin/bytes->hex bs) (bin/bytes->hex (bin/encode-chunk dec)))
-        (str "node re-encode " (types/dacite-type v)))
-    (is (store/await (store/s-has? st2 h))
-        (str "node apply has " (types/dacite-type v)))
-    (is (= (entry-canon entry) (entry-canon (store/await (store/s-get st2 h))))
-        (str "node apply entry " (types/dacite-type v)))))
+  (run-check "fixture-manifest-covers-public-types"))
 
 (deftest live-public-scalars-node-and-literal
-  (let [st (store/mem-store)
-        u256-data (byte-array (map unchecked-byte (range 32)))
-        samples [["null" (scalar/null-with-store st)]
-                 ["bool" (scalar/bool-with-store st true)]
-                 ["char" (scalar/dacite-char-with-store st \Z)]
-                 ["i8" (scalar/i8-with-store st -7)]
-                 ["i16" (scalar/i16-with-store st -400)]
-                 ["i32" (scalar/i32-with-store st -123456)]
-                 ["i64" (scalar/i64-with-store st 99)]
-                 ["u8" (scalar/u8-with-store st 250)]
-                 ["u16" (scalar/u16-with-store st 50000)]
-                 ["u32" (scalar/u32-with-store st 3000000001)]
-                 ["u64" (scalar/u64-with-store st 1001)]
-                 ["u256" (scalar/u256-with-store st u256-data)]
-                 ["f32" (scalar/f32-with-store st (float 2.25))]
-                 ["f32-neg" (scalar/f32-with-store st (float -1.5))]
-                 ["f64" (scalar/f64-with-store st 6.25)]
-                 ["negative" (scalar/negative-with-store st)]]]
-    (doseq [[lab v] samples]
-      (testing lab
-        (let [h (types/dacite-hash v)
-              form (pack/literal-of st h)]
-          (is (some? form) (str "literal-of " lab))
-          (round-trip-literal! st v form)
-          (round-trip-node! st v))))))
+  (run-check "live-public-scalars-node-and-literal"))
 
 (deftest live-public-collections-node-and-literal
-  (let [st (store/mem-store)
-        samples [["string" (coll/string-with-store st "wire")]
-                 ["blob" (coll/blob-with-store st (byte-array [9 8 7]))]
-                 ["vector" (coll/vector-with-store st 4 5 6)]
-                 ["map" (coll/hash-map-with-store st "k" 1)]
-                 ["set" (coll/dacite-set-with-store st 7 8)]]]
-    (doseq [[lab v] samples]
-      (testing lab
-        (let [h (types/dacite-hash v)
-              form (pack/literal-of st h)]
-          (is (some? form) (str "literal-of " lab))
-          (round-trip-literal! st v form)
-          (round-trip-node! st v))))))
+  (run-check "live-public-collections-node-and-literal"))
 
 (deftest live-ft-hamt-nodes-and-literals
-  (let [st (store/mem-store)
-        leaf-hs (mapv #(types/dacite-hash (scalar/i64-with-store st %)) [1 2 3])
-        dig-h (ft/ft-digit-from-value-hashes st leaf-hs)
-        empty-ft (ft/ft-empty st)
-        kh (types/dacite-hash (scalar/i64-with-store st 10))
-        vh (types/dacite-hash (scalar/i64-with-store st 20))
-        empty-hamt (hamt/hamt-empty st)
-        entry-h (hamt/hamt-entry-node st kh kh vh)]
-    (doseq [h [dig-h empty-ft empty-hamt entry-h]]
-      (let [entry (store/await (store/s-get st h))
-            t (types/entry-type entry)
-            v-wrap nil]
-        (testing t
-          (let [msg {:budget 0
-                     :items [{:enc :node :hash h :entry entry}]}
-                bs (bin/encode-chunk msg)
-                dec (bin/decode-chunk bs)]
-            (is (= (bin/bytes->hex bs)
-                   (bin/bytes->hex (bin/encode-chunk dec)))
-                (str "node re-encode " t))
-            (let [st2 (store/mem-store)]
-              (bin/apply-chunk-message! st2 dec)
-              (is (= entry (store/await (store/s-get st2 h))))))
-          (when-let [form (pack/literal-of st h)]
-            (let [msg {:budget 1024
-                       :items [{:enc :literal :hash h :literal form}]}
-                  bs (bin/encode-chunk msg)
-                  dec (bin/decode-chunk bs)
-                  st2 (store/mem-store)]
-              (is (= (bin/bytes->hex bs)
-                     (bin/bytes->hex (bin/encode-chunk dec)))
-                  (str "literal re-encode " t))
-              (bin/apply-chunk-message! st2 dec)
-              (is (store/await (store/s-has? st2 h))))))))))
+  (run-check "live-ft-hamt-nodes-and-literals"))
 
 (deftest fixture-literal-i64-42-matches-and-round-trips
-  (let [fx (bin/load-fixture "chunk-literal-i64-42")
-        decoded (bin/decode-chunk (:message-bytes fx))
-        item (first (:items decoded))
-        h (store/hex->hash (:hash-hex fx))]
-    (is (= 1 (:version decoded)))
-    (is (= :chunk (:msg-type decoded)))
-    (is (= 1024 (:budget decoded)))
-    (is (= 1 (count (:items decoded))))
-    (is (= :literal (:enc item)))
-    (is (= h (:hash item)))
-    (is (= "i64" (:type (:literal item))))
-    (is (= 42 (:body (:literal item))))
-    (let [re (bin/encode-chunk
-              {:budget (:budget decoded)
-               :items [{:enc :literal
-                        :hash (:hash item)
-                        :literal (:literal item)}]})]
-      (is (= (bin/bytes->hex (:message-bytes fx))
-             (bin/bytes->hex re))))
-    (let [st (store/mem-store)
-          r (bin/apply-chunk-message! st decoded)]
-      (is (= 1 (:applied r)))
-      (is (store/await (store/s-has? st h)))
-      (is (= ["i64" 42] (store/await (store/s-get st h)))))))
+  (run-check "fixture-literal-i64-42-matches-and-round-trips"))
 
 (deftest reject-bad-magic-and-version
-  (is (thrown-with-msg? Exception #"bad magic"
-                        (bin/decode-chunk (byte-array [0 1 2 3 1 1 0 0 0 0 0 0 0 0 0]))))
-  (let [good (:message-bytes (bin/load-fixture "chunk-literal-i64-42"))
-        bad (aclone good)]
-    (aset-byte bad 4 (unchecked-byte 99))
-    (is (thrown-with-msg? Exception #"unsupported wire version"
-                          (bin/decode-chunk bad)))))
+  (run-check "reject-bad-magic-and-version"))
 
 (deftest pack-edn-bridge-round-trip
-  (let [st (store/mem-store)
-        v (coll/vector-with-store st 10 20)
-        h (types/dacite-hash v)
-        form (pack/literal-of st h)
-        edn-chunk {:dacite.wire/chunk-v1 true
-                   :budget 1024
-                   :items [{:encoding :literal
-                            :hash (store/hash->hex h)
-                            :type (:type form)
-                            :body (:body form)}]}
-        bs (bin/encode-pack-edn edn-chunk)
-        back (bin/decode-pack-edn bs)
-        st2 (store/mem-store)]
-    (is (true? (:dacite.wire/chunk-v1 back)))
-    (is (= 1 (count (:items back))))
-    (pack/apply-chunk! st2 back)
-    (is (store/await (store/s-has? st2 h)))
-    (is (= (bin/bytes->hex bs)
-           (bin/bytes->hex (bin/encode-pack-edn back))))))
+  (run-check "pack-edn-bridge-round-trip"))
 
 (deftest spot-check-new-scalar-and-collection
-  ;; Decode fixture, apply, compare hash/value to live constructors.
-  (testing "i8 scalar"
-    (let [fx (bin/load-fixture "chunk-literal-i8-neg5")
-          dec (bin/decode-chunk (:message-bytes fx))
-          h (store/hex->hash (:hash-hex fx))
-          st (store/mem-store)
-          _ (bin/apply-chunk-message! st dec)
-          live (scalar/i8-with-store (store/mem-store) -5)]
-      (is (= h (types/dacite-hash live)))
-      (is (= ["i8" -5] (store/await (store/s-get st h))))))
-  (testing "negative f32 (sign bit set on wire)"
-    (let [fx (bin/load-fixture "chunk-literal-f32-neg1.5")
-          dec (bin/decode-chunk (:message-bytes fx))
-          h (store/hex->hash (:hash-hex fx))
-          st (store/mem-store)
-          _ (bin/apply-chunk-message! st dec)
-          live (scalar/f32-with-store (store/mem-store) (float -1.5))
-          entry (store/await (store/s-get st h))]
-      (is (= h (types/dacite-hash live)))
-      (is (= "f32" (first entry)))
-      (is (= (float -1.5) (float (second entry))))))
-  (testing "map collection"
-    (let [fx (bin/load-fixture "chunk-literal-map-ab")
-          dec (bin/decode-chunk (:message-bytes fx))
-          h (store/hex->hash (:hash-hex fx))
-          st (store/mem-store)
-          _ (bin/apply-chunk-message! st dec)
-          live-st (store/mem-store)
-          live (coll/hash-map-with-store live-st "a" 1 "b" 2)]
-      (is (= h (types/dacite-hash live)))
-      (is (store/await (store/s-has? st h))))))
-
-;; ---------------------------------------------------------------------------
-;; A measure whose state is not in SL(2, F_p): :bad-state (docs/spec/wire-v1.md)
-;; ---------------------------------------------------------------------------
-
-(defn- sub-index
-  "Index of the first occurrence of byte vector `needle` in `hay`, or nil."
-  [hay needle]
-  (let [n (count needle)]
-    (first (filter #(= needle (subvec hay % (+ % n))) (range (inc (- (count hay) n)))))))
+  (run-check "spot-check-new-scalar-and-collection"))
 
 (deftest a-measure-state-outside-sl2-is-bad-state
-  (let [st (store/mem-store)
-        m (v/vector st (v/string st "aaa") (v/string st "bbb"))
-        h (:root (second (store/await (store/s-get st (v/hash m)))))
-        entry (store/await (store/s-get st h))
-        bs (mapv #(bit-and 0xff %) (bin/encode-item {:enc :node :hash h :entry entry}))
-        state-bytes (mapv #(bit-and 0xff %) (hash/state->bytes (:elements-fuse (:measure (second entry)))))
-        off (sub-index bs state-bytes)
-        outcome (fn [bytes]
-                  (try (bin/decode-item-stream (byte-array (map unchecked-byte bytes))) :decoded
-                       (catch clojure.lang.ExceptionInfo e [(:reason (ex-data e)) (ex-message e)])))
-        splice (fn [at new] (into (into (subvec bs 0 at) new) (subvec bs (+ at (count new)))))
-        p-bytes (let [b (vec (.toByteArray ^java.math.BigInteger (host/sl2-p)))] (subvec b (- (count b) 32)))]
-    (is (some? off) "the 128-byte state is inside the item")
-    (is (= :decoded (outcome bs)) "the untouched item decodes")
-    (doseq [[label bad] {"one bit flipped in cell a" (update bs off #(bit-xor % 1))
-                         "one bit flipped in cell d" (update bs (+ off 127) #(bit-xor % 1))
-                         "all-zero state" (splice off (vec (repeat 128 0)))
-                         "cell a = p, not canonical" (splice off p-bytes)
-                         "cell a = 2^256 - 1, above p" (splice off (vec (repeat 32 0xff)))}
-            :let [[reason msg] (outcome bad)]]
-      (is (= :bad-state reason) label)
-      (is (re-find #"bad fuse state" msg) label))))
+  (run-check "a-measure-state-outside-sl2-is-bad-state"))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.wire.binary-test)))))
+               "every-check-has-a-deftest"))
+      "binary_checks.cljc and this file list the same tests"))

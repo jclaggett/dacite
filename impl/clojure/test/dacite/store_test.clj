@@ -1,435 +1,146 @@
 (ns dacite.store-test
-  "Tests for Dacite content-addressed storage."
-  (:require [clojure.test :refer [deftest is testing use-fixtures]]
+  "Content-addressed storage tests on the JVM.
+
+   The bodies are `dacite.store-checks`, with the JVM file and LMDB stores.
+   nbb runs the same checks on its file and LMDB stores
+   (`npm run storage:test`). One deftest each, so the JVM suite still names
+   the test it ran before. `await-future-test` is JVM only: a JVM future is
+   the only host promise `store/await` reads besides a settled one."
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer [deftest is testing]]
             [dacite.store :as store]
-            [dacite.store.jvm :as sj]
-            [dacite.value.scalar :as scalar]
-            [dacite.value.collections :as coll]
-            [dacite.value.types :as types]
-            [dacite.wire.binary :as bin]
-            [dacite.rooted :as rs]
-            [clojure.java.io :as io])
+            [dacite.store-checks :as checks]
+            [dacite.store.jvm :as sj])
   (:import [java.nio ByteBuffer]
-           [org.lmdbjava Env Dbi]))
+           [java.nio.file Files]
+           [java.nio.file.attribute FileAttribute]
+           [org.lmdbjava Dbi Env]))
 
-;; =============================================================================
-;; Fixtures
-;; =============================================================================
+(defn- lmdb-raw
+  "The bytes under hash `h` in the content DB of LMDB store `st`, or nil."
+  [st h]
+  (let [^Env env (:env st)
+        ^Dbi db (:db st)]
+    (with-open [txn (.txnRead env)]
+      (let [k (doto (ByteBuffer/allocateDirect 32)
+                (.putLong (long (nth h 0)))
+                (.putLong (long (nth h 1)))
+                (.putLong (long (nth h 2)))
+                (.putLong (long (nth h 3)))
+                (.flip))]
+        (when-let [^ByteBuffer buf (.get db txn k)]
+          (let [bs (byte-array (.remaining buf))]
+            (.get buf bs)
+            bs))))))
 
-(def ^:dynamic *temp-dir* nil)
+(def env
+  "The JVM stores and file calls the checks use."
+  {:file-store sj/file-store
+   :lmdb-store sj/lmdb-store
+   :lmdb-close sj/lmdb-close
+   :write-batch sj/write-batch
+   :lmdb-root-cell sj/lmdb-root-cell
+   :lmdb-raw lmdb-raw
+   :to-ubytes (fn [^bytes bs] (mapv #(bit-and 0xff %) bs))
+   :join (fn [base & parts] (str (apply io/file base parts)))
+   :exists? (fn [p] (.exists (io/file p)))
+   :dir? (fn [p] (.isDirectory (io/file p)))
+   :tmp-dir (fn [prefix]
+              (str (Files/createTempDirectory prefix (make-array FileAttribute 0))))
+   :rm-rf (fn [p]
+            (doseq [^java.io.File f (reverse (file-seq (io/file p)))]
+              (.delete f)))})
 
-(defn temp-dir-fixture [f]
-  (let [dir (io/file (System/getProperty "java.io.tmpdir")
-                     (str "dacite-test-" (System/currentTimeMillis)))]
-    (.mkdirs dir)
-    (binding [*temp-dir* dir]
-      (try
-        (f)
-        (finally
-          (doseq [file (reverse (file-seq dir))]
-            (.delete file)))))))
-
-(use-fixtures :each temp-dir-fixture)
-
-;; =============================================================================
-;; Hash conversion
-;; =============================================================================
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (checks/run-one env name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms checks/max-ms) (str name " took " ms " ms"))))
 
 (deftest hash-hex-roundtrip-test
-  (testing "hash to hex and back"
-    (let [h [1234567890123456789 -1234567890123456789 0 -1]
-          hex (store/hash->hex h)
-          back (store/hex->hash hex)]
-      (is (= 64 (count hex)))
-      (is (= h back)))))
-
-;; =============================================================================
-;; MemStore
-;; =============================================================================
+  (run-check "hash-hex-roundtrip-test"))
 
 (deftest mem-store-basic-test
-  (testing "basic get/put/has?"
-    (let [s (store/mem-store)
-          h [1 2 3 4]
-          v {:data "test"}]
-      (is (nil? (store/await (store/s-get s h))))
-      (is (not (store/await (store/s-has? s h))))
-      (store/await (store/s-put s h v))
-      (is (store/await (store/s-has? s h)))
-      (is (= v (store/await (store/s-get s h)))))))
+  (run-check "mem-store-basic-test"))
 
 (deftest mem-store-entries-test
-  (testing "a put is a later get of that hash"
-    (let [s (store/mem-store)]
-      (store/await (store/s-put s [1 2 3 4] :a))
-      (store/await (store/s-put s [5 6 7 8] :b))
-      (is (store/await (store/s-has? s [1 2 3 4])))
-      (is (store/await (store/s-has? s [5 6 7 8])))
-      (is (= :a (store/await (store/s-get s [1 2 3 4]))))
-      (is (= 2 (:entries (store/await (store/local-stats s))))))))
-
-;; mem-store merge and init, and the layered cases that seed or merge a map,
-;; are dacite.store.mem-test. nbb runs those same checks (`npm run mem:test`).
+  (run-check "mem-store-entries-test"))
 
 (deftest mem-store-reset-test
-  (testing "reset clears store"
-    (let [s (store/mem-store)]
-      (store/await (store/s-put s [1 2 3 4] :a))
-      (store/await (store/s-reset s))
-      (is (nil? (store/await (store/s-get s [1 2 3 4]))))
-      (is (zero? (:entries (store/await (store/local-stats s))))))))
-
-;; =============================================================================
-;; FileStore
-;; =============================================================================
+  (run-check "mem-store-reset-test"))
 
 (deftest file-store-basic-test
-  (testing "basic file store operations"
-    (let [s (sj/file-store (str *temp-dir*))
-          h [1 2 3 4]
-          v {:data "test"}]
-      (is (not (store/await (store/s-has? s h))))
-      (store/await (store/s-put s h v))
-      (is (store/await (store/s-has? s h)))
-      (is (= v (store/await (store/s-get s h)))))))
+  (run-check "file-store-basic-test"))
 
 (deftest file-store-persistence-test
-  (testing "file store persists across instances"
-    (let [path (str *temp-dir*)
-          h [1 2 3 4]
-          v {:data "persistent"}]
-      (store/await (store/s-put (sj/file-store path) h v))
-      (is (= v (store/await (store/s-get (sj/file-store path) h)))))))
+  (run-check "file-store-persistence-test"))
 
 (deftest file-store-sharding-test
-  (testing "file store creates sharded directories"
-    (let [s (sj/file-store (str *temp-dir*))
-          h [1 2 3 4]
-          v {:data 123}]
-      (store/await (store/s-put s h v))
-      (let [hex (store/hash->hex h)
-            expected-dir (io/file *temp-dir* (subs hex 0 2) (subs hex 2 4))]
-        (is (.exists expected-dir))
-        (is (.isDirectory expected-dir))))))
+  (run-check "file-store-sharding-test"))
 
 (deftest file-store-entries-test
-  (testing "both nodes are stored; the value is a get"
-    (let [s (sj/file-store (str *temp-dir*))]
-      (store/await (store/s-put s [1 2 3 4] :a))
-      (store/await (store/s-put s [5 6 7 8] :b))
-      (is (= 2 (:entries (store/await (store/local-stats s)))))
-      (is (= :a (store/await (store/s-get s [1 2 3 4]))))
-      (is (= :b (store/await (store/s-get s [5 6 7 8])))))))
+  (run-check "file-store-entries-test"))
 
 (deftest file-store-reset-test
-  (testing "reset deletes all files"
-    (let [s (sj/file-store (str *temp-dir*))]
-      (store/await (store/s-put s [1 2 3 4] :a))
-      (store/await (store/s-reset s))
-      (is (nil? (store/await (store/s-get s [1 2 3 4])))))))
-
-;; =============================================================================
-;; LayeredStore
-;; =============================================================================
-
-(deftest layered-store-write-all-test
-  (testing "writes go to all layers"
-    (let [fast (store/mem-store)
-          slow (store/mem-store)
-          s (store/layered-store fast slow)]
-      (store/await (store/s-put s [1 2 3 4] :value))
-      (is (= :value (store/await (store/s-get fast [1 2 3 4]))))
-      (is (= :value (store/await (store/s-get slow [1 2 3 4])))))))
-
-(deftest layered-store-with-file-test
-  (testing "mem + file layered store"
-    (let [mem (store/mem-store)
-          file (sj/file-store (str *temp-dir*))
-          s (store/layered-store mem file)]
-      (store/await (store/s-put s [1 2 3 4] {:data "layered"}))
-      ;; Both have it
-      (is (= {:data "layered"} (store/await (store/s-get mem [1 2 3 4]))))
-      (is (= {:data "layered"} (store/await (store/s-get file [1 2 3 4]))))
-      ;; New layered store with empty mem still finds it in file
-      (let [s2 (store/layered-store (store/mem-store) file)]
-        (is (= {:data "layered"} (store/await (store/s-get s2 [1 2 3 4]))))))))
+  (run-check "file-store-reset-test"))
 
 (deftest file-store-creates-dir-test
-  (testing "file-store creates directory if it doesn't exist"
-    (let [path (str *temp-dir* "/nested/subdir")
-          s (sj/file-store path)]
-      (is (.exists (io/file path)))
-      (store/await (store/s-put s [1 2 3 4] :v))
-      (is (= :v (store/await (store/s-get s [1 2 3 4])))))))
+  (run-check "file-store-creates-dir-test"))
+
+(deftest layered-store-write-all-test
+  (run-check "layered-store-write-all-test"))
+
+(deftest layered-store-with-file-test
+  (run-check "layered-store-with-file-test"))
 
 (deftest layered-store-reset-test
-  (testing "reset clears all layers"
-    (let [fast (store/mem-store {[1 2 3 4] :a})
-          slow (store/mem-store {[5 6 7 8] :b})
-          s (store/layered-store fast slow)]
-      (store/await (store/s-reset s))
-      (is (zero? (:entries (store/await (store/local-stats fast)))))
-      (is (zero? (:entries (store/await (store/local-stats slow))))))))
-
-;; =============================================================================
-;; LmdbStore
-;; =============================================================================
+  (run-check "layered-store-reset-test"))
 
 (deftest lmdb-store-basic-test
-  (testing "basic LMDB get/put/has?"
-    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb"))
-          h [1 2 3 4]
-          v ["i64" 42]]
-      (try
-        (is (nil? (store/await (store/s-get s h))))
-        (is (not (store/await (store/s-has? s h))))
-        (store/await (store/s-put s h v))
-        (is (store/await (store/s-has? s h)))
-        (is (= v (store/await (store/s-get s h))))
-        (finally
-          (sj/lmdb-close s))))))
+  (run-check "lmdb-store-basic-test"))
 
 (deftest lmdb-store-persistence-test
-  (testing "LMDB persists across instances"
-    (let [path (str *temp-dir* "/lmdb-persist")
-          h [1 2 3 4]
-          v ["i64" 99]]
-      (let [s (sj/lmdb-store path)]
-        (try
-          (store/await (store/s-put s h v))
-          (finally
-            (sj/lmdb-close s))))
-      ;; New instance, same path
-      (let [s (sj/lmdb-store path)]
-        (try
-          (is (= v (store/await (store/s-get s h))))
-          (finally
-            (sj/lmdb-close s)))))))
+  (run-check "lmdb-store-persistence-test"))
 
 (deftest lmdb-store-entries-test
-  (testing "LMDB holds both hashes; values stay a get"
-    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-keys"))]
-      (try
-        (store/await (store/s-put s [1 2 3 4] ["i64" 1]))
-        (store/await (store/s-put s [5 6 7 8] ["i64" 2]))
-        (is (= 2 (:entries (store/await (store/local-stats s)))))
-        (is (= ["i64" 1] (store/await (store/s-get s [1 2 3 4]))))
-        (is (= ["i64" 2] (store/await (store/s-get s [5 6 7 8]))))
-        (finally
-          (sj/lmdb-close s))))))
+  (run-check "lmdb-store-entries-test"))
 
 (deftest lmdb-store-batch-test
-  (testing "write-batch stores every pair"
-    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-batch"))
-          pairs [[[1 2 3 4] ["i64" 10]] [[5 6 7 8] ["i64" 20]]]]
-      (try
-        (store/await (sj/write-batch s pairs))
-        (is (= ["i64" 10] (store/await (store/s-get s [1 2 3 4]))))
-        (is (= ["i64" 20] (store/await (store/s-get s [5 6 7 8]))))
-        (finally
-          (sj/lmdb-close s))))))
+  (run-check "lmdb-store-batch-test"))
 
 (deftest lmdb-store-reset-test
-  (testing "LMDB reset clears all entries"
-    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-reset"))]
-      (try
-        (store/await (store/s-put s [1 2 3 4] ["i64" 1]))
-        (store/await (store/s-reset s))
-        (is (nil? (store/await (store/s-get s [1 2 3 4]))))
-        (is (zero? (:entries (store/await (store/local-stats s)))))
-        (finally
-          (sj/lmdb-close s))))))
+  (run-check "lmdb-store-reset-test"))
 
 (deftest lmdb-store-complex-values-test
-  (testing "LMDB handles all node types"
-    (let [s (sj/lmdb-store (str *temp-dir* "/lmdb-complex"))]
-      (try
-        ;; Scalar
-        (store/await (store/s-put s [1 0 0 0] ["i64" 42]))
-        (is (= ["i64" 42] (store/await (store/s-get s [1 0 0 0]))))
-
-        ;; Collection header
-        (store/await (store/s-put s [2 0 0 0] ["vector" {:root [9 8 7 6] :count 3 :size-bytes 24}]))
-        (is (= ["vector" {:root [9 8 7 6] :count 3 :size-bytes 24}]
-               (store/await (store/s-get s [2 0 0 0]))))
-
-        ;; FT node
-        (store/await (store/s-put s [3 0 0 0] ["ft/deep" {:left [1 1 1 1]
-                                                          :spine [2 2 2 2]
-                                                          :right [3 3 3 3]
-                                                          :measure {:count 5
-                                                                    :size-bytes 40
-                                                                    :elements-fuse [1 0 0 1]}}]))
-        (let [v (store/await (store/s-get s [3 0 0 0]))]
-          (is (= "ft/deep" (first v)))
-          (is (= [1 1 1 1] (:left (second v)))))
-
-        ;; HAMT node
-        (store/await (store/s-put s [4 0 0 0] ["hamt/entry" {:key-hash [5 5 5 5]
-                                                             :key-ref [6 6 6 6]
-                                                             :val-ref [7 7 7 7]
-                                                             :measure {:count 1
-                                                                       :size-bytes 8
-                                                                       :elements-fuse [1 0 0 1]}}]))
-        (let [v (store/await (store/s-get s [4 0 0 0]))]
-          (is (= "hamt/entry" (first v)))
-          (is (= [6 6 6 6] (:key-ref (second v)))))
-        (finally
-          (sj/lmdb-close s))))))
+  (run-check "lmdb-store-complex-values-test"))
 
 (deftest lmdb-store-with-layered-test
-  (testing "LMDB as backend in layered store"
-    (let [mem (store/mem-store)
-          lmdb (sj/lmdb-store (str *temp-dir* "/lmdb-layered"))]
-      (try
-        (let [s (store/layered-store mem lmdb)]
-          (store/await (store/s-put s [1 2 3 4] ["i64" 42]))
-          ;; Both have it
-          (is (= ["i64" 42] (store/await (store/s-get mem [1 2 3 4]))))
-          (is (= ["i64" 42] (store/await (store/s-get lmdb [1 2 3 4]))))
-          ;; New layered with empty mem still finds in LMDB
-          (let [s2 (store/layered-store (store/mem-store) lmdb)]
-            (is (= ["i64" 42] (store/await (store/s-get s2 [1 2 3 4]))))))
-        (finally
-          (sj/lmdb-close lmdb))))))
+  (run-check "lmdb-store-with-layered-test"))
 
 (deftest lmdb-value-layer-scalar-and-collection-persist
-  (testing "real value-layer entries survive LMDB close/reopen"
-    (let [path (str *temp-dir* "/lmdb-value-layer")
-          st (sj/lmdb-store path)
-          [scalar-h scalar-entry vec-h vec-entry]
-          (try
-            (let [s (scalar/i64-with-store st 42)
-                  sh (types/dacite-hash s)
-                  se (store/await (store/s-get st sh))
-                  v (coll/vector-with-store st 1 2 3)
-                  vh (types/dacite-hash v)
-                  ve (store/await (store/s-get st vh))]
-              (is (= ["i64" 42] se))
-              (is (= "vector" (first ve)))
-              (is (= 3 (:count (second ve))))
-              [sh se vh ve])
-            (finally
-              (sj/lmdb-close st)))
-          st2 (sj/lmdb-store path)]
-      (try
-        (is (= scalar-entry (store/await (store/s-get st2 scalar-h))))
-        (is (= vec-entry (store/await (store/s-get st2 vec-h))))
-        (is (store/await (store/s-has? st2 scalar-h)))
-        (is (store/await (store/s-has? st2 vec-h)))
-        ;; full graph still present for vector children
-        (is (store/await (store/s-has? st2 (:root (second vec-entry)))))
-        (finally
-          (sj/lmdb-close st2))))))
+  (run-check "lmdb-value-layer-scalar-and-collection-persist"))
 
 (deftest lmdb-rooted-value-layer-persist
-  (testing "rooted LMDB: set root from real collection; reopen sees root + nodes"
-    (let [path (str *temp-dir* "/lmdb-rooted-value")
-          st (sj/lmdb-store path)
-          cell (sj/lmdb-root-cell st)
-          root-h
-          (try
-            (let [rooted (rs/rooted-store st cell)
-                  v (coll/vector-with-store st "a" "b")
-                  h (types/dacite-hash v)]
-              (rs/set-root! rooted h)
-              (is (= h (rs/root rooted)))
-              h)
-            (finally
-              (sj/lmdb-close st)))
-          st2 (sj/lmdb-store path)
-          cell2 (sj/lmdb-root-cell st2)
-          rooted2 (rs/rooted-store st2 cell2)]
-      (try
-        (is (= root-h (rs/root rooted2)))
-        (is (store/await (store/s-has? st2 root-h)))
-        (is (= "vector" (first (store/await (store/s-get st2 root-h)))))
-        (finally
-          (sj/lmdb-close st2))))))
+  (run-check "lmdb-rooted-value-layer-persist"))
 
 (deftest lmdb-content-is-wire-v1-node-payload
-  (testing "durable LMDB values are node payloads (not EDN, not chunks)"
-    (let [path (str *temp-dir* "/lmdb-wire-node")
-          st (sj/lmdb-store path)]
-      (try
-        (let [v (scalar/i64-with-store st 42)
-              h (types/dacite-hash v)
-              entry (store/await (store/s-get st h))
-              expected (bin/encode-node-bytes entry)
-              ;; raw read from LMDB content DBI
-              ^Env env (:env st)
-              ^Dbi db (:db st)
-              raw
-              (with-open [txn (.txnRead env)]
-                (let [k (doto (ByteBuffer/allocateDirect 32)
-                          (.putLong (long (nth h 0)))
-                          (.putLong (long (nth h 1)))
-                          (.putLong (long (nth h 2)))
-                          (.putLong (long (nth h 3)))
-                          (.flip))
-                      buf (.get db txn k)]
-                  (is (some? buf))
-                  (let [bs (byte-array (.remaining buf))]
-                    (.get buf bs)
-                    bs)))]
-          ;; scalar node kind is 0x00 — not EDN '{' or '['
-          (is (= 0x00 (bit-and 0xff (aget raw 0))))
-          (is (= (seq expected) (seq raw)))
-          (is (= entry (bin/decode-node-bytes raw)))
-          ;; close/reopen: re-encode of stored entry matches
-          (sj/lmdb-close st)
-          (let [st2 (sj/lmdb-store path)
-                entry2 (store/await (store/s-get st2 h))]
-            (try
-              (is (= entry entry2))
-              (is (= (seq (bin/encode-node-bytes entry))
-                     (seq (bin/encode-node-bytes entry2))))
-              (finally
-                (sj/lmdb-close st2)))))
-        (catch Throwable t
-          (try (sj/lmdb-close st) (catch Throwable _))
-          (throw t))))))
-
-;; =============================================================================
-;; Content addressing
-;; =============================================================================
+  (run-check "lmdb-content-is-wire-v1-node-payload"))
 
 (deftest content-addressing-test
-  (testing "same content same hash means single entry"
-    (let [s (store/mem-store)]
-      (store/await (store/s-put s [1 2 3 4] :v))
-      (store/await (store/s-put s [1 2 3 4] :v))
-      (is (= :v (store/await (store/s-get s [1 2 3 4]))))
-      (is (= 1 (:entries (store/await (store/local-stats s))))))))
+  (run-check "content-addressing-test"))
 
 (deftest missing-node-fails-walk-test
-  (testing "a value walk of a hash this store does not hold fails as :missing"
-    (let [s (store/mem-store)
-          h [9 9 9 9]
-          v (types/wrap-entry "vector" s h)]
-      (is (nil? (store/await (store/s-get s h))))
-      (is (= {:reason :missing :hash h}
-             (try
-               (count v)
-               (catch clojure.lang.ExceptionInfo ex
-                 (select-keys (ex-data ex) [:reason :hash]))))))))
+  (run-check "missing-node-fails-walk-test"))
 
-(deftest await-future-and-unavailable-test
+(deftest await-rejected-is-unavailable-test
+  (run-check "await-rejected-is-unavailable-test"))
+
+;; JVM only. A future is a JVM host promise; nbb has none.
+(deftest await-future-test
   (testing "await reads a JVM future, including nil"
     (is (= 42 (store/await (future 42))))
     (is (nil? (store/await (future nil)))))
-  (testing "await throws :unavailable from a rejected promise"
-    (let [h [1 2 3 4]
-          e (try
-              (store/await
-               (store/rejected
-                (ex-info "store unavailable"
-                         {:reason :unavailable :hash h :cause :down})))
-              nil
-              (catch clojure.lang.ExceptionInfo ex
-                ex))]
-      (is (= :unavailable (:reason (ex-data e))))
-      (is (= h (:hash (ex-data e))))))
   (testing "await unwraps a future that failed as :unavailable"
     (let [h [1 2 3 4]
           e (try
@@ -442,3 +153,11 @@
                 ex))]
       (is (= :unavailable (:reason (ex-data e))))
       (is (= h (:hash (ex-data e)))))))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.store-test)))))
+               "every-check-has-a-deftest"
+               "await-future-test"))
+      "store_checks.cljc and this file list the same tests"))

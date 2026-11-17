@@ -54,7 +54,8 @@
    `max-streams`, and a value above 64 is read as 64. A `get` past the cap
    is `error overloaded` and does not start. FIN, `cancel`, and the floor
    each free the slot at once; the id stays used. Items are sent as node
-   items; the literal choice of `dacite.peer.items/encode-value` is JVM-only.
+   items. `dacite.peer.items/encode-value` chooses a literal, and this
+   responder does not call it.
 
    **Store reads may be asynchronous (M1.3).** A `get` reads the store through
    `dacite.store.chain/with-reads`, so a store that settles late works as well as

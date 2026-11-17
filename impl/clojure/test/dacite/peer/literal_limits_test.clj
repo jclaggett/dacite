@@ -1,193 +1,90 @@
 (ns dacite.peer.literal-limits-test
   "M1.1a: page and literal size limits, payload sizing of strings and blobs,
    blob literals in vectors (Fixes #8), in-page reads, the literal cache and
-   the node-item cap. Spec: docs/spec/peer-v1.md 3.2."
+   the node-item cap. Spec: docs/spec/peer-v1.md 3.2.
+
+   Most tests are checks in `dacite.peer.literal-limits-checks`, shared with
+   nbb (`npm run items:test`); each runs here as a deftest under its old
+   name. Six stay here, too slow for nbb or JVM-bound:
+   `a-control-value-over-one-payload-fails-at-encode-value` (`msg/encode-value`
+   of 9 to 16 KB, its sizes fixed by the frame sizes: about 6 s on nbb, #63),
+   `value-hashes-do-not-depend-on-the-leaf-budget` (pinned hashes of values of
+   up to 40 000 elements, two passes),
+   `property-pages-and-literals-stay-in-their-caps-and-round-trip` and
+   `the-bound-is-never-below-the-literal-and-a-bound-that-fits-makes-one`
+   (test.check over shapes of up to 3000 elements),
+   `the-bound-fits-means-the-stream-never-needed-a-second-try` (eight shapes at
+   two frame sizes: about 9 s on nbb even at a quarter of the sizes) and
+   `concurrent-page-builds-keep-the-incremental-page-size` (JVM threads)."
   (:require [clojure.test :refer [deftest is testing]]
-            [dacite.host :as host]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [dacite.peer.examples]
             [dacite.peer.frame :as frame]
             [dacite.peer.items :as items]
             [dacite.peer.msg :as msg]
-            [dacite.reveal :as reveal]
-            [dacite.service.reveal :as sr]
+            [dacite.peer.literal-limits-checks :as checks
+             :refer [build literal-round-trips? one-byte-kinds reachable-hashes
+                     text]]
             [dacite.store :as store]
-            [dacite.rooted.gc :as gc]
+            [dacite.store.check :as check]
             [dacite.store.bound :as bound]
             [dacite.store.pack :as pack]
             [dacite.value :as v]
-            [dacite.value.finger-tree]
             [dacite.value.lit :as lit]
             [dacite.value.types :as types]
             [dacite.wire.binary :as bin]))
 
-(defn- bytes-of [n] (byte-array (map #(unchecked-byte (* 7 %)) (range n))))
+(def ^:private env
+  "The checks take no host pieces."
+  {})
+
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks env name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 ;; ---------------------------------------------------------------------------
 ;; Payload sizes: strings and blobs in runs and repeats
 ;; ---------------------------------------------------------------------------
 
 (deftest string-and-blob-payload-counts-their-length-plus-framing
-  (let [five lit/string-wire-overhead
-        hdr lit/run-header-bytes]
-    (is (= 5 five))
-    (is (= 6 hdr))
-    (is (= (+ five 3) (lit/item-payload-bytes {:type "string" :body "abc"})))
-    (is (= (+ five 4) (lit/item-payload-bytes {:type "blob" :body (bytes-of 4)})))
-    (testing "a run counts every value (it counted 0), and its header"
-      (is (= (+ hdr five 1 five 2 five 3)
-             (lit/item-payload-bytes
-              {:type "run" :body {:of "string" :values ["a" "bb" "ccc"]}})))
-      (is (= (+ hdr five 2 five 5)
-             (lit/item-payload-bytes
-              {:type "run" :body {:of "blob" :values [(bytes-of 2) (bytes-of 5)]}}))))
-    (testing "a repeat counts n copies (it counted 0), and its header"
-      (is (= (+ hdr (* 10 (+ five 4)))
-             (lit/item-payload-bytes
-              {:type "repeat" :body {:of "string" :n 10 :value "abcd"}})))
-      (is (= (+ hdr (* 3 (+ five 6)))
-             (lit/item-payload-bytes
-              {:type "repeat" :body {:of "blob" :n 3 :value (bytes-of 6)}}))))
-    (testing "an element is never free, so a page of nulls ends"
-      (is (pos? (lit/item-payload-bytes {:type "null" :body nil})))
-      (is (pos? (lit/item-payload-bytes {:type "negative" :body nil})))
-      (is (= (+ hdr 100) (lit/item-payload-bytes
-                          {:type "repeat" :body {:of "null" :n 100 :value nil}}))))))
+  (run-check "string-and-blob-payload-counts-their-length-plus-framing"))
 
 (deftest runs-of-strings-and-blobs-chunk-within-the-budget
-  (let [vs (vec (repeat 300 "0123456789"))     ; 15 bytes each
-        chunks (lit/chunk-run "string" vs 1000)]
-    (is (< 1 (count chunks)))
-    (is (= vs (vec (mapcat #(let [b (:body %)]
-                              (if (= "run" (:type %)) (:values b) [(:body %)]))
-                           chunks))))
-    (is (every? #(<= (lit/item-payload-bytes %) 1000) chunks)
-        "no chunk is over the budget (a single value over it is alone)"))
-  (let [big (apply str (repeat 5000 \x))
-        chunks (lit/chunk-run "string" [big "a"] 1000)]
-    (is (= 2 (count chunks)) "a value over the budget has a chunk to itself")))
+  (run-check "runs-of-strings-and-blobs-chunk-within-the-budget"))
 
 (deftest the-leaf-page-budget-is-4-kib-and-bounds-every-page
-  (is (= 4096 lit/page-budget))
-  (testing "a string of 20 000 characters: every node item near the budget"
-    (let [st (store/mem-store)
-          h (v/hash (v/string st (apply str (repeat 20000 \a))))
-          order (reveal/page-order st h)
-          sizes (map #(bin/byte-len (sr/encode-page st {:hash %})) order)]
-      (is (< 3 (count order)))
-      (is (<= (apply max sizes) frame/max-node-item-bytes))
-      (is (< 4096 (apply max sizes)) "and a full page is about 4 KiB, not 1")))
-  (testing "a vector of 3000 short strings"
-    (let [st (store/mem-store)
-          h (v/hash (apply v/vector st (map #(v/string st (str "s" %)) (range 3000))))
-          sizes (map #(bin/byte-len (sr/encode-page st {:hash %})) (reveal/page-order st h))]
-      (is (<= (apply max sizes) frame/max-node-item-bytes)))))
+  (run-check "the-leaf-page-budget-is-4-kib-and-bounds-every-page"))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixes #8: a blob inside a literal page body
 ;; ---------------------------------------------------------------------------
 
-(defn- literal-round-trips?
-  [st h]
-  (let [form (pack/literal-of st h)
-        st2 (store/mem-store)
-        got (pack/materialize-literal! st2 (:type form) (:body form))]
-    (= (vec h) (vec got))))
+(deftest a-small-blob-in-a-vector-has-a-literal-that-round-trips
+  (run-check "a-small-blob-in-a-vector-has-a-literal-that-round-trips"))
 
 (deftest a-blob-in-a-vector-has-a-literal-that-round-trips
-  (let [st (store/mem-store)
-        b1 (v/blob st (byte-array [1 2 3]))
-        b2 (v/blob st (bytes-of 9))]
-    (doseq [[label vec-of] {"[blob nil]" (v/vector st b1 (v/null st))
-                            "[nil blob]" (v/vector st (v/null st) b1)
-                            "[blob blob]" (v/vector st b1 b2)
-                            "[blob 1]" (v/vector st b1 (v/i64 st 1))
-                            "[1 blob]" (v/vector st (v/i64 st 1) b2)
-                            "[blob \"s\" blob]" (v/vector st b1 (v/string st "s") b1)}]
-      (testing label
-        (is (literal-round-trips? st (v/hash vec-of)))))
-    (testing "the peer message codec encodes it (the original report)"
-      (let [st (store/mem-store)
-            h (v/hash (v/vector st (byte-array 1) nil))]
-        (is (some? (items/literal-bytes st h frame/max-payload)))))
-    (testing "a long run of blobs reveals and verifies"
-      (let [st (store/mem-store)
-            h (v/hash (apply v/vector st (map #(v/blob st (bytes-of (+ 1 (mod % 40)))) (range 700))))
-            {:keys [items]} (items/encode-value st h)
-            rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
-                                                        (frame/concat-bytes items))))]
-        (is (some? (store/await (store/s-get (:store rx) h))))))))
+  (run-check "a-blob-in-a-vector-has-a-literal-that-round-trips"))
 
 ;; ---------------------------------------------------------------------------
 ;; ft-nth reads inside the page
 ;; ---------------------------------------------------------------------------
 
 (deftest nth-reads-inside-the-page-without-interning-its-elements
-  (let [st (store/mem-store)
-        text (apply str (map #(char (+ 97 (mod % 26))) (range 9000)))
-        s (v/string st text)
-        vec-of (apply v/vector st (map #(v/i64 st %) (range 3000)))
-        blob (v/blob st (bytes-of 9000))
-        strs (apply v/vector st (map #(v/string st (str "item " %)) (range 800)))]
-    (testing "same elements as the sequence, at the page edges and between"
-      (doseq [i [0 1 4095 4096 4097 8999]]
-        (is (= (nth text i) (v/realize (v/nth s i))) (str "string " i)))
-      (doseq [i [0 1 511 512 513 1500 2999]]
-        (is (= i (v/realize (v/nth vec-of i))) (str "vector " i)))
-      (doseq [i [0 4095 4096 8999]]
-        (is (= (aget ^bytes (bytes-of 9000) i) (unchecked-byte (v/realize (v/nth blob i))))
-            (str "blob " i)))
-      (doseq [i [0 17 400 799]]
-        (is (= (str "item " i) (apply str (v/realize (v/nth strs i)))) (str "strings " i))))
-    (testing "no element of the page is interned to answer"
-      (let [interned (atom 0)
-            real lit/intern-lit-item!]
-        (with-redefs [lit/intern-lit-item! (fn [& args] (swap! interned inc) (apply real args))]
-          (v/realize (v/nth s 5000))
-          (v/realize (v/nth vec-of 2000))
-          (is (<= @interned 2) "one element a call, not the page"))))))
+  (run-check "nth-reads-inside-the-page-without-interning-its-elements"))
 
 ;; ---------------------------------------------------------------------------
 ;; The literal cap and the literal cache
 ;; ---------------------------------------------------------------------------
 
 (deftest max-literal-caps-the-item-and-defaults-to-one-payload
-  (is (= frame/max-payload pack/default-max-literal))
-  (let [st (store/mem-store)
-        h (v/hash (v/string st (apply str (repeat 3000 \x))))
-        entry (store/await (store/s-get st h))]
-    (testing "room: a literal"
-      (is (= :literal (:encoding (pack/encode-item st h entry {:max-literal 4000})))))
-    (testing "no room: the node entry"
-      (is (= :node (:encoding (pack/encode-item st h entry {:max-literal 2000})))))))
+  (run-check "max-literal-caps-the-item-and-defaults-to-one-payload"))
 
 (deftest a-literal-is-built-once-per-hash-per-cache
-  (let [st (store/mem-store)
-        shared (v/string st "the quick brown fox")
-        h (v/hash (apply v/map st (mapcat (fn [i] [(str "k" i) shared]) (range 30))))
-        calls (atom 0)
-        real pack/literal-of]
-    (with-redefs [pack/literal-of (fn [& args] (swap! calls inc) (apply real args))]
-      (let [shared-h (v/hash shared)
-            entry (store/await (store/s-get st shared-h))
-            cache (atom {})]
-        (dotimes [_ 10]
-          (pack/encode-item st shared-h entry {:max-literal 16378 :cache cache}))
-        (is (= 1 @calls) "ten asks, one build")
-        (reset! calls 0)
-        (dotimes [_ 3]
-          (pack/encode-item st shared-h entry {:max-literal 16378}))
-        (is (= 3 @calls) "no cache, no saving")))
-    (testing "encode-value of a value holding it 30 times builds it once"
-      (let [shared-key (vec (v/hash shared))
-            for-shared (atom 0)]
-        (with-redefs [pack/literal-of (fn [s' h' & more]
-                                        (when (= shared-key (vec h')) (swap! for-shared inc))
-                                        (apply real s' h' more))]
-          (items/encode-value st h)
-          (is (= 1 @for-shared) "the shared string is built once"))))))
+  (run-check "a-literal-is-built-once-per-hash-per-cache"))
 
 ;; ---------------------------------------------------------------------------
 ;; A control message is capped where it is encoded
@@ -211,49 +108,18 @@
 ;; The node-item cap and the smallest frame
 ;; ---------------------------------------------------------------------------
 
-(deftest node-items-over-a-payload-are-reported-by-default-and-throw-on-request
-  (let [st (store/mem-store)
-        h (v/hash (v/string st (apply str (repeat 3000 \x))))]
-    (testing "a normal frame: no node item is over the cap"
-      (is (empty? (:oversized (items/encode-value st h)))))
-    (testing "a tiny frame: the node items are over it; reported, still sent"
-      (let [r (items/encode-value st h {:max-frame-bytes 120})]
-        (is (seq (:oversized r)))
-        (is (= (count (:items r)) (count (:hashes r))))
-        (is (every? #(> (:len %) (frame/max-literal-item 120)) (:oversized r)))))
-    (testing "with the option it throws"
-      (is (= :node-too-large
-             (try (items/encode-value st h {:max-frame-bytes 120 :strict-node-cap? true})
-                  :no-throw
-                  (catch clojure.lang.ExceptionInfo e (:reason (ex-data e)))))))))
+;; `node-items-over-a-payload-are-reported-by-default-and-throw-on-request`
+;; needs only `peer.items`. It runs from `items_checks.cljc`.
 
 (deftest hello-limits-max-frame-accepts-the-webrtc-clamp
-  ;; 8192 (`min-max-frame`) still holds a node item in one frame. The codec
-  ;; also accepts 4096 (`webrtc-max-frame`): that is what the WebRTC transport
-  ;; advertises, under the node-item minimum, until node-datachannel is fixed.
-  (let [hello (fn [n] {:type :hello :stream 0
-                       :value (assoc-in (:value (first dacite.peer.examples/examples))
-                                        ["limits" "max-frame"] n)})]
-    (is (= :invalid-message (reason-of #(msg/encode-message (hello (dec frame/webrtc-max-frame)))))
-        "one under the webrtc clamp")
-    (is (bytes? (msg/encode-message (hello frame/webrtc-max-frame)))
-        "4096 is legal so a webrtc hello can be sent")
-    (is (bytes? (msg/encode-message (hello frame/min-max-frame))))
-    (is (bytes? (msg/encode-message (hello frame/max-frame))))
-    (is (= :invalid-message (reason-of #(msg/encode-message (hello (inc frame/max-frame))))))))
+  (run-check "hello-limits-max-frame-accepts-the-webrtc-clamp"))
 
 (deftest the-smallest-frame-holds-the-largest-node-item
-  (is (= 8192 frame/min-max-frame))
-  (is (frame/min-max-frame-fits-node?))
-  (is (<= frame/max-node-item-bytes (frame/max-literal-item frame/min-max-frame))))
+  (run-check "the-smallest-frame-holds-the-largest-node-item"))
 
 ;; ---------------------------------------------------------------------------
 ;; The leaf budget does not change a value hash
 ;; ---------------------------------------------------------------------------
-
-(defn- text [n seed]
-  (let [r (java.util.Random. seed)]
-    (apply str (repeatedly n #(char (+ 97 (.nextInt r 26)))))))
 
 (defn- leaf-budget-cases
   "Seven values over up to 40,000 elements: long strings and blobs, vectors
@@ -300,47 +166,11 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest append-item-matches-its-definition
-  ;; The fast append rewrites only the last group; it must give what
-  ;; expand + conj + rle-lits gives, for any run of elements.
-  (let [slow @#'lit/append-slow
-        gen-el (gen/one-of
-                [(gen/fmap (fn [c] {:type "char" :body c}) (gen/elements [\a \b \u03bb]))
-                 (gen/fmap (fn [n] {:type "u8" :body n}) (gen/elements [0 1 255]))
-                 (gen/fmap (fn [n] {:type "i64" :body n}) (gen/elements [1 2]))
-                 (gen/fmap (fn [x] {:type "string" :body x}) (gen/elements ["x" "yy"]))
-                 (gen/return {:type "null" :body nil})
-                 (gen/fmap (fn [h] {:type "ref" :body h}) (gen/elements [[1 2 3 4] [5 6 7 8]]))])
-        norm (fn [body]
-               (mapv (fn [it]
-                       (if (and (map? it) (= "run" (:type it)) (lit/u8-bytes? (:values (:body it))))
-                         (update-in it [:body :values] vec)
-                         it))
-                     body))
-        r (tc/quick-check
-           200
-           (prop/for-all [els (gen/vector gen-el 0 40)]
-             (let [fast (reduce lit/append-item [] els)
-                   ref (reduce slow [] els)]
-               (= (norm fast) (norm ref)))))]
-    (is (:pass? r) (pr-str (:shrunk r)))))
+  (run-check "append-item-matches-its-definition"))
 
 (def ^:private gen-text
   (gen/fmap (fn [[ch n]] (apply str (repeat n ch)))
             (gen/tuple (gen/elements [\a \z \u00e9 \u03bb \u20ac]) (gen/choose 0 9000))))
-
-(def ^:private one-byte-kinds
-  "Kinds that are one byte (or two) of body: the ones whose page size was
-   under-counted (M1.1a review S1)."
-  [:u8 :char :bool :null :greek :neg])
-
-(defn- one-byte-el [st kind i]
-  (case kind
-    :u8 (v/u8 st (mod i 256))
-    :char (v/char st (char (+ 97 (mod i 26))))
-    :greek (v/char st (char (+ 0x3b1 (mod i 20))))
-    :bool (v/bool st (even? (quot i 2)))
-    :null (v/null st)
-    :neg (v/i64 st (- (inc i)))))
 
 (def ^:private gen-shape
   (gen/one-of
@@ -360,32 +190,6 @@
     (gen/fmap (fn [n] [:nested n]) (gen/choose 1 120))
     ;; characters outside the BMP (a surrogate pair, four bytes)
     (gen/fmap (fn [n] [:astral n]) (gen/choose 0 4000))]))
-
-(defn- build [st [kind x]]
-  (case kind
-    :string (v/hash (v/string st x))
-    :blob (v/hash (v/blob st (bytes-of x)))
-    :strings (v/hash (apply v/vector st (map #(v/string st (apply str (repeat % \s))) x)))
-    :ints (v/hash (apply v/vector st (map #(v/i64 st %) (range x))))
-    :blobs (v/hash (apply v/vector st (map #(v/blob st (bytes-of %)) x)))
-    :map (let [[n sz] x]
-           (v/hash (apply v/map st (mapcat (fn [i] [(str "k" i) (v/string st (apply str (repeat sz \v)))])
-                                           (range n)))))
-    :mixed (v/hash (apply v/vector st
-                          (map (fn [i] (case (mod i 4)
-                                         0 (v/null st)
-                                         1 (v/blob st (bytes-of (mod i 50)))
-                                         2 (v/string st (str "e" i))
-                                         3 (v/i64 st i)))
-                               (range x))))
-    :one-byte (let [[kinds len n] x]
-                (v/hash (apply v/vector st
-                               (map (fn [i] (one-byte-el st (nth kinds (mod (quot i len) (count kinds))) i))
-                                    (range n)))))
-    :nested (v/hash (apply v/vector st
-                           (map (fn [i] (apply v/vector st (map #(v/i64 st %) (range (mod i 9)))))
-                                (range x))))
-    :astral (v/hash (v/string st (apply str (map #(if (even? %) "\uD83D\uDE00" "x") (range x)))))))
 
 (defn- check-shape
   "Nil when `shape` is fine, else a map saying what failed."
@@ -440,133 +244,36 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest the-size-model-is-never-below-the-wire-size
-  (let [wire #(bin/byte-len (bin/encode-lit-bytes %))
-        h32 (vec (repeat 32 0))
-        exact [{:type "u8" :body 7} {:type "bool" :body true} {:type "i64" :body 5}
-               {:type "f64" :body 1.5} {:type "ref" :body h32}
-               {:type "char" :body \a} {:type "char" :body \u03bb}
-               {:type "run" :body {:of "char" :values "ab\u03bb"}}
-               {:type "run" :body {:of "u8" :values (byte-array 5)}}
-               {:type "run" :body {:of "i64" :values [1 2 3]}}
-               {:type "run" :body {:of "bool" :values [true false]}}
-               {:type "string" :body "abc"} {:type "blob" :body (byte-array 3)}]
-        over [{:type "repeat" :body {:of "i64" :n 2 :value 4}}   ; counts n copies
-              {:type "null" :body nil} {:type "negative" :body nil}
-              {:type "run" :body {:of "null" :values [nil nil]}}
-              {:type "repeat" :body {:of "null" :n 2 :value nil}}
-              {:type "repeat" :body {:of "bool" :n 5 :value true}}
-              {:type "run" :body {:of "string" :values ["a" "bc"]}}]]
-    (doseq [it exact]
-      (is (= (wire it) (lit/item-payload-bytes it))
-          (str "exact for " (:type it) " " (pr-str (:body it)))))
-    (doseq [it over]
-      (is (<= (wire it) (lit/item-payload-bytes it))
-          (str "never under for " (:type it))))
-    (testing "the worst case is a short run: its header is counted"
-      (is (<= (wire {:type "run" :body {:of "u8" :values (byte-array 2)}})
-              (lit/item-payload-bytes {:type "run" :body {:of "u8" :values (byte-array 2)}}))))))
+  (run-check "the-size-model-is-never-below-the-wire-size"))
 
 (deftest alternating-one-byte-kinds-stay-in-a-minimum-frame
-  ;; The review's cases: 6 000 elements of two kinds, one at a time. A node
-  ;; item was 8 261 bytes for u8/char, over the minimum frame's cap of 8 149.
-  (doseq [[label kinds len] [["u8/char" [:u8 :char] 1] ["char/bool" [:char :bool] 1]
-                             ["u8/greek" [:u8 :greek] 1] ["bool/greek" [:bool :greek] 1]
-                             ["char/null" [:char :null] 1] ["u8/bool x2" [:u8 :bool] 2]]]
-    (let [st (store/mem-store)
-          h (build st [:one-byte [kinds len 3000]])
-          sizes (map #(bin/byte-len (sr/encode-page st {:hash %})) (reveal/page-order st h))]
-      (is (<= (apply max sizes) frame/max-node-item-bytes) label)
-      (is (empty? (:oversized (items/encode-value
-                               st h {:max-frame-bytes frame/min-max-frame})))
-          label))))
+  (run-check "alternating-one-byte-kinds-stay-in-a-minimum-frame"))
 
 (deftest the-node-item-bound-has-room-over-the-page-budget
-  (is (<= (+ lit/page-budget 400) frame/max-node-item-bytes)
-      "a full page plus its measure and the page's own fields (the worst seen is about 4.2 KB)"))
+  (run-check "the-node-item-bound-has-room-over-the-page-budget"))
 
 ;; ---------------------------------------------------------------------------
 ;; M1: a blob over 16 KB is not quadratic to encode
 ;; ---------------------------------------------------------------------------
 
 (deftest pack-u8-values-is-linear
-  ;; It indexed a lazy seq with `nth` (O(n) each): 100 000 bytes took 110 s.
-  (let [lits (map (fn [i] {:type "u8" :body (mod i 256)}) (range 100000))
-        t0 (System/nanoTime)
-        packed (@#'lit/pack-u8-values lits)
-        ms (/ (- (System/nanoTime) t0) 1e6)]
-    (is (= 100000 (alength ^bytes packed)))
-    (is (= [0 1 255 0] (mapv #(bit-and 0xff %) [(aget ^bytes packed 0) (aget ^bytes packed 1)
-                                                 (aget ^bytes packed 255) (aget ^bytes packed 256)])))
-    (is (< ms 1000) (str "took " ms " ms"))))
+  (run-check "pack-u8-values-is-linear"))
 
 (deftest a-64-kb-blob-encodes-in-seconds-not-minutes
-  ;; 35 s before the fix, about 1 s after: the test rule (a few seconds) holds
-  ;; on a loaded machine only because the work is linear now.
-  (let [st (store/mem-store)
-        h (v/hash (v/blob st (bytes-of 64000)))
-        t0 (System/nanoTime)
-        {:keys [items oversized]} (items/encode-value st h)
-        ms (/ (- (System/nanoTime) t0) 1e6)
-        rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
-                                                    (frame/concat-bytes items))))]
-    (is (< ms 4000) (str "encode took " ms " ms"))
-    (is (empty? oversized))
-    (is (some? (store/await (store/s-get (:store rx) h))) "the receiver verified and holds it")))
+  (run-check "a-64-kb-blob-encodes-in-seconds-not-minutes"))
 
 ;; ---------------------------------------------------------------------------
 ;; S2: utf8-len, and building a page one element at a time
 ;; ---------------------------------------------------------------------------
 
 (deftest utf8-len-is-the-length-of-the-utf8-bytes
-  (let [host-len #(count (host/utf8-bytes %))
-        hi "\uD83D" lo "\uDE00"]
-    (doseq [s ["" "a" "abc" "\u00e9" "\u03bb\u03bb" "\u20ac" "x\u20acy" (str hi lo) (str "a" hi lo "b")]]
-      (is (= (host-len s) (lit/utf8-len s)) (pr-str s)))
-    (testing "a lone surrogate has no UTF-8 form: it throws, as the encoder does (#16)"
-      (doseq [s [hi lo (str hi "a") (str "a" lo) (str lo hi) (str hi hi lo) (str "z" hi) (str lo lo)]]
-        (is (= :lone-surrogate (:reason (ex-data (try (lit/utf8-len s) (catch Exception e e)))))
-            (pr-str s))))
-    (testing "a character (it is called with one)"
-      (is (= 2 (lit/utf8-len \u03bb)))
-      (is (= 1 (lit/utf8-len \a))))
-    (let [gen-cp (gen/one-of [(gen/choose 0 0x7f) (gen/choose 0x80 0x7ff) (gen/choose 0x800 0xd7ff)
-                              (gen/choose 0xe000 0xffff) (gen/choose 0x10000 0x10ffff)])
-          r (tc/quick-check
-             500
-             (prop/for-all [cps (gen/vector gen-cp 0 40)]
-               (let [s (apply str (map #(String. (Character/toChars (int %))) cps))]
-                 (= (host-len s) (lit/utf8-len s)))))]
-      (is (:pass? r) (pr-str (:shrunk r))))))
+  (run-check "utf8-len-is-the-length-of-the-utf8-bytes"))
 
 (deftest payload-after-append-is-the-payload-of-the-appended-body
-  (let [gen-el (gen/one-of
-                [(gen/fmap (fn [c] {:type "char" :body c}) (gen/elements [\a \b \u03bb]))
-                 (gen/fmap (fn [n] {:type "u8" :body n}) (gen/elements [0 1 255]))
-                 (gen/fmap (fn [n] {:type "i64" :body n}) (gen/elements [1 2]))
-                 (gen/fmap (fn [x] {:type "string" :body x}) (gen/elements ["x" "yy"]))
-                 (gen/return {:type "null" :body nil})
-                 (gen/fmap (fn [h] {:type "ref" :body h}) (gen/elements [[1 2 3 4] [5 6 7 8]]))])
-        r (tc/quick-check
-           300
-           (prop/for-all [els (gen/vector gen-el 0 60)]
-             (loop [body [] pb 0 els els]
-               (if-let [el (first els)]
-                 (let [b' (lit/append-item body el)
-                       pb' (lit/payload-after-append body pb b')]
-                   (and (= pb' (lit/payload-bytes b'))
-                        (recur b' pb' (rest els))))
-                 true))))]
-    (is (:pass? r) (pr-str (:shrunk r)))))
+  (run-check "payload-after-append-is-the-payload-of-the-appended-body"))
 
 (deftest a-page-is-not-recounted-for-every-element
-  (let [real lit/payload-bytes
-        calls (atom 0)
-        st (store/mem-store)]
-    (with-redefs [lit/payload-bytes (fn [b] (swap! calls inc) (real b))]
-      (let [h (v/hash (reduce (fn [c i] (v/conj c (v/char st (char (+ 97 (mod i 26))))))
-                              (v/vector st) (range 3000)))]
-        (is (some? h))
-        (is (< @calls 100) (str @calls " recounts for 3000 appends"))))))
+  (run-check "a-page-is-not-recounted-for-every-element"))
 
 (deftest concurrent-page-builds-keep-the-incremental-page-size
      ;; The memo of the last page's size is per thread. The four builds run
@@ -603,18 +310,6 @@
 ;; ---------------------------------------------------------------------------
 ;; The node bound (store.bound) replaces the literal gate (M1.1b)
 ;; ---------------------------------------------------------------------------
-
-(defn- reachable-hashes
-  "Every node under `h` (a node once), breadth first."
-  [st h]
-  (loop [q [h] seen #{} out []]
-    (if (empty? q)
-      out
-      (let [x (peek q) q (pop q) k (gc/hash-key x)]
-        (if (contains? seen k)
-          (recur q seen out)
-          (let [e (store/await (store/s-get st x))]
-            (recur (into q (or (types/child-hashes e) [])) (conj seen k) (conj out x))))))))
 
 (defn- bound-failures
   "Over each node under `h` whose bound is at most `limit`, the faults: the
@@ -677,158 +372,37 @@
     (is (empty? @misses) (pr-str (take 3 @misses)))))
 
 (deftest an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item
-  ;; The bound lets a literal through on size. An inner HAMT or finger-tree
-  ;; node may still have a literal that does not rebuild its own hash (it is
-  ;; not the value its entries make). Then the sender sends the node item, as
-  ;; before, and the stream still verifies. This is true of finger-tree nodes.
-  ;; Every HAMT node is canonical for its keys (issue #12), so a HAMT node's
-  ;; literal always rebuilds its hash: the map shapes have no such node.
-  (let [cap (frame/max-literal-item)
-        inner-type? #(re-find #"^(hamt|ft)/" (str (first %)))
-        round-trips? (fn [st x] (try (literal-round-trips? st x) (catch Throwable _ false)))
-        fallbacks (fn [shape]
-                    (let [st (store/mem-store)
-                          h (build st shape)
-                          cache (atom {})]
-                      {:st st :root h
-                       :nodes (vec (for [x (reachable-hashes st h)
-                                         :let [e (store/await (store/s-get st x))]
-                                         :when (and (inner-type? e)
-                                                    (not= (vec x) (vec h))
-                                                    (some-> (bound/literal-item-bound st x cache)
-                                                            (<= cap))
-                                                    (not (round-trips? st x)))]
-                                     x))}))]
-    (doseq [shape [[:map [13 0]] [:nested 2] [:map [150 40]]]
-            :let [{:keys [st root nodes]} (fallbacks shape)]]
-      (testing (pr-str shape)
-        (if (= :map (first shape))
-          (is (empty? nodes) "a HAMT node's literal always rebuilds its hash")
-          (is (seq nodes) "the shape has an inner node whose literal does not round-trip"))
-        (doseq [x nodes
-                :let [item (pack/encode-item st x (store/await (store/s-get st x))
-                                             {:max-literal cap :cache (atom {})})]]
-          (is (= :node (:encoding item)) "the node item, not the literal"))
-        (let [{:keys [items]} (items/encode-value st root)
-              rx (items/finish! (items/accept-items! nil (bin/decode-item-stream
-                                                          (frame/concat-bytes items))))]
-          (is (some? (store/await (store/s-get (:store rx) root))) "and the receiver verifies the value"))))))
+  (run-check "an-inner-node-literal-that-does-not-round-trip-falls-back-to-its-node-item"))
 
 (deftest a-node-whose-stored-size-is-over-the-cap-is-not-walked-for-a-bound
-  (let [st (store/mem-store)
-        big (v/hash (v/string st (text 6000 7)))
-        small (v/hash (v/string st (text 600 7)))
-        entry #(store/await (store/s-get st %))
-        walked (atom 0)
-        real pack/literal-bound]
-    (with-redefs [pack/literal-bound (fn [& args] (swap! walked inc) (apply real args))]
-      (is (= :node (:encoding (pack/encode-item st big (entry big) {:max-literal 4000 :cache (atom {})}))))
-      (is (zero? @walked) "the stored size-bytes is over the cap: no walk")
-      (is (= :literal (:encoding (pack/encode-item st small (entry small) {:max-literal 4000 :cache (atom {})}))))
-      (is (= 1 @walked) "under the cap the bound is walked")
-      (testing "no cap: the size cue and the budget decide, no bound"
-        (reset! walked 0)
-        (pack/encode-item st small (entry small) {:budget 4096})
-        (is (zero? @walked))))))
+  (run-check "a-node-whose-stored-size-is-over-the-cap-is-not-walked-for-a-bound"))
 
 (deftest the-bound-counts-no-compression-and-never-less-than-a-run-costs
-  (let [st (store/mem-store)
-        b (fn [x] (- (bound/literal-item-bound st (v/hash x) nil) bound/item-header-bytes))
-        wire (fn [x] (let [f (pack/literal-of st (v/hash x))]
-                       (bin/byte-len (bin/encode-lit-bytes {:type (:type f) :body (:body f)}))))]
-    (testing "a blob or a string is its bytes plus five"
-      (is (= 105 (b (v/blob st (bytes-of 100)))))
-      (is (= 105 (b (v/string st (apply str (repeat 100 \a)))))))
-    (testing "equal values are counted one by one: no repeat"
-      (let [x (apply v/vector st (repeat 1000 (v/i64 st 7)))]
-        (is (= (+ 5 6 (* 8 1000)) (b x)))
-        (is (< (wire x) 100) "the repeat is far under it")))
-    (testing "two u8 as a run (8 bytes) cost more than two singles (4): the bound counts the run"
-      (let [x (v/vector st (v/u8 st 1) (v/u8 st 2))]
-        (is (<= (wire x) (b x)))))
-    (testing "a type change starts a new group and pays its header again"
-      (let [x (v/vector st (v/u8 st 1) (v/bool st true) (v/u8 st 2))]
-        (is (= (+ 5 (* 3 (+ 6 1))) (b x)))
-        (is (<= (wire x) (b x)))))
-    (testing "a value with no literal has no bound"
-      (is (nil? (bound/literal-item-bound st (vec (repeat 32 0)) nil))))))
+  (run-check "the-bound-counts-no-compression-and-never-less-than-a-run-costs"))
 
 (deftest the-bound-summaries-combine-as-a-monoid
-  (let [c bound/combine
-        u8 (fn [n] {:f "u8" :l "u8" :v n :b (+ 6 n)})
-        ch {:f "char" :l "char" :v 3 :b 13}]
-    (is (= (u8 4) (c nil (u8 4))))
-    (is (= (u8 4) (c (u8 4) nil)))
-    (testing "equal types merge: the header once"
-      (is (= {:f "u8" :l "u8" :v 5 :b 11} (c (u8 2) (u8 3)))))
-    (testing "different types do not"
-      (is (= {:f "u8" :l "char" :v 5 :b 21} (c (u8 2) ch))))
-    (testing "associative"
-      (let [xs [(u8 1) ch (u8 2) (u8 3) ch]]
-        (doseq [i (range 1 4) j (range (inc i) 5)]
-          (let [[a b d] [(subvec xs 0 i) (subvec xs i j) (subvec xs j)]
-                red #(reduce c nil %)]
-            (is (= (red xs) (c (c (red a) (red b)) (red d)) (c (red a) (c (red b) (red d)))))))))))
+  (run-check "the-bound-summaries-combine-as-a-monoid"))
 
 (deftest utf8-len-adds-over-runs-cut-at-code-points
-  ;; The bound sums the bytes of runs. That is the bytes of the joined text
-  ;; only when no run cuts a surrogate pair, which the splitters never do.
-  (let [s "ab\u00e9\uD83D\uDE00x\uD83D\uDE01"]
-    (doseq [k (range (inc (host/cp-count s)))]
-      (is (= (lit/utf8-len s)
-             (+ (lit/utf8-len (host/cp-subs s 0 k)) (lit/utf8-len (host/cp-subs s k (host/cp-count s)))))
-          (str "cut at code point " k)))))
+  (run-check "utf8-len-adds-over-runs-cut-at-code-points"))
 
 (deftest a-string-over-the-cap-is-not-built-to-learn-it
-  (let [st (store/mem-store)
-        big (v/string st (text 30000 3))
-        small (v/string st "a")
-        vec-of (v/vector st big small)
-        big-key (vec (v/hash big))
-        built (atom [])
-        real pack/literal-of]
-    (with-redefs [pack/literal-of (fn [s' h' & more]
-                                    (swap! built conj (vec h'))
-                                    (apply real s' h' more))]
-      (let [r (items/encode-value st (v/hash vec-of))]
-        (is (seq (:items r)))
-        (is (not (some #{big-key} @built))
-            "neither the string, nor (through the vector) a form of it")))))
+  (run-check "a-string-over-the-cap-is-not-built-to-learn-it"))
 
 (deftest the-literal-cache-is-per-hash-per-cap
-  (let [st (store/mem-store)
-        h (v/hash (v/string st (apply str (repeat 3000 \x))))
-        entry (store/await (store/s-get st h))
-        cache (atom {})]
-    (is (= :literal (:encoding (pack/encode-item st h entry {:max-literal 4000 :cache cache}))))
-    (is (= :node (:encoding (pack/encode-item st h entry {:max-literal 2000 :cache cache})))
-        "the answer for another cap is not the cached one")
-    (is (= :literal (:encoding (pack/encode-item st h entry {:max-literal 4000 :cache cache})))
-        "and the first is still cached")))
+  (run-check "the-literal-cache-is-per-hash-per-cap"))
 
 ;; ---------------------------------------------------------------------------
 ;; The chunk budget follows the leaf page size
 ;; ---------------------------------------------------------------------------
 
 (deftest the-default-chunk-budget-is-at-least-a-leaf-page
-  ;; Below a page, a full page is never a literal (it is over the gate), so
-  ;; the first GET of a long string carries its header and spine and not its
-  ;; first characters. Two constants, kept apart: one is a soft chunk target,
-  ;; the other a hard cap on a page.
-  (is (>= pack/default-budget lit/page-budget))
-  (is (= 4096 pack/default-budget)))
+  (run-check "the-default-chunk-budget-is-at-least-a-leaf-page"))
 
 (deftest the-first-get-of-a-long-string-carries-its-first-characters
-  (let [st (store/mem-store)
-        s (v/string st (text 20000 9))
-        chunk (pack/pack-under st (v/hash s))
-        st2 (store/mem-store)]
-    (pack/apply-chunk! st2 chunk)
-    (is (<= (count (:items chunk)) 6))
-    (is (= (subs (text 20000 9) 0 64)
-           (apply str (take 64 (v/realize s))))
-        "(the sender's own copy; the receiver below)")
-    (let [root (:root (types/entry-data (store/await (store/s-get st2 (v/hash s)))))]
-      (is (= 64 (count (filter #(store/await (store/s-has? st2 %))
-                               (take 64 (dacite.value.finger-tree/ft-seq st2 root)))))
-          "the first 64 characters are in the first chunk"))))
+  (run-check "the-first-get-of-a-long-string-carries-its-first-characters"))
+
+(deftest every-check-has-a-deftest
+  (is (every? #(-> (ns-interns 'dacite.peer.literal-limits-test) (get (symbol %)) meta :test)
+              (keys checks/checks))
+      "each check in literal_limits_checks.cljc has a deftest here"))

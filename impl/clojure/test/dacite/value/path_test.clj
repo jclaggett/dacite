@@ -1,126 +1,56 @@
 (ns dacite.value.path-test
-  "Field access and path updates — stay on the value, no dac->clj."
+  "Field access and path updates on the JVM.
+
+   The bodies are `dacite.value.path-checks`. nbb runs the same checks
+   (`npm run value:test`). One deftest each, so the JVM suite still names
+   the test it ran before. `pr-str-renders-long-strings` keeps one JVM-only
+   assertion: `v/pr-str` of a vector renders its elements through
+   `dacite.value.render`, which is .clj."
   (:require [clojure.test :refer [deftest is]]
             [dacite.store :as store]
-            [dacite.value :as v]))
+            [dacite.store.check :as check]
+            [dacite.value :as v]
+            [dacite.value.path-checks :as checks]))
+
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest native-field-access
-  (let [st (store/mem-store)
-        s (v/string st "dark")
-        n (v/i64 st 30)
-        b (v/bool st true)]
-    (is (= "dark" (v/native s)))
-    (is (= 30 (v/native n)))
-    (is (= true (v/native b)))
-    (is (nil? (v/native nil)))
-    (is (= "already" (v/native "already")))
-    (is (thrown? clojure.lang.ExceptionInfo
-                 (v/native (v/vector st 1 2))))
-    (is (thrown? clojure.lang.ExceptionInfo
-                 (v/native (v/map st "k" "v"))))))
+  (run-check "native-field-access"))
 
 (deftest string-char-limit
-  (let [st (store/mem-store)
-        long-s (v/string st (apply str (repeat 100 \x)))]
-    (is (= (apply str (repeat 100 \x)) (v/native long-s)))
-    (is (thrown? clojure.lang.ExceptionInfo (v/native long-s 10)))
-    (is (thrown? clojure.lang.ExceptionInfo (v/native long-s 10)))
-    (binding [v/*string-char-limit* 10]
-      (is (thrown? clojure.lang.ExceptionInfo (v/native long-s)))
-      (is (thrown? clojure.lang.ExceptionInfo (v/native long-s))))
-    (is (= "dark" (v/native (v/string st "dark") 10)))))
+  (run-check "string-char-limit"))
 
 (deftest pr-str-renders-long-strings
-  (let [st (store/mem-store)
-        short-s (v/string st "dark")
-        long-s (v/string st (apply str (repeat 100 \x)))]
-    (is (= "\"dark\"" (v/pr-str short-s)))
-    (is (re-find #"^\"x{10}…\" \(100 chars\)$" (v/pr-str long-s 10)))
-    (is (re-find #"^\"x{64}…\" \(100 chars\)$" (v/pr-str long-s)))
-    (binding [v/*string-char-limit* 8]
-      (is (re-find #"^\"x{8}…\" \(100 chars\)$" (v/pr-str long-s))))
-    (is (= "nil" (v/pr-str nil)))
-    (is (re-find #"\[1 2 3\]" (v/pr-str (v/vector st 1 2 3))))))
+  (run-check "pr-str-renders-long-strings")
+  ;; JVM only: the collection render is dacite.value.render (.clj).
+  (is (re-find #"\[1 2 3\]" (v/pr-str (v/vector (store/mem-store) 1 2 3)))))
 
 (deftest get-in-assoc-in
-  (let [st (store/mem-store)
-        cfg (v/map st
-                   "theme" "dark"
-                   "timeout" 30
-                   "features" (v/vector st "a" "b"))]
-    (is (= "dark" (v/native (v/get-in cfg ["theme"]))))
-    (is (= 30 (v/native (v/get-in cfg ["timeout"]))))
-    (is (= "a" (v/native (v/get-in cfg ["features" 0]))))
-    (is (= :missing (v/get-in cfg ["nope"] :missing)))
-    (is (identical? cfg (v/get-in cfg [])))
-    (let [cfg' (v/assoc-in cfg ["timeout"] 90)]
-      (is (= 90 (v/native (v/get-in cfg' ["timeout"]))))
-      (is (= 30 (v/native (v/get-in cfg ["timeout"])))
-          "assoc-in is immutable"))
-    (let [cfg' (v/assoc-in cfg ["nested" "x"] "y")]
-      (is (= "y" (v/native (v/get-in cfg' ["nested" "x"])))))
-    (is (thrown? clojure.lang.ExceptionInfo (v/assoc-in cfg [] 1)))))
+  (run-check "get-in-assoc-in"))
 
 (deftest update-and-update-in
-  (let [st (store/mem-store)
-        cfg (v/map st
-                   "timeout" 30
-                   "features" (v/vector st "a"))]
-    (is (= 31 (v/native (v/get (v/update cfg "timeout" (fn [n] (+ (v/native n) 1)))
-                               "timeout"))))
-    (let [cfg' (v/update cfg "features" v/conj "b")]
-      (is (= 2 (v/count (v/get cfg' "features"))))
-      (is (= "b" (v/native (v/nth (v/get cfg' "features") 1)))))
-    (let [cfg' (v/update-in cfg ["features" 0] (fn [_] "z"))]
-      (is (= "z" (v/native (v/get-in cfg' ["features" 0])))))))
+  (run-check "update-and-update-in"))
 
 (deftest slice-shares-leaves-and-bounds
-  (let [st (store/mem-store)
-        vec (v/vector st 0 1 2 3 4 5 6 7 8 9)
-        mid (v/slice vec 3 7)]
-    (is (= "vector" (v/type mid)))
-    (is (= 4 (v/count mid)))
-    (is (= 3 (v/native (v/nth mid 0))))
-    (is (= 6 (v/native (v/nth mid 3))))
-    (is (= (v/hash vec) (v/hash (v/slice vec 0))))
-    (is (zero? (v/count (v/slice vec 4 4))))
-    (let [built (v/vector st 3 4 5 6)]
-      (is (= (v/hash built) (v/hash mid))
-          "slice of the same elements has the same value hash"))
-    (is (thrown? clojure.lang.ExceptionInfo (v/slice vec 3 11)))
-    (is (thrown? clojure.lang.ExceptionInfo (v/slice vec -1 3)))
-    (is (thrown? clojure.lang.ExceptionInfo (v/slice (v/map st "k" 1) 0 1)))))
+  (run-check "slice-shares-leaves-and-bounds"))
 
 (deftest slice-string-preserves-type-and-hash
-  (let [st (store/mem-store)
-        s (v/string st "hello world")
-        mid (v/slice s 6 11)]
-    (is (= "string" (v/type mid)))
-    (is (= "world" (v/native mid)))
-    (is (= (v/hash (v/string st "world")) (v/hash mid)))
-    (is (= (v/hash s) (v/hash (v/slice s 0))))
-    (is (zero? (v/count (v/slice s 3 3))))
-    (is (= "" (v/native (v/slice s 3 3))))))
+  (run-check "slice-string-preserves-type-and-hash"))
 
 (deftest slice-blob-preserves-type-and-hash
-  (let [st (store/mem-store)
-        b (v/blob st (byte-array [1 2 3 4 5]))
-        mid (v/slice b 1 4)]
-    (is (= "blob" (v/type mid)))
-    (is (= [2 3 4] (map #(bit-and % 0xFF) (v/as-bytes mid))))
-    (is (= (v/hash (v/blob st (byte-array [2 3 4]))) (v/hash mid)))
-    (is (= (v/hash b) (v/hash (v/slice b 0))))))
+  (run-check "slice-blob-preserves-type-and-hash"))
 
 (deftest as-bytes-blob
-  (let [st (store/mem-store)
-        b (v/blob st (byte-array [1 2 3 4]))]
-    (is (= [1 2 3 4] (map #(bit-and % 0xFF) (v/as-bytes b))))
-    (is (thrown? clojure.lang.ExceptionInfo (v/as-bytes b 2)))
-    (is (thrown? clojure.lang.ExceptionInfo
-                 (v/as-bytes (v/string st "nope"))))
-    (store/await (store/s-delete st (v/hash b)))
-    (try
-      (v/as-bytes b)
-      (is false "expected missing throw")
-      (catch clojure.lang.ExceptionInfo e
-        (is (true? (:dacite/missing (ex-data e))))))))
+  (run-check "as-bytes-blob"))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.value.path-test)))))
+               "every-check-has-a-deftest"))
+      "value/path_checks.cljc and this file list the same tests"))

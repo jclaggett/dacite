@@ -7,7 +7,7 @@
 [the plan](../plan/peering.md) (M1.1, M1.2).
 **Code:** `dacite.peer.frame` (envelope, packing), `dacite.peer.msg` (messages),
 both portable `.cljc`; `dacite.peer.items` (item streams: the literal rule and
-verification, JVM `.clj` for now). **Fixtures:** [`fixtures/peer-v1/`](../../fixtures/peer-v1/).
+verification, portable `.cljc`). **Fixtures:** [`fixtures/peer-v1/`](../../fixtures/peer-v1/).
 
 **M1.2 (sections 12 and 13):** the numbered rules (C01 to C45, C04 withdrawn: 41 MUSTs and 3 SHOULDs) with a planned
 test for each, rate sharing with the client's `R_max`, token buckets, flow control
@@ -1406,7 +1406,7 @@ violations) wrote the ones marked "(exists, slice 2)": portable checks in
 `impl/clojure/test/dacite/peer/flow_checks.cljc`, run on the JVM by `flow_test.clj` and
 on nbb by `npm run peer:test`, against `dacite.peer.rates`, `bucket`, `responder`
 and the changed `client`, on simulated clocks. C05, C07, C09, C11, C12 and C32
-exist. The rows still marked planned (C06, C08, and the rest) stay planned.
+exist. C24 and C25 (`reveal-walks-each-subtree-depth-first`, `reveal-order-is-fixed-and-receiver-accepts-any`), then C06 and C08 (`stalled-stream-decays-and-frees-its-share`, `renewal-is-a-new-stream-at-peak`), then C42 (`sessions-share-no-state-except-rmax`), were added later to `flow_checks.cljc`. The rows still marked planned stay planned.
 
 | Id | Status | MUST (short) | Planned test | Suite | Lands in |
 |---|---|---|---|---|---|
@@ -1414,9 +1414,9 @@ exist. The rows still marked planned (C06, C08, and the rest) stay planned.
 | C02 | Decided | Rate = min(share, peer send-max); unused share redistributed | `capped-peer-share-is-redistributed` (property: sum <= R_max, each <= cap) (exists, slice 2: a hand case and a 300-case property over generated peers) | JVM, nbb peer | M1.2 s2 (exists) |
 | C03 | Decided | Responder paces to min(send-max, latest get recv-max); splits by interest | `responder-paces-to-session-budget` (exists, slice 2: simulated clock; budget, `send-max` cap and a 2:1 split) | JVM, nbb peer | M1.2 s2 (exists) |
 | C05 | Decided | Stream ends (FIN, PARTIAL) when interest < floor | `stream-ends-partial-when-interest-falls-below-floor` (exists: simulated clock; FIN+PARTIAL at the clamped lifetime, FIN alone when the reveal finishes first). At the floor the responder always sends FIN+PARTIAL, finishing the current item even when credit runs out; a blocked channel gets that end immediately, past the high mark (`floor-sends-fin-partial-when-blocked-or-credit-runs-out`: the block is at an item boundary, and the cut leaf is credit running out). `blocked-mid-item-ends-on-the-deadline-tick` (exists: the channel is over the high mark partway through a multi-frame node item; that tick writes the rest of the item and an empty FIN+PARTIAL, and the stream state is gone). | JVM, nbb peer | M4.1 (exists) |
-| C06 | Decided | No idle timeout; a stalled stream only decays | `stalled-stream-decays-and-frees-its-share` | JVM | M4.1 |
+| C06 | Decided | No idle timeout; a stalled stream only decays | `stalled-stream-decays-and-frees-its-share` (exists: simulated clock; a responder stream whose channel stays full for 40 s is not ended, sends no error and does not hold the other stream; read again it writes; it ends only at `tau · ln(peak / floor)`, with FIN and PARTIAL; a client's unanswered gets stay open a minute on with no error or cancel, and their decayed interest returns their share of `R_max`) | JVM, nbb peer | M4.1 (exists) |
 | C07 | Decided | `cancel` is optional; sets interest to 0; correct without it | `cancel-stops-and-frees-share-and-is-never-required` (exists: a received cancel stops that stream and frees its share; a closed id is ignored; a stream still completes with no cancel) | JVM, nbb peer | M4.1 (exists) |
-| C08 | Decided | Renewal is a new get, a new clock at peak | `renewal-is-a-new-stream-at-peak` | JVM | M4.1 |
+| C08 | Decided | Renewal is a new get, a new clock at peak | `renewal-is-a-new-stream-at-peak` (exists: simulated clock; a get of the same hash 30 s into a stream is a new stream, both open; at peak it takes nearly all of the session's rate while the decayed stream takes not a frame; each ends at its own deadline) | JVM, nbb peer | M4.1 (exists) |
 | C09 | Decided | Clamp floor >= 10, tau-ms <= 60 000, peak <= 1000 | `get-interest-is-clamped-by-the-responder` (exists: simulated clock; floor below 10 raised to 10, tau-ms above 60 000 cut to 60 000, peak above 1000 cut to 1000; a value inside the bounds is kept; an absent interest uses the defaults) | JVM, nbb peer | M3.1 (exists) |
 | C10 | Decided | Stream state gone within tau*ln(peak/floor), at most ~276 s | `stream-state-is-forgotten-by-its-lifetime-bound` (exists, M4.2: simulated clock; the C09 clamps bound the lifetime). State is gone on the deadline tick itself, with no extension while the channel is blocked. | JVM, nbb peer | M4.2 (exists) |
 | C11 | Decided | Enforce advertised max-streams; slot frees at once | `too-many-streams-is-refused-and-a-closed-slot-frees` (exists: simulated clock; 64 open gets, the 65th is `overloaded` and does not start; a slot frees on cancel, on FIN, and at the floor; a closed id is not reused) (parity half: `f3-stream-table-parity-and-duplicates`, exists) | JVM, nbb peer | M3.1 (exists) |
@@ -1431,8 +1431,8 @@ exist. The rows still marked planned (C06, C08, and the rest) stay planned.
 | C21 | Decided | Record capped at 16 384 (oldest out); no wire message removes one hash | `record-is-capped-oldest-first` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
 | C22 | Decided | Client verifies everything; may re-request a missing hash | `a-get-of-a-recorded-hash-is-sent-and-verified` (exists, M4.2: a `get` of a recorded hash, C20) | JVM, nbb peer | M4.2 (exists) |
 | C23 | Decided | `ack` is a hint; never awaited or required; unknown hashes ignored | `ack-of-an-unknown-hash-is-ignored` (N10, engine, M4.1). `ack-is-optional-and-unknown-hashes-are-ignored` (wire, M4.2) | JVM, nbb peer | M4.1 engine; M4.2 wire (exists) |
-| C24 | Decided | Reveal walks each subtree depth-first, asked node first | `reveal-walks-each-subtree-depth-first` | JVM, nbb peer | M2.2 |
-| C25 | Decided | Fixed order, no shuffle; receiver never relies on it | `reveal-order-is-fixed-and-receiver-accepts-any` | JVM, nbb peer | M2.2 |
+| C24 | Decided | Reveal walks each subtree depth-first, asked node first | `reveal-walks-each-subtree-depth-first` (exists: a responder serves a vector of a long string, a vector of strings, the string again and a map; the asked node, then its own pages as `types/child-hashes` gives them, then each element's subtree in element order, the repeat sent once; each element asked alone starts the same way; it is `page-order`) | JVM, nbb peer | M2.2 (exists) |
+| C25 | Decided | Fixed order, no shuffle; receiver never relies on it | `reveal-order-is-fixed-and-receiver-accepts-any` (exists: the same get twice, and the same value in another store, give the same order; the served items verify and store all of the value forward, reversed and in three fixed shuffles) | JVM, nbb peer | M2.2 (exists) |
 | C26 | Decided | A renewal may reveal more; correct with no record (record is only an optimization) | `renewal-is-correct-with-no-record-and-may-reveal-more` (exists, M4.2) | JVM, nbb peer | M4.2 (exists) |
 | C27 | Decided | Verify every item from its own bytes before it is stored | `every-item-stream-fixture-verifies` and `tampering-is-refused` (exist); `nothing-unverified-reaches-the-store` (exists, slice 1) | JVM, nbb peer; browser after M5.1 | M1.2 s1 (exists) |
 | C28 | Decided | Literal rebuilt in a scratch store; a `ref` inside is bad-item | `a-run-of-refs-is-a-ref` (exists); `literal-hash-mismatch-is-refused` (exists, slice 1) | JVM, nbb peer | M1.2 s1 (exists) |
@@ -1448,7 +1448,7 @@ exist. The rows still marked planned (C06, C08, and the rest) stay planned.
 | C38 | Existing | Responder keys streams by (session, id); same hash twice = two streams | `same-hash-twice-is-two-independent-streams` (N1 regression; built) | JVM, nbb peer | M4.1 |
 | C39 | Existing | Wrong parity or duplicate id refused (malformed) | `f3-stream-table-parity-and-duplicates` (exists) | JVM | M1.2 (exists) |
 | C40 | Decided | Per-session token bucket on `get`; empty = rate-limited; a flood never ends the session | `get-over-the-bucket-is-rate-limited-and-session-lives` (simulated clock) (exists, slice 2: simulated clock; burst lowered to 10 so nbb stays quick) | JVM, nbb peer | M1.2 s2 (exists) |
-| C42 | Decided | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (flood one session; others unchanged) | JVM, nbb peer | when a client holds more than one named peer (old target M6.3, set aside) |
+| C42 | Decided | Buckets, budgets, records, clocks are per session, never shared | `sessions-share-no-state-except-rmax` (exists: simulated clock; one responder, two sessions: one session's acked record, low budget and flood past its bucket leave the other's bucket whole, its get sends every page, its stream paced at its own budget, and it goes on when the first session ends; one client, two peers: each peer's bucket is its own, and only the split of `R_max` counts the other peer's streams) | JVM, nbb peer | parity (exists) |
 | C43 | Existing | Session types on stream 0, request types on stream >= 1 | `f3-message-types-and-streams` (exists; fixtures `reject-*-on-stream-*`) | JVM, nbb peer | M1.2 (exists) |
 | C44 | Existing | Literal types outside the v1 profile are rejected | `outside-the-profile` (exists) | JVM, nbb peer | M1.2 (exists) |
 

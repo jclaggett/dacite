@@ -50,9 +50,11 @@
   (host/exp x))
 
 (defn- hash-key
-  "What `page-order` remembers a hash by. On nbb a hash is a vector of four
-   BigInts, which a persistent set cannot hash (`hash` of a BigInt throws once
-   a set grows past eight), so the hex string stands for it."
+  "What the engine remembers a hash by: `page-order`'s seen set, a cursor's
+   `:seen`, and the session's `:sent`, `:sent-order`, `:offered`, and
+   `:owner`. On nbb a hash is a vector of four BigInts, which a persistent
+   set cannot hash (`hash` of a BigInt throws once a set grows past eight),
+   so the hex string stands for it. On the JVM it is the hash itself."
   [h]
   (host/hash-key h))
 
@@ -259,8 +261,11 @@
   "An empty reveal session. The clock starts on the first call that
    names a time. Nothing has been offered or held.
 
-   `:sent` holds at most `:sent-limit` hashes (oldest dropped first) and
-   `:owner` only names hashes still sent or offered. A finished reveal
+   `:sent`, `:sent-order`, `:offered`, and `:owner` are keyed by
+   `hash-key` (the hash on the JVM, its hex on nbb); an `:offered` entry
+   keeps the hash itself as `:hash`. `:sent` holds at most `:sent-limit`
+   hashes (oldest dropped first) and `:owner` only names hashes still sent
+   or offered. A finished reveal
    with nothing left in flight is removed, and idle reveals past
    `:reveal-limit` are dropped oldest first. Those three collections
    therefore stay bounded for the life of the session."
@@ -269,7 +274,8 @@
    :sent-limit sent-limit :reveal-limit reveal-limit})
 
 (defn- skip-set
-  "Hashes that must not be offered again: held, or still in flight."
+  "Keys (`hash-key`) of hashes that must not be offered again: held, or
+   still in flight."
   [session]
   (into (:sent session) (keys (:offered session))))
 
@@ -288,6 +294,7 @@
 
 (defn- pull-page
   "Next hash a default reveal of this cursor would send, skipping `skip`.
+   The cursor's `:seen` and `skip` hold `hash-key`s.
 
    The walk matches `page-order`: the node, then its own structural
    pages, then subvalue bodies. One call reads only what the next hash
@@ -306,12 +313,12 @@
         (case op
           :node
           (let [h (nth frame 1)]
-            (if (or (nil? h) (contains? seen h))
+            (if (or (nil? h) (contains? seen (hash-key h)))
               (recur stack seen (inc guard))
               (let [entry (node-entry nodes h)
                     t (:type entry)
                     root (:root entry)
-                    seen (conj seen h)
+                    seen (conj seen (hash-key h))
                     follow (cond
                              (contains? seq-types t)
                              [[:struct root] [:seq-bodies root]]
@@ -319,23 +326,23 @@
                              [[:struct root] [:assoc-bodies root t]]
                              :else [])
                     stack (push-frames stack follow)]
-                (if (contains? skip h)
+                (if (contains? skip (hash-key h))
                   (recur stack seen (inc guard))
                   [h {:stack stack :seen seen}]))))
 
           :struct
           (let [h (nth frame 1)]
-            (if (or (nil? h) (contains? seen h))
+            (if (or (nil? h) (contains? seen (hash-key h)))
               (recur stack seen (inc guard))
               (let [entry (node-entry nodes h)
                     t (:type entry)]
                 (if-not (structural-type? t)
                   (recur stack seen (inc guard))
                   (let [children (structural-children nodes entry)
-                        seen (conj seen h)
+                        seen (conj seen (hash-key h))
                         stack (push-frames stack
                                            (mapv (fn [c] [:struct c]) children))]
-                    (if (contains? skip h)
+                    (if (contains? skip (hash-key h))
                       (recur stack seen (inc guard))
                       [h {:stack stack :seen seen}]))))))
 
@@ -395,7 +402,7 @@
                    reveal
                    (ensure-reveal reveal nodes skip))]
       (if-let [page (first (:pages reveal))]
-        (if (contains? skip (:hash page))
+        (if (contains? skip (hash-key (:hash page)))
           (recur (assoc reveal :pages (vec (rest (:pages reveal))))
                  (inc guard))
           reveal)
@@ -531,9 +538,9 @@
                                  {:stack [] :seen #{}}
                                  (:cursor reveal)))]
     {:session (-> session
-                  (update :offered assoc (:hash page)
+                  (update :offered assoc (hash-key (:hash page))
                           {:id (:id reveal) :bytes (:bytes page) :hash (:hash page)})
-                  (update :owner assoc (:hash page) (:id reveal))
+                  (update :owner assoc (hash-key (:hash page)) (:id reveal))
                   (update :reveals
                           (fn [rs]
                             (mapv (fn [r]
@@ -821,7 +828,7 @@
   [session hashes]
   (let [limit (:sent-limit session sent-limit)]
     (reduce (fn [session h]
-              (let [k h]
+              (let [k (hash-key h)]
                 (if (contains? (:sent session) k)
                   session
                   (let [session (-> session
@@ -868,14 +875,14 @@
    again unless `forget-pages`. Held hashes past `:sent-limit` are
    forgotten oldest first."
   [session hashes]
-  (let [known (into [] (filter #(contains? (:offered session) %)) hashes)]
+  (let [known (into [] (filter #(contains? (:offered session) (hash-key %))) hashes)]
     (if (empty? known)
       session
       (trim-reveals
        (-> session
            (remember-sent known)
            (update :offered (fn [offered]
-                              (reduce dissoc offered known))))))))
+                              (reduce dissoc offered (map hash-key known)))))))))
 
 (defn forget-pages
   "The client does not hold `hashes`.
@@ -887,7 +894,7 @@
    sends it. A hash that was neither offered nor held is ignored (N10)."
   [session nodes hashes]
   (reduce (fn [session h]
-            (let [k h]
+            (let [k (hash-key h)]
               (if-not (or (contains? (:offered session) k)
                           (contains? (:sent session) k))
                 ;; Unknown hashes are ignored, as with `ack-pages` (N10).

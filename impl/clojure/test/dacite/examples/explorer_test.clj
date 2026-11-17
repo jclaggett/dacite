@@ -1,77 +1,63 @@
 (ns dacite.examples.explorer-test
-  "Value explorer: type coverage, seed-once, paged children, lazy expand."
+  "Value explorer on the JVM.
+
+   The bodies are `dacite.examples.explorer-checks`; nbb runs the same checks
+   (`npm run examples:test`). One deftest each, so the JVM suite still
+   names the test it ran before.
+
+   Four stay JVM only: `remote-expand-page-cheaper-than-full-seq`,
+   `explorer-todo-root-is-one-pack-get` and
+   `explorer-long-title-open-is-few-extra-gets` (the HTTP service and
+   `store/remote`) and `static-explorer-and-todo-index` (the HTTP service
+   serving `examples/web`), legacy HTTP."
   (:require [clojure.test :refer [deftest is]]
+            [dacite.store.check :as check]
+            [dacite.examples.explorer-checks :as checks]
             [clojure.java.io :as io]
             [dacite.examples.explorer :as ex]
             [dacite.examples.todo :as todo]
             [dacite.service :as svc]
             [dacite.store :as store]
             [dacite.store.stats :as stats]
-            [clojure.set :as set]
             [dacite.value :as v]))
 
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
+
 (deftest gallery-covers-every-public-type
-  (let [r (v/root (ex/open-mem))
-        [g seeded?] (ex/load-or-seed! r)
-        types (ex/collect-types g)]
-    (is (true? seeded?))
-    (is (= "map" (v/type g)))
-    (is (= ex/public-types types)
-        (str "missing " (set/difference ex/public-types types)
-             " extra " (set/difference types ex/public-types)))
-    (is (= ex/page-me-count (v/count (v/get g "page-me"))))))
+  (run-check "gallery-covers-every-public-type"))
 
 (deftest load-or-seed-does-not-overwrite
-  (let [r (v/root (ex/open-mem))
-        [g _] (ex/load-or-seed! r)
-        h (v/hash g)
-        [g2 seeded?] (ex/load-or-seed! r)]
-    (is (false? seeded?))
-    (is (= h (v/hash g2)))))
+  (run-check "load-or-seed-does-not-overwrite"))
 
 (deftest row-summary-does-not-seq-children
-  (let [r (v/root (ex/open-mem))
-        [g _] (ex/load-or-seed! r)
-        row (ex/row-summary g)
-        s (ex/row-summary (v/get g "string"))
-        b (ex/row-summary (v/get g "blob"))
-        i64 (ex/row-summary (v/get (v/get g "scalars") "i64"))]
-    (is (= :map (:kind row)))
-    (is (= (v/count g) (:count row)))
-    (is (nil? (:preview row)))
-    (is (= "string" (:type s)))
-    (is (true? (:truncated? s)))
-    (is (= ex/string-preview-chars (count (:preview s))))
-    (is (> (:count s) ex/string-preview-chars))
-    (is (= "blob" (:type b)))
-    (is (true? (:truncated? b)))
-    (is (= "i64" (:type i64)))
-    (is (= "-64" (:native i64)))))
+  (run-check "row-summary-does-not-seq-children"))
 
 (deftest child-page-bounds-vector
-  (let [r (v/root (ex/open-mem))
-        [g _] (ex/load-or-seed! r)
-        page-me (v/get g "page-me")
-        p0 (ex/child-page page-me 0)
-        p1 (ex/child-page page-me ex/page-size)]
-    (is (= ex/page-me-count (:total p0)))
-    (is (= ex/page-size (count (:items p0))))
-    (is (false? (:done? p0)))
-    (is (= 0 (:label (first (:items p0)))))
-    (is (= (dec ex/page-size) (:label (last (:items p0)))))
-    (is (= ex/page-size (:offset p1)))
-    (is (= ex/page-size (count (:items p1))))
-    (is (true? (:done? (ex/child-page page-me (- ex/page-me-count ex/page-size)))))))
+  (run-check "child-page-bounds-vector"))
 
 (deftest child-page-map-keys-are-values
-  (let [r (v/root (ex/open-mem))
-        [g _] (ex/load-or-seed! r)
-        m (v/get g "map")
-        {:keys [items total]} (ex/child-page m 0)]
-    (is (= 2 total))
-    (is (every? #(v/dacite-value? (:label %)) items))
-    (is (some #(= "vector" (v/type (:label %))) items))
-    (is (some #(= "string" (v/type (:label %))) items))))
+  (run-check "child-page-map-keys-are-values"))
+
+(def ^:private long-title
+  "1893-char title — larger than the 1k pack budget, so the vector/map/string
+   are mixed :node walks rather than one root literal."
+  (apply str (repeat 1893 \x)))
+
+(defn- http-no-follow
+  "GET url without following redirects. Returns {:status :location}."
+  [url]
+  (let [conn ^java.net.HttpURLConnection (.openConnection (java.net.URL. url))]
+    (.setInstanceFollowRedirects conn false)
+    (.setRequestMethod conn "GET")
+    (let [code (.getResponseCode conn)
+          loc (.getHeaderField conn "Location")]
+      (.disconnect conn)
+      {:status code :location loc})))
 
 (deftest remote-expand-page-cheaper-than-full-seq
   (let [rooted (svc/make-demo-rooted)
@@ -136,11 +122,6 @@
       (finally
         (stop!)))))
 
-(def ^:private long-title
-  "1893-char title — larger than the 1k pack budget, so the vector/map/string
-   are mixed :node walks rather than one root literal."
-  (apply str (repeat 1893 \x)))
-
 (deftest explorer-long-title-open-is-few-extra-gets
   ;; Pre-2e (EDN-sized seal): collapsed list 9 req; warm open item 5 +10;
   ;; cold as-str of the title 52. Wire-sized BFS fill must beat those.
@@ -184,17 +165,6 @@
       (finally
         (stop!)))))
 
-(defn- http-no-follow
-  "GET url without following redirects. Returns {:status :location}."
-  [url]
-  (let [conn ^java.net.HttpURLConnection (.openConnection (java.net.URL. url))]
-    (.setInstanceFollowRedirects conn false)
-    (.setRequestMethod conn "GET")
-    (let [code (.getResponseCode conn)
-          loc (.getHeaderField conn "Location")]
-      (.disconnect conn)
-      {:status code :location loc})))
-
 (deftest static-explorer-and-todo-index
   (let [rooted (svc/make-demo-rooted)
         static (io/file "../../examples/web")
@@ -217,3 +187,14 @@
         (is (re-find #"/app/$" (:location app-noslash))))
       (finally
         (stop!)))))
+
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.examples.explorer-test)))))
+               "every-check-has-a-deftest"
+               "remote-expand-page-cheaper-than-full-seq"
+               "explorer-todo-root-is-one-pack-get"
+               "explorer-long-title-open-is-few-extra-gets"
+               "static-explorer-and-todo-index"))
+      "examples/explorer_checks.cljc and this file list the same tests"))

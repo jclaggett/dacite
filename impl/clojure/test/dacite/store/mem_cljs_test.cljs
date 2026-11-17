@@ -4,7 +4,8 @@
      npm run mem:test
 
    The same checks as `dacite.store.mem-test` on the JVM."
-  (:require [dacite.store.mem-checks :as checks]))
+  (:require [dacite.store.mem-checks :as checks]
+            [dacite.store.check :as check]))
 
 (defn -main
   [& _]
@@ -12,9 +13,9 @@
         bad (mapcat (fn [{:keys [name problems]}]
                       (map #(str name ": " %) problems))
                     rows)
-        slowest (apply max 0 (map :ms rows))]
+        slowest (check/slowest rows)]
     (println "mem store checks:" (count rows) "tests,"
-             (count bad) "problems, slowest" slowest "ms")
+             (count bad) "problems, slowest" slowest)
     (doseq [p bad] (println "  FAIL" p))
     (when (seq bad)
       (js/process.exit 1))

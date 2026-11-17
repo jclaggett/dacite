@@ -1,5 +1,6 @@
 (ns dacite.peer.items
   "Peer protocol v1: the items of an item stream, written and checked.
+   Portable (.cljc): the same code runs on the JVM and on nbb.
 
    Spec: docs/spec/peer-v1.md §3.2 (serialization) and §3.3 (verification).
 
@@ -27,7 +28,6 @@
             [dacite.rooted.gc :as gc]
             [dacite.reveal :as reveal]
             [dacite.peer.verify :as verify]
-            [dacite.service.reveal :as sr]
             [dacite.store :as store]
             [dacite.store.pack :as pack]
             [dacite.value.lit :as lit]
@@ -50,7 +50,7 @@
   (let [hk (store/hash->hex h)]
     (if-let [hit (when bin/*node-wire-cache* (get @bin/*node-wire-cache* hk))]
       hit
-      (let [bs (sr/encode-page st {:hash h})]
+      (let [bs (reveal/encode-page st {:hash h})]
         (when bin/*node-wire-cache* (swap! bin/*node-wire-cache* assoc hk bs))
         bs))))
 

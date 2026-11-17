@@ -1,66 +1,37 @@
 (ns dacite.value.api-test
-  "Portable collection API on `dacite.value`.
+  "Portable collection API on `dacite.value`, on the JVM.
 
-   SCI hosts (babashka/nbb) use this functional surface, so these tests
-   also check that it matches the JVM native collection interfaces."
-  (:require [clojure.test :refer [deftest is testing]]
+   The bodies are `dacite.value.api-checks`. nbb runs the same checks
+   (`npm run value:test`). One deftest each, so the JVM suite still names
+   the test it ran before. `parity-with-native-jvm-test` stays JVM only: it
+   checks the API against the JVM's native collection interfaces."
+  (:require [clojure.test :refer [deftest is]]
             [dacite.store :as store]
+            [dacite.store.check :as check]
             [dacite.value :as v]
+            [dacite.value.api-checks :as checks]
             [dacite.value.types :as types]))
 
-(defn- realized [x]
-  (when x (v/realize x)))
+(defn- run-check
+  "Run the check called `name`: no problems, and quick."
+  [name]
+  (let [{:keys [ms problems]} (check/run-one checks/checks {} name)]
+    (is (empty? problems) (pr-str problems))
+    (is (<= ms check/max-ms) (str name " took " ms " ms"))))
 
 (deftest vector-api-test
-  (let [st (store/mem)]
-    (testing "count / nth / get / seq"
-      (let [vec (v/vector st 10 20 30)]
-        (is (= 3 (v/count vec)))
-        (is (= 20 (realized (v/nth vec 1))))
-        (is (= 30 (realized (v/get vec 2))))
-        (is (= :none (v/get vec 9 :none)))
-        (is (= [10 20 30] (map realized (v/seq vec))))
-        (is (v/contains? vec 0))
-        (is (not (v/contains? vec 9)))))
-    (testing "conj / assoc / peek / pop"
-      (let [vec (v/vector st 1 2 3)]
-        (is (= 4 (v/count (v/conj vec 4))))
-        (is (= 99 (realized (v/nth (v/assoc vec 0 99) 0))))
-        (is (= 3 (realized (v/peek vec))))
-        (is (= 2 (v/count (v/pop vec))))
-        (is (v/empty? (v/pop (v/pop (v/pop vec)))))))
-    (testing "remove-nth"
-      (let [vec (v/vector st 1 2 3 4 5)]
-        (is (= [1 2 4 5] (map realized (v/seq (v/remove-nth vec 2)))))
-        (is (= [2 3 4 5] (map realized (v/seq (v/remove-nth vec 0)))))
-        (is (= [1 2 3 4] (map realized (v/seq (v/remove-nth vec 4)))))
-        (is (= [1 2 3 4 5] (map realized (v/seq vec))))
-        (is (thrown? Exception (v/remove-nth vec 5)))
-        (is (thrown? Exception (v/remove-nth vec -1)))))))
+  (run-check "vector-api-test"))
 
 (deftest map-api-test
-  (let [st (store/mem)
-        m (v/map st "a" 1 "b" 2)]
-    (is (= 2 (v/count m)))
-    (is (= 1 (realized (v/get m "a"))))
-    (is (= :none (v/get m "z" :none)))
-    (is (v/contains? m "b"))
-    (is (= 3 (realized (v/get (v/assoc m "c" 3) "c"))))
-    (is (= 1 (v/count (v/dissoc m "a"))))
-    (is (= #{"a" "b"} (set (map #(apply str (realized %)) (v/keys m)))))
-    (is (= #{1 2} (set (map realized (v/vals m)))))
-    (is (= 3 (realized (v/get (v/conj m ["c" 3]) "c"))))))
+  (run-check "map-api-test"))
 
 (deftest set-api-test
-  (let [st (store/mem)
-        s (v/set st 1 2 3)]
-    (is (= 3 (v/count s)))
-    (is (v/contains? s 2))
-    (is (not (v/contains? s 9)))
-    (is (= 2 (realized (v/get s 2))))
-    (is (= 4 (v/count (v/conj s 4))))
-    (is (= #{1 2 3} (set (map realized (v/seq s)))))))
+  (run-check "set-api-test"))
 
+(deftest get-value-test
+  (run-check "get-value-test"))
+
+;; JVM only. A SCI type has no native collection interfaces to compare.
 (deftest parity-with-native-jvm-test
   (let [st (store/mem)
         vec (v/vector st 5 6 7)
@@ -70,12 +41,10 @@
     (is (= (types/dacite-hash (get m "x")) (types/dacite-hash (v/get m "x"))))
     (is (= (types/dacite-hash (conj vec 8)) (types/dacite-hash (v/conj vec 8))))))
 
-(deftest get-value-test
-  (let [st (store/mem)
-        vec (v/vector st 1 2 3)
-        h (v/hash vec)
-        v' (v/get-value st h)]
-    (is (some? v'))
-    (is (= h (v/hash v')))
-    (is (= [1 2 3] (map realized (v/seq v'))))
-    (is (nil? (v/get-value st (store/hex->hash (apply str (repeat 64 "0"))))))))
+(deftest every-check-has-a-deftest
+  (is (= (set (keys checks/checks))
+         (disj (set (map #(-> % meta :name str)
+                         (filter #(-> % meta :test) (vals (ns-interns 'dacite.value.api-test)))))
+               "every-check-has-a-deftest"
+               "parity-with-native-jvm-test"))
+      "value/api_checks.cljc and this file list the same tests"))
