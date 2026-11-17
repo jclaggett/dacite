@@ -8,9 +8,9 @@
    Compile from impl/clojure:
      clojure -M:cljs-explorer
 
-   Serve:
-     clojure -M:service
-     open http://127.0.0.1:8080/app/explorer/"
+   No working mode: the page needs the JVM HTTP service (`clojure
+   -M:service`), which the HTTP removal (slice 2) deleted. It stays until
+   it is deleted or ported to peering."
   (:require [clojure.string :as str]
             [dacite.store.browser :as browser]
             [dacite.store :as store]

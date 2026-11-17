@@ -70,9 +70,6 @@ clojure -M:log -- replay 100
 `page` prints a window and its content hash. `replay 100` replaces the
 view with a fold of the first 100 events.
 
-The same `--url` recipe as [Persist and update a document](config.md) works against
-`clojure -M:service`.
-
 ## Append bench
 
 ```bash
@@ -108,5 +105,5 @@ until a remote page actually needs a catchable “not local” signal.
 
 ## Next
 
-[Two writers, one CAS](two-client.md) — `swap!` retries; SSE watches
-the root.
+[Sync a tree of blobs](sync.md) — list and fetch without pulling every
+body.

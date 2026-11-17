@@ -4,14 +4,12 @@
    **Values** — a config map {\"theme\" string, \"timeout\" i64,
    \"features\" vector of strings}. Domain ops take/return Dacite values.
 
-   **Store** — open a local file-rooted store or an HTTP remote-rooted
-   store. Same domain against either.
+   **Store** — open a local file-rooted (or LMDB-rooted) store.
 
    Run:
      clojure -M:config -- show
      clojure -M:config -- --path target/dacite-config set timeout 60
-     clojure -M:config -- --url http://127.0.0.1:8080 show
-     clojure -M:config -- --url http://127.0.0.1:8080 watch
+     clojure -M:config -- watch
      bb config show
      npx nbb -m dacite.examples.config -- show
      npx nbb -m dacite.examples.config -- --lmdb show"
@@ -34,7 +32,7 @@
 (defn load-or-seed!
   "Load config from a root, or CAS-seed defaults from nil.
 
-   Seed with `cas!` so the same code works against a remote store.
+   Seed with `cas!` so a concurrent writer is not overwritten.
    Returns [config seeded?]."
   [cfg-ref]
   (if-let [prior (v/deref cfg-ref)]
@@ -118,11 +116,6 @@
   [path]
   (store/file path))
 
-(defn open-remote
-  "HTTP remote + server root. Same `v/root` as a local file store."
-  [url]
-  (store/remote url))
-
 (defn open-lmdb
   [path]
   (store/lmdb path))
@@ -164,14 +157,13 @@
       s)))
 
 (defn parse-args
-  "CLI: [--path DIR | --url URL] [--lmdb] [--reset|-r] [show|get PATH|set PATH VAL|add-feature NAME|watch]"
+  "CLI: [--path DIR] [--lmdb] [--reset|-r] [show|get PATH|set PATH VAL|add-feature NAME|watch]"
   [args]
   (let [args (->> args (map str) (remove #{"--"}))]
     (loop [args args
            acc {:reset? false
                 :lmdb? false
                 :path default-path
-                :url nil
                 :cmd "show"
                 :cmd-args []}]
       (if-not (seq args)
@@ -188,9 +180,6 @@
             (= a "--path")
             (recur (rest more) (assoc acc :path (first more)))
 
-            (= a "--url")
-            (recur (rest more) (assoc acc :url (first more)))
-
             (#{"show" "get" "set" "add-feature" "watch"} a)
             (assoc acc :cmd a :cmd-args (vec more))
 
@@ -198,12 +187,11 @@
             (assoc acc :cmd "show" :cmd-args (vec args))))))))
 
 (defn open-store
-  "File-rooted, LMDB-rooted, or HTTP remote-rooted."
-  [{:keys [url lmdb?] :as opts}]
-  (cond
-    url (open-remote url)
-    lmdb? (open-lmdb (local-path opts))
-    :else (open-file (:path opts))))
+  "File-rooted or LMDB-rooted."
+  [{:keys [lmdb?] :as opts}]
+  (if lmdb?
+    (open-lmdb (local-path opts))
+    (open-file (:path opts))))
 
 ;; =============================================================================
 ;; Main
@@ -233,10 +221,8 @@
      (throw (ex-info "watch is JVM-only" {}))))
 
 (defn -main [& args]
-  (let [{:keys [reset? path url lmdb? cmd cmd-args] :as opts} (parse-args args)
+  (let [{:keys [reset? path lmdb? cmd cmd-args] :as opts} (parse-args args)
         local (local-path opts)]
-    (when (and reset? url)
-      (throw (ex-info "--reset is for the local store only" {:url url})))
     (when reset?
       (if lmdb?
         (reset-lmdb-dir! local)
@@ -248,9 +234,7 @@
       (when lmdb?
         (println "lmdb" local))
       (when seeded?
-        (println (if url
-                   (str "seeded remote at " url)
-                   (str "seeded new store at " local))))
+        (println (str "seeded new store at " local)))
       (case cmd
         "show"
         (print-cfg! nil (v/deref cfg-ref))

@@ -1,5 +1,11 @@
 # Dacite Service Design
 
+> **Historical.** The JVM HTTP service this page describes
+> (`dacite.service`, `clojure -M:service`), its throttle, and the JVM
+> clients `dacite.store.remote` and `dacite.store.reveal` were removed in
+> the HTTP removal slice 2. Peering (`docs/spec/peer-v1.md`) replaces
+> them. The page is kept as a design record.
+
 **Status:** MVP implemented — HTTP protocol for remote stores; leaf-chunking
 pack paths and measured soft budget (**1024**) are live; SSE `GET /events`
 is live. Productization (multi-user auth/provisioning) remains open.

@@ -5,8 +5,6 @@
    These were the bodies of `dacite.store.rate-limit-test`. The JVM runs them
    from that namespace, one deftest each under its old name. nbb runs them
    from `dacite.store.store-units-cljs-test` (`npm run store-units:test`).
-   `write-back-flush-through-rate-limit` stays JVM only: it starts the HTTP
-   service (`dacite.service`, `dacite.store.remote`).
 
    `is` is `dacite.store.check`."
   (:require [dacite.store :as store]

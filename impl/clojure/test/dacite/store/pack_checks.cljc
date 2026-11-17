@@ -5,8 +5,6 @@
    These were the bodies of `dacite.store.pack-test`. The JVM runs them from
    that namespace, one deftest each under its old name. nbb runs them from
    `dacite.store.store-units-cljs-test` (`npm run store-units:test`).
-   The seven tests that start the HTTP service (`dacite.service`,
-   `dacite.store.remote`) stay JVM only, in `dacite.store.pack-test`.
 
    `is` and `testing` are `dacite.store.check`: a check records problems,
    it does not count assertions."

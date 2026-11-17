@@ -4,8 +4,8 @@
  * with the nbb peer. Browser startup and ICE are outside the 3 second
  * bound. The value itself is a small vector, map, and set.
  *
- * M5.2: the browser reads a value held by the nbb peer. The static
- * server below serves only the page. Every reachable entry
+ * M5.2: the browser reads a value held by the nbb peer.
+ * scripts/static-server.mjs serves only the page. Every reachable entry
  * is verified in the page. Chromium is launched with mDNS candidate
  * hiding disabled so both sides see a literal host address.
  *
@@ -16,10 +16,10 @@
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
-import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { startServer } from './webrtc-signal-server.mjs';
+import { startStatic } from './static-server.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const webRoot = path.join(root, 'examples', 'web');
@@ -28,54 +28,6 @@ const PROBE_FRAMES = 16;
 const FRAME = 4096;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function contentType(file) {
-  if (file.endsWith('.html')) return 'text/html; charset=utf-8';
-  if (file.endsWith('.js')) return 'text/javascript; charset=utf-8';
-  if (file.endsWith('.css')) return 'text/css; charset=utf-8';
-  return 'application/octet-stream';
-}
-
-function startStatic() {
-  const server = http.createServer((req, res) => {
-    const u = new URL(req.url || '/', 'http://127.0.0.1');
-    if (!u.pathname.startsWith('/app/')) {
-      res.writeHead(404, { 'content-type': 'text/plain' });
-      res.end('not found');
-      return;
-    }
-    let rel = decodeURIComponent(u.pathname.slice('/app/'.length));
-    if (rel.endsWith('/')) rel += 'index.html';
-    const file = path.normalize(path.join(webRoot, rel));
-    if (file !== webRoot && !file.startsWith(webRoot + path.sep)) {
-      res.writeHead(403, { 'content-type': 'text/plain' });
-      res.end('forbidden');
-      return;
-    }
-    fs.readFile(file, (err, buf) => {
-      if (err) {
-        res.writeHead(404, { 'content-type': 'text/plain' });
-        res.end('not found');
-        return;
-      }
-      res.writeHead(200, {
-        'content-type': contentType(file),
-        'cache-control': 'no-store',
-      });
-      res.end(buf);
-    });
-  });
-  return new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address();
-      resolve({
-        port: addr.port,
-        close: () => new Promise((res, rej) => server.close((e) => (e ? rej(e) : res()))),
-      });
-    });
-  });
-}
 
 function startNbb(wsUrl, room, page) {
   const child = spawn(

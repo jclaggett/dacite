@@ -7,7 +7,7 @@
             [dacite.reveal :as reveal]
             [dacite.reveal-checks :as checks]
             [dacite.reveal.session-checks :as session-checks]
-            [dacite.service.reveal :as sr]
+            [dacite.reveal.pages :as sr]
             [dacite.store :as store]
             [dacite.store.check :as check]
             [dacite.value :as v]

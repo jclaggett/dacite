@@ -37,4 +37,5 @@ A **lens** (`s/lens rs path`) is a rooted store whose `root` / `cas!` /
 convenience, not an HTTP path. See
 [Rooted stores — lenses](../04-rooted-stores/chapter.md#48-lenses).
 
-See [Two writers, one CAS](../tutorial/two-client.md).
+See [Large sequences stay cheap](../tutorial/event-log.md), whose
+`two-writers-keep-every-append` test runs two writers on one root.

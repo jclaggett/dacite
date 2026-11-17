@@ -548,8 +548,8 @@
     (testing "a :clj-only :require is part of the graph on every host"
       (is (contains? (libs "impl/clojure/src/dacite/value.cljc")
                      'dacite.value.render))
-      (is (contains? (libs "impl/clojure/src/dacite/examples/event_log.cljc")
-                     'dacite.store.remote)))
+      (is (contains? (libs "impl/clojure/src/dacite/wire.cljc")
+                     'clojure.edn)))
     (testing "spliced :clj libspecs are part of the graph"
       (let [got (libs "impl/clojure/src/dacite/value/collections.cljc")]
         (is (contains? got 'dacite.hash))

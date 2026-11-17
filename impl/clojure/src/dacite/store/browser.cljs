@@ -5,11 +5,13 @@
    cache miss still throws `:dacite/suspend` from inside the method,
    before it returns, and `drive` replays the operation.
 
-   Same protocol as docs/design/service.md and dacite.store.remote:
+   Same protocol as docs/design/service.md (the JVM service and its JVM
+   client dacite.store.remote were removed in the HTTP removal slice 2;
+   only the todo and explorer pages still use this store):
    GET/PUT/HEAD/DELETE /node/{hex}, GET /root, POST /root/cas, POST /nodes.
 
    GET /node returns a pack chunk (realized literals under the hash, same
-   as the JVM remote). s-get applies it into a local pack cache then
+   as the removed JVM remote). s-get applies it into a local pack cache then
    returns the node.
 
    Wire:

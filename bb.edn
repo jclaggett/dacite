@@ -3,7 +3,7 @@
  {todo    {:doc "Run the durable todo example under babashka (args: [path] [--reset])"
            :requires ([dacite.examples.todo :as todo])
            :task (apply todo/-main *command-line-args*)}
-  config  {:doc "Run the config example (file store; --url is JVM-only)"
+  config  {:doc "Run the config example (file store)"
            :requires ([dacite.examples.config :as cfg])
            :task (apply cfg/-main *command-line-args*)}
   notes   {:doc "Run the versioned notes example (file store)"

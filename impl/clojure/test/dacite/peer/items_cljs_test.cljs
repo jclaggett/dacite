@@ -4,8 +4,8 @@
      npm run items:test
 
    The same checks as `dacite.peer.peer-items-test` on the JVM. The reveal
-   service half of `the-reveal-service-and-the-peer-layer-accept-the-same-bytes`
-   stays on the JVM: `dacite.service.reveal` is the HTTP service.
+   pages half of `the-reveal-service-and-the-peer-layer-accept-the-same-bytes`
+   stays on the JVM: `dacite.reveal.pages` is JVM code.
 
    It also runs the shared checks in `dacite.peer.literal-limits-checks`
    (`dacite.peer.literal-limits-test` on the JVM)."

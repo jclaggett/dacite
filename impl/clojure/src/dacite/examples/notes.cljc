@@ -11,7 +11,7 @@
    Restore reuses a historical doc value (same content hash). A title-only
    edit does not rewrite the body node. Domain uses only dacite.value.
 
-   **Store** — file-rooted or HTTP remote-rooted (same wiring as config).
+   **Store** — file-rooted or LMDB-rooted (same wiring as config).
 
    Run:
      clojure -M:notes -- show
@@ -248,7 +248,6 @@
 
 (defn open-mem [] (store/mem))
 (defn open-file [path] (store/file path))
-(defn open-remote [url] (store/remote url))
 (defn open-lmdb [path] (store/lmdb path))
 
 (defn reset-store-dir!
@@ -282,14 +281,13 @@
      :cljs (js/parseInt (str s) 10)))
 
 (defn parse-args
-  "CLI: [--path DIR | --url URL] [--lmdb] [--reset|-r] [show|list|get PATH|set FIELD VAL…|add-tag NAME|diff A B|restore N|bench]"
+  "CLI: [--path DIR] [--lmdb] [--reset|-r] [show|list|get PATH|set FIELD VAL…|add-tag NAME|diff A B|restore N|bench]"
   [args]
   (let [args (->> args (map str) (remove #{"--"}))]
     (loop [args args
            acc {:reset? false
                 :lmdb? false
                 :path default-path
-                :url nil
                 :cmd "show"
                 :cmd-args []}]
       (if-not (seq args)
@@ -306,9 +304,6 @@
             (= a "--path")
             (recur (rest more) (assoc acc :path (first more)))
 
-            (= a "--url")
-            (recur (rest more) (assoc acc :url (first more)))
-
             (#{"show" "list" "get" "set" "add-tag" "diff" "restore" "bench"} a)
             (assoc acc :cmd a :cmd-args (vec more))
 
@@ -316,11 +311,10 @@
             (assoc acc :cmd "show" :cmd-args (vec args))))))))
 
 (defn open-store
-  [{:keys [url lmdb?] :as opts}]
-  (cond
-    url (open-remote url)
-    lmdb? (open-lmdb (local-path opts))
-    :else (open-file (:path opts))))
+  [{:keys [lmdb?] :as opts}]
+  (if lmdb?
+    (open-lmdb (local-path opts))
+    (open-file (:path opts))))
 
 ;; =============================================================================
 ;; Main
@@ -331,10 +325,8 @@
   (flush))
 
 (defn -main [& args]
-  (let [{:keys [reset? path url lmdb? cmd cmd-args] :as opts} (parse-args args)
+  (let [{:keys [reset? path lmdb? cmd cmd-args] :as opts} (parse-args args)
         local (local-path opts)]
-    (when (and reset? url)
-      (throw (ex-info "--reset is for the local store only" {:url url})))
     (when reset?
       (if lmdb?
         (reset-lmdb-dir! local)
@@ -346,9 +338,7 @@
       (when lmdb?
         (println "lmdb" local))
       (when seeded?
-        (println (if url
-                   (str "seeded remote at " url)
-                   (str "seeded new store at " local))))
+        (println (str "seeded new store at " local)))
       (case cmd
         "show"
         (print! (render (v/deref nb-ref)))

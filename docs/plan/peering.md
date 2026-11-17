@@ -256,7 +256,7 @@ Triage of `reveal-review-checklist-evening.md` (52 items). Items split by where 
     1. `npm run peer:build` from the repo root.
     2. Terminal A: `npm run webrtc:signal` (listens on `ws://127.0.0.1:8787`).
     3. Terminal B: `nbb -m dacite.examples.peer-nbb --ws ws://127.0.0.1:8787 --room m52-manual`. It prints `root`, `entries`, and a `page` URL.
-    4. Terminal C, from `impl/clojure`: `clojure -M:service --port 8080 --store mem`, which serves `examples/web`. (`clojure -M:peer-origin` was removed in the HTTP removal slice 1.)
+    4. Terminal C, from the repo root: `npm run web:serve`, a plain static server (`scripts/static-server.mjs`, the same one the e2e scripts use) that serves `examples/web` at `/app/` on port 8080. (`clojure -M:peer-origin` was removed in the HTTP removal slice 1, and the `clojure -M:service` server in slice 2.)
     5. Firefox: in `about:config`, set `media.peerconnection.ice.obfuscate_host_addresses` to `false`. Otherwise the offer's host candidate is a `.local` name, and node-datachannel does not resolve those reliably.
     6. Safari: Settings → Privacy → Hide IP address → Off (not "From trackers and websites"). Same reason.
     7. Open the printed `page` URL. The default is `http://127.0.0.1:8080/app/peer/?root=…&signal=…&room=m52-manual`, which is the page server started in terminal C.
@@ -294,7 +294,7 @@ The Oct 30 grid put origin signaling on Fri Nov 20 to Tue Nov 24. That sequence 
     1. `npm run browser:build` from the repo root.
     2. Terminal A: `npm run webrtc:signal` (listens on `ws://127.0.0.1:8787`).
     3. Terminal B: `nbb -m dacite.examples.browser-nbb --ws ws://127.0.0.1:8787 --room m64-manual`. It prints `value-a`, `entries-a`, `value-b`, `entries-b`, `absent`, a `page` URL, and `waiting`. The URL has `signal` and `room`. It has no hash. The process stays up until Fetch. It does not use the 20-second signaling clock. A relay failure (`room-full`, `role-taken`, `peer-left`, `bad-room`, or the socket closing) prints `signaling-failed` and exits.
-    4. Terminal C, from `impl/clojure`: `clojure -M:service --port 8080 --store mem`. It serves `examples/web`.
+    4. Terminal C, from the repo root: `npm run web:serve`. It serves `examples/web` at `/app/` on port 8080.
     5. Open the printed `page` URL, or `http://127.0.0.1:8080/app/browser/`. Firefox and Safari need the same host-address setting as M5.2, or ICE may stay on a `.local` name.
     6. Paste `dacite://<name>#urn:dacite:<value-a>` and click Fetch. Terminal B is still waiting; the page joins the room on that click. Expect status `verified`, that hex, and `entries-a`. Paste the second hash for the same name and Fetch again. Expect that hex, `entries-b`, and the same open channel. Paste `absent`. Expect `unknown-hash`.
     7. Paste without the room: clear the room token (the printed URL fills it). Click Show offer, pipe that JSON to `nbb -m dacite.examples.browser-nbb --sdp`, paste the printed `answer` JSON into Remote answer, then Fetch. The room and the paste are the two introduce paths. Use one of them.

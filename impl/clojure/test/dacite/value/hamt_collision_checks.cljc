@@ -22,7 +22,7 @@
 
    Host pieces: a bitmap and a hash word are a long on the JVM and a BigInt
    on nbb (`word`); sets and map keys of hashes go through `store/mkey`
-   (SCI cannot hash a BigInt); the JVM keeps `service.reveal`'s
+   (SCI cannot hash a BigInt); the JVM keeps `reveal.pages`'s
    `expected-hash` (the same function as `peer.verify/expected-hash`, which
    nbb uses).
 
@@ -37,7 +37,7 @@
             [dacite.peer.items :as items]
             #?(:cljs [dacite.peer.verify :as verify])
             [dacite.store :as store]
-            #?(:clj [dacite.service.reveal :as sr])
+            #?(:clj [dacite.reveal.pages :as sr])
             [dacite.store.check :refer [is testing]]
             [dacite.store.pack :as pack]
             [dacite.value :as v]

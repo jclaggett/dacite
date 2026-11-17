@@ -9,7 +9,7 @@
    Append updates the view incrementally. Replay rebuilds the view from
    a prefix via nth/slice — it does not seq the whole log.
 
-   **Store** — file-rooted or HTTP remote-rooted.
+   **Store** — file-rooted or LMDB-rooted.
 
    Run:
      clojure -M:log -- --reset show
@@ -17,16 +17,13 @@
      clojure -M:log -- append credit 5 coffee
      clojure -M:log -- replay 100
      clojure -M:log -- bench
-     clojure -M:log -- --url http://127.0.0.1:8080 watch
-     clojure -M:log -- --url http://127.0.0.1:8080 contend 10
      bb log --reset show
      npx nbb -m dacite.examples.event-log -- --reset show
      npx nbb -m dacite.examples.event-log -- --lmdb --n 50 show"
   (:require [clojure.string :as str]
             [dacite.rooted.gc :as gc]
             [dacite.store :as store]
-            [dacite.value :as v]
-            #?(:clj [dacite.store.remote :as remote])))
+            [dacite.value :as v]))
 
 ;; =============================================================================
 ;; Values
@@ -239,7 +236,6 @@
 
 (defn open-mem [] (store/mem))
 (defn open-file [path] (store/file path))
-(defn open-remote [url] (store/remote url))
 (defn open-lmdb [path] (store/lmdb path))
 
 (defn reset-store-dir!
@@ -264,15 +260,14 @@
      :cljs (js/parseInt (str s) 10)))
 
 (defn parse-args
-  "CLI: [--path DIR | --url URL] [--lmdb] [--reset|-r] [--n N]
-        [show|page|append|replay|bench|watch|contend]"
+  "CLI: [--path DIR] [--lmdb] [--reset|-r] [--n N]
+        [show|page|append|replay|bench]"
   [args]
   (let [args (->> args (map str) (remove #{"--"}))]
     (loop [args args
            acc {:reset? false
                 :lmdb? false
                 :path default-path
-                :url nil
                 :n default-seed-n
                 :cmd "show"
                 :cmd-args []}]
@@ -290,24 +285,20 @@
             (= a "--path")
             (recur (rest more) (assoc acc :path (first more)))
 
-            (= a "--url")
-            (recur (rest more) (assoc acc :url (first more)))
-
             (= a "--n")
             (recur (rest more) (assoc acc :n (parse-int (first more))))
 
-            (#{"show" "page" "append" "replay" "bench" "watch" "contend"} a)
+            (#{"show" "page" "append" "replay" "bench"} a)
             (assoc acc :cmd a :cmd-args (vec more))
 
             :else
             (assoc acc :cmd "show" :cmd-args (vec args))))))))
 
 (defn open-store
-  [{:keys [url lmdb?] :as opts}]
-  (cond
-    url (open-remote url)
-    lmdb? (open-lmdb (local-path opts))
-    :else (open-file (:path opts))))
+  [{:keys [lmdb?] :as opts}]
+  (if lmdb?
+    (open-lmdb (local-path opts))
+    (open-file (:path opts))))
 
 ;; =============================================================================
 ;; Main
@@ -317,62 +308,8 @@
   (print s)
   (flush))
 
-(defn watch-sse!
-  "Print the ledger whenever GET /events announces a new root."
-  [rs]
-  #?(:clj
-     (do
-       (println "watching GET /events (Ctrl-C to stop)…")
-       (let [r (v/root rs)]
-         (when-let [led (v/deref r)]
-           (print! (render led)))
-         (let [w (remote/watch-root
-                  rs
-                  (fn [_h]
-                    (if-let [led (v/deref r)]
-                      (print! (str "updated:\n" (render led)))
-                      (println "root cleared"))))]
-           (try
-             (loop []
-               (Thread/sleep 3600000)
-               (recur))
-             (finally
-               ((:stop! w)))))))
-     :default
-     (throw (ex-info "SSE watch is JVM-only" {}))))
-
-(defn contend!
-  "Two remote clients each append `n` events. Prints retries and final count."
-  [url n]
-  #?(:clj
-     (let [a (v/root (store/remote url))
-           b (v/root (store/remote url))]
-       (load-or-seed! a 0)
-       (let [n0 (log-count (v/deref a))
-             retries (atom 0)
-             fa (future
-                  (dotimes [i n]
-                    (let [info (v/swap-info!
-                                a append (event a "credit" 1 (str "a-" i)))]
-                      (swap! retries + (:retries info)))))
-             fb (future
-                  (dotimes [i n]
-                    (let [info (v/swap-info!
-                                b append (event b "debit" 1 (str "b-" i)))]
-                      (swap! retries + (:retries info)))))]
-         @fa
-         @fb
-         (let [final (v/deref (v/root (store/remote url)))]
-           (println "started:" n0
-                    "appended:" (* 2 n)
-                    "final:" (log-count final)
-                    "cas-retries:" @retries)
-           (print! (render final)))))
-     :default
-     (throw (ex-info "contend is JVM-only" {}))))
-
 (defn- run-cmd!
-  [rs led-ref url cmd cmd-args]
+  [led-ref cmd cmd-args]
   (case cmd
     "show" (print! (render (v/deref led-ref)))
     "page" (let [p (if (seq cmd-args) (parse-int (first cmd-args)) 0)
@@ -392,18 +329,11 @@
     "replay" (let [end (if (seq cmd-args)
                          (parse-int (first cmd-args))
                          (log-count (v/deref led-ref)))]
-               (print! (render (v/swap! led-ref replay end))))
-    "watch" (watch-sse! rs)
-    "contend" (do
-                (when-not url
-                  (throw (ex-info "contend requires --url (two remote clients)" {})))
-                (contend! url (if (seq cmd-args) (parse-int (first cmd-args)) 10)))))
+               (print! (render (v/swap! led-ref replay end))))))
 
 (defn -main [& args]
-  (let [{:keys [reset? path url lmdb? n cmd cmd-args] :as opts} (parse-args args)
+  (let [{:keys [reset? path lmdb? n cmd cmd-args] :as opts} (parse-args args)
         local (local-path opts)]
-    (when (and reset? url)
-      (throw (ex-info "--reset is for the local store only" {:url url})))
     (when reset?
       (if lmdb?
         (reset-lmdb-dir! local)
@@ -417,7 +347,5 @@
         (when lmdb?
           (println "lmdb" local))
         (when seeded?
-          (println (if url
-                     (str "seeded remote at " url " (" n " events)")
-                     (str "seeded new store at " local " (" n " events)"))))
-        (run-cmd! rs led-ref url cmd cmd-args)))))
+          (println (str "seeded new store at " local " (" n " events)")))
+        (run-cmd! led-ref cmd cmd-args)))))

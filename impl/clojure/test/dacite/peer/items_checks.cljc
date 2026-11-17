@@ -20,7 +20,7 @@
             [dacite.value :as v]
             [dacite.value.lit :as lit]
             [dacite.wire.binary :as bin]
-            #?(:clj [dacite.service.reveal :as sr])
+            #?(:clj [dacite.reveal.pages :as sr])
             #?(:cljs ["fs" :as fs])))
 
 (defn- read-text

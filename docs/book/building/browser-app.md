@@ -1,5 +1,11 @@
 # A browser app
 
+> **No working mode right now.** This page ran against the JVM HTTP
+> service (`dacite.service`), which the HTTP removal (slice 2) deleted.
+> The page stays as a record until the demo is deleted or ported to
+> peering. The library reader (`/app/library/`) runs over peering; see
+> [examples/web/README.md](https://github.com/jclaggett/dacite/blob/main/examples/web/README.md).
+
 The Values / Store split still holds in the tab. Domain code is
 `dacite.value`. The store is HTTP plus a write-back cache. The UI is DOM
 (todo) or a typed tree (explorer). Neither app dumps the root to JSON.
@@ -10,8 +16,9 @@ The Values / Store split still holds in the tab. Domain code is
 cd impl/clojure
 clojure -M:cljs-web                  # todo bundle (first time / after cljs)
 clojure -M:cljs-explorer             # explorer bundle
-clojure -M:service --port 8080 --store mem
 ```
+
+The bundles then needed the HTTP service at these URLs:
 
 | URL | App |
 |-----|-----|
@@ -20,9 +27,6 @@ clojure -M:service --port 8080 --store mem
 
 Use a trailing slash. Hard-refresh after rebuilding JS (`main.js?v=…`
 cache-busts when we bump it).
-
-Durable service: `--store file` or `--store lmdb`. Details:
-[examples/web/README.md](https://github.com/jclaggett/dacite/blob/main/examples/web/README.md).
 
 ## What the browser is doing
 

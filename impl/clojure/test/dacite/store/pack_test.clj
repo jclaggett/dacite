@@ -3,29 +3,10 @@
 
    The bodies are `dacite.store.pack-checks`. nbb runs the same checks
    (`npm run store-units:test`). One deftest each, so the JVM suite still
-   names the test it ran before. The seven deftests below the wrappers stay
-   JVM only: they start the HTTP service (`dacite.service`) or read through
-   `dacite.store.remote`, and both are JVM code."
+   names the test it ran before."
   (:require [clojure.test :refer [deftest is]]
-            [dacite.examples.todo :as todo]
-            [dacite.service :as svc]
-            [dacite.store :as store]
             [dacite.store.check :as check]
-            [dacite.store.client-cache :as client-cache]
-            [dacite.store.pack :as pack]
-            [dacite.store.pack-checks :as checks]
-            [dacite.store.remote :as remote]
-            [dacite.store.stats :as stats]
-            [dacite.value :as v]
-            [dacite.value.collections :as coll]
-            [dacite.value.types :as types]
-            [dacite.wire :as wire]))
-
-(defrecord CountingChunkTransport [inner counter]
-  pack/IChunkTransport
-  (send-chunk! [_ chunk]
-    (swap! counter inc)
-    (pack/send-chunk! inner chunk)))
+            [dacite.store.pack-checks :as checks]))
 
 (defn- run-check
   "Run the check called `name`: no problems, and quick."
@@ -163,151 +144,9 @@
 (deftest host-string-is-not-truncated
   (run-check "host-string-is-not-truncated"))
 
-;; JVM only. See the namespace docstring.
-
-(deftest service-post-nodes-chunk
-  (let [rooted (svc/make-demo-rooted)
-        h (store/hex->hash (apply str (repeat 64 "a")))
-        chunk (pack/make-chunk 1024 [(pack/node-item h ["i64" 99])])
-        resp (svc/handle-request rooted "POST" "/nodes" (wire/write-edn chunk))]
-    (is (= 200 (:status resp)))
-    (is (true? (:ok (wire/read-edn (:body resp)))))
-    (is (= 1 (:applied (wire/read-edn (:body resp)))))
-    (is (= ["i64" 99] (store/await (store/s-get rooted h))))))
-
-(deftest service-post-nodes-literal
-  (let [rooted (svc/make-demo-rooted)
-        src (store/mem-store)
-        s (coll/string-with-store src "todo")
-        h (types/dacite-hash s)
-        item (pack/encode-item src h (store/await (store/s-get src h)))
-        chunk (pack/make-chunk 1024 [item])
-        resp (svc/handle-request rooted "POST" "/nodes" (wire/write-edn chunk))]
-    (is (= :literal (:encoding item)))
-    (is (= 200 (:status resp)))
-    (is (= 1 (:literals (wire/read-edn (:body resp)))))
-    (is (store/await (store/s-has? rooted h)))))
-
-(deftest write-back-flush-uses-fewer-http-requests-than-per-node
-  (let [rooted (svc/make-demo-rooted)
-        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
-    (try
-      (stats/reset-stats!)
-      (let [raw (remote/remote-store base-url)
-            wb (client-cache/wrap raw :write-back)
-            t (todo/build wb (todo/seed-items))
-            h (types/dacite-hash t)
-            before (stats/get-stats)
-            _ (remote/remote-cas-root! wb nil h)
-            after (stats/get-stats)
-            d (stats/stats-diff before after)
-            kinds (:by-kind after {})]
-        (is (true? (store/await (store/s-has? raw h))))
-        (is (pos? (:requests d)))
-        (is (pos? (get kinds :nodes-put 0)))
-        (is (< (get kinds :node-put 0) 5)
-            "seed flush should not issue many single-node PUTs")
-        (is (< (:requests d) 40)
-            "literal+chunked write-back seed should be far fewer than 2a ~35"))
-      (finally
-        (stop!)))))
-
-(deftest remote-s-get-pack-fill
-  (let [rooted (svc/make-demo-rooted)
-        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
-    (try
-      (let [raw (remote/remote-store base-url)
-            t (todo/build raw (todo/seed-items))
-            h (types/dacite-hash t)
-            _ (remote/remote-cas-root! raw nil h)
-            cold (remote/remote-store base-url)]
-        (stats/reset-stats!)
-        (let [before (stats/get-stats)
-              node (store/await (store/s-get cold h))
-              after (stats/get-stats)
-              d (stats/stats-diff before after)
-              kinds (:by-kind after {})]
-          (is (some? node))
-          (is (= "vector" (types/entry-type node)))
-          (is (pos? (get kinds :node-get 0)))
-          (is (< (:requests d) 5)
-              "pack-filled root get should not fan out many requests")
-          ;; Further access hits pack-local
-          (stats/reset-stats!)
-          (store/await (store/s-get cold h))
-          (is (zero? (:requests (stats/get-stats))))))
-      (finally
-        (stop!)))))
-
-(deftest flush-from-and-middleware-see-every-chunk
-  (let [rooted (svc/make-demo-rooted)
-        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
-    (try
-      (let [raw (remote/remote-store base-url)
-            n (atom 0)
-            counted (->CountingChunkTransport raw n)
-            local (store/mem-store)
-            t (todo/build local (todo/seed-items))
-            h (types/dacite-hash t)
-            result (pack/flush-from! counted local h #{})]
-        (is (pos? (:items result)))
-        (is (pos? (:chunks result)))
-        (is (= (:chunks result) @n)
-            "every sealed chunk hits outermost send-chunk!")
-        (is (store/await (store/s-has? raw h)))
-        ;; Second flush skips covered hashes
-        (reset! n 0)
-        (let [r2 (pack/flush-from! counted local h (:covered result))]
-          (is (zero? (:items r2)))
-          (is (zero? @n))))
-      (finally
-        (stop!)))))
-
-(deftest write-back-flush-uses-flush-from
-  (let [rooted (svc/make-demo-rooted)
-        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted})]
-    (try
-      (let [raw (remote/remote-store base-url)
-            n (atom 0)
-            counted (->CountingChunkTransport raw n)
-            wb (client-cache/wrap counted :write-back)
-            t (todo/build wb (todo/seed-items))
-            h (types/dacite-hash t)
-            uploaded (client-cache/flush-reachable! wb h)]
-        (is (pos? uploaded))
-        (is (pos? @n) "write-back flush sends via IChunkTransport middleware")
-        (is (store/await (store/s-has? raw h)))
-        (is (zero? (client-cache/flush-reachable! wb h))
-            "second flush is a no-op"))
-      (finally
-        (stop!)))))
-
-(deftest long-todo-title-flushes-over-http
-  (let [title (apply str (repeat 400 "and going "))
-        rooted (svc/make-demo-rooted)
-        {:keys [base-url stop!]} (svc/start-server! {:port 0 :rooted rooted
-                                                     :throttle false})]
-    (try
-      (let [r (v/root (store/remote-rooted-store base-url {:policy :write-back}))]
-        (v/cas! r nil (todo/empty-todos r))
-        (v/swap! r todo/add-todo title false)
-        (let [cold (v/root (store/remote-rooted-store base-url {:policy :none}))
-              t (v/deref cold)]
-          (is (= 1 (v/count t)))
-          (is (= (count title) (count (todo/title-str (v/nth t 0)))))))
-      (finally
-        (stop!)))))
-
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)
                          (filter #(-> % meta :test) (vals (ns-interns 'dacite.store.pack-test)))))
-               "every-check-has-a-deftest"
-               "service-post-nodes-chunk"
-               "service-post-nodes-literal"
-               "write-back-flush-uses-fewer-http-requests-than-per-node"
-               "remote-s-get-pack-fill"
-               "flush-from-and-middleware-see-every-chunk"
-               "write-back-flush-uses-flush-from"
-               "long-todo-title-flushes-over-http"))
+               "every-check-has-a-deftest"))
       "pack_checks.cljc and this file list the same tests"))

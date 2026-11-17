@@ -65,7 +65,7 @@ The script prints a `measure` JSON object. The same page by hand:
 npm run library:build
 npm run webrtc:signal
 nbb -m dacite.examples.library-nbb --ws ws://127.0.0.1:8787 --room m53
-cd impl/clojure && clojure -M:service --port 8080 --store mem
+npm run web:serve
 ```
 
-The last line only serves `examples/web` for the page. Open the printed page URL (it carries `chapter=0`, `root`, `signal`, and `room`). The readout under the bandwidth line is the same counters. The origin-only and fallback runs above needed `clojure -M:library-origin`, which was removed in the HTTP removal slice 1.
+The last line only serves `examples/web` for the page (`scripts/static-server.mjs`). Open the printed page URL (it carries `chapter=0`, `root`, `signal`, and `room`). The readout line shows the peer counters (the origin counters went with the HTTP store in the HTTP removal slice 2). The origin-only and fallback runs above needed `clojure -M:library-origin`, which was removed in the HTTP removal slice 1.

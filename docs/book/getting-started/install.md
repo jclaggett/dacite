@@ -95,27 +95,25 @@ If your tools.deps version supports monorepo `:deps/root`, you can try:
 If that fails on your tools.deps version, use clone + `:local/root` above — that
 is the reliable alpha path.
 
-From inside `impl/clojure` you can also run the test suite and service:
+From inside `impl/clojure` you can also run the test suite:
 
 ```bash
 cd impl/clojure
 clojure -M:dev:test
-clojure -M:service --port 8080 --store mem   # API + browser todo static UI
 ```
 
-## Browser todo demo
+## Browser demos
+
+The browser pages are plain static files under `examples/web`. From the
+repo root:
 
 ```bash
-cd impl/clojure
-clojure -M:cljs-web                    # once / after source changes
-clojure -M:service --port 8080 --store mem
-# open http://127.0.0.1:8080/app/
-clojure -M:cljs-explorer
-# open http://127.0.0.1:8080/app/explorer/
+npm run web:serve            # serves examples/web at http://127.0.0.1:8080/app/
 ```
 
+The library reader (`/app/library/`) runs over peering. The todo and
+explorer pages needed the JVM HTTP service, which was removed.
 Details: [examples/web/README.md](https://github.com/jclaggett/dacite/blob/main/examples/web/README.md).
-Pack GET/POST use **wire-v1 binary** by default.
 
 ## Next steps
 

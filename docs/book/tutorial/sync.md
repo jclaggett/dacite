@@ -13,7 +13,6 @@ You will:
 1. Seed a sample tree (two files share a blob).
 2. `ls` names and sizes without reading file bytes.
 3. `cat` one file.
-4. Push the tree to `clojure -M:service` and pull it elsewhere.
 
 ## Prerequisites
 
@@ -47,24 +46,6 @@ Or `npm run sync -- --reset seed` / `bb sync --reset seed`.
 `put /path/to/dir` ingests a real host folder. `export DIR` writes the
 tree back to disk.
 
-## Push and pull
-
-```bash
-# terminal 1
-clojure -M:service --port 8080 --store mem
-
-# terminal 2 — publish the local tree
-clojure -M:sync -- --url http://127.0.0.1:8080 push
-
-# terminal 3 — another store
-clojure -M:sync -- --path /tmp/dacite-sync-b --url http://127.0.0.1:8080 pull
-clojure -M:sync -- --path /tmp/dacite-sync-b ls
-```
-
-`store/sync-reachable!` copies the subgraph (packed flush to a remote,
-per-node copy otherwise). Then the dest root is CAS'd to the same hash.
-A second pull copies nothing already present.
-
 ## What the bench shows
 
 ```text
@@ -80,9 +61,7 @@ The sample root hash is the same on JVM, babashka, and nbb:
 
 `fe0532ab564af43a7fb7c94541eaf63d63fa70d24e1290e6899747a571f4f196`
 
-A remote test measures store-protocol bytes: **GET of one blob**
-transfers less than GET of that blob plus its siblings. A second local
-`sync-reachable!` copies 0 nodes.
+A second local `sync-reachable!` copies 0 nodes.
 
 ## What this pulled
 
@@ -99,4 +78,5 @@ without changing the app.
 ## Next
 
 [Browse without dumping](explorer.md) — walk the root as typed values.
-[A browser app](../building/browser-app.md) — todo and explorer on HTTP.
+[A browser app](../building/browser-app.md) — todo and explorer in the
+browser (their HTTP service was removed; see that page).

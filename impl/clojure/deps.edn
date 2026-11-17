@@ -1,18 +1,7 @@
 {:paths ["src" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.12.4"}
         cheshire/cheshire {:mvn/version "5.13.0"}
-        org.lmdbjava/lmdbjava {:mvn/version "0.9.3"}
-        ;; HTTP/1.1 and HTTP/3. Quiche's JNA binding: this tree runs on
-        ;; Java 21, and the FFM binding needs Java 22.
-        org.eclipse.jetty/jetty-server {:mvn/version "12.1.14"}
-        org.eclipse.jetty.http3/jetty-http3-server {:mvn/version "12.1.14"}
-        org.eclipse.jetty.quic/jetty-quic-quiche-server {:mvn/version "12.1.14"}
-        org.eclipse.jetty.quic/jetty-quic-quiche-jna {:mvn/version "12.1.14"}
-        ;; HTTP/3 client. Java 21's HttpClient has no HTTP_3.
-        org.eclipse.jetty.http3/jetty-http3-client {:mvn/version "12.1.14"}
-        org.eclipse.jetty.http3/jetty-http3-client-transport {:mvn/version "12.1.14"}
-        org.eclipse.jetty.quic/jetty-quic-quiche-client {:mvn/version "12.1.14"}
-        org.slf4j/slf4j-nop {:mvn/version "2.0.17"}}
+        org.lmdbjava/lmdbjava {:mvn/version "0.9.3"}}
 
  :aliases
  {:dev {:extra-paths ["dev" "test"]
@@ -35,10 +24,9 @@
                      "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
           :main-opts ["-m" "dacite.examples.cards"]}
 
-  ;; Remote config: same domain against file or HTTP
+  ;; Config: the same domain against file or LMDB
   ;;   clojure -M:config -- show
   ;;   clojure -M:config -- --path target/dacite-config set timeout 60
-  ;;   clojure -M:config -- --url http://127.0.0.1:8080 show
   :config {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
                       "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
            :main-opts ["-m" "dacite.examples.config"]}
@@ -66,7 +54,6 @@
   ;;   clojure -M:sync -- --reset seed
   ;;   clojure -M:sync -- ls
   ;;   clojure -M:sync -- cat readme.txt
-  ;;   clojure -M:sync -- --url http://127.0.0.1:8080 push
   :sync {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
                     "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
          :main-opts ["-m" "dacite.examples.sync"]}
@@ -86,17 +73,6 @@
   :library-storage {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
                                "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
                     :main-opts ["-m" "dacite.bench.library-storage"]}
-
-  ;; HTTP service + static todo web UI
-  ;;   cd impl/clojure && clojure -M:service
-  ;;   clojure -M:service --port 8080 --store mem
-  ;;   clojure -M:service --port 8080 --store file
-  ;;   clojure -M:service --port 8080 --store file:target/dacite-service
-  ;;   clojure -M:service --port 8080 --store lmdb
-  ;;   clojure -M:service --port 8080 --store lmdb:target/my-lmdb
-  :service {:jvm-opts ["--add-opens" "java.base/java.nio=ALL-UNNAMED"
-                       "--add-opens" "java.base/sun.nio.ch=ALL-UNNAMED"]
-            :main-opts ["-m" "dacite.service.main"]}
 
   ;; shadow-cljs (M5.1). The npm package launches this alias.
   ;;   npm run peer:build

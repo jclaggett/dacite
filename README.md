@@ -64,7 +64,7 @@ See [impl/clojure/src/dacite/examples/](impl/clojure/src/dacite/examples/) for t
 
 Portable examples run on every host (JVM, babashka, nbb). Config and todo are
 **durable** rooted-store apps (file content + `ROOT`). Config is the same
-domain against a file store **or** `clojure -M:service`.
+domain against a file store **or** an LMDB store.
 
 ```bash
 npm install
@@ -83,46 +83,35 @@ bb sync --reset seed               # babashka directory sync
 bb todo                            # babashka batch (java.io file store)
 bin/hash-parity.sh                 # assert identical root hash on all hosts
 
-# JVM — file or HTTP (start the service in another terminal)
+# JVM — file store
 cd impl/clojure
 clojure -M:config -- --reset show
-clojure -M:config -- --url http://127.0.0.1:8080 set timeout 60
+clojure -M:config -- set timeout 60
 clojure -M:notes -- --reset show
 clojure -M:notes -- bench
 clojure -M:log -- --reset show
 clojure -M:log -- page 0
 clojure -M:log -- bench
-# two writers + SSE watch (service in another terminal)
-clojure -M:log -- --url http://127.0.0.1:8080 contend 10
-clojure -M:log -- --url http://127.0.0.1:8080 watch
 clojure -M:sync -- --reset seed
 clojure -M:sync -- ls
 clojure -M:sync -- cat readme.txt
 ```
 
-See [Remote config](https://dacite.io/book/tutorial/config.html) ([source](docs/book/tutorial/config.md))
+See [Config](https://dacite.io/book/tutorial/config.html) ([source](docs/book/tutorial/config.md)),
 [Versioned notes](https://dacite.io/book/tutorial/notes.html) ([source](docs/book/tutorial/notes.md)),
 [Event log](https://dacite.io/book/tutorial/event-log.html) ([source](docs/book/tutorial/event-log.md)),
-[Two-client live](https://dacite.io/book/tutorial/two-client.html) ([source](docs/book/tutorial/two-client.md)),
 and [Directory / blob sync](https://dacite.io/book/tutorial/sync.html) ([source](docs/book/tutorial/sync.md)).
 
-### Browser demo (HTTP service + Dacite values in the browser)
+### Browser demos
 
 ```bash
-cd impl/clojure
-clojure -M:cljs-web                # build examples/web/js/main.js (first time)
-clojure -M:service --port 8080 --store mem
-# durable file:  clojure -M:service --port 8080 --store file
-# durable LMDB:  clojure -M:service --port 8080 --store lmdb
-# open http://127.0.0.1:8080/app/            # todo
-clojure -M:cljs-explorer             # explorer bundle
-# open http://127.0.0.1:8080/app/explorer/   # value explorer
+npm run web:serve                  # serves examples/web at http://127.0.0.1:8080/app/
 ```
 
-See [examples/web/README.md](examples/web/README.md). The UI loads Dacite
-collections in the browser and persists via `GET/PUT /node/{hex}` and
-`GET /root` + `POST /root/cas`. The explorer walks the current root as
-typed values without dumping the tree.
+The library reader (`/app/library/`) runs over peering; see
+[examples/web/README.md](examples/web/README.md). The todo (`/app/`) and
+explorer (`/app/explorer/`) pages needed the JVM HTTP service, which was
+removed, so they have no working mode right now.
 
 ## Use Cases
 
