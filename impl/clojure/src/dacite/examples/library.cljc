@@ -13,7 +13,7 @@
    shelf is `v/slice` of the title index; a display page is `nth` of
    characters (slice would hash a new spine).
 
-   **Store** — file-rooted or HTTP remote-rooted.
+   **Store** — file-rooted or LMDB-rooted.
 
    Run:
      clojure -M:library -- --reset shelf
@@ -25,7 +25,7 @@
      bb library --reset shelf
      npx nbb -m dacite.examples.library -- --reset shelf
      clojure -M:cljs-library
-     clojure -M:service   ; then /app/library/"
+     npm run web:serve   ; then the URL dacite.examples.library-nbb prints"
   (:require [clojure.string :as str]
             [dacite.rooted.gc :as gc]
             [dacite.store :as store]
@@ -532,7 +532,6 @@ enough that slice and a full native are different amounts of work.
 
 (defn open-mem [] (store/mem))
 (defn open-file [path] (store/file path))
-(defn open-remote [url] (store/remote url))
 (defn open-lmdb [path] (store/lmdb path))
 
 (defn reset-store-dir!
@@ -574,7 +573,7 @@ enough that slice and a full native are different amounts of work.
           :else (throw (ex-info "unknown ingest flag" {:flag a})))))))
 
 (defn parse-args
-  "CLI: [--path DIR | --url URL] [--lmdb] [--reset|-r]
+  "CLI: [--path DIR] [--lmdb] [--reset|-r]
         [shelf|toc|read|ingest|bench|show]"
   [args]
   (let [args (->> args (map str) (remove #{"--"}))]
@@ -582,7 +581,6 @@ enough that slice and a full native are different amounts of work.
            acc {:reset? false
                 :lmdb? false
                 :path default-path
-                :url nil
                 :cmd "shelf"
                 :cmd-args []}]
       (if-not (seq args)
@@ -599,9 +597,6 @@ enough that slice and a full native are different amounts of work.
             (= a "--path")
             (recur (rest more) (assoc acc :path (first more)))
 
-            (= a "--url")
-            (recur (rest more) (assoc acc :url (first more)))
-
             (#{"shelf" "show" "toc" "read" "ingest" "bench"} a)
             (assoc acc :cmd a :cmd-args (vec more))
 
@@ -609,11 +604,10 @@ enough that slice and a full native are different amounts of work.
             (assoc acc :cmd "shelf" :cmd-args (vec args))))))))
 
 (defn open-store
-  [{:keys [url lmdb?] :as opts}]
-  (cond
-    url (open-remote url)
-    lmdb? (open-lmdb (local-path opts))
-    :else (open-file (:path opts))))
+  [{:keys [lmdb?] :as opts}]
+  (if lmdb?
+    (open-lmdb (local-path opts))
+    (open-file (:path opts))))
 
 ;; =============================================================================
 ;; Main
@@ -687,10 +681,8 @@ enough that slice and a full native are different amounts of work.
     (print! (render-bench (measure (v/deref lib-ref))))))
 
 (defn -main [& args]
-  (let [{:keys [reset? path url lmdb? cmd cmd-args] :as opts} (parse-args args)
+  (let [{:keys [reset? path lmdb? cmd cmd-args] :as opts} (parse-args args)
         local (local-path opts)]
-    (when (and reset? url)
-      (throw (ex-info "--reset is for the local store only" {:url url})))
     (when reset?
       (if lmdb?
         (reset-lmdb-dir! local)
@@ -702,7 +694,5 @@ enough that slice and a full native are different amounts of work.
       (when lmdb?
         (println "lmdb" local))
       (when seeded?
-        (println (if url
-                   (str "seeded remote at " url)
-                   (str "seeded new store at " local))))
+        (println (str "seeded new store at " local)))
       (run-cmd! lib-ref cmd cmd-args))))

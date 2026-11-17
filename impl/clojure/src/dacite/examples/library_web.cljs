@@ -1,20 +1,16 @@
 (ns dacite.examples.library-web
-  "Browser library reader — Values vs Store kept separate.
+  "Browser library reader.
 
-   **Store** — HTTP remote + write-back cache, root get/CAS, bandwidth.
    **Peer** — the catalog from an nbb peer over the slice-3 room, by the
-   root hash in the query. No HTTP read.
+   root hash in the query, into a memory store.
    **Values** — shelf / toc / page via dacite.examples.library.
    **UI** — DOM only.
 
    Compile from impl/clojure:
      clojure -M:cljs-library
 
-   Serve:
-     clojure -M:service
-     open http://127.0.0.1:8080/app/library/
-
-   From the nbb peer (M5.3), which holds the catalog and prints this URL:
+   Serve `examples/web` with `npm run web:serve` (port 8080). From the nbb
+   peer (M5.3), which holds the catalog and prints this URL:
      http://127.0.0.1:8080/app/library/?chapter=0&root=HEX&signal=ws://127.0.0.1:8787&room=TOKEN
 
    `chapter` opens that chapter of the first book and its plate. That is
@@ -26,13 +22,11 @@
             [dacite.peer.transport :as t]
             [dacite.peer.transport.browser :as rtc]
             [dacite.store :as store]
-            [dacite.store.browser :as browser]
             [dacite.store.chain :as chain]
             [dacite.value :as v]))
 
 (defonce !state
-  (atom {:store nil
-         :library nil
+  (atom {:library nil
          :root nil
          :error nil
          :status "loading"
@@ -43,9 +37,6 @@
          :page 0
          :page-size lib/default-page-size
          :shelf-start 0
-         :bw-totals nil
-         :bw-last nil
-         :bw-last-label nil
          :peer-bytes 0
          :peer-gets 0
          :peer-frames 0}))
@@ -57,70 +48,6 @@
   15000)
 
 (defonce ^:private t-read (atom 0))
-
-;; =============================================================================
-;; Store
-;; =============================================================================
-
-(defn- api-base
-  []
-  (or (.-DACITE_API_BASE js/window) ""))
-
-(defn open-store
-  []
-  (browser/cached-remote-store (api-base) {:policy :write-back}))
-
-(defn get-root
-  [st]
-  (browser/remote-get-root st))
-
-(defn cas-root!
-  [st expected new-hash]
-  (browser/remote-cas-root! st expected new-hash))
-
-(defn reset-bw-stats! []
-  (browser/reset-stats!))
-
-(defn format-bw-stats [totals]
-  (browser/format-stats totals))
-
-(defn format-bw-delta [delta label]
-  (browser/format-delta delta label))
-
-;; =============================================================================
-;; Values
-;; =============================================================================
-
-(defn load-or-seed!
-  "Load a library catalog from `server-root`, or CAS-seed one from nil.
-   The caller resolves `server-root` once per `drive`.
-   Does not overwrite a non-library root (todo, explorer gallery, …)."
-  [st server-root]
-  (if server-root
-    (if-let [val (v/get-value st server-root)]
-      (if (lib/library-root? val)
-        {:status :loaded :library val :root server-root :error nil}
-        {:status :error
-         :library nil
-         :root server-root
-         :error (str "Root is a " (v/type val)
-                     ", not a library. Reset the service store or use a dedicated one.")})
-      {:status :error
-       :library nil
-       :root server-root
-       :error (str "Root present but value missing: "
-                   (subs (store/hash->hex server-root) 0 12) "…")})
-    (let [catalog (lib/seed-library st)
-          h (v/hash catalog)]
-      (if (cas-root! st nil h)
-        {:status :seeded :library catalog :root h :error nil}
-        (if-let [h2 (get-root st)]
-          (let [val (v/get-value st h2)]
-            (if (lib/library-root? val)
-              {:status :loaded :library val :root h2 :error nil}
-              {:status :error :library nil :root h2
-               :error "Failed to seed; existing root is not a library"}))
-          {:status :error :library nil :root nil :error "Failed to seed root"})))))
 
 ;; =============================================================================
 ;; UI
@@ -140,44 +67,6 @@
       (str/replace ">" "&gt;")
       (str/replace "\"" "&quot;")))
 
-(defn- note-bw!
-  [{:keys [delta totals]} label]
-  (swap! !state assoc
-         :bw-totals totals
-         :bw-last delta
-         :bw-last-label label)
-  (when-let [el (by-id "bandwidth")]
-    (set! (.-textContent el)
-          (str "bw · "
-               (format-bw-stats totals)
-               (when delta
-                 (str " · last " (format-bw-delta delta label)))))))
-
-(declare render-view!)
-
-(defn- with-bw
-  "Drive `f` over fetch and note bandwidth. Returns a promise.
-   A cache miss suspends inside `f`; the tab is not blocked."
-  [label f]
-  (let [before (browser/get-stats)]
-    (-> (browser/drive f)
-        (.then (fn [result]
-                 (let [after (browser/get-stats)]
-                   (note-bw! {:delta (browser/stats-diff before after)
-                              :totals after}
-                             label))
-                 result))
-        (.catch (fn [e]
-                  (let [msg (str label " failed: "
-                                 (or (ex-message e) (.-message e) e))]
-                    (js/console.error msg e)
-                    (swap! !state assoc :error msg :status "error")
-                    (try
-                      (render-view!)
-                      (catch :default render-e
-                        (js/console.error render-e)))
-                    nil))))))
-
 (defn- current-book
   [{:keys [library book-i]}]
   (when library
@@ -187,7 +76,7 @@
         (v/nth idx book-i)))))
 
 (defn- render-status! []
-  (let [{:keys [library root error status source bw-totals bw-last bw-last-label view]} @!state
+  (let [{:keys [library root error status source view]} @!state
         root-hex (when root (store/hash->hex root))
         status-el (by-id "status")
         hash-el (by-id "root-hash")]
@@ -202,14 +91,6 @@
     (when hash-el
       (set! (.-textContent hash-el)
             (if root-hex (str "hash " root-hex) "")))
-    (when-let [el (by-id "bandwidth")]
-      (if bw-totals
-        (set! (.-textContent el)
-              (str "bw · "
-                   (format-bw-stats bw-totals)
-                   (when bw-last
-                     (str " · last " (format-bw-delta bw-last bw-last-label)))))
-        (set! (.-textContent el) "bw · (no store traffic yet)")))
     (when-let [nav (by-id "crumb")]
       (set! (.-textContent nav)
             (case view
@@ -386,16 +267,12 @@
 
 (defn- mark-rendered!
   "Record the read that put the chapter and the plate on the page.
-   Round trips are origin store-protocol requests plus peer `get`s.
-   Bytes from the origin are response bodies of those requests. Bytes
-   from the peer are `dacite-peer` messages received. Time to first
-   render is `performance.now` (milliseconds since navigation)."
+   Round trips are peer `get`s. Bytes from the peer are `dacite-peer`
+   messages received. Time to first render is `performance.now`
+   (milliseconds since navigation)."
   [source]
-  (let [stats (browser/get-stats)
-        origin-requests (:requests stats 0)
-        origin-bytes (:bytes-recv stats 0)
-        {:keys [peer-bytes peer-gets peer-frames root]} @!state
-        trips (+ origin-requests peer-gets)
+  (let [{:keys [peer-bytes peer-gets peer-frames root]} @!state
+        trips peer-gets
         now (js/performance.now)
         ttf (js/Math.round now)
         read-ms (js/Math.round (- now @t-read))
@@ -404,11 +281,9 @@
     (set-attr! "readout" "data-status" "rendered")
     (set-attr! "readout" "data-mode" source)
     (set-attr! "readout" "data-round-trips" trips)
-    (set-attr! "readout" "data-origin-requests" origin-requests)
     (set-attr! "readout" "data-gets" peer-gets)
     (set-attr! "readout" "data-frames" peer-frames)
     (set-attr! "readout" "data-bytes-peer" peer-bytes)
-    (set-attr! "readout" "data-bytes-origin" origin-bytes)
     (set-attr! "readout" "data-ttf-ms" ttf)
     (set-attr! "readout" "data-read-ms" read-ms)
     (set-attr! "readout" "data-image-bytes" image-bytes)
@@ -419,9 +294,8 @@
             (str source
                  " · " trips " round trips"
                  " · peer " peer-bytes " B"
-                 " · origin " origin-bytes " B"
                  " · " ttf " ms")))
-    (js/console.log "rendered" source trips peer-bytes origin-bytes ttf)))
+    (js/console.log "rendered" source trips peer-bytes ttf)))
 
 (defn- apply-value-result!
   [{:keys [status library root error]} source]
@@ -441,39 +315,17 @@
   (when (and library (nil? error) (some? (measured-chapter)))
     (mark-rendered! source)))
 
-(defn- do-load-or-seed! []
-  (let [phase (atom :decide)
-        seen (atom nil)
-        source (:source @!state "origin")]
-    (with-bw "load/seed"
-      (fn []
-        (let [st (:store @!state)]
-          (when (= :decide @phase)
-            (reset! seen (get-root st))
-            (reset! phase :apply))
-          (let [result (load-or-seed! st @seen)]
-            (apply-value-result! result source)
-            (:status result)))))))
-
 (defn- on-view-click! [e]
   (let [t (.-target e)
         btn (.closest t "button")
         action (when btn (.getAttribute btn "data-action"))]
     (when action
-      (let [applied (atom false)
-            label (case action
-                    ("open-book" "back-toc") "toc"
-                    ("back-shelf" "shelf-more") "shelf"
-                    "page")]
-        (with-bw label
-          (fn []
-            (when-not @applied
-              (let [{:keys [chapter page page-size shelf-start] :as st} @!state
-                    book (current-book st)
-                    nch (when book (v/count (lib/book-chapters book)))
-                    np (when book (lib/pages-in-chapter book chapter page-size))
-                    i (js/parseInt (.getAttribute btn "data-i") 10)]
-                (case action
+      (let [{:keys [chapter page page-size shelf-start] :as st} @!state
+            book (current-book st)
+            nch (when book (v/count (lib/book-chapters book)))
+            np (when book (lib/pages-in-chapter book chapter page-size))
+            i (js/parseInt (.getAttribute btn "data-i") 10)]
+        (case action
                   "open-book" (swap! !state assoc :view :toc :book-i i :chapter 0 :page 0)
                   "open-chapter" (swap! !state assoc :view :read :chapter i :page 0)
                   "back-shelf" (swap! !state assoc :view :shelf)
@@ -488,9 +340,7 @@
                   "next-chapter" (when (and nch (< (inc chapter) nch))
                                    (swap! !state assoc :chapter (inc chapter) :page 0 :view :read))
                   nil)
-                (reset! applied true)))
-            (render-view!)
-            true))))))
+        (render-view!)))))
 
 ;; =============================================================================
 ;; Peer
@@ -652,24 +502,16 @@
                     (fail! (err-text e))))))))
 
 (defn ^:export init! []
-  (let [st (open-store)
-        q (peer-query)]
+  (let [q (peer-query)]
     (reset! t-read (js/performance.now))
-    (reset-bw-stats!)
-    (swap! !state assoc :store st :status "connecting" :source (if q "peer" "origin")
-           :bw-totals nil :bw-last nil :bw-last-label nil
+    (swap! !state assoc :status "connecting" :source (when q "peer")
            :peer-bytes 0 :peer-gets 0 :peer-frames 0)
     (render-view!)
     (if q
       (read-from-peer! q)
-      (do-load-or-seed!))
+      (fail-readout! "needs root, signal, and room in the query"))
     (when-let [view (by-id "view")]
-      (.addEventListener view "click" on-view-click!))
-    (when-let [rel (by-id "reload-btn")]
-      (.addEventListener rel "click"
-                         (fn [_]
-                           (swap! !state assoc :source "origin")
-                           (do-load-or-seed!))))))
+      (.addEventListener view "click" on-view-click!))))
 
 (defonce started? (atom false))
 

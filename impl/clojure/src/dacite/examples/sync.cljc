@@ -8,15 +8,13 @@
    ls reads kind/size only. cat realizes one blob. Identical file
    contents share a blob hash.
 
-   **Store** — file-rooted or HTTP remote. `store/sync-reachable!` copies
-   the subgraph; `push-ref` / root CAS publishes it.
+   **Store** — file-rooted or LMDB-rooted.
 
    Run:
      clojure -M:sync -- --reset seed
      clojure -M:sync -- ls
      clojure -M:sync -- cat readme.txt
      clojure -M:sync -- put /path/to/dir
-     clojure -M:sync -- --url http://127.0.0.1:8080 push
      clojure -M:sync -- bench
      bb sync --reset seed
      npx nbb -m dacite.examples.sync -- --reset seed
@@ -226,7 +224,6 @@
 
 (defn open-mem [] (store/mem))
 (defn open-file [path] (store/file path))
-(defn open-remote [url] (store/remote url))
 (defn open-lmdb [path] (store/lmdb path))
 
 (defn reset-store-dir!
@@ -246,15 +243,14 @@
     path))
 
 (defn parse-args
-  "CLI: [--path DIR | --url URL] [--lmdb] [--reset|-r] [--out DIR]
-        [seed|ls [PATH]|cat PATH|put HOSTDIR|push|pull|bench|export DIR]"
+  "CLI: [--path DIR] [--lmdb] [--reset|-r] [--out DIR]
+        [seed|ls [PATH]|cat PATH|put HOSTDIR|bench|export DIR]"
   [args]
   (let [args (->> args (map str) (remove #{"--"}))]
     (loop [args args
            acc {:reset? false
                 :lmdb? false
                 :path default-path
-                :url nil
                 :out nil
                 :cmd "ls"
                 :cmd-args []}]
@@ -272,38 +268,20 @@
             (= a "--path")
             (recur (rest more) (assoc acc :path (first more)))
 
-            (= a "--url")
-            (recur (rest more) (assoc acc :url (first more)))
-
             (= a "--out")
             (recur (rest more) (assoc acc :out (first more)))
 
-            (#{"seed" "ls" "cat" "put" "push" "pull" "bench" "export"} a)
+            (#{"seed" "ls" "cat" "put" "bench" "export"} a)
             (assoc acc :cmd a :cmd-args (vec more))
 
             :else
             (assoc acc :cmd "ls" :cmd-args (vec args))))))))
 
 (defn open-store
-  [{:keys [url lmdb?] :as opts}]
-  (cond
-    url (open-remote url)
-    lmdb? (open-lmdb (local-path opts))
-    :else (open-file (:path opts))))
-
-(defn open-local
-  [opts]
-  (if (:lmdb? opts)
+  [{:keys [lmdb?] :as opts}]
+  (if lmdb?
     (open-lmdb (local-path opts))
     (open-file (:path opts))))
-
-(defn push-tree!
-  "Copy reachable nodes to dest and CAS dest root to src root."
-  [src dest]
-  (let [h (store/root src)
-        result (store/sync-reachable! src dest h)
-        ok (store/cas-root! dest (store/root dest) h)]
-    (assoc result :published? ok)))
 
 ;; =============================================================================
 ;; Render + main
@@ -333,10 +311,8 @@
        "  data.bin:     " (:data-bytes m) " B\n"))
 
 (defn -main [& args]
-  (let [{:keys [reset? path url lmdb? out cmd cmd-args] :as opts} (parse-args args)
+  (let [{:keys [reset? path lmdb? out cmd cmd-args] :as opts} (parse-args args)
         local (local-path opts)]
-    (when (and reset? url)
-      (throw (ex-info "--reset is for the local store only" {:url url})))
     (when reset?
       (if lmdb?
         (reset-lmdb-dir! local)
@@ -381,34 +357,6 @@
             (v/swap! tree-ref (fn [_] t))
             (v/cas! tree-ref nil t))
           (print! (render-ls t "")))
-
-        "push"
-        (do
-          (when-not url
-            (throw (ex-info "push requires --url" {})))
-          (let [local (open-local opts)
-                remote (open-remote url)]
-            (when-not (store/root local)
-              (throw (ex-info "local store has no root; seed or put first" {})))
-            (let [result (push-tree! local remote)]
-              (println "synced" (:copied result) "nodes via" (:via result)
-                       (if (:published? result)
-                         "and published root"
-                         "but CAS lost the race")))))
-
-        "pull"
-        (do
-          (when-not url
-            (throw (ex-info "pull requires --url" {})))
-          (let [local (open-local opts)
-                remote (open-remote url)]
-            (when-not (store/root remote)
-              (throw (ex-info "remote root is empty" {})))
-            (let [result (push-tree! remote local)]
-              (println "pulled" (:copied result) "nodes via" (:via result)
-                       (if (:published? result)
-                         "and set local root"
-                         "but local CAS failed")))))
 
         "export"
         (let [t (or (v/deref tree-ref)

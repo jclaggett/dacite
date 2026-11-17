@@ -5,7 +5,7 @@
 
      (require '[dacite.store :as s]
               '[dacite.value :as v])
-     (def r (v/root (s/mem)))          ; or (s/file path), (s/remote url)
+     (def r (v/root (s/mem)))          ; or (s/file path)
 
    IStore (s-get, s-put, s-has?, s-delete, s-reset) is the
    content-dictionary protocol used by backends and the value layer.
@@ -13,7 +13,7 @@
    and a bulk merge is not an operation.
    Apps should not call IStore.
 
-   Application constructors: mem, file, lmdb, remote.
+   Application constructors: mem, file, lmdb.
    A lens `(s/lens rs path)` is local convenience at a nested path
    (`path` is a Dacite vector, or a host seq).
    Internals: mem-store, rooted-store, hash→hex, mkey, sync-reachable!."
@@ -541,17 +541,6 @@
        [st]
        ((jvm-var 'lmdb-close) st))
 
-     (defn remote-rooted-store
-       "HTTP content + server root as a rooted store. Use with `dacite.value/root`.
-
-        Same value API as a local rooted store. Seed with `v/cas!` from nil;
-        update with `v/swap!`. Default client-cache policy is `:write-back`.
-
-        (store/remote \"http://127.0.0.1:8080\")
-        (store/remote url {:policy :none})"
-       [& args]
-       (apply (requiring-resolve 'dacite.store.remote/remote-rooted-store) args))
-
      (defn sync-reachable!
        "Copy nodes reachable from root-h in src into dest.
         Packed flush when dest is a remote; otherwise per-node copy."
@@ -640,13 +629,3 @@
    (defn lmdb
      [_path & _]
      (throw (js/Error. "store/lmdb is not available in the browser"))))
-
-#?(:clj
-   (defn remote
-     "HTTP rooted store. Same value API as file/mem. Seed with v/cas! from nil."
-     [url & [opts]]
-     (remote-rooted-store url (or opts {})))
-   :default
-   (defn remote
-     [_url & _]
-     (throw (ex-info "store/remote is JVM-only (java.net.http)" {}))))

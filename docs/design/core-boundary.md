@@ -11,7 +11,7 @@ core is allowed to call) is [portable-core.md](portable-core.md). This
 document is the **inventory**: every namespace on the Clojure source path,
 labeled `core`, `host`, or `server-only`.
 
-Counted here: **92 namespaces** (7 `core`, 81 `host`, 4 `server-only`) under
+Counted here: **86 namespaces** (7 `core`, 79 `host`, 0 `server-only`) under
 `impl/clojure/src` and `impl/clojure/dev`. `impl/clojure/test` is not
 inventoried; tests may require any class. `impl/clojure/archive` is not on
 the classpath. M5.1 added the browser peer (`dacite.peer.transport.browser`,
@@ -47,8 +47,9 @@ require. `dacite.reveal.engine` and `dacite.peer.rates` are `core` and
 require it. They have no host marker of their own.
 
 A namespace is **`server-only`** when its name is `dacite.service` or
-`dacite.service.*`. That is the HTTP service process. A JVM HTTP *client*
-of that service (`dacite.store.remote`, `dacite.store.reveal`) is `host`.
+`dacite.service.*`. That was the HTTP service process. The HTTP removal
+slice 2 deleted it, so no namespace is `server-only` now; the rule stays
+in the lint.
 
 Everything else is **`host`**. That includes `.clj` and `.cljs` files, and
 `.cljc` files that still contain host interop. A `.cljc` file with no
@@ -110,7 +111,7 @@ These files are shared source, and they still branch on the host. They are
 | `dacite.cache` | `host` | `impl/clojure/src/dacite/cache.cljc` | LRU: `LinkedHashMap` on the JVM, a JS `Map` on ClojureScript. |
 | `dacite.examples.browser` | `host` | `impl/clojure/src/dacite/examples/browser.cljc` | Value Browser URI. The host is a name. The fragment is `urn:dacite:<hex>`. No HTTP path. |
 | `dacite.examples.config` | `host` | `impl/clojure/src/dacite/examples/config.cljc` | Config example. `Long/parseLong` and `js/parseInt`, and a JVM watch loop. |
-| `dacite.examples.event-log` | `host` | `impl/clojure/src/dacite/examples/event_log.cljc` | Event-log example. Same integer split, and a `:clj` require of `dacite.store.remote`. |
+| `dacite.examples.event-log` | `host` | `impl/clojure/src/dacite/examples/event_log.cljc` | Event-log example. Same integer split. |
 | `dacite.examples.explorer` | `host` | `impl/clojure/src/dacite/examples/explorer.cljc` | Explorer domain. `byte-array` and `js/Uint8Array` for the sample blob. |
 | `dacite.examples.library` | `host` | `impl/clojure/src/dacite/examples/library.cljc` | Library example. `clojure.java.io`, Node `Buffer`, and a `:clj` require of `dacite.store.chunk`. |
 | `dacite.examples.notes` | `host` | `impl/clojure/src/dacite/examples/notes.cljc` | Notes example. `Long/parseLong` and `js/parseInt`. |
@@ -170,7 +171,7 @@ above, so it is `host` until those dependencies are `core`.
 |-----------|-------|------|-----------|
 | `bench-cp` | `host` | `impl/clojure/dev/bench_cp.clj` | JVM code-point microbench (`System/nanoTime`). |
 | `dacite.bench.library-storage` | `host` | `impl/clojure/src/dacite/bench/library_storage.clj` | JVM file and LMDB size bench, including `lmdbjava`. |
-| `dacite.bench.todo-bw` | `host` | `impl/clojure/src/dacite/bench/todo_bw.clj` | JVM service bandwidth bench. Requires `dacite.service`. |
+| `dacite.bench.todo-bw` | `host` | `impl/clojure/src/dacite/bench/todo_bw.clj` | JVM pack-budget encode sweep (`clojure.pprint`, `System/exit`). |
 | `dacite.convert` | `host` | `impl/clojure/src/dacite/convert.clj` | JVM boundary between Dacite values and Clojure data (`byte-array`). |
 | `dacite.dev.gen-byte-table` | `host` | `impl/clojure/dev/dacite/dev/gen_byte_table.clj` | JVM SHA-256 regeneration of `dacite.byte-table`. |
 | `dacite.dev.gen-sl2-table` | `host` | `impl/clojure/dev/dacite/dev/gen_sl2_table.clj` | JVM regeneration of `dacite.sl2-table`. |
@@ -180,7 +181,7 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.examples.cards` | `host` | `impl/clojure/src/dacite/examples/cards.clj` | JVM cards example (`clojure -M:cards`), LMDB through the store API. |
 | `dacite.examples.explorer-web` | `host` | `impl/clojure/src/dacite/examples/explorer_web.cljs` | Compiled browser explorer. DOM and `dacite.store.browser`. |
 | `dacite.examples.library-nbb` | `host` | `impl/clojure/src/dacite/examples/library_nbb.cljs` | nbb peer for M5.3. Holds the seed library and answers the browser over `node-datachannel`. |
-| `dacite.examples.library-web` | `host` | `impl/clojure/src/dacite/examples/library_web.cljs` | Compiled browser library reader. DOM, `dacite.store.browser`, and the browser peer. |
+| `dacite.examples.library-web` | `host` | `impl/clojure/src/dacite/examples/library_web.cljs` | Compiled browser library reader. DOM and the browser peer. |
 | `dacite.examples.lmdb-bench` | `host` | `impl/clojure/src/dacite/examples/lmdb_bench.cljs` | nbb file-versus-LMDB timings. Node `fs` and `dacite.store.nbb.lmdb`. |
 | `dacite.examples.peer-nbb` | `host` | `impl/clojure/src/dacite/examples/peer_nbb.cljs` | nbb peer for M5.2. Holds the value the browser page reads and answers the browser over `node-datachannel`. |
 | `dacite.examples.peer-web` | `host` | `impl/clojure/src/dacite/examples/peer_web.cljs` | Compiled browser peer page. DOM, the browser peer, and IndexedDB. |
@@ -190,14 +191,12 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.peer.transport.browser` | `host` | `impl/clojure/src/dacite/peer/transport/browser.cljs` | Browser WebRTC adapter over `RTCPeerConnection`. |
 | `dacite.peer.transport.webrtc` | `host` | `impl/clojure/src/dacite/peer/transport/webrtc.cljs` | nbb WebRTC adapter over `node-datachannel`. |
 | `dacite.reveal.pages` | `host` | `impl/clojure/src/dacite/reveal/pages.clj` | JVM reveal pages: `encode-page` (byte-array hint over `dacite.reveal/encode-page`) and `accept-items!`. Moved from `dacite.service.reveal`. |
-| `dacite.store.browser` | `host` | `impl/clojure/src/dacite/store/browser.cljs` | Browser remote store. `fetch` and `Uint8Array`. |
+| `dacite.store.browser` | `host` | `impl/clojure/src/dacite/store/browser.cljs` | Browser HTTP store. `fetch` and `Uint8Array`. Only the todo and explorer pages use it; their HTTP server was removed. |
 | `dacite.store.file` | `host` | `impl/clojure/src/dacite/store/file.clj` | Filesystem store for the JVM and babashka (`java.io`). |
 | `dacite.store.idb` | `host` | `impl/clojure/src/dacite/store/idb.cljs` | IndexedDB content store. |
 | `dacite.store.jvm` | `host` | `impl/clojure/src/dacite/store/jvm.clj` | JVM LMDB store (`lmdbjava`) and the LMDB root cell. |
 | `dacite.store.nbb` | `host` | `impl/clojure/src/dacite/store/nbb.cljs` | nbb filesystem store (Node `fs`). |
 | `dacite.store.nbb.lmdb` | `host` | `impl/clojure/src/dacite/store/nbb/lmdb.cljs` | nbb LMDB store (Node `lmdb` addon, format v1). |
-| `dacite.store.remote` | `host` | `impl/clojure/src/dacite/store/remote.clj` | JVM HTTP client of the service (`java.net.http`). |
-| `dacite.store.reveal` | `host` | `impl/clojure/src/dacite/store/reveal.clj` | JVM HTTP/3 reveal client (Jetty). Calls `dacite.service.reveal/accept-ready!`. |
 | `dacite.value.render` | `host` | `impl/clojure/src/dacite/value/render.clj` | JVM `print-method` and bounded `toString` (`java.io.Writer`). |
 | `dacite.value.serial` | `host` | `impl/clojure/src/dacite/value/serial.clj` | Legacy JVM node codec (`java.nio.ByteBuffer`). Prefer `dacite.wire.binary`. |
 | `gen-fuse-fixtures` | `host` | `impl/clojure/dev/gen_fuse_fixtures.clj` | JVM writer for `fixtures/fuse-sl2`. |
@@ -206,23 +205,11 @@ above, so it is `host` until those dependencies are `core`.
 
 ## Server-only
 
-The HTTP service process. Names are `dacite.service` and `dacite.service.*`.
-
-| Namespace | Class | File | Rationale |
-|-----------|-------|------|-----------|
-| `dacite.service` | `server-only` | `impl/clojure/src/dacite/service.clj` | Jetty HTTP/1.1 and HTTP/3 server, static files, and the node routes. |
-| `dacite.service.main` | `server-only` | `impl/clojure/src/dacite/service/main.clj` | Process entry (`clojure -M:service`). |
-| `dacite.service.reveal` | `server-only` | `impl/clojure/src/dacite/service/reveal.clj` | `POST /reveal` session writing a `java.io.OutputStream`. |
-| `dacite.service.throttle` | `server-only` | `impl/clojure/src/dacite/service/throttle.clj` | Inbound HTTP admission for `dacite.service`. |
-
-### Edges the lint allows
-
-The lint is one way: `core` may not require `host` or `server-only`. A
-`host` namespace may require a `server-only` one. Two do, and this
-milestone leaves them where they are:
-
-- `dacite.store.reveal` requires `dacite.service.reveal` (`accept-ready!`).
-- `dacite.bench.todo-bw` requires `dacite.service`.
+None. `dacite.service`, `dacite.service.main`, `dacite.service.reveal`,
+and `dacite.service.throttle` were removed in the HTTP removal slice 2,
+with the `host` HTTP clients `dacite.store.remote` and
+`dacite.store.reveal`. The writer's page encoder from
+`dacite.service.reveal` moved to `dacite.reveal.pages` (`host`).
 
 ## Scripts that are not namespaces
 

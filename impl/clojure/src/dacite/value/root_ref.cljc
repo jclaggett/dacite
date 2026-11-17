@@ -193,9 +193,9 @@
   "Wrap a rooted store as a value-level root reference.
 
    `rooted` must implement `dacite.rooted/IRoot` (`root`, `cas-root!`,
-   `set-root!`) — a local `store/rooted-store` or a
-   `store/remote-rooted-store`. `ref-reset!` / `set-root!` throw on a
-   remote store; seed with `ref-cas!` from nil and update with `ref-swap!`."
+   `set-root!`), such as a local `store/rooted-store`. A rooted store
+   whose `set-root!` throws is seeded with `ref-cas!` from nil and
+   updated with `ref-swap!`."
   [rooted]
   (->RootRef rooted (atom {})))
 
