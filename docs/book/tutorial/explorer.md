@@ -1,9 +1,8 @@
 # Browse without dumping
 
-> **No working mode right now.** This page ran against the JVM HTTP
-> service (`dacite.service`), which the HTTP removal (slice 2) deleted.
-> The page stays as a record until the demo is deleted or ported to
-> peering. The library reader (`/app/library/`) runs over peering; see
+> **No working mode yet: this page will run over peering later.** It ran
+> against the JVM HTTP service, which the HTTP removal (slice 2) deleted,
+> and is kept as a placeholder. The library reader (`/app/library/`) runs over peering; see
 > [examples/web/README.md](https://github.com/jclaggett/dacite/blob/main/examples/web/README.md).
 
 You want to see the current root as **typed values**, expand a collection,

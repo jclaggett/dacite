@@ -110,8 +110,8 @@ npm run web:serve                  # serves examples/web at http://127.0.0.1:808
 
 The library reader (`/app/library/`) runs over peering; see
 [examples/web/README.md](examples/web/README.md). The todo (`/app/`) and
-explorer (`/app/explorer/`) pages needed the JVM HTTP service, which was
-removed, so they have no working mode right now.
+explorer (`/app/explorer/`) pages are placeholders. No working mode yet:
+they will run over peering later.
 
 ## Use Cases
 

@@ -8,9 +8,9 @@
    Compile from impl/clojure:
      clojure -M:cljs-explorer
 
-   No working mode: the page needs the JVM HTTP service (`clojure
-   -M:service`), which the HTTP removal (slice 2) deleted. It stays until
-   it is deleted or ported to peering."
+   No working mode yet: this page will run over peering later. It needed
+   the JVM HTTP service, which the HTTP removal (slice 2) deleted; it is
+   kept as a placeholder."
   (:require [clojure.string :as str]
             [dacite.store.browser :as browser]
             [dacite.store :as store]

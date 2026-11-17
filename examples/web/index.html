@@ -11,6 +11,7 @@
     <header>
       <h1>Dacite Todo</h1>
       <p class="tagline">Browser UI over content-addressed Dacite values via HTTP store + root CAS</p>
+      <p class="status error" id="no-mode">No working mode yet: this page will run over peering later.</p>
       <p id="status" class="status">loading…</p>
       <p id="bandwidth" class="bandwidth" title="Store-protocol body sizes only (node + root), not static assets">bw · …</p>
     </header>
@@ -31,7 +32,7 @@
     </footer>
   </main>
   <script>
-    // same-origin API when served by dacite.service
+    // placeholder: the HTTP store this page used was removed
     window.DACITE_API_BASE = window.DACITE_API_BASE || "";
   </script>
   <!-- cache-bust when pack/client changes; bump query after cljs-web rebuild -->
