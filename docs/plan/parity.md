@@ -64,7 +64,7 @@ Status: parity landed on main in #61 (Nov 17, 2026). Jonathan approved skipping 
 
 ## Hand checks and later
 
-- [x] [done] Hand runs of the browser peer: the M6.4 Value Browser (paste a peer and fetch its hash) over peering only, no HTTP origin. Use the steps in `docs/plan/peering.md` M6.4, not M5.2, which depends on the legacy origin. Chromium `peer:e2e` is in CI
+- [x] [done] Hand runs of the browser peer (Brave; Safari and Firefox moved): the M6.4 Value Browser (paste a peer and fetch its hash) over peering only, no HTTP origin. Use the steps in `docs/plan/peering.md` M6.4, not M5.2, which depends on the legacy origin. Chromium `peer:e2e` is in CI
   - [x] [done] Mac + Brave (Nov 11, 2026, Jonathan): passed. `parity` branch, `browser-nbb` over the room relay, a static server for `examples/web`, Brave launched with `--disable-features=WebRtcHideLocalIpsWithMdns`
   - [ ] [moved] Safari: moved to packaging testing (Jonathan, Nov 17, 2026). See `docs/design/packaging.md`, "Follow-ups"
   - [ ] [moved] Firefox: moved to packaging testing (Jonathan, Nov 17, 2026). See `docs/design/packaging.md`, "Follow-ups"
