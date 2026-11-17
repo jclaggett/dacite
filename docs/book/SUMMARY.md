@@ -16,7 +16,6 @@
 - [Persist and update a document](./tutorial/config.md)
 - [History is free](./tutorial/notes.md)
 - [Large sequences stay cheap](./tutorial/event-log.md)
-- [Two writers, one CAS](./tutorial/two-client.md)
 - [Sync a tree of blobs](./tutorial/sync.md)
 - [Browse without dumping](./tutorial/explorer.md)
 - [A browser app](./building/browser-app.md)
@@ -26,14 +25,12 @@
 - [Read without dumping](./guide/read.md)
 - [Update and share identity](./guide/update.md)
 - [Commit loops](./guide/commit.md)
-- [Same domain, local or HTTP](./guide/local-or-http.md)
 - [What not to do](./guide/what-not-to-do.md)
 
 # Reference
 
 - [Values API](./reference/values.md)
 - [Stores API](./reference/stores.md)
-- [HTTP service](./reference/http.md)
 
 ---
 

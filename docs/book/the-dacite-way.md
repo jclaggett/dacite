@@ -84,18 +84,18 @@ Seed an empty root with `cas!` from `nil`. There is no unconditional reset.
 
 ## Stores are wiring
 
-Mem, file, LMDB, and HTTP all speak the same store protocol. Domain functions
+Mem, file, LMDB, and IndexedDB all speak the same store protocol. Domain functions
 take and return values. They do not open files or build URLs.
 
 A typical app splits in two, as [todo.cljc](https://github.com/jclaggett/dacite/blob/main/impl/clojure/src/dacite/examples/todo.cljc) does:
 
 - **Values** — `add-todo`, `toggle-at`, seed data, `v/root` + `swap!`. Only
   `dacite.value`.
-- **Store** — path, `--url`, write-back policy, reset. No todo shape.
+- **Store** — path, backend, reset. No todo shape.
 
-Point the same domain at a file store or at `clojure -M:service`. The HTTP
-client packs neighborhoods on GET and flushes packed literals on commit.
-That is transport. The domain does not import it.
+Point the same domain at a file store or an LMDB store. Moving values
+between processes is the peer layer's job (packed pages over a
+transport). That is transport. The domain does not import it.
 
 ## Not git, not REST, not an atom
 

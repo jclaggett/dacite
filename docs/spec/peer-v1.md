@@ -338,9 +338,9 @@ Neither is built in M1.1a.
 
 **Earlier draft.** The first draft said item streams carried node items only
 (review item F2, and open question 5). That is replaced by this section: literals
-are allowed under the cap (decision Q5). The reveal service of today
-(`dacite.service.reveal`) still writes node items only, which a v1 receiver
-accepts.
+are allowed under the cap (decision Q5). The HTTP reveal service
+(`dacite.service.reveal`, removed in the HTTP removal slice 2) wrote node items
+only, which a v1 receiver accepts.
 
 ### 3.3 Verification of items
 
@@ -356,7 +356,7 @@ it depends on arrives (only a collection header, below); it is never parked.
 `dacite.peer.verify/verify-item!` is the check (portable `.cljc`; `dacite.peer.items`
 re-exports it); `accept-item!` stores each item as it is verified, in arrival order.
 `dacite.peer.client` is the requesting side that uses it: items reach its store only
-through `accept-item!`, and a failure ends that peer's session (12.4). (The older `dacite.service.reveal/accept-items!`
+through `accept-item!`, and a failure ends that peer's session (12.4). (The older `accept-items!`, now `dacite.reveal.pages/accept-items!`,
 does hold a collection header until its root arrives. It is not the peer rule, and
 M2.2 replaces it.)
 

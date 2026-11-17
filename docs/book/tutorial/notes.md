@@ -76,8 +76,7 @@ Version **0** is current, **1** is the previous snapshot, and so on.
 `diff` compares field hashes — a title-only edit reports `title` and
 `edited-at`, not `body`.
 
-`--path DIR` selects the store directory. The same `--url` recipe as
-[Persist and update a document](config.md) works if the HTTP service is running.
+`--path DIR` selects the store directory.
 
 ## Sharing bench
 

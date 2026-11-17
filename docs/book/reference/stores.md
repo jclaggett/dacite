@@ -1,8 +1,7 @@
 # Stores API reference (0.2 alpha)
 
 Practical API for content stores and client composition in the reference
-implementation. App wiring: [Anatomy](../building/anatomy.md) and
-[Same domain, local or HTTP](../guide/local-or-http.md). Internals:
+implementation. App wiring: [Anatomy](../building/anatomy.md). Internals:
 [Content Stores](../01-stores/chapter.md),
 [Rooted Stores](../04-rooted-stores/chapter.md).
 
@@ -98,17 +97,16 @@ pack / chunk transport   (IChunkTransport + pack/flush-from!)
     ↓
 optional rate-limit      (dacite.store.rate-limit)
     ↓
-remote HTTP store        (dacite.store.remote | dacite.store.browser)
+remote HTTP store        (dacite.store.browser)
 ```
 
 | Module | Role |
 |--------|------|
 | `dacite.store.client-cache` | Local mem + flush reachable on CAS / explicit flush |
 | `dacite.store.pack` | Soft budget packing, `flush-from!`, `apply-chunk!`, literals |
-| `dacite.store.rate-limit` | Throttle **send** path (outermost `IChunkTransport` wins). Server inbound admit is `dacite.service.throttle` (429), not this wrapper. |
+| `dacite.store.rate-limit` | Throttle **send** path (outermost `IChunkTransport` wins). |
 | `dacite.store.stats` | Bandwidth accounting for store-protocol bodies |
-| `dacite.store.remote` | JVM HTTP client (`:binary true` default for packs); `watch-root` is GET /events |
-| `dacite.store.browser` | Browser `fetch` client (`:binary true` default). `drive` keeps `IStore` synchronous |
+| `dacite.store.browser` | Browser `fetch` client (`:binary true` default). `drive` keeps `IStore` synchronous. Its JVM server was removed (HTTP removal slice 2); only the todo and explorer pages use it |
 
 `pack/flush-from!` finds the outermost `IChunkTransport` and sends budgeted
 chunks (default soft budget **1024** bytes).
@@ -128,15 +126,13 @@ chunks (default soft budget **1024** bytes).
 - Spec: [wire-v1](../../spec/wire-v1.md) (repo) / book [Serialization appendix](../appendices/serialization.md)
 - Codec: `dacite.wire.binary` (portable `.cljc` — JVM + CLJS/nbb)
 - EDN helpers: `dacite.wire` (`read-edn` / `write-edn`)
-- Opt out: `{:binary false}` on remote/browser store constructors
-
-Service dual-stack: `dacite.service` honors `Content-Type` / `Accept`.
+- Opt out: `{:binary false}` on the browser store constructor
 
 ---
 
 ## Alpha quality notes
 
-- HTTP service and remotes are **experimental** but usable for demos and tests
+- The JVM HTTP service and JVM remote store were removed (HTTP removal slice 2); peering replaces them
 - Browser remote uses **`fetch`** inside `drive` — not production networking
 - APIs may change before 1.0; see [CHANGELOG](https://github.com/jclaggett/dacite/blob/main/CHANGELOG.md)
 
@@ -145,6 +141,5 @@ Service dual-stack: `dacite.service` honors `Content-Type` / `Accept`.
 ## Related
 
 - [Values API](values.md)
-- [HTTP service](http.md)
 - [Anatomy of a Dacite app](../building/anatomy.md)
 - [Install](../getting-started/install.md)

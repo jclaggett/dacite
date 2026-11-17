@@ -1,5 +1,11 @@
 # Browse without dumping
 
+> **No working mode right now.** This page ran against the JVM HTTP
+> service (`dacite.service`), which the HTTP removal (slice 2) deleted.
+> The page stays as a record until the demo is deleted or ported to
+> peering. The library reader (`/app/library/`) runs over peering; see
+> [examples/web/README.md](https://github.com/jclaggett/dacite/blob/main/examples/web/README.md).
+
 You want to see the current root as **typed values**, expand a collection,
 and not download the whole tree. Dacite’s move: walk with `v/type`,
 `count`, `nth`, paged `seq`; never `dac->clj`. HTTP `GET /node` returns a
@@ -10,7 +16,7 @@ This is the sixth claim-proving app in the
 
 You will:
 
-1. Open `/app/explorer/` against `clojure -M:service`.
+1. Open `/app/explorer/` against the (removed) HTTP service.
 2. See every public Dacite type as **type + value** (not a JSON/EDN dump).
 3. Expand vectors, maps, and sets; page long collections 32 at a time.
 4. Measure that the first page of a 128-element vector costs less than
@@ -58,9 +64,10 @@ does not.
 ```bash
 cd impl/clojure
 clojure -M:cljs-explorer          # once / after cljs changes
-clojure -M:service --port 8080 --store mem
-# open http://127.0.0.1:8080/app/explorer/   (trailing slash)
 ```
+
+The page then needed the HTTP service at `/app/explorer/`; that server
+is gone (see the note at the top).
 
 Todo stays at [http://127.0.0.1:8080/app/](http://127.0.0.1:8080/app/).
 
@@ -79,16 +86,9 @@ Todo stays at [http://127.0.0.1:8080/app/](http://127.0.0.1:8080/app/).
 
 ## Existing data
 
-Point the service at a store you already seeded:
-
-```bash
-cd impl/clojure
-clojure -M:log -- --reset show          # 2000 events in target/dacite-log
-clojure -M:service --port 8080 --store file:target/dacite-log
-# open /app/explorer/ — the ledger, not the gallery
-```
-
-The explorer must not overwrite that root.
+Pointed at a store you already seeded (the event log's
+`target/dacite-log`, say), the explorer showed the ledger, not the
+gallery. It must not overwrite that root.
 
 ## Measure
 
@@ -97,10 +97,9 @@ cd impl/clojure
 clojure -M:dev:test -n dacite.examples.explorer-test
 ```
 
-`remote-expand-page-cheaper-than-full-seq` seeds the gallery over HTTP,
-then compares a cold client’s first `child-page` of `"page-me"` with
-`seq` of all 128. Page bytes and requests stay strictly below the full
-walk.
+The HTTP measurement (`remote-expand-page-cheaper-than-full-seq`) was
+removed with the service. The remaining tests check the explorer's
+domain walk on a local store.
 
 ## Related
 

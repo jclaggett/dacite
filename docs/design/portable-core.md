@@ -54,7 +54,6 @@ flowchart TB
     filejvm["dacite.store.file — java.io (JVM/bb)"]
     filenbb["dacite.store.nbb — Node fs"]
     lmdb["dacite.store.jvm — LMDB + lmdb-root-cell"]
-    remote["dacite.store.remote — HTTP client"]
   end
   subgraph jvmonly [JVM-only adapters]
     direction TB
@@ -238,7 +237,6 @@ Durable backends live outside the pure core:
 | File store | `dacite.store.file` | JVM, babashka |
 | File store | `dacite.store.nbb` | nbb (Node `fs`) |
 | LMDB | `dacite.store.jvm` | JVM (+ native lib) |
-| Remote HTTP | `dacite.store.remote` | JVM |
 
 Rooted stores (`dacite.rooted`) are portable: the contract is `root`,
 `cas-root!`, and `set-root!` (local). `file-root-cell` persists the root as
