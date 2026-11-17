@@ -5,19 +5,13 @@
    (`npm run examples:test`). One deftest each, so the JVM suite still
    names the test it ran before.
 
-   `origin-publishes-the-seed-library` and `static-library-index` stay JVM
-   only: they use the JVM origin (`dacite.examples.library-origin`) and the
-   HTTP service (legacy HTTP)."
+   `static-library-index` stays JVM only: it uses the HTTP service (legacy
+   HTTP)."
   (:require [clojure.test :refer [deftest is]]
             [dacite.store.check :as check]
             [dacite.examples.library-checks :as checks]
             [clojure.java.io :as io]
-            [dacite.examples.library :as lib]
-            [dacite.examples.library-origin :as origin]
-            [dacite.service :as svc]
-            [dacite.store :as store]
-            [dacite.value :as v]
-            [dacite.wire :as wire]))
+            [dacite.service :as svc]))
 
 (defn- run-check
   "Run the check called `name`: no problems, and quick."
@@ -72,17 +66,6 @@
       (.disconnect conn)
       {:status code :location loc})))
 
-(deftest origin-publishes-the-seed-library
-  (let [st (store/mem)
-        catalog (lib/seed-library st)
-        {:keys [rooted root entries]} (origin/seed-origin!)
-        resp (svc/handle-request rooted "GET" "/root" nil nil)]
-    (is (= 200 (:status resp)))
-    (is (= (store/hash->hex (v/hash catalog))
-           (store/hash->hex root)
-           (:root (wire/read-edn (:body resp)))))
-    (is (> entries 1))))
-
 (deftest static-library-index
   (let [rooted (svc/make-demo-rooted)
         static (io/file "../../examples/web")
@@ -106,6 +89,5 @@
          (disj (set (map #(-> % meta :name str)
                          (filter #(-> % meta :test) (vals (ns-interns 'dacite.examples.library-test)))))
                "every-check-has-a-deftest"
-               "origin-publishes-the-seed-library"
                "static-library-index"))
       "examples/library_checks.cljc and this file list the same tests"))

@@ -2,8 +2,8 @@
   "Browser library reader — Values vs Store kept separate.
 
    **Store** — HTTP remote + write-back cache, root get/CAS, bandwidth.
-   **Peer** — the same catalog from an nbb peer over the slice-3 room,
-   falling back to that HTTP origin when the peer does not deliver in time.
+   **Peer** — the catalog from an nbb peer over the slice-3 room, by the
+   root hash in the query. No HTTP read.
    **Values** — shelf / toc / page via dacite.examples.library.
    **UI** — DOM only.
 
@@ -14,8 +14,8 @@
      clojure -M:service
      open http://127.0.0.1:8080/app/library/
 
-   Peer-assisted (M5.3), origin and nbb peer already holding the catalog:
-     http://127.0.0.1:8080/app/library/?chapter=0&signal=ws://127.0.0.1:8787&room=TOKEN
+   From the nbb peer (M5.3), which holds the catalog and prints this URL:
+     http://127.0.0.1:8080/app/library/?chapter=0&root=HEX&signal=ws://127.0.0.1:8787&room=TOKEN
 
    `chapter` opens that chapter of the first book and its plate. That is
    the measured read. `peer-timeout` (milliseconds) replaces the wait."
@@ -53,8 +53,7 @@
 (def shelf-page-size 32)
 
 (def ^:private default-peer-timeout-ms
-  "Wait for the nbb peer, handshake included, after the origin has named
-   the root. Then read that root from the origin."
+  "Wait for the nbb peer, handshake included. Then the read fails."
   15000)
 
 (defonce ^:private t-read (atom 0))
@@ -375,12 +374,13 @@
   (parse-nat (query-param "chapter")))
 
 (defn- peer-query
-  "The M5.3 room, or nil when this load does not ask a peer."
+  "The M5.3 root and room, or nil when this load does not ask a peer."
   []
-  (let [signal (query-param "signal")
+  (let [root (query-param "root")
+        signal (query-param "signal")
         room (query-param "room")]
-    (when (and signal room)
-      {:signal signal :room room
+    (when (and root signal room)
+      {:root root :signal signal :room room
        :timeout (or (parse-nat (query-param "peer-timeout"))
                     default-peer-timeout-ms)})))
 
@@ -493,7 +493,7 @@
             true))))))
 
 ;; =============================================================================
-;; Peer, then the origin
+;; Peer
 ;; =============================================================================
 
 (defn- counting-channel
@@ -550,9 +550,6 @@
       (t/close-connection! (:conn peer)))
     (catch :default _ nil)))
 
-(defn- read-root [st]
-  (browser/drive #(get-root st)))
-
 (defn- fail-readout! [msg]
   (set-attr! "readout" "data-status" "failed")
   (set-attr! "readout" "data-mode" (or (:source @!state) ""))
@@ -561,8 +558,9 @@
   (swap! !state assoc :error msg :status "error")
   (try (render-view!) (catch :default e (js/console.error e))))
 
-(defn- read-from-peer! [st {:keys [signal room timeout]}]
-  (let [mem (store/mem-store)
+(defn- read-from-peer! [{:keys [root signal room timeout]}]
+  (let [root-hash (store/hex->hash root)
+        mem (store/mem-store)
         links (link/links)
         base (link/client-opts links)
         gets (atom 0)
@@ -575,8 +573,6 @@
                                 base
                                 {:send! send!}))
         timer (js/setInterval #(client/tick! c) 25)
-        ;; The offer starts now, so the handshake overlaps the root GET.
-        ;; The timeout below starts once that hash is known.
         peer (rtc/create-peer :offerer {:ice-servers []
                                         :ws {:url signal :room room}})
         settled (atom false)
@@ -585,15 +581,11 @@
                            :peer-bytes @recv
                            :peer-gets @gets
                            :peer-frames @frames))
-        fallback! (fn [why]
-                    (when (compare-and-set! settled false true)
-                      (js/console.log "peer fallback" (str why))
-                      (stop-peer! timer peer c)
-                      (remember!)
-                      (swap! !state assoc :source "origin-fallback"
-                             :status "reading from the origin")
-                      (render-status!)
-                      (do-load-or-seed!)))
+        fail! (fn [why]
+                (when (compare-and-set! settled false true)
+                  (stop-peer! timer peer c)
+                  (remember!)
+                  (fail-readout! (str "failed: " why))))
         succeed! (fn [root-hash]
                    (when (compare-and-set! settled false true)
                      (stop-peer! timer peer c)
@@ -607,64 +599,57 @@
                                                  :error nil}
                                                 "peer")
                            (do (reset! settled false)
-                               (fallback! "peer value is not a library"))))
+                               (fail! "peer value is not a library"))))
                        (catch :default e
                          (reset! settled false)
-                         (fallback! (err-text e))))))]
-    (swap! !state assoc :status "reading the root" :source "peer")
+                         (fail! (err-text e))))))
+        steps (max 1 (quot timeout 25))
+        delivery
+        (-> (:signaling peer)
+            (.then (fn [_]
+                     (when @settled
+                       (throw (ex-info "stopped" {:reason :stopped})))
+                     (attach-counted! links c (:conn peer) recv frames)))
+            (.then (fn [_]
+                     (poll! (fn []
+                              (when @settled
+                                (throw (ex-info "stopped" {:reason :stopped})))
+                              (when (= :ended (client/session-status c "nbb"))
+                                (throw (ex-info "the session ended"
+                                                {:reason :session-ended})))
+                              (some? (get-in @(:state c)
+                                             [:sessions "nbb" :hello])))
+                            25 steps)))
+            (.then (fn [_]
+                     (chain/native (client/request! c root-hash))))
+            (.then (fn [_]
+                     (poll! (fn []
+                              (when @settled
+                                (throw (ex-info "stopped" {:reason :stopped})))
+                              (when (= :ended (client/session-status c "nbb"))
+                                (throw (ex-info "the session ended"
+                                                {:reason :session-ended})))
+                              (client/done? c root-hash))
+                            25 steps)))
+            (.then (fn [_] root-hash))
+            (.catch (fn [e]
+                      (when-not @settled
+                        (fail! (err-text e)))
+                      :timeout)))
+        clock (js/Promise.
+               (fn [resolve]
+                 (js/setTimeout #(resolve :timeout) timeout)))]
+    (swap! !state assoc :status "asking the peer" :source "peer")
     (render-status!)
-    (-> (read-root st)
-        (.then (fn [root-hash]
-                 (if (nil? root-hash)
-                   (fallback! "origin has no root")
-                   (let [steps (max 1 (quot timeout 25))
-                         delivery
-                         (-> (:signaling peer)
-                             (.then (fn [_]
-                                      (when @settled
-                                        (throw (ex-info "stopped" {:reason :stopped})))
-                                      (attach-counted! links c (:conn peer) recv frames)))
-                             (.then (fn [_]
-                                      (poll! (fn []
-                                               (when @settled
-                                                 (throw (ex-info "stopped" {:reason :stopped})))
-                                               (when (= :ended (client/session-status c "nbb"))
-                                                 (throw (ex-info "the session ended"
-                                                                 {:reason :session-ended})))
-                                               (some? (get-in @(:state c)
-                                                              [:sessions "nbb" :hello])))
-                                             25 steps)))
-                             (.then (fn [_]
-                                      (chain/native (client/request! c root-hash))))
-                             (.then (fn [_]
-                                      (poll! (fn []
-                                               (when @settled
-                                                 (throw (ex-info "stopped" {:reason :stopped})))
-                                               (when (= :ended (client/session-status c "nbb"))
-                                                 (throw (ex-info "the session ended"
-                                                                 {:reason :session-ended})))
-                                               (client/done? c root-hash))
-                                             25 steps)))
-                             (.then (fn [_] root-hash))
-                             (.catch (fn [e]
-                                       (when-not @settled
-                                         (fallback! (err-text e)))
-                                       :timeout)))
-                         clock (js/Promise.
-                                (fn [resolve]
-                                  (js/setTimeout #(resolve :timeout) timeout)))]
-                     (swap! !state assoc :status "asking the peer")
-                     (render-status!)
-                     (-> (js/Promise.race #js [delivery clock])
-                         (.then (fn [v]
-                                  (cond
-                                    @settled nil
-                                    (= v :timeout) (fallback! "timed out")
-                                    :else (succeed! v)))))))))
+    (-> (js/Promise.race #js [delivery clock])
+        (.then (fn [v]
+                 (cond
+                   @settled nil
+                   (= v :timeout) (fail! "timed out")
+                   :else (succeed! v))))
         (.catch (fn [e]
-                  (if @settled
-                    nil
-                    (fail-readout! (str "failed: " (err-text e)))))))))
+                  (when-not @settled
+                    (fail! (err-text e))))))))
 
 (defn ^:export init! []
   (let [st (open-store)
@@ -676,7 +661,7 @@
            :peer-bytes 0 :peer-gets 0 :peer-frames 0)
     (render-view!)
     (if q
-      (read-from-peer! st q)
+      (read-from-peer! q)
       (do-load-or-seed!))
     (when-let [view (by-id "view")]
       (.addEventListener view "click" on-view-click!))

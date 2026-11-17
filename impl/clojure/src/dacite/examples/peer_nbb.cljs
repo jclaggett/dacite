@@ -1,5 +1,5 @@
 (ns dacite.examples.peer-nbb
-  "nbb peer that holds a value the origin does not (M5.2).
+  "nbb peer that holds the value the browser peer page reads (M5.2).
 
    From the repo root, with the slice-3 relay already listening:
 
@@ -7,7 +7,7 @@
 
    This process is the WebRTC answerer. The browser is the offerer (odd
    stream ids) and creates `dacite-peer` in-band. The room token is the
-   manual signaling step. There is no origin discovery.
+   manual signaling step. There is no peer discovery.
 
    Prints the root hash and how many nodes are reachable from it. The
    browser is given that hash out of band and must read the bytes from
@@ -31,13 +31,13 @@
 
 (def marker
   "A string the canonical parity value does not contain, so this root
-   cannot be the origin's root."
+   is not the parity root."
   "m5.2-only-on-the-nbb-peer")
 
 (def peer-id "browser")
 
 (defn held-value
-  "The value this peer holds and the origin does not."
+  "The value this peer holds."
   [st]
   (v/vector st marker
             (v/map st "via" "nbb" "milestone" "M5.2")

@@ -150,7 +150,7 @@ jobs:
         run: npm run browser:e2e
 
       # M5.3. The library bundle stays on cljs.build.api. Chromium reads a
-      # chapter and the plate from the nbb peer, and falls back to the origin.
+      # chapter and the plate from the nbb peer.
       - name: Library bundle
         run: npm run library:build
 
