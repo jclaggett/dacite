@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Static file server for examples/web, mounted at /app/. It serves files
- * only: no store protocol, no root. The e2e scripts import startStatic;
+ * only: no store protocol, no root. `/app` and any directory without its
+ * trailing slash redirect (301) to the slash form. The e2e scripts import startStatic;
  * `npm run web:serve` runs it on http://127.0.0.1:8080/app/ for the hand
  * steps in docs/plan/peering.md.
  *
@@ -25,30 +26,43 @@ function contentType(file) {
 export function startStatic({ port = 0, host = '127.0.0.1' } = {}) {
   const server = http.createServer((req, res) => {
     const u = new URL(req.url || '/', 'http://127.0.0.1');
-    if (!u.pathname.startsWith('/app/')) {
-      res.writeHead(404, { 'content-type': 'text/plain' });
-      res.end('not found');
-      return;
+    const redirect = (to) => {
+      res.writeHead(301, { location: to + u.search, 'content-type': 'text/plain' });
+      res.end(`moved to ${to}`);
+    };
+    const fail = (code, msg) => {
+      res.writeHead(code, { 'content-type': 'text/plain' });
+      res.end(msg);
+    };
+    if (u.pathname === '/app') return redirect('/app/');
+    if (!u.pathname.startsWith('/app/')) return fail(404, 'not found');
+    let rel;
+    try {
+      rel = decodeURIComponent(u.pathname.slice('/app/'.length));
+    } catch {
+      return fail(400, 'bad path');
     }
-    let rel = decodeURIComponent(u.pathname.slice('/app/'.length));
-    if (rel.endsWith('/')) rel += 'index.html';
+    const dirRequest = rel === '' || rel.endsWith('/');
+    if (dirRequest) rel += 'index.html';
     const file = path.normalize(path.join(webRoot, rel));
     if (file !== webRoot && !file.startsWith(webRoot + path.sep)) {
-      res.writeHead(403, { 'content-type': 'text/plain' });
-      res.end('forbidden');
-      return;
+      return fail(403, 'forbidden');
     }
-    fs.readFile(file, (err, buf) => {
-      if (err) {
-        res.writeHead(404, { 'content-type': 'text/plain' });
-        res.end('not found');
-        return;
+    fs.stat(file, (serr, st) => {
+      if (serr) return fail(404, 'not found');
+      // A directory asked for without its trailing slash: redirect, so
+      // the page's relative URLs resolve inside the directory.
+      if (st.isDirectory()) {
+        return dirRequest ? fail(404, 'not found') : redirect(u.pathname + '/');
       }
-      res.writeHead(200, {
-        'content-type': contentType(file),
-        'cache-control': 'no-store',
+      fs.readFile(file, (err, buf) => {
+        if (err) return fail(404, 'not found');
+        res.writeHead(200, {
+          'content-type': contentType(file),
+          'cache-control': 'no-store',
+        });
+        res.end(buf);
       });
-      res.end(buf);
     });
   });
   return new Promise((resolve, reject) => {
