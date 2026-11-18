@@ -23,6 +23,10 @@
   "2^64 - 1."
   #?(:clj 18446744073709551615 :cljs (js/BigInt "18446744073709551615")))
 
+(def ^:private two-to-the-64
+  "2^64, one above the largest u64."
+  #?(:clj 18446744073709551616N :cljs (js/BigInt "18446744073709551616")))
+
 (defn- derefable?
   [x]
   #?(:clj (instance? clojure.lang.IDeref x) :cljs (satisfies? IDeref x)))
@@ -80,6 +84,10 @@
     (is (assert-fails? #(v2/u16 s 65536)))
     (is (assert-fails? #(v2/u32 s 4294967296)))
     (is (assert-fails? #(v2/u64 s -1)))
+    ;; above 2^64 - 1 throws on both hosts, it does not wrap (#64)
+    (is (assert-fails? #(v2/u64 s two-to-the-64)))
+    (is (assert-fails? #(v2/u64 s 1e20)))
+    (is (= big-u64 (v2/realize (v2/u64 s big-u64))))
     (is (assert-fails? #(v2/u256 s (host-bytes 31))))))
 
 ;; =============================================================================

@@ -59,6 +59,11 @@
   [n]
   #?(:clj (long n) :cljs (js/BigInt n)))
 
+(def max-u64
+  "2^64 - 1, the largest u64, as an exact host integer: a BigInt N on the
+   JVM, a BigInt on ClojureScript."
+  #?(:clj 18446744073709551615N :cljs (js/BigInt "18446744073709551615")))
+
 (defn ->word
   "Coerce any integer (a long, a Number, or a BigInt) to a 64-bit word,
    modulo 2^64: the bit pattern the wire carries."
