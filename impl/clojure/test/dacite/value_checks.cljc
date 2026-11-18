@@ -298,10 +298,40 @@
         (is (= reason (:reason (i64-range-error #(v2/map s x 1)))) (str n " a map key"))
         (is (= reason (:reason (i64-range-error #(v2/map s 1 x)))) (str n " a map value"))))))
 
+;; A whole host number past the i64 range is never an f64 (nor wrapped): on
+;; nbb 1e21 is a Number cljs `integer?` misses (exponent notation), on the
+;; JVM the host whole number that size is a BigInt N.
+(defn- whole
+  "The whole host number `x` (a double literal): itself on nbb, a BigInt N
+   on the JVM, where a double is an f64."
+  [x]
+  #?(:clj (bigint x) :cljs x))
+
+(defn whole-numbers-past-i64-throw
+  [_]
+  (let [s (store/mem-store)]
+    (doseq [[x reason] [[(whole 1e21) :above-max]
+                        [(whole 1e300) :above-max]
+                        [(whole -1e21) :below-min]
+                        [(whole 9.3e18) :above-max]
+                        [(whole -9.3e18) :below-min]]]
+      (is (= {:type "i64" :value (str x) :reason reason}
+             (i64-range-error #(v2/set s x)))
+          (str x " in a set"))
+      (is (= reason (:reason (i64-range-error #(v2/map s x 1)))) (str x " a map key"))
+      (is (= reason (:reason (i64-range-error #(v2/map s 1 x)))) (str x " a map value")))
+    (testing "a whole number in range is an i64; a fraction stays an f64"
+      (let [x (whole 1e18)]
+        (is (= (vec (v2/hash (v2/i64 s x)))
+               (vec (v2/hash (first (v2/seq (v2/set s x))))))
+            "1e18 in a set is the i64"))
+      (is (= "f64" (v2/type (first (v2/seq (v2/set s 1.5)))))))))
+
 (def checks
   {"realized-integers-are-set-members-and-map-keys" realized-integers-are-set-members-and-map-keys
    "max-u64-round-trips-through-edn" max-u64-round-trips-through-edn
    "raw-host-bigints-coerce-to-i64" raw-host-bigints-coerce-to-i64
+   "whole-numbers-past-i64-throw" whole-numbers-past-i64-throw
    "scalar-types-and-realize" scalar-types-and-realize
    "values-are-not-derefable" values-are-not-derefable
    "scalar-validation" scalar-validation

@@ -54,6 +54,9 @@
 (deftest raw-host-bigints-coerce-to-i64
   (run-check "raw-host-bigints-coerce-to-i64"))
 
+(deftest whole-numbers-past-i64-throw
+  (run-check "whole-numbers-past-i64-throw"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

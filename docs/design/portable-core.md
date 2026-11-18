@@ -129,7 +129,8 @@ or `:not-an-integer`) on both hosts, so the public constructors, the generic
 literal body is the value, not the word (18446744073709551615N on the JVM,
 never -1). A raw host big integer taken as a plain value (a `BigInt` on nbb,
 a `BigInt` N or `BigInteger` on the JVM, e.g. an element of `v/set` or a key
-of `v/map`) is an `i64` when it is -2^63..2^63 - 1 (`host/min-i64`,
+of `v/map`), or any whole Number on nbb (`Number.isInteger`, so `1e21` too;
+never silently an `f64`), is an `i64` when it is -2^63..2^63 - 1 (`host/min-i64`,
 `host/max-i64`); out of range `types/check-i64` throws `ex-info`
 (`:type "i64"`, `:reason :below-min` or `:above-max`). It never wraps and is
 never a u64, which stays explicit (`v/u64`). Decoded wire bytes are always in range. A decoded node is `=` to the node the
