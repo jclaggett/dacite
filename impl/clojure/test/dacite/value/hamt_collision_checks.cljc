@@ -513,9 +513,7 @@
     (is (= (:bitmap d) (word (reduce (fn [a b] (+ (* a 256) (bit-and 0xFF b))) 0 (subvec bs i (+ i 4))))))
     (testing "the bytes decode to the node"
       (let [[item] (bin/decode-item-stream (host-bytes bs))]
-        ;; On nbb a decoded bitmap is a Number and a built one a BigInt: the
-        ;; same u32, compared as a host word.
-        (is (= #?(:clj e :cljs (update e 1 update :bitmap word)) #?(:clj (:entry item) :cljs (update (:entry item) 1 update :bitmap word))))))))
+        (is (= e (:entry item)))))))
 
 (defn- verify-reason [st h e]
   (try (items/verify-item! st {:enc :node :hash h :entry e}) :ok

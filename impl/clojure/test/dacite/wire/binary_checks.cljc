@@ -237,13 +237,10 @@
         (str "literal materialize hash " (types/dacite-type v)))))
 
 (defn- entry-canon
-  "Compare store entries structurally (u256 byte arrays by content). On nbb a
-   live u64 entry holds a Number and a decoded one a BigInt (as with the
-   bitmap, #64), so u64 data is compared as a host word."
+  "Compare store entries structurally (u256 byte arrays by content)."
   [[t data]]
   [t (case t
        "u256" (byte-vec data)
-       "u64" (host/word data)
        data)])
 
 (defn- round-trip-node!
