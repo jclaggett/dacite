@@ -48,6 +48,9 @@
 (deftest realized-integers-are-set-members-and-map-keys
   (run-check "realized-integers-are-set-members-and-map-keys"))
 
+(deftest max-u64-round-trips-through-edn
+  (run-check "max-u64-round-trips-through-edn"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

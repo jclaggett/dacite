@@ -116,49 +116,49 @@
 (defn size-bytes-scalar-test
   [_]
   (testing "Scalar size-bytes"
-    (is (= 8 (value-size (v/i64 (ctx) 42))))
-    (is (= 1 (value-size (v/bool (ctx) true))))
-    (is (= 0 (value-size (v/null (ctx)))))
-    (is (= 4 (value-size (v/f32 (ctx) 1.0)))))
+    (is (= (host/word 8) (value-size (v/i64 (ctx) 42))))
+    (is (= (host/word 1) (value-size (v/bool (ctx) true))))
+    (is (= (host/word 0) (value-size (v/null (ctx)))))
+    (is (= (host/word 4) (value-size (v/f32 (ctx) 1.0)))))
   (testing "String size-bytes (UTF-8)"
-    (is (= 5 (value-size (v/string (ctx) "hello"))))
-    (is (= 0 (value-size (v/string (ctx) ""))))))
+    (is (= (host/word 5) (value-size (v/string (ctx) "hello"))))
+    (is (= (host/word 0) (value-size (v/string (ctx) ""))))))
 
 (defn size-bytes-vector-test
   [_]
   (testing "Vector size-bytes is sum of element sizes"
     (let [v (apply v/vector (ctx) [1 2 3])] ;; 3 x i64 = 24
-      (is (= 24 (value-size v)))))
+      (is (= (host/word 24) (value-size v)))))
   (testing "Empty vector is 0 bytes"
-    (is (= 0 (value-size (v/vector (ctx)))))))
+    (is (= (host/word 0) (value-size (v/vector (ctx)))))))
 
 (defn size-bytes-map-test
   [_]
   (testing "Map size-bytes includes keys and values"
     (let [m (v/map (ctx) "a" 1)] ;; "a" = 1 byte, i64 = 8 bytes
-      (is (= 9 (value-size m)))))
+      (is (= (host/word 9) (value-size m)))))
   (testing "Empty map is 0 bytes"
-    (is (= 0 (value-size (v/map (ctx)))))))
+    (is (= (host/word 0) (value-size (v/map (ctx)))))))
 
 (defn size-bytes-nested-test
   [_]
   (testing "Nested structure accumulates sizes"
     (let [v (apply v/vector (ctx) [1 2])       ;; 16 bytes
           m (v/map (ctx) "k" v)] ;; "k"=1 + vec=16 = 17
-      (is (= 16 (value-size v)))
-      (is (= 17 (value-size m))))))
+      (is (= (host/word 16) (value-size v)))
+      (is (= (host/word 17) (value-size m))))))
 
 (defn blob-size-bytes-test
   [_]
   (testing "Size equals byte count"
-    (is (= 5 (value-size (v/blob (ctx) (host-bytes [0 0 0 0 0])))))
-    (is (= 0 (value-size (v/blob (ctx) (host-bytes [])))))))
+    (is (= (host/word 5) (value-size (v/blob (ctx) (host-bytes [0 0 0 0 0])))))
+    (is (= (host/word 0) (value-size (v/blob (ctx) (host-bytes [])))))))
 
 (defn dacite-set-size-bytes-test
   [_]
   (testing "Set size-bytes reflects element sizes (self-map: key+value)"
     (let [s (v/set (ctx) 1 2 3)] ;; 3 x i64, self-map counts k+v = 48
-      (is (= 48 (value-size s))))))
+      (is (= (host/word 48) (value-size s))))))
 
 (defn neg-test
   [_]

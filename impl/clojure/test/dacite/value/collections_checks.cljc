@@ -77,7 +77,7 @@
       (is (throws? #(remove-nth v -1))))
     (testing "remove until empty matches successive drop from left"
       (loop [cur v expected (vec (range 10))]
-        (if (zero? (count* cur))
+        (if (host/word-zero? (count* cur))
           (is (empty? expected))
           (let [cur' (remove-nth cur 0)]
             (is (= (i64s (subvec expected 1)) (realize-each cur')))

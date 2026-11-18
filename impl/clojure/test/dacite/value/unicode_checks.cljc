@@ -97,12 +97,12 @@
   [_]
   (let [st (store/mem-store)
         s (v/string st (str "a" smile "b"))]
-    (is (= 3 (v/count s)))
+    (is (= (host/word 3) (v/count s)))
     (is (= [\a smile \b] (v/realize s)))
     (is (= smile (v/native (v/nth s 1))))
     (is (= \b (v/native (v/nth s 2))))
     (is (= (str "a" smile "b") (v/native s)))
-    (is (= 1 (v/count (v/string st smile))))
+    (is (= (host/word 1) (v/count (v/string st smile))))
     (testing "remove-nth counts code points"
       (is (= (v/hash s) (v/hash (v/remove-nth (v/string st (str "a" smile "X" "b")) 2))))
       (is (= (v/hash (v/string st "ab")) (v/hash (v/remove-nth s 1)))))
@@ -155,7 +155,7 @@
               items (lit/chunk-run "char" text budget)
               pages (map (fn [it] (if (= "run" (:type it)) (:values (:body it)) (str (:body it)))) items)]
           (testing (str "page budget " budget)
-            (is (= n (v/count s)))
+            (is (= (host/word n) (v/count s)))
             (is (= text (apply str pages)) "the pages join to the text")
             (is (= n (reduce + (map lit/item-count items))) "the item counts are code points")
             (is (every? #(nil? (host/lone-surrogate-index %)) pages) "no page ends inside a pair")
@@ -169,7 +169,7 @@
               (doseq [[a b] [[0 1] [0 2] [1 2] [1 3] [39 43] [40 72] [0 n] [n n] [(- n 3) n]]]
                 (let [sl (v/slice s a b)]
                   (is (= (apply str (map cp-str (subvec ref-cps a b))) (v/native sl)) (str "slice " a " " b))
-                  (is (= (- b a) (v/count sl)))
+                  (is (= (host/word (- b a)) (v/count sl)))
                   (is (= (v/hash sl) (v/hash (v/string (store/mem-store) (host/cp-subs text a b))))
                       "a slice is the value of its text"))))))))))
 
@@ -220,9 +220,9 @@
       (is (= :lone-surrogate (reason #(v/map st hi 1))))
       (is (= :lone-surrogate (reason #(v/vector st (str "a" lo))))))
     (testing "a well-formed pair is fine, and so is every BMP char around the surrogate range"
-      (is (= 1 (v/count (v/string st smile))))
+      (is (= (host/word 1) (v/count (v/string st smile))))
       (doseq [cp [0xD7FF 0xE000 0xFFFD 0xFFFF 0x10000 0x10FFFF]]
-        (is (= 1 (v/count (v/string st (cp-str cp)))) (u+ cp))))))
+        (is (= (host/word 1) (v/count (v/string st (cp-str cp)))) (u+ cp))))))
 
 (defn the-wire-counts-code-points-and-refuses-malformed-text
   [_]

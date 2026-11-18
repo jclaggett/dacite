@@ -82,13 +82,13 @@
 (defn version-count
   "Current plus previous snapshots."
   [nb]
-  (inc (v/count (history nb))))
+  (inc (v/native-count (history nb))))
 
 (defn doc-at
   "Document at version index. 0 = current, 1 = previous, 2 = the one before that."
   [nb idx]
   (let [hist (history nb)
-        n (v/count hist)]
+        n (v/native-count hist)]
     (cond
       (neg? idx)
       (throw (ex-info "version index must be >= 0" {:idx idx}))
@@ -197,7 +197,7 @@
 (defn render
   [nb]
   (str (render-doc (current-doc nb))
-       "history:    " (v/count (history nb)) " previous\n"
+       "history:    " (v/native-count (history nb)) " previous\n"
        "root:       " (store/hash->hex (v/hash nb)) "\n"))
 
 (defn render-list

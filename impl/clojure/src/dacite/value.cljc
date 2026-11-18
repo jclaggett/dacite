@@ -149,14 +149,22 @@
 ;; =============================================================================
 
 (defn count
-  "Number of elements/entries in a Dacite collection, O(1)."
+  "Number of elements/entries in a Dacite collection, O(1). A host word: a
+   long on the JVM, a BigInt on nbb (#64)."
   [v]
   (coll/coll-count (types/dacite-store v) (types/dacite-hash v)))
+
+(defn native-count
+  "`count` as a native integer, for host arithmetic and indexing: a long on
+   the JVM, a Number on nbb (exact below 2^53). `count` itself is a host
+   word, a BigInt on nbb (#64)."
+  [v]
+  (host/word->long (count v)))
 
 (defn empty?
   "True if the Dacite collection has no elements."
   [v]
-  (zero? (count v)))
+  (host/word-zero? (count v)))
 
 (defn seq
   "Elements of a sequence (string/blob/vector) as wrapped values,
@@ -250,7 +258,7 @@
 
    One-arg end defaults to the count. Leaves are shared. Any page is
    O((end-start) log n) via nth — it does not seq the whole collection."
-  ([v start] (slice v start (count v)))
+  ([v start] (slice v start (native-count v)))
   ([v start end]
    (case (type v)
      ("vector" "string" "blob")
@@ -299,7 +307,7 @@
    nil limit = the whole string. Returns [host-string truncated? total-count].
    Uses lazy `realize` so only the consumed prefix is fetched."
   [v limit]
-  (let [n (count v)]
+  (let [n (native-count v)]
     (if (zero? n)
       ["" false 0]
       (let [take-n (if limit (min n limit) n)
@@ -368,7 +376,7 @@
        (when-not (store/await (store/s-has? st h))
          (throw (ex-info "blob not in store"
                          {:dacite/missing true :hash h})))
-       (let [n (count x)
+       (let [n (native-count x)
              take-n (if limit (min n limit) n)]
          (when (and limit (> n limit))
            (throw (ex-info "blob exceeds byte limit"

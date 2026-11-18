@@ -345,7 +345,7 @@
   (let [key-size (types/dacite-size (lookup store key-ref))
         val-size (types/dacite-size (lookup store val-ref))
         measure {:count (host/word 1)
-                 :size-bytes (host/word (+ key-size val-size))
+                 :size-bytes (host/add64 key-size val-size)
                  :elements-fuse (entry-fuse key-ref val-ref)}]
     (hamt-assoc* store root key-hash key-ref val-ref measure 0)))
 
@@ -372,14 +372,16 @@
   (get-measure store root))
 
 (defn hamt-count
-  "Entry count, O(1) via cached measure."
+  "Entry count, O(1) via cached measure. A host word: a long on the JVM, a
+   BigInt on nbb."
   [store root]
-  (host/word->long (:count (get-measure store root))))
+  (:count (get-measure store root)))
 
 (defn hamt-size-bytes
-  "Total key+value byte size, O(1) via cached measure."
+  "Total key+value byte size, O(1) via cached measure. A host word: a long
+   on the JVM, a BigInt on nbb."
   [store root]
-  (host/word->long (:size-bytes (get-measure store root))))
+  (:size-bytes (get-measure store root)))
 
 (defn hamt-elements-fuse
   "The map's data hash: the fuse of all entry fuses, O(1)."
@@ -404,7 +406,7 @@
   (let [key-size (types/dacite-size (lookup store key-ref))
         val-size (types/dacite-size (lookup store val-ref))
         measure {:count (host/word 1)
-                 :size-bytes (host/word (+ key-size val-size))
+                 :size-bytes (host/add64 key-size val-size)
                  :elements-fuse (entry-fuse key-ref val-ref)}]
     (make-entry! store key-hash key-ref val-ref measure)))
 

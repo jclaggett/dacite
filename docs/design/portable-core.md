@@ -110,13 +110,24 @@ long on the JVM, and on nbb a signed `BigInt` (`BigInt.asIntN(64, …)`), built
 `BigInt` even when it is small: one representation. Code that needs a native
 integer (host arithmetic, an index, a peer-v1 message field, printing) reads
 it through `v/native-int` (`host/i64->native`: a Number when it is a safe
-integer, |n| <= 2^53 - 1, else the `BigInt`). The EDN wire (`dacite.wire`) writes a negative `BigInt` as
-signed text under `#dacite/u64` (both readers take it), and its nbb reader
-brings an `i64` or `u64` entry or literal body back to the host
-representation (a JVM writes a small one as a plain integer). Measures add counts with `host/add64`; code that indexes or
-compares with a native integer reads a count through `host/word->long`, and
-the public API (`v/count`, `ft-count`, `hamt-count`, `dacite-size`) returns a
-native integer (a Number on nbb). A decoded node is `=` to the node the
+integer, |n| <= 2^53 - 1, else the `BigInt`). The EDN wire (`dacite.wire`)
+writes a negative `BigInt` as signed text under `#dacite/u64` (both readers
+take it); `read-edn` brings an `i64` or `u64` entry or literal body back to
+the host representation (a JVM writes a small one as a plain integer, and
+on the JVM a u64 entry holds the word, a u64 literal body the value).
+Measures add counts with `host/add64`; code that indexes or
+compares with a native integer reads a count through `host/word->long`. The
+public count and size functions return the host word too: `v/count`,
+`coll/coll-count`, `ft/ft-count`, `ft/ft-size-bytes`, `hamt/hamt-count`,
+`hamt/hamt-size-bytes`, and `types/dacite-size` (a long on the JVM, a `BigInt`
+on nbb). `v/native-count` is the count as a native integer for host
+arithmetic and indexing (a Number on nbb, exact below 2^53). A u64 made from
+host data is 0..2^64 - 1 (`host/max-u64`): `types/scalar-entry` checks it
+(`types/check-u64`) and throws `ex-info` (`:reason :negative`, `:above-max`,
+or `:not-an-integer`) on both hosts, so the public constructors, the generic
+`scalar-with-store "u64"`, and literal materialization never wrap. A u64
+literal body is the value, not the word (18446744073709551615N on the JVM,
+never -1). Decoded wire bytes are always in range. A decoded node is `=` to the node the
 library built on both hosts (`a-decoded-node-is-the-built-node`,
 `npm run wire:test`); no call site coerces through `host/word` to compare. On
 nbb a BigInt is slower than a Number; the speed is to come from a WASM / C++

@@ -137,7 +137,7 @@
 (defn render
   "Plain-text listing (no ANSI)."
   [todos]
-  (str "todos (" (v/count todos) ", "
+  (str "todos (" (v/native-count todos) ", "
        (open-count todos) " open):\n"
        (apply str
               (map-indexed

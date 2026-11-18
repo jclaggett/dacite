@@ -292,11 +292,11 @@ enough that slice and a full native are different amounts of work.
 
 (defn shelf
   "A page of the title index (records, not host maps)."
-  ([lib] (shelf lib 0 (v/count (title-index lib))))
-  ([lib start] (shelf lib start (v/count (title-index lib))))
+  ([lib] (shelf lib 0 (v/native-count (title-index lib))))
+  ([lib start] (shelf lib start (v/native-count (title-index lib))))
   ([lib start end]
    (let [idx (title-index lib)
-         n (v/count idx)
+         n (v/native-count idx)
          start (max 0 (long start))
          end (min n (long end))]
      (if (>= start end)
@@ -321,7 +321,7 @@ enough that slice and a full native are different amounts of work.
   "Character offset of chapter `i` (0-based)."
   [book i]
   (let [ch (book-chapters book)
-        n (v/count ch)]
+        n (v/native-count ch)]
     (when (or (neg? i) (>= i n))
       (throw (ex-info "chapter out of range" {:i i :chapters n})))
     (or (v/native-int (v/get (v/nth ch i) "start")) 0)))
@@ -330,8 +330,8 @@ enough that slice and a full native are different amounts of work.
   "Exclusive end offset of chapter `i`."
   [book i]
   (let [ch (book-chapters book)
-        n (v/count ch)
-        text-n (v/count (book-text book))]
+        n (v/native-count ch)
+        text-n (v/native-count (book-text book))]
     (if (< (inc i) n)
       (chapter-start book (inc i))
       text-n)))
@@ -363,7 +363,7 @@ enough that slice and a full native are different amounts of work.
   ([book start] (page book start default-page-size))
   ([book start n]
    (let [text (book-text book)
-         c (v/count text)
+         c (v/native-count text)
          start (max 0 (long start))
          end (min c (+ start (long n)))]
      (if (>= start c)
@@ -446,14 +446,14 @@ enough that slice and a full native are different amounts of work.
   [lib]
   (let [book (v/nth (title-index lib) 0)
         text (book-text book)
-        n (v/count text)
+        n (v/native-count text)
         pg (page book 0 default-page-size)
         lib2 (add-epub lib (book-epub book))]
     (merge {:text-chars n
             :page-chars (count pg)
-            :epubs (v/count (epubs-of lib))
-            :books (v/count (books-of lib))
-            :shelf (v/count (title-index lib))
+            :epubs (v/native-count (epubs-of lib))
+            :books (v/native-count (books-of lib))
+            :shelf (v/native-count (title-index lib))
             :same-epub-noop? (= (v/hash lib) (v/hash lib2))
             :nodes (node-count lib)}
            #?(:clj (chunked-seed-stats)
@@ -466,7 +466,7 @@ enough that slice and a full native are different amounts of work.
 (defn render-shelf
   [lib]
   (let [idx (title-index lib)
-        n (v/count idx)]
+        n (v/native-count idx)]
     (str "shelf (" n ")\n"
          (apply str
                 (map-indexed
@@ -474,16 +474,16 @@ enough that slice and a full native are different amounts of work.
                    (str "  " i ". " (book-title b)
                         "  — " (book-author b) "\n"))
                  (or (v/seq idx) ())))
-         "epubs: " (v/count (epubs-of lib))
-         "  books: " (v/count (books-of lib)) "\n"
+         "epubs: " (v/native-count (epubs-of lib))
+         "  books: " (v/native-count (books-of lib)) "\n"
          "root:  " (store/hash->hex (v/hash lib)) "\n")))
 
 (defn render-toc
   [book]
   (let [ch (book-chapters book)
-        n (v/count ch)]
+        n (v/native-count ch)]
     (str (book-title book) "  — " (book-author book) "\n"
-         "chars: " (v/count (book-text book))
+         "chars: " (v/native-count (book-text book))
          "  chapters: " n "\n"
          (apply str
                 (map (fn [i]
@@ -619,7 +619,7 @@ enough that slice and a full native are different amounts of work.
 
 (defn- first-book [lib]
   (let [idx (title-index lib)]
-    (when (pos? (v/count idx))
+    (when (pos? (v/native-count idx))
       (v/nth idx 0))))
 
 (defn- require-book [lib title author]

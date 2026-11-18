@@ -362,7 +362,8 @@
             nil))
 
         (contains? scalar-types t)
-        {:type t :body data}
+        ;; a u64 body is its value, not the word (2^64-1, never -1 on the JVM)
+        {:type t :body (if (= "u64" t) (host/word->unsigned data) data)}
 
         (= "string" t)
         {:type "string" :body (host-string st h)}

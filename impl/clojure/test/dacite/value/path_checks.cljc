@@ -12,7 +12,8 @@
    render is `dacite.value.render` (.clj), and nbb prints the type name.
 
    `is` is `dacite.store.check`."
-  (:require [dacite.store :as store]
+  (:require [dacite.host :as host]
+            [dacite.store :as store]
             [dacite.store.check :refer [is throws-info?]]
             [dacite.value :as v]))
 
@@ -93,7 +94,7 @@
     (is (= 31 (v/native-int (v/get (v/update cfg "timeout" (fn [n] (+ (v/native-int n) 1)))
                                "timeout"))))
     (let [cfg' (v/update cfg "features" v/conj "b")]
-      (is (= 2 (v/count (v/get cfg' "features"))))
+      (is (= (host/word 2) (v/count (v/get cfg' "features"))))
       (is (= "b" (v/native (v/nth (v/get cfg' "features") 1)))))
     (let [cfg' (v/update-in cfg ["features" 0] (fn [_] "z"))]
       (is (= "z" (v/native (v/get-in cfg' ["features" 0])))))))
@@ -104,11 +105,11 @@
         vec (v/vector st 0 1 2 3 4 5 6 7 8 9)
         mid (v/slice vec 3 7)]
     (is (= "vector" (v/type mid)))
-    (is (= 4 (v/count mid)))
+    (is (= (host/word 4) (v/count mid)))
     (is (= 3 (v/native-int (v/nth mid 0))))
     (is (= 6 (v/native-int (v/nth mid 3))))
     (is (= (v/hash vec) (v/hash (v/slice vec 0))))
-    (is (zero? (v/count (v/slice vec 4 4))))
+    (is (host/word-zero? (v/count (v/slice vec 4 4))))
     (let [built (v/vector st 3 4 5 6)]
       (is (= (v/hash built) (v/hash mid))
           "slice of the same elements has the same value hash"))
@@ -125,7 +126,7 @@
     (is (= "world" (v/native mid)))
     (is (= (v/hash (v/string st "world")) (v/hash mid)))
     (is (= (v/hash s) (v/hash (v/slice s 0))))
-    (is (zero? (v/count (v/slice s 3 3))))
+    (is (host/word-zero? (v/count (v/slice s 3 3))))
     (is (= "" (v/native (v/slice s 3 3))))))
 
 (defn slice-blob-preserves-type-and-hash

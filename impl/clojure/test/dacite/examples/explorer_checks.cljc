@@ -6,7 +6,8 @@
    from that namespace, one deftest each under its old name; nbb runs them
    from `dacite.examples.examples-cljs-test` (`npm run examples:test`).
    `is` is `dacite.store.check`."
-  (:require [dacite.store.check :refer [is]]
+  (:require [dacite.host :as host]
+            [dacite.store.check :refer [is]]
             [clojure.set :as set]
             [dacite.examples.explorer :as ex]
             [dacite.value :as v]))
@@ -38,7 +39,7 @@
     (is (= ex/public-types types)
         (str "missing " (set/difference ex/public-types types)
              " extra " (set/difference types ex/public-types)))
-    (is (= ex/page-me-count (v/count (v/get g "page-me"))))))
+    (is (= (host/word ex/page-me-count) (v/count (v/get g "page-me"))))))
 
 (defn load-or-seed-does-not-overwrite
   [_]
@@ -56,7 +57,7 @@
         b (ex/row-summary (v/get g "blob"))
         i64 (ex/row-summary (v/get (v/get g "scalars") "i64"))]
     (is (= :map (:kind row)))
-    (is (= (v/count g) (:count row)))
+    (is (= (v/native-count g) (:count row)))
     (is (nil? (:preview row)))
     (is (= "string" (:type s)))
     (is (true? (:truncated? s)))

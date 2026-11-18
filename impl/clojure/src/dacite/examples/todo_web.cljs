@@ -174,7 +174,7 @@
             (or error
                 (str status
                      (when root-hex (str " · root " (subs root-hex 0 12) "…"))
-                     (when todos (str " · " (v/count todos) " items"))))))
+                     (when todos (str " · " (v/native-count todos) " items"))))))
     (when-let [el (by-id "bandwidth")]
       (if bw-totals
         (set! (.-textContent el)

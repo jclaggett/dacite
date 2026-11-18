@@ -14,8 +14,8 @@
 (defn hello-vector-and-map
   [_]
   (let [{:keys [vec map]} (hello/hello (store/mem))]
-    (is (= 3 (v/count vec)))
-    (is (= 2 (v/count map)))
+    (is (= (host/word 3) (v/count vec)))
+    (is (= (host/word 2) (v/count map)))
     (is (= (host/->i64 42) (v/realize (v/get map "hello"))))
     (is (= (v/hash vec) (v/hash (v/get map "vec"))))))
 

@@ -96,7 +96,7 @@
       (= "vector" (v/type x))
       (str/join ", " (map v/native (or (v/seq x) ())))
       (#{"map" "set" "blob"} (v/type x))
-      (str "(" (v/type x) ", " (v/count x) " entries)")
+      (str "(" (v/type x) ", " (v/native-count x) " entries)")
       :else (str (v/native x)))))
 
 ;; =============================================================================

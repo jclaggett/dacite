@@ -154,8 +154,13 @@
 (defn u32-with-store [store n] {:pre [(<= 0 n 4294967295)]} (scalar-with-store store "u32" n))
 (defn u32 [n] {:pre [(<= 0 n 4294967295)]} (u32-with-store store/*store* n))
 
-(defn u64-with-store [store n] {:pre [(<= 0 n)]}            (scalar-with-store store "u64" n))
-(defn u64 [n] {:pre [(<= 0 n)]}            (u64-with-store store/*store* n))
+(defn u64-with-store
+  "A u64 in an explicit store. `n` is 0..2^64-1 (a long or BigInt N on the
+   JVM, a Number or BigInt on nbb); a negative value or one above 2^64-1
+   throws ex-info (`types/check-u64`), it does not wrap."
+  [store n]
+  (scalar-with-store store "u64" n))
+(defn u64 [n] (u64-with-store store/*store* n))
 
 (defn u256-with-store
   [store data]
@@ -257,25 +262,27 @@
 ;; Sizes (multimethod)
 ;; =============================================================================
 
-(defmethod types/dacite-size "null" [_] 0)
-(defmethod types/dacite-size "bool" [_] 1)
-(defmethod types/dacite-size "i8" [_] 1)
-(defmethod types/dacite-size "i16" [_] 2)
-(defmethod types/dacite-size "i32" [_] 4)
-(defmethod types/dacite-size "i64" [_] 8)
-(defmethod types/dacite-size "i128" [_] 16)
-(defmethod types/dacite-size "i256" [_] 32)
-(defmethod types/dacite-size "u8" [_] 1)
-(defmethod types/dacite-size "u16" [_] 2)
-(defmethod types/dacite-size "u32" [_] 4)
-(defmethod types/dacite-size "u64" [_] 8)
-(defmethod types/dacite-size "u128" [_] 16)
-(defmethod types/dacite-size "u256" [_] 32)
-(defmethod types/dacite-size "f32" [_] 4)
-(defmethod types/dacite-size "f64" [_] 8)
+;; A size is a host word: a long on the JVM, a BigInt on nbb (#64).
+
+(defmethod types/dacite-size "null" [_] (host/word 0))
+(defmethod types/dacite-size "bool" [_] (host/word 1))
+(defmethod types/dacite-size "i8" [_] (host/word 1))
+(defmethod types/dacite-size "i16" [_] (host/word 2))
+(defmethod types/dacite-size "i32" [_] (host/word 4))
+(defmethod types/dacite-size "i64" [_] (host/word 8))
+(defmethod types/dacite-size "i128" [_] (host/word 16))
+(defmethod types/dacite-size "i256" [_] (host/word 32))
+(defmethod types/dacite-size "u8" [_] (host/word 1))
+(defmethod types/dacite-size "u16" [_] (host/word 2))
+(defmethod types/dacite-size "u32" [_] (host/word 4))
+(defmethod types/dacite-size "u64" [_] (host/word 8))
+(defmethod types/dacite-size "u128" [_] (host/word 16))
+(defmethod types/dacite-size "u256" [_] (host/word 32))
+(defmethod types/dacite-size "f32" [_] (host/word 4))
+(defmethod types/dacite-size "f64" [_] (host/word 8))
 (defmethod types/dacite-size "char" [[_ ch]]
-  (count (host/utf8-bytes (str ch))))
-(defmethod types/dacite-size "negative" [_] 0)
+  (host/word (count (host/utf8-bytes (str ch)))))
+(defmethod types/dacite-size "negative" [_] (host/word 0))
 
 #?(:bb nil
    :clj

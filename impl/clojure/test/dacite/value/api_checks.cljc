@@ -28,7 +28,7 @@
   (let [st (store/mem)]
     (testing "count / nth / get / seq"
       (let [vec (v/vector st 10 20 30)]
-        (is (= 3 (v/count vec)))
+        (is (= (host/word 3) (v/count vec)))
         (is (= (host/->i64 20) (realized (v/nth vec 1))))
         (is (= (host/->i64 30) (realized (v/get vec 2))))
         (is (= :none (v/get vec 9 :none)))
@@ -37,10 +37,10 @@
         (is (not (v/contains? vec 9)))))
     (testing "conj / assoc / peek / pop"
       (let [vec (v/vector st 1 2 3)]
-        (is (= 4 (v/count (v/conj vec 4))))
+        (is (= (host/word 4) (v/count (v/conj vec 4))))
         (is (= (host/->i64 99) (realized (v/nth (v/assoc vec 0 99) 0))))
         (is (= (host/->i64 3) (realized (v/peek vec))))
-        (is (= 2 (v/count (v/pop vec))))
+        (is (= (host/word 2) (v/count (v/pop vec))))
         (is (v/empty? (v/pop (v/pop (v/pop vec)))))))
     (testing "remove-nth"
       (let [vec (v/vector st 1 2 3 4 5)]
@@ -55,12 +55,12 @@
   [_]
   (let [st (store/mem)
         m (v/map st "a" 1 "b" 2)]
-    (is (= 2 (v/count m)))
+    (is (= (host/word 2) (v/count m)))
     (is (= (host/->i64 1) (realized (v/get m "a"))))
     (is (= :none (v/get m "z" :none)))
     (is (v/contains? m "b"))
     (is (= (host/->i64 3) (realized (v/get (v/assoc m "c" 3) "c"))))
-    (is (= 1 (v/count (v/dissoc m "a"))))
+    (is (= (host/word 1) (v/count (v/dissoc m "a"))))
     (is (= #{"a" "b"} (set (map #(apply str (realized %)) (v/keys m)))))
     (is (= (set (i64s [1 2])) (set (map realized (v/vals m)))))
     (is (= (host/->i64 3) (realized (v/get (v/conj m ["c" 3]) "c"))))))
@@ -69,11 +69,11 @@
   [_]
   (let [st (store/mem)
         s (v/set st 1 2 3)]
-    (is (= 3 (v/count s)))
+    (is (= (host/word 3) (v/count s)))
     (is (v/contains? s 2))
     (is (not (v/contains? s 9)))
     (is (= (host/->i64 2) (realized (v/get s 2))))
-    (is (= 4 (v/count (v/conj s 4))))
+    (is (= (host/word 4) (v/count (v/conj s 4))))
     (is (= (set (i64s [1 2 3])) (set (map realized (v/seq s)))))))
 
 (defn get-value-test
