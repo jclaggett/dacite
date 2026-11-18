@@ -106,10 +106,11 @@ and `realize` gives its unsigned value (`types/scalar-data`,
 `host/word->unsigned`): a u64 >= 2^63 realizes as a `BigInt` N, never as a
 negative long. An `i64` scalar is a signed 64-bit integer, not a word: a
 long on the JVM, and on nbb a signed `BigInt` (`BigInt.asIntN(64, …)`), built
-(`scalar-entry`, `host/->i64`) or decoded. On nbb it realizes as a Number when
-it is a safe integer (|n| <= 2^53 - 1) and as the `BigInt` otherwise
-(`host/i64->native`), so `realize` of a vector of small integers is still a
-vector of Numbers. The EDN wire (`dacite.wire`) writes a negative `BigInt` as
+(`scalar-entry`, `host/->i64`) or decoded, and on nbb it realizes as that
+`BigInt` even when it is small: one representation. Code that needs a native
+integer (host arithmetic, an index, a peer-v1 message field, printing) reads
+it through `v/native-int` (`host/i64->native`: a Number when it is a safe
+integer, |n| <= 2^53 - 1, else the `BigInt`). The EDN wire (`dacite.wire`) writes a negative `BigInt` as
 signed text under `#dacite/u64` (both readers take it), and its nbb reader
 brings an `i64` or `u64` entry or literal body back to the host
 representation (a JVM writes a small one as a plain integer). Measures add counts with `host/add64`; code that indexes or
