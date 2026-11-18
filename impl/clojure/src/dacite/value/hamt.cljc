@@ -59,12 +59,15 @@
 ;; Measure (monoid)
 ;; =============================================================================
 
+;; :count and :size-bytes are host words, as the wire decoder returns them: a
+;; long on the JVM, a BigInt on ClojureScript (#64).
+
 (def measure-identity
-  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state})
+  {:count host/zero-word :size-bytes host/zero-word :elements-fuse hash/identity-state})
 
 (defn- measure-combine [m1 m2]
-  {:count (+ (:count m1) (:count m2))
-   :size-bytes (+ (:size-bytes m1) (:size-bytes m2))
+  {:count (host/add64 (:count m1) (:count m2))
+   :size-bytes (host/add64 (:size-bytes m1) (:size-bytes m2))
    :elements-fuse (hash/fuse (:elements-fuse m1) (:elements-fuse m2))})
 
 (defn entry-fuse
@@ -341,8 +344,8 @@
   [store root key-hash key-ref val-ref]
   (let [key-size (types/dacite-size (lookup store key-ref))
         val-size (types/dacite-size (lookup store val-ref))
-        measure {:count 1
-                 :size-bytes (+ key-size val-size)
+        measure {:count (host/word 1)
+                 :size-bytes (host/word (+ key-size val-size))
                  :elements-fuse (entry-fuse key-ref val-ref)}]
     (hamt-assoc* store root key-hash key-ref val-ref measure 0)))
 
@@ -371,12 +374,12 @@
 (defn hamt-count
   "Entry count, O(1) via cached measure."
   [store root]
-  (:count (get-measure store root)))
+  (host/word->long (:count (get-measure store root))))
 
 (defn hamt-size-bytes
   "Total key+value byte size, O(1) via cached measure."
   [store root]
-  (:size-bytes (get-measure store root)))
+  (host/word->long (:size-bytes (get-measure store root))))
 
 (defn hamt-elements-fuse
   "The map's data hash: the fuse of all entry fuses, O(1)."
@@ -400,8 +403,8 @@
   [store key-hash key-ref val-ref]
   (let [key-size (types/dacite-size (lookup store key-ref))
         val-size (types/dacite-size (lookup store val-ref))
-        measure {:count 1
-                 :size-bytes (+ key-size val-size)
+        measure {:count (host/word 1)
+                 :size-bytes (host/word (+ key-size val-size))
                  :elements-fuse (entry-fuse key-ref val-ref)}]
     (make-entry! store key-hash key-ref val-ref measure)))
 

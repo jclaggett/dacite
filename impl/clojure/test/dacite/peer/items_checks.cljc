@@ -12,6 +12,7 @@
    Nothing here waits on a clock. A check takes milliseconds."
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
+            [dacite.host :as host]
             [dacite.peer.conformance :as conf]
             [dacite.peer.frame :as frame]
             [dacite.peer.items :as items]
@@ -22,6 +23,12 @@
             [dacite.wire.binary :as bin]
             #?(:clj [dacite.reveal.pages :as sr])
             #?(:cljs ["fs" :as fs])))
+
+(defn- inc-word
+  "A count word plus one: a long on the JVM, a BigInt on nbb (#64)."
+  [w]
+  (host/add64 w (host/word 1)))
+
 
 (defn- read-text
   [path]
@@ -516,7 +523,7 @@
       (bad "a claimed elements-fuse that does not hash to the item" :bad-hash
            (refuse (update-in digit [:entry 1 :measure :elements-fuse 0] bump-cell)))
       (bad "a count the page's own contents do not give" :bad-entry
-           (refuse (update-in digit [:entry 1 :measure :count] inc)))
+           (refuse (update-in digit [:entry 1 :measure :count] inc-word)))
       (bad "the literal" :accepted (refuse lit))
       (bad "a literal with one byte changed" :bad-hash
            (refuse (update-in lit [:literal :body] #(str/replace % "h" "j"))))

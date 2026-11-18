@@ -13,6 +13,7 @@
    each answer frame to `client/on-frame!`."
   (:require [clojure.string :as str]
             [dacite.hash :as hash]
+            [dacite.host :as host]
             [dacite.peer.client :as client]
             [dacite.rooted.gc :as gc]
             [dacite.peer.frame :as frame]
@@ -25,6 +26,12 @@
             [dacite.value :as v]
             [dacite.value.hamt :as hamt]
             [dacite.wire.binary :as bin]))
+
+(defn- inc-word
+  "A count word plus one: a long on the JVM, a BigInt on nbb (#64)."
+  [w]
+  (host/add64 w (host/word 1)))
+
 
 ;; =============================================================================
 ;; Values and their items
@@ -111,7 +118,7 @@
    :bad-measure {:make (fn [items]
                          (let [k (leaf-page-index items)]
                            [k (mapv bin/encode-item
-                                    (update-in items [k :entry 1 :measure :count] inc))]))
+                                    (update-in items [k :entry 1 :measure :count] inc-word))]))
                  :absent (fn [items k] (drop k items)) :root-had? true}
    :bad-state {:make (fn [items]
                        (let [k (leaf-page-index items)]
@@ -120,7 +127,7 @@
                :absent (fn [items k] (drop k items)) :root-had? true}
    :forged-header {:make (fn [items]
                            [1 (mapv bin/encode-item
-                                    (update-in items [0 :entry 1 :count] inc))])
+                                    (update-in items [0 :entry 1 :count] inc-word))])
                    :absent (fn [items _] [(first items)]) :root-had? false}
    :no-root {:make (fn [items] [1 [(bin/encode-item (first items))]])
              :absent (fn [items _] [(first items)]) :root-had? false}})
@@ -602,7 +609,7 @@
         y (v/hash (v/vector src xv (v/string src "tail")))
         y-items (items-of src y)
         kx (first (keep-indexed (fn [i it] (when (= (hex x) (hex (:hash it))) i)) y-items))
-        forged (update-in y-items [kx :entry 1 :count] inc)
+        forged (update-in y-items [kx :entry 1 :count] inc-word)
         ;; the liar sends Y up to and including X's forged header, then stalls
         stall (fn [sid _] [(item-frame sid (mapv bin/encode-item (subvec forged 0 (inc kx))))])
         n (net (array-map "liar" stall "honest" (honest src)) [x y])
@@ -650,7 +657,7 @@
   (let [src (store/mem-store)
         root (v/hash (vector-value src 40))
         [hd & more] (items-of src root)
-        forged (update-in hd [:entry 1 :count] inc)
+        forged (update-in hd [:entry 1 :count] inc-word)
         st (store/mem-store)
         r1 (verify/receiver st) r2 (verify/receiver st)]
     (verify/accept-item! r1 forged)

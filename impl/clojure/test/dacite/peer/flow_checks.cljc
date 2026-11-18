@@ -496,7 +496,7 @@
         rechecks-stranger (- (client/recheck-count c) after)
         ;; the header's stored entry is replaced by a forged one, then restored
         entry (store/await (store/s-get st root))
-        _ (store/await (store/s-put st root (update-in entry [1 :count] inc)))
+        _ (store/await (store/s-put st root (update-in entry [1 :count] #(host/add64 % (host/word 1)))))
         forged-had? (h/have? c root)
         _ (store/await (store/s-put st root entry))
         restored-had? (h/have? c root)

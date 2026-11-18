@@ -159,9 +159,9 @@
 
 (defmethod dacite-size :default [[_ data]]
   (if-let [m (:measure data)]
-    (:size-bytes m)
+    (host/word->long (:size-bytes m))
     (if-let [sb (:size-bytes data)]
-      sb
+      (host/word->long sb)
       (count (host/utf8-bytes (pr-str data))))))
 
 ;; Backward-compatible alias for callers that name the scalar value hash

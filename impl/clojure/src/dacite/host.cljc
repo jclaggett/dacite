@@ -73,6 +73,12 @@
   #?(:clj (let [w (long w)] (if (neg? w) (+ 18446744073709551616N w) w))
      :cljs w))
 
+(defn word->long
+  "A small 64-bit word (a count or a byte size) as a native integer: a long
+   on the JVM, a Number on ClojureScript (exact below 2^53)."
+  [w]
+  #?(:clj (long w) :cljs (js/Number w)))
+
 (defn word->int
   "Coerce a small 64-bit word back to a native integer (for indexing)."
   [w]

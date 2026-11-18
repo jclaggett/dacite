@@ -227,7 +227,7 @@
          (= t "char") (+ 2 (long (text-bytes data)))
          (contains? fixed-value-bytes t) (+ 1 (long (fixed-value-bytes t)))
          (= t "string") (+ 5 (long (or (:v (seq-summary st cache (:root data))) 0)))
-         (= t "blob") (+ 5 (long (or (:count data) 0)))
+         (= t "blob") (+ 5 (host/word->long (or (:count data) 0)))
          (= t "vector") (sequence-literal-size st cache (:root data))
          (= t "set")
          (+ collection-overhead-bytes

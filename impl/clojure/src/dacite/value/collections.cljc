@@ -77,8 +77,8 @@
   (let [ef (ft/ft-elements-fuse store root)
         h (types/value-hash type-name ef)]
     (store/await (store/s-put store h [type-name {:root root
-                                                  :count (ft/ft-count store root)
-                                                  :size-bytes (ft/ft-size-bytes store root)}]))
+                                                  :count (host/word (ft/ft-count store root))
+                                                  :size-bytes (host/word (ft/ft-size-bytes store root))}]))
     h))
 
 (defn- store-assoc-node!
@@ -88,8 +88,8 @@
   (let [ef (hamt/hamt-elements-fuse store root)
         h (types/value-hash type-name ef)]
     (store/await (store/s-put store h [type-name {:root root
-                                                  :count (hamt/hamt-count store root)
-                                                  :size-bytes (hamt/hamt-size-bytes store root)}]))
+                                                  :count (host/word (hamt/hamt-count store root))
+                                                  :size-bytes (host/word (hamt/hamt-size-bytes store root))}]))
     h))
 
 (defn- ft-build!
@@ -114,7 +114,7 @@
 (defn coll-count
   "Element/entry count of any Dacite collection, O(1)."
   [store h]
-  (:count (types/entry-data (store/require-node store h))))
+  (host/word->long (:count (types/entry-data (store/require-node store h)))))
 
 (defn seq-vals
   "Wrapped elements of a sequence collection (string/blob/vector), or nil
@@ -134,7 +134,7 @@
    Copies each page buffer. Does not box the bytes."
   [store h]
   (let [data (types/entry-data (store/require-node store h))
-        n (long (or (:count data) 0))]
+        n (host/word->long (or (:count data) 0))]
     (ft/ft-export-u8 store (:root data) n)))
 
 (defn vec-conj
@@ -281,7 +281,7 @@
   (dacite-type [_] "string")
   (realize [_]
     (let [{:keys [root count]} (types/entry-data (store/require-node store _hash))]
-      (when (pos? count)
+      (when (pos? (host/word->long count))
         (realize-hashes store (ft/ft-seq store root)))))
 
   #?@(:bb []
@@ -334,7 +334,7 @@
   (dacite-type [_] "blob")
   (realize [_]
     (let [{:keys [root count]} (types/entry-data (store/require-node store _hash))]
-      (when (pos? count)
+      (when (pos? (host/word->long count))
         (realize-hashes store (ft/ft-seq store root)))))
 
   #?@(:bb []
@@ -367,7 +367,7 @@
   (dacite-type [_] "vector")
   (realize [_]
     (let [{:keys [root count]} (types/entry-data (store/require-node store _hash))]
-      (when (pos? count)
+      (when (pos? (host/word->long count))
         (realize-hashes store (ft/ft-seq store root)))))
 
   #?@(:bb []
@@ -852,11 +852,11 @@
 ;; Sizes (multimethod) for collection types
 ;; =============================================================================
 
-(defmethod types/dacite-size "string" [[_ data]] (:size-bytes data 0))
-(defmethod types/dacite-size "blob" [[_ data]] (:size-bytes data 0))
-(defmethod types/dacite-size "vector" [[_ data]] (:size-bytes data 0))
-(defmethod types/dacite-size "map" [[_ data]] (:size-bytes data 0))
-(defmethod types/dacite-size "set" [[_ data]] (:size-bytes data 0))
+(defmethod types/dacite-size "string" [[_ data]] (host/word->long (:size-bytes data 0)))
+(defmethod types/dacite-size "blob" [[_ data]] (host/word->long (:size-bytes data 0)))
+(defmethod types/dacite-size "vector" [[_ data]] (host/word->long (:size-bytes data 0)))
+(defmethod types/dacite-size "map" [[_ data]] (host/word->long (:size-bytes data 0)))
+(defmethod types/dacite-size "set" [[_ data]] (host/word->long (:size-bytes data 0)))
 
 ;; =============================================================================
 ;; REPL printing (*print-length* / *print-level*) — JVM only

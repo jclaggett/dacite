@@ -498,11 +498,10 @@
   (put-state buf elements-fuse))
 
 (defn- get-count
-  "u64 used as a collection/measure count. Host long on JVM; JS Number
-   on CLJS (safe under 2^53 — store node counts are not hash words)."
+  "u64 used as a collection/measure count or byte size: a host word, as
+   the builder holds it (a long on the JVM, a BigInt on ClojureScript, #64)."
   [buf]
-  #?(:clj (long (get-u64 buf))
-     :cljs (js/Number (get-u64 buf))))
+  (get-u64 buf))
 
 (defn- get-measure
   [buf]
