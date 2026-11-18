@@ -59,6 +59,12 @@
   [n]
   #?(:clj (long n) :cljs (js/BigInt n)))
 
+(defn ->word
+  "Coerce any integer (a long, a Number, or a BigInt) to a 64-bit word,
+   modulo 2^64: the bit pattern the wire carries."
+  [n]
+  #?(:clj (unchecked-long n) :cljs (u64 n)))
+
 (defn word->int
   "Coerce a small 64-bit word back to a native integer (for indexing)."
   [w]

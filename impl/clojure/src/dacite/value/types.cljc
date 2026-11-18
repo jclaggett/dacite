@@ -129,6 +129,14 @@
   [typed-value]
   (hash/fuse-bytes (encode-value typed-value)))
 
+(defn scalar-entry
+  "The store entry for a scalar `[type-name data]`. A u64 is held as a host
+   word, as the wire decoder returns it: itself on the JVM, a BigInt on
+   ClojureScript (#64), so a built u64 and a decoded one are `=`."
+  [type-name data]
+  [type-name #?(:clj data
+                :cljs (if (= "u64" type-name) (host/->word data) data))])
+
 (defn scalar-value-hash
   "value_hash (ref) for a scalar [type data]."
   [typed-value]
