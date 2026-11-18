@@ -59,7 +59,7 @@
     (let [entry (store/require-node store _hash)]
       (if (= "negative" (types/entry-type entry))
         negative-sentinel
-        (types/entry-data entry))))
+        (types/scalar-data entry))))
 
   #?@(:bb []
       :clj

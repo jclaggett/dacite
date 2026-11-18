@@ -474,6 +474,10 @@
 ;; A decoded node is the built node (#64)
 ;; ---------------------------------------------------------------------------
 
+(def ^:private max-u64
+  "2^64 - 1, as a host integer: a BigInt N on the JVM, a BigInt on nbb."
+  #?(:clj 18446744073709551615N :cljs (js/BigInt "18446744073709551615")))
+
 (defn- built-store
   "A mem store holding one of every public value, big enough for inner
    finger-tree and HAMT nodes: a map of 80 entries has bitmap nodes, and
@@ -493,10 +497,8 @@
                #(scalar/u64-with-store % 0)
                #(scalar/u64-with-store % 4294967296)
                #(scalar/u64-with-store % 9007199254740991)
-               ;; 2^64 - 1, built from a BigInt: the top bit of the word set. nbb
-               ;; only: on the JVM a u64 >= 2^63 is built as a BigInt (value_test
-               ;; realizes it as one) but decodes as a long; see #64 follow-ups.
-               #?@(:cljs [#(scalar/u64-with-store % (js/BigInt "18446744073709551615"))])
+               ;; 2^64 - 1, built from a BigInt: the top bit of the word set
+               #(scalar/u64-with-store % max-u64)
                #(scalar/u256-with-store % (host-bytes (range 32)))
                #(scalar/f32-with-store % (float 0.5))
                #(scalar/f64-with-store % -0.25)
@@ -546,7 +548,15 @@
       (is (= want (entry-bytes (:entry item))) (str "node item " t))
       (is (= h (:hash item)) (str "node item hash " t))
       (is (= want (entry-bytes (bin/decode-store-value h (bin/encode-store-value e))))
-          (str "store value " t)))))
+          (str "store value " t)))
+    (testing "a u64 >= 2^63 realizes as its unsigned value, built or decoded"
+      (let [built (scalar/u64-with-store st max-u64)
+            h (types/dacite-hash built)
+            st2 (store/mem-store)]
+        (store/await (store/s-put st2 h (bin/decode-node-bytes
+                                         (bin/encode-node-bytes (store/await (store/s-get st h))))))
+        (is (= max-u64 (v/realize built)))
+        (is (= max-u64 (v/realize (scalar/wrap-scalar st2 h))))))))
 
 (def checks
   {"run-repeat-have-wire-ids" run-repeat-have-wire-ids
