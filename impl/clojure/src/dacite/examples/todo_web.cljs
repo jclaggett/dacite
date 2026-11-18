@@ -289,7 +289,24 @@
         "remove" (on-remove! i)
         nil))))
 
+(defn- show-placeholder!
+  "The page's only mode: say there is no working mode. No store, no
+   network. `start-http-mode!` is the old HTTP mode, kept for the port to
+   peering; nothing calls it."
+  []
+  (when-let [el (by-id "status")]
+    (set! (.-textContent el) "placeholder: no store is opened")
+    (set! (.-className el) "status"))
+  (doseq [id ["bandwidth" "add-btn" "new-title" "reload-btn"]]
+    (when-let [el (by-id id)]
+      (set! (.-hidden el) true))))
+
 (defn ^:export init! []
+  (show-placeholder!))
+
+(defn ^:export start-http-mode!
+  "The old HTTP mode (the removed JVM service). Not called; see `init!`."
+  []
   (let [store (open-store)]
     (reset-bw-stats!)
     (swap! !state assoc :store store :status "connecting"
