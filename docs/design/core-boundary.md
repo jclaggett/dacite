@@ -13,8 +13,8 @@ labeled `core`, `host`, or `server-only`.
 
 Counted here: **86 namespaces** (7 `core`, 79 `host`, 0 `server-only`) under
 `impl/clojure/src` and `impl/clojure/dev`. `impl/clojure/test` is not
-inventoried; tests may require any class. `impl/clojure/archive` is not on
-the classpath. M5.1 added the browser peer (`dacite.peer.transport.browser`,
+inventoried; tests may require any class. (`impl/clojure/archive` was
+removed in the HTTP removal slice 3.) M5.1 added the browser peer (`dacite.peer.transport.browser`,
 `dacite.examples.peer-web`). M5.2 added `dacite.examples.peer-nbb`, the nbb
 peer the browser reads from. M5.3 added `dacite.examples.library-nbb`. The
 HTTP removal slice 1 removed the HTTP origin path: `dacite.peer.origin`,

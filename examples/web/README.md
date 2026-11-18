@@ -12,8 +12,8 @@ npm run web:serve          # http://127.0.0.1:8080/app/ (scripts/static-server.m
 | http://127.0.0.1:8080/app/library/ | **Library** — chapter and plate read from an nbb peer |
 | http://127.0.0.1:8080/app/peer/ | **Browser peer** — read a value from an nbb peer into IndexedDB |
 | http://127.0.0.1:8080/app/browser/ | **Value browser** — paste `dacite://<host>#urn:dacite:<hex>` and fetch that hash. Intended path: `dacite.io/browser` |
-| http://127.0.0.1:8080/app/ | Todo — **no working mode** (see below) |
-| http://127.0.0.1:8080/app/explorer/ | Value explorer — **no working mode** (see below) |
+| http://127.0.0.1:8080/app/ | Todo — placeholder, no working mode yet (see below) |
+| http://127.0.0.1:8080/app/explorer/ | Value explorer — placeholder, no working mode yet (see below) |
 
 ---
 
@@ -27,14 +27,16 @@ Measurements: `docs/plan/measurements.md`.
 
 ---
 
-# Todo and explorer demos (no working mode)
+# Todo and explorer demos (placeholders)
+
+**No working mode yet: these pages will run over peering later.** Each
+page shows that line. They are kept as placeholders.
 
 These two pages read and wrote through the JVM HTTP service
 (`dacite.service`, `GET /node`, `POST /root/cas`) with the browser HTTP
 store `dacite.store.browser`. The HTTP removal (slice 2) deleted that
 service, so the pages load but cannot reach a store. They, and
-`dacite.store.browser`, stay in the tree until they are deleted or ported
-to peering. The notes below describe how they worked.
+`dacite.store.browser`, stay in the tree as placeholders. The notes below describe how they worked.
 
 The point of the todo demo: the browser holds real Dacite collections
 (finger-tree vectors of maps), not a parallel JS model.

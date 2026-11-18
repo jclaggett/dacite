@@ -42,6 +42,7 @@ jobs:
           npm run items:test
           npm run webrtc:test
           npm run webrtc:signal-test
+          npm run web:serve-test
           npm run mem:test
           npm run lru:test
 

@@ -10,7 +10,7 @@ Scope: parity only has to demonstrate peering parity. The model is that every co
 
 Workflow: parity work lands on the long-lived `parity` branch. Each checklist slice is its own PR into `parity` and ticks this file in the same PR. Main is merged into `parity` whenever it moves (no rebase). One final `parity` to main PR lands it all once the checklist is done.
 
-Status: parity landed on main in #61 (Nov 17, 2026). Jonathan approved skipping the Safari and Firefox hand runs for parity; they moved to packaging testing (`docs/design/packaging.md`, "Follow-ups"). Mac + Brave passed Nov 11. Next are the post-parity items and the legacy HTTP removal.
+Status: parity landed on main in #61 (Nov 17, 2026). Jonathan approved skipping the Safari and Firefox hand runs for parity; they moved to packaging testing (`docs/design/packaging.md`, "Follow-ups"). Mac + Brave passed Nov 11. The legacy HTTP removal is complete (slices 1–3, Nov 17, 2026). Next are the other post-parity items.
 
 ## Done
 
@@ -89,7 +89,9 @@ Neither HTTP nor peering: not parity work, and the code stays.
 
 ## Legacy HTTP (removed after parity)
 
-Not parity work. Items are ticked as the HTTP removal after parity deletes them; the rest stay unticked and their code stays until a later slice.
+Status: HTTP removal is complete (Nov 17, 2026); every item below is done.
+
+Not parity work. Items are ticked as the HTTP removal after parity deletes them.
 
 - [x] [done] `store/remote.clj` and `store/reveal.clj` (HTTP/3). `remote_test` (3). Browser fetch is `store/browser.cljs` (kept: the todo and explorer pages still use it). Removed in the HTTP removal slice 2
 - [x] [done] `origin_test.clj` (3): removed in the HTTP removal slice 1
@@ -97,6 +99,6 @@ Not parity work. Items are ticked as the HTTP removal after parity deletes them;
 - [x] [done] The JVM-only tests in `pack_test` (7) and `rate_limit_test` (1) that start the HTTP service or read through `store/remote` (see Storage): removed in the HTTP removal slice 2
 - [x] [done] JVM server: `service.clj`, `service/main.clj` (`clojure -M:service`), `service/reveal.clj`, `service/throttle.clj`: removed in the HTTP removal slice 2. The writer's page encoder and `accept-items!` from `service/reveal.clj` moved to `dacite.reveal.pages`
 - [x] [done] JVM origins: `examples/peer_origin.clj`, `examples/library_origin.clj`. The nbb peers `peer_nbb.cljs` and `library_nbb.cljs` peer instead. Removed in the HTTP removal slice 1, with `peer/origin.cljc`, the `:peer-origin` and `:library-origin` aliases, and `library_test/origin-publishes-the-seed-library`
-- [ ] [not started] Archived JVM client and server: `impl/clojure/archive`
+- [x] [done] Archived JVM client and server: `impl/clojure/archive`, including the archived multi-user `service.clj` and `service_test.clj`: removed in the HTTP removal slice 3
 - [x] [done] The browser peer's HTTP origin fallback (`examples/peer_web.cljs` `origin-absent!`), and the M5.2 Brave/Safari hand check: origin returned 500. The page continues only on 404. The CI stub sends 404 (`scripts/peer-browser-e2e.mjs`). Removed in the HTTP removal slice 1: the page no longer reads an origin, the stub is gone, and the library page's fallback to the origin is gone too (it takes `root` in the query)
-- [ ] [not started] #65: `service/reveal_test` `http3-reveal-shares-one-connection` flakes (HTTP/3); rerun when it fails
+- [x] [done] #65: `service/reveal_test` `http3-reveal-shares-one-connection` flakes (HTTP/3): the flaky HTTP/3 test was deleted in slice 2; close #65

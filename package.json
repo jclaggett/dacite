@@ -42,7 +42,8 @@
     "browser:e2e": "node scripts/browser-e2e.mjs",
     "library:build": "cd impl/clojure && clojure -M:cljs-library",
     "library:e2e": "node scripts/library-peer-e2e.mjs",
-    "web:serve": "node scripts/static-server.mjs"
+    "web:serve": "node scripts/static-server.mjs",
+    "web:serve-test": "node scripts/static-server-test.mjs"
   },
   "dependencies": {
     "chalk": "^4.1.2",

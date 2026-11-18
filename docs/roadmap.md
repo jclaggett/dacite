@@ -27,6 +27,10 @@ The browser transport is `RTCPeerConnection`
 (`dacite.peer.transport.browser`). The earlier `:cljs-web`,
 `:cljs-explorer`, and `:cljs-library` bundles stay on `cljs.build.api`.
 
+*History.* The two paragraphs below describe the JVM HTTP service,
+Jetty, and the HTTP/3 reveal client. The HTTP removal (slices 1–3,
+Nov 17, 2026) deleted them; peering replaces them.
+
 **Client/server reveal.** The public-domain library is large enough
 to show the transport cost. A remote chapter or image is one
 `GET /node/{hex}` per ~1–2 KB chunk.
@@ -481,7 +485,7 @@ error type.
 
 Shipped: `GET /events` (SSE), `store.remote/watch-root`,
 `v/swap-info!`, event-log `watch` / `contend`, tutorial
-[two-client.md](book/tutorial/two-client.md). Two remotes can interleave
+two-client.md (removed with the HTTP code in #69). Two remotes can interleave
 appends without lost events; a third process reprints on SSE. The rebase
 loop was already `ref-swap!`; `:retries` is the conflict UX.
 

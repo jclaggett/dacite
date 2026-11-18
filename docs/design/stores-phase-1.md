@@ -137,7 +137,8 @@ hash; content assumed present or synced separately.
 definition of what a Dacite "service" is (design doc TBD). Until then, archive it:
 
 - **Done:** moved `src/dacite/service.clj` → `archive/service.clj` and
-  `test/dacite/service_test.clj` → `archive/service_test.clj`.
+  `test/dacite/service_test.clj` → `archive/service_test.clj`. (The whole
+  `impl/clojure/archive` directory was deleted in the HTTP removal slice 3.)
 - The current `service/update-root` uses a non-atomic read-then-swap; the CAS
   semantics that would fix it now belong to `dacite.rooted` (item 3). A
   future `dacite.service` will **depend on `dacite.rooted`** and drive the

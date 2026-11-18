@@ -53,7 +53,7 @@ The Value Browser is parked until nbb parity (Nov 10). M6.4 is built (PR #49). M
 - TURN relay support (direct-only until measured otherwise). STUN (a public server) is used for ICE from the first WebRTC slice.
 - Writes on the peer protocol. peer-v1 stays read-only: a `get` of immutable entries. Root updates are the roots layer.
 - Access control beyond "serve any hash you hold" (tracked as an open question).
-- QUIC/HTTP3 reveal client. The data-channel transport replaces it as the target; the existing HTTP/3 code stays as baseline, not new work.
+- QUIC/HTTP3 reveal client. The data-channel transport replaces it as the target; the HTTP/3 code was the baseline, not new work, and was removed in the HTTP removal slice 2.
 - Python / C / C++ ports (the spec should make them possible, but we don't build them).
 - Choosing final decay parameters or reveal-policy overrides (carried as open items, not blocking).
 - Richer media types in the first Value Browser. Bytes wait for a root or a convention.
