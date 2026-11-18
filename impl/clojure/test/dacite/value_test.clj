@@ -45,6 +45,9 @@
 (deftest content-hash-strips-type
   (run-check "content-hash-strips-type"))
 
+(deftest realized-integers-are-set-members-and-map-keys
+  (run-check "realized-integers-are-set-members-and-map-keys"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

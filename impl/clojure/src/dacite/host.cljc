@@ -42,6 +42,16 @@
            (if (= (type x) js/BigInt) x (js/BigInt x))))
 #?(:cljs (defn ^:private u64 [x] (.asUintN js/BigInt 64 (as-bi x))))
 
+;; A BigInt is a value (#64: every i64, u64, and word on ClojureScript), so it
+;; must hash as one in a set or a map key, consistently with `=` (equal
+;; BigInts are `identical?`). cljs.core/hash falls back to goog/getUid, which
+;; throws on a primitive bigint ("Cannot create property 'closure_uid_…'").
+;; SCI (nbb) cannot `extend-type js/BigInt IHash`, so install the method in
+;; the protocol's per-type table, where its dispatch looks up
+;; `(goog/typeOf x)`, "bigint". Every namespace of the core loads this one
+;; first.
+#?(:cljs (unchecked-set -hash "bigint" (fn [x] (hash (.toString x)))))
+
 ;; =============================================================================
 ;; Typed zero (a 64-bit word / a four-word hash)
 ;; =============================================================================
