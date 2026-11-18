@@ -23,7 +23,8 @@
    the JVM four signed longs. `canon` writes every four-word vector as its
    hex on both sides of a compare, so a compare is still exact about the
    bits. A fuse state written to LMDB must be BigInt words on nbb (`words`)."
-  (:require [dacite.rooted :as rs]
+  (:require [dacite.host :as host]
+            [dacite.rooted :as rs]
             [dacite.store :as store]
             [dacite.value.collections :as coll]
             [dacite.value.scalar :as scalar]
@@ -286,21 +287,21 @@
   [env dir]
   (with-lmdb env ((:join env) dir "lmdb-complex")
     (fn [s]
-      (let [header ["vector" {:root [9 8 7 6] :count 3 :size-bytes 24}]
+      (let [header ["vector" {:root [9 8 7 6] :count (host/word 3) :size-bytes (host/word 24)}]
             fuse (words [1 0 0 1])]
         (put* s [1 0 0 0] ["i64" 42])
         (put* s [2 0 0 0] header)
         (put* s [3 0 0 0] ["ft/deep" {:left [1 1 1 1]
                                       :spine [2 2 2 2]
                                       :right [3 3 3 3]
-                                      :measure {:count 5
-                                                :size-bytes 40
+                                      :measure {:count (host/word 5)
+                                                :size-bytes (host/word 40)
                                                 :elements-fuse fuse}}])
         (put* s [4 0 0 0] ["hamt/entry" {:key-hash [5 5 5 5]
                                          :key-ref [6 6 6 6]
                                          :val-ref [7 7 7 7]
-                                         :measure {:count 1
-                                                   :size-bytes 8
+                                         :measure {:count (host/word 1)
+                                                   :size-bytes (host/word 8)
                                                    :elements-fuse fuse}}])
         (let [ft (get* s [3 0 0 0])
               hamt (get* s [4 0 0 0])]
@@ -340,7 +341,7 @@
               [(concat
                 (diff "scalar entry" ["i64" 42] se)
                 (diff "vector type" "vector" (first ve))
-                (diff "vector count" 3 (:count (second ve))))
+                (diff "vector count" (host/word 3) (:count (second ve))))
                sh se vh ve])))]
     (with-lmdb env path
       (fn [st2]

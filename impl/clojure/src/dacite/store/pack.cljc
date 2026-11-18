@@ -9,6 +9,7 @@
    2e: seal on sent (wire-v1) bytes; literal iff item ≤ budget.
    2f: sequence bodies collapse contiguous same-type leaves to nested run/repeat."
   (:require [clojure.string :as str]
+            [dacite.host :as host]
             [dacite.store :as store]
             [dacite.wire :as wire]
             [dacite.value.types :as types]
@@ -190,7 +191,7 @@
    FT/HAMT nodes keep size-bytes under :measure."
   [entry]
   (let [data (types/entry-data entry)]
-    (long (or (when (map? data)
+    (host/word->long (or (when (map? data)
                 (or (:size-bytes data)
                     (get-in data [:measure :size-bytes])))
               (entry-payload-size entry)
@@ -207,7 +208,7 @@
   "Full host string. Walks the leaves once (`coll/seq-vals`); indexing each
    character with `seq-nth` costs a leaf page of work per character."
   [st h]
-  (let [n (long (or (:count (types/entry-data (store/require-node st h))) 0))]
+  (let [n (host/word->long (or (:count (types/entry-data (store/require-node st h))) 0))]
     (if (zero? n)
       ""
       (join-chars
@@ -224,7 +225,7 @@
    pass (`blob-host-bytes`), else walks the leaves once; never indexes each
    byte (a page of work a byte)."
   [st h]
-  (let [n (long (or (:count (types/entry-data (store/require-node st h))) 0))]
+  (let [n (host/word->long (or (:count (types/entry-data (store/require-node st h))) 0))]
     (if (zero? n)
       []
       (if-let [bs (coll/blob-host-bytes st h)]
@@ -370,7 +371,7 @@
         {:type "blob" :body (host-blob-vec st h)}
 
         (= "vector" t)
-        (let [n (long (or (:count data) 0))
+        (let [n (host/word->long (or (:count data) 0))
               els (mapv (fn [i]
                           (let [el (coll/seq-nth st h i)
                                 eh (types/dacite-hash el)]
@@ -689,7 +690,7 @@
    would let through is skipped here: it only saves walking the node."
   [entry max-literal]
   (when-let [sb (measured-size entry)]
-    (> (long sb) (long max-literal))))
+    (> (host/word->long sb) (long max-literal))))
 
 (defn- build-literal
   "The literal item for `h`, or nil when it has none, cannot fit, or does not

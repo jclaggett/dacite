@@ -65,6 +65,20 @@
   [n]
   #?(:clj (unchecked-long n) :cljs (u64 n)))
 
+(defn word->unsigned
+  "A 64-bit word as the unsigned integer it carries, 0..2^64-1: on the JVM
+   a long, or a BigInt N when the top bit is set (a negative long word); on
+   ClojureScript the word itself (already an unsigned BigInt)."
+  [w]
+  #?(:clj (let [w (long w)] (if (neg? w) (+ 18446744073709551616N w) w))
+     :cljs w))
+
+(defn word->long
+  "A small 64-bit word (a count or a byte size) as a native integer: a long
+   on the JVM, a Number on ClojureScript (exact below 2^53)."
+  [w]
+  #?(:clj (long w) :cljs (js/Number w)))
+
 (defn word->int
   "Coerce a small 64-bit word back to a native integer (for indexing)."
   [w]

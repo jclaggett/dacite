@@ -97,14 +97,21 @@ field cells).
 One representation per host, built or decoded (#64). The wire decoder returns
 the host word the builder holds: a `hamt/bitmap` bitmap (a u32 on the wire,
 the low half of a 64-bit word in the core), a hash word, a fuse cell, and the
-data of a `u64` scalar. A `u64` scalar is stored as a host word too
+data of a `u64` scalar, and every count and byte size (`:count` and
+`:size-bytes` of a collection node and of an `ft/*` or `hamt/*` measure, each
+a u64 on the wire). A `u64` scalar is stored as a host word too
 (`dacite.value.types/scalar-entry`), so on nbb it realizes as a `BigInt` even
-when it is small. A decoded node is `=` to the node the library built on both
-hosts (`a-decoded-node-is-the-built-node`, `npm run wire:test`); no call site
-coerces through `host/word` to compare. Counts and byte sizes (`:count`,
-`:size-bytes`, u64 on the wire) are not words: they stay a long on the JVM and
-a Number on nbb, on both sides. On nbb a BigInt is slower than a Number; the
-speed is to come from a WASM / C++ kernel, not from a second representation.
+when it is small. On the JVM a u64 entry is a long word (2^64 - 1 is `-1`),
+and `realize` gives its unsigned value (`types/scalar-data`,
+`host/word->unsigned`): a u64 >= 2^63 realizes as a `BigInt` N, never as a
+negative long. Measures add counts with `host/add64`; code that indexes or
+compares with a native integer reads a count through `host/word->long`, and
+the public API (`v/count`, `ft-count`, `hamt-count`, `dacite-size`) returns a
+native integer (a Number on nbb). A decoded node is `=` to the node the
+library built on both hosts (`a-decoded-node-is-the-built-node`,
+`npm run wire:test`); no call site coerces through `host/word` to compare. On
+nbb a BigInt is slower than a Number; the speed is to come from a WASM / C++
+kernel, not from a second representation.
 
 Bytes are represented portably as **plain integers 0..255** (vectors of ints),
 never host byte arrays. This keeps the core free of `java.nio` / JS typed

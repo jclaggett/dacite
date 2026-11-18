@@ -131,11 +131,17 @@
 
 (defn scalar-entry
   "The store entry for a scalar `[type-name data]`. A u64 is held as a host
-   word, as the wire decoder returns it: itself on the JVM, a BigInt on
-   ClojureScript (#64), so a built u64 and a decoded one are `=`."
+   word, as the wire decoder returns it: a long on the JVM (2^64-1 is -1), a
+   BigInt on ClojureScript (#64), so a built u64 and a decoded one are `=`.
+   `realize` gives the unsigned value (`scalar-data`)."
   [type-name data]
-  [type-name #?(:clj data
-                :cljs (if (= "u64" type-name) (host/->word data) data))])
+  [type-name (if (= "u64" type-name) (host/->word data) data)])
+
+(defn scalar-data
+  "The host value a scalar entry realizes as. A u64 is its unsigned value:
+   on the JVM a u64 >= 2^63 is a BigInt N, never a negative long."
+  [[type-name data]]
+  (if (= "u64" type-name) (host/word->unsigned data) data))
 
 (defn scalar-value-hash
   "value_hash (ref) for a scalar [type data]."
@@ -153,9 +159,9 @@
 
 (defmethod dacite-size :default [[_ data]]
   (if-let [m (:measure data)]
-    (:size-bytes m)
+    (host/word->long (:size-bytes m))
     (if-let [sb (:size-bytes data)]
-      sb
+      (host/word->long sb)
       (count (host/utf8-bytes (pr-str data))))))
 
 ;; Backward-compatible alias for callers that name the scalar value hash

@@ -40,12 +40,26 @@
 ;; Measure (monoid)
 ;; =============================================================================
 
+;; :count and :size-bytes are host words, as the wire decoder returns them: a
+;; long on the JVM, a BigInt on ClojureScript (#64). Readers that index or
+;; compare with native integers take them through `mcount` / `host/word->long`.
+
 (def measure-identity
-  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state})
+  {:count host/zero-word :size-bytes host/zero-word :elements-fuse hash/identity-state})
+
+(defn- leaf-measure
+  "A measure of `n` elements of `size` bytes with elements-fuse `ef`."
+  [n size ef]
+  {:count (host/word n) :size-bytes (host/word size) :elements-fuse ef})
+
+(defn- mcount
+  "The :count of measure `m` as a native integer."
+  [m]
+  (host/word->long (:count m)))
 
 (defn- measure-combine [m1 m2]
-  {:count (+ (:count m1) (:count m2))
-   :size-bytes (+ (:size-bytes m1) (:size-bytes m2))
+  {:count (host/add64 (:count m1) (:count m2))
+   :size-bytes (host/add64 (:size-bytes m1) (:size-bytes m2))
    :elements-fuse (hash/fuse (:elements-fuse m1) (:elements-fuse m2))})
 
 (defn- measure-seq [measures]
@@ -87,9 +101,7 @@
         t (node-type entry)]
     (if (ft-type? t)
       (:measure (node-data entry))
-      {:count 1
-       :size-bytes (types/dacite-size entry)
-       :elements-fuse (hash/ref->state h)})))
+      (leaf-measure 1 (types/dacite-size entry) (hash/ref->state h)))))
 
 (defn- as-leaf-hash
   "Leaf value hash (identity). Throws if h names a structural FT cell."
@@ -146,7 +158,7 @@
             {:type "ref" :body h})
 
           (= t "string")
-          (let [sb (long (or (:size-bytes (node-data entry)) 0))]
+          (let [sb (host/word->long (or (:size-bytes (node-data entry)) 0))]
             (if (<= (+ sb lit/string-wire-overhead) lit/page-budget)
               {:type "string"
                :body (lit/join-chars
@@ -156,7 +168,7 @@
               {:type "ref" :body h}))
 
           (= t "blob")
-          (let [sb (long (or (:size-bytes (node-data entry)) 0))]
+          (let [sb (host/word->long (or (:size-bytes (node-data entry)) 0))]
             (if (<= (+ sb lit/string-wire-overhead) lit/page-budget)
               {:type "blob"
                :body (mapv (fn [bh]
@@ -236,27 +248,21 @@
                       (let [[_ sz st] (char-hash+size b)] [sz st])
                       [(types/dacite-size [t b])
                        (hash/ref->state (types/scalar-value-hash [t b]))])]
-        {:count 1
-         :size-bytes sz
-         :elements-fuse st})
+        (leaf-measure 1 sz st))
 
       (= t "string")
       (let [s (str b)
             ef (reduce (fn [a ch] (hash/fuse a (char-state ch)))
                        hash/identity-state
                        (host/chars-of s))]
-        {:count 1
-         :size-bytes (lit/utf8-len s)
-         :elements-fuse (hash/ref->state (types/value-hash "string" ef))})
+        (leaf-measure 1 (lit/utf8-len s) (hash/ref->state (types/value-hash "string" ef))))
 
       (= t "blob")
       (let [xs (vec b)
             ef (reduce (fn [a n] (hash/fuse a (u8-state-at (int n))))
                        hash/identity-state
                        xs)]
-        {:count 1
-         :size-bytes (count xs)
-         :elements-fuse (hash/ref->state (types/value-hash "blob" ef))})
+        (leaf-measure 1 (count xs) (hash/ref->state (types/value-hash "blob" ef))))
 
       :else
       (measure-of store (lit/intern-lit-item! store item)))))
@@ -298,7 +304,7 @@
                  (recur (inc i)
                         (hash/fuse
                          acc (u8-state-at (lit/u8-nth values i)))))))]
-    {:count n :size-bytes n :elements-fuse ef}))
+    (leaf-measure n n ef)))
 
 (defn- body-measure
   [store body]
@@ -668,7 +674,7 @@
 (defn- scan-children [store children idx]
   (loop [cs (seq children) remaining idx]
     (let [c (first cs)
-          c-count (:count (measure-of store c))]
+          c-count (mcount (measure-of store c))]
       (if (< remaining c-count)
         (let [t (node-type (lookup store c))]
           (case t
@@ -729,7 +735,7 @@
               (let [[i' found]
                     (loop [rs (seq ref-seq) i i]
                       (if-let [r (first rs)]
-                        (let [c (long (:count (measure-of store r)))]
+                        (let [c (mcount (measure-of store r))]
                           (if (< i c) [i r] (recur (next rs) (- i c))))
                         [i nil]))]
                 (if found
@@ -750,10 +756,10 @@
           (scan-children store (get-children store root) idx))
       "ft/deep"
       (let [{:keys [left spine right]} (node-data node)
-            left-count (:count (measure-of store left))]
+            left-count (mcount (measure-of store left))]
         (if (< idx left-count)
           (tree-nth* store left idx)
-          (let [spine-count (:count (measure-of store spine))
+          (let [spine-count (mcount (measure-of store spine))
                 spine-idx (- idx left-count)]
             (if (< spine-idx spine-count)
               (tree-nth* store spine spine-idx)
@@ -779,7 +785,7 @@
       (throw (ex-info "Index out of range while removing from children"
                       {:index idx :child-count (count children)})))
     (let [c (nth children i)
-          c-count (:count (measure-of store c))]
+          c-count (mcount (measure-of store c))]
       (if (< remaining c-count)
         (let [c' (tree-remove-nth* store c remaining)
               left (subvec children 0 i)
@@ -817,8 +823,8 @@
             left-m (measure-of store left)
             spine-m (measure-of store spine)
             right-m (measure-of store right)
-            left-count (:count left-m)
-            spine-count (:count spine-m)]
+            left-count (mcount left-m)
+            spine-count (mcount spine-m)]
         (cond
           (< idx left-count)
           (let [nc (remove-at-children! store (get-children store left) idx)]
@@ -935,12 +941,12 @@
 (defn ft-count
   "Number of elements, O(1) via cached measure (or synthesized for bare leaf roots)."
   [store root]
-  (:count (measure-of store root)))
+  (mcount (measure-of store root)))
 
 (defn ft-size-bytes
   "Total leaf byte size, O(1) via cached measure (or synthesized for bare leaf roots)."
   [store root]
-  (:size-bytes (measure-of store root)))
+  (host/word->long (:size-bytes (measure-of store root))))
 
 (defn ft-elements-fuse
   "The seq's data hash: the running fuse of all element hashes, O(1)."
@@ -950,7 +956,7 @@
 (defn ft-nth
   "Hash of the element at idx (0-indexed), O(log n). Throws if out of range."
   [store root idx]
-  (let [cnt (:count (measure-of store root))]
+  (let [cnt (mcount (measure-of store root))]
     (when (or (neg? idx) (>= idx cnt))
       (throw (ex-info (str "Index " idx " out of bounds for count " cnt)
                       {:index idx :count cnt})))
@@ -960,7 +966,7 @@
   "Remove the element at idx (0-indexed). Returns the new root hash.
    Structural O(log n) update. Throws if out of range."
   [store root idx]
-  (let [cnt (:count (measure-of store root))]
+  (let [cnt (mcount (measure-of store root))]
     (when (or (neg? idx) (>= idx cnt))
       (throw (ex-info (str "Index " idx " out of bounds for count " cnt)
                       {:index idx :count cnt})))

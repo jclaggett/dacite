@@ -474,9 +474,13 @@
 ;; A decoded node is the built node (#64)
 ;; ---------------------------------------------------------------------------
 
+(def ^:private max-u64
+  "2^64 - 1, as a host integer: a BigInt N on the JVM, a BigInt on nbb."
+  #?(:clj 18446744073709551615N :cljs (js/BigInt "18446744073709551615")))
+
 (defn- built-store
   "A mem store holding one of every public value, big enough for inner
-   finger-tree and HAMT nodes: a map of 80 entries has bitmap nodes, and
+   finger-tree and HAMT nodes: a map of 64 entries has bitmap nodes, and
    its root uses chunk 31 (a bitmap with the high bit of its u32 set)."
   []
   (let [st (store/mem-store)]
@@ -493,10 +497,8 @@
                #(scalar/u64-with-store % 0)
                #(scalar/u64-with-store % 4294967296)
                #(scalar/u64-with-store % 9007199254740991)
-               ;; 2^64 - 1, built from a BigInt: the top bit of the word set. nbb
-               ;; only: on the JVM a u64 >= 2^63 is built as a BigInt (value_test
-               ;; realizes it as one) but decodes as a long; see #64 follow-ups.
-               #?@(:cljs [#(scalar/u64-with-store % (js/BigInt "18446744073709551615"))])
+               ;; 2^64 - 1, built from a BigInt: the top bit of the word set
+               #(scalar/u64-with-store % max-u64)
                #(scalar/u256-with-store % (host-bytes (range 32)))
                #(scalar/f32-with-store % (float 0.5))
                #(scalar/f64-with-store % -0.25)
@@ -504,7 +506,7 @@
                #(coll/string-with-store % (apply str (repeat 20 "wire ")))
                #(coll/blob-with-store % (host-bytes (range 64)))
                #(coll/vector-with-store % (range 40))
-               #(apply coll/hash-map-with-store % (interleave (range 80) (map str (range 80))))
+               #(apply coll/hash-map-with-store % (interleave (range 64) (map str (range 64))))
                #(apply coll/dacite-set-with-store % (range 20))]]
       (f st))
     st))
@@ -518,6 +520,19 @@
     (vector? x) (mapv entry-bytes x)
     (map? x) (into {} (map (fn [[k v]] [k (entry-bytes v)])) x)
     :else x))
+
+(defn- host-word?
+  "A 64-bit host word: a long on the JVM, a BigInt on nbb."
+  [x]
+  #?(:clj (instance? Long x) :cljs (= js/BigInt (type x))))
+
+(defn- counts-and-sizes
+  "The :count and :size-bytes of an entry: a collection node's, or its
+   measure's."
+  [[_ d]]
+  (when (map? d)
+    (let [m (or (:measure d) d)]
+      (keep m [:count :size-bytes]))))
 
 (defn a-decoded-node-is-the-built-node
   [_]
@@ -537,6 +552,11 @@
                      (not (host/word-zero? (host/band64 (:bitmap d) high-bit)))))
               entries)
         "a bitmap uses chunk 31")
+    (testing "a count and a byte size are host words, built and decoded"
+      (doseq [[_ e] entries
+              x (concat (counts-and-sizes e)
+                        (counts-and-sizes (bin/decode-node-bytes (bin/encode-node-bytes e))))]
+        (is (host-word? x) (str (first e) " " (pr-str x)))))
     (doseq [[h e] entries
             :let [t (first e)
                   want (entry-bytes e)
@@ -546,7 +566,15 @@
       (is (= want (entry-bytes (:entry item))) (str "node item " t))
       (is (= h (:hash item)) (str "node item hash " t))
       (is (= want (entry-bytes (bin/decode-store-value h (bin/encode-store-value e))))
-          (str "store value " t)))))
+          (str "store value " t)))
+    (testing "a u64 >= 2^63 realizes as its unsigned value, built or decoded"
+      (let [built (scalar/u64-with-store st max-u64)
+            h (types/dacite-hash built)
+            st2 (store/mem-store)]
+        (store/await (store/s-put st2 h (bin/decode-node-bytes
+                                         (bin/encode-node-bytes (store/await (store/s-get st h))))))
+        (is (= max-u64 (v/realize built)))
+        (is (= max-u64 (v/realize (scalar/wrap-scalar st2 h))))))))
 
 (def checks
   {"run-repeat-have-wire-ids" run-repeat-have-wire-ids
