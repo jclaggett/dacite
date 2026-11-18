@@ -45,7 +45,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 
 const TOKEN = /^[A-Za-z0-9._~-]{1,128}$/;
 const MAX_PENDING = 64;
-const MAX_MESSAGE = 64 * 1024;
+export const MAX_MESSAGE = 64 * 1024;
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -100,31 +100,16 @@ function freshRoom() {
 }
 
 /**
- * Start the relay. Resolves with `{ port, host, url, close }`.
- * `port` 0 asks the OS for a free port. `log` prints join and leave lines
- * to stderr (the CLI turns it on).
+ * The room relay without a listener: `connect(ws, rawUrl)` puts one open
+ * socket in the room its URL names (`/room/<token>[?role=]`), and
+ * `close()` drops every socket. `startServer` below and the packaged peer
+ * (`scripts/dacite-server.mjs`, which mounts it under `/signal`) both use it.
  */
-export function startServer({ port = 8787, host = '127.0.0.1', log = false } = {}) {
+export function createRelay({ log = false } = {}) {
   const rooms = new Map();
-  const httpServer = http.createServer((req, res) => {
-    if (req.url === '/health') {
-      res.writeHead(200, { 'content-type': 'text/plain' });
-      res.end('ok');
-      return;
-    }
-    res.writeHead(200, { 'content-type': 'text/plain' });
-    res.end('dacite webrtc signal relay\n');
-  });
-  const wss = new WebSocketServer({
-    server: httpServer,
-    perMessageDeflate: false,
-    maxPayload: MAX_MESSAGE,
-  });
-
   const note = (...a) => { if (log) console.error(...a); };
-
-  wss.on('connection', (ws, req) => {
-    const parsed = parseRoomRequest(req.url || '/');
+  function connect(ws, rawUrl) {
+    const parsed = parseRoomRequest(rawUrl || '/');
     if (parsed.error) {
       fail(ws, parsed.error, parsed.message);
       return;
@@ -203,7 +188,42 @@ export function startServer({ port = 8787, host = '127.0.0.1', log = false } = {
       for (const m of forMe) send(ws, m);
       for (const m of forThem) send(other, m);
     }
+  }
+  function close() {
+    for (const rec of rooms.values()) {
+      for (const sock of Object.values(rec.slots)) {
+        if (sock) {
+          try { sock.terminate(); } catch { /* already gone */ }
+        }
+      }
+    }
+    rooms.clear();
+  }
+  return { connect, close };
+}
+
+/**
+ * Start the relay. Resolves with `{ port, host, url, close }`.
+ * `port` 0 asks the OS for a free port. `log` prints join and leave lines
+ * to stderr (the CLI turns it on).
+ */
+export function startServer({ port = 8787, host = '127.0.0.1', log = false } = {}) {
+  const relay = createRelay({ log });
+  const httpServer = http.createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      res.end('ok');
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'text/plain' });
+    res.end('dacite webrtc signal relay\n');
   });
+  const wss = new WebSocketServer({
+    server: httpServer,
+    perMessageDeflate: false,
+    maxPayload: MAX_MESSAGE,
+  });
+  wss.on('connection', (ws, req) => relay.connect(ws, req.url));
 
   return new Promise((resolve, reject) => {
     const onErr = (err) => reject(err);
@@ -217,14 +237,7 @@ export function startServer({ port = 8787, host = '127.0.0.1', log = false } = {
         host,
         url: `ws://${host}:${bound}`,
         close() {
-          for (const rec of rooms.values()) {
-            for (const sock of Object.values(rec.slots)) {
-              if (sock) {
-                try { sock.terminate(); } catch { /* already gone */ }
-              }
-            }
-          }
-          rooms.clear();
+          relay.close();
           wss.close();
           return new Promise((res, rej) => {
             httpServer.close((err) => (err ? rej(err) : res()));

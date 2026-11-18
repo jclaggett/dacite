@@ -3,6 +3,9 @@
   "version": "0.2.0-alpha",
   "private": true,
   "description": "Run the portable Dacite core under nbb (SCI on Node).",
+  "bin": {
+    "dacite": "bin/dacite.mjs"
+  },
   "scripts": {
     "hello": "nbb -m dacite.examples.hello",
     "parity": "nbb -m dacite.examples.parity",
@@ -43,17 +46,20 @@
     "library:build": "cd impl/clojure && clojure -M:cljs-library",
     "library:e2e": "node scripts/library-peer-e2e.mjs",
     "web:serve": "node scripts/static-server.mjs",
-    "web:serve-test": "node scripts/static-server-test.mjs"
+    "web:serve-test": "node scripts/static-server-test.mjs",
+    "dacite": "node bin/dacite.mjs",
+    "dacite:server-test": "node scripts/dacite-server-test.mjs",
+    "dacite:e2e": "node scripts/dacite-e2e.mjs"
   },
   "dependencies": {
     "chalk": "^4.1.2",
+    "nbb": "^1.3.196",
     "node-datachannel": "^0.33.6",
     "prompts": "^2.4.2",
     "ws": "^8.22.1"
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.7",
-    "nbb": "^1.3.196",
     "playwright": "^1.65.0",
     "shadow-cljs": "2.28.23"
   },

@@ -7,9 +7,14 @@
  * `/app` and a directory without its trailing slash redirect (301) to the
  * slash form, keeping the query. `/app/` serves index.html. A path that
  * climbs out of examples/web is refused. The server binds 127.0.0.1.
+ * In a temporary root, a symlink to a file or a directory outside it is
+ * refused (403), and a symlink that stays inside is served.
  */
 import assert from 'assert';
+import fs from 'fs';
 import http from 'http';
+import os from 'os';
+import path from 'path';
 import { startStatic } from './static-server.mjs';
 
 function get(port, p) {
@@ -48,7 +53,38 @@ try {
   assert.strictEqual(r.status, 400);
   r = await get(srv.port, '/elsewhere');
   assert.strictEqual(r.status, 404);
-  console.log('static-server ok');
 } finally {
   await srv.close();
 }
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dacite-static-'));
+try {
+  const site = path.join(tmp, 'site');
+  const outside = path.join(tmp, 'outside');
+  fs.mkdirSync(site);
+  fs.mkdirSync(outside);
+  fs.writeFileSync(path.join(site, 'index.html'), '<p>in</p>');
+  fs.writeFileSync(path.join(site, 'ok.txt'), 'ok');
+  fs.writeFileSync(path.join(outside, 'secret.txt'), 'secret');
+  fs.symlinkSync(path.join(outside, 'secret.txt'), path.join(site, 'out.txt'));
+  fs.symlinkSync(outside, path.join(site, 'outdir'));
+  fs.symlinkSync(path.join(site, 'ok.txt'), path.join(site, 'in.txt'));
+  const s2 = await startStatic({ port: 0, root: site });
+  try {
+    let r = await get(s2.port, '/app/out.txt');
+    assert.strictEqual(r.status, 403, 'symlinked file outside the root');
+    assert.ok(!r.body.includes('secret'));
+    r = await get(s2.port, '/app/outdir/secret.txt');
+    assert.strictEqual(r.status, 403, 'file under a symlinked directory outside the root');
+    r = await get(s2.port, '/app/outdir/');
+    assert.strictEqual(r.status, 404, 'no index.html there, so nothing to refuse');
+    r = await get(s2.port, '/app/in.txt');
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.body, 'ok');
+  } finally {
+    await s2.close();
+  }
+} finally {
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+console.log('static-server ok');

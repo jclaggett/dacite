@@ -43,6 +43,7 @@ jobs:
           npm run webrtc:test
           npm run webrtc:signal-test
           npm run web:serve-test
+          npm run dacite:server-test
           npm run mem:test
           npm run lru:test
 
@@ -149,6 +150,12 @@ jobs:
 
       - name: Value browser fetch
         run: npm run browser:e2e
+
+      # Packaging slice 1. `npx dacite` serves the value browser, /signal,
+      # and its nbb peer on one port; Chromium fetches the welcome value,
+      # reloads, and fetches it again.
+      - name: npx dacite, one port
+        run: npm run dacite:e2e
 
       # M5.3. The library bundle stays on cljs.build.api. Chromium reads a
       # chapter and the plate from the nbb peer.

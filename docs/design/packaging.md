@@ -1,6 +1,6 @@
 # Packaging the Local Peer (Design Note, Draft)
 
-Status: draft, Nov 12, 2026. Post-parity. Nothing here is scheduled yet.
+Status: draft, Nov 12, 2026. Post-parity. Slice 1 (`npx dacite` on one port) is built; see "Slices" below.
 
 ## The idea in three lines
 
@@ -71,6 +71,15 @@ Commands: `dacite service install`, `dacite service uninstall`, `dacite service 
 
 - **WebSockets skip CORS.** Any website the user visits can open `ws://localhost:<port>/signal`. The peer must reject a `/signal` upgrade whose `Origin` is not its own (`http://localhost:<port>` or `http://127.0.0.1:<port>`).
 - **DNS rebinding.** Check the `Host` header on every request, both static and `/signal`, and accept only `localhost:<port>` and `127.0.0.1:<port>`.
+
+## Slices
+
+- [x] **Slice 1: one port** (Nov 17, 2026). `npx dacite [--port 8790]` (`bin/dacite.mjs`, the package `bin`) binds 127.0.0.1 and serves, on one port: the static app code (`examples/web` at `/app/`), the room relay at `ws://127.0.0.1:<port>/signal` (`/signal/room/<token>`), and an nbb peer (`dacite.cli.peer`) that answers in a room token made for this launch. It prints the Value Browser URL with the relay and the room in the query, and the hash of the one welcome value it holds. Server: `scripts/dacite-server.mjs`.
+  - Host is checked on every request and upgrade (`localhost:<port>` and `127.0.0.1:<port>` only, else 403). A `/signal` upgrade with a foreign `Origin` is 403. An upgrade with no `Origin` is let in: browsers always send one, and the in-process peer's `ws` client sends none.
+  - The static server checks the real path (`fs.realpath`) too, so a symlink cannot serve a file outside the root (403).
+  - Choices made for this slice, open for review: the default port is 8790 (from the Port row); the store is in memory with one welcome value (no `--store` yet); the only flag is `--port`; one browser session at a time (the peer rejoins the room when a session ends); the package is still the private `dacite-sci`, so `npx dacite` works from a clone, not from the npm registry; `nbb` moved to `dependencies` because the bin runs on it.
+  - Tests: `npm run dacite:server-test` (Host, Origin, one-port relay, symlink) and `npm run dacite:e2e` (Chromium fetches the welcome value through `npx dacite`, reloads, and fetches it again). Both run in CI.
+- [ ] Later: a persistent store (`--store`, platform data dir), port reuse when the service already holds the port (§2 Port), the `/signal` secret decision before the always-on service, `npx dacite open <app>`, shipping the compiled bundles in the package, and publishing.
 
 ## Follow-ups
 

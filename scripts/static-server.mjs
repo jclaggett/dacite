@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Static file server for examples/web, mounted at /app/. It serves files
- * only: no store protocol, no root. `/app` and any directory without its
+ * only: no store protocol, no root. A path or symlink that leaves the
+ * served directory is refused (403). `/app` and any directory without its
  * trailing slash redirect (301) to the slash form. The e2e scripts import startStatic;
  * `npm run web:serve` runs it on http://127.0.0.1:8080/app/ for the hand
  * steps in docs/plan/peering.md.
@@ -23,8 +24,18 @@ function contentType(file) {
   return 'application/octet-stream';
 }
 
-export function startStatic({ port = 0, host = '127.0.0.1' } = {}) {
-  const server = http.createServer((req, res) => {
+/**
+ * The /app/ request handler on its own, for a server that serves more
+ * than files (scripts/dacite-server.mjs). `root` defaults to examples/web.
+ *
+ * Containment: the normalized path must stay under `root`, and so must
+ * its real path (fs.realpath), so a symlink under `root` cannot serve a
+ * file from outside it. Either escape is a 403.
+ */
+export function staticHandler({ root: base = webRoot } = {}) {
+  const realBase = fs.realpathSync(base);
+  const inside = (p, dir) => p === dir || p.startsWith(dir + path.sep);
+  return (req, res) => {
     const u = new URL(req.url || '/', 'http://127.0.0.1');
     const redirect = (to) => {
       res.writeHead(301, { location: to + u.search, 'content-type': 'text/plain' });
@@ -44,27 +55,33 @@ export function startStatic({ port = 0, host = '127.0.0.1' } = {}) {
     }
     const dirRequest = rel === '' || rel.endsWith('/');
     if (dirRequest) rel += 'index.html';
-    const file = path.normalize(path.join(webRoot, rel));
-    if (file !== webRoot && !file.startsWith(webRoot + path.sep)) {
-      return fail(403, 'forbidden');
-    }
-    fs.stat(file, (serr, st) => {
-      if (serr) return fail(404, 'not found');
-      // A directory asked for without its trailing slash: redirect, so
-      // the page's relative URLs resolve inside the directory.
-      if (st.isDirectory()) {
-        return dirRequest ? fail(404, 'not found') : redirect(u.pathname + '/');
-      }
-      fs.readFile(file, (err, buf) => {
-        if (err) return fail(404, 'not found');
-        res.writeHead(200, {
-          'content-type': contentType(file),
-          'cache-control': 'no-store',
+    const file = path.normalize(path.join(base, rel));
+    if (!inside(file, base)) return fail(403, 'forbidden');
+    fs.realpath(file, (rerr, real) => {
+      if (rerr) return fail(404, 'not found');
+      if (!inside(real, realBase)) return fail(403, 'forbidden');
+      fs.stat(real, (serr, st) => {
+        if (serr) return fail(404, 'not found');
+        // A directory asked for without its trailing slash: redirect, so
+        // the page's relative URLs resolve inside the directory.
+        if (st.isDirectory()) {
+          return dirRequest ? fail(404, 'not found') : redirect(u.pathname + '/');
+        }
+        fs.readFile(real, (err, buf) => {
+          if (err) return fail(404, 'not found');
+          res.writeHead(200, {
+            'content-type': contentType(file),
+            'cache-control': 'no-store',
+          });
+          res.end(buf);
         });
-        res.end(buf);
       });
     });
-  });
+  };
+}
+
+export function startStatic({ port = 0, host = '127.0.0.1', root: base = webRoot } = {}) {
+  const server = http.createServer(staticHandler({ root: base }));
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, host, () => {

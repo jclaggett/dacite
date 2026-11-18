@@ -11,7 +11,7 @@ core is allowed to call) is [portable-core.md](portable-core.md). This
 document is the **inventory**: every namespace on the Clojure source path,
 labeled `core`, `host`, or `server-only`.
 
-Counted here: **86 namespaces** (7 `core`, 79 `host`, 0 `server-only`) under
+Counted here: **87 namespaces** (7 `core`, 80 `host`, 0 `server-only`) under
 `impl/clojure/src` and `impl/clojure/dev`. `impl/clojure/test` is not
 inventoried; tests may require any class. (`impl/clojure/archive` was
 removed in the HTTP removal slice 3.) M5.1 added the browser peer (`dacite.peer.transport.browser`,
@@ -172,6 +172,7 @@ above, so it is `host` until those dependencies are `core`.
 | `bench-cp` | `host` | `impl/clojure/dev/bench_cp.clj` | JVM code-point microbench (`System/nanoTime`). |
 | `dacite.bench.library-storage` | `host` | `impl/clojure/src/dacite/bench/library_storage.clj` | JVM file and LMDB size bench, including `lmdbjava`. |
 | `dacite.bench.todo-bw` | `host` | `impl/clojure/src/dacite/bench/todo_bw.clj` | JVM pack-budget encode sweep (`clojure.pprint`, `System/exit`). |
+| `dacite.cli.peer` | `host` | `impl/clojure/src/dacite/cli/peer.cljs` | The nbb peer `npx dacite` runs (`bin/dacite.mjs`): WebRTC answerer in the launch room, in-memory store. |
 | `dacite.convert` | `host` | `impl/clojure/src/dacite/convert.clj` | JVM boundary between Dacite values and Clojure data (`byte-array`). |
 | `dacite.dev.gen-byte-table` | `host` | `impl/clojure/dev/dacite/dev/gen_byte_table.clj` | JVM SHA-256 regeneration of `dacite.byte-table`. |
 | `dacite.dev.gen-sl2-table` | `host` | `impl/clojure/dev/dacite/dev/gen_sl2_table.clj` | JVM regeneration of `dacite.sl2-table`. |
