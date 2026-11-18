@@ -3,9 +3,11 @@
 
    64-bit words are tagged #dacite/u64 \"decimal\" so browser clients do not
    lose precision on large unsigned values."
-  (:require [clojure.walk :as walk]
+  (:require [clojure.string :as str]
+            [clojure.walk :as walk]
             #?(:clj [clojure.edn :as edn]
-               :cljs [cljs.reader :as reader])))
+               :cljs [cljs.reader :as reader])
+            #?(:cljs [dacite.host :as host])))
 
 (def ^:const js-safe-max
   "Largest integer exactly representable as IEEE-754 double (JS Number)."
@@ -29,16 +31,21 @@
                  (catch :default _ false)))))
 
 (defn- word->wire-str
-  "Unsigned decimal string for a 64-bit word (stable across JVM/JS)."
+  "Decimal string for a 64-bit word (stable across JVM/JS): unsigned, except
+   a negative BigInt on ClojureScript (an i64, #64), which keeps its sign."
   [w]
   #?(:clj  (Long/toUnsignedString ^long (long w))
-     :cljs (str (.asUintN js/BigInt 64
-                          (if (= (type w) js/BigInt) w (js/BigInt w))))))
+     :cljs (if (and (= (type w) js/BigInt) (< w 0))
+             (str w)
+             (str (.asUintN js/BigInt 64
+                            (if (= (type w) js/BigInt) w (js/BigInt w)))))))
 
 (defn- ->word [s]
-  ;; Always unsigned decimal 0..2^64-1
-  #?(:clj  (Long/parseUnsignedLong (str s))
-     :cljs (.asUintN js/BigInt 64 (js/BigInt (str s)))))
+  ;; Unsigned decimal 0..2^64-1, or a negative decimal (an i64 from
+  ;; ClojureScript): the same 64 bits on the JVM, the signed BigInt on JS.
+  (let [s (str s)]
+    #?(:clj  (if (str/starts-with? s "-") (Long/parseLong s) (Long/parseUnsignedLong s))
+       :cljs (if (str/starts-with? s "-") (js/BigInt s) (.asUintN js/BigInt 64 (js/BigInt s))))))
 
 (defn- byte-buffer?
   [x]
@@ -78,11 +85,42 @@
   {'dacite/u64 (fn [s] (->word s))
    'dacite/bytes bytes-from-edn})
 
+#?(:cljs
+   (defn- host-ints
+     "`x` with every i64 and u64 entry (`[type data]`) and literal body in the
+      host representation the builder uses (#64): a signed BigInt for an i64,
+      an unsigned BigInt for a u64. A JVM writes a small one as a plain
+      integer, and a negative i64 as its unsigned word."
+     [x]
+     (let [conv {"i64" host/->i64 "u64" host/->word}
+           int-data? (fn [d] (or (number? d) (= (type d) js/BigInt)))]
+       (walk/postwalk
+        (fn [v]
+          (cond
+            (and (vector? v) (= 2 (count v)) (conv (first v)) (int-data? (second v)))
+            [(first v) ((conv (first v)) (second v))]
+
+            (and (map? v) (conv (:type v)) (int-data? (:body v)))
+            (update v :body (conv (:type v)))
+
+            (and (map? v) (map? (:body v)) (conv (:of (:body v))))
+            (let [f (conv (:of (:body v)))
+                  {:keys [values value]} (:body v)]
+              (cond-> v
+                (and (vector? values) (every? int-data? values))
+                (assoc-in [:body :values] (mapv f values))
+                (int-data? value) (assoc-in [:body :value] (f value))))
+
+            :else v))
+        x))))
+
 (defn read-edn
-  "Parse EDN store body with dacite/u64 readers."
+  "Parse EDN store body with dacite/u64 readers. On ClojureScript an i64 or
+   u64 entry or literal body comes back in its host representation, as
+   built (#64)."
   [s]
   #?(:clj  (edn/read-string {:readers readers} s)
-     :cljs (reader/read-string {:readers readers} s)))
+     :cljs (host-ints (reader/read-string {:readers readers} s))))
 
 (defn write-edn
   "pr-str with BigInt/long words as tags."

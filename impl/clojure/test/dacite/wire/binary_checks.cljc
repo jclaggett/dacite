@@ -16,6 +16,7 @@
             [dacite.hash :as hash]
             [dacite.value :as v]
             [dacite.host :as host]
+            [dacite.wire :as wire]
             [dacite.wire.binary :as bin]
             [dacite.store :as store]
             [dacite.store.check :refer [is testing throws?]]
@@ -613,6 +614,23 @@
           (is (= want (v/realize built)) (pr-str n))
           (is (= want (v/realize (scalar/wrap-scalar st2 h))) (pr-str n)))))))
 
+;; The EDN store path (`dacite.wire`) also gives the built i64 (#64): nbb
+;; writes a negative one signed, a JVM as its unsigned word or a plain integer.
+(defn an-i64-read-from-edn-is-the-built-i64
+  [_]
+  (doseq [n (concat [(host/->i64 -1) (host/->i64 5)] big-i64s)
+          x [["i64" n]
+             {:type "i64" :body n}
+             {:type "run" :body {:of "i64" :values [n n]}}]]
+    (is (= x (wire/read-edn (wire/write-edn x))) (pr-str x)))
+  (testing "JVM-written text"
+    (is (= ["i64" (i64-of "-9223372036854775808")]
+           (wire/read-edn "[\"i64\" #dacite/u64 \"9223372036854775808\"]")))
+    (is (= ["i64" (host/->i64 5)] (wire/read-edn "[\"i64\" 5]")))
+    (is (= ["u64" (host/->word 5)] (wire/read-edn "[\"u64\" 5]"))))
+  (testing "nbb-written text: a negative word is an i64"
+    (is (= (i64-of "-5") (wire/read-edn "#dacite/u64 \"-5\"")))))
+
 (def checks
   {"run-repeat-have-wire-ids" run-repeat-have-wire-ids
    "u8-run-lit-keeps-raw-bytes" u8-run-lit-keeps-raw-bytes
@@ -628,4 +646,5 @@
    "pack-edn-bridge-round-trip" pack-edn-bridge-round-trip
    "spot-check-new-scalar-and-collection" spot-check-new-scalar-and-collection
    "a-measure-state-outside-sl2-is-bad-state" a-measure-state-outside-sl2-is-bad-state
-   "a-decoded-node-is-the-built-node" a-decoded-node-is-the-built-node})
+   "a-decoded-node-is-the-built-node" a-decoded-node-is-the-built-node
+   "an-i64-read-from-edn-is-the-built-i64" an-i64-read-from-edn-is-the-built-i64})

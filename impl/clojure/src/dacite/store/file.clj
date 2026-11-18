@@ -21,10 +21,11 @@
   (:import [java.io File]))
 
 ;; nbb writes 64-bit words as #dacite/u64 "…"; accept them so a store
-;; directory can be opened from either host (unsigned → signed long bits).
+;; directory can be opened from either host (unsigned → signed long bits;
+;; a negative one is an i64, a signed BigInt on nbb, #64). The readers are
+;; `dacite.wire`'s.
 (def ^:private edn-opts
-  {:readers {'dacite/u64 (fn [s] (Long/parseUnsignedLong (str s)))
-             'dacite/bytes wire/bytes-from-edn}})
+  {:readers wire/readers})
 
 (defn- tag-byte-arrays
   "Replace byte arrays with `#dacite/bytes` so `pr-str` round-trips.

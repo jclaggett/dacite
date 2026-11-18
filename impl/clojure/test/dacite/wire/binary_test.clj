@@ -70,6 +70,9 @@
 (deftest a-decoded-node-is-the-built-node
   (run-check "a-decoded-node-is-the-built-node"))
 
+(deftest an-i64-read-from-edn-is-the-built-i64
+  (run-check "an-i64-read-from-edn-is-the-built-i64"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)
