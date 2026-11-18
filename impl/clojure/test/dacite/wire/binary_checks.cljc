@@ -493,6 +493,10 @@
                #(scalar/u64-with-store % 0)
                #(scalar/u64-with-store % 4294967296)
                #(scalar/u64-with-store % 9007199254740991)
+               ;; 2^64 - 1, built from a BigInt: the top bit of the word set. nbb
+               ;; only: on the JVM a u64 >= 2^63 is built as a BigInt (value_test
+               ;; realizes it as one) but decodes as a long; see #64 follow-ups.
+               #?@(:cljs [#(scalar/u64-with-store % (js/BigInt "18446744073709551615"))])
                #(scalar/u256-with-store % (host-bytes (range 32)))
                #(scalar/f32-with-store % (float 0.5))
                #(scalar/f64-with-store % -0.25)
