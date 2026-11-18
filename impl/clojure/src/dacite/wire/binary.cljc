@@ -1116,7 +1116,9 @@
             [tname {:measure m :key-hash kh :key-ref kr :val-ref vr}])
 
           "hamt/bitmap"
-          (let [bitmap (get-u32 buf)
+          ;; A host word, as the builder holds it (a BigInt on ClojureScript,
+          ;; #64): the u32 on the wire is the low half of a 64-bit bitmap word.
+          (let [bitmap (host/word (get-u32 buf))
                 split (get-u8 buf)
                 n (get-u8 buf)
                 ch (mapv (fn [_] (get-hash buf)) (range n))]

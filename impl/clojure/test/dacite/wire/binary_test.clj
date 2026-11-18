@@ -67,6 +67,9 @@
 (deftest a-measure-state-outside-sl2-is-bad-state
   (run-check "a-measure-state-outside-sl2-is-bad-state"))
 
+(deftest a-decoded-node-is-the-built-node
+  (run-check "a-decoded-node-is-the-built-node"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

@@ -37,6 +37,11 @@
 
 (defn- collection-type? [t] (contains? #{"string" "blob" "vector" "map" "set"} t))
 
+(def ^:private SPLIT-51-BITMAP
+  "The only bitmap a split-51 node can have: chunk 51 is one bit, read as 0
+   or 16. A host word, as the builder and the wire decoder both hold it."
+  (host/word 0x10001))
+
 (def ^:private has-ref?
   "True when a literal body names a child by hash (type `ref`, or a `run` or
    `repeat` of `ref`). A peer literal is self-contained: it holds none."
@@ -147,12 +152,9 @@
                                  (= (count (:children data))
                                     (host/popcount (:bitmap data)))
                                  ;; chunk 51 is one bit, read as 0 or 16: only
-                                 ;; those two bits are chunk values there. As
-                                 ;; host words: on ClojureScript a bitmap the
-                                 ;; library builds is a BigInt, and a decoded
-                                 ;; one a Number.
+                                 ;; those two bits are chunk values there
                                  (or (not= hamt/LAST-CHUNK (:split data))
-                                     (= (host/word (:bitmap data)) (host/word 0x10001))))
+                                     (= (:bitmap data) SPLIT-51-BITMAP)))
                     (bad! :bad-entry "hamt/bitmap needs a split, two or more children, one per bit (bits 0 and 16 at split 51)"
                           {:hash hash}))
                   (conj checks :bitmap-shape)))

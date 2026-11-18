@@ -84,9 +84,8 @@
 
 (defn- same-node?
   "True when both nodes are the same on the wire. Host `=` is not that: a file
-   store round trip gives a byte page a new `Uint8Array`, and the wire decoder
-   reads a small `hamt/bitmap` as a number where the writer held a `BigInt`.
-   Verification compares these bytes."
+   store round trip gives a byte page a new `Uint8Array`. Verification
+   compares these bytes."
   [a b]
   (and (some? a) (some? b) (= (node-bytes a) (node-bytes b))))
 

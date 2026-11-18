@@ -94,6 +94,18 @@ field cells).
 | nbb (ClojureScript) | `BigInt` normalized with `BigInt.asUintN(64, …)` | Same bit patterns as the JVM longs, so serialized bytes and hex match. |
 | Future ports | any exact 64-bit integer | Must reproduce two's-complement bit patterns and wraparound. |
 
+One representation per host, built or decoded (#64). The wire decoder returns
+the host word the builder holds: a `hamt/bitmap` bitmap (a u32 on the wire,
+the low half of a 64-bit word in the core), a hash word, a fuse cell, and the
+data of a `u64` scalar. A `u64` scalar is stored as a host word too
+(`dacite.value.types/scalar-entry`), so on nbb it realizes as a `BigInt` even
+when it is small. A decoded node is `=` to the node the library built on both
+hosts (`a-decoded-node-is-the-built-node`, `npm run wire:test`); no call site
+coerces through `host/word` to compare. Counts and byte sizes (`:count`,
+`:size-bytes`, u64 on the wire) are not words: they stay a long on the JVM and
+a Number on nbb, on both sides. On nbb a BigInt is slower than a Number; the
+speed is to come from a WASM / C++ kernel, not from a second representation.
+
 Bytes are represented portably as **plain integers 0..255** (vectors of ints),
 never host byte arrays. This keeps the core free of `java.nio` / JS typed
 arrays.

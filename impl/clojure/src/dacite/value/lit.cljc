@@ -362,7 +362,7 @@
     (cond
       (= t "ref") body
       (contains? scalar-types t)
-      (let [tv [t body]
+      (let [tv (types/scalar-entry t body)
             h (types/scalar-value-hash tv)]
         (binding [store/*cache-only* true]
           (store/await (store/s-put store h tv)))

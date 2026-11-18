@@ -37,7 +37,7 @@
 (defn put-scalar!
   "Persist a typed scalar [type-name data]. Returns its value hash."
   [store type-name data]
-  (let [tv [type-name data]
+  (let [tv (types/scalar-entry type-name data)
         h (types/scalar-value-hash tv)]
     (store/await (store/s-put store h tv))
     h))

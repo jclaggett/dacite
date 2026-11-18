@@ -16,6 +16,7 @@
 
    `is` and `testing` are `dacite.store.check`."
   (:require [dacite.hash :as hash]
+            [dacite.host :as host]
             [dacite.store :as store]
             [dacite.store.check :refer [is testing throws? throws-info?]]
             [dacite.value :as v]
@@ -76,7 +77,8 @@
     (is (= 255 (v/realize (v/u8 (ctx) 255))))
     (is (= 65535 (v/realize (v/u16 (ctx) 65535))))
     (is (= 4294967295 (v/realize (v/u32 (ctx) 4294967295))))
-    (is (= 0 (v/realize (v/u64 (ctx) 0))))))
+    ;; a u64 is a host word: 0 on the JVM, 0n on nbb (#64)
+    (is (= (host/word 0) (v/realize (v/u64 (ctx) 0))))))
 
 (defn unsigned-bounds-test
   [_]

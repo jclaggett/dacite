@@ -201,7 +201,7 @@
 
 (defn- same-entry?
   "Two entries are the same when they have the same wire-v1 bytes. (Not `=`: a
-   decoded u32 is a number on nbb where the builder had a BigInt.)"
+   byte page decoded from the wire is a new byte array.)"
   [h a b]
   (and (some? a) (some? b)
        (= (bin/bytes->hex (bin/encode-item {:enc :node :hash h :entry a}))
