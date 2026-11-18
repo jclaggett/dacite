@@ -242,9 +242,66 @@
       (is (= :above-max (u64-range-error #(pack/materialize-literal! s2 "u64" two-to-the-64))))
       (is (= :negative (u64-range-error #(pack/materialize-literal! s2 "u64" -1)))))))
 
+;; A raw host big integer (a BigInt on nbb; a BigInt N or BigInteger on the
+;; JVM) coerces to an i64 wherever a plain value is taken, when it is in
+;; -2^63..2^63-1; out of range it throws, never wrapping and never a u64.
+(defn- host-big
+  "The integer written `s` as a raw host big integer."
+  [s]
+  #?(:clj (bigint s) :cljs (js/BigInt s)))
+
+(defn- i64-range-error
+  "The ex-data of the i64 range ex-info `(f)` throws, or nil."
+  [f]
+  (try (f) nil
+       (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
+         (let [d (ex-data e)]
+           (when (= "i64" (:type d)) d)))))
+
+(defn raw-host-bigints-coerce-to-i64
+  [_]
+  (let [s (store/mem-store)
+        raw (fn [x] (v2/wrap-hash s (types/extract-hash s x)))
+        ins ["0" "7" "-12" "9007199254740993"
+                     "9223372036854775807" "-9223372036854775808"]]
+    (doseq [n ins
+            :let [x (host-big n)
+                  want (v2/i64 s x)
+                  got (raw x)]]
+      (is (= "i64" (v2/type got)) n)
+      (is (= (vec (v2/hash want)) (vec (v2/hash got))) (str n " the i64's hash"))
+      (is (= (v2/realize want) (v2/realize got)) (str n " realizes as the i64"))
+      (let [back (raw (v2/realize got))]
+        (is (= (vec (v2/hash got)) (vec (v2/hash back))) (str n " realized, fed back raw"))
+        (is (= (v2/realize got) (v2/realize back)) (str n " realized, fed back raw: ="))))
+    #?(:clj (is (= (vec (v2/hash (v2/i64 s Long/MAX_VALUE)))
+                   (vec (v2/hash (raw (biginteger Long/MAX_VALUE)))))
+                "a BigInteger too"))
+    (testing "inside a set and a map"
+      (let [xs (map host-big ins)
+            st (v2/set s (first xs) (second xs) (last xs))
+            m (apply v2/map s (interleave xs (range)))]
+        (is (= (set (map (comp v2/realize #(v2/i64 s %)) [(first xs) (second xs) (last xs)]))
+               (set (v2/realize st))))
+        (is (= (vec (v2/hash st))
+               (vec (v2/hash (apply v2/set s (map #(v2/i64 s %) [(first xs) (second xs) (last xs)]))))))
+        (is (= (vec (v2/hash m))
+               (vec (v2/hash (apply v2/map s (interleave (map #(v2/i64 s %) xs) (range)))))))
+        (is (every? #(v2/contains? st %) [(first xs) (second xs) (last xs)]))
+        (is (= (map host/->i64 (range (count xs))) (map #(v2/realize (v2/get m %)) xs)))))
+    (testing "out of range throws, in a set or a map too"
+      (doseq [[n reason] [["9223372036854775808" :above-max]
+                          ["-9223372036854775809" :below-min]]
+              :let [x (host-big n)]]
+        (is (= {:type "i64" :value n :reason reason} (i64-range-error #(raw x))) n)
+        (is (= reason (:reason (i64-range-error #(v2/set s x)))) (str n " in a set"))
+        (is (= reason (:reason (i64-range-error #(v2/map s x 1)))) (str n " a map key"))
+        (is (= reason (:reason (i64-range-error #(v2/map s 1 x)))) (str n " a map value"))))))
+
 (def checks
   {"realized-integers-are-set-members-and-map-keys" realized-integers-are-set-members-and-map-keys
    "max-u64-round-trips-through-edn" max-u64-round-trips-through-edn
+   "raw-host-bigints-coerce-to-i64" raw-host-bigints-coerce-to-i64
    "scalar-types-and-realize" scalar-types-and-realize
    "values-are-not-derefable" values-are-not-derefable
    "scalar-validation" scalar-validation

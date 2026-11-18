@@ -51,6 +51,9 @@
 (deftest max-u64-round-trips-through-edn
   (run-check "max-u64-round-trips-through-edn"))
 
+(deftest raw-host-bigints-coerce-to-i64
+  (run-check "raw-host-bigints-coerce-to-i64"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

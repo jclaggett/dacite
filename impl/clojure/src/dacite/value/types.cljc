@@ -147,6 +147,21 @@
                       {:type "u64" :value (str n) :reason reason}))
       n)))
 
+(defn check-i64
+  "`n` when it is an integer -2^63..2^63-1; else throws ex-info
+   {:type \"i64\" :value (str n) :reason :below-min | :above-max}. A raw host
+   integer coerced to a value passes here (a BigInt N or BigInteger on the
+   JVM, a Number or BigInt on ClojureScript): it becomes an i64, never wraps,
+   and never silently becomes a u64, which stays explicit (`v/u64`)."
+  [n]
+  (let [reason (cond
+                 (< n host/min-i64) :below-min
+                 (< host/max-i64 n) :above-max)]
+    (if reason
+      (throw (ex-info (str "i64 out of range: " n " is not an integer -2^63..2^63-1")
+                      {:type "i64" :value (str n) :reason reason}))
+      n)))
+
 (defn scalar-entry
   "The store entry for a scalar `[type-name data]`. A u64 is held as a host
    word, as the wire decoder returns it: a long on the JVM (2^64-1 is -1), a
@@ -238,8 +253,9 @@
   "Classify a plain host value into a Dacite coercion kind keyword. The
    host-specific predicates (Boolean, char, float/double) are only
    meaningful on the JVM; ClojureScript maps its numeric tower onto
-   i64/f64. Host bytes are a blob on both hosts: a JVM `byte[]`, a CLJS
-   `Uint8Array`."
+   i64/f64. A host BigInt is an i64 on ClojureScript, as a BigInt N is on
+   the JVM (range-checked when stored, `check-i64`). Host bytes are a blob
+   on both hosts: a JVM `byte[]`, a CLJS `Uint8Array`."
   [x]
   (cond
     (nil? x)        :null
@@ -257,6 +273,7 @@
          (sequential? x)       :sequential]
         :cljs
         [(boolean? x)          :bool
+         (= js/BigInt (type x)) :i64
          (number? x)           :f64
          (instance? js/Uint8Array x) :blob
          (sequential? x)       :sequential])

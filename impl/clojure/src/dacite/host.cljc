@@ -74,6 +74,16 @@
    JVM, a BigInt on ClojureScript."
   #?(:clj 18446744073709551615N :cljs (js/BigInt "18446744073709551615")))
 
+(def max-i64
+  "2^63 - 1, the largest i64, as an exact host integer: a long on the JVM, a
+   BigInt on ClojureScript."
+  #?(:clj Long/MAX_VALUE :cljs (js/BigInt "9223372036854775807")))
+
+(def min-i64
+  "-2^63, the smallest i64, as an exact host integer: a long on the JVM, a
+   BigInt on ClojureScript."
+  #?(:clj Long/MIN_VALUE :cljs (js/BigInt "-9223372036854775808")))
+
 (defn ->word
   "Coerce any integer (a long, a Number, or a BigInt) to a 64-bit word,
    modulo 2^64: the bit pattern the wire carries."

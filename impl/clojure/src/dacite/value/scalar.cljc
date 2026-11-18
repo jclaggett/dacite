@@ -95,8 +95,12 @@
   (put-scalar! store "char" x))
 
 (defmethod types/coerce-and-store! :i64
+  ;; A raw host integer: a long, or a BigInt N / BigInteger on the JVM; a
+  ;; Number or BigInt on ClojureScript. In range it is an i64; out of range
+  ;; it throws (`types/check-i64`), never wrapping. A long is always in range.
   [store x]
-  (put-scalar! store "i64" (as-i64 x)))
+  (put-scalar! store "i64" (as-i64 #?(:clj (if (instance? Long x) x (types/check-i64 x))
+                                      :cljs (types/check-i64 x)))))
 
 (defmethod types/coerce-and-store! :f64
   [store x]
