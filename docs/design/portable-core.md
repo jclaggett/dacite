@@ -113,6 +113,27 @@ library built on both hosts (`a-decoded-node-is-the-built-node`,
 nbb a BigInt is slower than a Number; the speed is to come from a WASM / C++
 kernel, not from a second representation.
 
+#### Open question: measure overflow
+
+A measure counts logical size, not stored size, so it can pass 2^64 while
+storage stays tiny. Structural sharing (a shared subtree, a repeat node) lets a
+small store describe a huge value: a vector of two copies of one subtree,
+nested 64 deep, has a logical `:size-bytes` of at least 2^64, and in principle
+`:count` can overflow the same way. Today `host/add64` wraps modulo 2^64, so
+such a measure would silently be wrong. Options:
+
+- **Throw** when a measure would pass 2^64 - 1 (the value cannot be built).
+- **Saturate** at 2^64 - 1, read as "at least this big".
+- **Variable-length integer** for counts and sizes in wire v2, so a measure is
+  exact at any size.
+
+Jonathan leans toward a varint in wire v2. Undecided; wire v1 is unchanged.
+
+Practical limits today: code that indexes or compares reads a count through
+`host/word->long`, which is exact below 2^63 on the JVM (a `long`) and below
+2^53 on nbb (a Number). Positions at or past those bounds are not usable for
+`nth`, `subvec`-style slicing, or paging, whatever the measure holds.
+
 Bytes are represented portably as **plain integers 0..255** (vectors of ints),
 never host byte arrays. This keeps the core free of `java.nio` / JS typed
 arrays.
