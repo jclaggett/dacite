@@ -480,7 +480,7 @@
 
 (defn- built-store
   "A mem store holding one of every public value, big enough for inner
-   finger-tree and HAMT nodes: a map of 80 entries has bitmap nodes, and
+   finger-tree and HAMT nodes: a map of 64 entries has bitmap nodes, and
    its root uses chunk 31 (a bitmap with the high bit of its u32 set)."
   []
   (let [st (store/mem-store)]
@@ -506,7 +506,7 @@
                #(coll/string-with-store % (apply str (repeat 20 "wire ")))
                #(coll/blob-with-store % (host-bytes (range 64)))
                #(coll/vector-with-store % (range 40))
-               #(apply coll/hash-map-with-store % (interleave (range 80) (map str (range 80))))
+               #(apply coll/hash-map-with-store % (interleave (range 64) (map str (range 64))))
                #(apply coll/dacite-set-with-store % (range 20))]]
       (f st))
     st))
@@ -520,6 +520,19 @@
     (vector? x) (mapv entry-bytes x)
     (map? x) (into {} (map (fn [[k v]] [k (entry-bytes v)])) x)
     :else x))
+
+(defn- host-word?
+  "A 64-bit host word: a long on the JVM, a BigInt on nbb."
+  [x]
+  #?(:clj (instance? Long x) :cljs (= js/BigInt (type x))))
+
+(defn- counts-and-sizes
+  "The :count and :size-bytes of an entry: a collection node's, or its
+   measure's."
+  [[_ d]]
+  (when (map? d)
+    (let [m (or (:measure d) d)]
+      (keep m [:count :size-bytes]))))
 
 (defn a-decoded-node-is-the-built-node
   [_]
@@ -539,6 +552,11 @@
                      (not (host/word-zero? (host/band64 (:bitmap d) high-bit)))))
               entries)
         "a bitmap uses chunk 31")
+    (testing "a count and a byte size are host words, built and decoded"
+      (doseq [[_ e] entries
+              x (concat (counts-and-sizes e)
+                        (counts-and-sizes (bin/decode-node-bytes (bin/encode-node-bytes e))))]
+        (is (host-word? x) (str (first e) " " (pr-str x)))))
     (doseq [[h e] entries
             :let [t (first e)
                   want (entry-bytes e)
