@@ -79,6 +79,24 @@
   [w]
   #?(:clj (long w) :cljs (js/Number w)))
 
+(defn ->i64
+  "Coerce an integer (a long, a Number, or a BigInt) to a signed 64-bit
+   value, modulo 2^64: itself on the JVM (an i64 is a long), a signed BigInt
+   on ClojureScript (#64)."
+  [n]
+  #?(:clj n :cljs (.asIntN js/BigInt 64 (as-bi n))))
+
+(defn i64->native
+  "A signed 64-bit value as the integer it realizes as: itself on the JVM;
+   on ClojureScript a Number when it is a safe integer (|n| <= 2^53 - 1),
+   else the BigInt."
+  [n]
+  #?(:clj n
+     :cljs (if (and (<= (- (js/BigInt 9007199254740991)) n)
+                    (<= n (js/BigInt 9007199254740991)))
+             (js/Number n)
+             n)))
+
 (defn word->int
   "Coerce a small 64-bit word back to a native integer (for indexing)."
   [w]

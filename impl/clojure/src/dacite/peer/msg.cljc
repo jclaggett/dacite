@@ -113,7 +113,9 @@
   (case (str type)
     "null" nil
     "bool" (boolean body)
-    "i64" (let [n #?(:clj (long body) :cljs body)]
+    "i64" (let [n #?(:clj (long body)
+                     ;; a decoded i64 is a BigInt on nbb (#64)
+                     :cljs (if (number? body) body (host/i64->native body)))]
             (when-not (in-range? n)
               (profile-error! "an integer is within +-(2^53 - 1)" {:value (str n)}))
             n)

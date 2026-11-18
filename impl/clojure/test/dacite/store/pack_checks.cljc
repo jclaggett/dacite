@@ -10,6 +10,7 @@
    it does not count assertions."
   (:require [clojure.string :as str]
             [dacite.examples.todo :as todo]
+            [dacite.host :as host]
             [dacite.rooted.gc :as gc]
             [dacite.store :as store]
             [dacite.store.check :refer [is testing throws?]]
@@ -93,7 +94,7 @@
         h (scalar/put-scalar! st "i64" 42)
         form (pack/literal-of st h)]
     (is (= "i64" (:type form)))
-    (is (= 42 (:body form)))
+    (is (= (host/->i64 42) (:body form)))
     (let [[h1 h2] (round-trip-hash st h)]
       (is (= h1 h2)))))
 
@@ -129,7 +130,7 @@
     (is (= 1 (count (:body form))) "homogeneous i64s collapse to one run")
     (is (= "run" (:type run)))
     (is (= "i64" (get-in run [:body :of])))
-    (is (= [1 2 3] (get-in run [:body :values])))
+    (is (= (mapv host/->i64 [1 2 3]) (get-in run [:body :values])))
     (is (= h (second (round-trip-hash st h))))))
 
 (defn literal-of-nested-vector-of-strings
@@ -158,7 +159,7 @@
         el (first (:body form))]
     (is (= 1 (count (:body form))))
     (is (= "i64" (:type el)))
-    (is (= 42 (:body el)))))
+    (is (= (host/->i64 42) (:body el)))))
 
 (defn rle-lits-mixed-types-split-runs
   [_]
@@ -169,7 +170,7 @@
     (is (= 2 (count body)))
     (is (= "run" (:type (nth body 0))))
     (is (= "i64" (get-in (nth body 0) [:body :of])))
-    (is (= [1 2] (get-in (nth body 0) [:body :values])))
+    (is (= (mapv host/->i64 [1 2]) (get-in (nth body 0) [:body :values])))
     (is (= "string" (:type (nth body 1))))
     (is (= "z" (:body (nth body 1))))
     (is (= (types/dacite-hash v) (second (round-trip-hash st (types/dacite-hash v)))))))
@@ -320,11 +321,11 @@
         item (pack/encode-item st h (store/await (store/s-get st h)))]
     (is (= :literal (:encoding item)))
     (is (= "i64" (:type item)))
-    (is (= 42 (:body item)))
+    (is (= (host/->i64 42) (:body item)))
     (let [st2 (store/mem-store)
           r (pack/apply-chunk! st2 (pack/make-chunk 1024 [item]))]
       (is (= 1 (:literals r)))
-      (is (= ["i64" 42] (store/await (store/s-get st2 h)))))))
+      (is (= ["i64" (host/->i64 42)] (store/await (store/s-get st2 h)))))))
 
 (defn encode-and-apply-literal-string
   [_]

@@ -230,7 +230,7 @@
         vhs (mapv #(put-i64 st %) (range 10))
         root (ft/ft-from-value-hashes st vhs)
         mid (ft/ft-remove-nth st root 4)]
-    (is (= (concat (range 4) (range 5 10))
+    (is (= (map host/->i64 (concat (range 4) (range 5 10)))
            (map (fn [h] (second (store/await (store/s-get st h)))) (ft/ft-seq st mid))))))
 
 (defn entry-density-no-single-per-element

@@ -133,15 +133,23 @@
   "The store entry for a scalar `[type-name data]`. A u64 is held as a host
    word, as the wire decoder returns it: a long on the JVM (2^64-1 is -1), a
    BigInt on ClojureScript (#64), so a built u64 and a decoded one are `=`.
-   `realize` gives the unsigned value (`scalar-data`)."
+   An i64 is a long on the JVM and a signed BigInt on ClojureScript, also as
+   decoded. `realize` gives the host value (`scalar-data`)."
   [type-name data]
-  [type-name (if (= "u64" type-name) (host/->word data) data)])
+  [type-name (case type-name
+               "u64" (host/->word data)
+               "i64" (host/->i64 data)
+               data)])
 
 (defn scalar-data
   "The host value a scalar entry realizes as. A u64 is its unsigned value:
-   on the JVM a u64 >= 2^63 is a BigInt N, never a negative long."
+   on the JVM a u64 >= 2^63 is a BigInt N, never a negative long. An i64 on
+   ClojureScript is a Number when it is a safe integer, else the BigInt."
   [[type-name data]]
-  (if (= "u64" type-name) (host/word->unsigned data) data))
+  (case type-name
+    "u64" (host/word->unsigned data)
+    "i64" (host/i64->native data)
+    data))
 
 (defn scalar-value-hash
   "value_hash (ref) for a scalar [type data]."
