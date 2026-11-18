@@ -129,7 +129,7 @@
 (defn- string-preview
   "Prefix of a Dacite string plus truncation flag. Uses lazy realize."
   [v]
-  (let [n (v/count v)
+  (let [n (v/native-count v)
         take-n (min n string-preview-chars)
         s (join-chars (take take-n (or (v/realize v) ())))]
     {:preview s
@@ -138,7 +138,7 @@
 (defn- blob-preview
   "Hex prefix of a Dacite blob plus truncation flag. Uses lazy realize."
   [v]
-  (let [n (v/count v)
+  (let [n (v/native-count v)
         take-n (min n blob-preview-bytes)
         hex (bytes-hex (take take-n (or (v/realize v) ())) take-n)]
     {:preview hex
@@ -163,14 +163,14 @@
     (case kind
       :scalar (assoc base :native (scalar-native-str v))
       :string (let [{:keys [preview truncated?]} (string-preview v)]
-                (assoc base :count (v/count v)
+                (assoc base :count (v/native-count v)
                        :preview preview
                        :truncated? truncated?))
       :blob (let [{:keys [preview truncated?]} (blob-preview v)]
-              (assoc base :count (v/count v)
+              (assoc base :count (v/native-count v)
                      :preview preview
                      :truncated? truncated?))
-      (assoc base :count (v/count v)))))
+      (assoc base :count (v/native-count v)))))
 
 (defn child-page
   "One page of children under a vector, map, or set.
@@ -184,7 +184,7 @@
    (let [kind (node-kind v)]
      (if-not (expandable? v)
        {:offset 0 :items [] :total 0 :done? true}
-       (let [total (v/count v)
+       (let [total (v/native-count v)
              off (max 0 (min offset total))
              lim (max 0 limit)
              end (min total (+ off lim))
@@ -210,7 +210,7 @@
   (when (v/dacite-value? x)
     (swap! acc conj (v/type x))
     (when (expandable? x)
-      (doseq [{:keys [label value]} (:items (child-page x 0 (v/count x)))]
+      (doseq [{:keys [label value]} (:items (child-page x 0 (v/native-count x)))]
         (walk-types label acc)
         (walk-types value acc)))))
 

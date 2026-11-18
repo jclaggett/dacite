@@ -129,13 +129,32 @@
   [typed-value]
   (hash/fuse-bytes (encode-value typed-value)))
 
+(defn check-u64
+  "`n` when it is an integer 0..2^64-1 (a long or BigInt N on the JVM, a
+   Number or BigInt on ClojureScript); else throws ex-info
+   {:type \"u64\" :value (str n) :reason :not-an-integer | :negative |
+   :above-max}. Every u64 made from host data passes here: a u64 never wraps
+   (#64)."
+  [n]
+  (let [reason (cond
+                 (not #?(:clj (integer? n)
+                         :cljs (or (= js/BigInt (type n)) (.isInteger js/Number n))))
+                 :not-an-integer
+                 (neg? n) :negative
+                 (< host/max-u64 n) :above-max)]
+    (if reason
+      (throw (ex-info (str "u64 out of range: " n " is not an integer 0..2^64-1")
+                      {:type "u64" :value (str n) :reason reason}))
+      n)))
+
 (defn scalar-entry
   "The store entry for a scalar `[type-name data]`. A u64 is held as a host
    word, as the wire decoder returns it: a long on the JVM (2^64-1 is -1), a
    BigInt on ClojureScript (#64), so a built u64 and a decoded one are `=`.
+   `data` is the u64 value, 0..2^64-1, never a word (`check-u64`).
    `realize` gives the unsigned value (`scalar-data`)."
   [type-name data]
-  [type-name (if (= "u64" type-name) (host/->word data) data)])
+  [type-name (if (= "u64" type-name) (host/->word (check-u64 data)) data)])
 
 (defn scalar-data
   "The host value a scalar entry realizes as. A u64 is its unsigned value:
@@ -153,16 +172,17 @@
 ;; =============================================================================
 
 (defmulti dacite-size
-  "Byte size of a stored [type data] value. Scalars define explicit
-   methods; collections carry :size-bytes in their data."
+  "Byte size of a stored [type data] value, as a host word (a long on the
+   JVM, a BigInt on nbb). Scalars define explicit methods; collections
+   carry :size-bytes in their data."
   entry-type)
 
 (defmethod dacite-size :default [[_ data]]
   (if-let [m (:measure data)]
-    (host/word->long (:size-bytes m))
+    (host/word (:size-bytes m))
     (if-let [sb (:size-bytes data)]
-      (host/word->long sb)
-      (count (host/utf8-bytes (pr-str data))))))
+      (host/word sb)
+      (host/word (count (host/utf8-bytes (pr-str data)))))))
 
 ;; Backward-compatible alias for callers that name the scalar value hash
 ;; `typed-value-hash` (e.g. hashing tests).

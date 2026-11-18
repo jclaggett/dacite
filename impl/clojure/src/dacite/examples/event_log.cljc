@@ -124,7 +124,7 @@
 
 (defn log-of [ledger] (v/get ledger "log"))
 (defn view-of [ledger] (v/get ledger "view"))
-(defn log-count [ledger] (v/count (log-of ledger)))
+(defn log-count [ledger] (v/native-count (log-of ledger)))
 
 (defn page
   "Page `page-n` (0-based) of the log as a Dacite vector (shared leaves).
@@ -133,7 +133,7 @@
   ([ledger page-n] (page ledger page-n default-page-size))
   ([ledger page-n page-size]
    (let [log (log-of ledger)
-         n (v/count log)
+         n (v/native-count log)
          start (* (long page-n) (long page-size))
          end (min n (+ start (long page-size)))]
      (if (>= start n)
@@ -145,7 +145,7 @@
   ([ledger] (replay ledger (log-count ledger)))
   ([ledger end]
    (let [log (log-of ledger)
-         n (min (long end) (v/count log))
+         n (min (long end) (v/native-count log))
          view (reduce (fn [vw i] (apply-event vw (v/nth log i)))
                       (empty-view ledger)
                       (range n))]
@@ -208,10 +208,10 @@
 (defn render-page
   [ledger page-n page-size]
   (let [log (log-of ledger)
-        n (v/count log)
+        n (v/native-count log)
         start (* page-n page-size)
         evs (page ledger page-n page-size)
-        end (+ start (v/count evs))]
+        end (+ start (v/native-count evs))]
     (str "page " page-n " [" start "," end ") of " n "\n"
          (apply str
                 (map-indexed (fn [j ev]

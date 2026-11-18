@@ -7,7 +7,8 @@
    from that namespace, one deftest each under its old name; nbb runs them
    from `dacite.examples.examples-cljs-test` (`npm run examples:test`).
    `is` is `dacite.store.check`."
-  (:require [dacite.store.check :refer [is]]
+  (:require [dacite.host :as host]
+            [dacite.store.check :refer [is]]
             [dacite.examples.todo :as todo]
             [dacite.store :as store]
             [dacite.value :as v]))
@@ -17,11 +18,11 @@
   (let [r (v/root (store/mem))
         [todos seeded?] (todo/load-or-seed! r)]
     (is (true? seeded?))
-    (is (= 5 (v/count todos)))
+    (is (= (host/word 5) (v/count todos)))
     (is (= "write portable host layer" (todo/title-str (v/nth todos 0))))
     (is (true? (todo/done? (v/nth todos 0))))
     (let [todos' (v/swap! r todo/add-todo "milk")]
-      (is (= 6 (v/count todos')))
+      (is (= (host/word 6) (v/count todos')))
       (is (= "milk" (todo/title-str (v/nth todos' 5))))
       (is (false? (todo/done? (v/nth todos' 5))))
       (is (= (v/hash todos') (v/hash (v/deref r)))))

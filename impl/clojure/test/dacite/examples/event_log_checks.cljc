@@ -6,7 +6,8 @@
    from that namespace, one deftest each under its old name; nbb runs them
    from `dacite.examples.examples-cljs-test` (`npm run examples:test`).
    `is` is `dacite.store.check`."
-  (:require [dacite.store.check :refer [is]]
+  (:require [dacite.host :as host]
+            [dacite.store.check :refer [is]]
             [dacite.examples.event-log :as elog]
             [dacite.store :as store]
             [dacite.value :as v]))
@@ -29,7 +30,7 @@
         full (elog/build st 50)
         pre (elog/prefix full 20)
         fresh (elog/log-of (elog/build st 20))]
-    (is (= 20 (v/count pre)))
+    (is (= (host/word 20) (v/count pre)))
     (is (= (v/hash fresh) (v/hash pre))
         "first 20 events have the same hash whether sliced or built")))
 
@@ -40,7 +41,7 @@
   [_]
   (let [led (elog/build (elog/open-mem) 100)
         p (elog/page led 2 20)]
-    (is (= 20 (v/count p)))
+    (is (= (host/word 20) (v/count p)))
     (is (= (v/hash (v/nth (elog/log-of led) 40))
            (v/hash (v/nth p 0))))
     (is (= (v/hash (v/nth (elog/log-of led) 59))

@@ -153,7 +153,7 @@
           (ft-type? t) {:type "ref" :body h}
 
           (contains? lit/scalar-types t)
-          (if (< (types/dacite-size entry) 32)
+          (if (< (host/word->long (types/dacite-size entry)) 32)
             {:type t :body (types/entry-data entry)}
             {:type "ref" :body h})
 
@@ -939,14 +939,16 @@
   (measure-of store root))
 
 (defn ft-count
-  "Number of elements, O(1) via cached measure (or synthesized for bare leaf roots)."
+  "Number of elements, O(1) via cached measure (or synthesized for bare leaf
+   roots). A host word: a long on the JVM, a BigInt on nbb."
   [store root]
-  (mcount (measure-of store root)))
+  (:count (measure-of store root)))
 
 (defn ft-size-bytes
-  "Total leaf byte size, O(1) via cached measure (or synthesized for bare leaf roots)."
+  "Total leaf byte size, O(1) via cached measure (or synthesized for bare
+   leaf roots). A host word: a long on the JVM, a BigInt on nbb."
   [store root]
-  (host/word->long (:size-bytes (measure-of store root))))
+  (:size-bytes (measure-of store root)))
 
 (defn ft-elements-fuse
   "The seq's data hash: the running fuse of all element hashes, O(1)."

@@ -12,7 +12,8 @@
    `v/swap!`, and `root-ref/ref-reset!`.
 
    `is` is `dacite.store.check`."
-  (:require [dacite.store :as store]
+  (:require [dacite.host :as host]
+            [dacite.store :as store]
             [dacite.store.check :refer [is]]
             [dacite.value :as v]
             #?(:cljs [dacite.value.root-ref :as root-ref])))
@@ -31,8 +32,8 @@
         nested (v/map vec "a" 1 "b" (v/i64 vec 2))]
     (is (= st (v/dacite-store vec)))
     (is (= st (v/dacite-store nested)))
-    (is (= 2 (v/count vec)))
-    (is (= 2 (v/count nested)))
+    (is (= (host/word 2) (v/count vec)))
+    (is (= (host/word 2) (v/count nested)))
     (is (= (v/hash (v/vector st 10 20))
            (v/hash vec)))))
 
@@ -41,7 +42,7 @@
   (let [st (store/mem-store)
         v (v/vector st 1 2 3)]
     (is (= st (v/dacite-store v)))
-    (is (= 3 (v/count v)))))
+    (is (= (host/word 3) (v/count v)))))
 
 (defn root-ref-reset-swap-deref
   [_]
@@ -50,13 +51,13 @@
     (is (nil? (v/deref r)))
     (is (nil? (deref* r)))
     (v/cas! r nil (v/vector r))
-    (is (zero? (v/count (v/deref r))))
+    (is (host/word-zero? (v/count (v/deref r))))
     (v/swap! r v/conj (v/i64 r 42))
-    (is (= 1 (v/count (deref* r))))
+    (is (= (host/word 1) (v/count (deref* r))))
     (is (= 42 (v/realize (v/nth (deref* r) 0))))
     ;; JVM atom ops (the function API on nbb)
     (swap* r v/conj 7)
-    (is (= 2 (v/count (deref* r))))
+    (is (= (host/word 2) (v/count (deref* r))))
     (reset* r (v/map r "k" "v"))
     (is (= "map" (v/type (deref* r))))
     (is (= "v" (apply str (v/realize (v/get (deref* r) "k")))))))

@@ -6,7 +6,8 @@
    from that namespace, one deftest each under its old name; nbb runs them
    from `dacite.examples.examples-cljs-test` (`npm run examples:test`).
    `is` is `dacite.store.check`."
-  (:require [clojure.string :as str]
+  (:require [dacite.host :as host]
+            [clojure.string :as str]
             [dacite.store.check :refer [is]]
             [dacite.examples.library :as lib]
             [dacite.store :as store]
@@ -63,17 +64,17 @@
     (is (= "map" (v/type empty)))
     (is (= "set" (v/type (lib/epubs-of empty))))
     (is (= "set" (v/type (lib/books-of empty))))
-    (is (zero? (v/count (lib/epubs-of empty))))
-    (is (zero? (v/count (lib/title-index empty))))))
+    (is (host/word-zero? (v/count (lib/epubs-of empty))))
+    (is (host/word-zero? (v/count (lib/title-index empty))))))
 
 (defn ingest-shares-epub-blob
   [_]
   (let [st (store/mem)
         catalog (lib/ingest (lib/empty-library st) mini-a)
         book (v/nth (lib/title-index catalog) 0)]
-    (is (= 1 (v/count (lib/epubs-of catalog))))
-    (is (= 1 (v/count (lib/books-of catalog))))
-    (is (= 1 (v/count (lib/title-index catalog))))
+    (is (= (host/word 1) (v/count (lib/epubs-of catalog))))
+    (is (= (host/word 1) (v/count (lib/books-of catalog))))
+    (is (= (host/word 1) (v/count (lib/title-index catalog))))
     (is (= "Apple Tales" (lib/book-title book)))
     (is (= (v/hash (lib/book-epub book))
            (v/hash (first (v/seq (lib/epubs-of catalog)))))
@@ -88,8 +89,8 @@
         a (lib/ingest (lib/empty-library st) mini-a)
         b (lib/ingest a mini-a)]
     (is (= (v/hash a) (v/hash b)))
-    (is (= 1 (v/count (lib/epubs-of b))))
-    (is (= 1 (v/count (lib/books-of b))))))
+    (is (= (host/word 1) (v/count (lib/epubs-of b))))
+    (is (= (host/word 1) (v/count (lib/books-of b))))))
 
 (defn title-index-is-sorted
   [_]
@@ -98,7 +99,7 @@
                     (lib/ingest mini-z)
                     (lib/ingest mini-a))
         idx (lib/title-index catalog)]
-    (is (= 2 (v/count idx)))
+    (is (= (host/word 2) (v/count idx)))
     (is (= "Apple Tales" (lib/book-title (v/nth idx 0))))
     (is (= "Zebra Notes" (lib/book-title (v/nth idx 1))))
     (is (= "Apple Tales" (lib/book-title (lib/book-of catalog "Apple Tales"))))))
@@ -115,7 +116,7 @@
     (is (= "string" (v/type sliced)))
     (is (= shown (v/native sliced)))
     (is (= (v/hash (v/string book shown)) (v/hash sliced)))
-    (is (= 2 (v/count (lib/book-chapters book))))
+    (is (= (host/word 2) (v/count (lib/book-chapters book))))
     (is (zero? (lib/chapter-start book 0)))
     (is (pos? (lib/chapter-start book 1)))
     (is (seq (lib/chapter-page book 1 0 40)))))
@@ -126,8 +127,8 @@
         full (lib/ingest (lib/empty-library st) mini-a)
         blob (lib/book-epub (v/nth (lib/title-index full) 0))
         only (lib/add-epub (lib/empty-library st) blob)]
-    (is (= 1 (v/count (lib/epubs-of only))))
-    (is (zero? (v/count (lib/books-of only))))
+    (is (= (host/word 1) (v/count (lib/epubs-of only))))
+    (is (host/word-zero? (v/count (lib/books-of only))))
     (is (= (v/hash only) (v/hash (lib/add-epub only blob))))))
 
 (defn seed-plate-is-a-png-the-reader-can-show
@@ -153,7 +154,7 @@
         m (lib/measure catalog)]
     (is (true? seeded?))
     (is (= lib/seed-title (lib/book-title book)))
-    (is (= 3 (v/count (lib/book-chapters book))))
+    (is (= (host/word 3) (v/count (lib/book-chapters book))))
     (is (< (:page-chars m) (:text-chars m)))
     (is (true? (:same-epub-noop? m)))
     (is (pos? (count (lib/chapter-page book 0 0 80))))))
@@ -169,7 +170,7 @@
               r2 (v/root (lib/open-file dir))
               loaded (v/deref r2)]
           (is (= h1 (v/hash loaded)))
-          (is (= 2 (v/count (lib/title-index loaded))))
+          (is (= (host/word 2) (v/count (lib/title-index loaded))))
           (is (some? (lib/book-of loaded "Zebra Notes")))))
       (finally
         (lib/reset-store-dir! dir)))))

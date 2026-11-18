@@ -62,7 +62,7 @@
             s (v/string st text)
             got (store/hash->hex (v/hash s))]
         (when-not (= ref got) (bad! "string " name ": ref " got ", expected " ref))
-        (when-not (= count (v/count s)) (bad! "string " name ": count " (v/count s) ", expected " count))
+        (when-not (= (host/word count) (v/count s)) (bad! "string " name ": count " (v/count s) ", expected " count))
         (when-not (= count (host/cp-count text)) (bad! "string " name ": cp-count"))
         (when code-points
           (let [cps (mapv #(host/code-point-at (str %) 0) (v/realize s))]

@@ -6,7 +6,8 @@
    from that namespace, one deftest each under its old name; nbb runs them
    from `dacite.examples.examples-cljs-test` (`npm run examples:test`).
    `is` is `dacite.store.check`."
-  (:require [dacite.store.check :refer [is]]
+  (:require [dacite.host :as host]
+            [dacite.store.check :refer [is]]
             [dacite.examples.config :as cfg]
             [dacite.value :as v]))
 
@@ -22,7 +23,7 @@
       (is (= 60 (cfg/timeout cfg')))
       (is (= (v/hash cfg') (v/hash (v/deref r)))))
     (let [cfg' (v/swap! r cfg/add-feature "c")]
-      (is (= 3 (v/count (cfg/features cfg'))))
+      (is (= (host/word 3) (v/count (cfg/features cfg'))))
       (is (= "c" (v/native (v/nth (cfg/features cfg') 2)))))))
 
 (defn file-reopen-same-hash
