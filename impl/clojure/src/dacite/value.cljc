@@ -17,7 +17,8 @@
                             peek pop keys vals contains? dissoc empty?
                             get-in assoc-in update update-in pr-str
                             type hash map deref swap! add-watch remove-watch char])
-  (:require [dacite.store :as store]
+  (:require [dacite.host :as host]
+            [dacite.store :as store]
             [dacite.hash :as h]
             [dacite.value.types :as types]
             [dacite.value.scalar :as scalar]
@@ -333,6 +334,18 @@
                   s)
        ("vector" "map" "set" "blob") (refuse-collection "native" x)
        (realize x)))))
+
+(defn native-int
+  "`native` for an integer field, as a native host integer for host
+   arithmetic, indexing, and printing: on the JVM the realized value; on nbb
+   an i64 (or u64) scalar is a BigInt (#64), and this gives a Number when it
+   is a safe integer (|n| <= 2^53 - 1), else the BigInt (`host/i64->native`).
+   Other values are `native`'s. nil → nil."
+  [x]
+  (let [n (native x)]
+    (if #?(:clj false :cljs (= js/BigInt (cljs.core/type n)))
+      (host/i64->native n)
+      n)))
 
 (defn as-bytes
   "Host bytes for a Dacite blob. nil → nil. Other types throw.

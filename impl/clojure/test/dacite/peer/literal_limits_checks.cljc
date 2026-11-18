@@ -655,7 +655,7 @@
       (doseq [i [0 1 4095 4096 4097 8999]]
         (is (= (nth text i) (v/realize (v/nth s i))) (str "string " i)))
       (doseq [i int-at]
-        (is (= i (v/realize (v/nth vec-of i))) (str "vector " i)))
+        (is (= (host/->i64 i) (v/realize (v/nth vec-of i))) (str "vector " i)))
       (doseq [i [0 4095 4096 8999]]
         (is (= (bit-and 0xff (aget ^bytes (bytes-of 9000) i))
                (bit-and 0xff (v/realize (v/nth blob i))))

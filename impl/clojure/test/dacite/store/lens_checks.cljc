@@ -9,7 +9,8 @@
    and nbb has one thread.
 
    `is` is `dacite.store.check`."
-  (:require [dacite.store :as s]
+  (:require [dacite.host :as host]
+            [dacite.store :as s]
             [dacite.store.check :refer [is]]
             [dacite.store.lens :as lens]
             [dacite.value :as v]))
@@ -48,7 +49,7 @@
                          (v/vector rs "k"))]
       (is (= (s/root direct) (s/root inner)))
       (is (= (s/root direct) (s/root via-dv)))
-      (is (= 1 (v/realize (deref* (v/root inner))))))))
+      (is (= (host/->i64 1) (v/realize (deref* (v/root inner))))))))
 
 (defn missing-path-seeds-via-cas-from-nil
   [_]
@@ -58,7 +59,7 @@
     (is (nil? (s/root la)))
     (is (true? (s/cas-root! la nil (v/hash x))))
     (is (= (v/hash x) (s/root la)))
-    (is (= 1 (v/realize (v/get (deref* (v/root rs)) "a"))))))
+    (is (= (host/->i64 1) (v/realize (v/get (deref* (v/root rs)) "a"))))))
 
 (defn disjoint-path-cas-both-succeed
   [_]
@@ -72,8 +73,8 @@
     (is (true? (s/cas-root! la ha (v/hash a2))))
     (is (true? (s/cas-root! lb hb (v/hash b2))))
     (let [doc (deref* (v/root rs))]
-      (is (= 10 (v/realize (v/get doc "a"))))
-      (is (= 20 (v/realize (v/get doc "b")))))))
+      (is (= (host/->i64 10) (v/realize (v/get doc "a"))))
+      (is (= (host/->i64 20) (v/realize (v/get doc "b")))))))
 
 (defn same-path-cas-one-fails
   [_]
@@ -84,7 +85,7 @@
         a3 (v/i64 rs 11)]
     (is (true? (s/cas-root! la ha (v/hash a2))))
     (is (false? (s/cas-root! la ha (v/hash a3))))
-    (is (= 10 (v/realize (deref* (v/root la)))))))
+    (is (= (host/->i64 10) (v/realize (deref* (v/root la)))))))
 
 (defn swap-on-lens-does-not-clobber-sibling
   [_]
@@ -93,8 +94,8 @@
         rb (v/root (s/lens rs ["b"]))]
     (v/swap! ra (fn [x] (v/i64 x 10)))
     (v/swap! rb (fn [x] (v/i64 x 20)))
-    (is (= 10 (v/realize (deref* ra))))
-    (is (= 20 (v/realize (deref* rb))))))
+    (is (= (host/->i64 10) (v/realize (deref* ra))))
+    (is (= (host/->i64 20) (v/realize (deref* rb))))))
 
 (defn watches-skip-sibling-edits
   [_]
@@ -126,12 +127,12 @@
         r (v/root rs)]
     (v/cas! r nil (v/vector r 10 20 30))
     (let [l (s/lens rs [1])]
-      (is (= 20 (v/realize (deref* (v/root l)))))
+      (is (= (host/->i64 20) (v/realize (deref* (v/root l)))))
       (is (true? (s/cas-root! l (s/root l) (v/hash (v/i64 rs 99)))))
-      (is (= 99 (v/realize (v/nth (deref* (v/root rs)) 1))))
-      (is (= 10 (v/realize (v/nth (deref* (v/root rs)) 0)))))
+      (is (= (host/->i64 99) (v/realize (v/nth (deref* (v/root rs)) 1))))
+      (is (= (host/->i64 10) (v/realize (v/nth (deref* (v/root rs)) 0)))))
     (let [via-i64 (s/lens rs (v/vector rs 1))]
-      (is (= 99 (v/realize (deref* (v/root via-i64))))))))
+      (is (= (host/->i64 99) (v/realize (deref* (v/root via-i64))))))))
 
 (defn dacite-vector-path-matches-host-seq
   [_]
@@ -139,7 +140,7 @@
         host (s/lens rs ["a"])
         dv (s/lens rs (v/vector rs "a"))]
     (is (= (s/root host) (s/root dv)))
-    (is (= 1 (v/realize (deref* (v/root dv)))))))
+    (is (= (host/->i64 1) (v/realize (deref* (v/root dv)))))))
 
 (defn dacite-value-as-map-key
   [_]
@@ -152,7 +153,7 @@
     (let [by-map (s/lens rs (v/vector rs k))
           by-vec (s/lens rs (v/vector rs vk))]
       (is (= "payload" (v/native (deref* (v/root by-map)))))
-      (is (= 7 (v/realize (deref* (v/root by-vec)))))
+      (is (= (host/->i64 7) (v/realize (deref* (v/root by-vec)))))
       (is (true? (s/cas-root! by-map (s/root by-map)
                               (v/hash (v/string rs "next")))))
       (is (= "next" (v/native (v/get (deref* (v/root rs)) k)))))))

@@ -67,13 +67,13 @@
          (str "e-" i)))
 
 (defn event-type [ev] (v/native (v/get ev "type")))
-(defn event-amount [ev] (or (v/native (v/get ev "amount")) 0))
+(defn event-amount [ev] (or (v/native-int (v/get ev "amount")) 0))
 (defn event-note [ev] (or (v/native (v/get ev "note")) ""))
 
-(defn view-size [view] (or (v/native (v/get view "size")) 0))
-(defn view-credits [view] (or (v/native (v/get view "credits")) 0))
-(defn view-debits [view] (or (v/native (v/get view "debits")) 0))
-(defn view-balance [view] (or (v/native (v/get view "balance")) 0))
+(defn view-size [view] (or (v/native-int (v/get view "size")) 0))
+(defn view-credits [view] (or (v/native-int (v/get view "credits")) 0))
+(defn view-debits [view] (or (v/native-int (v/get view "debits")) 0))
+(defn view-balance [view] (or (v/native-int (v/get view "balance")) 0))
 
 (defn apply-event
   "Fold one event into the view. Returns a new view."

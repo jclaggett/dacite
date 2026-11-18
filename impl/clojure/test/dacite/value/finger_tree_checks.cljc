@@ -398,8 +398,8 @@
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)
         bodies (map (fn [[_ e]] (:body (types/entry-data e))) digits)]
     (is (= n (v/count dv)))
-    (is (= 0 (v/realize (v/nth dv 0))))
-    (is (= (dec n) (v/realize (v/nth dv (dec n)))))
+    (is (= (host/->i64 0) (v/realize (v/nth dv 0))))
+    (is (= (host/->i64 (dec n)) (v/realize (v/nth dv (dec n)))))
     (is (some (fn [body]
                 (some (fn [item]
                         (and (= "run" (:type item))

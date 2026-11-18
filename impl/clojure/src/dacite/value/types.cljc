@@ -143,13 +143,11 @@
 
 (defn scalar-data
   "The host value a scalar entry realizes as. A u64 is its unsigned value:
-   on the JVM a u64 >= 2^63 is a BigInt N, never a negative long. An i64 on
-   ClojureScript is a Number when it is a safe integer, else the BigInt."
+   on the JVM a u64 >= 2^63 is a BigInt N, never a negative long. An i64 is
+   its entry data: a long on the JVM, a signed BigInt on ClojureScript (#64),
+   even when it is small."
   [[type-name data]]
-  (case type-name
-    "u64" (host/word->unsigned data)
-    "i64" (host/i64->native data)
-    data))
+  (if (= "u64" type-name) (host/word->unsigned data) data))
 
 (defn scalar-value-hash
   "value_hash (ref) for a scalar [type data]."

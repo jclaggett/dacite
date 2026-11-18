@@ -50,7 +50,7 @@
 (defn timeout
   "Timeout as a host number."
   [cfg]
-  (v/native (v/get cfg "timeout")))
+  (v/native-int (v/get cfg "timeout")))
 
 (defn features
   "Features vector (Dacite value)."

@@ -324,7 +324,7 @@ enough that slice and a full native are different amounts of work.
         n (v/count ch)]
     (when (or (neg? i) (>= i n))
       (throw (ex-info "chapter out of range" {:i i :chapters n})))
-    (or (v/native (v/get (v/nth ch i) "start")) 0)))
+    (or (v/native-int (v/get (v/nth ch i) "start")) 0)))
 
 (defn chapter-end
   "Exclusive end offset of chapter `i`."
@@ -489,7 +489,7 @@ enough that slice and a full native are different amounts of work.
                 (map (fn [i]
                        (let [c (v/nth ch i)]
                          (str "  " i ". " (v/native (v/get c "title"))
-                              "  @" (v/native (v/get c "start")) "\n")))
+                              "  @" (v/native-int (v/get c "start")) "\n")))
                      (range n)))
          "book: " (short-hex (v/hash book)) "\n")))
 

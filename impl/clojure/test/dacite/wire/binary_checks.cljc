@@ -602,9 +602,10 @@
                                          (bin/encode-node-bytes (store/await (store/s-get st h))))))
         (is (= max-u64 (v/realize built)))
         (is (= max-u64 (v/realize (scalar/wrap-scalar st2 h))))))
-    (testing "an i64 realizes as a host integer, built or decoded"
-      ;; on nbb a Number when it is safe, else the BigInt
-      (doseq [[n want] (concat [[-9007199254740991 -9007199254740991]]
+    (testing "an i64 realizes as a host i64, built or decoded"
+      ;; on nbb always the BigInt, even when it is small (#64)
+      (doseq [[n want] (concat [[-9007199254740991 (host/->i64 -9007199254740991)]
+                                [5 (host/->i64 5)]]
                                (map vector big-i64s big-i64s))]
         (let [built (scalar/i64-with-store st n)
               h (types/dacite-hash built)

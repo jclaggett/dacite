@@ -12,7 +12,8 @@
    `v/swap!`, and `root-ref/ref-reset!`.
 
    `is` is `dacite.store.check`."
-  (:require [dacite.store :as store]
+  (:require [dacite.host :as host]
+            [dacite.store :as store]
             [dacite.store.check :refer [is]]
             [dacite.value :as v]
             #?(:cljs [dacite.value.root-ref :as root-ref])))
@@ -53,7 +54,7 @@
     (is (zero? (v/count (v/deref r))))
     (v/swap! r v/conj (v/i64 r 42))
     (is (= 1 (v/count (deref* r))))
-    (is (= 42 (v/realize (v/nth (deref* r) 0))))
+    (is (= (host/->i64 42) (v/realize (v/nth (deref* r) 0))))
     ;; JVM atom ops (the function API on nbb)
     (swap* r v/conj 7)
     (is (= 2 (v/count (deref* r))))

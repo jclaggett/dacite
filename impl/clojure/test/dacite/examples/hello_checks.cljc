@@ -5,7 +5,8 @@
    from that namespace, one deftest each under its old name; nbb runs them
    from `dacite.examples.examples-cljs-test` (`npm run examples:test`).
    `is` is `dacite.store.check`."
-  (:require [dacite.store.check :refer [is]]
+  (:require [dacite.host :as host]
+            [dacite.store.check :refer [is]]
             [dacite.examples.hello :as hello]
             [dacite.store :as store]
             [dacite.value :as v]))
@@ -15,7 +16,7 @@
   (let [{:keys [vec map]} (hello/hello (store/mem))]
     (is (= 3 (v/count vec)))
     (is (= 2 (v/count map)))
-    (is (= 42 (v/realize (v/get map "hello"))))
+    (is (= (host/->i64 42) (v/realize (v/get map "hello"))))
     (is (= (v/hash vec) (v/hash (v/get map "vec"))))))
 
 (def checks

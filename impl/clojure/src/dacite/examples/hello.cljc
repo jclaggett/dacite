@@ -27,5 +27,5 @@
     (println "  map count    :" (v/count map))
     (println "  map hash     :" (store/hash->hex mh))
     (println "  (get m \"hello\") realized:"
-             (v/realize (v/get map "hello")))
+             (v/native-int (v/get map "hello")))
     (println "Done.")))

@@ -14,7 +14,8 @@
    separate char type.
 
    `is` and `testing` are `dacite.store.check`."
-  (:require [dacite.hash :as hash]
+  (:require [dacite.host :as host]
+            [dacite.hash :as hash]
             [dacite.store :as store]
             [dacite.store.check :refer [is testing]]
             [dacite.value :as v2]))
@@ -53,7 +54,12 @@
     (is (= (byte 42) (v2/realize (v2/i8 s 42))))
     (is (= (short 1000) (v2/realize (v2/i16 s 1000))))
     (is (= (int 123456) (v2/realize (v2/i32 s 123456))))
-    (is (= 9999999999 (v2/realize (v2/i64 s 9999999999))))
+    (is (= (host/->i64 9999999999) (v2/realize (v2/i64 s 9999999999))))
+    ;; an i64 realizes as the host i64 (a BigInt on nbb, #64); native-int is
+    ;; a native integer when it is exact
+    (is (= 9999999999 (v2/native-int (v2/i64 s 9999999999))))
+    (is (number? (v2/native-int (v2/i64 s -7))))
+    (is (nil? (v2/native-int nil)))
     (is (= 255 (v2/realize (v2/u8 s 255))))
     (is (= 65535 (v2/realize (v2/u16 s 65535))))
     (is (= 4294967295 (v2/realize (v2/u32 s 4294967295))))
@@ -118,7 +124,7 @@
         v (v2/i64 s 42)
         back (v2/get-value-with-store s (v2/hash v))]
     (is (= "i64" (v2/type back)))
-    (is (= 42 (v2/realize back)))
+    (is (= (host/->i64 42) (v2/realize back)))
     (testing "missing hash returns nil"
       (is (nil? (v2/get-value-with-store s [0 0 0 0]))))))
 
