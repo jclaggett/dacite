@@ -153,16 +153,17 @@
 ;; =============================================================================
 
 (defmulti dacite-size
-  "Byte size of a stored [type data] value. Scalars define explicit
-   methods; collections carry :size-bytes in their data."
+  "Byte size of a stored [type data] value, as a host word (a long on the
+   JVM, a BigInt on nbb). Scalars define explicit methods; collections
+   carry :size-bytes in their data."
   entry-type)
 
 (defmethod dacite-size :default [[_ data]]
   (if-let [m (:measure data)]
-    (host/word->long (:size-bytes m))
+    (host/word (:size-bytes m))
     (if-let [sb (:size-bytes data)]
-      (host/word->long sb)
-      (count (host/utf8-bytes (pr-str data))))))
+      (host/word sb)
+      (host/word (count (host/utf8-bytes (pr-str data)))))))
 
 ;; Backward-compatible alias for callers that name the scalar value hash
 ;; `typed-value-hash` (e.g. hashing tests).

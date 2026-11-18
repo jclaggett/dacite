@@ -58,7 +58,7 @@
 (defn- print-list!
   [path todos]
   (try
-    (let [n (v/count todos)
+    (let [n (v/native-count todos)
           open (todo/open-count todos)
           root-hex (store/hash->hex (v/hash todos))]
       (println)
@@ -90,7 +90,7 @@
 
 (defn- action-toggle!
   [todos-ref todos]
-  (if (zero? (v/count todos))
+  (if (zero? (v/native-count todos))
     (do (println (c "yellow" "Nothing to toggle."))
         (p/resolved todos))
     (p/let [{:keys [index]}
@@ -129,7 +129,7 @@
 
 (defn- action-remove!
   [todos-ref todos]
-  (if (zero? (v/count todos))
+  (if (zero? (v/native-count todos))
     (do (println (c "yellow" "Nothing to remove."))
         (p/resolved todos))
     (p/let [{:keys [index]}

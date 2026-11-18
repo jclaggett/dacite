@@ -71,7 +71,7 @@
   [{:keys [library book-i]}]
   (when library
     (let [idx (lib/title-index library)
-          n (v/count idx)]
+          n (v/native-count idx)]
       (when (and (pos? n) (<= 0 book-i) (< book-i n))
         (v/nth idx book-i)))))
 
@@ -86,7 +86,7 @@
                 (str status
                      (when source (str " · " source))
                      (when library
-                       (str " · " (v/count (lib/title-index library)) " on the shelf"))
+                       (str " · " (v/native-count (lib/title-index library)) " on the shelf"))
                      (when root-hex (str " · " (subs root-hex 0 12) "…"))))))
     (when hash-el
       (set! (.-textContent hash-el)
@@ -102,7 +102,7 @@
 (defn- render-shelf-html
   [library start]
   (let [idx (lib/title-index library)
-        n (v/count idx)
+        n (v/native-count idx)
         end (min n (+ start shelf-page-size))
         page (if (>= start n)
                (v/vector library)
@@ -115,8 +115,8 @@
                         "<span class=\"book-title\">" (escape-html (lib/book-title b)) "</span>"
                         "<span class=\"book-author\">" (escape-html (lib/book-author b)) "</span>"
                         "<span class=\"muted\">"
-                        (v/count (lib/book-text b)) " chars · "
-                        (v/count (lib/book-chapters b)) " chapters</span>"
+                        (v/native-count (lib/book-text b)) " chars · "
+                        (v/native-count (lib/book-chapters b)) " chapters</span>"
                         "</button></li>")))
                (or (v/seq page) ()))
         more (when (< end n)
@@ -132,7 +132,7 @@
 (defn- render-toc-html
   [book]
   (let [ch (lib/book-chapters book)
-        n (v/count ch)
+        n (v/native-count ch)
         rows (map (fn [i]
                     (str "<li><button type=\"button\" class=\"toc-item\" data-action=\"open-chapter\" data-i=\""
                          i "\">"
@@ -142,7 +142,7 @@
                   (range n))]
     (str "<p class=\"lead\">" (escape-html (lib/book-title book))
          "  — " (escape-html (lib/book-author book)) "</p>"
-         "<p class=\"muted\">" (v/count (lib/book-text book)) " chars · "
+         "<p class=\"muted\">" (v/native-count (lib/book-text book)) " chars · "
          n " chapters</p>"
          "<p class=\"actions\">"
          "<button type=\"button\" class=\"secondary\" data-action=\"back-shelf\">Shelf</button>"
@@ -187,7 +187,7 @@
 
 (defn- render-read-html
   [book chapter page page-size]
-  (let [nch (v/count (lib/book-chapters book))
+  (let [nch (v/native-count (lib/book-chapters book))
         np (lib/pages-in-chapter book chapter page-size)
         body (lib/chapter-page book chapter page page-size)
         plate (plate-html book)
@@ -322,7 +322,7 @@
     (when action
       (let [{:keys [chapter page page-size shelf-start] :as st} @!state
             book (current-book st)
-            nch (when book (v/count (lib/book-chapters book)))
+            nch (when book (v/native-count (lib/book-chapters book)))
             np (when book (lib/pages-in-chapter book chapter page-size))
             i (js/parseInt (.getAttribute btn "data-i") 10)]
         (case action

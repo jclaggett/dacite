@@ -77,8 +77,8 @@
   (let [ef (ft/ft-elements-fuse store root)
         h (types/value-hash type-name ef)]
     (store/await (store/s-put store h [type-name {:root root
-                                                  :count (host/word (ft/ft-count store root))
-                                                  :size-bytes (host/word (ft/ft-size-bytes store root))}]))
+                                                  :count (ft/ft-count store root)
+                                                  :size-bytes (ft/ft-size-bytes store root)}]))
     h))
 
 (defn- store-assoc-node!
@@ -88,8 +88,8 @@
   (let [ef (hamt/hamt-elements-fuse store root)
         h (types/value-hash type-name ef)]
     (store/await (store/s-put store h [type-name {:root root
-                                                  :count (host/word (hamt/hamt-count store root))
-                                                  :size-bytes (host/word (hamt/hamt-size-bytes store root))}]))
+                                                  :count (hamt/hamt-count store root)
+                                                  :size-bytes (hamt/hamt-size-bytes store root)}]))
     h))
 
 (defn- ft-build!
@@ -112,15 +112,16 @@
 ;; =============================================================================
 
 (defn coll-count
-  "Element/entry count of any Dacite collection, O(1)."
+  "Element/entry count of any Dacite collection, O(1). A host word: a long
+   on the JVM, a BigInt on nbb (#64)."
   [store h]
-  (host/word->long (:count (types/entry-data (store/require-node store h)))))
+  (:count (types/entry-data (store/require-node store h))))
 
 (defn seq-vals
   "Wrapped elements of a sequence collection (string/blob/vector), or nil
    if empty."
   [store h]
-  (when (pos? (coll-count store h))
+  (when (pos? (host/word->long (coll-count store h)))
     (map #(wrap-hash store %)
          (ft/ft-seq store (node-root store h)))))
 
@@ -190,7 +191,7 @@
    The full-range slice is the original value."
   [store h start end]
   (let [type-name (types/entry-type (store/require-node store h))
-        n (coll-count store h)
+        n (host/word->long (coll-count store h))
         start (long start)
         end (long end)]
     (when (or (neg? start) (neg? end) (> start end) (> end n))
@@ -852,11 +853,11 @@
 ;; Sizes (multimethod) for collection types
 ;; =============================================================================
 
-(defmethod types/dacite-size "string" [[_ data]] (host/word->long (:size-bytes data 0)))
-(defmethod types/dacite-size "blob" [[_ data]] (host/word->long (:size-bytes data 0)))
-(defmethod types/dacite-size "vector" [[_ data]] (host/word->long (:size-bytes data 0)))
-(defmethod types/dacite-size "map" [[_ data]] (host/word->long (:size-bytes data 0)))
-(defmethod types/dacite-size "set" [[_ data]] (host/word->long (:size-bytes data 0)))
+(defmethod types/dacite-size "string" [[_ data]] (host/word (:size-bytes data 0)))
+(defmethod types/dacite-size "blob" [[_ data]] (host/word (:size-bytes data 0)))
+(defmethod types/dacite-size "vector" [[_ data]] (host/word (:size-bytes data 0)))
+(defmethod types/dacite-size "map" [[_ data]] (host/word (:size-bytes data 0)))
+(defmethod types/dacite-size "set" [[_ data]] (host/word (:size-bytes data 0)))
 
 ;; =============================================================================
 ;; REPL printing (*print-length* / *print-level*) — JVM only

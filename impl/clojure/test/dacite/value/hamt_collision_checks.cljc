@@ -111,7 +111,7 @@
         m (v/map st k1 1 k2 2)
         root (:root (second (store/await (store/s-get st (v/hash m)))))
         [_ rd] (store/await (store/s-get st root))]
-    (is (= 2 (v/count m)))
+    (is (= (host/word 2) (v/count m)))
     (is (= 2 (count (hamt/hamt-entries st root))))
     (is (= 1 (v/realize (v/get m k1))))
     (is (= 2 (v/realize (v/get m k2))))
@@ -144,7 +144,7 @@
     (testing (pr-str [a b])
       (is (= split (:split rd)) "one node, at the first chunk where the hashes differ")
       (is (every? #(= "hamt/entry" (first (store/await (store/s-get st %)))) (:children rd)))
-      (is (= 2 (hamt/hamt-count st root)))
+      (is (= (host/word 2) (hamt/hamt-count st root)))
       (is (= 2 (count (hamt/hamt-entries st root))))
       (is (every? some? [(hamt/hamt-get st root ha) (hamt/hamt-get st root hb)]))
       (is (empty? (check-tree st root)))
@@ -304,7 +304,7 @@
                    entries (fn [r] (set (map (fn [[k x]] [(store/mkey (vec k)) (store/mkey (vec x))]) (hamt/hamt-entries st r))))]
                (and
                 ;; count, entries, get; the shape is the canonical one
-                (= n (hamt/hamt-count st root))
+                (= (host/word n) (hamt/hamt-count st root))
                 (empty? (check-tree st root))
                 (= (canon khs) (shape st root))
                 (= (set (map pair (range n))) (entries root))
@@ -315,7 +315,7 @@
                 ;; assoc of an existing key replaces its value and keeps the rest
                 (let [kh (first khs)
                       r2 (hamt/hamt-assoc st root kh (v/hash (v/i64 st 0)) (v/hash (v/i64 st 77)))]
-                  (and (= n (hamt/hamt-count st r2))
+                  (and (= (host/word n) (hamt/hamt-count st r2))
                        (= (canon khs) (shape st r2))
                        (= (vec (v/hash (v/i64 st 77))) (vec (hamt/hamt-get st r2 kh)))))
                 ;; dissoc one at a time: the rest stay, the removed is gone, down to empty
@@ -330,7 +330,7 @@
                            ;; the history does not show: the same entries built by assoc
                            (= (vec r') (vec (build st rest')))
                            (or (empty? rest') (= (canon (map second rest')) (shape st r')))
-                           (= (count rest') (hamt/hamt-count st r'))
+                           (= (host/word (count rest')) (hamt/hamt-count st r'))
                            (= (set (map (comp pair first) rest')) (entries r'))
                            (every? (fn [[j kj]] (some? (hamt/hamt-get st r' kj))) rest')
                            (recur r' rest')))))))))]
@@ -383,7 +383,7 @@
         kh (chunks->hash [5 5 5])
         r1 (build st [[1 kh]])
         r2 (hamt/hamt-assoc st r1 kh (v/hash (v/i64 st 1)) (v/hash (v/i64 st 2)))]
-    (is (= 1 (hamt/hamt-count st r2)))
+    (is (= (host/word 1) (hamt/hamt-count st r2)))
     (is (= (vec (v/hash (v/i64 st 2))) (vec (hamt/hamt-get st r2 kh))))))
 
 (def ^:private gen-history
@@ -426,7 +426,7 @@
                            (or (empty? held')
                                (= (canon (vals held')) (shape st root')))
                            (= (vec root') (vec (build st (sort-by first held'))))
-                           (= (count held') (hamt/hamt-count st root'))
+                           (= (host/word (count held')) (hamt/hamt-count st root'))
                            (every? (fn [[i kh]] (some? (hamt/hamt-get st root' kh))) held')
                            (recur root' held' (rest ops))))))
                 ;; every bitmap the history reached, including ones a later
@@ -664,7 +664,7 @@
                    m (value-map st ks others)
                    expect (into {} (map (fn [k] [k k]) all))]
                (and
-                (= (count all) (v/count m))
+                (= (host/word (count all)) (v/count m))
                 (empty? (check-tree st (:root (second (store/await (store/s-get st (v/hash m)))))))
                 (= expect (into {} (map (fn [[k x]] [(v/realize k) (v/realize x)]) (v/seq m))))
                 (every? (fn [k] (= k (v/realize (v/get m (v/i64 st k))))) all)
@@ -676,8 +676,8 @@
                       m2 (v/assoc m (v/i64 st k) -1)
                       m3 (v/dissoc m2 (v/i64 st (second ks)))]
                   (and (= -1 (v/realize (v/get m2 (v/i64 st k))))
-                       (= (count all) (v/count m2))
-                       (= (dec (count all)) (v/count m3))
+                       (= (host/word (count all)) (v/count m2))
+                       (= (host/word (dec (count all))) (v/count m3))
                        (nil? (v/get m3 (v/i64 st (second ks))))
                        (= -1 (v/realize (v/get m3 (v/i64 st k))))
                        (every? (fn [x] (= x (v/realize (v/get m3 (v/i64 st x)))))
@@ -702,14 +702,14 @@
                                                                 (frame/concat-bytes items))))]
                (and (= (vec h) (vec got))
                     (some? (store/await (store/s-get (:store rx) h)))
-                    (= (v/count m) (coll/coll-count (:store rx) h))))))]
+                    (= (host/word (v/count m)) (coll/coll-count (:store rx) h))))))]
     (is (:pass? r) (str "seed " (:seed r) " failed on " (pr-str (:shrunk r))))))
 
 (defn a-set-with-colliding-members-keeps-them-all
   [_]
   (let [st (store/mem-store)
         s (apply v/set st (map #(v/i64 st %) (first colliding-i64s)))]
-    (is (= 5 (v/count s)))
+    (is (= (host/word 5) (v/count s)))
     (is (every? #(v/contains? s (v/i64 st %)) (first colliding-i64s)))))
 
 (defn colliding-keys-in-a-map-big-enough-for-node-items-round-trip
@@ -737,7 +737,7 @@
                   rst (:store rx)
                   rroot (:root (second (store/await (store/s-get rst h))))]]
       (is (some #{:node} encs) "node items on the wire")
-      (is (= n (coll/coll-count rst h)))
+      (is (= (host/word n) (coll/coll-count rst h)))
       (is (= n (count (hamt/hamt-entries rst rroot))))
       (is (empty? (check-tree rst rroot)) "every node the receiver holds is under its hash")
       (is (every? #(some? (hamt/hamt-get rst rroot (v/hash (v/i64 st %)))) (remove #{(first group)} ks))))))

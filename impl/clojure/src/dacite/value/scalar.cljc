@@ -257,25 +257,27 @@
 ;; Sizes (multimethod)
 ;; =============================================================================
 
-(defmethod types/dacite-size "null" [_] 0)
-(defmethod types/dacite-size "bool" [_] 1)
-(defmethod types/dacite-size "i8" [_] 1)
-(defmethod types/dacite-size "i16" [_] 2)
-(defmethod types/dacite-size "i32" [_] 4)
-(defmethod types/dacite-size "i64" [_] 8)
-(defmethod types/dacite-size "i128" [_] 16)
-(defmethod types/dacite-size "i256" [_] 32)
-(defmethod types/dacite-size "u8" [_] 1)
-(defmethod types/dacite-size "u16" [_] 2)
-(defmethod types/dacite-size "u32" [_] 4)
-(defmethod types/dacite-size "u64" [_] 8)
-(defmethod types/dacite-size "u128" [_] 16)
-(defmethod types/dacite-size "u256" [_] 32)
-(defmethod types/dacite-size "f32" [_] 4)
-(defmethod types/dacite-size "f64" [_] 8)
+;; A size is a host word: a long on the JVM, a BigInt on nbb (#64).
+
+(defmethod types/dacite-size "null" [_] (host/word 0))
+(defmethod types/dacite-size "bool" [_] (host/word 1))
+(defmethod types/dacite-size "i8" [_] (host/word 1))
+(defmethod types/dacite-size "i16" [_] (host/word 2))
+(defmethod types/dacite-size "i32" [_] (host/word 4))
+(defmethod types/dacite-size "i64" [_] (host/word 8))
+(defmethod types/dacite-size "i128" [_] (host/word 16))
+(defmethod types/dacite-size "i256" [_] (host/word 32))
+(defmethod types/dacite-size "u8" [_] (host/word 1))
+(defmethod types/dacite-size "u16" [_] (host/word 2))
+(defmethod types/dacite-size "u32" [_] (host/word 4))
+(defmethod types/dacite-size "u64" [_] (host/word 8))
+(defmethod types/dacite-size "u128" [_] (host/word 16))
+(defmethod types/dacite-size "u256" [_] (host/word 32))
+(defmethod types/dacite-size "f32" [_] (host/word 4))
+(defmethod types/dacite-size "f64" [_] (host/word 8))
 (defmethod types/dacite-size "char" [[_ ch]]
-  (count (host/utf8-bytes (str ch))))
-(defmethod types/dacite-size "negative" [_] 0)
+  (host/word (count (host/utf8-bytes (str ch)))))
+(defmethod types/dacite-size "negative" [_] (host/word 0))
 
 #?(:bb nil
    :clj

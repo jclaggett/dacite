@@ -72,12 +72,12 @@
   (v/hash (v/i64 st n)))
 
 (defn- measure-combine [m1 m2]
-  {:count (+ (:count m1) (:count m2))
-   :size-bytes (+ (:size-bytes m1) (:size-bytes m2))
+  {:count (host/add64 (:count m1) (:count m2))
+   :size-bytes (host/add64 (:size-bytes m1) (:size-bytes m2))
    :elements-fuse (hash/fuse (:elements-fuse m1) (:elements-fuse m2))})
 
 (defn- leaf-measure [h size-bytes]
-  {:count 1 :size-bytes size-bytes :elements-fuse (hash/ref->state h)})
+  {:count (host/word 1) :size-bytes size-bytes :elements-fuse (hash/ref->state h)})
 
 (defn- put-digit-of-leaves!
   "Plant an ft/digit whose children are bare value hashes."
@@ -87,7 +87,7 @@
                    (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  vhs)
         m (reduce measure-combine
-                  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state}
+                  {:count host/zero-word :size-bytes host/zero-word :elements-fuse hash/identity-state}
                   ms)
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
     (store/await (store/s-put st dh ["ft/digit" {:children vhs :measure m}]))
@@ -98,7 +98,7 @@
   (let [st (store/mem-store)
         root (ft/ft-empty st)]
     (is (ft/ft-empty? st root))
-    (is (zero? (ft/ft-count st root)))
+    (is (host/word-zero? (ft/ft-count st root)))
     (is (nil? (ft/ft-first st root)))
     (is (empty? (ft/ft-seq st root)))))
 
@@ -112,9 +112,9 @@
         r2 (ft/ft-conj-right st r1 b)
         snap (nodes-under st r0 r1 r2)
         singles (filter (fn [[_ e]] (= "ft/single" (types/entry-type e))) snap)]
-    (is (= 1 (ft/ft-count st r1)))
+    (is (= (host/word 1) (ft/ft-count st r1)))
     (is (= r1 a) "1-elem root is the bare value hash")
-    (is (= 2 (ft/ft-count st r2)))
+    (is (= (host/word 2) (ft/ft-count st r2)))
     (is (= [a] (vec (ft/ft-seq st r1))))
     (is (= [a b] (vec (ft/ft-seq st r2))))
     (is (= a (ft/ft-first st r2)))
@@ -141,8 +141,8 @@
   (testing "1-element tree root is a bare value hash"
     (let [st (store/mem-store)
           vh (put-i64 st 42)]
-      (is (= 1 (ft/ft-count st vh)))
-      (is (= 8 (ft/ft-size-bytes st vh)))
+      (is (= (host/word 1) (ft/ft-count st vh)))
+      (is (= (host/word 8) (ft/ft-size-bytes st vh)))
       (is (= (hash/ref->state vh) (ft/ft-elements-fuse st vh))
           "a bare leaf's elements-fuse is its ref as a fuse element")
       (is (= vh (ft/ft-first st vh)))
@@ -155,7 +155,7 @@
         (is (ft/ft-empty? st empty)))
       (let [b (put-i64 st 99)
             deep (ft/ft-conj-right st vh b)]
-        (is (= 2 (ft/ft-count st deep)))
+        (is (= (host/word 2) (ft/ft-count st deep)))
         (is (= [vh b] (vec (ft/ft-seq st deep))))))))
 
 (defn digit-of-bare-leaves
@@ -181,7 +181,7 @@
     ;; nesting a public vector is fine
     (let [inner (v/hash (v/vector st 9))
           root (ft/ft-conj-right st empty inner)]
-      (is (= 1 (ft/ft-count st root)))
+      (is (= (host/word 1) (ft/ft-count st root)))
       (is (= inner (ft/ft-first st root))))
     (is (= a a))))
 
@@ -193,7 +193,7 @@
         root (reduce (fn [r h] (ft/ft-conj-right st r h))
                      (ft/ft-empty st)
                      vhs)]
-    (is (= n (ft/ft-count st root)))
+    (is (= (host/word n) (ft/ft-count st root)))
     (is (= (first vhs) (ft/ft-first st root)))
     (is (= (peek vhs) (ft/ft-last st root)))
     (doseq [i (range 0 n 7)]
@@ -207,7 +207,7 @@
   ;; Overflowed digits mix leaves and nodes; seq must flatten to every char.
   (let [st (store/mem-store)
         s (v/string st (apply str (repeat 100 \x)))]
-    (is (= 100 (v/count s)))
+    (is (= (host/word 100) (v/count s)))
     (is (= 100 (count (v/seq s))))
     (is (= 100 (count (v/realize s))))
     (is (= (apply str (repeat 100 \x)) (v/native s)))))
@@ -260,7 +260,7 @@
                    (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  vhs)
         m (reduce measure-combine
-                  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state}
+                  {:count host/zero-word :size-bytes host/zero-word :elements-fuse hash/identity-state}
                   ms)
         body (lit/rle-lits (mapv (fn [ch] {:type "char" :body ch}) chs))
         dh (types/node-hash "ft/digit" (:elements-fuse m))]
@@ -276,7 +276,7 @@
     (is (= vhs (vec (ft/ft-leaves st dh))))
     (is (= (nth vhs 0) (ft/ft-nth st dh 0)))
     (is (= (nth vhs 2) (ft/ft-nth st dh 2)))
-    (is (= 3 (:count (ft/ft-measure st dh))))
+    (is (= (host/word 3) (:count (ft/ft-measure st dh))))
     (is (empty? (types/child-hashes (store/await (store/s-get st dh)))))
     (let [pointer (put-digit-of-leaves! st vhs)]
       (is (= pointer dh) "same elements_fuse ⇒ same digit hash"))))
@@ -351,7 +351,7 @@
         ef (reduce (fn [a h] (hash/fuse a (hash/ref->state h))) hash/identity-state hs)
         bufs (u8-run-buffers st blob)]
     (byte-set! src 0 9)
-    (is (= n (v/count blob)))
+    (is (= (host/word n) (v/count blob)))
     (is (seq bufs))
     (is (every? host-bytes? bufs))
     (is (every? #(<= (byte-count %) lit/page-budget) bufs))
@@ -381,7 +381,7 @@
         pointer-slots (reduce + 0 (map (fn [[_ e]]
                                          (count (:children (types/entry-data e) [])))
                                        digits))]
-    (is (= n (v/count dv)))
+    (is (= (host/word n) (v/count dv)))
     (is (= s (v/native dv)))
     (is (= (nth s 0) (v/realize (v/nth dv 0))))
     (is (= (nth s (dec n)) (v/realize (v/nth dv (dec n)))))
@@ -397,7 +397,7 @@
         snap (nodes-under st (v/hash dv))
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)
         bodies (map (fn [[_ e]] (:body (types/entry-data e))) digits)]
-    (is (= n (v/count dv)))
+    (is (= (host/word n) (v/count dv)))
     (is (= 0 (v/realize (v/nth dv 0))))
     (is (= (dec n) (v/realize (v/nth dv (dec n)))))
     (is (some (fn [body]
@@ -418,7 +418,7 @@
                    (leaf-measure h (types/dacite-size (store/await (store/s-get st h)))))
                  [a b c])
         m (reduce measure-combine
-                  {:count 0 :size-bytes 0 :elements-fuse hash/identity-state}
+                  {:count host/zero-word :size-bytes host/zero-word :elements-fuse hash/identity-state}
                   ms)
         body [{:type "run" :body {:of "ref" :values [a b c]}}]
         dh (types/node-hash "ft/digit" (:elements-fuse m))]

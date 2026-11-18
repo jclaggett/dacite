@@ -9,7 +9,8 @@
    and nbb has one thread.
 
    `is` is `dacite.store.check`."
-  (:require [dacite.store :as s]
+  (:require [dacite.host :as host]
+            [dacite.store :as s]
             [dacite.store.check :refer [is]]
             [dacite.store.lens :as lens]
             [dacite.value :as v]))
@@ -174,8 +175,8 @@
       (let [rs (s/file dir)
             books (s/lens rs (v/vector rs "books"))
             titles (s/lens rs (v/vector rs "indexes" "title"))]
-        (is (= 1 (v/count (deref* (v/root books)))))
-        (is (= 1 (v/count (deref* (v/root titles)))))
+        (is (= (host/word 1) (v/count (deref* (v/root books)))))
+        (is (= (host/word 1) (v/count (deref* (v/root titles)))))
         (is (lens/lens-store? books)))
       (finally
         ((:rm-rf env) dir)))))

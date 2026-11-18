@@ -14,7 +14,8 @@
    on the JVM, as before, and `v2/seq` on nbb.
 
    `is` and `testing` are `dacite.store.check`."
-  (:require [dacite.store :as store]
+  (:require [dacite.host :as host]
+            [dacite.store :as store]
             [dacite.store.check :refer [is testing throws?]]
             [dacite.value :as v2]
             [dacite.value.collections :as coll]))
@@ -69,7 +70,7 @@
       (is (throws? #(remove-nth v -1))))
     (testing "remove until empty matches successive drop from left"
       (loop [cur v expected (vec (range 10))]
-        (if (zero? (count* cur))
+        (if (host/word-zero? (count* cur))
           (is (empty? expected))
           (let [cur' (remove-nth cur 0)]
             (is (= (subvec expected 1) (realize-each cur')))

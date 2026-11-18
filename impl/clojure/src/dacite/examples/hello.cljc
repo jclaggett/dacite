@@ -22,9 +22,9 @@
         vh (v/hash vec)
         mh (v/hash map)]
     (println "Dacite Hello World")
-    (println "  vector count :" (v/count vec))
+    (println "  vector count :" (v/native-count vec))
     (println "  vector hash  :" (store/hash->hex vh))
-    (println "  map count    :" (v/count map))
+    (println "  map count    :" (v/native-count map))
     (println "  map hash     :" (store/hash->hex mh))
     (println "  (get m \"hello\") realized:"
              (v/realize (v/get map "hello")))
