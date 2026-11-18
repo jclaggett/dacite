@@ -91,6 +91,8 @@ Neither HTTP nor peering: not parity work, and the code stays.
 
 Status: HTTP removal is complete (Nov 17, 2026); every item below is done.
 
+The last HTTP code left is `impl/clojure/src/dacite/store/browser.cljs` (an HTTP data client: `GET /node/`, root CAS), compiled into the todo and explorer placeholder bundles (`examples/web/js/main.js`, `examples/web/explorer/js/main.js`). It is kept only for those placeholders, whose `init!` no longer opens it, and goes when those pages are removed or ported to peering.
+
 Not parity work. Items are ticked as the HTTP removal after parity deletes them.
 
 - [x] [done] `store/remote.clj` and `store/reveal.clj` (HTTP/3). `remote_test` (3). Browser fetch is `store/browser.cljs` (kept: the todo and explorer pages still use it). Removed in the HTTP removal slice 2
