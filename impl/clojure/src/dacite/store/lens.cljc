@@ -27,7 +27,7 @@
    Dacite values (map keys go through `extract-hash`)."
   [k]
   (if (and (v/dacite-value? k) (contains? int-types (v/type k)))
-    (v/realize k)
+    (v/native-int k)
     k))
 
 (defn- path-keys

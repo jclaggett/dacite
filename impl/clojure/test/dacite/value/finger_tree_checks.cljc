@@ -230,7 +230,7 @@
         vhs (mapv #(put-i64 st %) (range 10))
         root (ft/ft-from-value-hashes st vhs)
         mid (ft/ft-remove-nth st root 4)]
-    (is (= (concat (range 4) (range 5 10))
+    (is (= (map host/->i64 (concat (range 4) (range 5 10)))
            (map (fn [h] (second (store/await (store/s-get st h)))) (ft/ft-seq st mid))))))
 
 (defn entry-density-no-single-per-element
@@ -398,8 +398,8 @@
         digits (filter (fn [[_ e]] (= "ft/digit" (types/entry-type e))) snap)
         bodies (map (fn [[_ e]] (:body (types/entry-data e))) digits)]
     (is (= (host/word n) (v/count dv)))
-    (is (= 0 (v/realize (v/nth dv 0))))
-    (is (= (dec n) (v/realize (v/nth dv (dec n)))))
+    (is (= (host/->i64 0) (v/realize (v/nth dv 0))))
+    (is (= (host/->i64 (dec n)) (v/realize (v/nth dv (dec n)))))
     (is (some (fn [body]
                 (some (fn [item]
                         (and (= "run" (:type item))

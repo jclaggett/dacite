@@ -34,7 +34,7 @@
         n (v/i64 st 30)
         b (v/bool st true)]
     (is (= "dark" (v/native s)))
-    (is (= 30 (v/native n)))
+    (is (= 30 (v/native-int n)))
     (is (= true (v/native b)))
     (is (nil? (v/native nil)))
     (is (= "already" (v/native "already")))
@@ -73,13 +73,13 @@
                    "timeout" 30
                    "features" (v/vector st "a" "b"))]
     (is (= "dark" (v/native (v/get-in cfg ["theme"]))))
-    (is (= 30 (v/native (v/get-in cfg ["timeout"]))))
+    (is (= 30 (v/native-int (v/get-in cfg ["timeout"]))))
     (is (= "a" (v/native (v/get-in cfg ["features" 0]))))
     (is (= :missing (v/get-in cfg ["nope"] :missing)))
     (is (identical? cfg (v/get-in cfg [])))
     (let [cfg' (v/assoc-in cfg ["timeout"] 90)]
-      (is (= 90 (v/native (v/get-in cfg' ["timeout"]))))
-      (is (= 30 (v/native (v/get-in cfg ["timeout"])))
+      (is (= 90 (v/native-int (v/get-in cfg' ["timeout"]))))
+      (is (= 30 (v/native-int (v/get-in cfg ["timeout"])))
           "assoc-in is immutable"))
     (let [cfg' (v/assoc-in cfg ["nested" "x"] "y")]
       (is (= "y" (v/native (v/get-in cfg' ["nested" "x"])))))
@@ -91,7 +91,7 @@
         cfg (v/map st
                    "timeout" 30
                    "features" (v/vector st "a"))]
-    (is (= 31 (v/native (v/get (v/update cfg "timeout" (fn [n] (+ (v/native n) 1)))
+    (is (= 31 (v/native-int (v/get (v/update cfg "timeout" (fn [n] (+ (v/native-int n) 1)))
                                "timeout"))))
     (let [cfg' (v/update cfg "features" v/conj "b")]
       (is (= (host/word 2) (v/count (v/get cfg' "features"))))
@@ -106,8 +106,8 @@
         mid (v/slice vec 3 7)]
     (is (= "vector" (v/type mid)))
     (is (= (host/word 4) (v/count mid)))
-    (is (= 3 (v/native (v/nth mid 0))))
-    (is (= 6 (v/native (v/nth mid 3))))
+    (is (= 3 (v/native-int (v/nth mid 0))))
+    (is (= 6 (v/native-int (v/nth mid 3))))
     (is (= (v/hash vec) (v/hash (v/slice vec 0))))
     (is (host/word-zero? (v/count (v/slice vec 4 4))))
     (let [built (v/vector st 3 4 5 6)]

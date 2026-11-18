@@ -54,7 +54,7 @@
     (is (host/word-zero? (v/count (v/deref r))))
     (v/swap! r v/conj (v/i64 r 42))
     (is (= (host/word 1) (v/count (deref* r))))
-    (is (= 42 (v/realize (v/nth (deref* r) 0))))
+    (is (= (host/->i64 42) (v/realize (v/nth (deref* r) 0))))
     ;; JVM atom ops (the function API on nbb)
     (swap* r v/conj 7)
     (is (= (host/word 2) (v/count (deref* r))))

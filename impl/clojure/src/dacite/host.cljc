@@ -42,6 +42,16 @@
            (if (= (type x) js/BigInt) x (js/BigInt x))))
 #?(:cljs (defn ^:private u64 [x] (.asUintN js/BigInt 64 (as-bi x))))
 
+;; A BigInt is a value (#64: every i64, u64, and word on ClojureScript), so it
+;; must hash as one in a set or a map key, consistently with `=` (equal
+;; BigInts are `identical?`). cljs.core/hash falls back to goog/getUid, which
+;; throws on a primitive bigint ("Cannot create property 'closure_uid_…'").
+;; SCI (nbb) cannot `extend-type js/BigInt IHash`, so install the method in
+;; the protocol's per-type table, where its dispatch looks up
+;; `(goog/typeOf x)`, "bigint". Every namespace of the core loads this one
+;; first.
+#?(:cljs (unchecked-set -hash "bigint" (fn [x] (hash (.toString x)))))
+
 ;; =============================================================================
 ;; Typed zero (a 64-bit word / a four-word hash)
 ;; =============================================================================
@@ -83,6 +93,24 @@
    on the JVM, a Number on ClojureScript (exact below 2^53)."
   [w]
   #?(:clj (long w) :cljs (js/Number w)))
+
+(defn ->i64
+  "Coerce an integer (a long, a Number, or a BigInt) to a signed 64-bit
+   value, modulo 2^64: itself on the JVM (an i64 is a long), a signed BigInt
+   on ClojureScript (#64)."
+  [n]
+  #?(:clj n :cljs (.asIntN js/BigInt 64 (as-bi n))))
+
+(defn i64->native
+  "A signed 64-bit value as the integer it realizes as: itself on the JVM;
+   on ClojureScript a Number when it is a safe integer (|n| <= 2^53 - 1),
+   else the BigInt."
+  [n]
+  #?(:clj n
+     :cljs (if (and (<= (- (js/BigInt 9007199254740991)) n)
+                    (<= n (js/BigInt 9007199254740991)))
+             (js/Number n)
+             n)))
 
 (defn word->int
   "Coerce a small 64-bit word back to a native integer (for indexing)."

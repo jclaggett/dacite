@@ -343,6 +343,18 @@
        ("vector" "map" "set" "blob") (refuse-collection "native" x)
        (realize x)))))
 
+(defn native-int
+  "`native` for an integer field, as a native host integer for host
+   arithmetic, indexing, and printing: on the JVM the realized value; on nbb
+   an i64 (or u64) scalar is a BigInt (#64), and this gives a Number when it
+   is a safe integer (|n| <= 2^53 - 1), else the BigInt (`host/i64->native`).
+   Other values are `native`'s. nil → nil."
+  [x]
+  (let [n (native x)]
+    (if #?(:clj false :cljs (= js/BigInt (cljs.core/type n)))
+      (host/i64->native n)
+      n)))
+
 (defn as-bytes
   "Host bytes for a Dacite blob. nil → nil. Other types throw.
 

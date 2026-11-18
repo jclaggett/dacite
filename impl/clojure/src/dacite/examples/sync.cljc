@@ -52,7 +52,7 @@
 
 (defn dir? [e] (= "dir" (v/native (v/get e "kind"))))
 (defn file? [e] (= "file" (v/native (v/get e "kind"))))
-(defn entry-size [e] (or (v/native (v/get e "size")) 0))
+(defn entry-size [e] (or (v/native-int (v/get e "size")) 0))
 (defn entry-blob [e] (v/get e "blob"))
 (defn entries [e] (v/get e "entries"))
 

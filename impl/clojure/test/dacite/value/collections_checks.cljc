@@ -14,7 +14,8 @@
    on the JVM, as before, and `v2/seq` on nbb.
 
    `is` and `testing` are `dacite.store.check`."
-  (:require [dacite.host :as host]
+  (:require [clojure.walk :as walk]
+            [dacite.host :as host]
             [dacite.store :as store]
             [dacite.store.check :refer [is testing throws?]]
             [dacite.value :as v2]
@@ -25,6 +26,12 @@
 
 (def ^:private count*
   #?(:clj count :cljs v2/count))
+
+(defn- i64s
+  "`x` with every integer as a realized i64: a long on the JVM, a BigInt on
+   nbb, even when small (#64)."
+  [x]
+  (walk/postwalk #(if (integer? %) (host/->i64 %) %) x))
 
 (defn realize-each
   "Realize every element of a seqable Dacite collection to Clojure values."
@@ -49,7 +56,7 @@
   (let [s (store/mem-store)
         v (v2/vector s 1 2 3)]
     (is (= "vector" (v2/type v)))
-    (is (= [1 2 3] (realize-each v)))))
+    (is (= (i64s [1 2 3]) (realize-each v)))))
 
 (defn vector-remove-nth
   [_]
@@ -59,12 +66,12 @@
                      (coll/vec-remove-nth s (v2/hash vv) i))]
     (testing "remove middle / ends"
       (let [v' (remove-nth v 4)]
-        (is (= [0 1 2 3 5 6 7 8 9] (realize-each v')))
+        (is (= (i64s [0 1 2 3 5 6 7 8 9]) (realize-each v')))
         (is (identical? s (v2/dacite-store v'))))
-      (is (= [1 2 3 4 5 6 7 8 9] (realize-each (remove-nth v 0))))
-      (is (= [0 1 2 3 4 5 6 7 8] (realize-each (remove-nth v 9)))))
+      (is (= (i64s [1 2 3 4 5 6 7 8 9]) (realize-each (remove-nth v 0))))
+      (is (= (i64s [0 1 2 3 4 5 6 7 8]) (realize-each (remove-nth v 9)))))
     (testing "original unchanged"
-      (is (= (range 10) (realize-each v))))
+      (is (= (i64s (range 10)) (realize-each v))))
     (testing "out of bounds"
       (is (throws? #(remove-nth v 10)))
       (is (throws? #(remove-nth v -1))))
@@ -73,7 +80,7 @@
         (if (host/word-zero? (count* cur))
           (is (empty? expected))
           (let [cur' (remove-nth cur 0)]
-            (is (= (subvec expected 1) (realize-each cur')))
+            (is (= (i64s (subvec expected 1)) (realize-each cur')))
             (recur cur' (subvec expected 1))))))
     (testing "large vector structural removes"
       ;; 100 elements, not 200: the same tree (an ft/deep with two digits
@@ -84,7 +91,7 @@
             after (reduce (fn [vv i] (remove-nth vv i))
                           big
                           (range (dec n) -1 -2))]
-        (is (= (vec (range 0 n 2)) (realize-each after)))))))
+        (is (= (i64s (vec (range 0 n 2))) (realize-each after)))))))
 
 (defn vector-empty-and-wrap
   [_]
@@ -92,7 +99,7 @@
         v (v2/vector s 1 2 3)
         w (v2/wrap-hash s (v2/hash v))]
     (is (= "vector" (v2/type w)))
-    (is (= [1 2 3] (realize-each w)))))
+    (is (= (i64s [1 2 3]) (realize-each w)))))
 
 ;; =============================================================================
 ;; Strings & blobs
@@ -140,7 +147,7 @@
   (let [s (store/mem-store)
         st (v2/set s 1 2 3)]
     (is (= "set" (v2/type st)))
-    (is (= #{1 2 3} (set-vals st)))
+    (is (= (i64s #{1 2 3}) (set-vals st)))
     (is (v2/set-member? st 1))
     (is (not (v2/set-member? st 9)))))
 
@@ -155,9 +162,9 @@
   (let [s (store/mem-store)
         a (v2/set s 1 2 3)
         b (v2/set s 3 4 5)]
-    (is (= #{1 2 3 4 5} (set-vals (v2/set-union a b))))
-    (is (= #{3} (set-vals (v2/set-intersect a b))))
-    (is (= #{1 2} (set-vals (v2/set-difference a b))))))
+    (is (= (i64s #{1 2 3 4 5}) (set-vals (v2/set-union a b))))
+    (is (= (i64s #{3}) (set-vals (v2/set-intersect a b))))
+    (is (= (i64s #{1 2}) (set-vals (v2/set-difference a b))))))
 
 (defn negative-sets
   [_]
@@ -179,7 +186,7 @@
       (is (= (v2/hash a)
              (v2/hash (v2/set-complement comp)))))
     (testing "realize exposes sentinel as :dacite/negative, not nil"
-      (is (= #{:dacite/negative 1 2 3} (set (v2/realize comp)))))))
+      (is (= (i64s #{:dacite/negative 1 2 3}) (set (v2/realize comp)))))))
 
 ;; =============================================================================
 ;; realize realizes collections as lazy seqs (deep, partial-availability-friendly)
@@ -191,9 +198,9 @@
     (testing "vector -> lazy seq of values"
       (let [r (v2/realize (v2/vector s 1 2 3))]
         (is (seq? r))
-        (is (= [1 2 3] r))))
+        (is (= (i64s [1 2 3]) r))))
     (testing "set -> lazy seq of values"
-      (is (= #{1 2 3} (set (v2/realize (v2/set s 1 2 3))))))
+      (is (= (i64s #{1 2 3}) (set (v2/realize (v2/set s 1 2 3))))))
     (testing "blob -> lazy seq of byte values"
       (is (= [1 2 3 4] (vec (v2/realize (v2/blob s (host-bytes [1 2 3 4])))))))))
 
@@ -204,7 +211,7 @@
         r (v2/realize m)]
     (is (seq? r))
     (testing "each entry is a [k v] pair with key and value realized"
-      (is (= #{[1 10] [2 20]} (set r))))))
+      (is (= (i64s #{[1 10] [2 20]}) (set r))))))
 
 (defn realize-is-deep-with-nested-collections
   [_]
@@ -212,7 +219,7 @@
         nested (v2/vector s (v2/vector s 1 2) 3)
         r (v2/realize nested)]
     (testing "sub-collections become nested seqs"
-      (is (= [[1 2] 3] r))
+      (is (= (i64s [[1 2] 3]) r))
       (is (seq? (first r))))))
 
 (defn realize-empty-collections-are-nil
@@ -230,7 +237,7 @@
 (defn bounded-toString-small-collections
   [_]
   (let [s (store/mem-store)]
-    (is (= #{1 2 3} (set-vals (v2/set s 1 2 3))))))
+    (is (= (i64s #{1 2 3}) (set-vals (v2/set s 1 2 3))))))
 
 (def checks
   {"vector-basics" vector-basics

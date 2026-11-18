@@ -14,7 +14,8 @@
    separate char type.
 
    `is` and `testing` are `dacite.store.check`."
-  (:require [dacite.hash :as hash]
+  (:require [dacite.host :as host]
+            [dacite.hash :as hash]
             [dacite.store :as store]
             [dacite.store.check :refer [is testing]]
             [dacite.store.pack :as pack]
@@ -71,7 +72,12 @@
     (is (= (byte 42) (v2/realize (v2/i8 s 42))))
     (is (= (short 1000) (v2/realize (v2/i16 s 1000))))
     (is (= (int 123456) (v2/realize (v2/i32 s 123456))))
-    (is (= 9999999999 (v2/realize (v2/i64 s 9999999999))))
+    (is (= (host/->i64 9999999999) (v2/realize (v2/i64 s 9999999999))))
+    ;; an i64 realizes as the host i64 (a BigInt on nbb, #64); native-int is
+    ;; a native integer when it is exact
+    (is (= 9999999999 (v2/native-int (v2/i64 s 9999999999))))
+    (is (number? (v2/native-int (v2/i64 s -7))))
+    (is (nil? (v2/native-int nil)))
     (is (= 255 (v2/realize (v2/u8 s 255))))
     (is (= 65535 (v2/realize (v2/u16 s 65535))))
     (is (= 4294967295 (v2/realize (v2/u32 s 4294967295))))
@@ -152,7 +158,7 @@
         v (v2/i64 s 42)
         back (v2/get-value-with-store s (v2/hash v))]
     (is (= "i64" (v2/type back)))
-    (is (= 42 (v2/realize back)))
+    (is (= (host/->i64 42) (v2/realize back)))
     (testing "missing hash returns nil"
       (is (nil? (v2/get-value-with-store s [0 0 0 0]))))))
 
@@ -177,6 +183,40 @@
     ;; An empty string's data hash is the group identity.
     (is (= (hash/state->ref hash/identity-state) (v2/content-hash (v2/string s ""))))))
 
+;; Realized integers are BigInts on nbb (#64); they must work in a host set
+;; or as map keys there: hashed consistently with `=`, past the size where a
+;; cljs map or set hashes its keys.
+(def ^:private max-i64 #?(:clj Long/MAX_VALUE :cljs (js/BigInt "9223372036854775807")))
+(def ^:private min-i64 #?(:clj Long/MIN_VALUE :cljs (js/BigInt "-9223372036854775808")))
+
+(defn- u64-of
+  "A u64 as `realize` gives it: itself on the JVM, a BigInt on nbb."
+  [n]
+  #?(:clj n :cljs (js/BigInt (str n))))
+
+(defn realized-integers-are-set-members-and-map-keys
+  [_]
+  (let [s (store/mem-store)]
+    (doseq [[label in built expected]
+            [["i64" (concat (range -12 20) [max-i64 min-i64]) #(v2/i64 s %) host/->i64]
+             ["u64" (concat (range 30) [big-u64]) #(v2/u64 s %) u64-of]]]
+      (let [r (mapv (comp v2/realize built) in)
+            want (mapv expected in)
+            st (set r)
+            m (zipmap r (range))]
+        (is (= r want) label)
+        (is (= (count in) (count st) (count (into st want))) (str label " dedupe"))
+        (is (every? #(contains? st %) want) (str label " contains?"))
+        (is (= st (set want)) (str label " set ="))
+        (is (= (map hash r) (map hash want)) (str label " hash"))
+        (is (every? (fn [[k i]] (= i (get m k))) (map vector want (range)))
+            (str label " map lookup"))
+        (is (= m (zipmap want (range))) (str label " map ="))
+        (is (= st (set (v2/realize (apply v2/set s (map built in))))) (str label " a realized set"))
+        (is (= (zipmap want want)
+               (into {} (v2/realize (apply v2/map s (map built (interleave in in))))))
+            (str label " a realized map"))))))
+
 (defn max-u64-round-trips-through-edn
   [_]
   ;; 2^64 - 1 built, its literal written as EDN (`dacite.wire`), read back,
@@ -195,12 +235,16 @@
     (is (= big-u64 (v2/realize (scalar/wrap-scalar s2 h2))))
     (is (= (store/await (store/s-get s h)) (store/await (store/s-get s2 h2)))
         "the same entry, the word")
+    (let [e (store/await (store/s-get s h))]
+      (is (= e (wire/read-edn (wire/write-edn e)))
+          "the entry read from EDN holds the word, the literal body the value"))
     (testing "out of range still throws"
       (is (= :above-max (u64-range-error #(pack/materialize-literal! s2 "u64" two-to-the-64))))
       (is (= :negative (u64-range-error #(pack/materialize-literal! s2 "u64" -1)))))))
 
 (def checks
-  {"max-u64-round-trips-through-edn" max-u64-round-trips-through-edn
+  {"realized-integers-are-set-members-and-map-keys" realized-integers-are-set-members-and-map-keys
+   "max-u64-round-trips-through-edn" max-u64-round-trips-through-edn
    "scalar-types-and-realize" scalar-types-and-realize
    "values-are-not-derefable" values-are-not-derefable
    "scalar-validation" scalar-validation

@@ -16,6 +16,7 @@
             [dacite.hash :as hash]
             [dacite.value :as v]
             [dacite.host :as host]
+            [dacite.wire :as wire]
             [dacite.wire.binary :as bin]
             [dacite.store :as store]
             [dacite.store.check :refer [is testing throws?]]
@@ -104,7 +105,8 @@
 (defn run-repeat-lit-bytes-round-trip
   [_]
   (doseq [form [{:type "run" :body {:of "char" :values "hello"}}
-                {:type "run" :body {:of "i64" :values [1 2 3]}}
+                ;; an i64 decodes as a host i64: a BigInt on nbb (#64)
+                {:type "run" :body {:of "i64" :values (mapv host/->i64 [1 2 3])}}
                 {:type "run" :body {:of "string" :values ["a" "bb"]}}
                 {:type "run" :body {:of "char" :values "é"}}
                 {:type "repeat" :body {:of "char" :n 4 :value \x}}
@@ -354,7 +356,7 @@
     (is (= :literal (:enc item)))
     (is (= h (:hash item)))
     (is (= "i64" (:type (:literal item))))
-    (is (= 42 (:body (:literal item))))
+    (is (= (host/->i64 42) (:body (:literal item))))
     (let [re (bin/encode-chunk
               {:budget (:budget decoded)
                :items [{:enc :literal
@@ -366,7 +368,7 @@
           r (bin/apply-chunk-message! st decoded)]
       (is (= 1 (:applied r)))
       (is (store/await (store/s-has? st h)))
-      (is (= ["i64" 42] (store/await (store/s-get st h)))))))
+      (is (= ["i64" (host/->i64 42)] (store/await (store/s-get st h)))))))
 
 (defn reject-bad-magic-and-version
   [{:keys [load-fixture]}]
@@ -478,6 +480,17 @@
   "2^64 - 1, as a host integer: a BigInt N on the JVM, a BigInt on nbb."
   #?(:clj 18446744073709551615N :cljs (js/BigInt "18446744073709551615")))
 
+(defn- i64-of
+  "A signed 64-bit integer from its decimal text: a long on the JVM, a BigInt
+   on nbb (beyond 2^53 a Number would round)."
+  [s]
+  #?(:clj (Long/parseLong s) :cljs (js/BigInt s)))
+
+(def ^:private big-i64s
+  "i64 values a Number cannot hold, and the i64 range ends."
+  (mapv i64-of ["9007199254740993" "-9007199254740993"
+                "9223372036854775807" "-9223372036854775808"]))
+
 (defn- built-store
   "A mem store holding one of every public value, big enough for inner
    finger-tree and HAMT nodes: a map of 64 entries has bitmap nodes, and
@@ -491,6 +504,8 @@
                #(scalar/i16-with-store % 32767)
                #(scalar/i32-with-store % -2147483648)
                #(scalar/i64-with-store % -9007199254740991)
+               ;; beyond 2^53, and min / max i64, built from BigInts on nbb
+               #(doseq [n big-i64s] (scalar/i64-with-store % n))
                #(scalar/u8-with-store % 255)
                #(scalar/u16-with-store % 65535)
                #(scalar/u32-with-store % 4294967295)
@@ -526,6 +541,11 @@
   [x]
   #?(:clj (instance? Long x) :cljs (= js/BigInt (type x))))
 
+(defn- host-i64?
+  "An i64 entry's data: a long on the JVM, a BigInt on nbb (#64)."
+  [x]
+  #?(:clj (instance? Long x) :cljs (= js/BigInt (type x))))
+
 (defn- counts-and-sizes
   "The :count and :size-bytes of an entry: a collection node's, or its
    measure's."
@@ -545,7 +565,7 @@
                       @(:data st))
         types (set (map (comp first second) entries))
         high-bit (host/shl64 (host/word 1) 31)]
-    (is (every? types ["hamt/bitmap" "hamt/entry" "u64" "u256" "blob" "map" "vector"])
+    (is (every? types ["hamt/bitmap" "hamt/entry" "i64" "u64" "u256" "blob" "map" "vector"])
         (pr-str (sort types)))
     (is (some (fn [[_ [t d]]]
                 (and (= "hamt/bitmap" t)
@@ -557,6 +577,13 @@
               x (concat (counts-and-sizes e)
                         (counts-and-sizes (bin/decode-node-bytes (bin/encode-node-bytes e))))]
         (is (host-word? x) (str (first e) " " (pr-str x)))))
+    (testing "an i64 is a host i64, built and decoded"
+      (let [i64s (keep (fn [[_ [t d]]] (when (= "i64" t) d)) entries)]
+        ;; not a set: a cljs set cannot hash a BigInt
+        (is (every? (fn [n] (some #(= n %) i64s)) big-i64s) (pr-str i64s))
+        (doseq [d i64s
+                x [d (second (bin/decode-node-bytes (bin/encode-node-bytes ["i64" d])))]]
+          (is (host-i64? x) (pr-str x)))))
     (doseq [[h e] entries
             :let [t (first e)
                   want (entry-bytes e)
@@ -574,7 +601,36 @@
         (store/await (store/s-put st2 h (bin/decode-node-bytes
                                          (bin/encode-node-bytes (store/await (store/s-get st h))))))
         (is (= max-u64 (v/realize built)))
-        (is (= max-u64 (v/realize (scalar/wrap-scalar st2 h))))))))
+        (is (= max-u64 (v/realize (scalar/wrap-scalar st2 h))))))
+    (testing "an i64 realizes as a host i64, built or decoded"
+      ;; on nbb always the BigInt, even when it is small (#64)
+      (doseq [[n want] (concat [[-9007199254740991 (host/->i64 -9007199254740991)]
+                                [5 (host/->i64 5)]]
+                               (map vector big-i64s big-i64s))]
+        (let [built (scalar/i64-with-store st n)
+              h (types/dacite-hash built)
+              st2 (store/mem-store)]
+          (store/await (store/s-put st2 h (bin/decode-node-bytes
+                                           (bin/encode-node-bytes (store/await (store/s-get st h))))))
+          (is (= want (v/realize built)) (pr-str n))
+          (is (= want (v/realize (scalar/wrap-scalar st2 h))) (pr-str n)))))))
+
+;; The EDN store path (`dacite.wire`) also gives the built i64 (#64): nbb
+;; writes a negative one signed, a JVM as its unsigned word or a plain integer.
+(defn an-i64-read-from-edn-is-the-built-i64
+  [_]
+  (doseq [n (concat [(host/->i64 -1) (host/->i64 5)] big-i64s)
+          x [["i64" n]
+             {:type "i64" :body n}
+             {:type "run" :body {:of "i64" :values [n n]}}]]
+    (is (= x (wire/read-edn (wire/write-edn x))) (pr-str x)))
+  (testing "JVM-written text"
+    (is (= ["i64" (i64-of "-9223372036854775808")]
+           (wire/read-edn "[\"i64\" #dacite/u64 \"9223372036854775808\"]")))
+    (is (= ["i64" (host/->i64 5)] (wire/read-edn "[\"i64\" 5]")))
+    (is (= ["u64" (host/->word 5)] (wire/read-edn "[\"u64\" 5]"))))
+  (testing "nbb-written text: a negative word is an i64"
+    (is (= (i64-of "-5") (wire/read-edn "#dacite/u64 \"-5\"")))))
 
 (def checks
   {"run-repeat-have-wire-ids" run-repeat-have-wire-ids
@@ -591,4 +647,5 @@
    "pack-edn-bridge-round-trip" pack-edn-bridge-round-trip
    "spot-check-new-scalar-and-collection" spot-check-new-scalar-and-collection
    "a-measure-state-outside-sl2-is-bad-state" a-measure-state-outside-sl2-is-bad-state
-   "a-decoded-node-is-the-built-node" a-decoded-node-is-the-built-node})
+   "a-decoded-node-is-the-built-node" a-decoded-node-is-the-built-node
+   "an-i64-read-from-edn-is-the-built-i64" an-i64-read-from-edn-is-the-built-i64})

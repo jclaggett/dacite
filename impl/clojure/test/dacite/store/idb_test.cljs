@@ -83,14 +83,14 @@
          (fn []
            (let [r (v/root rs)]
              (v/swap! r (fn [_] (v/i64 r 42)))
-             (eq! (v/native (v/deref r)) 42 "swap published 42")
+             (eq! (v/native-int (v/deref r)) 42 "swap published 42")
              (eq! (some? (rs/root rs)) true "root hash is set"))))
         (.then (fn [_]
                  (idb/close rs)
                  (let [again (idb/open name)]
                    (-> (idb/drive
                         (fn []
-                          (eq! (v/native (v/deref (v/root again))) 42
+                          (eq! (v/native-int (v/deref (v/root again))) 42
                                "root survived reopen")))
                        (.then (fn [_] (idb/close again))))))))))
 

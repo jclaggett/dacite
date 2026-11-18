@@ -232,7 +232,7 @@
   (with-lmdb env ((:join env) dir "lmdb")
     (fn [s]
       (let [h [1 2 3 4]
-            v ["i64" 42]
+            v ["i64" (host/->i64 42)]
             before-get (get* s h)
             before-has (has* s h)]
         (put* s h v)
@@ -246,7 +246,7 @@
   [env dir]
   (let [path ((:join env) dir "lmdb-persist")
         h [1 2 3 4]
-        v ["i64" 99]]
+        v ["i64" (host/->i64 99)]]
     (with-lmdb env path
       (fn [s] (put* s h v)))
     (with-lmdb env path
@@ -257,27 +257,27 @@
   [env dir]
   (with-lmdb env ((:join env) dir "lmdb-keys")
     (fn [s]
-      (put* s [1 2 3 4] ["i64" 1])
-      (put* s [5 6 7 8] ["i64" 2])
+      (put* s [1 2 3 4] ["i64" (host/->i64 1)])
+      (put* s [5 6 7 8] ["i64" (host/->i64 2)])
       (concat
        (diff "entries" 2 (entries s))
-       (diff "get 1" ["i64" 1] (get* s [1 2 3 4]))
-       (diff "get 2" ["i64" 2] (get* s [5 6 7 8]))))))
+       (diff "get 1" ["i64" (host/->i64 1)] (get* s [1 2 3 4]))
+       (diff "get 2" ["i64" (host/->i64 2)] (get* s [5 6 7 8]))))))
 
 (defn lmdb-store-batch-test
   [env dir]
   (with-lmdb env ((:join env) dir "lmdb-batch")
     (fn [s]
-      (store/await ((:write-batch env) s [[[1 2 3 4] ["i64" 10]] [[5 6 7 8] ["i64" 20]]]))
+      (store/await ((:write-batch env) s [[[1 2 3 4] ["i64" (host/->i64 10)]] [[5 6 7 8] ["i64" (host/->i64 20)]]]))
       (concat
-       (diff "get 10" ["i64" 10] (get* s [1 2 3 4]))
-       (diff "get 20" ["i64" 20] (get* s [5 6 7 8]))))))
+       (diff "get 10" ["i64" (host/->i64 10)] (get* s [1 2 3 4]))
+       (diff "get 20" ["i64" (host/->i64 20)] (get* s [5 6 7 8]))))))
 
 (defn lmdb-store-reset-test
   [env dir]
   (with-lmdb env ((:join env) dir "lmdb-reset")
     (fn [s]
-      (put* s [1 2 3 4] ["i64" 1])
+      (put* s [1 2 3 4] ["i64" (host/->i64 1)])
       (store/await (store/s-reset s))
       (concat
        (diff "get after reset" nil (get* s [1 2 3 4]))
@@ -289,7 +289,7 @@
     (fn [s]
       (let [header ["vector" {:root [9 8 7 6] :count (host/word 3) :size-bytes (host/word 24)}]
             fuse (words [1 0 0 1])]
-        (put* s [1 0 0 0] ["i64" 42])
+        (put* s [1 0 0 0] ["i64" (host/->i64 42)])
         (put* s [2 0 0 0] header)
         (put* s [3 0 0 0] ["ft/deep" {:left [1 1 1 1]
                                       :spine [2 2 2 2]
@@ -306,7 +306,7 @@
         (let [ft (get* s [3 0 0 0])
               hamt (get* s [4 0 0 0])]
           (concat
-           (diff "scalar" ["i64" 42] (get* s [1 0 0 0]))
+           (diff "scalar" ["i64" (host/->i64 42)] (get* s [1 0 0 0]))
            (diff "collection header" (canon header) (canon (get* s [2 0 0 0])))
            (diff "ft type" "ft/deep" (first ft))
            (diff "ft left" (canon [1 1 1 1]) (canon (:left (second ft))))
@@ -319,11 +319,11 @@
     (fn [lmdb]
       (let [mem (store/mem-store)
             s (store/layered-store mem lmdb)]
-        (put* s [1 2 3 4] ["i64" 42])
+        (put* s [1 2 3 4] ["i64" (host/->i64 42)])
         (concat
-         (diff "mem has it" ["i64" 42] (get* mem [1 2 3 4]))
-         (diff "lmdb has it" ["i64" 42] (get* lmdb [1 2 3 4]))
-         (diff "empty mem over lmdb finds it" ["i64" 42]
+         (diff "mem has it" ["i64" (host/->i64 42)] (get* mem [1 2 3 4]))
+         (diff "lmdb has it" ["i64" (host/->i64 42)] (get* lmdb [1 2 3 4]))
+         (diff "empty mem over lmdb finds it" ["i64" (host/->i64 42)]
                (get* (store/layered-store (store/mem-store) lmdb) [1 2 3 4])))))))
 
 (defn lmdb-value-layer-scalar-and-collection-persist
@@ -339,7 +339,7 @@
                   vh (types/dacite-hash v)
                   ve (get* st vh)]
               [(concat
-                (diff "scalar entry" ["i64" 42] se)
+                (diff "scalar entry" ["i64" (host/->i64 42)] se)
                 (diff "vector type" "vector" (first ve))
                 (diff "vector count" (host/word 3) (:count (second ve))))
                sh se vh ve])))]

@@ -104,7 +104,18 @@ a u64 on the wire). A `u64` scalar is stored as a host word too
 when it is small. On the JVM a u64 entry is a long word (2^64 - 1 is `-1`),
 and `realize` gives its unsigned value (`types/scalar-data`,
 `host/word->unsigned`): a u64 >= 2^63 realizes as a `BigInt` N, never as a
-negative long. Measures add counts with `host/add64`; code that indexes or
+negative long. An `i64` scalar is a signed 64-bit integer, not a word: a
+long on the JVM, and on nbb a signed `BigInt` (`BigInt.asIntN(64, …)`), built
+(`scalar-entry`, `host/->i64`) or decoded, and on nbb it realizes as that
+`BigInt` even when it is small: one representation. Code that needs a native
+integer (host arithmetic, an index, a peer-v1 message field, printing) reads
+it through `v/native-int` (`host/i64->native`: a Number when it is a safe
+integer, |n| <= 2^53 - 1, else the `BigInt`). The EDN wire (`dacite.wire`)
+writes a negative `BigInt` as signed text under `#dacite/u64` (both readers
+take it); `read-edn` brings an `i64` or `u64` entry or literal body back to
+the host representation (a JVM writes a small one as a plain integer, and
+on the JVM a u64 entry holds the word, a u64 literal body the value).
+Measures add counts with `host/add64`; code that indexes or
 compares with a native integer reads a count through `host/word->long`. The
 public count and size functions return the host word too: `v/count`,
 `coll/coll-count`, `ft/ft-count`, `ft/ft-size-bytes`, `hamt/hamt-count`,

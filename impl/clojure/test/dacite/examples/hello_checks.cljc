@@ -16,7 +16,7 @@
   (let [{:keys [vec map]} (hello/hello (store/mem))]
     (is (= (host/word 3) (v/count vec)))
     (is (= (host/word 2) (v/count map)))
-    (is (= 42 (v/realize (v/get map "hello"))))
+    (is (= (host/->i64 42) (v/realize (v/get map "hello"))))
     (is (= (v/hash vec) (v/hash (v/get map "vec"))))))
 
 (def checks

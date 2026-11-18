@@ -100,7 +100,7 @@
 
 (defn title [doc] (v/native (v/get doc "title")))
 (defn body [doc] (v/native (v/get doc "body")))
-(defn edited-at [doc] (or (v/native (v/get doc "edited-at")) 0))
+(defn edited-at [doc] (or (v/native-int (v/get doc "edited-at")) 0))
 (defn tags [doc] (v/get doc "tags"))
 
 (defn- bump [doc]
@@ -353,7 +353,7 @@
           (let [x (v/get-in (current-doc (v/deref nb-ref)) ks)]
             (println (if (and (v/dacite-value? x)
                               (#{"string" "i64" "bool"} (v/type x)))
-                       (v/native x)
+                       (v/native-int x)
                        (v/pr-str x 80)))))
 
         "set"

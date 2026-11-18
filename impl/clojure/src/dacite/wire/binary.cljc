@@ -271,11 +271,12 @@
                      (get-u8 buf) (get-u8 buf) (get-u8 buf) (get-u8 buf)]))
 
 (defn- get-i64
-  "Read signed i64; returns host long on JVM, Number when safe on CLJS."
+  "Read signed i64: a long on the JVM, a signed BigInt on ClojureScript, as
+   the builder holds it (`types/scalar-entry`, #64)."
   [buf]
   (let [w (get-u64 buf)]
     #?(:clj (long w)
-       :cljs (js/Number (.asIntN js/BigInt 64 w)))))
+       :cljs (.asIntN js/BigInt 64 w))))
 
 (defn- get-f64
   [buf]

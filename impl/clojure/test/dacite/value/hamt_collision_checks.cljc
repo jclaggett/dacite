@@ -113,9 +113,9 @@
         [_ rd] (store/await (store/s-get st root))]
     (is (= (host/word 2) (v/count m)))
     (is (= 2 (count (hamt/hamt-entries st root))))
-    (is (= 1 (v/realize (v/get m k1))))
-    (is (= 2 (v/realize (v/get m k2))))
-    (is (= #{1 2} (set (map v/realize (v/vals m)))))
+    (is (= (host/->i64 1) (v/realize (v/get m k1))))
+    (is (= (host/->i64 2) (v/realize (v/get m k2))))
+    (is (= (set (map host/->i64 [1 2])) (set (map v/realize (v/vals m)))))
     (testing "the chunks of the two hashes are 31 31 10 7 and 31 31 10 28: a chunk
               value repeats (31 31, as in the report of issue 12, where it made
               two chain nodes hash alike), the three first chunks are shared, and
@@ -666,8 +666,8 @@
                (and
                 (= (host/word (count all)) (v/count m))
                 (empty? (check-tree st (:root (second (store/await (store/s-get st (v/hash m)))))))
-                (= expect (into {} (map (fn [[k x]] [(v/realize k) (v/realize x)]) (v/seq m))))
-                (every? (fn [k] (= k (v/realize (v/get m (v/i64 st k))))) all)
+                (= expect (into {} (map (fn [[k x]] [(host/i64->native (v/realize k)) (host/i64->native (v/realize x))]) (v/seq m))))
+                (every? (fn [k] (= k (host/i64->native (v/realize (v/get m (v/i64 st k)))))) all)
                 (nil? (v/get m (v/i64 st 999999)))
                 ;; the value hash is that of the same entries built in another order
                 (= (vec (v/hash m)) (vec (v/hash (value-map st (reverse ks) (reverse others)))))
@@ -675,12 +675,12 @@
                 (let [k (first ks)
                       m2 (v/assoc m (v/i64 st k) -1)
                       m3 (v/dissoc m2 (v/i64 st (second ks)))]
-                  (and (= -1 (v/realize (v/get m2 (v/i64 st k))))
+                  (and (= (host/->i64 -1) (v/realize (v/get m2 (v/i64 st k))))
                        (= (host/word (count all)) (v/count m2))
                        (= (host/word (dec (count all))) (v/count m3))
                        (nil? (v/get m3 (v/i64 st (second ks))))
-                       (= -1 (v/realize (v/get m3 (v/i64 st k))))
-                       (every? (fn [x] (= x (v/realize (v/get m3 (v/i64 st x)))))
+                       (= (host/->i64 -1) (v/realize (v/get m3 (v/i64 st k))))
+                       (every? (fn [x] (= x (host/i64->native (v/realize (v/get m3 (v/i64 st x))))))
                                (remove #{k (second ks)} all))))))))]
     (is (:pass? r) (str "seed " (:seed r) " failed on " (pr-str (:shrunk r))))))
 

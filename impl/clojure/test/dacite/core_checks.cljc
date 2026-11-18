@@ -66,7 +66,7 @@
 (defn integer-test
   [_]
   (testing "Integer constructors"
-    (is (= 42 (v/realize (v/i64 (ctx) 42))))
+    (is (= (host/->i64 42) (v/realize (v/i64 (ctx) 42))))
     (is (= (byte 1) (v/realize (v/i8 (ctx) 1))))
     (is (= (short 1) (v/realize (v/i16 (ctx) 1))))
     (is (= (int 1) (v/realize (v/i32 (ctx) 1))))))
@@ -240,7 +240,7 @@
   (testing "Returns [store last-value]"
     (let [[st result] (store/with-store [_s {}]
                         (let [v (v/i64 (ctx) 99)]
-                          (is (= 99 (v/realize v)))
+                          (is (= (host/->i64 99) (v/realize v)))
                           v))]
       (is (satisfies? store/IStore st))
       (is (store/await (store/s-has? st (v/hash result))))
@@ -253,7 +253,7 @@
           [st result] (store/with-store [bound s]
                         (let [v (v/i64 (ctx) 99)]
                           (is (identical? s bound))
-                          (is (= 99 (v/realize v)))
+                          (is (= (host/->i64 99) (v/realize v)))
                           :done))]
       (is (identical? s st))
       (is (= :done result)))))

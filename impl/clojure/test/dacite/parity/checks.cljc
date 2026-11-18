@@ -194,11 +194,13 @@
 
 (defn- edn-safe
   "A literal form both hosts can print the same way. A JVM char becomes
-   the one-character string nbb already uses."
+   the one-character string nbb already uses, and a safe nbb BigInt a Number."
   [x]
   (cond
     (or (nil? x) (boolean? x) (string? x) (keyword? x)) x
     (integer? x) #?(:clj (long x) :cljs x)
+    ;; an i64 in a form is a BigInt on nbb (#64); the goldens print a number
+    #?(:clj false :cljs (= js/BigInt (type x))) (host/i64->native x)
     #?(:clj (char? x) :cljs false) (str x)
     (map? x) (into {} (map (fn [[k v]] [(edn-safe k) (edn-safe v)])) x)
     (sequential? x) (mapv edn-safe x)
