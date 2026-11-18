@@ -473,6 +473,80 @@
       (is (= :bad-state reason) label)
       (is (re-find #"bad fuse state" msg) label))))
 
+;; ---------------------------------------------------------------------------
+;; A decoded node is the built node (#64)
+;; ---------------------------------------------------------------------------
+
+(defn- built-store
+  "A mem store holding one of every public value, big enough for inner
+   finger-tree and HAMT nodes: a map of 80 entries has bitmap nodes, and
+   its root uses chunk 31 (a bitmap with the high bit of its u32 set)."
+  []
+  (let [st (store/mem-store)]
+    (doseq [f [#(scalar/null-with-store %)
+               #(scalar/bool-with-store % false)
+               #(scalar/dacite-char-with-store % \u00e9)
+               #(scalar/i8-with-store % -128)
+               #(scalar/i16-with-store % 32767)
+               #(scalar/i32-with-store % -2147483648)
+               #(scalar/i64-with-store % -9007199254740991)
+               #(scalar/u8-with-store % 255)
+               #(scalar/u16-with-store % 65535)
+               #(scalar/u32-with-store % 4294967295)
+               #(scalar/u64-with-store % 0)
+               #(scalar/u64-with-store % 4294967296)
+               #(scalar/u64-with-store % 9007199254740991)
+               #(scalar/u256-with-store % (host-bytes (range 32)))
+               #(scalar/f32-with-store % (float 0.5))
+               #(scalar/f64-with-store % -0.25)
+               #(scalar/negative-with-store %)
+               #(coll/string-with-store % (apply str (repeat 20 "wire ")))
+               #(coll/blob-with-store % (host-bytes (range 64)))
+               #(coll/vector-with-store % (range 40))
+               #(apply coll/hash-map-with-store % (interleave (range 80) (map str (range 80))))
+               #(apply coll/dacite-set-with-store % (range 20))]]
+      (f st))
+    st))
+
+(defn- entry-bytes
+  "`x` with host bytes as byte vectors, so two byte arrays with the same
+   content are `=` (on both hosts: a byte array is not a value)."
+  [x]
+  (cond
+    (host-bytes? x) (byte-vec x)
+    (vector? x) (mapv entry-bytes x)
+    (map? x) (into {} (map (fn [[k v]] [k (entry-bytes v)])) x)
+    :else x))
+
+(defn a-decoded-node-is-the-built-node
+  [_]
+  ;; Every node the library builds, sent through the wire codec three ways (a
+  ;; node payload, a node item in a chunk, and the LMDB / IndexedDB store
+  ;; value), decodes to an entry `=` to the built one. On nbb that needs the
+  ;; same host words on both sides: a bitmap and a u64 are BigInts (#64).
+  (let [st (built-store)
+        entries (into [] (map (fn [[k e]] [#?(:clj k :cljs (store/hex->hash k)) e]))
+                      @(:data st))
+        types (set (map (comp first second) entries))
+        high-bit (host/shl64 (host/word 1) 31)]
+    (is (every? types ["hamt/bitmap" "hamt/entry" "u64" "u256" "blob" "map" "vector"])
+        (pr-str (sort types)))
+    (is (some (fn [[_ [t d]]]
+                (and (= "hamt/bitmap" t)
+                     (not (host/word-zero? (host/band64 (:bitmap d) high-bit)))))
+              entries)
+        "a bitmap uses chunk 31")
+    (doseq [[h e] entries
+            :let [t (first e)
+                  want (entry-bytes e)
+                  [item] (bin/decode-item-stream (bin/encode-item {:enc :node :hash h :entry e}))]]
+      (is (= want (entry-bytes (bin/decode-node-bytes (bin/encode-node-bytes e))))
+          (str "node payload " t))
+      (is (= want (entry-bytes (:entry item))) (str "node item " t))
+      (is (= h (:hash item)) (str "node item hash " t))
+      (is (= want (entry-bytes (bin/decode-store-value h (bin/encode-store-value e))))
+          (str "store value " t)))))
+
 (def checks
   {"run-repeat-have-wire-ids" run-repeat-have-wire-ids
    "u8-run-lit-keeps-raw-bytes" u8-run-lit-keeps-raw-bytes
@@ -487,4 +561,5 @@
    "reject-bad-magic-and-version" reject-bad-magic-and-version
    "pack-edn-bridge-round-trip" pack-edn-bridge-round-trip
    "spot-check-new-scalar-and-collection" spot-check-new-scalar-and-collection
-   "a-measure-state-outside-sl2-is-bad-state" a-measure-state-outside-sl2-is-bad-state})
+   "a-measure-state-outside-sl2-is-bad-state" a-measure-state-outside-sl2-is-bad-state
+   "a-decoded-node-is-the-built-node" a-decoded-node-is-the-built-node})

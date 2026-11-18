@@ -570,6 +570,10 @@
     (is (= 51 (:split d)))
     (is (= (word 0x10001) (:bitmap d)) "chunk 51 reads one bit as 0 or 16")
     (is (= :ok (verify-reason st root e)))
+    (testing "the node decoded from the wire is the built one, and verifies (#64)"
+      (let [[item] (bin/decode-item-stream (host-bytes (node-bytes root e)))]
+        (is (= e (:entry item)))
+        (is (= :ok (verify-reason st root (:entry item))))))
     (testing "S2: split 51 with another bitmap, hash right, is a bad entry"
       (let [[h1 e1] (forged (assoc d :bitmap (word 0x6)))
             [h2 e2] (forged (assoc d :bitmap (word 0x30000)))]
