@@ -45,6 +45,9 @@
 (deftest content-hash-strips-type
   (run-check "content-hash-strips-type"))
 
+(deftest max-u64-round-trips-through-edn
+  (run-check "max-u64-round-trips-through-edn"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

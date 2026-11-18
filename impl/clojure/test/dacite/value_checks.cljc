@@ -22,6 +22,7 @@
             [dacite.value.lit :as lit]
             [dacite.value.scalar :as scalar]
             [dacite.value.types :as types]
+            [dacite.wire :as wire]
             [dacite.wire.binary :as bin]))
 
 (def ^:private big-u64
@@ -176,8 +177,31 @@
     ;; An empty string's data hash is the group identity.
     (is (= (hash/state->ref hash/identity-state) (v2/content-hash (v2/string s ""))))))
 
+(defn max-u64-round-trips-through-edn
+  [_]
+  ;; 2^64 - 1 built, its literal written as EDN (`dacite.wire`), read back,
+  ;; and materialized in a new store is the built value (#64): on the JVM the
+  ;; reader gives 18446744073709551615N, which the u64 range check takes.
+  (let [s (store/mem-store)
+        built (v2/u64 s big-u64)
+        h (types/dacite-hash built)
+        form (pack/literal-of s h)
+        back (wire/read-edn (wire/write-edn form))
+        s2 (store/mem-store)
+        h2 (pack/materialize-literal! s2 (:type back) (:body back))]
+    (is (= form back) (pr-str back))
+    (is (= big-u64 (wire/read-edn "#dacite/u64 \"18446744073709551615\"")))
+    (is (= (vec h) (vec h2)) "materialized at the built hash")
+    (is (= big-u64 (v2/realize (scalar/wrap-scalar s2 h2))))
+    (is (= (store/await (store/s-get s h)) (store/await (store/s-get s2 h2)))
+        "the same entry, the word")
+    (testing "out of range still throws"
+      (is (= :above-max (u64-range-error #(pack/materialize-literal! s2 "u64" two-to-the-64))))
+      (is (= :negative (u64-range-error #(pack/materialize-literal! s2 "u64" -1)))))))
+
 (def checks
-  {"scalar-types-and-realize" scalar-types-and-realize
+  {"max-u64-round-trips-through-edn" max-u64-round-trips-through-edn
+   "scalar-types-and-realize" scalar-types-and-realize
    "values-are-not-derefable" values-are-not-derefable
    "scalar-validation" scalar-validation
    "content-addressing" content-addressing

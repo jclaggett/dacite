@@ -36,8 +36,11 @@
                           (if (= (type w) js/BigInt) w (js/BigInt w))))))
 
 (defn- ->word [s]
-  ;; Always unsigned decimal 0..2^64-1
-  #?(:clj  (Long/parseUnsignedLong (str s))
+  ;; Always unsigned decimal 0..2^64-1, read as its unsigned value (#64): on
+  ;; the JVM a long below 2^63 and a BigInt N at or above it, as the writer
+  ;; takes a u64 literal body; a BigInt on ClojureScript.
+  #?(:clj  (let [w (Long/parseUnsignedLong (str s))]
+             (if (neg? w) (+ 18446744073709551616N w) w))
      :cljs (.asUintN js/BigInt 64 (js/BigInt (str s)))))
 
 (defn- byte-buffer?
@@ -83,7 +86,9 @@
    'dacite/bytes bytes-from-edn})
 
 (defn read-edn
-  "Parse EDN store body with dacite/u64 readers."
+  "Parse EDN store body with dacite/u64 readers. A `#dacite/u64` reads as
+   its unsigned value: on the JVM a word >= 2^63 is a BigInt N, not the
+   negative long (`host/->word` gives the word back)."
   [s]
   #?(:clj  (edn/read-string {:readers readers} s)
      :cljs (reader/read-string {:readers readers} s)))
