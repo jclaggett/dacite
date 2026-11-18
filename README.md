@@ -102,6 +102,19 @@ See [Config](https://dacite.io/book/tutorial/config.html) ([source](docs/book/tu
 [Event log](https://dacite.io/book/tutorial/event-log.html) ([source](docs/book/tutorial/event-log.md)),
 and [Directory / blob sync](https://dacite.io/book/tutorial/sync.html) ([source](docs/book/tutorial/sync.md)).
 
+### Local peer (`npx dacite`)
+
+```bash
+npm install
+npm run browser:build              # the Value Browser bundle (needs Java + Clojure CLI)
+npx dacite                         # http://127.0.0.1:8790/app/ ; --port to change it
+```
+
+One process on one 127.0.0.1 port: the app pages, WebSocket signaling at
+`/signal`, and an nbb peer holding one welcome value. Open the `open` URL it
+prints and paste the `dacite://local#urn:dacite:<hex>` line it prints. See
+[docs/design/packaging.md](docs/design/packaging.md).
+
 ### Browser demos
 
 ```bash
