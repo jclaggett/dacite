@@ -17,7 +17,12 @@
   (:require [dacite.hash :as hash]
             [dacite.store :as store]
             [dacite.store.check :refer [is testing]]
-            [dacite.value :as v2]))
+            [dacite.store.pack :as pack]
+            [dacite.value :as v2]
+            [dacite.value.lit :as lit]
+            [dacite.value.scalar :as scalar]
+            [dacite.value.types :as types]
+            [dacite.wire.binary :as bin]))
 
 (def ^:private big-u64
   "2^64 - 1."
@@ -37,6 +42,14 @@
   (try (f) false
        (catch #?(:clj AssertionError :cljs :default) e
          #?(:clj (some? e) :cljs (boolean (re-find #"Assert failed" (str (ex-message e))))))))
+
+(defn- u64-range-error
+  "The :reason of the u64 range ex-info `(f)` throws (#64), or nil."
+  [f]
+  (try (f) nil
+       (catch #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo) e
+         (let [d (ex-data e)]
+           (when (= "u64" (:type d)) (:reason d))))))
 
 (defn- host-bytes
   "`n` zero bytes."
@@ -83,11 +96,23 @@
     (is (assert-fails? #(v2/u8 s -1)))
     (is (assert-fails? #(v2/u16 s 65536)))
     (is (assert-fails? #(v2/u32 s 4294967296)))
-    (is (assert-fails? #(v2/u64 s -1)))
-    ;; above 2^64 - 1 throws on both hosts, it does not wrap (#64)
-    (is (assert-fails? #(v2/u64 s two-to-the-64)))
-    (is (assert-fails? #(v2/u64 s 1e20)))
-    (is (= big-u64 (v2/realize (v2/u64 s big-u64))))
+    ;; a u64 out of 0..2^64-1 throws ex-info on both hosts, whatever
+    ;; *assert* is, at every entry point that takes host data (#64)
+    (doseq [[label f] [["v/u64" #(v2/u64 s %)]
+                       ["u64-with-store" #(scalar/u64-with-store s %)]
+                       ["u64" #(binding [store/*store* s] (scalar/u64 %))]
+                       ["scalar-with-store" #(scalar/scalar-with-store s "u64" %)]
+                       ["materialize-literal!" #(scalar/wrap-scalar s (pack/materialize-literal! s "u64" %))]
+                       ["page-body lit" #(scalar/wrap-scalar s (lit/intern-lit-item! s {:type "u64" :body %}))]]]
+      (is (= :negative (u64-range-error #(f -1))) label)
+      (is (= :above-max (u64-range-error #(f two-to-the-64))) label)
+      (is (some? (u64-range-error #(f 1e20))) label)
+      (is (= :not-an-integer (u64-range-error #(f 1.5))) label)
+      (is (= big-u64 (v2/realize (f big-u64))) label))
+    (testing "a u64 literal body is its value, not the word"
+      (let [form (pack/literal-of s (types/dacite-hash (v2/u64 s big-u64)))]
+        (is (= {:type "u64" :body big-u64} form))
+        (is (= form (bin/decode-lit-bytes (bin/encode-lit-bytes form))))))
     (is (assert-fails? #(v2/u256 s (host-bytes 31))))))
 
 ;; =============================================================================

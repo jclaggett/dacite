@@ -70,6 +70,10 @@
    (fn [v]
      (cond
        (host-word? v) (tagged-literal 'dacite/u64 (word->wire-str v))
+       ;; a u64 literal body >= 2^63 is a BigInt N on the JVM (#64): the same
+       ;; tag and text as the word nbb writes
+       #?(:clj (instance? clojure.lang.BigInt v) :cljs false)
+       (tagged-literal 'dacite/u64 (str v))
        (byte-buffer? v) (tagged-literal 'dacite/bytes (bytes->vec v))
        :else v))
    x))

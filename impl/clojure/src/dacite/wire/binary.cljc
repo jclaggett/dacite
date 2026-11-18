@@ -663,7 +663,8 @@
       "u64"
       (let [buf (bb 9)]
         (put-u8 buf tid)
-        (put-u64 buf body)
+        ;; a literal body is the u64 value (a BigInt N >= 2^63 on the JVM)
+        (put-u64 buf (host/->word body))
         (finish buf))
 
       "u256"
@@ -849,7 +850,8 @@
 
       "u64"
       (do (ensure-remaining buf 8)
-          (get-u64 buf))
+          ;; the value, not the word: 2^64-1 is 18446744073709551615N on the JVM
+          (host/word->unsigned (get-u64 buf)))
 
       "u256"
       (do (ensure-remaining buf 32)

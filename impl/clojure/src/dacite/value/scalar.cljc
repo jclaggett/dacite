@@ -156,12 +156,11 @@
 
 (defn u64-with-store
   "A u64 in an explicit store. `n` is 0..2^64-1 (a long or BigInt N on the
-   JVM, a Number or BigInt on nbb); a value above 2^64-1 throws, it does not
-   wrap."
+   JVM, a Number or BigInt on nbb); a negative value or one above 2^64-1
+   throws ex-info (`types/check-u64`), it does not wrap."
   [store n]
-  {:pre [(<= 0 n) (<= n host/max-u64)]}
   (scalar-with-store store "u64" n))
-(defn u64 [n] {:pre [(<= 0 n) (<= n host/max-u64)]} (u64-with-store store/*store* n))
+(defn u64 [n] (u64-with-store store/*store* n))
 
 (defn u256-with-store
   [store data]
