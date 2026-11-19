@@ -172,7 +172,8 @@ above, so it is `host` until those dependencies are `core`.
 | `bench-cp` | `host` | `impl/clojure/dev/bench_cp.clj` | JVM code-point microbench (`System/nanoTime`). |
 | `dacite.bench.library-storage` | `host` | `impl/clojure/src/dacite/bench/library_storage.clj` | JVM file and LMDB size bench, including `lmdbjava`. |
 | `dacite.bench.todo-bw` | `host` | `impl/clojure/src/dacite/bench/todo_bw.clj` | JVM pack-budget encode sweep (`clojure.pprint`, `System/exit`). |
-| `dacite.cli.peer` | `host` | `impl/clojure/src/dacite/cli/peer.cljs` | The nbb peer `npx dacite` runs (`bin/dacite.mjs`): WebRTC answerer in the launch room, in-memory store. |
+| `dacite.cli.peer` | `host` | `impl/clojure/src/dacite/cli/peer.cljs` | The nbb peer `npx dacite` runs (`bin/dacite.mjs`): WebRTC answerer in the launch room, over the store `dacite.cli.store` opens (or in memory). |
+| `dacite.cli.store` | `host` | `impl/clojure/src/dacite/cli/store.cljs` | The store `npx dacite` opens: the data dir, the engine marker, `LOCK` (Node `fs`, `process.kill`), and the LMDB or file store. |
 | `dacite.convert` | `host` | `impl/clojure/src/dacite/convert.clj` | JVM boundary between Dacite values and Clojure data (`byte-array`). |
 | `dacite.dev.gen-byte-table` | `host` | `impl/clojure/dev/dacite/dev/gen_byte_table.clj` | JVM SHA-256 regeneration of `dacite.byte-table`. |
 | `dacite.dev.gen-sl2-table` | `host` | `impl/clojure/dev/dacite/dev/gen_sl2_table.clj` | JVM regeneration of `dacite.sl2-table`. |

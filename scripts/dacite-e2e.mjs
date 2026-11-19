@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * JUSTIFICATION: one headless Chromium launch and two WebRTC handshakes
- * with the nbb peer. Browser startup and ICE are outside the 3 second
+ * JUSTIFICATION: one headless Chromium launch, three WebRTC handshakes,
+ * and three launches of the nbb peer. Browser startup and ICE are outside the 3 second
  * bound. The value is the small welcome value.
  *
  * `npx dacite` end to end (packaging slice 1): start `bin/dacite.mjs` on a
@@ -14,10 +14,18 @@
  * request goes to the one port. Last, a fresh tab given the URL without
  * the token is refused (`no-token`; the server answers 401).
  *
+ * The store (packaging slice 3) is the default one in a temp `DACITE_HOME`.
+ * A second launch on it while the first runs exits 1 naming the first's
+ * pid. Then the first is killed (SIGKILL, so its `LOCK` stays), and a
+ * third launch takes the stale `LOCK` over with the warning, prints the
+ * same value and entry count (the store kept it; nothing is put again),
+ * and a fresh tab fetches it from that peer.
+ *
  * Requires `npm run browser:build` first (the page bundle).
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -25,9 +33,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const bundle = path.join(root, 'examples', 'web', 'browser', 'js', 'main.js');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// The default store, in a temp data dir (DACITE_HOME).
+const home = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'dacite-e2e-'));
+const storeDir = path.join(home, 'store');
+
 function startDacite() {
   const child = spawn(process.execPath, [path.join(root, 'bin', 'dacite.mjs'), '--port', '0'], {
-    cwd: fs.mkdtempSync(path.join(fs.realpathSync('/tmp'), 'dacite-e2e-')),
+    cwd: home,
+    env: { ...process.env, DACITE_HOME: home },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const log = { child, out: '', err: '' };
@@ -72,10 +85,13 @@ async function main() {
   const { chromium } = await import('playwright');
   const d = startDacite();
   let browser;
+  let third;
+  let origin3 = 'none';
   try {
     const open = (await waitMatch(d, /^open (\S+)$/m, 20000, 'open'))[1];
     const hex = (await waitMatch(d, /^value ([0-9a-f]{64})$/m, 1000, 'value'))[1];
     const entries = (await waitMatch(d, /^entries (\d+)$/m, 1000, 'entries'))[1];
+    const storeLine = (await waitMatch(d, /^store (lmdb|file) (.+)$/m, 1000, 'store'));
     const origin = new URL(open).origin;
     const frag = new URLSearchParams(new URL(open).hash.slice(1));
     const signal = frag.get('signal');
@@ -131,18 +147,57 @@ async function main() {
     );
     eq('no token code', await bare.locator('#status').getAttribute('data-code'), 'no-token');
     await bare.close();
+    eq('store dir', storeLine[2], storeDir);
+    eq('engine marker', fs.readFileSync(path.join(storeDir, 'ENGINE'), 'utf8').trim(), storeLine[1]);
+    eq('LOCK holds the pid', fs.readFileSync(path.join(storeDir, 'LOCK'), 'utf8').trim(), String(d.child.pid));
+
+    // A second peer on the same store is refused while the first runs.
+    const second = startDacite();
+    await new Promise((r) => (second.child.exitCode != null ? r() : second.child.once('exit', r)));
+    eq('second launch exit', second.child.exitCode, 1);
+    if (!second.err.includes(`is in use by pid ${d.child.pid}`)) problems.push('second launch: ' + second.err);
+
+    // Kill the first without cleanup, then start again on the same store.
+    const killed = d.child.pid;
+    d.child.kill('SIGKILL');
+    await new Promise((r) => (d.child.exitCode != null || d.child.signalCode ? r() : d.child.once('exit', r)));
+    third = startDacite();
+    await waitMatch(third, new RegExp(`^taking over a stale LOCK from pid ${killed}$`, 'm'), 20000, 'takeover', 'err');
+    const open3 = (await waitMatch(third, /^open (\S+)$/m, 20000, 'open after restart'))[1];
+    eq('value after restart', (await waitMatch(third, /^value ([0-9a-f]{64})$/m, 1000, 'value'))[1], hex);
+    eq('entries after restart', (await waitMatch(third, /^entries (\d+)$/m, 1000, 'entries'))[1], entries);
+    const again = await context.newPage();
+    again.on('request', (req) => urls.push(req.url()));
+    await again.goto(open3, { waitUntil: 'domcontentloaded' });
+    await again.waitForFunction(
+      () => (document.getElementById('status')?.textContent || '') === 'paste a peer',
+      null,
+      { timeout: 20000 },
+    );
+    const got3 = await fetchHash(again, hex);
+    eq('restart code', got3.code, 'verified');
+    eq('restart entries', got3.entries, entries);
+    await again.close();
+    origin3 = new URL(open3).origin;
+    const token3 = new URLSearchParams(new URL(open3).hash.slice(1)).get('token');
+    if (urls.some((u) => u.includes(token3))) problems.push('restart token in a request URL');
 
     const withToken = urls.filter((u) => u.includes(token));
     if (withToken.length) problems.push('token in a request URL: ' + withToken.join(' | '));
-    const elsewhere = urls.filter((u) => !u.startsWith(origin + '/'));
+    const elsewhere = urls.filter((u) => !u.startsWith(origin + '/') && !u.startsWith(origin3 + '/'));
     if (elsewhere.length) problems.push('requests off the one port: ' + elsewhere.join(' | '));
     const leaked = urls.filter((u) => u.includes(hex) || u.includes('urn:dacite') || u.includes('/node/'));
     if (leaked.length) problems.push('hash requested over HTTP: ' + leaked.join(' | '));
     if (problems.length) throw new Error(problems.join('\n'));
-    console.log('ok', JSON.stringify({ entries: Number(entries), sessions: 2, refusedWithoutToken: true }));
+    console.log('ok', JSON.stringify({
+      entries: Number(entries), sessions: 3, refusedWithoutToken: true,
+      engine: storeLine[1], secondRefused: true, staleLockTakenOver: true,
+    }));
   } finally {
     if (browser) await browser.close().catch(() => {});
-    if (d.child.exitCode == null) d.child.kill('SIGTERM');
+    for (const p of [d, third]) if (p && p.child.exitCode == null) p.child.kill('SIGTERM');
+    if (third) await new Promise((r) => (third.child.exitCode != null ? r() : third.child.once('exit', r)));
+    fs.rmSync(home, { recursive: true, force: true });
   }
 }
 
