@@ -135,13 +135,68 @@
        (diff "kept" :v (store/await (store/s-get s keep)))
        (diff "dropped" false (store/await (store/s-has? s gone)))))))
 
+;; The recency order is a counter plus a sorted map. A plain vector model
+;; (oldest first, a touch moves a key to the end) is the reference: after
+;; every operation the store holds the keys the model holds.
+(defn- model-step
+  [capacity order [op k]]
+  (let [order' (vec (remove #(= k %) order))]
+    (case op
+      :put (let [order' (if (and (not (some #{k} order)) (pos? capacity)
+                                 (>= (count order) capacity))
+                          (vec (rest order'))
+                          order')]
+             (conj order' k))
+      :get (if (some #{k} order) (conj order' k) order)
+      :delete order')))
+
+(defn lru-order-matches-a-model-test
+  []
+  (let [capacity 4
+        s (lru/lru-store capacity)
+        h (fn [k] [k 0 0 0])
+        ;; A fixed walk: puts past the capacity, re-puts, gets of present and
+        ;; evicted keys, and deletes.
+        ops (take 300 (map (fn [i]
+                             [(nth [:put :put :get :put :get :delete :get] (mod i 7))
+                              (mod (+ (* 5 i) (quot i 3)) 9)])
+                           (range)))]
+    (loop [[[op k :as step] & more] ops order [] i 0 problems []]
+      (if-not step
+        problems
+        (do
+          (case op
+            :put (store/await (store/s-put s (h k) k))
+            :get (store/await (store/s-get s (h k)))
+            :delete (store/await (store/s-delete s (h k))))
+          (let [order' (model-step capacity order step)
+                held (set (filter #(store/await (store/s-has? s (h %))) (range 9)))]
+            (recur more order' (inc i)
+                   (into problems (diff (str "after op " i " " step) (set order') held)))))))))
+
+(defn lru-reset-restarts-the-order-test
+  []
+  (let [s (lru/lru-store 2)
+        h1 [1 0 0 0] h2 [2 0 0 0] h3 [3 0 0 0]]
+    (store/await (store/s-put s h1 :a))
+    (store/await (store/s-reset s))
+    (store/await (store/s-put s h2 :b))
+    (store/await (store/s-put s h3 :c))
+    (store/await (store/s-put s h1 :a))
+    (concat
+     (diff "the oldest after reset is evicted" false (store/await (store/s-has? s h2)))
+     (diff "kept" true (store/await (store/s-has? s h3)))
+     (diff "re-put" :a (store/await (store/s-get s h1))))))
+
 (def checks
   {"lru-eviction-test" lru-eviction-test
    "lru-read-through-touch-test" lru-read-through-touch-test
    "lru-delete-test" lru-delete-test
    "lru-real-hash-roundtrip-test" lru-real-hash-roundtrip-test
    "lru-real-hash-eviction-test" lru-real-hash-eviction-test
-   "lru-real-hash-sweep-test" lru-real-hash-sweep-test})
+   "lru-real-hash-sweep-test" lru-real-hash-sweep-test
+   "lru-order-matches-a-model-test" lru-order-matches-a-model-test
+   "lru-reset-restarts-the-order-test" lru-reset-restarts-the-order-test})
 
 (def max-ms
   "No check may take longer than this (milliseconds)."

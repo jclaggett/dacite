@@ -2,7 +2,8 @@
   "Drive the shipped wire-v1 codec against goldens and live public values.
 
    The checks are `dacite.wire.binary-checks`, shared with nbb
-   (`npm run wire:test`); each runs here as a deftest under its old name."
+   (`npm run wire:test`); each runs here as a deftest under its old name.
+   `signed-from-be-takes-at-most-4-bytes` is JVM only."
   (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [cheshire.core :as json]
@@ -73,9 +74,18 @@
 (deftest an-i64-read-from-edn-is-the-built-i64
   (run-check "an-i64-read-from-edn-is-the-built-i64"))
 
+(deftest signed-from-be-takes-at-most-4-bytes
+  ;; JVM only: the private decoder, and an AssertionError, are host pieces.
+  (let [f #'bin/signed-from-be]
+    (is (= -2 (f (byte-array (map unchecked-byte [0xff 0xff 0xff 0xfe])))) "an i32 body")
+    (is (= -128 (f (byte-array [(unchecked-byte 0x80)]))) "an i8 body")
+    (is (thrown-with-msg? AssertionError #"at most 4 bytes, got 5"
+                          (f (byte-array [0 0 0 0 1]))))))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)
                          (filter #(-> % meta :test) (vals (ns-interns 'dacite.wire.binary-test)))))
-               "every-check-has-a-deftest"))
+               "every-check-has-a-deftest"
+               "signed-from-be-takes-at-most-4-bytes"))
       "binary_checks.cljc and this file list the same tests"))

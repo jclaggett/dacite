@@ -370,10 +370,13 @@
       (fn []
        (let [fr (frame/decode-frame frame-bytes)
             hello? (some? (get-in @(:state r) [:sessions peer :peer-hello]))
-            type (:type fr)]
+            type (:type fr)
+            ;; The message, decoded once and only by a branch that reads it:
+            ;; an unknown type or an early frame is never decoded.
+            m (delay (msg/decode-message frame-bytes))]
         (cond
           (= :hello type)
-          (let [{:keys [value]} (msg/decode-message frame-bytes)
+          (let [{:keys [value]} @m
                 mine (or (get-in @(:state r) [:sessions peer :advertised]) (:hello r))]
             (when hello? (throw (ex-info "a second hello" {:reason :second-hello})))
             (swap! (:state r) update-in [:sessions peer]
@@ -386,7 +389,7 @@
                    :last-tick ((:now r))))
 
           (= :error type)
-          (let [{:keys [stream value]} (msg/decode-message frame-bytes)]
+          (let [{:keys [stream value]} @m]
             (when (or (zero? stream) (get value "fatal"))
               (swap! (:state r) update-in [:sessions peer] assoc :status :ended :streams {})
               ((:close! r) peer)))
@@ -394,19 +397,19 @@
           (not hello?)
           (throw (ex-info "a frame before the peer's hello" {:reason :before-hello}))
 
-          (= :get type) (on-get! r peer (msg/decode-message frame-bytes))
+          (= :get type) (on-get! r peer @m)
 
           (number? type) (send-message! r peer (error-message (:stream fr) "unsupported"
                                                               "unknown message type" false))
 
           (= :ack type)
-          (let [{:keys [value]} (msg/decode-message frame-bytes)
+          (let [{:keys [value]} @m
                 hks (mapv msg/hash-ref-hex (get value "hashes"))]
             (swap! (:state r) update-in [:sessions peer :record]
                    #(record-ack (or % (record-empty)) hks)))
 
           (= :cancel type)
-          (cancel-stream! r peer (:stream (msg/decode-message frame-bytes)))
+          (cancel-stream! r peer (:stream @m))
 
           :else (throw (ex-info "a frame this side never accepts" {:reason :unexpected :type type})))))
       (fn [e]

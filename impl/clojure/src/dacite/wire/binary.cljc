@@ -156,10 +156,13 @@
 
    On ClojureScript, `bit-shift-left` is a 32-bit signed op: `(bit-shift-left
    1 32)` is 1 and `(bit-shift-left 1 31)` is negative, so a 4-byte (i32)
-   body decoded off by 2^32 - 1. 2^bits is `Math.pow` there."
+   body decoded off by 2^32 - 1. 2^bits is `Math.pow` there.
+
+   At most 4 bytes (i8, i16, i32); an i64 body decodes through `get-i64`."
   [bs]
   (let [bs (as-wire-bytes bs)
         n (byte-len bs)
+        _ (assert (<= n 4) (str "signed-from-be takes at most 4 bytes, got " n))
         mag (loop [i 0 acc 0]
               (if (= i n)
                 acc

@@ -344,8 +344,15 @@
 
 #?(:clj
    (do
-     (defn- rooted-var [sym]
-       (requiring-resolve (symbol "dacite.rooted" (name sym))))
+     (defn- rooted-var
+       "The var `dacite.rooted/<sym>`, loading `dacite.rooted` on first use.
+        Throws ex-info naming the namespace when it does not resolve."
+       [sym]
+       (let [q (symbol "dacite.rooted" (name sym))]
+         (or (requiring-resolve q)
+             (throw (ex-info (str q " did not resolve: require dacite.rooted,"
+                                  " which defines the rooted store")
+                             {:ns 'dacite.rooted :var q})))))
 
      (defn mem-root-cell
        "Ephemeral root cell (atom only)."

@@ -2,8 +2,9 @@
   "M3.3: one durable-store check and one peer check, parameterized over the
    nbb file store, nbb LMDB, and IndexedDB.
 
-   The store check is get, put, has?, eviction, a key scan, and a write that is
-   still there after the store is closed and opened again. Eviction passes
+   The store check is get, put, has?, eviction, an entry count
+   (`local-stats`), and a write that is still there after the store is
+   closed and opened again. Eviction passes
    `:cache-limit 1` (IndexedDB drops the older node from memory and reads it
    back; the file and LMDB stores have no read cache, so the same assertions
    are the durable contract: a put is not dropped).
