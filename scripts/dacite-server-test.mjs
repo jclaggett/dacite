@@ -16,6 +16,17 @@
  * 5. Two sockets in one room relay a signal through /signal.
  * 6. A symlink out of the served root is 403.
  * 7. Every HTTP response carries `Referrer-Policy: no-referrer`.
+ * 8. `GET /dacite/version` (docs/design/packaging.md §P2): the version,
+ *    proto, and pid as JSON, Host-checked, no CORS header, GET and HEAD
+ *    only; `probeDacite` reads it and returns null for anything else.
+ * 9. Port reuse: the bin on a taken port three ways (§P2 Tests). A plain
+ *    HTTP server and a dacite of another version exit 1 with their line,
+ *    before nbb loads. Our version with its run file prints the run
+ *    file's URL and exits 0.
+ *
+ * JUSTIFICATION: step 9's reuse case starts the bin, which loads nbb and
+ * the peer namespaces (about 1.5 s) before it reads the run file. The
+ * other two exit before nbb loads.
  */
 import crypto from 'crypto';
 import assert from 'assert';
@@ -23,8 +34,42 @@ import fs from 'fs';
 import http from 'http';
 import os from 'os';
 import path from 'path';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
-import { offeredToken, startDacite, tokenOk } from './dacite-server.mjs';
+import { PROTO, VERSION, isDaciteInfo, offeredToken, probeDacite, startDacite, tokenOk, versionInfo } from './dacite-server.mjs';
+
+const bin = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'dacite.mjs');
+
+/** Run the bin to its exit: {code, out, err}. */
+function runBin(args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [bin, ...args], {
+      env: { ...process.env, ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { err += d; });
+    const timer = setTimeout(() => child.kill('SIGKILL'), 20000);
+    child.on('error', reject);
+    child.on('exit', (code) => { clearTimeout(timer); resolve({ code, out, err }); });
+  });
+}
+
+function request(port, p, method, hostHeader) {
+  return new Promise((resolve, reject) => {
+    const headers = hostHeader === undefined ? {} : { host: hostHeader };
+    const req = http.request({ host: '127.0.0.1', port, path: p, method, headers }, (res) => {
+      let body = '';
+      res.on('data', (d) => { body += d; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
 
 function get(port, p, hostHeader) {
   return new Promise((resolve, reject) => {
@@ -105,6 +150,30 @@ try {
     assert.strictEqual(r.headers['referrer-policy'], 'no-referrer', `Host ${h}`);
   }
 
+  // GET /dacite/version.
+  r = await get(port, '/dacite/version');
+  assert.strictEqual(r.status, 200);
+  assert.match(r.headers['content-type'], /application\/json/);
+  assert.strictEqual(r.headers['cache-control'], 'no-store');
+  assert.strictEqual(r.headers['access-control-allow-origin'], undefined, 'no CORS');
+  assert.strictEqual(r.headers['referrer-policy'], 'no-referrer');
+  assert.deepStrictEqual(JSON.parse(r.body), { dacite: VERSION, proto: 1, pid: process.pid });
+  assert.deepStrictEqual(versionInfo(), { dacite: VERSION, proto: PROTO, pid: process.pid });
+  assert.strictEqual(VERSION, JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
+  r = await get(port, '/dacite/version?x=1', `localhost:${port}`);
+  assert.strictEqual(r.status, 200);
+  r = await get(port, '/dacite/version', 'evil.example');
+  assert.strictEqual(r.status, 403, 'version is Host-checked');
+  r = await request(port, '/dacite/version', 'HEAD');
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.body, '');
+  r = await request(port, '/dacite/version', 'POST');
+  assert.strictEqual(r.status, 405);
+  assert.deepStrictEqual(await probeDacite(port), { dacite: VERSION, proto: 1, pid: process.pid });
+  assert.strictEqual(isDaciteInfo({ dacite: '1', proto: 1, pid: 0 }), false);
+  assert.strictEqual(isDaciteInfo({ dacite: 1, proto: 1, pid: 2 }), false);
+  assert.strictEqual(isDaciteInfo(null), false);
+
   const base = `ws://127.0.0.1:${port}/signal/room/t1`;
   // Origin and Host checks on the upgrade.
   let w = await openWs(base, { origin: 'http://evil.example' });
@@ -180,5 +249,80 @@ try {
   }
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
+}
+// probeDacite on things that are not a dacite.
+{
+  const plain = http.createServer((req, res) => {
+    if (req.url === '/dacite/version') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"name": "something else"}');
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  const silent = http.createServer(() => { /* never answers */ });
+  const notJson = http.createServer((req, res) => { res.writeHead(200); res.end('<html>'); });
+  const servers = [plain, silent, notJson];
+  for (const sv of servers) await new Promise((r) => sv.listen(0, '127.0.0.1', r));
+  try {
+    assert.strictEqual(await probeDacite(plain.address().port), null, 'another JSON shape');
+    const t0 = Date.now();
+    assert.strictEqual(await probeDacite(silent.address().port, { timeoutMs: 200 }), null, 'no answer');
+    assert.ok(Date.now() - t0 < 1000, 'the probe times out');
+    assert.strictEqual(await probeDacite(notJson.address().port), null, 'not JSON');
+    const closed = plain.address().port;
+    await new Promise((r) => plain.close(r));
+    assert.strictEqual(await probeDacite(closed), null, 'nothing listening');
+  } finally {
+    for (const sv of servers) { sv.closeAllConnections?.(); sv.close(); }
+  }
+}
+
+// Port reuse: the bin on a taken port, three ways. DACITE_HOME is a temp
+// dir, never the real data dir.
+{
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dacite-reuse-'));
+  const env = { DACITE_HOME: home };
+  const plain = http.createServer((req, res) => { res.writeHead(404); res.end(); });
+  await new Promise((r) => plain.listen(0, '127.0.0.1', r));
+  const other = await startDacite({ port: 0, token: TOKEN, version: '0.0.1-other' });
+  const ours = await startDacite({ port: 0, token: TOKEN });
+  try {
+    // A plain HTTP server.
+    let b = await runBin(['--port', String(plain.address().port)], env);
+    assert.strictEqual(b.code, 1, b.err);
+    assert.strictEqual(b.err.trim(), `port ${plain.address().port} is in use by another program; pass --port.`);
+    assert.strictEqual(b.out, '');
+
+    // A dacite of another version.
+    b = await runBin(['--port', String(other.port)], env);
+    assert.strictEqual(b.code, 1, b.err);
+    assert.strictEqual(b.err.trim(),
+      `dacite 0.0.1-other (pid ${process.pid}) is running on port ${other.port}; this is ${VERSION}. Stop it or pass --port.`);
+
+    // Our version, with the run file a peer on that port writes.
+    const open = `http://127.0.0.1:${ours.port}/app/browser/#signal=x&room=r&token=${TOKEN}`;
+    fs.mkdirSync(path.join(home, 'run'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'run', `${ours.port}.json`), JSON.stringify({
+      ...versionInfo(), port: ours.port, url: ours.appUrl, signal: ours.signalUrl, room: 'r',
+      token: TOKEN, open, store: path.join(home, 'store'), engine: 'lmdb', value: 'ab12',
+    }));
+    b = await runBin(['--port', String(ours.port)], env);
+    assert.strictEqual(b.code, 0, b.err);
+    assert.deepStrictEqual(b.out.trim().split('\n'), [
+      `dacite already running ${ours.appUrl} (pid ${process.pid})`,
+      `store lmdb ${path.join(home, 'store')}`,
+      'value ab12',
+      `open ${open}`,
+      'paste dacite://local#urn:dacite:ab12',
+    ]);
+    assert.ok(!fs.existsSync(path.join(home, 'store')), 'reuse opens no store');
+  } finally {
+    plain.close();
+    await other.close();
+    await ours.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 }
 console.log('dacite-server ok');

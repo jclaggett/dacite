@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * JUSTIFICATION: one headless Chromium launch, three WebRTC handshakes,
- * and three launches of the nbb peer. Browser startup and ICE are outside the 3 second
+ * and four launches of the nbb peer. Browser startup and ICE are outside the 3 second
  * bound. The value is the small welcome value.
  *
  * `npx dacite` end to end (packaging slice 1): start `bin/dacite.mjs` on a
@@ -14,12 +14,16 @@
  * request goes to the one port. Last, a fresh tab given the URL without
  * the token is refused (`no-token`; the server answers 401).
  *
- * The store (packaging slice 3) is the default one in a temp `DACITE_HOME`.
- * A second launch on it while the first runs exits 1 naming the first's
+ * The store (packaging slice 3) is the default one in a temp `DACITE_HOME`
+ * the peer creates (0700 on POSIX). The run file (slice 4) holds the
+ * printed URL and token, mode 0600 in a 0700 `run/`. `npx dacite` again on
+ * the same port prints the same URL and exits 0. A second launch on the
+ * store with another port, while the first runs, exits 1 naming the first's
  * pid. Then the first is killed (SIGKILL, so its `LOCK` stays), and a
  * third launch takes the stale `LOCK` over with the warning, prints the
  * same value and entry count (the store kept it; nothing is put again),
- * and a fresh tab fetches it from that peer.
+ * and a fresh tab fetches it from that peer. Its clean exit (SIGTERM)
+ * removes its run file; the killed peer's run file stays.
  *
  * Requires `npm run browser:build` first (the page bundle).
  */
@@ -33,14 +37,18 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const bundle = path.join(root, 'examples', 'web', 'browser', 'js', 'main.js');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// The default store, in a temp data dir (DACITE_HOME).
+// The default store, in a temp data dir (DACITE_HOME) that the peer
+// creates (so its 0700 mode is the peer's doing, not mkdtemp's).
 const home = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'dacite-e2e-'));
-const storeDir = path.join(home, 'store');
+const dataDir = path.join(home, 'data');
+const storeDir = path.join(dataDir, 'store');
+const posix = process.platform !== 'win32';
+const mode = (p) => fs.statSync(p).mode & 0o777;
 
-function startDacite() {
-  const child = spawn(process.execPath, [path.join(root, 'bin', 'dacite.mjs'), '--port', '0'], {
+function startDacite(port = '0') {
+  const child = spawn(process.execPath, [path.join(root, 'bin', 'dacite.mjs'), '--port', port], {
     cwd: home,
-    env: { ...process.env, DACITE_HOME: home },
+    env: { ...process.env, DACITE_HOME: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const log = { child, out: '', err: '' };
@@ -153,6 +161,27 @@ async function main() {
       `${storeLine[1]} ${{ lmdb: 2, file: 1 }[storeLine[1]]}\n`);
     eq('LOCK holds the pid', fs.readFileSync(path.join(storeDir, 'LOCK'), 'utf8').trim(), String(d.child.pid));
 
+    // The run file (§P2): the URL with its token, 0600 in a 0700 run/.
+    const port1 = new URL(open).port;
+    const runPath = path.join(dataDir, 'run', `${port1}.json`);
+    const runFile = JSON.parse(fs.readFileSync(runPath, 'utf8'));
+    eq('run line', (await waitMatch(d, /^run (.+)$/m, 1000, 'run'))[1], runPath);
+    eq('run file open', runFile.open, open);
+    eq('run file token', runFile.token, token);
+    eq('run file pid', runFile.pid, d.child.pid);
+    eq('run file store', runFile.store, storeDir);
+    if (posix) {
+      eq('run file mode', mode(runPath), 0o600);
+      eq('run dir mode', mode(path.dirname(runPath)), 0o700);
+      eq('data dir mode', mode(dataDir), 0o700);
+    }
+
+    // npx dacite again on the same port: the same URL, exit 0 (§P2).
+    const reuse = startDacite(port1);
+    await new Promise((r) => (reuse.child.exitCode != null ? r() : reuse.child.once('exit', r)));
+    eq('reuse exit', reuse.child.exitCode, 0);
+    eq('reuse open', (reuse.out.match(/^open (\S+)$/m) || [])[1], open);
+
     // A second peer on the same store is refused while the first runs.
     const second = startDacite();
     await new Promise((r) => (second.child.exitCode != null ? r() : second.child.once('exit', r)));
@@ -180,6 +209,15 @@ async function main() {
     eq('restart code', got3.code, 'verified');
     eq('restart entries', got3.entries, entries);
     await again.close();
+    // A clean exit removes its run file; the killed peer's stays (stale).
+    const port3 = new URL(open3).port;
+    const runPath3 = path.join(dataDir, 'run', `${port3}.json`);
+    eq('third run file', fs.existsSync(runPath3), true);
+    third.child.kill('SIGTERM');
+    await new Promise((r) => (third.child.exitCode != null ? r() : third.child.once('exit', r)));
+    eq('third exit', third.child.exitCode, 0);
+    eq('run file removed on a clean exit', fs.existsSync(runPath3), false);
+    eq('stale run file of the killed peer', fs.existsSync(runPath), true);
     origin3 = new URL(open3).origin;
     const token3 = new URLSearchParams(new URL(open3).hash.slice(1)).get('token');
     if (urls.some((u) => u.includes(token3))) problems.push('restart token in a request URL');
@@ -193,7 +231,7 @@ async function main() {
     if (problems.length) throw new Error(problems.join('\n'));
     console.log('ok', JSON.stringify({
       entries: Number(entries), sessions: 3, refusedWithoutToken: true,
-      engine: storeLine[1], secondRefused: true, staleLockTakenOver: true,
+      engine: storeLine[1], reused: true, secondRefused: true, staleLockTakenOver: true,
     }));
   } finally {
     if (browser) await browser.close().catch(() => {});

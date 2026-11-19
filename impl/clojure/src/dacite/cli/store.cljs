@@ -62,14 +62,17 @@
   (let [e (.-env js/process)]
     (into {} (map (fn [k] [k (aget e k)])) (js-keys e))))
 
+(defn default-data-dir
+  "The data dir for this process (`data-dir` of its env, platform, and home)."
+  []
+  (data-dir {:env (process-env)
+             :platform (.-platform js/process)
+             :home (.homedir os)}))
+
 (defn default-store-dir
   "`<data dir>/store` for this process."
   []
-  (.join node-path
-         (data-dir {:env (process-env)
-                    :platform (.-platform js/process)
-                    :home (.homedir os)})
-         "store"))
+  (.join node-path (default-data-dir) "store"))
 
 ;; =============================================================================
 ;; Engine

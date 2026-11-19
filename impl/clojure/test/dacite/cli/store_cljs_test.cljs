@@ -9,9 +9,13 @@
    fallback warning; `LOCK` (fresh, a live pid refused, a dead pid taken
    over with the warning, a lost takeover, mode 0600 on POSIX); and a
    store that keeps its value across a stop and a start, on the file
-   engine and on LMDB when it loads. Node only: no JVM side."
+   engine and on LMDB when it loads. Node only: no JVM side.
+
+   It also runs `dacite.cli.run-checks` (the run file, port reuse, and the
+   0700 data dir)."
   (:require [clojure.string :as str]
             [dacite.cli.peer :as peer]
+            [dacite.cli.run-checks :as run-checks]
             [dacite.cli.store :as cs]
             [dacite.rooted :as rooted]
             [dacite.rooted.gc :as gc]
@@ -287,10 +291,11 @@
   (let [rows (try (mapv #(check/run-one checks {} % 1500) (sort (keys checks)))
                   (finally
                     (doseq [d @dirs] (.rmSync fs d #js {:recursive true :force true}))))
+        rows (into rows (run-checks/run-all))
         bad (mapcat (fn [{:keys [name problems]}] (map #(str name ": " %) problems)) rows)]
-    (println (str "dacite cli store checks: " (count rows) " tests, " (count bad)
+    (println (str "dacite cli store and run checks: " (count rows) " tests, " (count bad)
                   " problems, slowest " (check/slowest rows)))
     (doseq [p bad] (println "  FAIL" p))
     (if (seq bad)
       (js/process.exit 1)
-      (println "dacite cli store tests passed"))))
+      (println "dacite cli store and run tests passed"))))

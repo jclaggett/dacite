@@ -26,14 +26,65 @@
  *     it. The server answers with the subprotocol `dacite.v1` only, so the
  *     token is never echoed.
  *   - Every HTTP response carries `Referrer-Policy: no-referrer`.
+ *
+ * `GET /dacite/version` (docs/design/packaging.md §P2), after the Host
+ * check, with no token and no CORS headers, answers
+ * `{"dacite": "<package version>", "proto": 1, "pid": <pid>}`. A second
+ * `npx dacite` on a taken port asks it with `probeDacite`.
  */
 import crypto from 'crypto';
+import fs from 'fs';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import { staticHandler, webRoot } from './static-server.mjs';
 import { createRelay, MAX_MESSAGE } from './webrtc-signal-server.mjs';
 
 export const SIGNAL_PATH = '/signal';
+export const VERSION_PATH = '/dacite/version';
+/** The `/dacite/version` protocol number (`dacite.cli.run/proto`). */
+export const PROTO = 1;
+/** This package's version, from package.json. */
+export const VERSION = JSON.parse(
+  fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+).version;
+
+/** What `/dacite/version` answers for this process. */
+export function versionInfo({ version = VERSION, proto = PROTO, pid = process.pid } = {}) {
+  return { dacite: version, proto, pid };
+}
+
+/** True when `info` is a `/dacite/version` answer (any version). */
+export function isDaciteInfo(info) {
+  return info !== null && typeof info === 'object' && typeof info.dacite === 'string'
+    && Number.isInteger(info.proto) && Number.isInteger(info.pid) && info.pid > 0;
+}
+
+/**
+ * Ask `http://127.0.0.1:<port>/dacite/version`. Resolves with the answer
+ * when it is a dacite one, else null (no answer within `timeoutMs`, not
+ * 200, not JSON, or not that shape). Never rejects.
+ */
+export function probeDacite(port, { timeoutMs = 500 } = {}) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    const req = http.get({ host: '127.0.0.1', port, path: VERSION_PATH, timeout: timeoutMs }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); finish(null); return; }
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (d) => { body += d; if (body.length > 4096) req.destroy(); });
+      res.on('end', () => {
+        try {
+          const info = JSON.parse(body);
+          finish(isDaciteInfo(info) ? info : null);
+        } catch { finish(null); }
+      });
+      res.on('error', () => finish(null));
+    });
+    req.on('timeout', () => { req.destroy(); finish(null); });
+    req.on('error', () => finish(null));
+  });
+}
 export const SIGNAL_PROTOCOL = 'dacite.v1';
 export const TOKEN_PREFIX = 'dacite.token.';
 
@@ -73,9 +124,11 @@ function refuseUpgrade(socket, code, text) {
  * Start the server. Resolves with `{ port, host, appUrl, signalUrl, close }`.
  * `port` 0 asks the OS for a free port; the Host and Origin checks use the
  * bound port. The host is always 127.0.0.1. `token` is the `/signal`
- * secret (`bin/dacite.mjs` makes one per run); it is required.
+ * secret (`bin/dacite.mjs` makes one per run); it is required. `version`
+ * is what `/dacite/version` reports (default this package's; tests fake
+ * another).
  */
-export function startDacite({ port = 8790, root = webRoot, log = false, token } = {}) {
+export function startDacite({ port = 8790, root = webRoot, log = false, token, version = VERSION } = {}) {
   if (typeof token !== 'string' || token.length === 0) {
     return Promise.reject(new Error('startDacite needs a /signal token'));
   }
@@ -90,6 +143,16 @@ export function startDacite({ port = 8790, root = webRoot, log = false, token } 
     if (!hostOk(req)) {
       res.writeHead(403, { 'content-type': 'text/plain' });
       res.end('host not allowed');
+      return;
+    }
+    if (new URL(req.url || '/', 'http://127.0.0.1').pathname === VERSION_PATH) {
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        res.writeHead(405, { allow: 'GET, HEAD', 'content-type': 'text/plain' });
+        res.end('method not allowed');
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(req.method === 'HEAD' ? undefined : JSON.stringify(versionInfo({ version })));
       return;
     }
     serveStatic(req, res);

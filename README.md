@@ -115,7 +115,8 @@ One process on one 127.0.0.1 port: the app pages, WebSocket signaling at
 `/signal`, and an nbb peer over a persistent store (`<data dir>/store`; the
 data dir is `DACITE_HOME`, else `~/Library/Application Support/Dacite`,
 `${XDG_DATA_HOME:-~/.local/share}/dacite`, or `%LOCALAPPDATA%\Dacite`). A new
-store gets one welcome value. Open the `open` URL it prints and paste the
+store gets one welcome value. Running `npx dacite` again while it runs
+prints the same URL (from `<data dir>/run/<port>.json`) and exits. Open the `open` URL it prints and paste the
 `dacite://local#urn:dacite:<hex>` line it prints. See
 [docs/design/packaging.md](docs/design/packaging.md).
 
