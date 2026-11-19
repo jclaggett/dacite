@@ -1,6 +1,6 @@
 # Packaging the Local Peer (Design Note, Draft)
 
-Status: draft, Nov 12, 2026. Post-parity. Slice 1 (`npx dacite` on one port) is built; see "Slices" below.
+Status: draft, Nov 12, 2026. Post-parity. Slice 1 (`npx dacite` on one port) is built. The plan for the rest of packaging was decided Nov 19, 2026; see "Plan (decided Nov 19)" and "Slices" below.
 
 ## The idea in three lines
 
@@ -23,7 +23,7 @@ One port and one origin keep it simple. The page reads its own origin, opens `ws
 Rough CLI:
 
 - `npx dacite` starts the peer and prints the app URL.
-- `npx dacite --port 8790 --store ~/somewhere` overrides the defaults.
+- `npx dacite --port 8790 --store ~/somewhere` overrides the defaults (`--store` and `--memory`: Plan §P3).
 - `npx dacite open <app>` opens a bundled app (the Value Browser first) in the default browser.
 
 Bind to `127.0.0.1` by default. Listening on the LAN is a later, explicit flag.
@@ -40,8 +40,8 @@ Commands: `dacite service install`, `dacite service uninstall`, `dacite service 
 
 | Topic | Proposal |
 |---|---|
-| Port | A fixed default (pick one, e.g. 8790), recorded in a config file so apps can find it. If it's taken, fail loudly; don't drift to a random port. |
-| Store | Platform data dir: `~/Library/Application Support/Dacite` (macOS), `$XDG_DATA_HOME/dacite` (Linux). |
+| Port | 8790 (slice 1). If our own peer holds it, reuse it; anything else fails loudly; never drift to a random port (Plan §P2, decided). |
+| Store | The default data dir (Plan §P3, decided). |
 | Config | `config.edn` beside the store: port, store path, log level. |
 | Logs | macOS: a file in `~/Library/Logs/Dacite`. Linux: journald (`journalctl --user -u dacite`). |
 | Auto-update | Not in v1. `dacite service install` pins the installed version. Updating is `npm i -g dacite@latest` and then a restart. Revisit when there are real users. |
@@ -67,10 +67,73 @@ Commands: `dacite service install`, `dacite service uninstall`, `dacite service 
 
 **Pages from elsewhere (https) talking to localhost.** If an https site tries to load code or open a socket to `http://localhost`, it runs into mixed-content rules and Chrome's private/local network access checks (a permission prompt in recent Chrome). Safari is stricter. Behavior varies by browser and keeps changing. Lean: avoid the problem. The local peer serves the whole page, so the page and its peer share one localhost origin. An https-hosted app that wants the local peer is out of scope for v1.
 
-**Security basics.** Loopback bind by default. Any local process could reach the peer, which is fine for public content-addressed data and not fine for anything private. The room token, or a per-launch secret in the URL, is the minimum. Decide before the service is always-on.
+**Security basics.** Loopback bind by default. Any local process could reach the peer, which is fine for public content-addressed data and not fine for anything private. Decided Nov 19: `/signal` takes a secret token (Plan §P1), which ships before `dacite service install`.
 
 - **WebSockets skip CORS.** Any website the user visits can open `ws://localhost:<port>/signal`. The peer must reject a `/signal` upgrade whose `Origin` is not its own (`http://localhost:<port>` or `http://127.0.0.1:<port>`).
 - **DNS rebinding.** Check the `Host` header on every request, both static and `/signal`, and accept only `localhost:<port>` and `127.0.0.1:<port>`.
+
+## Plan (decided Nov 19, 2026)
+
+Jonathan's call: finish packaging, then Value Browser rendering (M6.5). He decided the four items below (the `/signal` token, port reuse, a persistent store, and bundles built at pack time); only the details listed under "Open questions for Jonathan" are still open. No code here; each item is one slice (see "Slices").
+
+What exists today (slice 1): `bin/dacite.mjs` parses `--port` only, starts `startDacite` (`scripts/dacite-server.mjs`), makes a room `dacite-<12 random bytes, base64url>` for this launch, loads `bin/dacite-peer.cljs` (which returns `dacite.cli.peer/start!`), and prints `open http://127.0.0.1:<port>/app/browser/?signal=…&room=…`. `startDacite` checks `Host` on every request (`allowedHosts`) and `Origin` on an upgrade (`allowedOrigins`); an upgrade with no `Origin` is let in. The relay is `createRelay` (`scripts/webrtc-signal-server.mjs`) at `/signal/room/<token>`. `dacite.cli.peer/start!` holds one welcome value in a `store/mem-store`. The pages read `signal` and `room` from the query (`URLSearchParams` in `browser_web.cljs`, `peer_web.cljs`, `library_web.cljs`). On EADDRINUSE the bin prints `port <n> is in use; pass --port` and exits 1.
+
+### P1. The `/signal` token (decided)
+
+- **Generation.** `crypto.randomBytes(32).toString('base64url')`: 256 bits, 43 characters, no padding. Made in `bin/dacite.mjs` at startup, beside the room.
+- **Storage.** In memory for the life of the process, and written to the run file `<data dir>/run/<port>.json` (mode 0600, removed on a clean exit) so a second `npx dacite` on the same port can print the URL again (§P2). Recommendation: per-run, not persisted across restarts; a restart invalidates old tabs, which is the safe default. The run file lives under the default data dir even with `--store` or `--memory`: it is per-user state, not part of a store.
+- **How a tab gets it.** The printed URL carries it in the fragment: `http://127.0.0.1:<port>/app/browser/#token=<t>&room=<r>`. A fragment is never sent in a request and never appears in a `Referer`, so it cannot reach a server log. The static server will also send `Referrer-Policy: no-referrer`. The page reads `location.hash` at startup, keeps the token in `sessionStorage` (so a reload works), and strips it from the address bar with `history.replaceState`. `signal` and `room` move to the fragment too; the query form stays for the dev relay (`npm run webrtc:signal`), which has no token.
+- **How it is sent.** A browser `WebSocket` cannot set headers, so the token goes in the subprotocol list: `new WebSocket(url, ['dacite.v1', 'dacite.token.' + t])`. base64url characters are all valid in a subprotocol token. The server answers with `dacite.v1` only, so the token is never echoed. The in-process nbb peer passes the same list to its `ws` client (`webrtc.cljs`, `new WS (room-url …)`). Not the query string (it shows in devtools and proxies) and not a first message (the upgrade would already be accepted).
+- **The check.** In the `upgrade` handler of `startDacite`, in this order: `Host` (403), `Origin` when present (403), path under `/signal/` (404), then the token: parse `Sec-WebSocket-Protocol`, take the `dacite.token.` entry, compare with `crypto.timingSafeEqual` (equal-length buffers; a length mismatch is a failure). A missing or wrong token is `401` and the socket is destroyed before `handleUpgrade`, so the relay does no work. An upgrade with no `Origin` now needs the token too, which closes the "any local process" gap. Static requests under `/app/` need no token: the code is public, and data moves only over peering.
+- **Tests.** `dacite:server-test`: no token, a wrong token, a wrong-length token, and a right token with a foreign `Origin` are refused; a right token is accepted. `dacite:e2e`: Chromium opens the printed fragment URL, fetches, reloads, and fetches again.
+
+### P2. Port reuse (decided)
+
+- **Probe.** The server answers `GET /dacite/version` (Host-checked, no token, no CORS headers) with `{"dacite": "<package version>", "proto": 1, "pid": <pid>}`.
+- **On EADDRINUSE**, `bin/dacite.mjs` probes `http://127.0.0.1:<port>/dacite/version` with a 500 ms timeout:
+  - Our peer, same version: reuse it. Read `<data dir>/run/<port>.json`, print the same `open` URL, and exit 0 without starting a second peer. If the run file is missing (another user's peer, or a stale file), say so and exit 1.
+  - Our peer, another version: exit 1 with `dacite <theirs> (pid <pid>) is running on port <port>; this is <ours>. Stop it or pass --port.`
+  - No answer, or not ours: exit 1 with `port <port> is in use by another program; pass --port.`
+- **Tests.** In `dacite:server-test`: start one server, then run the bin on the same port three ways (same version, faked other version, a plain HTTP server on the port) and check the exit code and the line printed.
+
+### P3. A persistent store (decided)
+
+- **Default data dir.** macOS `~/Library/Application Support/Dacite`, Linux `${XDG_DATA_HOME:-~/.local/share}/dacite`, Windows `%LOCALAPPDATA%\Dacite`. The store is `<data dir>/store`; the run files are `<data dir>/run`.
+- **`--store <dir>`.** Any directory, created if missing.
+- **In memory.** `--memory`: today's behavior (`store/mem-store` plus the welcome value). Nothing is written except the run file.
+- **Engine.** LMDB (`dacite.store.nbb.lmdb/lmdb-store` with `lmdb-root-cell`) when the optional `lmdb` loads; otherwise the file store (`dacite.store.nbb/file-store` with `dacite.rooted/file-root-cell` at the same base path). The startup line names the engine and the path. A store dir records its engine in a marker file, and opening it with the other engine is an error, not a silent second store.
+- **One peer per store.** A `LOCK` file with the pid; a second peer on the same store (on another port) exits 1 and names the pid.
+- **Contents.** The welcome value is put once, into an empty store. `dacite.cli.peer/start!` takes the store options from the bin (`{ws, room, token, store}`), and the printed `value` line becomes the root when a root is set.
+- **Tests.** An nbb check: start on a temp `--store`, put, stop, start again, and the value is still there; a wrong-engine marker and a held `LOCK` are refused.
+
+### P4. Bundles built at pack time, not committed (decided)
+
+- **Today.** Three `cljs.build.api` whitespace bundles are committed: `examples/web/js/main.js` (todo), `examples/web/explorer/js/main.js`, and `examples/web/library/js/main.js`, 2.8 to 3.3 MB each, built by the `:cljs-web`, `:cljs-explorer`, and `:cljs-library` aliases. A rebuild only reorders namespaces, so it is a 40k-line diff (checklist Nov 17, #3). The shadow-cljs bundles (`examples/web/peer/js`, `examples/web/browser/js`) are already ignored and built in CI (`peer:build`, `browser:build`). The page `npx dacite` prints needs `examples/web/browser/js/main.js`, so from a clone today it needs `npm run browser:build` first.
+- **Build.** One `npm run build` builds every bundle. `"prepack": "npm run build"` runs it on `npm pack` and `npm publish`; `prepublishOnly` runs the tests. Users of the package get compiled JS and never need Java; the build itself needs Java (shadow-cljs and `cljs.build.api` both run on the JVM), which is fine on CI and on the publisher's machine. Not `prepare`: it runs on every `npm ci` in a clone and would make Java a requirement to install.
+- **Stop committing.** `git rm --cached` the three bundles and add them to `.gitignore`. Moving those three pages to shadow-cljs (§3, "Browser bundle build") is a separate later change.
+- **`files`.** `package.json` lists what ships: `bin/`, `scripts/dacite-server.mjs`, `scripts/static-server.mjs`, `scripts/webrtc-signal-server.mjs`, `impl/clojure/src`, `examples/web` (with the built `js/`), `README.md`, `LICENSE`. The package stays `private` until the publishing slice.
+- **From a git checkout.** `npx dacite` still runs from a clone. If `examples/web/browser/js/main.js` is missing, the bin exits 1 with `no app bundle: run npm run build (needs Java 21)` instead of serving a page that cannot load.
+- **CI.** `test.yml` already builds the bundles before the e2e steps. Add one step: `npm pack`, install the tarball into a temp dir, run its `npx dacite --port 0 --memory`, and run `dacite:e2e` against it. That catches a file missing from `files`. Of the committed bundles, CI reads only the library one, and `library:e2e` already runs after `library:build`; no script reads the todo or explorer bundle.
+
+### P5. Safari and Firefox hand runs against the packaged peer
+
+Run by Jonathan on a Mac, after P1 to P4, with the packed tarball (not a clone), on the same computer as the peer. Browser settings are the M5.2 ones in `docs/plan/peering.md` (Firefox `media.peerconnection.ice.obfuscate_host_addresses` = `false`; Safari Hide IP address Off). For each of Safari and Firefox:
+
+- [ ] `npm pack`, install the tarball in a temp dir, run `npx dacite`, and open the printed URL. The address bar no longer shows the token.
+- [ ] Paste the printed `dacite://local#urn:dacite:<hex>` and fetch: every entry verifies.
+- [ ] Reload and fetch again (token from `sessionStorage`).
+- [ ] Open `/app/browser/` with no fragment: the page reports the token is missing, and the peer logs a 401.
+- [ ] Run `npx dacite` again in a second terminal: it prints the same URL and exits 0 (P2).
+- [ ] Stop and restart with the default store: the value is still there; the old tab's token is refused (per-run token).
+
+### Open questions for Jonathan
+
+1. Token lifetime: per-run (recommended; a restart invalidates old tabs) or persisted in the data dir so a bookmarked URL keeps working across restarts and service reboots?
+2. Data dir paths: OK with `~/Library/Application Support/Dacite`, `${XDG_DATA_HOME:-~/.local/share}/dacite`, and `%LOCALAPPDATA%\Dacite` (not `%APPDATA%`, which roams)? And a `DACITE_HOME` override?
+3. In-memory flag spelling: `--memory` (recommended) or `--store :memory:`?
+4. Probe endpoint: `GET /dacite/version` (recommended), or a `hello` over `/signal`?
+5. Run-file location: under the data dir (recommended) or a runtime dir (`$XDG_RUNTIME_DIR`, `$TMPDIR`)?
+6. Store engine when `lmdb` is missing: fall back to the file store with a warning (recommended), or refuse to start without `--memory`?
 
 ## Slices
 
@@ -79,13 +142,18 @@ Commands: `dacite service install`, `dacite service uninstall`, `dacite service 
   - The static server checks the real path (`fs.realpath`) too, so a symlink cannot serve a file outside the root (403).
   - Choices made for this slice, open for review: the default port is 8790 (from the Port row); the store is in memory with one welcome value (no `--store` yet); the only flag is `--port`; one browser session at a time (the peer rejoins the room when a session ends); the package is still the private `dacite-sci`, so `npx dacite` works from a clone, not from the npm registry; `nbb` moved to `dependencies` because the bin runs on it.
   - Tests: `npm run dacite:server-test` (Host, Origin, one-port relay, symlink) and `npm run dacite:e2e` (Chromium fetches the welcome value through `npx dacite`, reloads, and fetches it again). Both run in CI.
-- [ ] Later: a persistent store (`--store`, platform data dir), port reuse when the service already holds the port (§2 Port), the `/signal` secret decision before the always-on service, `npx dacite open <app>`, shipping the compiled bundles in the package, and publishing.
+- [ ] **Slice 2: the `/signal` token** (Plan §P1). Server check, fragment URL, pages read `location.hash`, nbb peer sends the subprotocol, tests.
+- [ ] **Slice 3: a persistent store** (Plan §P3). Data dir, `--store`, `--memory`, engine marker, `LOCK`.
+- [ ] **Slice 4: port reuse** (Plan §P2). `/dacite/version`, the run file, reuse, and the two errors. Needs slices 2 and 3 (it prints the token and uses the data dir).
+- [ ] **Slice 5: bundles at pack time** (Plan §P4). `npm run build`, `prepack`, `files`, untrack the three bundles, the pack-and-install CI step.
+- [ ] **Slice 6: Safari and Firefox hand runs** (Plan §P5, Jonathan).
+- [ ] Later: `dacite service install` (§2), `npx dacite open <app>`, moving the three `cljs.build.api` pages to shadow-cljs, and publishing (dropping `private`).
 
 ## Follow-ups
 
 Hand runs moved here from parity (Jonathan, Nov 17, 2026). Run them against the packaged peer (`npx dacite`, page served by the peer), on the same computer. Steps and browser settings: `docs/plan/peering.md` M6.4 and the M5.2 Safari/Firefox notes (host-address setting so ICE does not stay on a `.local` name). Mac + Brave already passed on the `parity` branch (Nov 11).
 
-- [ ] Safari: the M6.4 Value Browser (paste a peer, fetch its hash) over peering only.
+- [ ] Safari: the M6.4 Value Browser (paste a peer, fetch its hash) over peering only. Now the Plan §P5 checklist, run as slice 6.
 - [ ] Firefox: the same run.
 
 ## Not in this note
