@@ -17,7 +17,8 @@
    One browser session at a time: the room has one offerer slot. When a
    session's connection closes, the page leaves the room, or signaling
    fails, this peer leaves the room and joins it again for the next page."
-  (:require [dacite.cli.store :as cli-store]
+  (:require [dacite.cli.run :as run]
+            [dacite.cli.store :as cli-store]
             [dacite.peer.link :as link]
             [dacite.peer.responder :as responder]
             [dacite.peer.transport :as t]
@@ -92,8 +93,12 @@
   (if memory
     {:engine :memory :dir nil :content (store/mem-store) :cell nil :empty? true
      :close (fn [] nil)}
-    (cli-store/open! (or dir (cli-store/default-store-dir))
-                     (dissoc opts :memory :dir))))
+    (do
+      ;; The default data dir is per-user state: 0700 on POSIX when this
+      ;; creates it. A `--store` dir is the user's, left as it is.
+      (when-not dir (run/ensure-private-dir! (cli-store/default-data-dir)))
+      (cli-store/open! (or dir (cli-store/default-store-dir))
+                       (dissoc opts :memory :dir)))))
 
 (defn start!
   "Open the store, hold its value, and answer in `room` on the relay at
