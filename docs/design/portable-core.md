@@ -127,7 +127,13 @@ host data is 0..2^64 - 1 (`host/max-u64`): `types/scalar-entry` checks it
 or `:not-an-integer`) on both hosts, so the public constructors, the generic
 `scalar-with-store "u64"`, and literal materialization never wrap. A u64
 literal body is the value, not the word (18446744073709551615N on the JVM,
-never -1). Decoded wire bytes are always in range. A decoded node is `=` to the node the
+never -1). A raw host big integer taken as a plain value (a `BigInt` on nbb,
+a `BigInt` N or `BigInteger` on the JVM, e.g. an element of `v/set` or a key
+of `v/map`), or any whole Number on nbb (`Number.isInteger`, so `1e21` too;
+never silently an `f64`), is an `i64` when it is -2^63..2^63 - 1 (`host/min-i64`,
+`host/max-i64`); out of range `types/check-i64` throws `ex-info`
+(`:type "i64"`, `:reason :below-min` or `:above-max`). It never wraps and is
+never a u64, which stays explicit (`v/u64`). Decoded wire bytes are always in range. A decoded node is `=` to the node the
 library built on both hosts (`a-decoded-node-is-the-built-node`,
 `npm run wire:test`); no call site coerces through `host/word` to compare. On
 nbb a BigInt is slower than a Number; the speed is to come from a WASM / C++
