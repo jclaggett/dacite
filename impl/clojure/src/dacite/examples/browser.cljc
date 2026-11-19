@@ -158,3 +158,44 @@
       :else
       (finish (parse-dacite (first parts))
               (prefer-urn (second parts) urn)))))
+
+;; =============================================================================
+;; Own host (the `/signal` token goes only to the relay that served the page)
+;; =============================================================================
+
+(def ^:private url-authority-re
+  #"^([A-Za-z][A-Za-z0-9+.-]*)://(?:[^@/?#]*@)?(\[[^\]/?#]*\]|[^:/?#]*)(?::([0-9]*))?(?:[/?#].*)?$")
+
+(def ^:private default-ports
+  {"http" 80 "ws" 80 "https" 443 "wss" 443})
+
+(def ^:private loopback-names
+  "Names of this computer's loopback interface, one host for `same-host?`."
+  #{"localhost" "127.0.0.1" "[::1]"})
+
+(defn url-host
+  "{:host :port} of an absolute URL: the host lower-cased (an IPv6 literal
+   keeps its brackets; a loopback name is `:loopback`) and the port as an
+   integer (the scheme's default when absent). Nil when `url` is not an
+   absolute URL with a host, or the scheme has no default port and none
+   is given."
+  [url]
+  (when-let [[_ scheme host port] (and (string? url) (re-matches url-authority-re (str/trim url)))]
+    (let [h (str/lower-case host)
+          p (if (seq port)
+              #?(:clj (Long/parseLong port) :cljs (js/parseInt port 10))
+              (get default-ports (str/lower-case scheme)))]
+      (when (and (seq h) p)
+        {:host (if (loopback-names h) :loopback h) :port p}))))
+
+(defn same-host?
+  "Whether URLs `a` and `b` name the same host and port. `localhost`,
+   `127.0.0.1`, and `[::1]` are one host (this computer's loopback), so a
+   page opened as `http://localhost:8790/` and a relay at
+   `ws://127.0.0.1:8790/signal` match. The scheme only picks the default
+   port (http and ws 80, https and wss 443). False when either URL does
+   not parse."
+  [a b]
+  (let [x (url-host a)
+        y (url-host b)]
+    (boolean (and x y (= x y)))))

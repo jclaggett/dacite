@@ -106,7 +106,7 @@ and [Directory / blob sync](https://dacite.io/book/tutorial/sync.html) ([source]
 
 ```bash
 npm install
-npm run browser:build              # the Value Browser bundle (needs Java + Clojure CLI)
+npm run build                      # every page bundle (needs Java 21 + Clojure CLI)
 npx dacite                         # http://127.0.0.1:8790/app/ ; --port to change it
 npx dacite --store ./my-store      # or --memory for a store that is not written
 ```

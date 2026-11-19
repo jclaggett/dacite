@@ -109,7 +109,7 @@ These files are shared source, and they still branch on the host. They are
 |-----------|-------|------|-----------|
 | `bench-ops` | `host` | `impl/clojure/dev/bench_ops.cljc` | Dev timings. `System/nanoTime` and `js/performance.now`, plus byte arrays. |
 | `dacite.cache` | `host` | `impl/clojure/src/dacite/cache.cljc` | LRU: `LinkedHashMap` on the JVM, a JS `Map` on ClojureScript. |
-| `dacite.examples.browser` | `host` | `impl/clojure/src/dacite/examples/browser.cljc` | Value Browser URI. The host is a name. The fragment is `urn:dacite:<hex>`. No HTTP path. |
+| `dacite.examples.browser` | `host` | `impl/clojure/src/dacite/examples/browser.cljc` | Value Browser URI. The host is a name. The fragment is `urn:dacite:<hex>`. No HTTP path. `same-host?` compares relay and page URLs (loopback names are one host). |
 | `dacite.examples.config` | `host` | `impl/clojure/src/dacite/examples/config.cljc` | Config example. `Long/parseLong` and `js/parseInt`, and a JVM watch loop. |
 | `dacite.examples.event-log` | `host` | `impl/clojure/src/dacite/examples/event_log.cljc` | Event-log example. Same integer split. |
 | `dacite.examples.explorer` | `host` | `impl/clojure/src/dacite/examples/explorer.cljc` | Explorer domain. `byte-array` and `js/Uint8Array` for the sample blob. |
@@ -181,6 +181,7 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.dev.inspect` | `host` | `impl/clojure/dev/dacite/dev/inspect.clj` | JVM reflection over `clojure.lang` collection interfaces. |
 | `dacite.examples.browser-nbb` | `host` | `impl/clojure/src/dacite/examples/browser_nbb.cljs` | nbb answerer for the Value Browser. Holds two values and answers the browser over `node-datachannel`. |
 | `dacite.examples.browser-web` | `host` | `impl/clojure/src/dacite/examples/browser_web.cljs` | Value Browser page. DOM, IndexedDB, and the browser peer. Manual introduce, then one `get`. |
+| `dacite.examples.page-token` | `host` | `impl/clojure/src/dacite/examples/page_token.cljs` | Page parameters and the `/signal` token for the Value Browser, peer, and library pages: fragment first, `sessionStorage`, stripped from the address bar, sent only to the page's own host. |
 | `dacite.examples.cards` | `host` | `impl/clojure/src/dacite/examples/cards.clj` | JVM cards example (`clojure -M:cards`), LMDB through the store API. |
 | `dacite.examples.explorer-web` | `host` | `impl/clojure/src/dacite/examples/explorer_web.cljs` | Compiled browser explorer. DOM and `dacite.store.browser`. |
 | `dacite.examples.library-nbb` | `host` | `impl/clojure/src/dacite/examples/library_nbb.cljs` | nbb peer for M5.3. Holds the seed library and answers the browser over `node-datachannel`. |

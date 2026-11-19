@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * JUSTIFICATION: one headless Chromium launch, three WebRTC handshakes,
- * and four launches of the nbb peer. Browser startup and ICE are outside the 3 second
+ * JUSTIFICATION: one headless Chromium launch, three WebRTC handshakes
+ * and a fourth relay session (the peer page), and four launches of the
+ * nbb peer. Browser startup and ICE are outside the 3 second
  * bound. The value is the small welcome value.
  *
  * `npx dacite` end to end (packaging slice 1): start `bin/dacite.mjs` on a
@@ -25,7 +26,15 @@
  * and a fresh tab fetches it from that peer. Its clean exit (SIGTERM)
  * removes its run file; the killed peer's run file stays.
  *
- * Requires `npm run browser:build` first (the page bundle).
+ * The peer page (slice 5) is opened as `localhost` with the relay, room,
+ * and token in its fragment: the relay accepts its token (`session 3
+ * connected`), the token leaves its address bar, and none of its requests
+ * carries it.
+ *
+ * Requires `npm run build` first (the browser and peer bundles).
+ * `DACITE_E2E_BIN` runs another `bin/dacite.mjs`, such as the one in an
+ * installed `npm pack` tarball (the CI pack step); its own
+ * `examples/web` must hold the bundles.
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
@@ -34,7 +43,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const bundle = path.join(root, 'examples', 'web', 'browser', 'js', 'main.js');
+const webDir = process.env.DACITE_E2E_BIN
+  ? path.join(path.dirname(process.env.DACITE_E2E_BIN), '..', 'examples', 'web')
+  : path.join(root, 'examples', 'web');
+const bundle = path.join(webDir, 'browser', 'js', 'main.js');
+const peerBundle = path.join(webDir, 'peer', 'js', 'main.js');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // The default store, in a temp data dir (DACITE_HOME) that the peer
@@ -45,8 +58,12 @@ const storeDir = path.join(dataDir, 'store');
 const posix = process.platform !== 'win32';
 const mode = (p) => fs.statSync(p).mode & 0o777;
 
+// DACITE_E2E_BIN runs a packed and installed `npx dacite` instead of the
+// checkout's bin (docs/design/packaging.md §P4, the CI pack step).
+const bin = process.env.DACITE_E2E_BIN || path.join(root, 'bin', 'dacite.mjs');
+
 function startDacite(port = '0') {
-  const child = spawn(process.execPath, [path.join(root, 'bin', 'dacite.mjs'), '--port', port], {
+  const child = spawn(process.execPath, [bin, '--port', port], {
     cwd: home,
     env: { ...process.env, DACITE_HOME: dataDir },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -89,7 +106,9 @@ async function fetchHash(page, hex) {
 }
 
 async function main() {
-  if (!fs.existsSync(bundle)) throw new Error('missing ' + bundle + ' — run npm run browser:build');
+  for (const b of [bundle, peerBundle]) {
+    if (!fs.existsSync(b)) throw new Error('missing ' + b + ' — run npm run build');
+  }
   const { chromium } = await import('playwright');
   const d = startDacite();
   let browser;
@@ -155,6 +174,33 @@ async function main() {
     );
     eq('no token code', await bare.locator('#status').getAttribute('data-code'), 'no-token');
     await bare.close();
+
+    // The peer page (packaging slice 5) reads signal, room, and token from
+    // the fragment as the Value Browser does, strips them from the address
+    // bar, and sends the token as the `dacite.token.<t>` subprotocol only to
+    // its own host. It is opened as localhost while the relay is 127.0.0.1,
+    // so this also checks that loopback names count as one host. The relay
+    // refuses a socket without the token, so `session 3 connected` is the
+    // proof. The page then reads over the example peer's roots channel,
+    // which `npx dacite` does not serve, so the read itself is not checked
+    // here (peer:e2e covers it against the example peer).
+    await page.close();
+    await waitMatch(d, /^session 2 ended/m, 10000, 'session 2 ended', 'err');
+    const peerPage = await context.newPage();
+    // The peer page names its root in the query by design, so its requests
+    // are kept apart from the no-hash-over-HTTP check below.
+    const peerUrls = [];
+    peerPage.on('request', (req) => peerUrls.push(req.url()));
+    const peerFrag = new URLSearchParams({ signal, room: frag.get('room'), token }).toString();
+    const local = origin.replace('127.0.0.1', 'localhost');
+    await peerPage.goto(`${local}/app/peer/?root=${hex}#${peerFrag}`,
+      { waitUntil: 'domcontentloaded' });
+    await waitMatch(d, /^session 3 connected$/m, 15000, 'session 3 (peer page, token accepted)', 'err');
+    eq('peer page token in the address bar', peerPage.url().includes(token), false);
+    eq('peer page token in a request', peerUrls.some((u) => u.includes(token)), false);
+    eq('peer page requests off the one port', peerUrls.filter((u) => !u.startsWith(local + '/')).join(' | '), '');
+    await peerPage.close();
+    await waitMatch(d, /^session 3 ended/m, 10000, 'session 3 ended', 'err');
     eq('store dir', storeLine[2], storeDir);
     // One line: the engine, a space, and its store format version.
     eq('engine marker', fs.readFileSync(path.join(storeDir, 'ENGINE'), 'utf8'),
@@ -224,13 +270,13 @@ async function main() {
 
     const withToken = urls.filter((u) => u.includes(token));
     if (withToken.length) problems.push('token in a request URL: ' + withToken.join(' | '));
-    const elsewhere = urls.filter((u) => !u.startsWith(origin + '/') && !u.startsWith(origin3 + '/'));
+    const elsewhere = urls.filter((u) => ![origin, origin3].some((o) => u.startsWith(o + '/')));
     if (elsewhere.length) problems.push('requests off the one port: ' + elsewhere.join(' | '));
     const leaked = urls.filter((u) => u.includes(hex) || u.includes('urn:dacite') || u.includes('/node/'));
     if (leaked.length) problems.push('hash requested over HTTP: ' + leaked.join(' | '));
     if (problems.length) throw new Error(problems.join('\n'));
     console.log('ok', JSON.stringify({
-      entries: Number(entries), sessions: 3, refusedWithoutToken: true,
+      entries: Number(entries), sessions: 3, peerPageToken: true, refusedWithoutToken: true,
       engine: storeLine[1], reused: true, secondRefused: true, staleLockTakenOver: true,
     }));
   } finally {

@@ -6,6 +6,19 @@
   "bin": {
     "dacite": "bin/dacite.mjs"
   },
+  "files": [
+    "bin/dacite.mjs",
+    "bin/dacite-peer.cljs",
+    "scripts/dacite-server.mjs",
+    "scripts/dacite-args.mjs",
+    "scripts/static-server.mjs",
+    "scripts/webrtc-signal-server.mjs",
+    "impl/clojure/src/",
+    "examples/web/",
+    "!examples/web/**/js/out/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "hello": "nbb -m dacite.examples.hello",
     "parity": "nbb -m dacite.examples.parity",
@@ -44,6 +57,11 @@
     "browser:build": "cd impl/clojure && node ../../node_modules/shadow-cljs/cli/runner.js compile browser",
     "browser:e2e": "node scripts/browser-e2e.mjs",
     "library:build": "cd impl/clojure && clojure -M:cljs-library",
+    "web:build": "cd impl/clojure && clojure -M:cljs-web",
+    "explorer:build": "cd impl/clojure && clojure -M:cljs-explorer",
+    "build": "npm run peer:build && npm run browser:build && npm run web:build && npm run explorer:build && npm run library:build",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run dacite:server-test && npm run dacite:store-test && npm run dacite:e2e",
     "library:e2e": "node scripts/library-peer-e2e.mjs",
     "web:serve": "node scripts/static-server.mjs",
     "web:serve-test": "node scripts/static-server-test.mjs",

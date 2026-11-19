@@ -69,6 +69,11 @@
              :platform (.-platform js/process)
              :home (.homedir os)}))
 
+(defn data-dir-overridden?
+  "True when this process's data dir comes from a non-empty `DACITE_HOME`."
+  []
+  (some? (present (aget (.-env js/process) "DACITE_HOME"))))
+
 (defn default-store-dir
   "`<data dir>/store` for this process."
   []

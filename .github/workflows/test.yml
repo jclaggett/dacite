@@ -165,3 +165,18 @@ jobs:
 
       - name: Library reader through the nbb peer
         run: npm run library:e2e
+
+      # Packaging slice 5 (docs/design/packaging.md §P4). The bundles are
+      # built at pack time, not committed: `npm pack` runs `prepack`
+      # (`npm run build`). The tarball is installed into an empty project
+      # and dacite:e2e runs against its `npx dacite`, so a file missing
+      # from `files` fails here.
+      - name: Packed npx dacite
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          mkdir "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/dacite-sci-*.tgz
+          cd "$GITHUB_WORKSPACE"
+          DACITE_E2E_BIN="$RUNNER_TEMP/consumer/node_modules/dacite-sci/bin/dacite.mjs" npm run dacite:e2e

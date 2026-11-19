@@ -94,9 +94,11 @@
     {:engine :memory :dir nil :content (store/mem-store) :cell nil :empty? true
      :close (fn [] nil)}
     (do
-      ;; The default data dir is per-user state: 0700 on POSIX when this
-      ;; creates it. A `--store` dir is the user's, left as it is.
-      (when-not dir (run/ensure-private-dir! (cli-store/default-data-dir)))
+      ;; The default data dir is per-user state: 0700 on POSIX (created so,
+      ;; or tightened when it is the platform default and ours;
+      ;; `dacite.cli.run/default-data-dir!`). A `--store` dir is the
+      ;; user's, never touched.
+      (when-not dir (run/default-data-dir!))
       (cli-store/open! (or dir (cli-store/default-store-dir))
                        (dissoc opts :memory :dir)))))
 

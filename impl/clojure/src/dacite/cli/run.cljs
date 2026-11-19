@@ -14,10 +14,15 @@
 
    It is written to `<port>.json.<pid>.tmp` (mode 0600 on POSIX) and
    renamed over the run file, and removed on a clean exit when it still
-   holds our pid. On POSIX the data dir and `run/` are created mode 0700,
-   and `run/` is set to 0700 when it already exists (it holds tokens). On
-   Windows mode bits do not apply; the per-user `%LOCALAPPDATA%` ACL is
-   the equivalent.
+   holds our pid. On POSIX the data dir and `run/` are created mode 0700
+   (only the last dir: missing parents get the default mode). An existing
+   `run/`, and an existing platform default data dir, are set to 0700 when
+   this user owns them (it holds tokens). A `DACITE_HOME` dir that exists
+   and a `--store` dir are never changed. On Windows mode bits do not
+   apply; the per-user `%LOCALAPPDATA%` ACL is the equivalent.
+
+   Stores are matched by real path (symlinks followed), so `/tmp/x` and
+   `/private/tmp/x` are one store.
 
    `reuse` decides what a second `npx dacite` does once the port answered
    `GET /dacite/version` as our peer, same version: print the run file's
@@ -37,14 +42,54 @@
 (def ^:private private-file-mode 384) ; 0600 octal
 
 (defn ensure-private-dir!
-  "Create `dir` (and missing parents) mode 0700 on POSIX when it does not
-   exist. An existing dir is left as it is. Returns `dir`."
+  "Create `dir` when it does not exist: missing parents with the default
+   mode (a missing `~/.local/share` stays a normal dir), and `dir` itself
+   mode 0700 on POSIX. An existing dir is left as it is. Returns `dir`."
   [dir]
   (when-not (.existsSync fs dir)
-    (.mkdirSync fs dir (if (posix?)
-                         #js {:recursive true :mode private-dir-mode}
-                         #js {:recursive true})))
+    (.mkdirSync fs (.dirname node-path dir) #js {:recursive true})
+    (try
+      (.mkdirSync fs dir (if (posix?) #js {:mode private-dir-mode} #js {}))
+      (catch :default e
+        ;; Another process made it between the check and here.
+        (when-not (= "EEXIST" (.-code e)) (throw e)))))
   dir)
+
+(defn tighten-dir!
+  "On POSIX, set the existing `dir` to 0700 when this user owns it (its
+   uid is `uid`, default `process.getuid()`) and it is not 0700 already.
+   A dir someone else owns is left alone. Returns true when it changed
+   the mode."
+  ([dir] (tighten-dir! dir {}))
+  ([dir {:keys [uid]}]
+   (boolean
+    (when (and (posix?) (.existsSync fs dir))
+      (let [st (.statSync fs dir)
+            me (or uid (.getuid js/process))]
+        (when (and (= me (.-uid st))
+                   (not= private-dir-mode (bit-and (.-mode st) 511)))
+          (.chmodSync fs dir private-dir-mode)
+          true))))))
+
+(defn ensure-data-dir!
+  "The data dir `dir`: created 0700 on POSIX (`ensure-private-dir!`).
+   With `:tighten? true` (the platform default data dir, not a
+   `DACITE_HOME` the user chose) an existing one this user owns is set to
+   0700 too (`tighten-dir!`; `:uid` as there), so a data dir made before
+   the run file existed gets the same mode. Returns `dir`."
+  [dir {:keys [tighten?] :as opts}]
+  (if (.existsSync fs dir)
+    (when tighten? (tighten-dir! dir opts))
+    (ensure-private-dir! dir))
+  dir)
+
+(defn default-data-dir!
+  "This process's data dir (`dacite.cli.store/default-data-dir`), made
+   ready by `ensure-data-dir!`: tightened when it is the platform default,
+   only created when it comes from `DACITE_HOME`."
+  []
+  (ensure-data-dir! (cli-store/default-data-dir)
+                    {:tighten? (not (cli-store/data-dir-overridden?))}))
 
 (defn run-dir
   "`<data dir>/run`."
@@ -57,12 +102,13 @@
   (.join node-path (run-dir data-dir) (str port ".json")))
 
 (defn ensure-run-dir!
-  "The data dir and `run/`, created 0700 on POSIX; `run/` is set to 0700
-   when it already exists. Returns the run dir."
+  "`run/` under `data-dir` (which is created 0700 when missing), created
+   0700 on POSIX and set to 0700 when it exists and this user owns it.
+   Returns the run dir."
   [data-dir]
   (ensure-private-dir! data-dir)
   (let [d (ensure-private-dir! (run-dir data-dir))]
-    (when (posix?) (.chmodSync fs d private-dir-mode))
+    (tighten-dir! d)
     d))
 
 (def ^:private run-keys
@@ -109,6 +155,21 @@
           true)
       false)))
 
+(defn real-path
+  "`p` resolved, with symlinks followed (`fs.realpathSync`). When `p` does
+   not exist yet, its nearest existing ancestor is followed and the rest
+   is joined on, so `/tmp/x/new` and `/private/tmp/x/new` agree on macOS."
+  [p]
+  (let [abs (.resolve node-path p)]
+    (loop [dir abs
+           tail []]
+      (let [real (try (.realpathSync fs dir) (catch :default _ nil))
+            parent (.dirname node-path dir)]
+        (cond
+          real (apply (.-join node-path) real (reverse tail))
+          (= parent dir) abs
+          :else (recur parent (conj tail (.basename node-path dir))))))))
+
 (defn requested-store
   "What the bin's `store` options ask for, in run-file terms:
    {:engine \"memory\" :store nil} for `{:memory true}`, else {:store dir}
@@ -116,7 +177,7 @@
   [{:keys [memory dir]}]
   (if memory
     {:engine "memory" :store nil}
-    {:store (.resolve node-path (or dir (cli-store/default-store-dir)))}))
+    {:store (real-path (or dir (cli-store/default-store-dir)))}))
 
 (defn- store-name
   [{:keys [engine store]}]
@@ -137,7 +198,7 @@
         m (read-run-file data-dir port)
         stop " Stop it or pass --port."
         want (requested-store (or store {}))
-        theirs {:engine (:engine m) :store (some->> (:store m) (.resolve node-path))}]
+        theirs {:engine (:engine m) :store (some-> (:store m) real-path)}]
     (cond
       (nil? m)
       {:error (str "dacite (pid " peer-pid ") is running on port " port
@@ -178,7 +239,7 @@
    `reuse({port, peerPid, store})` ({lines} or {error})."
   []
   #js {:dataDir cli-store/default-data-dir
-       :writeRun (fn [info] (write-run-file! (cli-store/default-data-dir) (js-map info)))
+       :writeRun (fn [info] (write-run-file! (default-data-dir!) (js-map info)))
        :removeRun (fn [port pid] (remove-run-file! (cli-store/default-data-dir) port pid))
        :reuse (fn [o]
                 (let [{:keys [port peerPid store]} (js-map o)]

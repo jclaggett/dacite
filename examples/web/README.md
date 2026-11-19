@@ -43,9 +43,13 @@ The point of the todo demo: the browser holds real Dacite collections
 
 ## Build
 
+The page bundles are not committed (`docs/design/packaging.md` §P4).
+`npm run build` builds all five (needs Java 21 and the Clojure CLI);
+`npm pack` runs it. One at a time:
+
 ```bash
-cd impl/clojure && clojure -M:cljs-web        # todo bundle
-cd impl/clojure && clojure -M:cljs-explorer   # explorer bundle
+npm run web:build        # todo bundle (clojure -M:cljs-web)
+npm run explorer:build   # explorer bundle (clojure -M:cljs-explorer)
 ```
 
 See [docs/book/tutorial/explorer.md](../../docs/book/tutorial/explorer.md).

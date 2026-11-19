@@ -13,9 +13,17 @@
 
      http://127.0.0.1:8080/app/peer/?root=HEX&signal=ws://127.0.0.1:8787&room=TOKEN
 
+   `signal` and `room` may be in the fragment instead, and the fragment
+   may carry `token`, the `npx dacite` `/signal` token
+   (`dacite.examples.page-token`). The token is kept in `sessionStorage`,
+   removed from the address bar, and sent as the `dacite.token.<t>`
+   WebSocket subprotocol only to this page's own host:
+
+     http://127.0.0.1:8790/app/peer/?root=HEX#signal=ws://127.0.0.1:8790/signal&room=R&token=T
+
    `dacite.examples.peer-nbb` prints that URL. `npm run peer:e2e` runs
    the headless Chromium check."
-  (:require [clojure.string :as str]
+  (:require [dacite.examples.page-token :as page]
             [dacite.peer.bucket :as bucket]
             [dacite.peer.client :as client]
             [dacite.peer.frame :as frame]
@@ -77,22 +85,16 @@
   (when-let [el (by-id id)]
     (.setAttribute el k (str v))))
 
-(defn- query-param
-  "A non-empty query value, or nil. `URLSearchParams.get` returns
-   JavaScript null when the key is absent, and null is truthy here."
-  [k]
-  (let [v (.get (js/URLSearchParams. (.-search js/location)) k)]
-    (when (and (string? v) (pos? (count (str/trim v))))
-      (str/trim v))))
-
 (defn peer-query
   "The M5.2 parameters, or nil when the query does not name all three."
   []
-  (let [root (query-param "root")
-        signal (query-param "signal")
-        room (query-param "room")]
+  (let [root (page/query-param "root")
+        signal (page/page-param "signal")
+        room (page/page-param "room")
+        token (page/take-token!)]
     (when (and root signal room)
-      {:root root :signal signal :room room})))
+      {:root root :signal signal :room room
+       :token (page/token-for token signal)})))
 
 (defn- check-reachable!
   "A step of how many nodes are reachable from `root`. Each one must
@@ -153,7 +155,7 @@
       (swap! max-b max (t/buffered-amount ch)))
     @max-b))
 
-(defn- read-from-peer! [st {:keys [root signal room]}]
+(defn- read-from-peer! [st {:keys [root signal room token]}]
   (set-text! "lede"
              (str "Reads a value held by the nbb peer. "
                   "Every entry is verified into IndexedDB."))
@@ -165,7 +167,7 @@
         timer (js/setInterval #(client/tick! c) 25)
         stop! #(js/clearInterval timer)
         peer (rtc/create-peer :offerer {:ice-servers []
-                                        :ws {:url signal :room room}})]
+                                        :ws {:url signal :room room :token token}})]
     (-> (:signaling peer)
         (.then (fn [_]
                  (set-text! "status" "connecting…")
