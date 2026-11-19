@@ -148,7 +148,9 @@ async function main() {
     eq('no token code', await bare.locator('#status').getAttribute('data-code'), 'no-token');
     await bare.close();
     eq('store dir', storeLine[2], storeDir);
-    eq('engine marker', fs.readFileSync(path.join(storeDir, 'ENGINE'), 'utf8').trim(), storeLine[1]);
+    // One line: the engine, a space, and its store format version.
+    eq('engine marker', fs.readFileSync(path.join(storeDir, 'ENGINE'), 'utf8'),
+      `${storeLine[1]} ${{ lmdb: 2, file: 1 }[storeLine[1]]}\n`);
     eq('LOCK holds the pid', fs.readFileSync(path.join(storeDir, 'LOCK'), 'utf8').trim(), String(d.child.pid));
 
     // A second peer on the same store is refused while the first runs.

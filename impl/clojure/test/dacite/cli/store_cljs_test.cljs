@@ -110,46 +110,80 @@
 
    "the-engine-marker-and-the-fallback-warning"
    (fn [_]
-     (let [marker #(str/trim (slurp (.join node-path % cs/marker-name)))]
-       (testing "an empty dir gets lmdb when it loads"
+     (let [marker #(slurp (.join node-path % cs/marker-name))
+           write! #(.writeFileSync fs (.join node-path %1 cs/marker-name) %2)
+           reason #(try (cs/choose-engine! %1 %2) nil (catch :default e (:reason (ex-data e))))]
+       (testing "an empty dir gets lmdb when it loads, marked with its format version"
          (let [d (tmp-dir)]
            (is (= {:engine :lmdb :warning nil} (cs/choose-engine! d nil)))
-           (is (= "lmdb" (marker d)))))
+           (is (= "lmdb 2\n" (marker d)))))
        (testing "an empty dir falls back to the file store with a warning"
          (let [d (tmp-dir)
                r (cs/choose-engine! d "Cannot find module 'lmdb'")]
            (is (= :file (:engine r)))
            (is (re-find #"^lmdb did not load \(Cannot find module 'lmdb'\); using the file store$"
                         (str (:warning r))))
-           (is (= "file" (marker d)))))
+           (is (= "file 1\n" (marker d)))))
+       (testing "the marker line parses to engine and version"
+         (is (= "lmdb 2" (cs/marker-line "lmdb")))
+         (is (= "file 1" (cs/marker-line "file")))
+         (is (= {:engine "lmdb" :version 2} (cs/parse-marker "lmdb 2\n")))
+         (is (= {:engine "file" :version 1} (cs/parse-marker " file 1 ")))
+         (is (= {:engine "rocksdb" :version 7} (cs/parse-marker "rocksdb 7")))
+         (doseq [bad ["lmdb" "file" "" "lmdb  2" "lmdb 2 x" "lmdb two" "lmdb 02" "lmdb 0" "LMDB 2" "lmdb\n2"]]
+           (is (nil? (cs/parse-marker bad)) (pr-str bad))))
        (testing "a marked dir keeps its engine"
          (let [d (tmp-dir)]
-           (.writeFileSync fs (.join node-path d cs/marker-name) "file\n")
-           (is (= {:engine :file :warning nil} (cs/choose-engine! d nil)) "file stays file when lmdb loads")))
+           (write! d "file 1\n")
+           (is (= {:engine :file :warning nil} (cs/choose-engine! d nil)) "file stays file when lmdb loads")
+           (is (= "file 1\n" (marker d)) "the marker is not rewritten")))
        (testing "an lmdb store without lmdb is refused"
          (let [d (tmp-dir)]
-           (.writeFileSync fs (.join node-path d cs/marker-name) "lmdb\n")
+           (write! d "lmdb 2\n")
            (is (check/throws? #"is an lmdb store, and lmdb did not load: gone" #(cs/choose-engine! d "gone")))
-           (is (= :wrong-engine (try (cs/choose-engine! d "gone") nil
-                                     (catch :default e (:reason (ex-data e))))))))
-       (testing "an unknown marker is refused"
+           (is (= :wrong-engine (reason d "gone")))))
+       (testing "a newer or older format version is refused"
          (let [d (tmp-dir)]
-           (.writeFileSync fs (.join node-path d cs/marker-name) "rocksdb\n")
-           (is (check/throws? #"unknown engine \"rocksdb\"" #(cs/choose-engine! d nil)))))
-       (testing "an unmarked dir with engine data is marked for that engine"
+           (write! d "lmdb 3\n")
+           (is (check/throws? #"^store .* uses lmdb format 3; this dacite supports lmdb 2$" #(cs/choose-engine! d nil)))
+           (is (= :unsupported-version (reason d nil))))
+         (let [d (tmp-dir)]
+           (write! d "file 2\n")
+           (is (check/throws? #"uses file format 2; this dacite supports file 1$" #(cs/choose-engine! d nil))))
+         (let [d (tmp-dir)]
+           (write! d "lmdb 1\n")
+           (is (check/throws? #"uses lmdb format 1; this dacite supports lmdb 2$" #(cs/choose-engine! d nil)))))
+       (testing "an unknown engine is refused"
+         (let [d (tmp-dir)]
+           (write! d "rocksdb 1\n")
+           (is (check/throws? #"unknown engine \"rocksdb\"; this dacite supports lmdb 2 and file 1" #(cs/choose-engine! d nil)))
+           (is (= :unknown-engine (reason d nil)))))
+       (testing "a bare engine name or garbage is an invalid marker"
+         (doseq [text ["lmdb\n" "file\n" "" "lmdb two\n" "{:engine :lmdb}"]]
+           (let [d (tmp-dir)]
+             (write! d text)
+             (is (check/throws? #"has an invalid ENGINE marker .*; expected \"lmdb 2\" or \"file 1\""
+                                #(cs/choose-engine! d nil))
+                 (pr-str text))
+             (is (= :invalid-marker (reason d nil)))
+             (is (= text (marker d)) "left as it was"))))
+       (testing "an unmarked dir with engine data gets the versioned marker for that engine"
          (let [d (tmp-dir)]
            (.mkdirSync fs (.join node-path d "lmdb"))
            (is (check/throws? #"lmdb did not load" #(cs/choose-engine! d "gone")))
-           (is (not (.existsSync fs (.join node-path d cs/marker-name))) "no marker written on refusal"))
+           (is (not (.existsSync fs (.join node-path d cs/marker-name))) "no marker written on refusal")
+           (is (= {:engine :lmdb :warning nil} (cs/choose-engine! d nil)))
+           (is (= "lmdb 2\n" (marker d))))
          (let [d (tmp-dir)]
            (.mkdirSync fs (.join node-path d "file"))
            (is (= {:engine :file :warning nil} (cs/choose-engine! d nil)))
-           (is (= "file" (marker d)))))
-       (testing "open! refuses a wrong-engine dir and leaves no LOCK"
-         (let [d (tmp-dir)]
-           (.writeFileSync fs (.join node-path d cs/marker-name) "lmdb\n")
-           (is (check/throws? #"lmdb did not load" #(cs/open! d {:lmdb-error "gone" :warn identity})))
-           (is (not (.existsSync fs (.join node-path d cs/lock-name))))))))
+           (is (= "file 1\n" (marker d)))))
+       (testing "open! refuses a wrong-engine or wrong-version dir and leaves no LOCK"
+         (doseq [text ["lmdb 2\n" "file 9\n"]]
+           (let [d (tmp-dir)]
+             (write! d text)
+             (is (check/throws? #"lmdb did not load|file format 9" #(cs/open! d {:lmdb-error "gone" :warn identity})))
+             (is (not (.existsSync fs (.join node-path d cs/lock-name)))))))))
 
    "lock-fresh-live-and-dead"
    (fn [_]

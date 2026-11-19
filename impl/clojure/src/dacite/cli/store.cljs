@@ -6,9 +6,10 @@
      `${XDG_DATA_HOME:-~/.local/share}/dacite`, Windows
      `%LOCALAPPDATA%\\Dacite`. The default store is `<data dir>/store`.
    - Engine: LMDB when the optional `lmdb` addon loads, else the file
-     store with a warning. The store dir records its engine in the marker
-     file `ENGINE` (`lmdb` or `file`); a dir marked for an engine that
-     cannot open here is an error, not a silent second store. The LMDB
+     store with a warning. The store dir records its engine and format
+     version in the marker file `ENGINE` (`lmdb 2` or `file 1`); a dir
+     marked for an engine that cannot open here, or for a format version
+     this dacite does not read, is an error, not a silent second store. The LMDB
      env is `<store dir>/lmdb` (LMDB makes that dir itself); the file
      store and its `ROOT` are `<store dir>/file`.
    - `LOCK`: one peer per store. The file holds the peer's pid. A live
@@ -95,17 +96,63 @@
   [dir engine]
   (.join node-path dir (name engine)))
 
+(def formats
+  "The store format version this dacite writes and reads, per engine. The
+   marker is one line, the engine, a space, and the version: `lmdb 2`
+   (LMDB data format 2, the `lmdb` npm prebuilds) or `file 1`."
+  {"lmdb" 2 "file" 1})
+
+(defn marker-line
+  "The `ENGINE` line for `engine` (a string): `lmdb 2` or `file 1`."
+  [engine]
+  (str engine " " (get formats engine)))
+
+(defn parse-marker
+  "{:engine string :version int} from an `ENGINE` file's text, or nil when
+   it is not `<engine> <version>` (a bare engine name is not a marker)."
+  [text]
+  (when-let [[_ engine version] (re-matches #"([a-z][a-z0-9-]*) ([1-9][0-9]{0,8})" (str/trim text))]
+    {:engine engine :version (js/parseInt version 10)}))
+
+(defn- check-marker!
+  "Throw unless `m` (from `parse-marker`) is an engine and version this
+   dacite supports."
+  [dir marker text m]
+  (let [{:keys [engine version]} m
+        supported (get formats engine)]
+    (cond
+      (nil? m)
+      (throw (store-error (str "store " dir " has an invalid " marker-name " marker "
+                               (pr-str (str/trim text)) "; expected \"lmdb 2\" or \"file 1\"")
+                          {:reason :invalid-marker :path marker}))
+
+      (nil? supported)
+      (throw (store-error (str "store " dir " uses an unknown engine " (pr-str engine)
+                               "; this dacite supports lmdb 2 and file 1")
+                          {:reason :unknown-engine}))
+
+      (not= supported version)
+      (throw (store-error (str "store " dir " uses " engine " format " version
+                               "; this dacite supports " engine " " supported)
+                          {:reason :unsupported-version :engine engine :version version})))))
+
 (defn choose-engine!
   "The engine for the store dir `dir` (which exists): {:engine :lmdb|:file
    :warning nil|string}. `lmdb-error` is nil when `lmdb` loads, else why
    not. A marked dir keeps its engine. An unmarked dir with an `lmdb` or
-   `file` subdir is marked for that one (a store made before the marker).
-   An empty dir gets LMDB when it loads, else the file store and a
-   warning. The marker is written when it was missing. Throws when the
-   marker names `lmdb` and it does not load, or names an unknown engine."
+   `file` subdir is marked for that one. An empty dir gets LMDB when it
+   loads, else the file store and a warning. The versioned marker
+   (`marker-line`) is written when it was missing. Throws when the marker
+   is not `<engine> <version>` (a bare `lmdb` or `file` included), names
+   an unknown engine or a version other than `formats`, or names `lmdb`
+   and it does not load."
   [dir lmdb-error]
   (let [marker (.join node-path dir marker-name)
-        marked (when (file-exists? marker) (str/trim (.readFileSync fs marker "utf8")))
+        text (when (file-exists? marker) (.readFileSync fs marker "utf8"))
+        marked (when text
+                 (let [m (parse-marker text)]
+                   (check-marker! dir marker text m)
+                   (:engine m)))
         found (cond
                 marked marked
                 (file-exists? (engine-path dir :lmdb)) "lmdb"
@@ -114,18 +161,12 @@
                  found found
                  lmdb-error "file"
                  :else "lmdb")]
-    (cond
-      (not (#{"lmdb" "file"} chosen))
-      (throw (store-error (str "store " dir " has an unknown engine " (pr-str chosen)
-                               " in " marker-name)
-                          {:reason :unknown-engine}))
-
-      (and (= "lmdb" chosen) lmdb-error)
+    (when (and (= "lmdb" chosen) lmdb-error)
       (throw (store-error (str "store " dir " is an lmdb store, and lmdb did not load: "
                                lmdb-error)
                           {:reason :wrong-engine})))
     (when-not marked
-      (.writeFileSync fs marker (str chosen "\n") "utf8"))
+      (.writeFileSync fs marker (str (marker-line chosen) "\n") "utf8"))
     {:engine (keyword chosen)
      :warning (when (and (not found) lmdb-error)
                 (str "lmdb did not load (" lmdb-error "); using the file store"))}))
