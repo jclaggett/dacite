@@ -55,7 +55,7 @@ Commands: `dacite service install`, `dacite service uninstall`, `dacite service 
 
 **Native deps.**
 - `node-datachannel`: needs a prebuild for each OS and arch (macOS arm64 and x64, Linux x64 and arm64, Windows x64). The Linux x64 prebuild works today. `werift` (pure JS) is the documented fallback and is not wired. The 4096 frame clamp travels with it.
-- `lmdb`: already an optional dependency with prebuilds. Without it, fall back to a file or memory store and say so at startup.
+- `lmdb`: already an optional dependency with prebuilds. Without it, fall back to the file store with a warning at startup (decided Nov 19, Plan §P3).
 - CI should install the package on each target OS from a packed tarball (`npm pack`) to catch missing prebuilds.
 
 **WASM instead of native prebuilds?** One `.wasm` file runs on every OS and arch, in Node and in the browser, so it could replace per-platform prebuilds where it fits.
@@ -74,14 +74,14 @@ Commands: `dacite service install`, `dacite service uninstall`, `dacite service 
 
 ## Plan (decided Nov 19, 2026)
 
-Jonathan's call: finish packaging, then Value Browser rendering (M6.5). He decided the four items below (the `/signal` token, port reuse, a persistent store, and bundles built at pack time); only the details listed under "Open questions for Jonathan" are still open. No code here; each item is one slice (see "Slices").
+Jonathan's call: finish packaging, then Value Browser rendering (M6.5). He decided the four items below (the `/signal` token, port reuse, a persistent store, and bundles built at pack time), and the details listed under "Details decided Nov 19". Nothing here is open. No code here; each item is one slice (see "Slices").
 
 What exists today (slice 1): `bin/dacite.mjs` parses `--port` only, starts `startDacite` (`scripts/dacite-server.mjs`), makes a room `dacite-<12 random bytes, base64url>` for this launch, loads `bin/dacite-peer.cljs` (which returns `dacite.cli.peer/start!`), and prints `open http://127.0.0.1:<port>/app/browser/?signal=…&room=…`. `startDacite` checks `Host` on every request (`allowedHosts`) and `Origin` on an upgrade (`allowedOrigins`); an upgrade with no `Origin` is let in. The relay is `createRelay` (`scripts/webrtc-signal-server.mjs`) at `/signal/room/<token>`. `dacite.cli.peer/start!` holds one welcome value in a `store/mem-store`. The pages read `signal` and `room` from the query (`URLSearchParams` in `browser_web.cljs`, `peer_web.cljs`, `library_web.cljs`). On EADDRINUSE the bin prints `port <n> is in use; pass --port` and exits 1.
 
 ### P1. The `/signal` token (decided)
 
 - **Generation.** `crypto.randomBytes(32).toString('base64url')`: 256 bits, 43 characters, no padding. Made in `bin/dacite.mjs` at startup, beside the room.
-- **Storage.** In memory for the life of the process, and written to the run file `<data dir>/run/<port>.json` (mode 0600 on POSIX; on Windows, mode bits do not apply and the per-user ACL `%LOCALAPPDATA%` already has is the equivalent and is enough; removed on a clean exit) so a second `npx dacite` on the same port can print the URL again (§P2). Recommendation: per-run, not persisted across restarts; a restart invalidates old tabs, which is the safe default. The run file lives under the default data dir even with `--store` or `--memory`: it is per-user state, not part of a store.
+- **Storage.** In memory for the life of the process, and written to the run file `<data dir>/run/<port>.json` (mode 0600 on POSIX; mode bits do not apply on Windows, where the per-user ACL on `%LOCALAPPDATA%` is the equivalent and is enough; removed on a clean exit) so a second `npx dacite` on the same port can print the URL again (§P2). The token is per-run: it is not persisted across restarts, so a restart invalidates old tabs. The run file lives under the data dir even with `--store` or `--memory`: it is per-user state, not part of a store.
 - **How a tab gets it.** The printed URL carries it in the fragment: `http://127.0.0.1:<port>/app/browser/#token=<t>&room=<r>`. A fragment is never sent in a request and never appears in a `Referer`, so it cannot reach a server log. The static server will also send `Referrer-Policy: no-referrer`. The page reads `location.hash` at startup, keeps the token in `sessionStorage` (so a reload works), and strips it from the address bar with `history.replaceState`. `signal` and `room` move to the fragment too; the query form stays for the dev relay (`npm run webrtc:signal`), which has no token.
 - **How it is sent.** A browser `WebSocket` cannot set headers, so the token goes in the subprotocol list: `new WebSocket(url, ['dacite.v1', 'dacite.token.' + t])`. base64url characters are all valid in a subprotocol token. The server answers with `dacite.v1` only, so the token is never echoed. The in-process nbb peer passes the same list to its `ws` client (`webrtc.cljs`, `new WS (room-url …)`). Not the query string (it shows in devtools and proxies) and not a first message (the upgrade would already be accepted).
 - **The check.** In the `upgrade` handler of `startDacite`, in this order: `Host` (403), `Origin` when present (403), path under `/signal/` (404), then the token: parse `Sec-WebSocket-Protocol`, take the `dacite.token.` entry, compare with `crypto.timingSafeEqual` (equal-length buffers; a length mismatch is a failure). A missing or wrong token is `401` and the socket is destroyed before `handleUpgrade`, so the relay does no work. An upgrade with no `Origin` now needs the token too, which closes the "any local process" gap. Static requests under `/app/` need no token: the code is public, and data moves only over peering.
@@ -98,10 +98,10 @@ What exists today (slice 1): `bin/dacite.mjs` parses `--port` only, starts `star
 
 ### P3. A persistent store (decided)
 
-- **Default data dir.** macOS `~/Library/Application Support/Dacite`, Linux `${XDG_DATA_HOME:-~/.local/share}/dacite`, Windows `%LOCALAPPDATA%\Dacite`. The store is `<data dir>/store`; the run files are `<data dir>/run`.
+- **Data dir.** `DACITE_HOME` when it is set; otherwise macOS `~/Library/Application Support/Dacite`, Linux `${XDG_DATA_HOME:-~/.local/share}/dacite`, Windows `%LOCALAPPDATA%\Dacite` (local, not the roaming `%APPDATA%`). The store is `<data dir>/store`; the run files are `<data dir>/run`.
 - **`--store <dir>`.** Any directory, created if missing.
 - **In memory.** `--memory`: today's behavior (`store/mem-store` plus the welcome value). Nothing is written except the run file.
-- **Engine.** LMDB (`dacite.store.nbb.lmdb/lmdb-store` with `lmdb-root-cell`) when the optional `lmdb` loads; otherwise the file store (`dacite.store.nbb/file-store` with `dacite.rooted/file-root-cell` at the same base path). The startup line names the engine and the path. A store dir records its engine in a marker file, and opening it with the other engine is an error, not a silent second store.
+- **Engine.** LMDB (`dacite.store.nbb.lmdb/lmdb-store` with `lmdb-root-cell`) when the optional `lmdb` loads; otherwise the file store (`dacite.store.nbb/file-store` with `dacite.rooted/file-root-cell` at the same base path), with a warning that `lmdb` did not load. The startup line names the engine and the path. A store dir records its engine in a marker file, and opening it with the other engine is an error, not a silent second store.
 - **One peer per store.** A `LOCK` file with the pid, created with `fs.openSync(path, 'wx')` (fails if it exists). If `LOCK` exists, check its pid with `process.kill(pid, 0)`: no error or `EPERM` means alive, and the peer exits 1 naming the pid; `ESRCH` means dead (a crash left it). A stale lock is taken over with a warning (`taking over a stale LOCK from pid <pid>`): write `LOCK.<own pid>.tmp`, `fs.renameSync` it over `LOCK` (atomic on one filesystem), then read `LOCK` back. If it does not hold our pid, another peer took it first, and this one exits 1. A recycled pid looks alive, so the error says to delete `LOCK` if no dacite is running.
 - **Contents.** The welcome value is put once, into an empty store. `dacite.cli.peer/start!` takes the store options from the bin (`{ws, room, token, store}`), and the printed `value` line becomes the root when a root is set.
 - **Tests.** An nbb check: start on a temp `--store`, put, stop, start again, and the value is still there; a wrong-engine marker and a live `LOCK` are refused; a `LOCK` with a dead pid is taken over with the warning.
@@ -126,14 +126,16 @@ Run by Jonathan on a Mac, after P1 to P4, with the packed tarball (not a clone),
 - [ ] Run `npx dacite` again in a second terminal: it prints the same URL and exits 0 (P2).
 - [ ] Stop and restart with the default store: the value is still there; the old tab's token is refused (per-run token).
 
-### Open questions for Jonathan
+### Details decided Nov 19
 
-1. Token lifetime: per-run (recommended; a restart invalidates old tabs) or persisted in the data dir so a bookmarked URL keeps working across restarts and service reboots?
-2. Data dir paths: OK with `~/Library/Application Support/Dacite`, `${XDG_DATA_HOME:-~/.local/share}/dacite`, and `%LOCALAPPDATA%\Dacite` (not `%APPDATA%`, which roams)? And a `DACITE_HOME` override?
-3. In-memory flag spelling: `--memory` (recommended) or `--store :memory:`?
-4. Probe endpoint: `GET /dacite/version` (recommended), or a `hello` over `/signal`?
-5. Run-file location: under the data dir (recommended) or a runtime dir (`$XDG_RUNTIME_DIR`, `$TMPDIR`)?
-6. Store engine when `lmdb` is missing: fall back to the file store with a warning (recommended), or refuse to start without `--memory`?
+Jonathan took all six recommendations:
+
+1. Token lifetime: per-run. A restart invalidates old tabs (§P1).
+2. Data dir: `~/Library/Application Support/Dacite`, `${XDG_DATA_HOME:-~/.local/share}/dacite`, and `%LOCALAPPDATA%\Dacite`, with a `DACITE_HOME` override (§P3).
+3. In-memory flag: `--memory` (§P3).
+4. Probe endpoint: `GET /dacite/version` (§P2).
+5. Run file: under the data dir, `<data dir>/run/<port>.json` (§P1).
+6. Without `lmdb`: fall back to the file store with a warning (§P3).
 
 ## Slices
 
