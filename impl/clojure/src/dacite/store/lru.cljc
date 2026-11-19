@@ -8,9 +8,33 @@
    not hash a BigInt."
   (:require [dacite.store :as store]))
 
-(defn- touch-order [order k]
-  (let [order' (vec (remove #(= k %) order))]
-    (conj order' k)))
+;; Recency order: each key carries the tick of its last touch, from a
+;; monotonic counter, and `:by-tick` (a sorted map, tick -> key) yields the
+;; least recent first. Touch, evict, and drop are O(log n). Ticks are
+;; native integers, so the sorted map never compares a host BigInt.
+
+(def ^:private empty-order {:tick 0 :by-tick (sorted-map) :tick-of {}})
+
+(defn- drop-order
+  "`order` without `k` (unchanged when `k` is absent)."
+  [{:keys [by-tick tick-of] :as order} k]
+  (if-let [t (get tick-of k)]
+    (assoc order :by-tick (dissoc by-tick t) :tick-of (dissoc tick-of k))
+    order))
+
+(defn- touch-order
+  "`order` with `k` the most recent."
+  [order k]
+  (let [{:keys [tick] :as order} (drop-order order k)]
+    (-> order
+        (assoc :tick (inc tick))
+        (update :by-tick assoc tick k)
+        (update :tick-of assoc k tick))))
+
+(defn- least-recent
+  "The least recently touched key, or nil."
+  [{:keys [by-tick]}]
+  (when-let [[_ k] (first by-tick)] k))
 
 (defrecord LruStore [capacity data order]
   store/IStore
@@ -25,9 +49,9 @@
     (let [k (store/mkey h)
           new-key? (not (contains? @data k))]
       (when (and new-key? (pos? capacity) (>= (count @data) capacity))
-        (when-let [victim (first @order)]
+        (when-let [victim (least-recent @order)]
           (swap! data dissoc victim)
-          (swap! order #(vec (rest %)))))
+          (swap! order drop-order victim)))
       (swap! data assoc k value)
       (swap! order touch-order k))
     (store/completed this))
@@ -38,12 +62,12 @@
   (s-delete [this h]
     (let [k (store/mkey h)]
       (swap! data dissoc k)
-      (swap! order #(vec (remove (fn [x] (= x k)) %)))
+      (swap! order drop-order k)
       (store/completed this)))
 
   (s-reset [this]
     (reset! data {})
-    (reset! order [])
+    (reset! order empty-order)
     (store/completed this))
 
   store/ISweep
@@ -55,7 +79,7 @@
                         (keys @data))]
       (doseq [k drop]
         (swap! data dissoc k)
-        (swap! order #(vec (remove (fn [x] (= x k)) %))))
+        (swap! order drop-order k))
       (store/completed {:removed (count drop)})))
 
   store/ILocalStats
@@ -67,4 +91,4 @@
 (defn lru-store
   "Create an LRU-bounded in-memory store. capacity 0 means unbounded."
   ([capacity]
-   (->LruStore capacity (atom {}) (atom []))))
+   (->LruStore capacity (atom {}) (atom empty-order))))

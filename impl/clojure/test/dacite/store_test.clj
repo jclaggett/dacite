@@ -5,7 +5,9 @@
    nbb runs the same checks on its file and LMDB stores
    (`npm run storage:test`). One deftest each, so the JVM suite still names
    the test it ran before. `await-future-test` is JVM only: a JVM future is
-   the only host promise `store/await` reads besides a settled one."
+   the only host promise `store/await` reads besides a settled one.
+   `rooted-var-names-its-namespace-test` is JVM only too: the deferred
+   `dacite.rooted` re-export is a JVM branch."
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [dacite.store :as store]
@@ -154,10 +156,19 @@
       (is (= :unavailable (:reason (ex-data e))))
       (is (= h (:hash (ex-data e)))))))
 
+(deftest rooted-var-names-its-namespace-test
+  (let [e (try (#'store/rooted-var 'no-such-var) nil
+               (catch clojure.lang.ExceptionInfo ex ex))]
+    (is (some? e) "a var dacite.rooted does not define throws ex-info")
+    (is (= {:ns 'dacite.rooted :var 'dacite.rooted/no-such-var} (ex-data e)))
+    (is (re-find #"require dacite\.rooted" (ex-message e))))
+  (is (= (requiring-resolve 'dacite.rooted/root) (#'store/rooted-var 'root)) "a defined var resolves"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)
                          (filter #(-> % meta :test) (vals (ns-interns 'dacite.store-test)))))
                "every-check-has-a-deftest"
-               "await-future-test"))
+               "await-future-test"
+               "rooted-var-names-its-namespace-test"))
       "store_checks.cljc and this file list the same tests"))

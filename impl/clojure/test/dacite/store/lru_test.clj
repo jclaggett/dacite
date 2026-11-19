@@ -33,6 +33,12 @@
 (deftest lru-real-hash-sweep-test
   (run-check "lru-real-hash-sweep-test"))
 
+(deftest lru-order-matches-a-model-test
+  (run-check "lru-order-matches-a-model-test"))
+
+(deftest lru-reset-restarts-the-order-test
+  (run-check "lru-reset-restarts-the-order-test"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)
