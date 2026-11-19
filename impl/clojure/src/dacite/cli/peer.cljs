@@ -2,8 +2,10 @@
   "The nbb peer `npx dacite` runs (docs/design/packaging.md, slice 1).
 
    `bin/dacite.mjs` starts the one-port server (static app code and the
-   `/signal` room relay), then calls `start!` with that relay's URL and a
-   room token it made for this launch. This peer is the WebRTC answerer
+   `/signal` room relay), then calls `start!` with that relay's URL, a
+   room it made for this launch, and the launch's `/signal` token, which
+   this peer sends as the subprotocol `dacite.token.<token>` like the page
+   (docs/design/packaging.md §P1). This peer is the WebRTC answerer
    in that room. The page is the offerer.
 
    The store is in memory and holds one welcome value, so a fresh launch
@@ -35,8 +37,8 @@
 (defn- join!
   "One session: join `room` as the answerer, serve the page's channel,
    and join again when the session ends."
-  [{:keys [ws room links r log] :as ctx} n]
-  (let [peer (webrtc/create-peer :answerer {:ws {:url ws :room room :timeout-ms nil}})
+  [{:keys [ws room token links r log] :as ctx} n]
+  (let [peer (webrtc/create-peer :answerer {:ws {:url ws :room room :token token :timeout-ms nil}})
         conn (:conn peer)
         ended? (atom false)
         again! (fn [why]
@@ -69,10 +71,10 @@
 (defn start!
   "Hold the welcome value and answer in `room` on the relay at `ws`.
    Takes and returns JS objects (it is called from `bin/dacite.mjs`):
-   `{ws, room}` in, `{value, entries}` out (the welcome value's hex hash
+   `{ws, room, token}` in, `{value, entries}` out (the welcome value's hex hash
    and reachable entry count)."
   [opts]
-  (let [{:keys [ws room]} (js->clj opts :keywordize-keys true)
+  (let [{:keys [ws room token]} (js->clj opts :keywordize-keys true)
         st (store/mem-store)
         value (welcome-value st)
         h (v/hash value)
@@ -81,6 +83,6 @@
                                       (link/responder-opts links)))
         log (fn [s] (js/console.error s))]
     (js/setInterval #(responder/tick! r) 25)
-    (join! {:ws ws :room room :links links :r r :log log} 1)
+    (join! {:ws ws :room room :token token :links links :r r :log log} 1)
     (clj->js {:value (store/hash->hex h)
               :entries (count (gc/mark-reachable st h))})))

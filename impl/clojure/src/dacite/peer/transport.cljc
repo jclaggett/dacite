@@ -55,6 +55,24 @@
    of the node-datachannel `max-frame` (4096), which is 16384 bytes."
   4096)
 
+(def signal-protocol
+  "The WebSocket subprotocol a `/signal` server answers with
+   (docs/design/packaging.md §P1)."
+  "dacite.v1")
+
+(def signal-token-prefix
+  "Prefix of the subprotocol entry that carries the `/signal` token."
+  "dacite.token.")
+
+(defn signal-protocols
+  "The subprotocol list for a `/signal` upgrade: `[\"dacite.v1\"
+   \"dacite.token.<token>\"]`, or nil when there is no token (the dev relay,
+   `npm run webrtc:signal`, takes none). A browser `WebSocket` cannot set
+   headers, so the token travels here; the server echoes only `dacite.v1`."
+  [token]
+  (when (and (string? token) (pos? (count token)))
+    [signal-protocol (str signal-token-prefix token)]))
+
 (defn signal-room-url
   "Slice-3 room URL. `url` is `ws://host:port` with no path. `role` is
    `:offerer`, `:answerer`, or nil (the server assigns a free role).

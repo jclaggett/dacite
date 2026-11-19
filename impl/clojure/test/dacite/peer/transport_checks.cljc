@@ -311,6 +311,18 @@
      (bad "the close was seen once" 1 @closed)
      (bad "nothing is buffered after" 0 (t/buffered-amount ch-a)))))
 
+(defn signal-protocols-carry-the-token
+  "The `/signal` subprotocol list (docs/design/packaging.md §P1): `dacite.v1`
+   then `dacite.token.<token>`, and none without a token (the dev relay)."
+  []
+  (let [tok "V09KslA-gWBMEKuNgltQ3qXbtX_SG37pM-jCJHpubAI"]
+    (concat
+     (bad "the list" ["dacite.v1" (str "dacite.token." tok)] (t/signal-protocols tok))
+     (bad "no token" nil (t/signal-protocols nil))
+     (bad "an empty token" nil (t/signal-protocols ""))
+     (bad "the prefix" "dacite.token." t/signal-token-prefix)
+     (bad "the answer" "dacite.v1" t/signal-protocol))))
+
 (def checks
   "Test name -> check. Run order is this order."
   (array-map
@@ -321,7 +333,8 @@
    "closing-the-connection-ends-the-peer-session" closing-the-connection-ends-the-peer-session
    "a-corrupted-entry-ends-the-session-over-the-transport" a-corrupted-entry-ends-the-session-over-the-transport
    "back-pressure-reads-the-channels-buffered-amount" back-pressure-reads-the-channels-buffered-amount
-   "in-memory-channel-keeps-order-and-counts-buffered" in-memory-channel-keeps-order-and-counts-buffered))
+   "in-memory-channel-keeps-order-and-counts-buffered" in-memory-channel-keeps-order-and-counts-buffered
+   "signal-protocols-carry-the-token" signal-protocols-carry-the-token))
 
 (def max-ms
   "No check may take longer than this (milliseconds)."

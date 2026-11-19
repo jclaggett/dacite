@@ -6,10 +6,13 @@
  *
  * `npx dacite` end to end (packaging slice 1): start `bin/dacite.mjs` on a
  * free port, open the Value Browser URL it prints (served by that same
- * process, with its /signal relay and room in the query), and fetch the
- * welcome value over peering. Then reload the page and fetch it again: the
- * peer rejoins the room for a second session. No request to the server
- * carries the hash, and every request goes to the one port.
+ * process, with its /signal relay, room, and token in the fragment), and
+ * fetch the welcome value over peering. The page strips the token from the
+ * address bar. Then reload the page and fetch it again: the token comes
+ * from sessionStorage, and the peer rejoins the room for a second session.
+ * No request to the server carries the hash or the token, and every
+ * request goes to the one port. Last, a fresh tab given the URL without
+ * the token is refused (`no-token`; the server answers 401).
  *
  * Requires `npm run browser:build` first (the page bundle).
  */
@@ -74,14 +77,19 @@ async function main() {
     const hex = (await waitMatch(d, /^value ([0-9a-f]{64})$/m, 1000, 'value'))[1];
     const entries = (await waitMatch(d, /^entries (\d+)$/m, 1000, 'entries'))[1];
     const origin = new URL(open).origin;
-    const signal = new URL(open).searchParams.get('signal');
+    const frag = new URLSearchParams(new URL(open).hash.slice(1));
+    const signal = frag.get('signal');
+    const token = frag.get('token');
+    if (new URL(open).search) throw new Error('the printed URL has a query: ' + open);
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token || '')) throw new Error('no 43-character token in the fragment: ' + open);
     if (signal !== origin.replace(/^http/, 'ws') + '/signal') throw new Error('signal is not on the page port: ' + signal);
 
     browser = await chromium.launch({
       headless: true,
       args: ['--disable-features=WebRtcHideLocalIpsWithMdns', '--no-sandbox', '--disable-dev-shm-usage'],
     });
-    const page = await (await browser.newContext()).newPage();
+    const context = await browser.newContext();
+    const page = await context.newPage();
     const urls = [];
     page.on('request', (req) => urls.push(req.url()));
     page.on('pageerror', (err) => console.log('pageerror', err));
@@ -97,18 +105,41 @@ async function main() {
         { timeout: 20000 },
       );
       eq(`round ${round} signal field`, await page.inputValue('#signal'), signal);
+      eq(`round ${round} token in the address bar`, page.url().includes(token), false);
       const got = await fetchHash(page, hex);
       eq(`round ${round} code`, got.code, 'verified');
       eq(`round ${round} entries`, got.entries, entries);
       eq(`round ${round} verified`, got.verified, entries);
       await waitMatch(d, new RegExp(`^session ${round} connected$`, 'm'), 10000, `session ${round}`, 'err');
     }
+    // A fresh tab (no sessionStorage) given the URL without the token.
+    frag.delete('token');
+    const bare = await context.newPage();
+    await bare.goto(`${origin}/app/browser/#${frag}`, { waitUntil: 'domcontentloaded' });
+    await bare.waitForFunction(
+      () => (document.getElementById('status')?.textContent || '') === 'paste a peer',
+      null,
+      { timeout: 20000 },
+    );
+    await bare.fill('#uri', 'dacite://local#urn:dacite:' + hex);
+    await bare.fill('#urn', '');
+    await bare.click('#fetch');
+    await bare.waitForFunction(
+      () => (document.getElementById('status')?.dataset.code || '') !== '',
+      null,
+      { timeout: 20000 },
+    );
+    eq('no token code', await bare.locator('#status').getAttribute('data-code'), 'no-token');
+    await bare.close();
+
+    const withToken = urls.filter((u) => u.includes(token));
+    if (withToken.length) problems.push('token in a request URL: ' + withToken.join(' | '));
     const elsewhere = urls.filter((u) => !u.startsWith(origin + '/'));
     if (elsewhere.length) problems.push('requests off the one port: ' + elsewhere.join(' | '));
     const leaked = urls.filter((u) => u.includes(hex) || u.includes('urn:dacite') || u.includes('/node/'));
     if (leaked.length) problems.push('hash requested over HTTP: ' + leaked.join(' | '));
     if (problems.length) throw new Error(problems.join('\n'));
-    console.log('ok', JSON.stringify({ entries: Number(entries), sessions: 2 }));
+    console.log('ok', JSON.stringify({ entries: Number(entries), sessions: 2, refusedWithoutToken: true }));
   } finally {
     if (browser) await browser.close().catch(() => {});
     if (d.child.exitCode == null) d.child.kill('SIGTERM');
