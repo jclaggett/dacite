@@ -48,6 +48,7 @@
     "web:serve": "node scripts/static-server.mjs",
     "web:serve-test": "node scripts/static-server-test.mjs",
     "dacite": "node bin/dacite.mjs",
+    "dacite:store-test": "node scripts/dacite-args-test.mjs && nbb -cp impl/clojure/src:impl/clojure/test -m dacite.cli.store-cljs-test",
     "dacite:server-test": "node scripts/dacite-server-test.mjs",
     "dacite:e2e": "node scripts/dacite-e2e.mjs"
   },

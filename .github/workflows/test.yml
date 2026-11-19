@@ -44,6 +44,7 @@ jobs:
           npm run webrtc:signal-test
           npm run web:serve-test
           npm run dacite:server-test
+          npm run dacite:store-test
           npm run mem:test
           npm run lru:test
 
