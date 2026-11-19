@@ -354,20 +354,24 @@
 (defn signal-over-ws!
   "Relay `peer`'s offer or answer and ICE candidates through the slice-3
    server. `peer` is a `create-peer` result. `url` is `ws://host:port`.
-   `room` is the shared token. `role` defaults to the peer's role.
+   `room` is the shared token. `role` defaults to the peer's role. `token`,
+   when given, is the `/signal` secret of the `npx dacite` server, sent as
+   the subprotocol `dacite.token.<token>` (`t/signal-protocols`).
 
    Returns a promise that resolves once the remote description has been
    applied. Later candidates still flow. Rejects on a room error, a
    timeout, or the other peer leaving before that description arrives.
    The JSON frames match `scripts/webrtc-signal-server.mjs`."
-  [peer {:keys [url room role timeout-ms] :or {timeout-ms 20000}}]
+  [peer {:keys [url room role token timeout-ms] :or {timeout-ms 20000}}]
   (js/Promise.
    (fn [resolve reject]
      (if-not (and (string? url) (string? room) (pos? (count room)))
        (reject (ex-info "signal-over-ws! needs :url and :room"
                         {:reason :bad-signaling}))
        (let [role (or role (:role peer))
-             ws (js/WebSocket. (t/signal-room-url url room role))
+             ws (if-let [ps (t/signal-protocols token)]
+                  (js/WebSocket. (t/signal-room-url url room role) (clj->js ps))
+                  (js/WebSocket. (t/signal-room-url url room role)))
              signal (:signal peer)
              opened? (atom false)
              pending (atom [])

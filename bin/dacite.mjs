@@ -10,8 +10,11 @@
  *   - an nbb peer (`dacite.cli.peer`) answering in a room made for this
  *     launch. It holds one welcome value in memory.
  *
- * It prints the Value Browser URL (with the relay and the room in the
- * query) and the welcome value's hash. `--port 0` picks a free port.
+ * It prints the Value Browser URL and the welcome value's hash. The relay,
+ * the room, and this launch's `/signal` token are in the URL fragment,
+ * which is never sent in a request (docs/design/packaging.md §P1). The
+ * token is per-run: a restart invalidates old tabs. `--port 0` picks a
+ * free port.
  */
 import crypto from 'crypto';
 import fs from 'fs';
@@ -51,9 +54,12 @@ function parseArgs(argv) {
 const out = (s) => fs.writeSync(1, s + '\n');
 
 const opts = parseArgs(process.argv.slice(2));
+// The /signal token: 256 bits, base64url (43 characters, no padding),
+// held in memory for this run only.
+const token = crypto.randomBytes(32).toString('base64url');
 let server;
 try {
-  server = await startDacite({ port: opts.port });
+  server = await startDacite({ port: opts.port, token });
 } catch (err) {
   if (err && err.code === 'EADDRINUSE') {
     console.error(`port ${opts.port} is in use; pass --port`);
@@ -66,8 +72,9 @@ addClassPath(path.join(root, 'impl', 'clojure', 'src'));
 // loadFile, not loadString: npm requires then resolve from this package,
 // whatever directory `npx dacite` runs in.
 const start = await loadFile(path.join(root, 'bin', 'dacite-peer.cljs'));
-const held = start({ ws: server.signalUrl, room });
-const page = `${server.appUrl}browser/?signal=${encodeURIComponent(server.signalUrl)}&room=${encodeURIComponent(room)}`;
+const held = start({ ws: server.signalUrl, room, token });
+const fragment = new URLSearchParams({ signal: server.signalUrl, room, token }).toString();
+const page = `${server.appUrl}browser/#${fragment}`;
 out(`dacite listening ${server.appUrl}`);
 out(`signal ${server.signalUrl}`);
 out(`value ${held.value}`);

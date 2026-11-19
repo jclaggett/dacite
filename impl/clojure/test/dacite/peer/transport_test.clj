@@ -37,6 +37,9 @@
 (deftest in-memory-channel-keeps-order-and-counts-buffered
   (run-check "in-memory-channel-keeps-order-and-counts-buffered"))
 
+(deftest signal-protocols-carry-the-token
+  (run-check "signal-protocols-carry-the-token"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

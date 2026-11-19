@@ -366,10 +366,12 @@
    remote description has been applied. Later candidates still flow.
    Rejects on `room-full`, `role-taken`, `bad-room`, `peer-left`, a closed
    socket, or a timeout. `:timeout-ms` nil does not arm that timeout; the
-   default when the key is omitted is `default-signaling-timeout`.
+   default when the key is omitted is `default-signaling-timeout`. `:token`,
+   when given, is the `/signal` secret of the `npx dacite` server, sent as
+   the subprotocol `dacite.token.<token>` (`t/signal-protocols`).
 
    The JSON frames match `scripts/webrtc-signal-server.mjs`."
-  [peer {:keys [url room role] :as opts}]
+  [peer {:keys [url room role token] :as opts}]
   (let [timeout-ms (signaling-timeout-ms opts)]
   (js/Promise.
    (fn [resolve reject]
@@ -378,7 +380,9 @@
                         {:reason :bad-signaling}))
        (let [WS (js/require "ws")
              role (or role (:role peer))
-             ws (new WS (room-url url room role) #js {:perMessageDeflate false})
+             ws (if-let [ps (t/signal-protocols token)]
+                  (new WS (room-url url room role) (clj->js ps) #js {:perMessageDeflate false})
+                  (new WS (room-url url room role) #js {:perMessageDeflate false}))
              pc (:pc peer)
              signal (:signal peer)
              opened? (atom false)

@@ -15,7 +15,13 @@
    HTTP path.
 
    Introduce is a separate step: the slice-3 room (`signal` and `room`)
-   or a pasted answer. Fetch then does one peer-v1 `get` of that hash.
+   or a pasted answer. `npx dacite` prints this page with `signal`,
+   `room`, and its `/signal` token in the URL fragment
+   (docs/design/packaging.md §P1). The page keeps the token in
+   `sessionStorage` (a reload still has it), strips it from the address
+   bar, and sends it as the WebSocket subprotocol `dacite.token.<token>`,
+   only to a relay on this page's own host. `signal` and `room` in the
+   query still work for the dev relay, which takes no token. Fetch then does one peer-v1 `get` of that hash.
    A later paste of another hash for the same name reuses the channel
    when it is still up. Entries are verified before they are stored.
    The page shows the hash, the entry count, and the verification status."
@@ -60,6 +66,7 @@
          :connects 0
          :gets 0
          :phase :idle
+         :token nil
          :busy? false}))
 
 (defn- by-id [id]
@@ -104,17 +111,64 @@
   (set-attr! "entries" "data-count" "")
   (set-attr! "verified" "data-count" ""))
 
-(defn- query-param
-  "A non-empty query value, or nil. Used for the room and the relay
-   only. The value hash is never taken from the page URL."
+(defn- non-blank [v]
+  (when (and (string? v) (pos? (count (str/trim v))))
+    (str/trim v)))
+
+(defn- fragment-params []
+  (js/URLSearchParams. (subs (or (.-hash js/location) "") 1)))
+
+(defn- page-param
+  "A non-empty value from the URL fragment, else from the query, or nil.
+   Used for the room and the relay only. The value hash is never taken
+   from the page URL."
   [k]
-  (let [v (.get (js/URLSearchParams. (.-search js/location)) k)]
-    (when (and (string? v) (pos? (count (str/trim v))))
-      (str/trim v))))
+  (or (non-blank (.get (fragment-params) k))
+      (non-blank (.get (js/URLSearchParams. (.-search js/location)) k))))
+
+(def ^:private token-key
+  "The `sessionStorage` key of the `/signal` token."
+  "dacite.signal-token")
+
+(defn- session-get [k]
+  (try (.getItem js/sessionStorage k) (catch :default _ nil)))
+
+(defn- session-set! [k v]
+  (try (.setItem js/sessionStorage k v) (catch :default _ nil)))
+
+(defn- take-token!
+  "The `/signal` token: from the fragment (kept in `sessionStorage`, then
+   removed from the address bar with `history.replaceState`), else the one
+   this tab kept, or nil."
+  []
+  (let [ps (fragment-params)]
+    (when-let [t (non-blank (.get ps "token"))]
+      (session-set! token-key t)
+      (.delete ps "token")
+      (let [rest (.toString ps)]
+        (.replaceState js/history nil ""
+                       (str (.-pathname js/location) (.-search js/location)
+                            (if (pos? (count rest)) (str "#" rest) "")))))
+    (non-blank (session-get token-key))))
+
+(defn- own-host?
+  "Whether the relay at `signal` is on this page's own host and port (the
+   `npx dacite` that served it)."
+  [signal]
+  (try (= (.-host (js/URL. signal)) (.-host js/location))
+       (catch :default _ false)))
+
+(defn- token-for
+  "The token to send to the relay at `signal`: only to one on this page's
+   own host, never to another relay."
+  [signal]
+  (when-let [tok (:token @!ui)]
+    (when (own-host? signal) tok)))
 
 (defn- prefill! []
+  (swap! !ui assoc :token (take-token!))
   (doseq [id ["signal" "room"]]
-    (when-let [v (query-param id)]
+    (when-let [v (page-param id)]
       (when-let [el (by-id id)]
         (set! (.-value el) v)))))
 
@@ -260,7 +314,8 @@
                                 (link/client-opts links)))
         timer (js/setInterval #(client/tick! c) 25)
         rtc-peer (rtc/create-peer :offerer {:ice-servers []
-                                            :ws {:url signal :room room}})]
+                                            :ws {:url signal :room room
+                                                 :token (token-for signal)}})]
     (swap! !ui assoc
            :links links
            :client c
@@ -273,6 +328,15 @@
     (render-counts!)
     (set-text! "status" "connecting…")
     (-> (:signaling rtc-peer)
+        (.catch (fn [e]
+                  ;; Our own relay refuses an upgrade with no token (401);
+                  ;; a browser only sees the socket fail.
+                  (throw (if (and (own-host? signal)
+                                  (nil? (token-for signal))
+                                  (#{:signaling-error :closed} (:reason (ex-data e))))
+                           (ex-info "no /signal token: open the URL npx dacite printed"
+                                    {:reason :no-token :code "no-token"})
+                           e))))
         (.then (fn [_] (attach! host))))))
 
 (defn- read-signal [text]
