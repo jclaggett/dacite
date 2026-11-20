@@ -116,6 +116,7 @@ These files are shared source, and they still branch on the host. They are
 | `dacite.examples.library` | `host` | `impl/clojure/src/dacite/examples/library.cljc` | Library example. `clojure.java.io`, Node `Buffer`, and a `:clj` require of `dacite.store.chunk`. |
 | `dacite.examples.notes` | `host` | `impl/clojure/src/dacite/examples/notes.cljc` | Notes example. `Long/parseLong` and `js/parseInt`. |
 | `dacite.examples.sync` | `host` | `impl/clojure/src/dacite/examples/sync.cljc` | Sync example. `clojure.java.io` on the JVM and Node `fs` on ClojureScript. |
+| `dacite.examples.value-view` | `host` | `impl/clojure/src/dacite/examples/value_view.cljc` | Value Browser rendering (M6.5): an entry's summary, labelled children, text from its pages, EDN, and hex dump. Pure; the hex digits and wide integers branch on the host. |
 | `dacite.hash` | `host` | `impl/clojure/src/dacite/hash.cljc` | Fuse algebra on `dacite.host`, plus `Integer/parseInt` and `js/parseInt`, and it requires `dacite.cache`. |
 | `dacite.host` | `host` | `impl/clojure/src/dacite/host.cljc` | The portability contract: words, bytes, UTF-8, and scalar codecs via Java and JS. The one host namespace `core` may require. |
 | `dacite.peer.client` | `host` | `impl/clojure/src/dacite/peer/client.cljc` | Peer client. `System/currentTimeMillis` and `js/Date`. |
@@ -180,7 +181,7 @@ above, so it is `host` until those dependencies are `core`.
 | `dacite.dev.gen-sl2-table` | `host` | `impl/clojure/dev/dacite/dev/gen_sl2_table.clj` | JVM regeneration of `dacite.sl2-table`. |
 | `dacite.dev.inspect` | `host` | `impl/clojure/dev/dacite/dev/inspect.clj` | JVM reflection over `clojure.lang` collection interfaces. |
 | `dacite.examples.browser-nbb` | `host` | `impl/clojure/src/dacite/examples/browser_nbb.cljs` | nbb answerer for the Value Browser. Holds two values and answers the browser over `node-datachannel`. |
-| `dacite.examples.browser-web` | `host` | `impl/clojure/src/dacite/examples/browser_web.cljs` | Value Browser page. DOM, IndexedDB, and the browser peer. Manual introduce, then one `get`. |
+| `dacite.examples.browser-web` | `host` | `impl/clojure/src/dacite/examples/browser_web.cljs` | Value Browser page. DOM, IndexedDB, and the browser peer. Manual introduce, then one `get`; the tree (M6.5) opens one hash at a time, a `get` for any it does not hold. |
 | `dacite.examples.page-token` | `host` | `impl/clojure/src/dacite/examples/page_token.cljs` | Page parameters and the `/signal` token for the Value Browser, peer, and library pages: fragment first, `sessionStorage`, stripped from the address bar, sent only to the page's own host. |
 | `dacite.examples.cards` | `host` | `impl/clojure/src/dacite/examples/cards.clj` | JVM cards example (`clojure -M:cards`), LMDB through the store API. |
 | `dacite.examples.explorer-web` | `host` | `impl/clojure/src/dacite/examples/explorer_web.cljs` | Compiled browser explorer. DOM and `dacite.store.browser`. |

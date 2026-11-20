@@ -8,8 +8,9 @@
 nbb parity is the stated goal. Work through M6.4 was implicitly that
 parity. The first slice is done (PR #50): mem-store merge and init key
 the way `s-get` reads them. Next is LRU store keying, then file and
-LMDB. Demos and apps are parked until parity, including Value Browser
-rendering (M6.5) and the root URL (M6.6).
+LMDB. Demos and apps are parked until parity, including the root URL
+(M6.6). Value Browser rendering (M6.5) resumed after packaging and is
+built (Nov 20, 2026, Jonathan's call).
 M5.1 compiled the peer for the browser with shadow-cljs. M5.2 and M5.3
 are built: the browser reads a value held only by the nbb peer, and the
 library reader loads a chapter and a plate from that peer. M6.4 is built
@@ -75,8 +76,8 @@ Do this next:
 1. **nbb parity.** The same checks on nbb and on the JVM. PR #50 keyed
    mem-store merge and init the way `s-get` reads them. Next is LRU
    store keying, then file and LMDB. Demos and apps stay parked until
-   that parity, including Value Browser rendering (M6.5) and the root
-   URL (M6.6). Peering phase 1 (interest-based transmission over
+   that parity, including the root URL (M6.6). Value Browser rendering
+   (M6.5) is built (Nov 20, 2026). Peering phase 1 (interest-based transmission over
    WebRTC) is largely complete and closes with a final review. Peering
    phase 2 (ICE-based discovery for peer lists) comes after the roots
    layer. The account is [plan/peering.md](plan/peering.md). The
@@ -157,8 +158,8 @@ fragment is the content name and is not sent as an HTTP path. The
 page shows the hash, the entry count, and whether every entry
 verified. Manual introduce is the slice-3 room or a pasted answer.
 Rendering (scalars and text as they are, a HAMT or finger tree as a
-tree of hashes, and a raw/hex pane) and a root URL are M6.5 and M6.6.
-Both are parked until nbb parity. That parity is the stated goal. The
+tree of hashes, and a raw/hex pane) is M6.5, built Nov 20, 2026. The
+root URL is M6.6, parked until nbb parity. That parity is the stated goal. The
 first slice (PR #50) keys mem-store merge and init the way `s-get`
 reads them. Next is LRU store keying, then file and LMDB. A peer list
 is a value at a root. ICE-based discovery for peer lists is peering
@@ -587,7 +588,7 @@ is the next milestone.
 | IndexedDB store | A web client needs a durable store of its own | **Done** — `dacite.store.idb`. `open` is a rooted store; `idb-store` is the content dictionary a `SmartCacheStore` can put in front of a remote. Ops suspend and `drive` replays them |
 | QUIC reveal client | A focused child collection is its own stream | **Earlier carrier on this list.** `POST /reveal` streams wire-v1 node items on one connection (the QUIC session on HTTP/3). A second POST while that response is still open is a focused child: the parent stays open, and a hash either stream has offered is not sent on the other. `GET /events` stays up while those two reveals are open. Resetting a stream is not tested. A finished stream acknowledges its pages; a failed stream cancels and releases them. No client ack or release message yet. `remote-store` opts in with `:reveal` and keeps one HTTP/3 connection; the default read is still pack GET. `peak`, `tau`, `floor`, and `r-max` are placeholders. `dacite.reveal` remains the page order, the shares, and the session clock. The pages on that stream are the carrier the LAN peer tier reuses. The account is [design/progressive-revelation.md](design/progressive-revelation.md) |
 | Stream a pack on one GET | A remote chapter or image is one round trip per ~1–2 KB | **After the reveal client** — HTTP/1.1 carrier of the reveal byte limit. Chunked wire-v1 under the asked hash, applied as bytes arrive |
-| LAN peering | A second reader on the LAN should take pages from a neighbor's cache | **Through M6.4, built** — peering phase 1, interest-based transmission over WebRTC: a channel to a named peer and a fetch by hash. Largely complete; closes with a final review. The Value Browser pastes `dacite://<host>#urn:dacite:<hex>`. Manual introduce. One WebRTC data channel carries one reveal. Reads only. **Parked until nbb parity:** rendering and a root URL (M6.5–M6.6). The stated goal is that parity (PR #50 done; next LRU store keying, then file and LMDB). Peering phase 2 is ICE-based discovery for peer lists, after the roots layer. Origin signaling and origin suggest are set aside. A peer list is a value at a root. The account is [plan/peering.md](plan/peering.md) and [design/peering-design-note.md](design/peering-design-note.md) |
+| LAN peering | A second reader on the LAN should take pages from a neighbor's cache | **Through M6.4, built** — peering phase 1, interest-based transmission over WebRTC: a channel to a named peer and a fetch by hash. Largely complete; closes with a final review. The Value Browser pastes `dacite://<host>#urn:dacite:<hex>`. Manual introduce. One WebRTC data channel carries one reveal. Reads only. Rendering (M6.5) is built (Nov 20, 2026). **Parked until nbb parity:** a root URL (M6.6). The stated goal is that parity (PR #50 done; next LRU store keying, then file and LMDB). Peering phase 2 is ICE-based discovery for peer lists, after the roots layer. Origin signaling and origin suggest are set aside. A peer list is a value at a root. The account is [plan/peering.md](plan/peering.md) and [design/peering-design-note.md](design/peering-design-note.md) |
 
 Seed catalog, budget 1024, after literal pages (`clojure -M:library-storage`, 2026-10-16):
 
@@ -696,10 +697,11 @@ LAN peering                                        through M6.4
         → peering phase 1: interest over WebRTC,
           largely complete. Phase 2 is ICE discovery
           for peer lists, after the roots layer
-Value Browser                                      M6.4 built; M6.5–M6.6 parked
-        → paste dacite://host#urn:dacite:<hex> and
-          show the hash and the entry count.
-          Rendering and the root URL wait for parity
+Value Browser                                      M6.4–M6.5 built; M6.6 parked
+        → paste dacite://host#urn:dacite:<hex>, show
+          the hash and the entry count, and a tree of
+          hashes with a raw/hex pane. The root URL
+          waits for parity
 nbb parity                                         ← current
         → PR #50 keyed mem-store merge and init.
           Next: LRU store keying, then file and LMDB.
@@ -726,5 +728,5 @@ Do not invent “app 7” to fill the tree.
 - [peering-design-note.md](design/peering-design-note.md) — LAN peer tier:
   WebRTC data channel, a named peer, fetch by hash. Origin signaling
   is set aside. M6.4 pastes a `dacite://` URI and fetches that hash.
-  Rendering (M6.5) and the root URL (M6.6) are parked until nbb parity.
+  Rendering (M6.5) is built; the root URL (M6.6) is parked until nbb parity.
   That parity is the stated goal, in [plan/peering.md](plan/peering.md)

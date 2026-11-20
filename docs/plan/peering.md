@@ -26,7 +26,7 @@ Roots already need a way to name and update what a peer publishes. A peer list i
 
 ### URI model for the Value Browser
 
-The Value Browser is parked until nbb parity (Nov 10). M6.4 is built (PR #49). M6.5 and M6.6 are parked. The URI model below is what those slices use when they resume. It works from URIs the operator types.
+The Value Browser was parked until nbb parity (Nov 10). M6.4 is built (PR #49). M6.5 is built (Nov 20, 2026, resumed after packaging). M6.6 is parked. The URI model below is what those slices use when they resume. It works from URIs the operator types.
 
 - A URL names a peer: how you reach a remote store. A URN names a value: `urn:dacite:<hex>`.
 - The access scheme is custom, for example `dacite://dacite.io` for a peer.
@@ -299,12 +299,18 @@ The Oct 30 grid put origin signaling on Fri Nov 20 to Tue Nov 24. That sequence 
     6. Paste `dacite://<name>#urn:dacite:<value-a>` and click Fetch. Terminal B is still waiting; the page joins the room on that click. Expect status `verified`, that hex, and `entries-a`. Paste the second hash for the same name and Fetch again. Expect that hex, `entries-b`, and the same open channel. Paste `absent`. Expect `unknown-hash`.
     7. Paste without the room: clear the room token (the printed URL fills it). Click Show offer, pipe that JSON to `nbb -m dacite.examples.browser-nbb --sdp`, paste the printed `answer` JSON into Remote answer, then Fetch. The room and the paste are the two introduce paths. Use one of them.
 
-**M6.5. Value Browser rendering. Parked (Nov 10) until nbb parity.** The same page, once the hash is in the page's store.
+**M6.5. Value Browser rendering. Built (Nov 20, 2026).** Parked Nov 10 until nbb parity; Jonathan resumed it after packaging (Nov 19). The same page, once the hash is in the page's store.
 - A scalar or text renders as itself.
 - A HAMT or a finger tree renders as a tree of child hashes. Choosing a hash fetches it from the same peer (another `get`, same interest and rate policy) and opens it.
 - A raw/hex pane shows the stored bytes of the entry on screen.
 - Acceptance: from one pasted URI, a scalar or a string is readable; a map or a vector can be stepped into, one hash at a time; the raw pane shows the entry the tree is showing. Headless or a written manual script, same bar as M6.4.
 - Out of scope: images, HTML, and any other media type (those wait until a root or a convention says how to interpret the bytes); editing; a root URL (M6.6); a second peer; origin fallback; the path-form HTTP URI.
+- Built: `dacite.examples.value-view` (`.cljc`, pure) says what a row shows; `browser_web.cljs` does the reads and the DOM. Details chosen where the slice left them open:
+  - The tree is the stored entries, not the realized value: one row per entry (`map`, `hamt/bitmap`, `hamt/entry`, `vector`, `ft/deep`, `ft/digit`, a scalar, …), its children labelled (`root`; `child N`; `key` and `value`; `left`, `spine`, and `right`; `item N`). A literal inlined in a finger-tree page (`string "hello"`, `chars "says"`) is a leaf, not a hash. That keeps "a tree of child hashes" literal, and the raw pane always has an entry to show.
+  - A scalar shows as itself (`42`, `18446744073709551615`, `true`, `nil`, a u256 as `0x` and 64 hex digits). A `string` row shows its text, read from its pages when the row is built (cut at 200 characters); a collection shows its count.
+  - ▸ opens a row: each child hash is read with `client/request!` before its row is built. A hash the page does not hold is one more peer-v1 `get` to the same peer; one it holds is not sent (`:done`). A Fetch already brings every entry reachable from the root, so opening the tree of a fetched value sends no frame (`browser:e2e` checks the `get` count stays the same).
+  - The raw/hex pane shows one entry: the root after Fetch, then the row whose name is clicked. EDN is `dacite.wire/write-edn` (hash words `#dacite/u64`), with a measure's field elements printed whole (`<digits>N`), since the wire writer tags 64-bit words only. Hex is `dacite.wire.binary/encode-node-bytes`, the bytes the entry is stored and sent as, 16 a line with offsets and ASCII; the same bytes on every host.
+  - Tests: `dacite.examples.value-view-checks` on the JVM (`value-view-test`) and nbb (`npm run examples:test`): scalars and text as themselves, a map and a vector stepped into, the tree reaching every entry `gc` counts, and the hex decoding back to the entry (fixed bytes for an i64 and the `npx dacite` welcome value). `npm run browser:e2e` opens value-a's tree row by row in Chromium: every entry, the texts and the scalars, and the raw pane following the chosen row.
 
 **M6.6. Open a root URL. Parked (Nov 10) until nbb parity.** Immediately after the value demo, still a small slice. A URL can name a root on the peer: both a published user value and a peer list are mutable references.
 - The peer is still the scheme and host. The fragment stays a pure content name, so the root is not written as a hash in the fragment. This slice picks the spelling of the root URL and records it next to the value URI above.
@@ -426,6 +432,6 @@ The Nov 2 list (confirm the plan, M0, the M1.1 agenda) is done. Phases 0 through
 
 1. Peering phase 1 (interest-based transmission over WebRTC) is largely complete. It closes with a final review, which follows this note.
 2. The stated goal is nbb parity. The first slice is done (PR #50, mem-store merge and init keying). The LRU store slice is done. Next is file and LMDB.
-3. M6.5 (Value Browser rendering), M6.6 (root URL), and the other demos and apps are parked until that parity. Phase 8 stays parked with them.
+3. M6.6 (root URL) and the other demos and apps are parked until that parity; M6.5 (Value Browser rendering) was resumed after packaging and is built (Nov 20, 2026). Phase 8 stays parked with them.
 4. Peering phase 2 (ICE-based discovery for peer lists) comes after the roots layer.
 5. PR #47 stays as it is. It is the set-aside M6.1 spec. The implementation queue is the parity slices.
