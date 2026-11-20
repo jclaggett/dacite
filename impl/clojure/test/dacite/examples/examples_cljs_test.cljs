@@ -14,6 +14,7 @@
             [dacite.examples.notes-checks :as notes-checks]
             [dacite.examples.sync-checks :as sync-checks]
             [dacite.examples.todo-checks :as todo-checks]
+            [dacite.examples.value-view-checks :as value-view-checks]
             [dacite.store.check :as check]))
 
 (def suites
@@ -21,6 +22,7 @@
    dacite.examples.<label>-test. `slow-ms` holds nbb ceilings above
    `check/max-ms`, each with a JUSTIFICATION on its check."
   [["browser-uri" browser-uri-checks/checks]
+   ["value-view" value-view-checks/checks]
    ["hello" hello-checks/checks]
    ["todo" todo-checks/checks]
    ["config" config-checks/checks]

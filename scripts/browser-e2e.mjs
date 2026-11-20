@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 /**
  * JUSTIFICATION: one headless Chromium launch plus a WebRTC handshake
- * with the nbb peer. Browser startup and ICE are outside the 3 second
+ * with the nbb peer, and about 25 tree rows opened by clicks (M6.5). Browser startup and ICE are outside the 3 second
  * bound. The two values are small. Later fetches reuse the open channel.
+ *
+ * M6.5: after the first fetch, the tree of value-a is opened row by row
+ * (every entry, no further get: the page already holds them) and the
+ * raw/hex pane follows the chosen row (`checkTree`).
  *
  * M6.4: paste dacite://<host>#urn:dacite:<hex>, fetch that hash from the
  * named peer, then paste a second hash for the same name. A hash the
@@ -88,6 +92,64 @@ async function fetchHash(page, hex) {
     hex,
     { timeout: 45000 },
   );
+}
+
+/**
+ * M6.5 on value-a (a vector of a string, a map, and a set of 1 2 3). The
+ * root row is the vector and the raw pane shows it. Then every row is
+ * opened, one toggle (one hash) at a time, until none is left closed:
+ * the rows name every entry the page counted, text and scalars read as
+ * themselves, and choosing a row shows that entry in the raw pane.
+ */
+async function checkTree(page, eq, hex, entries) {
+  const root = page.locator('#tree > li.node');
+  await root.waitFor({ timeout: 10000 });
+  eq('tree-root-hash', await root.getAttribute('data-hash'), hex);
+  eq('tree-root-type', await root.getAttribute('data-type'), 'vector');
+  eq('tree-root-summary', (await root.locator(':scope > .summary').innerText()).trim(), '3 items');
+  eq('raw-shows-root', await page.locator('#raw-hash').getAttribute('data-hash'), hex);
+  eq('raw-root-type', (await page.locator('#raw-type').innerText()).trim(), 'vector');
+  const rawHex = await page.locator('#raw-hex').innerText();
+  eq('raw-root-hex-starts', rawHex.startsWith('00000000  03 '), true);
+  eq('raw-root-edn-starts', (await page.locator('#raw-edn').innerText()).startsWith('["vector" {:root ['), true);
+
+  // Open every closed row, one at a time, until none is left.
+  for (let i = 0; i < 200; i += 1) {
+    const closed = page.locator('li.node[data-state="closed"] > button.toggle:not([disabled])');
+    if ((await closed.count()) === 0) break;
+    const toggle = await closed.first().elementHandle();
+    const row = await toggle.evaluateHandle((b) => b.parentElement);
+    await toggle.click();
+    await page.waitForFunction((el) => el.getAttribute('data-state') !== 'loading', row, { timeout: 10000 });
+    eq(`row ${i} opened`, await row.evaluate((el) => el.getAttribute('data-state')), 'open');
+  }
+  const rows = await page.$$eval('#tree li.node', (ls) => ls.map((l) => ({
+    hash: l.dataset.hash,
+    type: l.dataset.type,
+    label: l.dataset.label,
+    summary: l.querySelector(':scope > .summary').textContent,
+  })));
+  const leaves = await page.$$eval('#tree li.leaf .literal', (ls) => ls.map((l) => l.textContent));
+  eq('tree-every-entry', String(new Set(rows.map((r) => r.hash)).size), entries);
+  const has = (type, summary) => rows.some((r) => r.type === type && r.summary === summary);
+  eq('tree-map', has('map', '2 entries'), true);
+  eq('tree-set', has('set', '3 elements'), true);
+  for (const t of ['"via"', '"nbb"', '"milestone"', '"M6.4"']) eq(`tree-text ${t}`, has('string', t), true);
+  for (const n of ['1', '2', '3']) eq(`tree-scalar ${n}`, has('i64', n), true);
+  eq('tree-inline-string', leaves.includes('string "m6.4-value-a"'), true);
+  eq('tree-key-value-labels', rows.some((r) => r.label === 'key') && rows.some((r) => r.label === 'value'), true);
+
+  // Choosing a row shows that entry in the raw pane.
+  const mapRow = page.locator('#tree li.node[data-type="map"]').first();
+  const mapHash = await mapRow.getAttribute('data-hash');
+  await mapRow.locator(':scope > button.show').click();
+  eq('raw-shows-map', await page.locator('#raw-hash').getAttribute('data-hash'), mapHash);
+  eq('raw-map-type', (await page.locator('#raw-type').innerText()).trim(), 'map');
+  eq('raw-map-selected', await mapRow.evaluate((el) => el.classList.contains('selected')), true);
+  const intRow = page.locator('#tree li.node[data-type="i64"]').first();
+  await intRow.locator(':scope > button.show').click();
+  eq('raw-i64-size', (await page.locator('#raw-size').innerText()).trim(), '11');
+  eq('raw-i64-hex-line', (await page.locator('#raw-hex').innerText()).startsWith('00000000  00 03 08 00 00 00 00 00  00 00 0'), true);
 }
 
 async function main() {
@@ -186,6 +248,10 @@ async function main() {
     await fetchHash(page, hexA);
     await waitAsked(nbb.log, hexA, 1, 5000);
     expectValue('first', await shown(), hexA, entriesA, '1');
+
+    // M6.5: the tree and the raw/hex pane, on value-a.
+    await checkTree(page, eq, hexA, entriesA);
+    expectValue('first-after-tree', await shown(), hexA, entriesA, '1');
 
     await fetchHash(page, hexB);
     await waitAsked(nbb.log, hexB, 1, 5000);

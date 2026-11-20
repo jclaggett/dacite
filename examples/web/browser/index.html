@@ -15,6 +15,17 @@
     button { font: 15px system-ui, sans-serif; margin: 0.8rem 0.5rem 0 0; }
     .hex, code { font-family: ui-monospace, monospace; word-break: break-all; }
     .muted { color: #555; }
+    ul.tree, ul.kids { list-style: none; margin: 0; padding-left: 1.1rem; }
+    ul.tree { padding-left: 0; }
+    li.node > button, li.node > span { margin: 0 0.35rem 0 0; vertical-align: baseline; }
+    li.node > button { font: 14px ui-monospace, monospace; padding: 0 0.3rem; }
+    li.node.selected > button.show { outline: 2px solid #3a6ea5; }
+    .type { color: #3a6ea5; margin-left: 0.4rem; }
+    .label, .short { color: #555; }
+    .literal, .summary { font-family: ui-monospace, monospace; word-break: break-all; }
+    li.leaf .label { margin-right: 0.4rem; }
+    pre { font: 13px/1.35 ui-monospace, monospace; background: #f4f4f4; padding: 0.5rem; overflow-x: auto; white-space: pre; }
+    pre#raw-edn { white-space: pre-wrap; word-break: break-all; }
   </style>
 </head>
 <body>
@@ -57,6 +68,15 @@
     <p>entries <span id="entries">—</span></p>
     <p>verified <span id="verified">—</span></p>
     <p id="status">loading…</p>
+
+    <h2>Tree</h2>
+    <p class="muted">One row per stored entry. ▸ opens its children one hash at a time; a hash this page does not hold yet is one more <code>get</code> from the same peer. Click a row's name to show it below.</p>
+    <ul id="tree" class="tree"></ul>
+
+    <h2>Raw</h2>
+    <p>entry <span id="raw-hash" class="hex"></span> <span id="raw-type" class="type"></span>, <span id="raw-size"></span> bytes</p>
+    <pre id="raw-edn"></pre>
+    <pre id="raw-hex"></pre>
   </main>
   <script src="/app/browser/js/main.js"></script>
 </body>

@@ -138,3 +138,8 @@ and the room are separate from that URI. The nbb process prints `waiting`
 and stays up until Fetch; that click is when the page joins the room.
 `npm run browser:e2e` runs the headless check. The hand steps are under
 M6.4 in `docs/plan/peering.md`.
+
+After Fetch, the Tree section shows the value as its stored entries
+(M6.5): ▸ opens a row's children one hash at a time, a scalar or a string
+reads as itself, and clicking a row's name shows that entry in the Raw
+section as EDN and as a hex dump of its bytes.

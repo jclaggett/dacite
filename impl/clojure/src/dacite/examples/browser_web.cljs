@@ -25,10 +25,17 @@
    query still work for the dev relay, which takes no token. Fetch then does one peer-v1 `get` of that hash.
    A later paste of another hash for the same name reuses the channel
    when it is still up. Entries are verified before they are stored.
-   The page shows the hash, the entry count, and the verification status."
+   The page shows the hash, the entry count, and the verification status.
+
+   Then the tree (M6.5, `dacite.examples.value-view`): one row per stored
+   entry, starting at the fetched hash. ▸ opens a row's children one hash
+   at a time; each is read with `client/request!`, a `get` to the same
+   peer when the page does not hold it. Clicking a row's name shows that
+   entry in the raw/hex pane: its EDN and its stored bytes."
   (:require [clojure.string :as str]
             [dacite.examples.browser :as uri]
             [dacite.examples.page-token :as page]
+            [dacite.examples.value-view :as vv]
             [dacite.peer.client :as client]
             [dacite.peer.link :as link]
             [dacite.peer.msg :as msg]
@@ -69,6 +76,8 @@
          :gets 0
          :phase :idle
          :token nil
+         :entries (atom {})
+         :selected nil
          :busy? false}))
 
 (defn- by-id [id]
@@ -107,7 +116,10 @@
   (set-attr! "hash" "data-from" (if from (name from) ""))
   (set-text! "fragment" (or fragment "—")))
 
+(declare clear-tree!)
+
 (defn- clear-result! []
+  (clear-tree!)
   (set-text! "entries" "—")
   (set-text! "verified" "—")
   (set-attr! "entries" "data-count" "")
@@ -360,10 +372,16 @@
      (ex-info "introduce the peer with a room token, or paste the answer"
               {:reason :introduce}))))
 
-(defn- fetch-hash! [host hex]
+(defn- get-hash!
+  "One peer-v1 `get` of `hex` from `host` over the open session, resolved
+   when it is received, verified, and stored. A hash already had resolves
+   at once (`client/request!` answers `:done`; no frame is sent)."
+  [host hex]
   (let [c (:client @!ui)
         h (store/hex->hash hex)
         errors (:errors @!ui)]
+    (when-not c
+      (throw (ex-info "no open channel: Fetch again" {:reason :no-session})))
     (when errors (swap! errors dissoc hex))
     (-> (chain/native (client/request! c h))
         (.then (fn [outcome]
@@ -379,7 +397,170 @@
                           (when-let [code (when errors (get @errors hex))]
                             (throw (ex-info code {:reason :peer-error :code code})))
                           (client/done? c h))
-                        25 800)))
+                        25 800))))))
+
+;; -----------------------------------------------------------------------------
+;; The tree (M6.5): one row per entry, children opened one hash at a time.
+;; What a row says is `dacite.examples.value-view`; this is reads and DOM.
+;; -----------------------------------------------------------------------------
+
+(defn- el [tag attrs & kids]
+  (let [e (.createElement js/document tag)]
+    (doseq [[k v] attrs]
+      (if (= k :text)
+        (set! (.-textContent e) (str v))
+        (.setAttribute e (name k) (str v))))
+    (doseq [k kids :when k]
+      (.appendChild e k))
+    e))
+
+(defn- read-entry!
+  "The verified entry stored under `hex`, read from the page's store after
+   `get-hash!`: a Promise of `[type data]`."
+  [hex]
+  (if-let [e (get @(:entries @!ui) hex)]
+    (js/Promise.resolve e)
+    (-> (get-hash! (:host @!ui) hex)
+        (.then (fn [_]
+                 (let [st (:store @!ui)
+                       h (store/hex->hash hex)]
+                   (chain/native
+                    (chain/then (verify/checked? st h)
+                                (fn [ok]
+                                  (when-not ok
+                                    (throw (ex-info "an entry was stored without passing verification"
+                                                    {:reason :bad-entry :hash hex})))
+                                  (store/s-get st h)))))))
+        (.then (fn [e]
+                 (when (nil? e)
+                   (throw (ex-info "the entry is missing" {:reason :missing :hash hex})))
+                 (swap! (:entries @!ui) assoc hex e)
+                 e)))))
+
+(def ^:private max-text-rounds
+  "Rounds of page reads for one string's text; past this, its count shows."
+  32)
+
+(defn- text-for!
+  "A Promise of the text of the `string` entry `e` (its pages read one round
+   at a time), or nil when `e` is not a string or the text stays unread."
+  [e]
+  (letfn [(step [n]
+            (let [r (vv/text-of #(get @(:entries @!ui) %) e)]
+              (cond
+                (nil? r) (js/Promise.resolve nil)
+                (:text r) (js/Promise.resolve (:text r))
+                (>= n max-text-rounds) (js/Promise.resolve nil)
+                :else (-> (js/Promise.all (clj->js (map read-entry! (:need r))))
+                          (.then (fn [_] (step (inc n))))))))]
+    (step 0)))
+
+(defn- show-raw!
+  "The raw/hex pane: the entry the tree is showing, as EDN and as bytes."
+  [hex e]
+  (let [{:keys [type edn size] dump :hex :as w} (vv/view hex e)]
+    (swap! !ui assoc :selected (:hash w))
+    (set-text! "raw-hash" (:hash w))
+    (set-attr! "raw-hash" "data-hash" (:hash w))
+    (set-text! "raw-type" type)
+    (set-text! "raw-size" size)
+    (set-attr! "raw-size" "data-size" size)
+    (set-text! "raw-edn" edn)
+    (set-text! "raw-hex" dump)
+    (doseq [row (array-seq (.querySelectorAll js/document "#tree li.node"))]
+      (if (= (.getAttribute row "data-hash") (:hash w))
+        (.add (.-classList row) "selected")
+        (.remove (.-classList row) "selected")))))
+
+(declare node-row)
+
+(defn- open-row!
+  "Open `row` (the entry `e`): its children, each hash read before its row
+   is built, in order."
+  [row e]
+  (let [kids (.querySelector row "ul.kids")
+        toggle (.querySelector row "button.toggle")]
+    (if (= "open" (.getAttribute row "data-state"))
+      (do (.setAttribute row "data-state" "closed")
+          (set! (.-hidden kids) true)
+          (set! (.-textContent toggle) "▸")
+          (.setAttribute toggle "aria-expanded" "false")
+          (js/Promise.resolve nil))
+      (do
+        (set! (.-hidden kids) false)
+        (set! (.-textContent toggle) "▾")
+        (.setAttribute toggle "aria-expanded" "true")
+        (if (= "true" (.getAttribute row "data-loaded"))
+          (do (.setAttribute row "data-state" "open") (js/Promise.resolve nil))
+          (do
+            (.setAttribute row "data-state" "loading")
+            (-> (reduce (fn [p child]
+                          (.then p (fn [_]
+                                     (if (:literal child)
+                                       (.appendChild kids (el "li" {:class "leaf" :data-label (:label child)}
+                                                              (el "span" {:class "label" :text (:label child)})
+                                                              (el "span" {:class "literal" :text (:literal child)})))
+                                       (.then (node-row (:label child) (:hash child))
+                                              #(.appendChild kids %))))))
+                        (js/Promise.resolve nil)
+                        (vv/children e))
+                (.then (fn [_]
+                         (.setAttribute row "data-loaded" "true")
+                         (.setAttribute row "data-state" "open")))
+                (.catch (fn [err]
+                          (.setAttribute row "data-state" "failed")
+                          (throw err))))))))))
+
+(defn- node-row
+  "A Promise of the row for the entry `hex`, labelled `label`: a toggle
+   that opens its children, its type and summary, and a button that shows
+   it in the raw/hex pane."
+  [label hex]
+  (-> (read-entry! hex)
+      (.then (fn [e] (.then (text-for! e) (fn [text] [e text]))))
+      (.then (fn [[e text]]
+               (let [{:keys [type summary children]} (vv/view hex e text)
+                     toggle (el "button" {:type "button" :class "toggle"
+                                          :aria-expanded "false" :text (if (seq children) "▸" "·")})
+                     show (el "button" {:type "button" :class "show" :title hex}
+                              (el "span" {:class "label" :text label})
+                              (el "span" {:class "type" :text type}))
+                     row (el "li" {:class "node" :data-hash hex :data-type type :data-label label
+                                   :data-state "closed"}
+                             toggle show
+                             (el "span" {:class "summary" :text summary})
+                             (el "span" {:class "short hex" :text (subs hex 0 12)})
+                             (let [u (el "ul" {:class "kids"})] (set! (.-hidden u) true) u))]
+                 (when-not (seq children) (set! (.-disabled toggle) true))
+                 (.addEventListener toggle "click"
+                                    (fn [ev]
+                                      (.preventDefault ev)
+                                      (-> (open-row! row e) (.catch fail!))))
+                 (.addEventListener show "click"
+                                    (fn [ev]
+                                      (.preventDefault ev)
+                                      (show-raw! hex e)))
+                 row)))))
+
+(defn- clear-tree! []
+  (when-let [t (by-id "tree")] (set! (.-textContent t) ""))
+  (doseq [id ["raw-hash" "raw-type" "raw-size" "raw-edn" "raw-hex"]]
+    (set-text! id ""))
+  (set-attr! "raw-hash" "data-hash" "")
+  (swap! !ui assoc :entries (atom {}) :selected nil))
+
+(defn- render-tree!
+  "The tree of the fetched value, its root row shown in the raw/hex pane."
+  [hex]
+  (clear-tree!)
+  (-> (node-row "value" hex)
+      (.then (fn [row]
+               (.appendChild (by-id "tree") row)
+               (show-raw! hex (get @(:entries @!ui) hex))))))
+
+(defn- fetch-hash! [host hex]
+  (let [h (store/hex->hash hex)]
+    (-> (get-hash! host hex)
         (.then (fn [_]
                  (chain/native (check-reachable! (:store @!ui) h))))
         (.then (fn [n]
@@ -387,6 +568,8 @@
                  (set-text! "verified" n)
                  (set-attr! "entries" "data-count" n)
                  (set-attr! "verified" "data-count" n)
+                 (render-tree! hex)))
+        (.then (fn [_]
                  (set-attr! "status" "data-code" "verified")
                  (set-text! "status" "verified"))))))
 
