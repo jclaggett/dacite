@@ -22,8 +22,12 @@ impl/clojure/.cpcache/
 node_modules/
 .bin/
 
-# cljs intermediate (whitespace bundles are examples/web/js/main.js,
-# examples/web/explorer/js/main.js, examples/web/library/js/main.js)
+# cljs bundles: built by `npm run build` (and `prepack`), never committed
+# (docs/design/packaging.md §P4). The cljs.build.api whitespace bundles and
+# their intermediates, then the shadow-cljs bundles.
+examples/web/js/main.js
+examples/web/explorer/js/main.js
+examples/web/library/js/main.js
 examples/web/js/out/
 examples/web/explorer/js/out/
 examples/web/library/js/out/

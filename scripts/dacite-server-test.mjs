@@ -42,9 +42,9 @@ import { PROTO, VERSION, isDaciteInfo, offeredToken, probeDacite, startDacite, t
 const bin = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'dacite.mjs');
 
 /** Run the bin to its exit: {code, out, err}. */
-function runBin(args, env) {
+function runBin(args, env, binPath = bin) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [bin, ...args], {
+    const child = spawn(process.execPath, [binPath, ...args], {
       env: { ...process.env, ...env },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -322,6 +322,31 @@ try {
     plain.close();
     await other.close();
     await ours.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+// A checkout with no app bundle (§P4: bundles are built, not committed):
+// the bin says how to build it and exits 1. A copy of the bin's files
+// without examples/web/browser/js/main.js; node_modules is linked.
+{
+  const pkg = fs.mkdtempSync(path.join(os.tmpdir(), 'dacite-nobundle-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dacite-nobundle-home-'));
+  const src = path.join(path.dirname(bin), '..');
+  try {
+    for (const f of ['package.json', 'bin/dacite.mjs', 'bin/dacite-peer.cljs', 'scripts/dacite-args.mjs',
+      'scripts/dacite-server.mjs', 'scripts/static-server.mjs', 'scripts/webrtc-signal-server.mjs']) {
+      fs.mkdirSync(path.dirname(path.join(pkg, f)), { recursive: true });
+      fs.copyFileSync(path.join(src, f), path.join(pkg, f));
+    }
+    fs.mkdirSync(path.join(pkg, 'examples', 'web', 'browser'), { recursive: true });
+    fs.symlinkSync(path.join(src, 'node_modules'), path.join(pkg, 'node_modules'));
+    const b = await runBin(['--port', '0', '--memory'], { DACITE_HOME: home }, path.join(pkg, 'bin', 'dacite.mjs'));
+    assert.strictEqual(b.code, 1, b.err);
+    assert.strictEqual(b.err.trim(), 'no app bundle: run npm run build (needs Java 21)');
+    assert.strictEqual(b.out, '');
+    assert.deepStrictEqual(fs.readdirSync(home), [], 'nothing written');
+  } finally {
+    fs.rmSync(pkg, { recursive: true, force: true });
     fs.rmSync(home, { recursive: true, force: true });
   }
 }

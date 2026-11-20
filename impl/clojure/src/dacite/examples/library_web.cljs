@@ -13,9 +13,18 @@
    peer (M5.3), which holds the catalog and prints this URL:
      http://127.0.0.1:8080/app/library/?chapter=0&root=HEX&signal=ws://127.0.0.1:8787&room=TOKEN
 
+   `signal` and `room` may be in the fragment instead, and the fragment
+   may carry `token`, the `npx dacite` `/signal` token
+   (`dacite.examples.page-token`). The token is kept in `sessionStorage`,
+   removed from the address bar, and sent as the `dacite.token.<t>`
+   WebSocket subprotocol only to this page's own host:
+
+     http://127.0.0.1:8790/app/library/?root=HEX#signal=ws://127.0.0.1:8790/signal&room=R&token=T
+
    `chapter` opens that chapter of the first book and its plate. That is
    the measured read. `peer-timeout` (milliseconds) replaces the wait."
   (:require [clojure.string :as str]
+            [dacite.examples.page-token :as page]
             [dacite.examples.library :as lib]
             [dacite.peer.client :as client]
             [dacite.peer.link :as link]
@@ -233,14 +242,6 @@
   (when-let [el (by-id id)]
     (.setAttribute el k (str v))))
 
-(defn- query-param
-  "A non-empty query value, or nil. `URLSearchParams.get` returns
-   JavaScript null when the key is absent, and null is truthy here."
-  [k]
-  (let [v (.get (js/URLSearchParams. (.-search js/location)) k)]
-    (when (and (string? v) (pos? (count (str/trim v))))
-      (str/trim v))))
-
 (defn- parse-nat
   "A non-negative integer parsed from `s`, or nil. Zero is a value."
   [s]
@@ -252,17 +253,19 @@
 (defn- measured-chapter
   "Chapter index from the `chapter` query, or nil when this load is the shelf."
   []
-  (parse-nat (query-param "chapter")))
+  (parse-nat (page/query-param "chapter")))
 
 (defn- peer-query
   "The M5.3 root and room, or nil when this load does not ask a peer."
   []
-  (let [root (query-param "root")
-        signal (query-param "signal")
-        room (query-param "room")]
+  (let [root (page/query-param "root")
+        signal (page/page-param "signal")
+        room (page/page-param "room")
+        token (page/take-token!)]
     (when (and root signal room)
       {:root root :signal signal :room room
-       :timeout (or (parse-nat (query-param "peer-timeout"))
+       :token (page/token-for token signal)
+       :timeout (or (parse-nat (page/query-param "peer-timeout"))
                     default-peer-timeout-ms)})))
 
 (defn- mark-rendered!
@@ -408,7 +411,7 @@
   (swap! !state assoc :error msg :status "error")
   (try (render-view!) (catch :default e (js/console.error e))))
 
-(defn- read-from-peer! [{:keys [root signal room timeout]}]
+(defn- read-from-peer! [{:keys [root signal room token timeout]}]
   (let [root-hash (store/hex->hash root)
         mem (store/mem-store)
         links (link/links)
@@ -424,7 +427,7 @@
                                 {:send! send!}))
         timer (js/setInterval #(client/tick! c) 25)
         peer (rtc/create-peer :offerer {:ice-servers []
-                                        :ws {:url signal :room room}})
+                                        :ws {:url signal :room room :token token}})
         settled (atom false)
         remember! (fn []
                     (swap! !state assoc

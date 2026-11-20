@@ -41,6 +41,22 @@
          (finally
            (if had (aset env "DACITE_HOME" old) (js-delete env "DACITE_HOME"))))))
 
+(defn- with-env
+  "Run `f` with the environment variables in `m` set (a nil value unsets
+   one), then put them back. `os.homedir()` reads `HOME` on POSIX."
+  [m f]
+  (let [env (.-env js/process)
+        saved (into {} (map (fn [k] [k (when (.hasOwnProperty env k) (aget env k))])) (keys m))
+        put! (fn [k v] (if (some? v) (aset env k v) (js-delete env k)))]
+    (doseq [[k v] m] (put! k v))
+    (try (f)
+         (finally (doseq [[k v] saved] (put! k v))))))
+
+(defn- default-mode
+  "The mode a plain `mkdir` gives under this process's umask."
+  []
+  (bit-and 511 (bit-not (.umask js/process))))
+
 (def ^:private pid (.-pid js/process))
 
 (defn- info
@@ -57,13 +73,60 @@
   {"data-dir-and-run-dir-are-private"
    (fn [_]
      (let [base (tmp-dir)]
-       (testing "a new data dir and its parents are 0700 on POSIX"
+       (testing "a new data dir is 0700 on POSIX; its missing parents get the default mode"
          (let [d (.join node-path base "a" "b" "data")]
            (run/ensure-private-dir! d)
            (is (.existsSync fs d))
            (when posix?
              (is (= 448 (mode d)) "0700")
-             (is (= 448 (mode (.join node-path base "a"))) "a created parent too"))))
+             (is (= (default-mode) (mode (.join node-path base "a"))) "a created parent is not 0700")
+             (is (= (default-mode) (mode (.join node-path base "a" "b")))))))
+       (testing "tighten-dir!: only a dir this user owns, only on POSIX"
+         (let [d (.join node-path base "loose")]
+           (.mkdirSync fs d)
+           (.chmodSync fs d 493)
+           (is (false? (run/tighten-dir! d {:uid (inc (.getuid js/process))})) "another owner")
+           (when posix? (is (= 493 (mode d)) "left 0755"))
+           (is (= posix? (run/tighten-dir! d)))
+           (when posix? (is (= 448 (mode d)) "0700"))
+           (is (false? (run/tighten-dir! d)) "already 0700")
+           (is (false? (run/tighten-dir! (.join node-path base "missing"))))))
+       (testing "ensure-data-dir!: an existing data dir is tightened only when asked"
+         (let [d (.join node-path base "old-data")]
+           (.mkdirSync fs d)
+           (.chmodSync fs d 493)
+           (run/ensure-data-dir! d {:tighten? false})
+           (when posix? (is (= 493 (mode d)) "a DACITE_HOME dir is left as it is"))
+           (run/ensure-data-dir! d {:tighten? true :uid (inc (.getuid js/process))})
+           (when posix? (is (= 493 (mode d)) "not ours, left"))
+           (run/ensure-data-dir! d {:tighten? true})
+           (when posix? (is (= 448 (mode d)) "the default data dir, made before #83, is tightened"))))
+       (testing "the platform default data dir, made before #83, is tightened; DACITE_HOME is not"
+         (let [xdg (.join node-path base "xdg")
+               data (.join node-path xdg "dacite")
+               home (.join node-path base "home")]
+           (.mkdirSync fs data #js {:recursive true})
+           (.mkdirSync fs home)
+           (.chmodSync fs data 493)
+           (with-env {"DACITE_HOME" nil "XDG_DATA_HOME" xdg "HOME" home}
+             (fn []
+               (is (= (if (= "darwin" (.-platform js/process))
+                        (.join node-path home "Library" "Application Support" "Dacite")
+                        data)
+                      (run/default-data-dir!)))
+               (when (and posix? (not= "darwin" (.-platform js/process)))
+                 (is (= 448 (mode data)) "tightened")
+                 (.chmodSync fs data 493)
+                 (let [o (peer/open-store! {:lmdb-error "forced" :warn identity})]
+                   (try (is (= 448 (mode data)) "the default store tightens it too")
+                        (finally ((:close o))))))))
+           (let [dh (.join node-path base "dacite-home")]
+             (.mkdirSync fs dh)
+             (.chmodSync fs dh 493)
+             (with-env {"DACITE_HOME" dh}
+               (fn []
+                 (is (= dh (run/default-data-dir!)))
+                 (when posix? (is (= 493 (mode dh)) "an existing DACITE_HOME is the user's")))))))
        (testing "an existing data dir is left as it is"
          (let [d (.join node-path base "existing")]
            (.mkdirSync fs d #js {:mode 493})
@@ -94,7 +157,15 @@
                  (try
                    (is (not (.existsSync fs home)) "no data dir made for --store")
                    (when posix? (is (not= 448 (mode mine)) "the --store dir keeps the umask mode"))
-                   (finally ((:close o)))))))))))
+                   (finally ((:close o))))))))
+         (let [mine (.join node-path base "loose-store")]
+           (.mkdirSync fs mine)
+           (.chmodSync fs mine 493)
+           (with-dacite-home (.join node-path base "home-unused2")
+             (fn []
+               (let [o (peer/open-store! {:dir mine :lmdb-error "forced" :warn identity})]
+                 (try (when posix? (is (= 493 (mode mine)) "an existing --store dir is never chmodded"))
+                      (finally ((:close o)))))))))))
 
    "the-run-file-is-written-atomically-and-removed-when-ours"
    (fn [_]
@@ -157,6 +228,22 @@
                       (str (:error (go {:store {:dir (.join node-path d "other")}})))))
          (is (re-find #"serves the store .*, not an in-memory store\."
                       (str (:error (go {:store {:memory true}}))))))
+       (testing "stores match by real path: a symlink to the same store is the same store"
+         (let [real (.join node-path d "real")
+               link (.join node-path d "link")]
+           (.mkdirSync fs (.join node-path real "store") #js {:recursive true})
+           (.symlinkSync fs real link)
+           (run/write-run-file! d (info 8790 pid (.join node-path real "store")))
+           (is (:lines (go {:store {:dir (.join node-path link "store")}})) "through the link")
+           (run/write-run-file! d (info 8790 pid (.join node-path link "store")))
+           (is (:lines (go {:store {:dir (.join node-path real "store")}})) "the run file names the link")
+           (testing "a store that does not exist yet follows its nearest existing dir"
+             (run/write-run-file! d (info 8790 pid (.join node-path real "new" "store")))
+             (is (:lines (go {:store {:dir (.join node-path link "new" "store")}}))))
+           (is (= (.join node-path real "a" "b") (run/real-path (.join node-path link "a" "b"))))
+           (is (= (.join node-path real "store") (run/real-path (str (.join node-path link "store") "/"))))
+           (is (:error (go {:store {:dir (.join node-path real "other")}})) "another dir is still another store")
+           (run/write-run-file! d (info 8790 pid store))))
        (testing "a memory peer matches --memory only"
          (run/write-run-file! d (info 8790 pid nil))
          (is (= "store memory" (second (:lines (go {:store {:memory true}})))))

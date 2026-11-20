@@ -27,6 +27,9 @@
 (deftest rejects-an-algorithm-token-and-a-path
   (run-check "rejects-an-algorithm-token-and-a-path"))
 
+(deftest loopback-names-are-one-host
+  (run-check "loopback-names-are-one-host"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

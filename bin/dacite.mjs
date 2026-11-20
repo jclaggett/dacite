@@ -100,6 +100,14 @@ try {
   if (err && err.code === 'EADDRINUSE') await portTaken(opts.port);
   throw err;
 }
+// The page this peer prints needs its bundle. A git checkout has none
+// until `npm run build` (docs/design/packaging.md §P4); a packed tarball
+// ships it. Checked after the port: reusing a running peer needs none.
+if (!fs.existsSync(path.join(root, 'examples', 'web', 'browser', 'js', 'main.js'))) {
+  console.error('no app bundle: run npm run build (needs Java 21)');
+  await server.close().catch(() => {});
+  process.exit(1);
+}
 const room = 'dacite-' + crypto.randomBytes(12).toString('base64url');
 const { start, run } = await loadPeer();
 const held = start({ ws: server.signalUrl, room, token, store: storeOpts });
