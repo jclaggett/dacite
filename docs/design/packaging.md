@@ -122,7 +122,8 @@ Run by Jonathan on a Mac, after P1 to P4, with the packed tarball (not a clone),
 - [ ] `npm pack`, install the tarball in a temp dir, run `npx dacite`, and open the printed URL. The address bar no longer shows the token.
 - [ ] Paste the printed `dacite://local#urn:dacite:<hex>` and fetch: every entry verifies.
 - [ ] Reload and fetch again (token from `sessionStorage`).
-- [ ] Open `/app/browser/` with no fragment: the page reports the token is missing, and the peer logs a 401.
+- [ ] In a new tab, open the printed URL with `&token=…` removed and fetch: the status is `failed: no-token`. (With no fragment at all, the page points at the dev relay on port 8787, not its own host, so that is not this check; and the peer logs no 401, only `session …` lines.)
+- [ ] The library and peer pages with the token in the fragment (`/app/library/?root=<hex>#signal=…&room=…&token=…`, likewise `/app/peer/`): the token leaves the address bar, the peer logs `session N connected`, and a reload connects again. Without `&token=…` both show `failed: signaling socket error (signaling-error)`. Against `npx dacite` the library page then shows `failed: peer value is not a library` (the welcome value is not a catalog), and the peer page reaches `reading…` and times out (`npx dacite` does not serve its read; `peer:e2e` covers it).
 - [ ] Run `npx dacite` again in a second terminal: it prints the same URL and exits 0 (P2).
 - [ ] Stop and restart with the default store: the value is still there; the old tab's token is refused (per-run token).
 
@@ -178,15 +179,17 @@ Jonathan took all six recommendations:
     - The missing-bundle check runs after the port check, so reusing a running peer still works without a bundle (the early CI suite runs the reuse tests before any build).
     - `dacite:e2e` opens the peer page as `localhost` against the `127.0.0.1` relay and checks that the relay accepted its token and that the token left the address bar. The peer page then reads over the example peer's roots channel, which `npx dacite` does not serve, so the read itself is covered by `peer:e2e`.
   - Tests: `npm run examples:test` and the JVM suite (`loopback-names-are-one-host`), `npm run dacite:store-test` (parents keep the default mode; `tighten-dir!` with another uid, our uid, already 0700, and a missing dir; the platform default tightened, an existing `DACITE_HOME` and `--store` left alone; reuse through a symlink and a nonexistent path under one), `npm run dacite:server-test` (no app bundle), `npm run dacite:e2e` (the peer page's token), and the CI pack step.
-- [ ] **Slice 6: Safari and Firefox hand runs** (Plan §P5, Jonathan).
+- [x] **Slice 6: Safari hand run** (Plan §P5, Nov 20, 2026). An informal pass: Jonathan ran `npx dacite` in Safari on his Mac and reported it looks okay; the per-check boxes in §P5 were not filled in one by one. The checklist he had covered setup (`npm ci`, `npm run build`, or the packed tarball), the printed lines, the Value Browser (token stripped, fetch `verified`, reload, `failed: no-token` without it, the `dacite.token.<t>` subprotocol only to its own host, the page opened as `localhost` against the `127.0.0.1` relay), the library and peer pages' token path, and port reuse and restart. This slice also fixed the §P5 no-token step above.
+  - Firefox is deferred (Jonathan, Nov 20).
+  - Not checkable against `npx dacite` yet: the library page's full read (the peer holds no catalog), and the peer page's read (`npx dacite` does not serve it). Their token path was the check.
 - [ ] Later: `dacite service install` (§2), `npx dacite open <app>`, moving the three `cljs.build.api` pages to shadow-cljs, and publishing (dropping `private`).
 
 ## Follow-ups
 
 Hand runs moved here from parity (Jonathan, Nov 17, 2026). Run them against the packaged peer (`npx dacite`, page served by the peer), on the same computer. Steps and browser settings: `docs/plan/peering.md` M6.4 and the M5.2 Safari/Firefox notes (host-address setting so ICE does not stay on a `.local` name). Mac + Brave already passed on the `parity` branch (Nov 11).
 
-- [ ] Safari: the M6.4 Value Browser (paste a peer, fetch its hash) over peering only. Now the Plan §P5 checklist, run as slice 6.
-- [ ] Firefox: the same run.
+- [x] Safari: the M6.4 Value Browser (paste a peer, fetch its hash) over peering only. Informal pass, slice 6 (Nov 20, 2026).
+- [ ] Firefox: the same run. Deferred (Nov 20, 2026).
 
 ## Not in this note
 
