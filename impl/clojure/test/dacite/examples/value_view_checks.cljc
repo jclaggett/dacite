@@ -190,8 +190,48 @@
            (vv/hex-dump [0 65 127 128 255])))
     (is (= "" (vv/hex-dump [])))))
 
+(def ^:private emoji
+  "One non-BMP character: two UTF-16 units, one code point."
+  "\uD83D\uDE00")
+
+(defn cut-counts-code-points
+  [_]
+  (let [a199 (apply str (repeat 199 "a"))]
+    (is (= 1 (vv/code-point-count emoji)))
+    (is (= 2 (count emoji)) "two UTF-16 units")
+    (is (= (str a199 emoji "…") (vv/cut (str a199 emoji "b") 200))
+        "the emoji at code point 200 is kept whole")
+    (is (= (str a199 emoji) (vv/cut (str a199 emoji) 200)) "200 code points are not cut")
+    (is (= (str (apply str (repeat 119 "a")) emoji "…")
+           (vv/cut (str (apply str (repeat 119 "a")) emoji emoji) vv/max-literal))
+        "the literal limit counts code points too")
+    (testing "a string summary"
+      (let [text (str a199 emoji "tail")
+            s (vv/node-summary ["string" {:count 204}] text)]
+        (is (= (pr-str (str a199 emoji "…")) s))
+        (is (str/includes? s emoji) "no lone surrogate")))))
+
+(defn raw-edn-u64-is-unsigned
+  [_]
+  (let [st (store/mem-store)
+        max-h (v/hash (v/u64 st host/max-u64))
+        top (store/require-node st max-h)
+        tag "#dacite/u64 \"18446744073709551615\""]
+    (is (= (str "[\"u64\" " tag "]") (vv/raw-edn top)) "the same text on every host")
+    (is (= (str "[\"u64\" #dacite/u64 \"7\"]") (vv/raw-edn (store/require-node st (v/hash (v/u64 st 7))))))
+    (testing "a u64 inlined in a page"
+      (let [fx-v (v/vector st (v/u64 st host/max-u64) (v/u64 st 1))
+            vec-e (store/require-node st (v/hash fx-v))
+            deep (store/require-node st (store/hex->hash (:hash (first (vv/children vec-e)))))
+            pages (map #(store/require-node st (store/hex->hash (:hash %))) (vv/children deep))
+            edns (map vv/raw-edn (cons deep pages))]
+        (is (some #(str/includes? % tag) edns) "the inlined u64 is tagged unsigned")
+        (is (not-any? #(str/includes? % ":body -1") edns) "never signed")))))
+
 (def checks
-  {"scalars-render-as-themselves" scalars-render-as-themselves
+  {"cut-counts-code-points" cut-counts-code-points
+   "raw-edn-u64-is-unsigned" raw-edn-u64-is-unsigned
+   "scalars-render-as-themselves" scalars-render-as-themselves
    "strings-render-as-text" strings-render-as-text
    "map-and-vector-step-one-hash-at-a-time" map-and-vector-step-one-hash-at-a-time
    "tree-reaches-every-entry" tree-reaches-every-entry

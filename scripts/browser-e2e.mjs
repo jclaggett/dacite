@@ -104,6 +104,8 @@ async function fetchHash(page, hex) {
 async function checkTree(page, eq, hex, entries) {
   const root = page.locator('#tree > li.node');
   await root.waitFor({ timeout: 10000 });
+  await page.waitForFunction(() => document.getElementById('tree-status')?.dataset.code === 'shown', null, { timeout: 10000 });
+  eq('tree-status-shown', (await page.locator('#tree-status').innerText()).trim(), '');
   eq('tree-root-hash', await root.getAttribute('data-hash'), hex);
   eq('tree-root-type', await root.getAttribute('data-type'), 'vector');
   eq('tree-root-summary', (await root.locator(':scope > .summary').innerText()).trim(), '3 items');
@@ -112,6 +114,19 @@ async function checkTree(page, eq, hex, entries) {
   const rawHex = await page.locator('#raw-hex').innerText();
   eq('raw-root-hex-starts', rawHex.startsWith('00000000  03 '), true);
   eq('raw-root-edn-starts', (await page.locator('#raw-edn').innerText()).startsWith('["vector" {:root ['), true);
+
+  // Two clicks on the root's toggle while it loads open it once: the
+  // second is ignored, so its one child (the vector's root page) is not
+  // added twice.
+  const rootRow = await root.elementHandle();
+  await rootRow.evaluate((li) => {
+    const b = li.querySelector(':scope > button.toggle');
+    b.click();
+    b.click();
+  });
+  await page.waitForFunction((el) => el.getAttribute('data-state') !== 'loading', rootRow, { timeout: 10000 });
+  eq('root-double-click-open', await rootRow.evaluate((el) => el.getAttribute('data-state')), 'open');
+  eq('root-double-click-kids', await rootRow.evaluate((el) => el.querySelectorAll(':scope > ul.kids > li').length), 1);
 
   // Open every closed row, one at a time, until none is left.
   for (let i = 0; i < 200; i += 1) {
@@ -146,10 +161,12 @@ async function checkTree(page, eq, hex, entries) {
   eq('raw-shows-map', await page.locator('#raw-hash').getAttribute('data-hash'), mapHash);
   eq('raw-map-type', (await page.locator('#raw-type').innerText()).trim(), 'map');
   eq('raw-map-selected', await mapRow.evaluate((el) => el.classList.contains('selected')), true);
-  const intRow = page.locator('#tree li.node[data-type="i64"]').first();
+  // The i64 1: its whole hex line, every byte and the ASCII column.
+  const intRow = page.locator('#tree li.node[data-type="i64"]', { has: page.locator(':scope > .summary', { hasText: /^1$/ }) }).first();
   await intRow.locator(':scope > button.show').click();
   eq('raw-i64-size', (await page.locator('#raw-size').innerText()).trim(), '11');
-  eq('raw-i64-hex-line', (await page.locator('#raw-hex').innerText()).startsWith('00000000  00 03 08 00 00 00 00 00  00 00 0'), true);
+  eq('raw-i64-hex-line', (await page.locator('#raw-hex').innerText()).trim(),
+    '00000000  00 03 08 00 00 00 00 00  00 00 01                 |...........|');
 }
 
 async function main() {
@@ -253,9 +270,23 @@ async function main() {
     await checkTree(page, eq, hexA, entriesA);
     expectValue('first-after-tree', await shown(), hexA, entriesA, '1');
 
+    // A tree that cannot render (here every <li> throws) leaves the Fetch
+    // verified and shows its own error under the Tree heading.
+    await page.evaluate(() => {
+      const make = document.createElement.bind(document);
+      window.__restoreCreateElement = () => { document.createElement = make; };
+      document.createElement = (tag, ...rest) => {
+        if (String(tag).toLowerCase() === 'li') throw new Error('e2e: no rows');
+        return make(tag, ...rest);
+      };
+    });
     await fetchHash(page, hexB);
     await waitAsked(nbb.log, hexB, 1, 5000);
+    await page.waitForFunction(() => document.getElementById('tree-status')?.dataset.code === 'failed', null, { timeout: 10000 });
+    await page.evaluate(() => window.__restoreCreateElement());
     expectValue('second', await shown(), hexB, entriesB, '2');
+    eq('second-tree-status', (await page.locator('#tree-status').innerText()).trim(), 'tree failed: e2e: no rows');
+    eq('second-tree-empty', await page.locator('#tree > li').count(), 0);
 
     await fetchHash(page, absent);
     await waitAsked(nbb.log, absent, 1, 5000);

@@ -29,6 +29,12 @@
 (deftest raw-pane-shows-the-entry
   (run-check "raw-pane-shows-the-entry"))
 
+(deftest cut-counts-code-points
+  (run-check "cut-counts-code-points"))
+
+(deftest raw-edn-u64-is-unsigned
+  (run-check "raw-edn-u64-is-unsigned"))
+
 (deftest every-check-has-a-deftest
   (is (= (set (keys checks/checks))
          (disj (set (map #(-> % meta :name str)

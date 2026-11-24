@@ -48,8 +48,22 @@
   [h]
   (when h (store/hash->hex h)))
 
-(defn- cut [s n]
-  (if (> (count s) n) (str (subs s 0 n) "…") s))
+(defn code-point-count
+  "Characters in `s` as code points: an emoji or any other non-BMP
+   character (a UTF-16 surrogate pair) counts once."
+  [s]
+  #?(:clj (.codePointCount ^String s 0 (count s))
+     :cljs (.-length (js/Array.from s))))
+
+(defn cut
+  "`s` cut to its first `n` code points, with `…` when it was longer. A
+   surrogate pair is never split."
+  [s n]
+  (if (> (code-point-count s) n)
+    (str #?(:clj (subs s 0 (.offsetByCodePoints ^String s 0 (int n)))
+            :cljs (.join (.slice (js/Array.from s) 0 n) ""))
+         "…")
+    s))
 
 (defn- word-str
   "A count or size word as decimal text on every host."
@@ -224,6 +238,13 @@
        (str/starts-with? t "ft/") (if n (plural n "element" "elements") "")
        :else ""))))
 
+(defn- integer-like?
+  "A host integer: a long on the JVM (or a BigInt N), a number or BigInt on
+   ClojureScript."
+  [x]
+  #?(:clj (integer? x)
+     :cljs (or (number? x) (= (type x) js/BigInt))))
+
 (defn- wide-int?
   "An integer outside 64 bits (a measure's field elements): `dacite.wire`
    tags words only, so these are printed whole instead (`<digits>N`)."
@@ -234,14 +255,41 @@
                 (or (> x (js/BigInt "18446744073709551615"))
                     (< x (js/BigInt "-9223372036854775808"))))))
 
+(defn- u64-tag
+  "A u64 as `#dacite/u64 \"<unsigned decimal>\"` on every host: on the JVM
+   a word at or above 2^63 is a negative long, which must not print signed."
+  [w]
+  (tagged-literal 'dacite/u64 (scalar-text "u64" w)))
+
+(defn- tag-u64s
+  "Tag the u64 data in an entry: a `u64` entry's data, and `u64` literal
+   bodies and runs inside a page."
+  [entry]
+  (let [[t data] entry
+        entry (if (= "u64" (str t)) [t (u64-tag data)] entry)]
+    (walk/prewalk
+     (fn [x]
+       (if (and (map? x) (contains? x :type) (contains? x :body))
+         (let [t (str (:type x)) b (:body x)]
+           (cond
+             (and (= t "u64") (integer-like? b)) (assoc x :body (u64-tag b))
+             (and (= "run" t) (= "u64" (str (:of b))) (sequential? (:values b)))
+             (assoc-in x [:body :values] (mapv u64-tag (:values b)))
+             (and (= t "repeat") (= "u64" (str (:of b))) (integer-like? (:value b)))
+             (assoc-in x [:body :value] (u64-tag (:value b)))
+             :else x))
+         x))
+     entry)))
+
 (defn raw-edn
   "The entry as EDN: words tagged `#dacite/u64` as on the wire
-   (`dacite.wire/write-edn`), wider integers (a measure's `elements-fuse`)
-   printed whole as `<digits>N`. The text follows the host's numbers (a
+   (`dacite.wire/write-edn`), a u64 value tagged unsigned on every host,
+   wider integers (a measure's `elements-fuse`) printed whole as
+   `<digits>N`. The text follows the host's numbers (a
    count is a BigInt on nbb, so it is tagged there); the hex dump is the
    same bytes on every host."
   [entry]
-  (wire/write-edn (walk/prewalk #(if (wide-int? %) (symbol (str % "N")) %) entry)))
+  (wire/write-edn (walk/prewalk #(if (wide-int? %) (symbol (str % "N")) %) (tag-u64s entry))))
 
 (defn entry-bytes
   "The bytes the entry is stored and sent as: a vector of 0..255."

@@ -474,18 +474,34 @@
 
 (declare node-row)
 
+(defn- tree-fail!
+  "Show a tree error in `#tree-status`, apart from the Fetch status: a
+   verified Fetch stays verified when its tree cannot be drawn."
+  [e]
+  (let [msg (ex-message e)
+        shown (if (and (string? msg) (pos? (count msg))) msg (err-text e))]
+    (set-attr! "tree-status" "data-code" "failed")
+    (set-text! "tree-status" (str "tree failed: " shown))
+    (js/console.log "tree-status" (str "tree failed: " shown))))
+
 (defn- open-row!
   "Open `row` (the entry `e`): its children, each hash read before its row
-   is built, in order."
+   is built, in order. A click while the row is loading does nothing (its
+   toggle is disabled), and a load after a failed one starts from an empty
+   list, so the children are never added twice."
   [row e]
   (let [kids (.querySelector row "ul.kids")
-        toggle (.querySelector row "button.toggle")]
-    (if (= "open" (.getAttribute row "data-state"))
+        toggle (.querySelector row "button.toggle")
+        state (.getAttribute row "data-state")]
+    (cond
+      (= "loading" state) (js/Promise.resolve nil)
+      (= "open" state)
       (do (.setAttribute row "data-state" "closed")
           (set! (.-hidden kids) true)
           (set! (.-textContent toggle) "▸")
           (.setAttribute toggle "aria-expanded" "false")
           (js/Promise.resolve nil))
+      :else
       (do
         (set! (.-hidden kids) false)
         (set! (.-textContent toggle) "▾")
@@ -494,6 +510,8 @@
           (do (.setAttribute row "data-state" "open") (js/Promise.resolve nil))
           (do
             (.setAttribute row "data-state" "loading")
+            (set! (.-disabled toggle) true)
+            (set! (.-textContent kids) "")
             (-> (reduce (fn [p child]
                           (.then p (fn [_]
                                      (if (:literal child)
@@ -506,9 +524,14 @@
                         (vv/children e))
                 (.then (fn [_]
                          (.setAttribute row "data-loaded" "true")
-                         (.setAttribute row "data-state" "open")))
+                         (.setAttribute row "data-state" "open")
+                         (set! (.-disabled toggle) false)))
                 (.catch (fn [err]
+                          (set! (.-textContent kids) "")
                           (.setAttribute row "data-state" "failed")
+                          (set! (.-textContent toggle) "▸")
+                          (.setAttribute toggle "aria-expanded" "false")
+                          (set! (.-disabled toggle) false)
                           (throw err))))))))))
 
 (defn- node-row
@@ -535,7 +558,7 @@
                  (.addEventListener toggle "click"
                                     (fn [ev]
                                       (.preventDefault ev)
-                                      (-> (open-row! row e) (.catch fail!))))
+                                      (-> (open-row! row e) (.catch tree-fail!))))
                  (.addEventListener show "click"
                                     (fn [ev]
                                       (.preventDefault ev)
@@ -547,18 +570,28 @@
   (doseq [id ["raw-hash" "raw-type" "raw-size" "raw-edn" "raw-hex"]]
     (set-text! id ""))
   (set-attr! "raw-hash" "data-hash" "")
+  (set-attr! "tree-status" "data-code" "")
+  (set-text! "tree-status" "")
   (swap! !ui assoc :entries (atom {}) :selected nil))
 
 (defn- render-tree!
-  "The tree of the fetched value, its root row shown in the raw/hex pane."
+  "The tree of the fetched value, its root row shown in the raw/hex pane.
+   An error shows in `#tree-status`, never in the Fetch status."
   [hex]
   (clear-tree!)
-  (-> (node-row "value" hex)
+  (set-attr! "tree-status" "data-code" "loading")
+  (-> (js/Promise.resolve nil)
+      (.then (fn [_] (node-row "value" hex)))
       (.then (fn [row]
                (.appendChild (by-id "tree") row)
-               (show-raw! hex (get @(:entries @!ui) hex))))))
+               (show-raw! hex (get @(:entries @!ui) hex))
+               (set-attr! "tree-status" "data-code" "shown")))
+      (.catch tree-fail!)))
 
-(defn- fetch-hash! [host hex]
+(defn- fetch-hash!
+  "Read and verify `hex`, then draw its tree. The Fetch is verified once
+   its entries check out; the tree renders afterwards on its own."
+  [host hex]
   (let [h (store/hex->hash hex)]
     (-> (get-hash! host hex)
         (.then (fn [_]
@@ -568,10 +601,10 @@
                  (set-text! "verified" n)
                  (set-attr! "entries" "data-count" n)
                  (set-attr! "verified" "data-count" n)
-                 (render-tree! hex)))
-        (.then (fn [_]
                  (set-attr! "status" "data-code" "verified")
-                 (set-text! "status" "verified"))))))
+                 (set-text! "status" "verified")
+                 (render-tree! hex)
+                 nil)))))
 
 (defn- parse-field! []
   (let [parsed (uri/parse-value-uri (field "uri") (field "urn"))]
